@@ -28,6 +28,32 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+# Select the platform-specific file-locking primitive at import time so a
+# bare `import fcntl` never executes on Windows (where the module does not
+# exist).  Both branches are real code paths; the Windows branch is exercised
+# through the injected _lock_file / _unlock_file seam in tests.
+if sys.platform == "win32":
+    import msvcrt
+
+    def _lock_file(fd: int) -> None:
+        """Acquire an exclusive lock on an open file descriptor (Windows)."""
+        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+
+    def _unlock_file(fd: int) -> None:
+        """Release the lock on an open file descriptor (Windows)."""
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+
+else:
+    import fcntl
+
+    def _lock_file(fd: int) -> None:
+        """Acquire an exclusive lock on an open file descriptor (POSIX)."""
+        fcntl.flock(fd, fcntl.LOCK_EX)
+
+    def _unlock_file(fd: int) -> None:
+        """Release the lock on an open file descriptor (POSIX)."""
+        fcntl.flock(fd, fcntl.LOCK_UN)
+
 from scripts.validation.portability_floor import (
     COUNTED_SECTIONS,
     Sections,
@@ -270,22 +296,53 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
 
 
 @contextmanager
-def _baseline_write_lock(lock_path: Path) -> Iterator[None]:
-    deadline = time.monotonic() + 10.0
-    while True:
+def _baseline_write_lock(
+    lock_path: Path,
+    *,
+    _lock: object = None,
+    _unlock: object = None,
+) -> Iterator[None]:
+    """Serialize baseline writes with a file lock.
+
+    Uses `fcntl.flock` on POSIX and `msvcrt.locking` on Windows, selected at
+    import time so the wrong module is never imported.  The lock file survives
+    a crash and is re-acquired on the next run; a stale directory left by a
+    SIGKILL (from the previous mkdir-based lock) is removed on entry.
+
+    The ``_lock`` / ``_unlock`` parameters are injection seams for tests.
+    Pass callables with signature ``(fd: int) -> None`` to exercise a
+    specific platform path on any host.  Normal callers must not pass them.
+    """
+    lock_fn = _lock if _lock is not None else _lock_file
+    unlock_fn = _unlock if _unlock is not None else _unlock_file
+
+    # Remove a stale directory from the old mkdir-based lock (Issue #4237).
+    if lock_path.is_dir():
         try:
-            lock_path.mkdir(mode=0o700)
-            break
-        except FileExistsError:
-            if time.monotonic() >= deadline:
-                raise TimeoutError(
-                    f"timed out waiting for baseline lock {lock_path}"
-                ) from None
-            time.sleep(0.05)
+            lock_path.rmdir()
+        except OSError:
+            pass
+
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
     try:
-        yield
+        deadline = time.monotonic() + 10.0
+        while True:
+            try:
+                lock_fn(fd)
+                break
+            except (OSError, PermissionError):
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"timed out waiting for baseline lock {lock_path}"
+                    ) from None
+                time.sleep(0.05)
+        try:
+            yield
+        finally:
+            unlock_fn(fd)
     finally:
-        lock_path.rmdir()
+        os.close(fd)
 
 
 def _replace_atomically(baseline_path: Path, text: str) -> None:
