@@ -87,6 +87,9 @@ def test_squash_merged_sha_is_reported_without_blaming_an_amend(
     assert "squash merged" in message
     assert "most likely orphaned by amending" not in message
     assert "instead of amending" not in message
+    # `git cat-file -e` found the object before the ancestor test ran, so the
+    # object is present here and "never pushed" is a cause the check ruled out.
+    assert "never pushed" not in message
 
 
 def test_reachable_sha_produces_no_error(
