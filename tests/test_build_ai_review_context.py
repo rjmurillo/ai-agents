@@ -28,15 +28,13 @@ ReviewContext = _mod.ReviewContext
 
 def test_builds_full_pr_context(monkeypatch: pytest.MonkeyPatch):
     """Small PR diffs become full context with title and body."""
+    import json as _json
 
     def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
         del timeout
-        if arguments[-1] == ".title":
-            return CommandResult('Fix `$bad" title\\\\\n', "", 0)
-        if arguments[-1] == ".number":
-            return CommandResult("7\n", "", 0)
-        if arguments[-1] == ".body":
-            return CommandResult("Body text\n", "", 0)
+        if arguments[:2] == ["api", "repos/owner/repo/pulls/7"]:
+            payload = {"title": 'Fix `$bad" title\\', "body": "Body text", "number": 7}
+            return CommandResult(_json.dumps(payload), "", 0)
         if arguments[:2] == ["pr", "diff"]:
             return CommandResult("diff --git a/file b/file\n+change\n", "", 0)
         raise AssertionError(f"unexpected gh call: {arguments}")
@@ -56,13 +54,13 @@ def test_marks_pr_number_mismatch_as_infrastructure_failure(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """Wrong PR data fails closed for downstream parsing."""
+    import json as _json
 
     def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
         del timeout
-        if arguments[-1] == ".title":
-            return CommandResult("Mismatch\n", "", 0)
-        if arguments[-1] == ".number":
-            return CommandResult("8\n", "", 0)
+        if arguments[:2] == ["api", "repos/owner/repo/pulls/7"]:
+            payload = {"title": "Mismatch", "body": "", "number": 8}
+            return CommandResult(_json.dumps(payload), "", 0)
         raise AssertionError(f"unexpected gh call: {arguments}")
 
     monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
@@ -523,15 +521,13 @@ def test_spec_file_pr_context_requires_repository(
 
 def test_pr_context_preserves_whitespace_body(monkeypatch: pytest.MonkeyPatch):
     """Whitespace PR bodies are preserved when gh returns them."""
+    import json as _json
 
     def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
         del timeout
-        if arguments[-1] == ".title":
-            return CommandResult("Title\n", "", 0)
-        if arguments[-1] == ".number":
-            return CommandResult("7\n", "", 0)
-        if arguments[-1] == ".body":
-            return CommandResult("   \n", "", 0)
+        if arguments[:2] == ["api", "repos/owner/repo/pulls/7"]:
+            payload = {"title": "Title", "body": "   ", "number": 7}
+            return CommandResult(_json.dumps(payload), "", 0)
         if arguments[:2] == ["pr", "diff"]:
             return CommandResult("diff --git a/file b/file\n+change\n", "", 0)
         raise AssertionError(f"unexpected gh call: {arguments}")
@@ -673,3 +669,93 @@ def test_append_multiline_output_uses_collision_free_delimiter(tmp_path: Path):
     output = output_path.read_text(encoding="utf-8")
     assert "context_built<<EOF_CONTEXT_BUILT_1" in output
     assert output.endswith("\nEOF_CONTEXT_BUILT_1\n")
+
+
+# ---------------------------------------------------------------------------
+# Tests for get_pr_info (REST replacement for three GraphQL lookups)
+# ---------------------------------------------------------------------------
+
+def test_get_pr_info_returns_title_body_number(monkeypatch: pytest.MonkeyPatch):
+    """Successful REST call parses all three fields from the JSON response."""
+    import json as _json
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        assert arguments == ["api", "repos/owner/repo/pulls/42"]
+        payload = {"title": "My PR", "body": "Some body text", "number": 42}
+        return CommandResult(_json.dumps(payload), "", 0)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    info = _mod.get_pr_info("42", "owner/repo")
+
+    assert info.title == "My PR"
+    assert info.body == "Some body text"
+    assert info.number == "42"
+    assert info.fetch_error == ""
+
+
+def test_get_pr_info_rest_failure_returns_error_fields(monkeypatch: pytest.MonkeyPatch):
+    """When REST call fails, returns sentinel values and propagates stderr."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        return CommandResult("", "rate limit exceeded", 1)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    info = _mod.get_pr_info("5", "owner/repo")
+
+    assert info.title == "Unknown PR"
+    assert info.body == ""
+    assert info.number == "0"
+    assert "rate limit exceeded" in info.fetch_error
+
+
+def test_get_pr_info_rest_failure_uses_exit_code_in_error_when_no_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """When REST fails with no stderr, error string names the exit code."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        return CommandResult("", "", 2)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    info = _mod.get_pr_info("5", "owner/repo")
+
+    assert "2" in info.fetch_error
+
+
+def test_get_pr_info_invalid_json_returns_error(monkeypatch: pytest.MonkeyPatch):
+    """Malformed REST response is treated as a fetch error."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        return CommandResult("not json", "", 0)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    info = _mod.get_pr_info("5", "owner/repo")
+
+    assert info.number == "0"
+    assert info.fetch_error != ""
+
+
+def test_infra_failure_message_includes_actual_error(monkeypatch: pytest.MonkeyPatch):
+    """REST failure text carries the real error, not a fork-permission guess."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[:1] == ["api"]:
+            return CommandResult("", "HTTP 401: Bad credentials", 1)
+        raise AssertionError(f"unexpected gh call: {arguments}")
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("9", "owner/repo", 100)
+
+    assert context.infrastructure_failure is True
+    assert "HTTP 401" in context.text
+    assert "fork" not in context.text.lower()
