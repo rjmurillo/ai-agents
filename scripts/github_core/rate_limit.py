@@ -36,12 +36,11 @@ def _fetch_rate_limit() -> dict:
 
     Raises RuntimeError on transport failure or invalid JSON.
     """
-    result = subprocess.run(
+    result = subprocess.run(  # subprocess-encoding: strict-ok
         ["gh", "api", "rate_limit"],
         capture_output=True,
         text=True,
         encoding="utf-8",
-        errors="replace",
         timeout=30,
     )
     if result.returncode != 0:
