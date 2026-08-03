@@ -61,6 +61,7 @@ class GcReport:
     main_worktree: str
     total_worktrees: int = 0
     occupancy_unreadable: int = 0
+    occupancy_unavailable: bool = False
     decisions: list[Decision] = field(default_factory=list)
     removed: list[str] = field(default_factory=list)
     remove_errors: list[str] = field(default_factory=list)
@@ -136,6 +137,12 @@ def format_report(report: GcReport) -> str:
         lines.append("  remote head lookup failed, using ancestry-only merge checks")
         if report.remote_head_lookup_error:
             lines.append(f"    {report.remote_head_lookup_error}")
+    if report.occupancy_unavailable:
+        lines.append(
+            "  occupancy check unavailable: /proc could not be read, so no "
+            "worktree was checked for a live process. Every worktree below is "
+            "reported without occupancy evidence."
+        )
     if report.occupancy_unreadable:
         lines.append(
             f"  occupancy blind spot: {report.occupancy_unreadable} live "

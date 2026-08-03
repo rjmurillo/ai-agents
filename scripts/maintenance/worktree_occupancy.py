@@ -20,10 +20,18 @@ class Occupancy(NamedTuple):
     ``unreadable`` counts processes this scan could not resolve but could not
     rule out either. It is reported so the gap is visible instead of silently
     counted as vacancy.
+
+    ``proc_available`` is False when there is no ``/proc`` to read at all. That
+    is a different blind spot from ``unreadable``: not some processes unknown,
+    but every process unknown, and ``unreadable`` cannot express it because a
+    scan that never ran counts nothing. Without this field an empty ``cwds``
+    from a missing ``/proc`` is indistinguishable from a genuinely idle
+    machine, and every worktree reads as vacant with nothing disclosed.
     """
 
     cwds: frozenset[str]
     unreadable: int
+    proc_available: bool = True
 
 
 #: ``/proc/<pid>`` entries that disappear mid-scan are genuinely gone, so their
@@ -56,12 +64,14 @@ def occupied_paths() -> Occupancy:
     than escalated. An interactive shell or agent process is always readable by
     its own owner, which is the case this guard is for.
 
-    Where ``/proc`` is unavailable the scan returns nothing readable and marks
-    the whole result unknown, so occupancy contributes no false vacancy.
+    Where ``/proc`` is unavailable the scan cannot see any process, so the
+    result carries ``proc_available=False`` and the caller discloses that no
+    occupancy check ran. Reporting an empty ``cwds`` alone would read as an
+    idle machine and mark every worktree vacant.
     """
     proc = pathlib.Path("/proc")
     if not proc.is_dir():
-        return Occupancy(frozenset(), 0)
+        return Occupancy(frozenset(), 0, proc_available=False)
     uid = os.getuid()
     found: set[str] = set()
     unreadable = 0
@@ -84,6 +94,12 @@ def occupied_paths() -> Occupancy:
 
 
 def is_occupied(path: str, cwds: frozenset[str]) -> bool:
-    """True when a live process sits in ``path`` or below it."""
-    prefix = path.rstrip("/") + "/"
-    return any(cwd == path or cwd.startswith(prefix) for cwd in cwds)
+    """True when a live process sits in ``path`` or below it.
+
+    ``path`` is normalized once so a caller that passes a trailing slash gets
+    the same answer as one that does not. Comparing an unstripped ``path``
+    against a ``/proc`` cwd, which never carries a trailing slash, misses a
+    process sitting exactly at the worktree root and reports it vacant.
+    """
+    base = path.rstrip("/")
+    return any(cwd == base or cwd.startswith(base + "/") for cwd in cwds)

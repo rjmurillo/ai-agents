@@ -58,6 +58,25 @@ class TestContainment:
     def test_a_trailing_slash_on_the_worktree_path_is_tolerated(self):
         assert is_occupied("/repo/wt1/", frozenset({"/repo/wt1/src"}))
 
+    def test_a_process_at_the_root_counts_even_with_a_trailing_slash(self):
+        """The reported bug: a trailing slash made the root read as vacant.
+
+        The sibling test above passes either way, because the sub-path branch
+        strips the slash before comparing. Only the equality branch compared
+        against the unstripped path, so a process sitting exactly at the
+        worktree root was the one case a trailing slash could hide. Hiding it
+        marks a worktree in active use as a deletion candidate.
+        """
+        assert is_occupied("/repo/wt1/", frozenset({"/repo/wt1"}))
+
+    def test_a_trailing_slash_does_not_make_a_name_sibling_count(self):
+        """Negative control for the normalization above.
+
+        Stripping the slash must not degrade into a bare string prefix match,
+        or `/repo/wt1/` would swallow `/repo/wt10`.
+        """
+        assert not is_occupied("/repo/wt1/", frozenset({"/repo/wt10"}))
+
     def test_no_live_processes_means_never_occupied(self):
         assert not is_occupied("/repo/wt1", frozenset())
 
@@ -161,7 +180,27 @@ class TestProcScan:
                 return False
 
         with patch("scripts.maintenance.worktree_occupancy.pathlib.Path", return_value=_NoProc()):
-            assert occupied_paths() == Occupancy(frozenset(), 0)
+            assert occupied_paths() == Occupancy(frozenset(), 0, proc_available=False)
+
+    def test_a_missing_proc_filesystem_is_reported_as_unavailable(self):
+        """An empty cwd set alone cannot distinguish "nobody home" from "never looked".
+
+        Both produce `cwds=frozenset()` and `unreadable=0`, and the second one
+        marks every worktree vacant. Since `gc_worktrees.py --apply` deletes
+        what it marks, the two cases must be separable, and `unreadable` cannot
+        do it: no entry was skipped because no entry was ever read.
+        """
+
+        class _NoProc:
+            def is_dir(self):
+                return False
+
+        with patch("scripts.maintenance.worktree_occupancy.pathlib.Path", return_value=_NoProc()):
+            assert occupied_paths().proc_available is False
+
+    def test_a_real_scan_is_reported_as_available(self):
+        """Negative control: the flag must not be False for every scan."""
+        assert occupied_paths().proc_available is True
 
     def test_the_live_scan_finds_this_process_own_directory(self):
         import os
@@ -267,3 +306,32 @@ class TestUnreadableProcessesAreNotVacancy:
             occupancy_unreadable=0,
         )
         assert "blind spot" not in format_report(report)
+
+    def test_an_unavailable_scan_is_disclosed_in_the_human_report(self):
+        """The silent case: no scan ran, so every worktree looks vacant.
+
+        `occupancy_unreadable` stays 0 here because nothing was skipped, so the
+        blind-spot line above never fires. Without its own disclosure the
+        report would read exactly like a clean scan that found nobody home.
+        """
+        report = GcReport(
+            timestamp="t",
+            base_ref=_BASE,
+            apply=False,
+            main_worktree=_MAIN,
+            occupancy_unreadable=0,
+            occupancy_unavailable=True,
+        )
+        assert "occupancy check unavailable" in format_report(report)
+
+    def test_an_available_scan_prints_no_unavailability_line(self):
+        """Negative control: the disclosure must not fire on every report."""
+        report = GcReport(
+            timestamp="t",
+            base_ref=_BASE,
+            apply=False,
+            main_worktree=_MAIN,
+            occupancy_unreadable=0,
+            occupancy_unavailable=False,
+        )
+        assert "occupancy check unavailable" not in format_report(report)
