@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, parser, diagnostics, and baseline ratchet stay together to keep issue #2050 drift auditable.
 """Markdown vendor-portability ratchet for skill instruction files (issue #2050).
 
 Companion to ``check_skill_portability.py``. That validator scopes to skill
