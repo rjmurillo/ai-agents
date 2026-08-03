@@ -33,6 +33,15 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-02-session-9001-rbd-4260-merge"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix episode metrics 2",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-9001-rbd-4260-merge"
     }
   ],
   "metrics": {
