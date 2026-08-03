@@ -110,7 +110,15 @@ fi
 TIER=$(echo "$LIVE" | jq -r '.Data.tier // "UNKNOWN"')
 CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
     --output-format json 2>/dev/null)
-AUTO_MERGE=$(echo "$CTX" | jq -r '.Data.auto_merge_method // "null"')
+AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null)
+# Empty stdin or a jq parse error yields an empty string, not "null". Treating
+# that as "armed" would fire the disarm path on no evidence, so skip instead.
+if [ -z "$AUTO_MERGE" ]; then
+    echo "Cannot read auto-merge state for #$PR (context fetch or parse failed); skipping."
+    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
+        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+    continue
+fi
 if [ "$AUTO_MERGE" != "null" ] && [ "$TIER" != "T1" ]; then
     echo "Auto-merge armed on non-T1 PR #$PR (method: $AUTO_MERGE); disabling before acting."
     python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" \

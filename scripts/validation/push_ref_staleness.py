@@ -110,7 +110,7 @@ def check_refs(
         try:
             current = _current_remote_sha(remote_name, ref.remote_ref)
         except RuntimeError as exc:
-            print(f"push_ref_staleness: WARNING: {exc}", file=sys.stderr)
+            print(f"push_ref_staleness: ERROR: {exc}", file=sys.stderr)
             sys.exit(3)
 
         if current is None:
