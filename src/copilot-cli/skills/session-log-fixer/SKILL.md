@@ -175,7 +175,7 @@ The detailed results tell you **exactly** which MUST requirements failed.
 Validate locally before pushing:
 
 ```bash
-python3 scripts/validate_session_json.py ".agents/sessions/<session-file>.json"
+uv run python scripts/validate_session_json.py ".agents/sessions/<session-file>.json"
 ```
 
 This uses the **same script** as CI, so results match exactly.
@@ -307,7 +307,7 @@ python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --pull
 
 ## Vendored install
 
-<!-- vendor-portability: declared. This skill documents repair patterns for session logs under .agents/sessions/ and template sections from .agents/SESSION-PROTOCOL.md. Its shipped helper fetches validation errors from CI; missing upstream paths mean the referenced artifacts/templates are unavailable to the operator, not that the helper detects them. Issue #2050. -->
+<!-- vendor-portability: declared. This skill documents repair patterns for session logs under .agents/sessions/ and template sections from .agents/SESSION-PROTOCOL.md. Its shipped helper fetches validation errors from CI; missing upstream paths mean the referenced artifacts/templates are unavailable to the operator, not that the helper detects them. It also cites scripts/validate_session_json.py as the deterministic validator. Issue #2050. -->
 
 This skill depends on upstream-only paths. In a vendored install (a consumer
 repo that is not `rjmurillo/ai-agents`) these paths do not exist:
@@ -328,4 +328,4 @@ skill has disclosed its path dependencies instead of hiding them in prose.
 - [Common Fixes](references/common-fixes.md) - Fix patterns for common failures
 - [Template Sections](references/template-sections.md) - Copy-paste ready templates
 - [CI Debugging Patterns](references/ci-debugging-patterns.md) - Advanced job-level diagnostics
-- [`validate_session_json.py`](../../../scripts/validate_session_json.py) - Deterministic validation script
+- `scripts/validate_session_json.py` - Deterministic validation script. In the `rjmurillo/ai-agents` repository; it does not ship with this skill.

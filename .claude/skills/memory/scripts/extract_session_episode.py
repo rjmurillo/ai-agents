@@ -21,6 +21,7 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import re
@@ -626,6 +627,48 @@ def _commit_datetime(sha: str) -> datetime | None:
         return None
 
 
+@lru_cache(maxsize=256)
+def _sha_is_reachable(sha: str) -> bool:
+    """Return True when ``sha`` is reachable from at least one named ref.
+
+    A commit that resolves (``git cat-file -t`` succeeds) but is reachable from
+    zero refs is a dangling object: clone residue from a squash-merged branch.
+    Whether the object is present depends on local ``git gc`` timing, not on
+    the repository content. Using it as evidence of commit order produces
+    clone-dependent results: green on CI, red on a developer clone that never
+    collected. Issue #4240.
+
+    This check uses ``git for-each-ref --contains`` because it queries the
+    object's position in the ref graph rather than the object database.
+    ``--contains`` iterates all refs by default and exits as soon as one match
+    is found; on large repositories the optional ``--format=%(refname)`` and a
+    short-circuit via ``head -1`` make it faster, but the default is safe here.
+
+    Returns ``False`` on any subprocess error, missing git binary, or timeout.
+    A ``False`` is treated as unknown, matching the ``None`` contract of
+    ``_commit_datetime``.
+    """
+    if not sha:
+        return False
+    env = os.environ.copy()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(var, None)
+    env["LC_ALL"] = "C"
+    try:
+        result = subprocess.run(
+            ["git", "for-each-ref", "--contains", sha, "--format=%(refname)"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return bool(result.stdout.strip())
+
+
 def _chronological(shas: list[str]) -> list[str]:
     """``shas`` in committer-date order, or unchanged when git cannot order them.
 
@@ -844,24 +887,32 @@ def json_outcome(data: dict, additional_worklogs: list | None = None) -> str:
     return "success" if all_complete else "partial"
 
 
-def json_events(data: dict, now_iso: str) -> list[dict]:
-    """Type events from the work-log structure, not substring matching."""
+def json_events(data: dict, now_iso: str, *, session_id: str = "") -> list[dict]:
+    """Type events from the work-log structure, not substring matching.
+
+    ``session_id`` stamps each emitted event with ``_source_session`` so that
+    ``_dedupe_events`` can evict events carried over from a different session
+    during a ``--preserve`` merge (issue #4024).  Callers that do not supply a
+    session_id get events without a stamp, which ``_dedupe_events`` treats as
+    same-session for backward compatibility.
+    """
     events: list[dict] = []
     idx = 0
 
     def add(evt_type: str, content: str, timestamp: str = now_iso) -> None:
         nonlocal idx
         idx += 1
-        events.append(
-            {
-                "id": f"e{idx:03d}",
-                "timestamp": timestamp,
-                "type": evt_type,
-                "content": content,
-                "caused_by": [],
-                "leads_to": [],
-            }
-        )
+        entry: dict = {
+            "id": f"e{idx:03d}",
+            "timestamp": timestamp,
+            "type": evt_type,
+            "content": content,
+            "caused_by": [],
+            "leads_to": [],
+        }
+        if session_id:
+            entry["_source_session"] = session_id
+        events.append(entry)
 
     for entry in _as_list(data.get("workLog")):
         event_timestamp = _entry_timestamp(entry, now_iso)
@@ -998,6 +1049,46 @@ def _staged_files_changed(cwd: str | Path | None = None) -> int:
     return sum(1 for line in result.stdout.splitlines() if line.strip())
 
 
+_DURATION_TEXT_RE = re.compile(r"(\d+)\s*minutes?", re.IGNORECASE)
+
+
+def _duration_from_worklogs(entries: list) -> int:
+    """Compute duration in minutes from first to last workLog timestamp.
+
+    Returns 0 when fewer than two timestamped entries exist or when parsing
+    fails, so callers always receive a non-negative integer.
+    """
+    times: list[datetime] = []
+    for entry in entries:
+        raw = _as_dict(entry).get("time") if isinstance(entry, dict) else None
+        if not raw:
+            continue
+        try:
+            dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            times.append(dt)
+        except (ValueError, TypeError):
+            continue
+    if len(times) < 2:
+        return 0
+    delta = times[-1] - times[0]
+    return max(0, int(delta.total_seconds() / 60))
+
+
+def _duration_from_metrics_block(metrics_block: dict) -> int:
+    """Parse duration from the old-schema top-level metrics block.
+
+    Handles strings like "~20 minutes" or "25 minutes" and integer values.
+    Returns 0 when nothing parseable is found.
+    """
+    raw = metrics_block.get("duration") or metrics_block.get("duration_minutes")
+    if raw is None:
+        return 0
+    if isinstance(raw, (int, float)):
+        return max(0, int(raw))
+    m = _DURATION_TEXT_RE.search(str(raw))
+    return int(m.group(1)) if m else 0
+
+
 def json_metrics(data: dict) -> dict:
     # Count every distinct commit the session documents, from the same source
     # as the commit events so the two can never disagree: endingCommit plus the
@@ -1005,15 +1096,30 @@ def json_metrics(data: dict) -> dict:
     # when neither of those yields a SHA (issue #3363). Excludes the starting
     # commit: it is the base, not a commit the session produced.
     commit_count = len(_collect_shas(data))
+
+    worklogs = _as_list(data.get("workLog"))
+    metrics_block = _as_dict(data.get("metrics"))
+
+    # duration_minutes: prefer structured timestamps (first-to-last workLog entry),
+    # fall back to the old-schema metrics.duration text/integer.
+    duration = _duration_from_worklogs(worklogs)
+    if duration == 0:
+        duration = _duration_from_metrics_block(metrics_block)
+
+    # tool_calls: only the old schema carries a structured count (metrics.toolCalls).
+    # Modern session logs have no machine-readable tool count, so this field stays
+    # at zero for those sessions rather than emitting a misleading non-zero value.
+    tool_calls = int(metrics_block.get("toolCalls") or 0)
+
     metrics = {
-        "duration_minutes": 0,
-        "tool_calls": 0,
+        "duration_minutes": duration,
+        "tool_calls": tool_calls,
         "errors": 0,
         "recoveries": 0,
         "commits": commit_count,
         "files_changed": 0,
     }
-    for entry in _as_list(data.get("workLog")):
+    for entry in worklogs:
         text = _entry_text(entry)
         fail = _valid_fail_match(text)
         if fail:
@@ -1168,11 +1274,28 @@ def _dedupe_decisions(existing: list, new: list) -> list[dict]:
     return out
 
 
-def _dedupe_events(existing: list, new: list, midnight: str | None) -> list[dict]:
-    """Union events by (type, content); normalize timestamps; reassign ids."""
+def _dedupe_events(
+    existing: list, new: list, midnight: str | None, *, session_id: str = ""
+) -> list[dict]:
+    """Union events by (type, content); normalize timestamps; reassign ids.
+
+    When ``session_id`` is supplied, existing events that carry a
+    ``_source_session`` stamp from a *different* session are dropped before the
+    union.  Events with no stamp (legacy episodes written before #4024) are kept
+    unchanged, preserving backward compatibility.  Events stamped with the
+    current session are kept unconditionally so accumulated commit events
+    survive ``--preserve`` regeneration (issue #3123).
+    """
     out: list[dict] = []
     seen: set[tuple[str, str]] = set()
-    for evt in list(existing) + list(new):
+    filtered_existing: list[dict] = []
+    for evt in existing:
+        entry = _as_dict(evt)
+        source = entry.get("_source_session", "")
+        if source and session_id and source != session_id:
+            continue  # cross-session stamp: evict
+        filtered_existing.append(entry)
+    for evt in filtered_existing + list(new):
         entry = _as_dict(evt)
         key = (_norm(entry.get("type")), _norm(entry.get("content")))
         if key in seen:
@@ -1239,7 +1362,10 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
         _as_list(existing.get("decisions")), _as_list(new.get("decisions"))
     )
     merged["events"] = _dedupe_events(
-        _as_list(existing.get("events")), _as_list(new.get("events")), midnight
+        _as_list(existing.get("events")),
+        _as_list(new.get("events")),
+        midnight,
+        session_id=session_id,
     )
     merged["metrics"] = _merge_metrics(
         _as_dict(new.get("metrics")), _as_dict(existing.get("metrics"))
@@ -1330,10 +1456,14 @@ def _filter_markdown_events(events: list[dict]) -> list[dict]:
     return filtered
 
 
-def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
+def extract_from_json(data: dict, *, archive_fallback: bool = True, session_id: str = "") -> dict:
     """Build the episode component bundle from a JSON session log.
 
-    When `archive_fallback` is True and the primary JSON log yields no events
+    ``session_id`` is forwarded to ``json_events`` so each emitted event is
+    stamped with ``_source_session``.  Pass the value from
+    ``get_session_id_from_path`` at the call site.
+
+    When ``archive_fallback`` is True and the primary JSON log yields no events
     of its own (no milestone/test/error, even if the workLog list is
     technically non-empty, e.g. ``[{}]`` or whitespace stubs), attempts to
     locate and parse the corresponding archive file (JSON first, then markdown)
@@ -1344,7 +1474,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     session_ts = json_timestamp(data)
     session = _as_dict(data.get("session"))
 
-    events = json_events(data, session_ts)
+    events = json_events(data, session_ts, session_id=session_id)
     decisions = json_decisions(data, session_ts)
     lessons = _json_lessons(data)
     metrics_source = data
@@ -1368,7 +1498,9 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                     archive_content = archive_json_path.read_text(encoding="utf-8")
                     archive_data = looks_like_json_session(archive_content)
                     if archive_data and _as_list(archive_data.get("workLog")):
-                        archive_events = json_events(archive_data, session_ts)
+                        archive_events = json_events(
+                            archive_data, session_ts, session_id=session_id
+                        )
                         archive_decisions = json_decisions(archive_data, session_ts)
                         archive_lessons = _json_lessons(archive_data)
                         if not has_own_events:
@@ -1460,7 +1592,17 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Validate an existing episode JSON file, or every *.json under a "
             "directory, instead of extracting. Exit 2 on a duplicate, missing, "
-            "or non-contiguous event id"
+            "or non-contiguous event id, or a commit-to-commit edge that runs "
+            "backwards in committer time"
+        ),
+    )
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help=(
+            "With --validate, repair backwards commit order in place by "
+            "restamping commit events from git and rebuilding the chain. "
+            "Refuses any file whose rebuild would drop edges"
         ),
     )
     parser.add_argument(
@@ -1703,7 +1845,7 @@ def _immediate_causal_edges(
 ) -> set[tuple[str, str]]:
     ordered_edges: set[tuple[str, str]] = set()
     for left_index, left in enumerate(events):
-        for right in events[left_index + 1:]:
+        for right in events[left_index + 1 :]:
             relation = _event_order_relation(left, right, timestamps)
             if relation == -1:
                 ordered_edges.add((str(left["id"]), str(right["id"])))
@@ -1711,8 +1853,7 @@ def _immediate_causal_edges(
                 ordered_edges.add((str(right["id"]), str(left["id"])))
 
     return {
-        edge for edge in ordered_edges
-        if not _has_alternate_path(edge[0], edge[1], ordered_edges)
+        edge for edge in ordered_edges if not _has_alternate_path(edge[0], edge[1], ordered_edges)
     }
 
 
@@ -1761,6 +1902,7 @@ def _renumber_events(events: list) -> None:
         if isinstance(evt, dict):
             index += 1
             evt["id"] = f"e{index:03d}"
+
 
 def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     """Populate ``caused_by``/``leads_to`` with evidence-gated causal edges.
@@ -1831,28 +1973,201 @@ def validate_event_ids(events: Any) -> list[str]:
             continue
         if identifier in seen:
             problems.append(
-                f"duplicate event id {identifier} at positions "
-                f"{seen[identifier]} and {position}"
+                f"duplicate event id {identifier} at positions {seen[identifier]} and {position}"
             )
             continue
         seen[identifier] = position
         expected = f"e{position:03d}"
         if identifier != expected:
+            problems.append(f"event {position} has id {identifier}, expected {expected}")
+    return problems
+
+
+def validate_metrics_consistency(metrics: Any) -> list[str]:
+    """Return one message per metrics-consistency violation.
+
+    Catches the specific case where commits==0 but files_changed>0, which
+    indicates the episode's commit-collection logic failed to record the
+    commits that produced the file changes (issue #3873).
+    """
+    if not isinstance(metrics, dict):
+        return []
+    try:
+        commits = int(metrics.get("commits") or 0)
+    except (TypeError, ValueError):
+        commits = 0
+    try:
+        files_changed = int(metrics.get("files_changed") or 0)
+    except (TypeError, ValueError):
+        files_changed = 0
+    if commits == 0 and files_changed > 0:
+        return [
+            f"metrics.commits==0 but metrics.files_changed=={files_changed};"
+            " commit collection may have failed"
+        ]
+    return []
+
+
+def _commit_event_dates(events: list) -> dict[str, datetime]:
+    """Map event id to committer date, for commit events reachable from a named ref.
+
+    Reachability (``git for-each-ref --contains``) is the filter, not mere
+    resolvability (``git cat-file -t``). A SHA that resolves but is reachable
+    from zero refs is a dangling object: clone residue from a squash-merged
+    branch. Whether it is present depends on local ``git gc`` timing, not on
+    the repository content, so the same artifact produces different verdicts on
+    different machines. Issue #4240, CI-scripts rule MUST-9: a claim about what
+    the repository contains MUST be computed from a named ref.
+
+    Treating an unreachable SHA as absent matches the intent of the original
+    skip-when-unresolvable policy from #4219: absence of evidence is not
+    evidence of order.
+    """
+    dates: dict[str, datetime] = {}
+    for evt in events:
+        entry = _as_dict(evt)
+        identifier = entry.get("id")
+        if entry.get("type") != "commit" or not isinstance(identifier, str):
+            continue
+        sha = _commit_sha(entry)
+        if not sha or not _sha_is_reachable(sha):
+            continue
+        moment = _commit_datetime(sha)
+        if moment is not None:
+            dates[identifier] = moment
+    return dates
+
+
+def validate_commit_order(events: Any) -> list[str]:
+    """Return one message per commit-to-commit edge that runs backwards in time.
+
+    ``leads_to`` claims the source commit preceded the target. When git says the
+    target was committed first, the episode records an effect as its own cause.
+    17 such edges shipped across 14 episodes, written by the pre-#3638 linker,
+    which chained commits by list position while ``_collect_shas`` put the
+    session's *last* commit first. Issue #3765 named nine files; the same defect
+    shape reached six more it did not list, and one it did list carries no
+    verifiable edge because none of its abbreviated SHAs still resolves.
+
+    Only commit-to-commit edges are checked, and only where git resolves both
+    SHAs. Every other edge type is ordered by event timestamps this function has
+    no independent evidence about.
+    """
+    if not isinstance(events, list):
+        return []
+    dates = _commit_event_dates(events)
+    problems: list[str] = []
+    for evt in events:
+        entry = _as_dict(evt)
+        source = entry.get("id")
+        if not isinstance(source, str) or source not in dates:
+            continue
+        for raw_target in _as_list(entry.get("leads_to")):
+            target = raw_target if isinstance(raw_target, str) else ""
+            if target not in dates or dates[target] >= dates[source]:
+                continue
             problems.append(
-                f"event {position} has id {identifier}, expected {expected}"
+                f"commit edge {source} -> {target} runs backwards: "
+                f"{dates[source].isoformat()} then {dates[target].isoformat()}"
             )
     return problems
 
 
-def validate_episode_file(path: Path) -> list[str]:
-    """Return one message per violation found in the episode JSON at ``path``."""
+def _edge_count(events: list) -> int:
+    """Total ``leads_to`` edges across ``events``."""
+    return sum(len(_as_list(_as_dict(evt).get("leads_to"))) for evt in events)
+
+
+def repair_commit_order(events: list) -> str | None:
+    """Restamp commit events from git and rebuild the chain. Return a refusal.
+
+    Returns ``None`` on success and a one-line reason when the repair is
+    refused, leaving ``events`` untouched in that case.
+
+    Relinking alone is not a repair. These episodes carry session-date midnight
+    on every event, so ``_event_order_relation`` cannot separate a commit from a
+    same-day milestone and drops the edge as incomparable: over the fourteen
+    affected files a bare relink takes 234 edges to 96 and strands 163 of 263
+    events with no edge at all, up from 4. An edgeless graph carries no
+    backwards edge, so the check this repair exists to satisfy cannot see that
+    damage. Restamping first restores the evidence the ordering rule needs, and
+    the edge-count guard below refuses any repair that still loses edges.
+    """
+    dates = _commit_event_dates(events)
+    if not dates:
+        return "no commit event resolves to a git commit in this checkout"
+    before = copy.deepcopy(events)
+    for evt in events:
+        entry = evt if isinstance(evt, dict) else None
+        if entry is not None and entry.get("id") in dates:
+            entry["timestamp"] = dates[entry["id"]].isoformat()
+    try:
+        _renumber_events(events)
+        _link_sequential_events(events)
+    except EpisodeValidationError as exc:
+        events[:] = before
+        return f"relink failed: {exc}"
+    lost = _edge_count(before) - _edge_count(events)
+    if lost > 0:
+        events[:] = before
+        return f"refused: relink would drop {lost} of {_edge_count(before)} edges"
+    return None
+
+
+def _read_episode(path: Path) -> tuple[dict | None, str]:
+    """Return the parsed episode at ``path``, or ``None`` and why it is unusable."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        return [f"{path}: unreadable: {exc}"]
+        return None, f"unreadable: {exc}"
     if not isinstance(data, dict):
-        return [f"{path}: top level must be an object"]
-    return [f"{path}: {problem}" for problem in validate_event_ids(data.get("events"))]
+        return None, "top level must be an object"
+    return data, ""
+
+
+def validate_episode_file(path: Path) -> list[str]:
+    """Return one message per violation found in the episode JSON at ``path``."""
+    data, failure = _read_episode(path)
+    if data is None:
+        return [f"{path}: {failure}"]
+    events = data.get("events")
+    problems = validate_event_ids(events)
+    if not problems:
+        problems = validate_commit_order(events)
+    problems = [*problems, *validate_metrics_consistency(data.get("metrics"))]
+    return [f"{path}: {problem}" for problem in problems]
+
+
+def repair_episode_file(path: Path) -> tuple[bool, list[str]]:
+    """Repair backwards commit order at ``path``.
+
+    Returns whether the file was rewritten, and one message per reason the
+    repair could not proceed.
+
+    A file with no backwards commit edge is left alone: this repair addresses
+    that defect only, and rewriting a sound episode would churn timestamps no
+    check objects to. That decision lives here rather than in the caller so one
+    read of the file answers both questions.
+
+    An unreadable file yields no message. ``run_validate`` calls
+    ``validate_episode_file`` on the same path straight after, and that reports
+    the identical ``_read_episode`` text; returning it here too printed the line
+    twice under ``--validate --fix`` and told the reader nothing new.
+    """
+    data, _ = _read_episode(path)
+    if data is None:
+        return False, []
+    events = data.get("events")
+    if not isinstance(events, list) or not validate_commit_order(events):
+        return False, []
+    refusal = repair_commit_order(events)
+    if refusal:
+        return False, [f"{path}: {refusal}"]
+    try:
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        return False, [f"{path}: write failed: {exc}"]
+    return True, []
 
 
 def _episode_paths(target: Path) -> list[Path]:
@@ -1862,25 +2177,32 @@ def _episode_paths(target: Path) -> list[Path]:
     return [target]
 
 
-def run_validate(target: Path) -> int:
-    """Validate an episode file or a directory of them. Exit 2 on violation."""
+def run_validate(target: Path, *, fix: bool = False) -> int:
+    """Validate an episode file or a directory of them. Exit 2 on violation.
+
+    With ``fix``, repair backwards commit order in place first, then report on
+    what the repair left. A refused repair still counts as a violation, so the
+    exit code never claims a file was fixed when it was not.
+    """
     paths = _episode_paths(target)
     if not paths:
         print(json.dumps({"Error": f"No episode files under {target}"}), file=sys.stderr)
         return 2
+    repaired = 0
+    if fix:
+        for path in paths:
+            changed, failures = repair_episode_file(path)
+            for failure in failures:
+                print(failure, file=sys.stderr)
+            repaired += int(changed)
     problems = [problem for path in paths for problem in validate_episode_file(path)]
     for problem in problems:
         print(problem, file=sys.stderr)
-    if problems:
-        print(
-            json.dumps(
-                {"Validated": len(paths), "Violations": len(problems)},
-            ),
-            file=sys.stderr,
-        )
-        return 2
-    print(json.dumps({"Validated": len(paths), "Violations": 0}), file=sys.stderr)
-    return 0
+    summary: dict[str, int] = {"Validated": len(paths), "Violations": len(problems)}
+    if fix:
+        summary["Repaired"] = repaired
+    print(json.dumps(summary), file=sys.stderr)
+    return 2 if problems else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1898,7 +2220,14 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
-        return run_validate(session_log_path)
+        return run_validate(session_log_path, fix=args.fix)
+
+    if args.fix:
+        print(
+            json.dumps({"Error": "--fix requires --validate"}),
+            file=sys.stderr,
+        )
+        return 2
 
     if not session_log_path.is_file():
         print(
@@ -1933,7 +2262,7 @@ def main(argv: list[str] | None = None) -> int:
     json_data = looks_like_json_session(content)
     if json_data is not None:
         print("  Parsing JSON session log...", file=sys.stderr)
-        bundle = extract_from_json(json_data)
+        bundle = extract_from_json(json_data, session_id=session_id)
         timestamp = bundle["timestamp"]
         task = bundle["task"]
         outcome = bundle["outcome"]
@@ -2027,8 +2356,7 @@ def main(argv: list[str] | None = None) -> int:
                     json.dumps(
                         {
                             "Error": (
-                                "--preserve requires the existing episode to be "
-                                "a JSON object."
+                                "--preserve requires the existing episode to be a JSON object."
                             ),
                         }
                     ),

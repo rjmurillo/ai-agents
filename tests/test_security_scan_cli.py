@@ -48,7 +48,7 @@ def _scanner(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess
     return subprocess.run(
         [sys.executable, str(SCANNER), *args],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         cwd=cwd or REPO_ROOT,
         check=False,
     )

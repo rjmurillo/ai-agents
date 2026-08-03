@@ -51,7 +51,9 @@
       "timestamp": "2026-06-05T00:00:00+00:00",
       "type": "test",
       "content": "uv run pytest tests/commands/test_sync.py -q -> 28 passed; pre_pr --quick -> all validations passed",
-      "caused_by": [],
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -76,7 +78,9 @@
       "type": "commit",
       "content": "Commit: 0f94f8e1a5",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     }
   ],
   "metrics": {
@@ -87,5 +91,7 @@
     "commits": 1,
     "files_changed": 0
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 1"
 }

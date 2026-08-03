@@ -1,4 +1,4 @@
-"""Canonical: scripts/ai_review_common/retry.py. Sync via scripts/sync_plugin_lib.py."""
+"""Retry logic with exponential backoff."""
 
 from __future__ import annotations
 

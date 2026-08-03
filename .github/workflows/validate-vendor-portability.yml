@@ -59,6 +59,8 @@ jobs:
               - 'scripts/validation/portability_common.py'
               - 'scripts/validation/check_skill_md_exec_portability.py'
               - 'scripts/validation/skill_md_exec_portability_baseline.json'
+              - 'scripts/validation/check_skill_md_portability.py'
+              - 'scripts/validation/skill_md_portability_baseline.json'
               - 'scripts/validation/check_skill_resolver_anchoring.py'
               - 'scripts/validation/check_skill_contract_tests.py'
               - 'scripts/validation/skill_contract_test_baseline.txt'
@@ -87,6 +89,9 @@ jobs:
       - name: "Check for new bare-exec skill-path offenders (issue #2838)"
         run: python3 scripts/validation/check_skill_md_exec_portability.py
 
+      - name: Check skill prose portability ratchet
+        run: python3 scripts/validation/check_skill_md_portability.py
+
       - name: Check skill resolver anchoring
         run: python3 scripts/validation/check_skill_resolver_anchoring.py
 
@@ -99,7 +104,7 @@ jobs:
           echo ""
           echo "=== Vendor Portability Validation Failed ==="
           echo ""
-          echo "One of three ratchets failed:"
+          echo "One of four ratchets failed:"
           echo ""
           echo "1. A skill SCRIPT under .claude/skills/ hard-codes an"
           echo "   upstream-only path (.agents/ or .claude/lib/) without"
@@ -127,6 +132,14 @@ jobs:
           echo "     <!-- vendor-portability-exec: <reason> -->"
           echo "   Baseline: scripts/validation/skill_md_exec_portability_baseline.json"
           echo "   Update:   python3 scripts/validation/check_skill_md_exec_portability.py --update-baseline"
+          echo ""
+          echo "4. A skill Markdown file contains a prose reference to an"
+          echo "   upstream-only runtime path (.agents/, .claude/lib/, .claude/review-axes/)"
+          echo "   without an opt-out marker (issue #2050)."
+          echo "   To declare an intentional dependency, add the marker:"
+          echo "     <!-- vendor-portability: <reason> -->"
+          echo "   Baseline: scripts/validation/skill_md_portability_baseline.json"
+          echo "   Update:   python3 scripts/validation/check_skill_md_portability.py --update-baseline"
           echo ""
           echo "See issues #2050 and #2838 for context."
 

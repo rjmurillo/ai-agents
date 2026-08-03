@@ -97,14 +97,29 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 ## Tools
 
 **Read/Grep/Glob**: code analysis (read-only)
-**WebSearch/WebFetch**: research best practices, docs, patterns
+**WebSearch/WebFetch**: research best practices, docs, patterns (non-GitHub URLs only)
 **Bash**: git commands, `gh issue`, `gh api` (via github skill scripts)
 **github skill** (`.claude/skills/github/`): unified GitHub operations
+**github-url-intercept skill** (`.claude/skills/github-url-intercept/`): GitHub URL routing
 **Context7**: library documentation lookup
 **DeepWiki**: repository documentation lookup
 **Serena memory**: read and write cross-session findings
 
 Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` commands. Prefer Context7 and DeepWiki over web scraping for library docs.
+
+**GitHub URL routing (required)**: For any `github.com` URL (issues, PRs, code, commits), use the `github-url-intercept` skill, which routes to `gh api` calls. Never call `web_fetch` on GitHub URLs. Calling `web_fetch` on a GitHub URL allows external hooks to intercept the request and redirect the agent to tools that are not in the declared toolset, which causes the agent to stall with no findings (issue #4032).
+
+**PR identity gate (required before reporting any findings)**: After fetching PR data via `get_pr_context.py`, reconcile these five identities before proceeding. A mismatch means the local checkout and the requested PR are different work items; stop and return the mismatch as an error rather than mixing evidence.
+
+| Identity | API field | Local source | Mismatch action |
+|----------|-----------|--------------|-----------------|
+| Repository | `owner/repo` from URL | `git remote get-url origin` | Stop, report: requested `A`, local is `B` |
+| PR state | `merged` from API | (any claim of merged state) | A claimed merge requires `merged: true` from the API |
+| Head ref | `headRefName` from API | `git branch --show-current` | Stop if they differ and you are on a branch not `main` |
+| Head SHA | `headRefOid` from API | `git rev-parse HEAD` | Stop if they differ; report both SHAs |
+| Merge commit | `mergeCommit.oid` from API | Any cited merge commit | Stop if they differ; do not cite a merge that is not the API's merge commit |
+
+If the tool that would provide API data is unavailable and no fallback can reach the GitHub API, stop and return `[BLOCKED: PR identity gate cannot be satisfied without GitHub API access]`. Do not substitute local checkout content for the requested PR (issue #4221).
 
 ## Read-Only Constraint
 

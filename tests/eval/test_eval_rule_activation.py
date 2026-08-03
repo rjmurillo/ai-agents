@@ -2,7 +2,10 @@
 
 Covers:
 - aggregate() verdict outcomes (PASS, FAIL_THRESHOLD, FAIL_NO_DELTA,
-  FAIL_JUDGE_ERRORS, NO_POSITIVE_CASES)
+  FAIL_JUDGE_ERRORS, NO_POSITIVE_CASES, FAIL_OVER_ACTIVATION)
+- _reduce_score_samples() mixed pass/fail sample handling
+- _mechanism_summary() graded_count and failure field naming
+- _build_run_provenance() presence of required keys
 - _load_scenarios_file() target validation: rule paths must resolve under
   .claude/rules/ and skill references must resolve under one skill's
   references/ directory.
@@ -77,6 +80,21 @@ def _make_scenario(
     }
 
 
+def _valid_scenarios(gate: str = "apply-rule") -> list[dict[str, str]]:
+    """The smallest scenario list the loader accepts.
+
+    Both pools are required: a file with no positive case cannot show the rule
+    activating, and one with no negative case cannot show restraint, so the
+    restraint floor would compare against nothing and pass vacuously. Fixtures
+    that only need "a file the loader accepts" build it here, so the next
+    schema requirement lands in one place instead of thirty.
+    """
+    return [
+        {"id": "S1", "input": "x", "expected_gate": gate},
+        {"id": "N1", "input": "y", "expected_gate": eval_mod.NEGATIVE_GATE},
+    ]
+
+
 # ---------------------------------------------------------------------------
 # aggregate() verdicts
 # ---------------------------------------------------------------------------
@@ -84,7 +102,10 @@ def _make_scenario(
 
 class TestAggregateVerdicts:
     def test_pass_when_description_clears_threshold_and_beats_baseline(self):
-        scenarios = [_make_scenario(baseline=1, description=4, full=5)]
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
+        ]
         summary = eval_mod.aggregate(scenarios)
         assert summary["verdict"] == "PASS"
         assert summary["best_mechanism"] in ("description", "full")
@@ -151,8 +172,108 @@ class TestAggregateVerdicts:
         # judge_failed forces the FAIL_JUDGE_ERRORS path before averages decide
         assert summary["verdict"] == "FAIL_JUDGE_ERRORS"
 
+    def test_negative_overactivation_fails_verdict(self):
+        # Negative scenarios with LOW scores show poor restraint (model activated
+        # where it should not). With inverted rubric, score < MIN_RESTRAINT_SCORE
+        # signals FAIL_OVER_ACTIVATION.
+        poor_restraint = 1  # description scores 1 on a negative case (poor restraint)
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),  # positive
+            _make_scenario(baseline=5, description=poor_restraint, full=2, negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
 
-class TestScoreResponseJudgeShape:
+    def test_high_negative_restraint_score_gives_pass(self):
+        # Negative scenarios with HIGH scores show good restraint (model did NOT
+        # activate). With inverted rubric, score >= MIN_RESTRAINT_SCORE gives PASS.
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),  # positive
+            _make_scenario(baseline=5, description=5, full=5, negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["verdict"] == "PASS"
+
+    def test_aggregate_exposes_total_judge_failure_samples(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5, judge_failed=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert "total_judge_failure_samples" in summary
+
+    def test_aggregate_exposes_judge_failure_cells_and_samples_per_mechanism(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5, judge_failed=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        for mech in eval_mod.MECHANISMS:
+            mech_summary = summary["per_mechanism"][mech]
+            assert "judge_failure_cells" in mech_summary
+            assert "judge_failure_samples" in mech_summary
+
+    def test_graded_count_present_in_mechanism_summary(self):
+        scenarios = [
+            _make_scenario(baseline=1, description=4, full=5),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["per_mechanism"]["description"]["graded_count"] == 1
+
+class TestRunProvenance:
+    def test_build_run_provenance_contains_required_keys(self, tmp_path):
+        import argparse as _ap
+
+        args = _ap.Namespace(
+            model="claude-opus-5",
+            scenarios=[str(tmp_path / "s.json")],
+        )
+        prov = eval_mod._build_run_provenance(args)
+        for key in ("provider", "requested_model", "timestamp_utc", "git_commit", "scenario_hash"):
+            assert key in prov, f"missing key: {key}"
+
+    def test_build_run_provenance_requested_model_matches(self, tmp_path):
+        import argparse as _ap
+
+        args = _ap.Namespace(model="my-model", scenarios=[])
+        prov = eval_mod._build_run_provenance(args)
+        assert prov["requested_model"] == "my-model"
+
+    def test_all_results_contains_run_key(self, tmp_path, monkeypatch):
+        scenario_file = tmp_path / "scenarios.json"
+        scenario_file.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "scenarios": [{"id": "S1", "input": "test input"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        old_argv = sys.argv
+        sys.argv = [
+            "eval-rule-activation.py",
+            "--scenarios",
+            str(scenario_file),
+            "--dry-run",
+        ]
+        try:
+            # dry_run does not write output; just verify the results dict shape
+            import argparse as _ap
+
+            args = _ap.Namespace(
+                model="test-model",
+                scenarios=[str(scenario_file)],
+                dry_run=True,
+                output=None,
+                seed=0,
+                judge_repeats=1,
+                judge_reducer="median",
+            )
+            results: dict = {"run": eval_mod._build_run_provenance(args), "rules": {}}
+            assert "run" in results
+            assert "provider" in results["run"]
+        finally:
+            sys.argv = old_argv
+
     @pytest.mark.parametrize(
         "judge_json",
         [
@@ -180,6 +301,74 @@ class TestScoreResponseJudgeShape:
 
         assert scores["judge_failed"] is True
         assert scores["activation_score"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Judge parse failure evidence preservation (#3975)
+# ---------------------------------------------------------------------------
+
+
+class TestParseJudgeResponseEvidence:
+    """Parse failures must preserve the full raw response, not a 200-char prefix."""
+
+    def _score(self, monkeypatch, raw_text: str) -> dict:
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_kw: raw_text)
+        return eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+
+    def test_invalid_json_sets_judge_failed(self, monkeypatch):
+        result = self._score(monkeypatch, "not json at all")
+        assert result["judge_failed"] is True
+
+    def test_invalid_json_stores_full_raw_response(self, monkeypatch):
+        payload = "x" * 500
+        result = self._score(monkeypatch, payload)
+        assert result["raw_judge_response"] == payload
+
+    def test_invalid_json_reasoning_is_neutral(self, monkeypatch):
+        # reasoning must not contain a fabricated cause derived from truncated text
+        result = self._score(monkeypatch, "not json at all")
+        assert "not json at all" not in result["reasoning"]
+        assert "200" not in result["reasoning"]
+
+    def test_non_object_json_sets_judge_failed(self, monkeypatch):
+        result = self._score(monkeypatch, "[1, 2, 3]")
+        assert result["judge_failed"] is True
+
+    def test_non_object_json_stores_full_raw_response(self, monkeypatch):
+        payload = "[" + ", ".join(str(i) for i in range(200)) + "]"
+        result = self._score(monkeypatch, payload)
+        assert result["raw_judge_response"] == payload
+
+    def test_non_object_json_reasoning_is_neutral(self, monkeypatch):
+        result = self._score(monkeypatch, "[1, 2, 3]")
+        assert "[1, 2, 3]" not in result["reasoning"]
+
+    def test_large_payload_preserved_without_truncation(self, monkeypatch):
+        # 201 chars triggers the old truncation; the full payload must survive
+        payload = "A" * 201
+        result = self._score(monkeypatch, payload)
+        assert result.get("raw_judge_response") == payload
+
+    def test_successful_parse_preserves_raw_judge_response(self, monkeypatch):
+        good = (
+            '{"activation_score": 3, "citation_score": 3, "behavior_score": 3, "reasoning": "ok"}'
+        )
+        result = self._score(monkeypatch, good)
+        assert result["judge_failed"] is False
+        assert result["raw_judge_response"] == good
+
+    def test_successful_parse_scores_are_intact(self, monkeypatch):
+        good = (
+            '{"activation_score": 4, "citation_score": 2, "behavior_score": 5, "reasoning": "fine"}'
+        )
+        result = self._score(monkeypatch, good)
+        assert result["activation_score"] == 4
+        assert result["citation_score"] == 2
+        assert result["behavior_score"] == 5
 
 
 # ---------------------------------------------------------------------------
@@ -273,27 +462,46 @@ class TestLoadScenariosFile:
 
     def test_rejects_missing_rule_path(self, tmp_path: Path):
         f = tmp_path / "no_rule_path.json"
-        f.write_text(json.dumps({"scenarios": []}), encoding="utf-8")
-        result = eval_mod._load_scenarios_file(str(f))
-        assert result == 2
-
-    def test_rejects_path_outside_rules_dir(self, tmp_path: Path):
-        # Path resolves inside the repo but outside .claude/rules/
-        f = tmp_path / "outside_rules.json"
         f.write_text(
-            json.dumps({"rule_path": "AGENTS.md", "scenarios": []}),
+            json.dumps(
+                {
+                    "scenarios": [
+                        {
+                            "id": "S1",
+                            "input": "x",
+                            "expected_gate": "invert-dependency",
+                        }
+                    ]
+                }
+            ),
             encoding="utf-8",
         )
         result = eval_mod._load_scenarios_file(str(f))
         assert result == 2
 
-    def test_rejects_path_traversal(self, tmp_path: Path):
+    def test_rejects_path_outside_rules_dir(self, tmp_path: Path, capsys):
+        # Path resolves inside the repo but outside .claude/rules/
+        f = tmp_path / "outside_rules.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "rule_path": "AGENTS.md",
+                    "scenarios": _valid_scenarios("invert-dependency"),
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = eval_mod._load_scenarios_file(str(f))
+        assert result == 2
+        assert "under .claude/rules/" in capsys.readouterr().err
+
+    def test_rejects_path_traversal(self, tmp_path: Path, capsys):
         f = tmp_path / "traversal.json"
         f.write_text(
             json.dumps(
                 {
                     "rule_path": "../../etc/passwd",
-                    "scenarios": [],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
@@ -326,7 +534,7 @@ class TestLoadScenariosFile:
                 {
                     "rule_path": ".claude/rules/unified-software-engineering.md",
                     "rule_id": "unified-software-engineering",
-                    "scenarios": [],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
@@ -350,7 +558,7 @@ class TestLoadScenariosFile:
                         "references/working-with-legacy-code.md"
                     ),
                     "rule_id": "working-with-legacy-code",
-                    "scenarios": [],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
@@ -365,20 +573,21 @@ class TestLoadScenariosFile:
         assert reference_path is not None
         assert reference_path.name == "working-with-legacy-code.md"
 
-    def test_rejects_skill_reference_outside_reference_directory(self, tmp_path: Path):
+    def test_rejects_skill_reference_outside_reference_directory(self, tmp_path: Path, capsys):
         f = tmp_path / "bad_skill_ref.json"
         f.write_text(
             json.dumps(
                 {
                     "skill_path": ".claude/skills/software-engineering-library/SKILL.md",
                     "reference_path": ".claude/skills/autoplan/SKILL.md",
-                    "scenarios": [],
+                    "scenarios": _valid_scenarios("invert-dependency"),
                 }
             ),
             encoding="utf-8",
         )
 
         assert eval_mod._load_scenarios_file(str(f)) == 2
+        assert "references/" in capsys.readouterr().err
 
 
 def _assert_fixture_routes_to_library(rule_id: str) -> None:
@@ -682,7 +891,7 @@ class TestSkillPathResolution:
                 {
                     "skill_path": ".claude/skills/security-scan/SKILL.md",
                     "skill_id": "security-scan",
-                    "scenarios": [{"id": "S1", "input": "scan for injection"}],
+                    "scenarios": _valid_scenarios("flag-injection-sink"),
                 }
             ),
             encoding="utf-8",
@@ -901,7 +1110,12 @@ class TestJudgeSampleReduction:
         full = result["mechanisms"]["full"]
         assert full["score_samples"][1]["judge_failed"] is True
         assert "judge API failure" in full["score_samples"][1]["reasoning"]
+        # 2/3 samples graded successfully; failed sample excluded from scoring
+        # (issue #3915). judge_failed is True because any failure is flagged;
+        # graded_sample_count reflects how many samples were actually scored.
         assert full["scores"]["judge_failed"] is True
+        assert full["scores"]["graded_sample_count"] == 2
+        assert full["scores"]["failed_sample_count"] == 1
 
     def test_dry_run_counts_repeated_judge_calls(self, tmp_path, capsys):
         rule_path = REPO_ROOT / ".claude" / "rules" / "working-with-legacy-code.md"
@@ -2457,7 +2671,10 @@ class TestNegativeCaseGate:
         # The positive side of this suite passes outright. Over-activation has
         # to win anyway: firing where it must not is harmful, under-firing is
         # merely useless.
-        scenarios = [_make_scenario(baseline=1, description=5, full=5)]
+        scenarios = [
+            _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
+        ]
         assert eval_mod.aggregate(scenarios)["verdict"] == "PASS"
 
         scenarios.append(_make_scenario(baseline=5, description=1, full=1, negative=True))
@@ -2534,15 +2751,22 @@ class TestNegativeCaseGate:
         assert summary["worst_negative_avg"] == 1.0
         assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
 
-    def test_a_suite_with_no_negative_scenarios_is_not_failed(self):
+    def test_a_suite_with_no_negative_scenarios_is_not_floored(self):
         # An empty pool has no average. It used to report 0.0, which sits below
         # every floor, so gating on it unguarded failed every rule. The guard
-        # stays either way: `None` is not comparable against a floor at all.
+        # stays: `None` is not comparable against a floor at all, so the
+        # verdict is never FAIL_OVER_ACTIVATION.
+        #
+        # It is not PASS either. The floor cannot fire over an empty pool, so
+        # a clean positive result used to read as a clean run and certify
+        # restraint nothing measured. The sibling test one down already holds
+        # that an ungraded negative pool must not pass; an empty pool is less
+        # measured than that one, so it cannot pass either.
         summary = eval_mod.aggregate([_make_scenario(baseline=1, description=5, full=5)])
 
         assert summary["negative_case_per_mechanism"]["full"]["avg_score"] is None
         assert summary["worst_negative_avg"] is None
-        assert summary["verdict"] == "PASS"
+        assert summary["verdict"] == "NO_NEGATIVE_CASES"
 
     def test_negative_scenarios_nobody_graded_fail_rather_than_pass(self):
         # One step in from the empty pool: the pool is non-empty but nothing in
@@ -2573,20 +2797,37 @@ class TestNegativeCaseGate:
 
         neg = summary["negative_case_per_mechanism"]["full"]
         assert (neg["graded_count"], neg["scenario_count"]) == (1, 2)
-        assert summary["worst_negative_avg"] == 5.0, "the graded subset looks clean"
+        # No mechanism covers the pool, so no restraint number is published at
+        # all. Publishing the clean-looking 5.0 over the graded half is the
+        # defect this docstring names.
+        assert summary["worst_negative_avg"] is None
         assert summary["verdict"] == "FAIL_NEGATIVE_INCOMPLETE"
 
     def test_an_observed_violation_outranks_incomplete_coverage(self):
-        # A floor violation seen on part of the pool is still a violation.
-        # Naming the harm beats naming the gap that would have found more of it.
+        # A floor violation measured across a whole pool outranks a sibling
+        # mechanism that was measured only in part. Naming the harm beats
+        # naming the gap that would have found more of it.
+        #
+        # `description` covers both negative scenarios and averages 1.0, so the
+        # harm is not an artifact of which cells graded. `full` is 1/2 and only
+        # supplies the incompleteness the harm has to outrank.
         scenarios = [
             _make_scenario(baseline=1, description=5, full=5),
             _make_scenario(baseline=5, description=1, full=1, negative=True),
-            _ungraded_negative(),
+            _scenario_of_mechs(
+                {
+                    "baseline": _make_mech(5),
+                    "description": _make_mech(1),
+                    "full": _unscored_mech(),
+                },
+                negative=True,
+            ),
         ]
         summary = eval_mod.aggregate(scenarios)
 
-        assert summary["negative_gate_incomplete"] == ["description", "full"]
+        assert summary["negative_gate_incomplete"] == ["full"]
+        assert summary["worst_negative_mechanism"] == "description"
+        assert summary["worst_negative_graded"] == 2
         assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
 
     def test_a_fully_graded_negative_pool_passes(self):
@@ -2650,7 +2891,10 @@ class TestRenderTableRestraint:
         summary = eval_mod.aggregate([_make_scenario(baseline=1, description=5, full=5)])
         table = eval_mod.render_table("some-rule", summary)
 
-        assert "Restraint on negative cases: not measured" in table
+        assert (
+            "Restraint on negative cases: not measured on any reachable "
+            "negative-gate mechanism" in table
+        )
         assert "| full         |     5.0 |       - |" in table
 
     def test_a_measured_negative_pool_is_printed_with_its_floor(self):
@@ -2699,6 +2943,12 @@ class TestArchivedSummariesStillAggregate:
             "negative_gate_incomplete",
             "worst_negative_avg",
             "legacy_reduced_count",
+            "route_mismatch_count",
+            "avg_score_exact",
+            "rounding_would_change_verdict",
+            "delta_full_vs_baseline_measured",
+            "delta_description_vs_baseline_measured",
+            "delta_rounding_disagrees",
         }
     )
 
@@ -2968,6 +3218,7 @@ class TestPositivePoolCoverageGates:
         scenarios = [
             _make_scenario(baseline=1, description=5, full=5),
             _make_scenario(baseline=1, description=5, full=5),
+            _make_scenario(baseline=1, description=5, full=5, negative=True),
         ]
 
         summary = eval_mod.aggregate(scenarios)
@@ -3018,6 +3269,8 @@ class TestPositivePoolCoverageGates:
                 }
             )
         ]
+
+        scenarios.append(_make_scenario(baseline=1, description=5, full=5, negative=True))
 
         summary = eval_mod.aggregate(scenarios)
 
@@ -3150,6 +3403,7 @@ class TestVerdictRankingLivesInOnePlace:
             gating_judge_failures=1,
             worst_neg_avg=1.0,
             has_positive_cases=False,
+            has_negative_cases=True,
             desc_avg=1.0,
             baseline_avg=5.0,
         )
@@ -3161,6 +3415,7 @@ class TestVerdictRankingLivesInOnePlace:
             gating_judge_failures=0,
             worst_neg_avg=1.0,
             has_positive_cases=True,
+            has_negative_cases=True,
             desc_avg=5.0,
             baseline_avg=1.0,
         )
@@ -3172,6 +3427,7 @@ class TestVerdictRankingLivesInOnePlace:
             gating_judge_failures=0,
             worst_neg_avg=5.0,
             has_positive_cases=True,
+            has_negative_cases=True,
             desc_avg=5.0,
             baseline_avg=1.0,
         )
@@ -3183,6 +3439,7 @@ class TestVerdictRankingLivesInOnePlace:
             gating_judge_failures=0,
             worst_neg_avg=5.0,
             has_positive_cases=True,
+            has_negative_cases=True,
             desc_avg=5.0,
             baseline_avg=1.0,
         )
@@ -3258,7 +3515,13 @@ class TestUnmeasuredPoolsPublishNoNumber:
 
         assert summary["best_mechanism"] is None
         assert summary["best_avg_score"] is None
-        assert "none measured" in eval_mod.render_table("probe", summary)
+        # `baseline` was graded on its whole pool. A headline reading "none
+        # measured" beside a table row showing that cell contradicts it, so the
+        # headline names the population it actually ranks over.
+        assert summary["per_mechanism"]["baseline"]["avg_score"] == 1.0
+        assert summary["per_mechanism"]["baseline"]["graded_count"] == 1
+        rendered = eval_mod.render_table("probe", summary)
+        assert "Best mechanism: no reachable rule-enhanced mechanism measured" in rendered
 
 
 class TestNegativeJudgeFailuresGateOnTheirOwnPool:
@@ -3497,24 +3760,33 @@ class TestBothExclusionsCanFireAtOnce:
         assert "positive full, negative baseline, negative full" in table
 
 
-class TestPartialPoolsStillReportObservedHarm:
-    """The restraint floor and the deltas treat partial coverage differently.
+class TestPartialCoverageReadsTheSameOnBothPools:
+    """The restraint floor and the deltas treat partial coverage alike.
 
-    A delta needs both sides to cover the same pool, because a difference
-    between two populations describes neither. The restraint floor needs only
-    one graded cell, because a cell that scored 1.0 is real observed harm
-    whatever else went unmeasured. Requiring full coverage there would
-    suppress a true harm signal to avoid an incomplete one, which is the
-    trade in the wrong direction.
+    An earlier version of this class argued the opposite: that the floor
+    should gate on any graded cell, because a cell scoring 1.0 is real harm
+    whatever else went unmeasured, and that requiring full coverage would
+    suppress a true harm signal. It asked a later pass to argue with it.
 
-    These are pinned together so that a later pass unifying the two rules has
-    to argue with this test rather than quietly lose the harm signal.
+    Here is the argument. The premise was that unification loses the signal,
+    and it does not. The floor is a threshold on the average restraint across
+    the negative scenarios, so an average over a subset is not the quantity
+    the floor names, and gating on it made the verdict turn on missingness:
+    one cell at 1.0 with the rest ungraded averaged 1.0 and failed, while that
+    same 1.0 beside two 5.0s averaged 3.67 and passed. Excluding the partial
+    cell does not turn either into a PASS. The gap is already published in
+    `negative_gate_incomplete`, so the run fails as FAIL_NEGATIVE_INCOMPLETE
+    instead of claiming a restraint number it never measured. The harm is not
+    lost, it is named by its real cause.
+
+    Harm measured across a whole pool still outranks an incomplete sibling.
+    That ordering is pinned in `test_an_observed_violation_outranks_incomplete_coverage`.
     """
 
-    def test_a_partly_graded_negative_pool_still_fails_on_harm(self):
+    def test_a_partly_graded_negative_pool_names_the_gap_not_a_number(self):
         scenarios = [
             _make_scenario(baseline=1, description=5, full=5),
-            _make_scenario(baseline=5, description=1, full=1, negative=True),
+            _make_scenario(baseline=5, description=1, full=5, negative=True),
             _scenario_of_mechs(
                 {
                     "baseline": _make_mech(5),
@@ -3528,11 +3800,14 @@ class TestPartialPoolsStillReportObservedHarm:
         summary = eval_mod.aggregate(scenarios)
 
         assert summary["negative_gate_incomplete"] == ["description"]
-        assert summary["worst_negative_avg"] == 1.0
-        assert summary["worst_negative_graded"] == 1
-        # Harm outranks incompleteness. The pool is admittedly partial and the
-        # verdict still names the harm it did observe.
-        assert summary["verdict"] == "FAIL_OVER_ACTIVATION"
+        # `description` is 1/2 and is excluded, so its lone 1.0 no longer sets
+        # the floor. `full` covers both scenarios and clears it at 5.0.
+        assert summary["worst_negative_avg"] == 5.0
+        assert summary["worst_negative_mechanism"] == "full"
+        assert summary["worst_negative_graded"] == 2
+        # The run still fails. Only the reason changed, from a restraint
+        # number read off half a pool to the missing half itself.
+        assert summary["verdict"] == "FAIL_NEGATIVE_INCOMPLETE"
 
     def test_the_same_partial_coverage_suppresses_a_delta(self):
         """The other half of the contrast, on the positive pool."""
@@ -3612,10 +3887,12 @@ class TestTheHeadlineNeedsAWholePool:
         assert summary["best_mechanism"] is None
         assert summary["best_mechanism_partial"] is True
         table = eval_mod.render_table("r", summary)
-        assert "Best mechanism: none graded on every scenario" in table
-        assert "none measured" not in table
+        assert (
+            "Best mechanism: no reachable rule-enhanced mechanism graded on every scenario" in table
+        )
+        assert "rule-enhanced mechanism measured" not in table
 
-    def test_nothing_graded_at_all_still_says_none_measured(self):
+    def test_nothing_graded_says_no_rule_enhanced_mechanism_measured(self):
         summary = eval_mod.aggregate(
             [
                 _scenario_of_mechs(
@@ -3630,7 +3907,8 @@ class TestTheHeadlineNeedsAWholePool:
 
         assert summary["best_mechanism"] is None
         assert summary["best_mechanism_partial"] is False
-        assert "Best mechanism: none measured" in eval_mod.render_table("r", summary)
+        table = eval_mod.render_table("r", summary)
+        assert "Best mechanism: no reachable rule-enhanced mechanism measured" in table
 
 
 # ---------------------------------------------------------------------------

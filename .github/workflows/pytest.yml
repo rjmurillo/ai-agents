@@ -17,8 +17,6 @@ name: Python Tests
 
 on:
   push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -26,9 +24,27 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  pr-merge-state:
+    name: PR Merge State
+    if: github.event_name == 'push' && github.ref_name != github.event.repository.default_branch
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check open PR merge state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: python scripts/ci/check_pr_merge_state.py
+
   check-paths:
     name: Check Changed Paths
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
@@ -50,6 +66,13 @@ jobs:
               - '**/*.py'
               - '**/*.pyi'
               - '**/*.ipynb'
+              - '**/*.js'
+              - '**/*.ts'
+              - '**/*.yaml'
+              - '**/*.yml'
+              - '**/*.ps1'
+              - '**/*.psm1'
+              - '**/*.pyw'
               - 'scripts/ci/ruff_count_baseline.txt'
               - 'pyproject.toml'
               - 'uv.lock'
@@ -132,6 +155,10 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         run: python scripts/validation/validate_python_syntax.py
 
+      - name: Validate AI review workflow budgets
+        if: steps.should-run.outputs.skip != 'true'
+        run: python scripts/ci/validate_ai_review_budgets.py
+
       # Issue #2939: keep repo-wide ruff debt from blocking unrelated PRs while
       # failing new violations in changed Python files.
       - name: Run ruff ratchet (changed Python files)
@@ -142,9 +169,10 @@ jobs:
 
       # Issue #2993 acceptance criterion 2 (regression guard, option C). The
       # diff-scoped ratchet above cannot see debt a PR adds to a file it does
-      # not otherwise touch, so the whole-tree total is frozen in
-      # scripts/ci/ruff_count_baseline.txt. Record a lower count with
-      # `python scripts/ci/ruff_count_ratchet.py --update` after a cleanup.
+      # not otherwise touch, so the whole-tree total is capped by
+      # scripts/ci/ruff_count_baseline.txt. A lower count passes without
+      # rewriting that shared line; use --update only when intentionally
+      # lowering the ceiling.
       # `uv run --frozen` pins ruff to the lockfile. The dev extra declares an
       # open-ended `ruff>=`, so a `uv pip install` resolves whatever is newest
       # and a future ruff rule change could fail this baseline on an unrelated
@@ -184,6 +212,22 @@ jobs:
         run: |
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
+
+      - name: Check security suppressions in diff (pull request, issue 4061)
+        if: steps.should-run.outputs.skip != 'true' && github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
+
+      - name: Check security suppressions in diff (non-PR, issue 4061)
+        if: steps.should-run.outputs.skip != 'true' && github.event_name != 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.repository.default_branch }}
+        run: |
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
       - name: Run pytest
         if: steps.should-run.outputs.skip != 'true'
@@ -291,7 +335,7 @@ jobs:
           always() &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38  # v4
+        uses: github/codeql-action/upload-sarif@d1ba80a13dd99fba24a470575428917156a28b43  # v4
         with:
           sarif_file: bandit.sarif
           category: bandit

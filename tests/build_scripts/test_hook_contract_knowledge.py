@@ -146,11 +146,11 @@ PLUGIN_VERSION_SECTIONS = (
     ),
     (
         REPO_ROOT / ".claude" / "skills" / "ai-agents-config-catalog" / "SKILL.md",
-        "## Plugin Version Bump Rule",
+        "## Plugin Manifest Version Prohibition",
     ),
     (
         REPO_ROOT / ".claude" / "skills" / "ai-agents-generation-and-release" / "SKILL.md",
-        "### Phase 4: Plugin Versioning Discipline",
+        "### Phase 4: Plugin Manifests Carry No Version",
     ),
 )
 
@@ -477,12 +477,16 @@ def test_operational_sources_exclude_superseded_claims() -> None:
         _refute(path.read_text(encoding="utf-8"), *stale_claims, source=path)
 
 
-def test_operational_skills_read_plugin_versions_from_manifests() -> None:
+def test_operational_skills_state_the_manifests_carry_no_version() -> None:
+    # ADR-092 deleted the field, so these sections must state the prohibition
+    # rather than tell the reader to look the current value up. A semver
+    # literal here would be a value that no longer exists to read.
     semver_literal = re.compile(r"\b\d+\.\d+\.\d+\b")
 
     for path, marker in PLUGIN_VERSION_SECTIONS:
         section = _section_after(path.read_text(encoding="utf-8"), marker, path)
-        assert "Current values are intentionally not copied into this skill." in section
+        flattened = " ".join(section.split())
+        assert "may carry a `version` field" in flattened, path
         assert not semver_literal.search(section), path
 
 
