@@ -338,3 +338,33 @@ def test_paired_bootstrap_ci_bonferroni_widens_lower_bound():
         w, d, ids, lower_percentile=2.5, upper_percentile=97.5
     )
     assert wide[0] <= narrow[0]
+
+
+def test_build_report_renders_null_cost_for_quota_billed_model():
+    """A request-metered model serializes cost as null, never as 0.0.
+
+    Rounding None would crash, and substituting 0.0 would render a "free run"
+    that hides the fact that this provider publishes no per-token price.
+    """
+    default = _result("default", {"f1": [0.5]}, recall=0.5, cost_usd=0.05)
+    quota = _result(
+        "openai/gpt-4o-mini",
+        {"f1": [0.9]},
+        recall=0.9,
+        cost_usd=None,
+        cost_basis="requests",
+    )
+    decision = core.decide([default, quota], default_model="default", seed=1)
+    report = core.build_report(
+        agent="security",
+        fixtures_sha="abc123",
+        results=[default, quota],
+        decision=decision,
+        min_effect=0.05,
+        seed=42,
+    )
+    rows = {m["model_id"]: m for m in report["models"]}
+    assert rows["openai/gpt-4o-mini"]["cost_usd"] is None
+    assert rows["openai/gpt-4o-mini"]["cost_basis"] == "requests"
+    assert rows["default"]["cost_usd"] == 0.05
+    assert rows["default"]["cost_basis"] == "usd"

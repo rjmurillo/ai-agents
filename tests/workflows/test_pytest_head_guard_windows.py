@@ -1,4 +1,9 @@
-"""Contract tests for the Windows pytest HEAD guard job."""
+"""Contract tests for the Windows pytest path-contract job.
+
+The Windows job uses a pytest marker (pytest.mark.windows_path) instead of a
+hardcoded file list. Adding pytestmark = pytest.mark.windows_path at module
+level in any test file automatically includes it in the Windows run (issue #4299).
+"""
 
 from __future__ import annotations
 
@@ -10,8 +15,7 @@ import yaml
 _WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pytest.yml"
 _JOB_NAME = "test-windows-pwsh"
 _PATHS_FILTER_ACTION = "dorny/paths-filter@"
-_HEAD_GUARD_COMMAND = "uv run pytest tests/test_pytest_head_guard.py -v"
-_LEFTHOOK_COMMAND = "uv run pytest tests/test_lefthook_integration.py -q"
+_WINDOWS_COMMAND = "uv run pytest -m windows_path -v"
 _LEFTHOOK_TRIGGER_PATHS = {
     "lefthook.yml",
     ".config/wt.toml",
@@ -33,16 +37,6 @@ def _windows_steps() -> list[dict[str, Any]]:
     return [step for step in steps if isinstance(step, dict)]
 
 
-def test_windows_job_name_describes_python_and_lefthook_scope() -> None:
-    with _WORKFLOW.open(encoding="utf-8") as handle:
-        workflow = yaml.safe_load(handle)
-
-    assert (
-        workflow["jobs"][_JOB_NAME]["name"]
-        == "Run Python and Lefthook Tests (Windows)"
-    )
-
-
 def _step_for(command: str) -> dict[str, Any] | None:
     return next(
         (step for step in _windows_steps() if step.get("run") == command),
@@ -50,33 +44,22 @@ def _step_for(command: str) -> dict[str, Any] | None:
     )
 
 
-def test_windows_job_runs_head_guard_contract() -> None:
-    assert _step_for(_HEAD_GUARD_COMMAND) is not None
+def test_windows_job_name_describes_marker_scope() -> None:
+    with _WORKFLOW.open(encoding="utf-8") as handle:
+        workflow = yaml.safe_load(handle)
+
+    assert (
+        workflow["jobs"][_JOB_NAME]["name"]
+        == "Run Windows path-contract tests (pytest.mark.windows_path)"
+    )
 
 
-def test_windows_head_guard_contract_uses_pwsh_and_python_314() -> None:
-    step = _step_for(_HEAD_GUARD_COMMAND)
-
-    assert step is not None
-    assert step.get("shell") == "pwsh"
-    env = step.get("env")
-    assert isinstance(env, dict)
-    assert env.get("UV_PYTHON") == "3.14"
+def test_windows_job_runs_marker_suite() -> None:
+    assert _step_for(_WINDOWS_COMMAND) is not None
 
 
-def test_windows_head_guard_contract_remains_blocking() -> None:
-    step = _step_for(_HEAD_GUARD_COMMAND)
-
-    assert step is not None
-    assert step.get("continue-on-error", False) is False
-
-
-def test_windows_job_runs_lefthook_integration_suite() -> None:
-    assert _step_for(_LEFTHOOK_COMMAND) is not None
-
-
-def test_windows_lefthook_suite_uses_pwsh_and_python_314() -> None:
-    step = _step_for(_LEFTHOOK_COMMAND)
+def test_windows_marker_suite_uses_pwsh_and_python_314() -> None:
+    step = _step_for(_WINDOWS_COMMAND)
 
     assert step is not None
     assert step.get("shell") == "pwsh"
@@ -85,11 +68,27 @@ def test_windows_lefthook_suite_uses_pwsh_and_python_314() -> None:
     assert env.get("UV_PYTHON") == "3.14"
 
 
-def test_windows_lefthook_suite_remains_blocking() -> None:
-    step = _step_for(_LEFTHOOK_COMMAND)
+def test_windows_marker_suite_remains_blocking() -> None:
+    step = _step_for(_WINDOWS_COMMAND)
 
     assert step is not None
     assert step.get("continue-on-error", False) is False
+
+
+def test_windows_job_uses_marker_not_hardcoded_files() -> None:
+    """The job must run pytest with -m windows_path, not by naming files.
+
+    A hardcoded file list drifts silently; the marker-based approach picks up
+    new files automatically (issue #4299).
+    """
+    step = _step_for(_WINDOWS_COMMAND)
+    assert step is not None, "expected marker-based step; found a hardcoded file list"
+
+    run_cmd: str = step.get("run", "")
+    # Confirm no explicit .py paths in the run command (files would end in .py)
+    assert ".py" not in run_cmd, (
+        f"step run command contains hardcoded .py paths: {run_cmd!r}"
+    )
 
 
 def test_lefthook_runtime_surfaces_trigger_windows_suite() -> None:

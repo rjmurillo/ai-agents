@@ -189,6 +189,19 @@ def child_report_path(agent: str, run_id: str) -> Path:
     return REPO_ROOT / REPORTS_DIR_TEMPLATE.format(agent=agent) / run_id / "report.json"
 
 
+def _child_cost_usd(report: dict[str, Any]) -> float | None:
+    """Read a child report's USD cost, carrying its null through unchanged.
+
+    A request-metered child writes ``cost_estimate_usd: null`` because its
+    provider publishes no per-token price. `dict.get` cannot default that away:
+    the key is present and holds None, so the default never fires and
+    ``float(None)`` raises. The child already decided what its own run cost;
+    re-deriving it here would be a second answer to a settled question.
+    """
+    cost = report.get("cost_estimate_usd", 0.0)
+    return None if cost is None else float(cost)
+
+
 def parse_report(report: dict[str, Any], *, model_id: str) -> ModelResult:
     """Extract a ``ModelResult`` (agent variant) from a report.json dict.
 
@@ -283,7 +296,8 @@ def parse_report(report: dict[str, Any], *, model_id: str) -> ModelResult:
         per_fixture_agent_rates=rates,
         tokens_in=int(report.get("total_tokens_in", 0)),
         tokens_out=int(report.get("total_tokens_out", 0)),
-        cost_usd=float(report.get("cost_estimate_usd", 0.0)),
+        cost_usd=_child_cost_usd(report),
+        cost_basis=str(report.get("cost_basis", "usd")),
         error_count=error_count,
         fixture_set_sha=str(fixture_set_sha),
     )

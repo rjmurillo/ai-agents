@@ -149,6 +149,8 @@ def _normalize(item: dict[str, object]) -> dict[str, object]:
     user = item.get("user")
     author = user.get("login") if isinstance(user, dict) else None
     return {
+        "id": item.get("id"),
+        "node_id": item.get("node_id"),
         "author": author,
         "createdAt": item.get("created_at"),
         "updatedAt": item.get("updated_at"),

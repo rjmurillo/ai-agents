@@ -36,6 +36,14 @@ from scripts.validation.check_python3_entrypoints import (
 _REPO_ROOT = Path(__file__).parent.parent
 _VALIDATOR = _REPO_ROOT / "scripts/validation/check_python3_entrypoints.py"
 
+# Subprocess captures below pass encoding="utf-8", errors="replace". The
+# repo-wide guard tests/test_subprocess_text_encoding.py enforces the encoding
+# and states verbatim: "It checks ``encoding`` only. ``errors`` is deliberately
+# left to each call site". These sites set it because the child echoes a
+# tmp_path that carries whatever bytes the OS gave it, and these assertions
+# read the exit code, never the text: a strict decoder could only turn a
+# passing run into an unrelated UnicodeDecodeError.
+
 
 def _write_script(tmp_path: Path, name: str, source: str) -> Path:
     p = tmp_path / name
@@ -199,6 +207,7 @@ class TestMain:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         )
 
         assert result.returncode == 1
@@ -213,6 +222,7 @@ class TestMain:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         )
 
         assert result.returncode == 0
@@ -220,3 +230,34 @@ class TestMain:
     def test_returns_0_when_doc_missing(self, tmp_path: Path) -> None:
         result = main(["--docs", "nonexistent.md", "--repo-root", str(tmp_path)])
         assert result == 0
+
+    def test_returns_2_when_doc_is_unreadable(self, tmp_path: Path) -> None:
+        """A doc that exists but cannot be read is a file access error (exit 2).
+
+        A directory is the portable unreadable-but-existing path: read_text
+        raises IsADirectoryError on POSIX and PermissionError on Windows, both
+        OSError. Without the mapping the exception escapes main() and the
+        process dies with a traceback and exit 1, which the module contract
+        reserves for "mismatches detected".
+        """
+        (tmp_path / "README.md").mkdir()
+
+        result = main(["--docs", "README.md", "--repo-root", str(tmp_path)])
+
+        assert result == 2
+
+    def test_exits_2_as_subprocess_when_doc_is_unreadable(self, tmp_path: Path) -> None:
+        """Process exit code for a file access error is 2, with no traceback."""
+        (tmp_path / "README.md").mkdir()
+
+        result = subprocess.run(
+            [sys.executable, str(_VALIDATOR), "--docs", "README.md", "--repo-root", str(tmp_path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        assert result.returncode == 2, result.stderr
+        assert "Traceback" not in result.stderr
+        assert "cannot read documentation file" in result.stderr
