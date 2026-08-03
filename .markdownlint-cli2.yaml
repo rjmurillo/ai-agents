@@ -181,6 +181,15 @@ ignores:
   - "src/copilot-cli/skills/test/SKILL.md"
   - "src/copilot-cli/skills/ship/SKILL.md"
 
+  # Reference files extracted from spec.md (issue #3632). These are embedded-prose reference
+  # documents: they use heading levels (####, ###) relative to the original document's nesting,
+  # not standalone files, so MD041 and MD001 are not applicable. They carry no H1 and their
+  # heading hierarchy is intentionally non-monotonic (sub-steps within numbered list items).
+  - ".claude/skills/spec-generator/references/spec-step0-gates.md"
+  - ".claude/skills/spec-generator/references/spec-prior-art-schema.md"
+  - "src/copilot-cli/skills/spec-generator/references/spec-step0-gates.md"
+  - "src/copilot-cli/skills/spec-generator/references/spec-prior-art-schema.md"
+
   # XML specification document stored with .md extension for GitHub rendering.
   # The file is valid XML (skill specification schema), not authored Markdown.
   # Its 4-space-indented XML structure produces false-positive MD046 violations

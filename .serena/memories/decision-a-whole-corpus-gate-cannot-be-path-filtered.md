@@ -114,14 +114,16 @@ Measured at `160d1670a`:
 That is **8 bytes** of headroom. Any rule edit adding a single short sentence
 re-breaches.
 
-`PR #4361` (`06299410b`) later added `FORCE_RUN_EVENTS: push` to
-`instruction-budget.yml`, with the comment "a push to main always validates,
-because the budget scores the whole corpus and the skip path reports a fresh
-green tick without measuring the tree." That closes mechanism two on push to
-main. It does **not** close mechanism three below: a run cancelled while pending
-never reaches the job, so forcing the job to run inside it changes nothing.
-Verify such a fix against run **jobs** across a burst of merges, never against
-the workflow source.
+`PR #4361` (`06299410b`) first added `FORCE_RUN_EVENTS: push` to
+`instruction-budget.yml`, which closed mechanism two on push to main and left
+`pull_request` filtered. Issue #4345 then deleted the filter, the `check-paths`
+job and the `skip-budget` job outright, so that env var, that header comment,
+and the whole filter are gone from the file. Do not go looking for them: the
+workflow now holds one unconditional `validate-budget` job. Neither shape
+closes mechanism three below, because a run cancelled while pending never
+reaches the job, so forcing or unconditioning the job inside it changes
+nothing. Verify such a fix against run **jobs** across a burst of merges, never
+against the workflow source.
 
 Running an absolute ceiling at 100.0 percent utilization under
 `strict_required_status_checks_policy: false` guarantees recurrence, because
