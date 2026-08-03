@@ -1147,6 +1147,7 @@ def main(argv: list[str] | None = None) -> int:
             model_id=args.model,
             n_runs=args.n_runs,
             variants=variants,
+            provider=getattr(args, "provider", None),
         )
     except (ValueError, UnsupportedModelError) as exc:
         print(f"plan error: {exc}", file=sys.stderr)
