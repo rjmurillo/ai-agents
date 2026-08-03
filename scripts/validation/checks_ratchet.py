@@ -66,6 +66,12 @@ RATCHETS: tuple[Ratchet, ...] = (
         False,
         True,
     ),
+    Ratchet(
+        "merge-tree-ratchet",
+        "scripts/ci/merge_tree_ratchet_check.py",
+        False,
+        True,
+    ),
 )
 
 
