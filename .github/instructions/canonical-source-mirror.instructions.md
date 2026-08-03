@@ -75,12 +75,12 @@ This section binds any assertion about another component's behavior, whatever wo
 
 Everything above says the canonical source is authoritative and a generated mirror is not. For one question that is backwards, and the inversion is easy to miss because it contradicts the rest of this file.
 
-The question is whether a rule loads on every agent turn. A rule is always-on when its **generated** `applyTo` resolves to `**`, so the answer lives in the generated tree. It is also not a single answer: the two destination trees disagree, measured at `0c75045d6`.
+The question is whether a rule loads on every agent turn. A rule is always-on when its **generated** `applyTo` resolves to `**`, so the answer lives in the generated tree. It is also not a single answer: the two destination trees disagree, measured at `b2729ee54`.
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot working in this repository | 8 rules, 72,291 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 11 rules, 79,823 bytes |
+| `.github/instructions` | Copilot working in this repository | 8 rules, 70,375 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 11 rules, 77,907 bytes |
 
 `governance`, `secret-redaction`, and `session-logs` are narrowly scoped rules here and always-on in the plugin. A vendor install carries 7,532 bytes on every turn that this repository never measures, and those three rules point at `.agents/` paths that do not exist in the installing repository.
 
