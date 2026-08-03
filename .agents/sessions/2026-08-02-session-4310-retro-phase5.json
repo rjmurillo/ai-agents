@@ -1,0 +1,222 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4310,
+    "date": "2026-08-02",
+    "branch": "docs/session-memories-mergeable-tmp",
+    "startingCommit": "e4d852213491",
+    "objective": "Persist Phase 5 retrospective learnings from the PR #4302 incident: three new memories, two corrections, and the retrospective artifact."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "Evidence": "Serena MCP unavailable this session; used file-based .serena/memories/",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "serenaInstructions": {
+        "Evidence": "Serena MCP unavailable; skipped gracefully",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "handoffRead": {
+        "Evidence": "HANDOFF.md read earlier in session; unchanged here",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "constraintsRead": {
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read earlier in session",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "usageMandatoryRead": {
+        "Evidence": "Skill-first routing honored: retrospective skill used for Phase 0-5",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "memoriesLoaded": {
+        "Evidence": "analysis-002-rca-before-implementation, ci-count-ratchet-never-names-the-offending-file, feedback-self-referential-test-anti-pattern, knowledge/chestertons-fence",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "skillScriptsListed": {
+        "Evidence": "retrospective skill scripts: extract_evidence.py, score_atomicity.py",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "sessionLogCreated": {
+        "Evidence": "This file",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "branchVerified": {
+        "Evidence": "git branch --show-current: docs/session-memories-mergeable-tmp",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "notOnMain": {
+        "Evidence": "Not on main; worktree ai-agents-memlog",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "startingCommitNoted": {
+        "Evidence": "e4d852213491",
+        "Complete": true,
+        "level": "SHOULD"
+      },
+      "gitStatusVerified": {
+        "Evidence": "Clean apart from intended staged files",
+        "Complete": true,
+        "level": "SHOULD"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "Evidence": "This block",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "handoffNotUpdated": {
+        "Evidence": "HANDOFF.md unchanged (ADR-014)",
+        "Complete": false,
+        "level": "MUST NOT"
+      },
+      "serenaMemoryUpdated": {
+        "Evidence": "3 new memories, 2 corrected, commit d51833006",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "changesCommitted": {
+        "Evidence": "d51833006 memories; this commit adds the retrospective",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "markdownLintRun": {
+        "Evidence": "postToolUse hook auto-fixed retrospective markdown; taste-lints clean",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "validationPassed": {
+        "Evidence": "taste count ratchet OK (601); type-ignore count ratchet OK (44)",
+        "Complete": true,
+        "level": "MUST"
+      },
+      "tasksUpdated": {
+        "Evidence": "Fleet agent table updated; redo4003 harvested (PR #4003 landed)",
+        "Complete": true,
+        "level": "SHOULD"
+      },
+      "retrospectiveInvoked": {
+        "Evidence": ".agents/retrospective/2026-08-02-wrong-fix-before-search.md",
+        "Complete": true,
+        "level": "SHOULD"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Ran retrospective skill Phase 0-5 over the PR #4302 incident",
+      "evidence": ".agents/retrospective/2026-08-02-wrong-fix-before-search.md"
+    },
+    {
+      "action": "Deduplicated candidate learnings against 898 existing memories before writing",
+      "evidence": "analysis-002-rca-before-implementation and ci-count-ratchet-never-names-the-offending-file inspected; neither covers search-before-design or cause-vs-remedy"
+    },
+    {
+      "action": "Wrote three new memories at 95%, 90%, and 92% atomicity",
+      "evidence": "process/process-search-open-issues-before-designing-a-fix.md, process/process-diagnosis-is-not-remedy.md, ci/ci-recent-n-completed-runs-censors-slow-workflows.md"
+    },
+    {
+      "action": "Corrected two existing memories that would have reproduced the defect",
+      "evidence": "feedback-self-referential-test-anti-pattern.md gained the different-authority invariant; knowledge/chestertons-fence.md walked back the memory-search-is-sufficient claim"
+    },
+    {
+      "action": "Harvested agent redo4003: PR #4003 merge resolution redone and pushed green",
+      "evidence": "head e73cea9e07c312c5f168d60205450a3969b2b8c7"
+    }
+  ],
+  "outcomes": {
+    "deliverables": [
+      {
+        "type": "memory",
+        "path": ".serena/memories/process/process-search-open-issues-before-designing-a-fix.md",
+        "description": "Search open issues for the target file before designing a fix, even under P0. Atomicity 95%."
+      },
+      {
+        "type": "memory",
+        "path": ".serena/memories/process/process-diagnosis-is-not-remedy.md",
+        "description": "Root-cause bisection names the cause, never the remedy. Atomicity 90%."
+      },
+      {
+        "type": "memory",
+        "path": ".serena/memories/ci/ci-recent-n-completed-runs-censors-slow-workflows.md",
+        "description": "A recent-N completed-runs sample censors slow workflows and understates CI critical path 5x. Atomicity 92%."
+      },
+      {
+        "type": "memory",
+        "path": ".serena/memories/feedback-self-referential-test-anti-pattern.md",
+        "description": "Corrected: adds the inverse shape and the different-authority invariant, replacing the implied hard-code-it fix."
+      },
+      {
+        "type": "memory",
+        "path": ".serena/memories/knowledge/chestertons-fence.md",
+        "description": "Corrected: memory search alone is not the investigation mechanism. Adds an open-issue search row to the protocol."
+      },
+      {
+        "type": "analysis",
+        "path": ".agents/retrospective/2026-08-02-wrong-fix-before-search.md",
+        "description": "Retrospective on PR #4302: Five Whys, fishbone, SMART-validated actions, four atomicity-scored learnings."
+      }
+    ],
+    "decisions": [
+      {
+        "decision": "Close PR #4302 unmerged rather than defend the extraction",
+        "rationale": "Issue #4285 prescribes a table-driven registry that supersedes it; both new tests assert against a function the registry removes.",
+        "impact": "Prevented a design that resets a counter without reducing complexity from entering the codebase. 64 minutes lost, no incorrect code shipped."
+      },
+      {
+        "decision": "Keep PR #4290's taste-lint suppression as the correct interim fix",
+        "rationale": "run_all_validations is a 48-entry registration list; its length tracks feature count, not complexity. Three independent parties converged on suppression.",
+        "impact": "Main stayed green and every branch in the repo became pushable again without a second competing fix."
+      }
+    ]
+  },
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "Search open issues for the target file before designing a fix",
+        "context": "Any fix, especially under P0 urgency where the search feels skippable",
+        "application": "gh issue list --state open --limit 400 --search '<filename>' --json number,title"
+      },
+      {
+        "pattern": "Root-cause bisection names the cause, never the remedy",
+        "context": "After any bisection, git blame, or gate failure that hands you one file and one number",
+        "application": "Write down what the code is structurally, then ask whether the metric that flagged it fits that structure."
+      },
+      {
+        "pattern": "An assertion is sound only when its expected value traces to a different authority than the code under test",
+        "context": "Writing any guard test over generated or ordered output",
+        "application": "Mutate the production code and confirm the test goes red. A survivor had one authority."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Sampling gh run list with status=completed over a recent-N window to measure CI duration",
+        "consequence": "Understated the critical path 5x (2.6 min vs 13.5 min) and inverted the conclusion on strict status checks",
+        "correction": "Paginate to 500+ runs and confirm the workflows you care about appear in the sample by name."
+      },
+      {
+        "antipattern": "Treating a clean bisection as carrying the design forward",
+        "consequence": "Built, tested, mutation-proved, pushed, and closed PR #4302 unmerged; 64 minutes lost",
+        "correction": "Treat the end of diagnosis as the start of design. Search the tracker before writing the remedy."
+      }
+    ]
+  },
+  "endingCommit": "d51833006889",
+  "nextSteps": [
+    "Take issue #4285 (table-driven registry for pre_pr_sequence.py) directly.",
+    "Dispatch the three idle agents onto issues #4293, #4304, #4299, #4291, #4292, #4300.",
+    "Post the corrected #3873 measurement (21 episodes, not 14).",
+    "File the corpus-wide placeholder-timing defect (371 of 386 episodes at midnight UTC)."
+  ]
+}

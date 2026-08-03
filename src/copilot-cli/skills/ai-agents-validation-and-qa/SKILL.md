@@ -54,7 +54,7 @@ Quality trumps quantity: `.agents/governance/TESTING-ANTI-PATTERNS.md` bans cove
 
 ### Phase 2: Know where tests live and how they are collected
 
-pytest collects only `testpaths = ["tests"]` (pyproject.toml:61). Everything else runs explicitly.
+pytest collects only `testpaths = ["tests"]` (pyproject.toml:62). Everything else runs explicitly.
 
 | Location | Collected by default | What lives there | Run it |
 |----------|---------------------|------------------|--------|
@@ -148,7 +148,7 @@ Each row cost real time. Do not re-earn these lessons.
 | Test mutates the real repo | Repo-root conftest.py:315-386 (#2316) | Isolate in `tmp_path`, run git with `cwd=` the tmp repo |
 | Silent default for missing signal | PR #1965 verdict parser defaulted missing to PASS, 3 fix rounds (FM-10) | Test the missing-signal case; assert raise/block |
 | Coverage theater (assertion-free tests, tautologies) | Issue #749 philosophy work | TESTING-ANTI-PATTERNS.md 1: each test answers a stakeholder concern |
-| Trusting the Pester test-location doc | `test-location-standards.md` predates ADR-042; zero `.Tests.ps1` files remain | Use Phase 2 table + pyproject.toml:61 |
+| Trusting the Pester test-location doc | `test-location-standards.md` predates ADR-042; zero `.Tests.ps1` files remain | Use Phase 2 table + pyproject.toml:62 |
 | Skipping QA on a mixed session | ADR-034 allowlist exists precisely to fence this | Split the session; skip evidence only with allowlisted paths staged |
 
 ## Verification
