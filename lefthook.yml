@@ -204,7 +204,7 @@ pre-commit:
 
           - name: subprocess-encoding
             timeout: 2m
-            run: uv run --frozen python scripts/validation/check_subprocess_encoding.py --changed-files
+            run: uv run --frozen python scripts/validation/check_subprocess_encoding.py
             glob: "**/*.py"
             skip:
               - merge

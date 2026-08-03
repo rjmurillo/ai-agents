@@ -87,6 +87,9 @@ def _run_mutation(
         elif rc == 4:
             print(f"  FALSE KILL: pytest exit 4 (collection error, not a kill) rc={rc}")
             failures.append(f"{name}: pytest exit 4 is a collection error, not a kill")
+        elif rc == 5:
+            print(f"  FALSE KILL: pytest exit 5 (no tests collected, not a kill) rc={rc}")
+            failures.append(f"{name}: pytest exit 5 means no tests collected, not a kill")
         else:
             print(f"  SURVIVED (rc={rc}) -- {fail_msg}")
             failures.append(f"{name}: {fail_msg}")
