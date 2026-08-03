@@ -37,7 +37,7 @@ def run_tests(test_file: Path, label: str) -> subprocess.CompletedProcess[str]:
         [*PYTEST, str(test_file), "-q", "--tb=no"],
         cwd=ROOT,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
     )
 
 

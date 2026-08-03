@@ -2075,11 +2075,13 @@ def test_git_command_boundary_forces_utf8_replacement(
         returncode = 0
         pid = os.getpid()
 
-        def __init__(self, args: object, **kwargs: object) -> None:
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
             captured["args"] = args
             captured.update(kwargs)
 
-        def communicate(self, *, input: object = None, timeout: object = None) -> tuple[str, str]:
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
             captured["timeout"] = timeout
             return ("", "")
 
@@ -2117,16 +2119,18 @@ def test_command_boundary_maps_timeout_to_external_error(
     class FakePopen:
         pid = os.getpid()
 
-        def __init__(self, args: object, **kwargs: object) -> None:
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
             self._args = list(args)
             self._called = 0
 
-        def communicate(self, *, input: object = None, timeout: object = None) -> tuple[str, str]:
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
             self._called += 1
             if self._called == 1:
                 raise subprocess.TimeoutExpired(
                     self._args,
-                    timeout,
+                    timeout or 0.0,
                     output="partial output\n",
                     stderr="child stalled\n",
                 )
@@ -2158,18 +2162,18 @@ def test_binary_command_boundary_maps_timeout_to_external_error(
     class FakePopen:
         pid = os.getpid()
 
-        def __init__(self, args: object, **kwargs: object) -> None:
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
             self._args = list(args)
             self._called = 0
 
         def communicate(
-            self, *, input: object = None, timeout: object = None
+            self, *, input: object = None, timeout: float | None = None
         ) -> tuple[bytes, bytes]:
             self._called += 1
             if self._called == 1:
                 raise subprocess.TimeoutExpired(
                     self._args,
-                    timeout,
+                    timeout or 0.0,
                     output=b"partial bytes\n",
                     stderr=b"binary child stalled\n",
                 )
@@ -6323,10 +6327,12 @@ def test_pytest_policy_cleans_hook_environment(
         returncode = 0
         pid = os.getpid()
 
-        def __init__(self, _args: object, **kwargs: object) -> None:
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
             captured.update(kwargs)
 
-        def communicate(self, *, input: object = None, timeout: object = None) -> tuple[str, str]:
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
             captured["timeout"] = timeout
             return ("", "")
 
@@ -6529,10 +6535,12 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
         returncode = 0
         pid = os.getpid()
 
-        def __init__(self, _args: object, **kwargs: object) -> None:
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
             captured.update(kwargs)
 
-        def communicate(self, *, input: object = None, timeout: object = None) -> tuple[str, str]:
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
             captured["timeout"] = timeout
             return ("", "")
 
