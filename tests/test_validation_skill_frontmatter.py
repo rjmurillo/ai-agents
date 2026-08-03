@@ -526,7 +526,6 @@ class TestMain:
 
     def test_invalid_file_local_mode_returns_0(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         skill_dir = tmp_path / ".claude" / "skills" / "bad"
         skill_dir.mkdir(parents=True)
@@ -595,7 +594,7 @@ class TestMain:
 class TestBuildParser:
     """Tests for argument parser construction."""
 
-    def test_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_defaults(self) -> None:
         parser = build_parser()
         args = parser.parse_args([])
         assert args.path is None

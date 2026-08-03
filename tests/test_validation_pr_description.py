@@ -1542,7 +1542,6 @@ class TestMain:
         self,
         mock_repo: MagicMock,
         mock_fetch: MagicMock,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
@@ -1573,7 +1572,6 @@ class TestMain:
     def test_owner_repo_from_args(
         self,
         mock_fetch: MagicMock,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         mock_fetch.return_value = {
             "title": "T",
@@ -1756,7 +1754,6 @@ class TestBypassLabel:
         self,
         mock_repo: MagicMock,
         mock_fetch: MagicMock,
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Without --ci, CRITICAL never blocks regardless of label state."""
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
