@@ -21,6 +21,23 @@
 - Two skill eval systems exist: knowledge-integration (`scripts/eval/eval-knowledge-integration.py`, prompts in `tests/evals/skills/*.json`) and agent-vs-baseline. A true skill ROUTER/trigger eval (does query X load skill Y?) does NOT exist; author one if needed (`eval_skill_router.py` was a first attempt that compares before/after skill descriptions on disambiguation queries).
 - `validate-skill.py` (SkillForge) has a CWE-22 cwd path guard: it rejects targets outside cwd; `cd` into a worktree to validate its copy. See `mem:ci-infrastructure-observations` for the build/parity/drift model.
 
+## Fingerprint provenance boundary (#4123, 2026-08-03)
+
+- `scripts/eval/_eval_common.py::require_str_or_none` raises
+  `MalformedProviderMetadataError` when provider metadata is present but not a
+  string. Do not replace it with a generic `RuntimeError`: the broad retry
+  handler in `AnthropicAPIAdapter.call_model` categorizes generic exceptions as
+  provider failures and retries them.
+- `scripts/eval/_eval_api_adapter.py::call_model` re-raises that typed error
+  before retry logging and validates the injectable transport seam again before
+  emitting a success record. This second check closes custom transports that do
+  not use the built-in provider wrappers.
+- Regression evidence:
+  `TestTransportsRefuseAMalformedFingerprint` in
+  `tests/evals/test_eval_agent_vs_baseline.py`. Removing the typed boundary
+  caused two end-to-end tests to fail; coercing malformed values to `None`
+  caused 20 fingerprint tests to fail.
+
 ## Notes for Review (LOW confidence)
 
 - The verdict-vocabulary confound (harness forces IDENTIFY|OK|ESCALATE) is the single biggest measurement-noise source; fixture-design workaround (score behavioural regex, not verdict token) is documented in agent-prompt-optimization-observations.md.
