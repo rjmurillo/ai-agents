@@ -48,6 +48,7 @@ def _run_subprocess(
             args,
             capture_output=True,
             encoding="utf-8",
+            errors="replace",
             timeout=timeout,
             cwd=cwd,
             env=env,
