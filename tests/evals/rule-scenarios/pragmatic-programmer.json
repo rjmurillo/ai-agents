@@ -1,0 +1,53 @@
+{
+  "rule_path": ".claude/rules/pragmatic-programmer.md",
+  "rule_id": "pragmatic-programmer",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Same business rule encoded in multiple places",
+      "input": "The maximum order quantity (100) is checked in the UI form, the API endpoint, and the database trigger. Is this a problem? Plan a fix in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "DRY",
+        "duplicated knowledge",
+        "single source",
+        "one authoritative"
+      ],
+      "expected_gate": "enforce-dry-single-source-of-truth",
+      "rationale": "Pragmatic Programmer DRY rule: a business rule with multiple representations will drift. One canonical location eliminates the disagreement."
+    },
+    {
+      "id": "S2",
+      "desc": "Manual deployment steps that keep failing due to operator error",
+      "input": "Our deployment has 14 manual steps that the on-call engineer runs from a wiki page. We have two incidents per quarter caused by someone skipping step 9. Plan a fix in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "automate",
+        "script",
+        "repeatable",
+        "manual"
+      ],
+      "expected_gate": "automate-repetitive-error-prone-tasks",
+      "rationale": "Pragmatic Programmer automation rule: repetitive error-prone steps belong in a script, not tribal knowledge. Human error on step 9 is a process smell."
+    },
+    {
+      "id": "S3",
+      "desc": "Prototype code promoted to production without hardening",
+      "input": "We prototyped a new checkout flow in two days and it worked. The team wants to ship it as-is. Is that a problem? Plan next steps in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "prototype",
+        "hardening",
+        "production",
+        "redesign"
+      ],
+      "expected_gate": "harden-before-promoting-prototype",
+      "rationale": "Pragmatic Programmer prototyping rule: a prototype proves a concept. Shipping it as-is conflates the proof with the deliverable."
+    },
+    {
+      "id": "S4",
+      "desc": "Pure vegetable soup recipe question (negative case)",
+      "input": "What vegetables work best in a minestrone soup? List 5 options. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "A cooking question has no relevance to software engineering principles. Rule should not activate."
+    }
+  ]
+}
