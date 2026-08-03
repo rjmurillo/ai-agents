@@ -13,7 +13,7 @@
       "content": "Observed PR #3636 reporting CONFLICTING while git merge-tree exited 0 against the same two commits.",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e008"
       ]
     },
     {
@@ -21,11 +21,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Polled gh pr view four times at 30 second intervals on the correct head SHA.",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e008"
       ]
     },
     {
@@ -33,11 +31,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran a throwaway worktree merge of origin/main.",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e008"
       ]
     },
     {
@@ -45,11 +41,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Checked git check-attr and git config for a custom merge driver on the graph.",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e008"
       ]
     },
     {
@@ -57,11 +51,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Merged origin/main into the branch and pushed, then compared node counts across HEAD, HEAD^1, and HEAD^2.",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e008"
       ]
     },
     {
@@ -69,11 +61,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Tested whether the finding generalizes by diagnosing PR #3497, which had also gone CONFLICTING.",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e007"
+        "e008"
       ]
     },
     {
@@ -81,19 +71,38 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Searched .serena/memories/git/ and the driver docstring for existing coverage of the GitHub side symptom.",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e009"
+        "e008"
       ]
     },
     {
       "id": "e008",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T07:59:09+00:00",
       "type": "commit",
       "content": "Commit: 6e906b4e42",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016",
+        "e017",
+        "e018",
+        "e019",
+        "e020",
+        "e021"
+      ],
       "leads_to": []
     },
     {
@@ -101,11 +110,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Observed PR #3636 reporting mergeable CONFLICTING/DIRTY while a local merge of the same commits was clean. Polled gh pr view four times at 30 second intervals on the reported head SHA.",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e010"
+        "e008"
       ]
     },
     {
@@ -113,11 +120,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran an adversarial review of that draft on a different model family (gpt-5.6-sol) with a prompt that specifically attacked the causal claim and asked which confounds were not ruled out.",
-      "caused_by": [
-        "e009"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e011"
+        "e008"
       ]
     },
     {
@@ -125,11 +130,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Checked GitHub's reported base against the head for PR #3636: git merge-base --is-ancestor 87b1176674 cadd47a5b1.",
-      "caused_by": [
-        "e010"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e012"
+        "e008"
       ]
     },
     {
@@ -137,11 +140,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran a controlled experiment against the advanced main (304355e98f), which is not an ancestor: merge-tree with the driver active, with the driver forced to false, with the driver replaced by a plain text merge, and a raw git merge-file of the three blobs.",
-      "caused_by": [
-        "e011"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e013"
+        "e008"
       ]
     },
     {
@@ -149,11 +150,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Verified the review's remaining technical claims against the source rather than accepting them.",
-      "caused_by": [
-        "e012"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e014"
+        "e008"
       ]
     },
     {
@@ -161,11 +160,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Replaced the whole-record comparison with an identity-key comparison using the driver's own _COLLECTIONS keys, then re-checked PR #3636's merge.",
-      "caused_by": [
-        "e013"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e015"
+        "e008"
       ]
     },
     {
@@ -173,11 +170,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Rewrote the memory around the finding the existing runbook does not cover: for a driver-managed path, a local trial merge is not authoritative for GitHub in either direction, because GitHub runs no custom merge driver.",
-      "caused_by": [
-        "e014"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e016"
+        "e008"
       ]
     },
     {
@@ -185,11 +180,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Rebased the branch onto main after PR #3643 removed the Tier 3 causal memory graph, then reworked the deliverable. PR #3643 deleted .agents/memory/causality/causal-graph.json, scripts/validation/merge_causal_graph.py, .claude/skills/memory/scripts/update_causal_graph.py, scripts/maintenance/install_merge_drivers.py, and the causal-graph entry in .gitattributes, so every worked example in the draft named a file that no longer exists on main.",
-      "caused_by": [
-        "e015"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e017"
+        "e008"
       ]
     },
     {
@@ -197,11 +190,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Walked the claim instead of asserting it. Built a scratch repository carrying this repository's .gitattributes and merged divergent edits to .agents/HANDOFF.md and .agents/handoffs/b.md against a plain text-attributed control, then ran a second scratch repository contrasting merge=union against merge=ours on git 2.43.0.",
-      "caused_by": [
-        "e016"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e018"
+        "e008"
       ]
     },
     {
@@ -209,11 +200,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran an adversarial review of the rewritten memory and runbook bullet on a different model family (gpt-5.6-sol) with instructions to falsify each claim independently and reproduce every experiment in its own scratch repositories.",
-      "caused_by": [
-        "e017"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e019"
+        "e008"
       ]
     },
     {
@@ -221,11 +210,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "The memory-size pre-commit hook rejected the single memory at 11211 characters against a 10000 maximum, and reported six categories against a maximum of five. Split the file on the seam between the two findings it carried rather than trimming evidence.",
-      "caused_by": [
-        "e018"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e020"
+        "e008"
       ]
     },
     {
@@ -233,11 +220,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran a second adversarial review of the split memories on gpt-5.6-sol, then reproduced each finding locally with a merge driver that succeeds and writes a sentinel, because a failing driver cannot discriminate between running and absent.",
-      "caused_by": [
-        "e019"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e021"
+        "e008"
       ]
     },
     {
@@ -245,10 +230,10 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Published the rebased branch without a force push, then found a second staleness mode on the PR itself.",
-      "caused_by": [
-        "e020"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ]
     }
   ],
   "metrics": {

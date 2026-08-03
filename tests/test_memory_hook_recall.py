@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,6 +15,7 @@ from memory_enhancement.hooks.user_prompt_submit_memory import (
     _format_memory_context,
     _read_user_input,
     _search_and_format,
+    main,
 )
 from memory_enhancement.search import SearchResult
 
@@ -177,3 +180,65 @@ class TestSearchAndFormat:
         result = _search_and_format("query", tmp_path, tmp_path)
         assert "<memory-context>" in result
         assert "Found Memory" in result
+
+
+class TestExitContract:
+    """UserPromptSubmit exit 2 erases the prompt, so recall must never use it.
+
+    See issue #4011 and the per-event table in .agents/specs/hook-protocol.md.
+    """
+
+    @staticmethod
+    def _repo(tmp_path: Path):
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".serena" / "memories").mkdir(parents=True)
+        return tmp_path
+
+    @pytest.mark.unit
+    def test_match_writes_stdout_and_returns_zero(self, tmp_path, monkeypatch, capsys):
+        repo = self._repo(tmp_path)
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"prompt": "dispatch groups"})))
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.user_prompt_submit_memory._find_repo_root",
+            lambda start=None: repo,
+        )
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.user_prompt_submit_memory._search_and_format",
+            lambda *_args: "<memory-context>hit</memory-context>",
+        )
+
+        exit_code = main()
+
+        captured = capsys.readouterr()
+        assert exit_code == 0
+        assert "<memory-context>" in captured.out
+        assert captured.err == ""
+
+    @pytest.mark.unit
+    def test_no_match_returns_zero_and_writes_nothing(self, tmp_path, monkeypatch, capsys):
+        repo = self._repo(tmp_path)
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"prompt": "dispatch groups"})))
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.user_prompt_submit_memory._find_repo_root",
+            lambda start=None: repo,
+        )
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.user_prompt_submit_memory._search_and_format",
+            lambda *_args: "",
+        )
+
+        exit_code = main()
+
+        assert exit_code == 0
+        assert capsys.readouterr().out == ""
+
+    @pytest.mark.unit
+    def test_missing_memories_dir_returns_zero(self, tmp_path, monkeypatch):
+        (tmp_path / ".git").mkdir()
+        monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"prompt": "dispatch groups"})))
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.user_prompt_submit_memory._find_repo_root",
+            lambda start=None: tmp_path,
+        )
+
+        assert main() == 0
