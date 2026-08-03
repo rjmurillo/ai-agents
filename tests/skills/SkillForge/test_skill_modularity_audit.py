@@ -4,8 +4,8 @@ Issue #4327: length scoring was one-sided (no floor).  Skills below
 IDEAL_MIN_LINES now receive the same style of penalty as skills above
 IDEAL_MAX_LINES.
 
-Expected values are independent of the production source: they are derived
-from the documented formula in the issue and manually verified below.
+Expected values are independent of the production constants: they are derived
+from the documented formula in the issue and verified below.
 
   score = 100
   if line_count > IDEAL_MAX_LINES (300):  score -= min((line_count - 300) // 10, 40)
@@ -23,8 +23,8 @@ import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Load the production module from the canonical source path so the test is
-# not tautological (it does not import a constant from the module it checks).
+# Load the production module from the canonical source path. This verifies file
+# path wiring without importing the module through package setup.
 # ---------------------------------------------------------------------------
 _SKILL_DIR = (
     Path(__file__).resolve().parent.parent.parent.parent
@@ -50,8 +50,11 @@ _fm = _load_module("skillforge_frontmatter", _SKILL_DIR / "frontmatter.py")
 _audit = _load_module("skill_modularity_audit", _SKILL_DIR / "skill_modularity_audit.py")
 
 _score = _audit._score_modularity
-IDEAL_MIN = _audit.IDEAL_MIN_LINES   # 100
-IDEAL_MAX = _audit.IDEAL_MAX_LINES   # 300
+IDEAL_MIN = 100
+IDEAL_MAX = 300
+
+assert _audit.IDEAL_MIN_LINES == IDEAL_MIN
+assert _audit.IDEAL_MAX_LINES == IDEAL_MAX
 
 
 def _score_size_only(line_count: int) -> int:
