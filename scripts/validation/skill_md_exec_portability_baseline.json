@@ -152,7 +152,6 @@
     "src/copilot-cli/skills/slo-designer/SKILL.md": 2,
     "src/copilot-cli/skills/spec-generator/SKILL.md": 1,
     "src/copilot-cli/skills/spec-generator/references/spec-schemas.md": 2,
-    "src/copilot-cli/skills/spec/SKILL.md": 2,
     "src/copilot-cli/skills/steering-matcher/SKILL.md": 3,
     "src/copilot-cli/skills/stuck-detection/SKILL.md": 7,
     "src/copilot-cli/skills/style-enforcement/SKILL.md": 12,
@@ -165,7 +164,11 @@
   "marker_files": {
     ".claude/skills/SkillForge/references/degrees-of-freedom.md": 1,
     ".claude/skills/SkillForge/references/script-integration-framework.md": 11,
+    ".claude/skills/spec-generator/references/spec-prior-art-schema.md": 1,
+    ".claude/skills/spec-generator/references/spec-step0-gates.md": 1,
     "src/copilot-cli/skills/SkillForge/references/degrees-of-freedom.md": 1,
-    "src/copilot-cli/skills/SkillForge/references/script-integration-framework.md": 11
+    "src/copilot-cli/skills/SkillForge/references/script-integration-framework.md": 11,
+    "src/copilot-cli/skills/spec-generator/references/spec-prior-art-schema.md": 1,
+    "src/copilot-cli/skills/spec-generator/references/spec-step0-gates.md": 1
   }
 }
