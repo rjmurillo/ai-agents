@@ -58,8 +58,9 @@ Vercel published. Cite the January date when citing the finding.
 
 Vercel measured 100% pass rate for always-on passive context against 53% to
 79% for skills. Read plainly, that says put everything always-on. This repo
-read it that way and grew its always-on corpus to 9 rules and roughly 81KB,
-with a Python edit pulling in roughly 94KB.
+read it that way and grew its always-on corpus to a peak of 9 rules and
+roughly 84KB. PR #4424 narrowed one of them, leaving 8 rules and roughly
+72KB, with a Python edit pulling in roughly 97KB.
 
 **What Vercel actually measured was knowledge injection.** The task was
 Next.js 16 APIs that were absent from the model's training data. Passive
@@ -173,9 +174,9 @@ as an implementer.
 
 ## Where this repo stands
 
-Measured 2026-07-30. Two numbers, and they are not interchangeable. The
-**always-on corpus is 9 rules, 80,969 bytes**: the ones that load regardless
-of what you touch. The **effective context on a `.py` edit is 94,088 bytes
+Measured at `0c75045d6`. Two numbers, and they are not interchangeable. The
+**always-on corpus is 8 rules, 72,291 bytes**: the ones that load regardless
+of what you touch. The **effective context on a `.py` edit is 96,785 bytes
 across 11 files**, which is the always-on corpus plus the path-scoped rules
 that a Python file activates. Use the first when arguing about what every
 session pays. Use the second when arguing about what a specific edit pays.
@@ -189,31 +190,38 @@ uv run --frozen python scripts/validation/instruction_budget.py --format table
 
 **State the basis whenever you quote a number.** That command measures the
 generated `.github/instructions/` mirrors. The `.claude/rules/` sources are
-139 bytes larger in total (81,108 always-on) because `generate_rules.py`
+135 bytes larger in total (72,426 always-on) because `generate_rules.py`
 strips the `priority:` frontmatter key that the Copilot tree does not use.
 An earlier draft of this document mixed the two bases in one paragraph and
 published a corpus size that matched neither. If a figure here disagrees with
 the command above by roughly a hundred bytes, that is the reason; if it
 disagrees by more, the document is stale and the command wins.
 
-The two book rules that load on every file are the largest book-derived block.
-They are not the largest rules: `voice.md` at 19,624 bytes is the single
-biggest always-on file, larger than either of them.
+One book rule loads on every file. `pragmatic-programmer.md` was narrowed to
+code files in PR #4424, which recovered 11,225 always-on bytes, the largest
+single reduction this corpus has taken. What remains always-on is not the
+largest rule either: `voice.md` at 19,624 bytes is the single biggest
+always-on file.
 
-| Rule | Bytes | Loading | Eval coverage |
-|---|---|---|---|
-| `code-quality.md` | 14,152 | always-on | none |
-| `pragmatic-programmer.md` | 12,219 | always-on | none |
-| `unified-software-engineering.md` | 8,242 | code files only | 3 positive, 1 negative |
+| Rule | Bytes | Loading | Scenario file | Scored result |
+|---|---|---|---|---|
+| `code-quality.md` | 14,152 | always-on | 3 positive, 1 negative | none |
+| `pragmatic-programmer.md` | 11,375 | code files only | 3 positive, 1 negative | none |
+| `unified-software-engineering.md` | 8,242 | code files only | 3 positive, 1 negative | yes |
 
-That is 26,371 always-on bytes, 32.5% of the 81,108-byte always-on corpus
-measured at source, and neither has behavioral eval coverage, which is why
-they grew unchallenged.
+That leaves 14,152 always-on bytes of book-derived rule, 19.5% of the
+72,426-byte always-on corpus measured at source. `code-quality` and
+`pragmatic-programmer` had no scenario file at all until PR #4017 added one to
+each on 2026-08-03, which is how they grew unchallenged for four months.
+
+A scenario file is not a result. `software_engineering_library_activation_ci.py`
+gates only the eight progressively-disclosed books, so nothing scores these
+three in CI. They are measurable now, not measured.
 
 **The rule that was measured is not in that corpus.**
 `unified-software-engineering.md` declares `paths:` scoped to source files, so
 it loads on a code edit and not otherwise. Carrying its result across to the
-two always-on book rules is an extrapolation, not a measurement. State it that
+always-on book rule is an extrapolation, not a measurement. State it that
 way whenever the number gets quoted.
 
 Always-on status is declared **three** ways in this tree, which is the trap:
@@ -221,13 +229,21 @@ Always-on status is declared **three** ways in this tree, which is the trap:
 | Form | Rules |
 |---|---|
 | `applyTo: '**'` | `builder-ethos`, `claude-model-patches`, `lsp-first`, `search-before-building`, `universal`, `voice` |
-| `alwaysApply: true` | `code-quality`, `pragmatic-programmer` |
+| `alwaysApply: true` | `code-quality` |
 | `paths: ["**"]` | `knowledge-persistence` |
 
 A survey that greps one convention misses the others. The first audit of this
-corpus grepped two and reported 8 rules; `knowledge-persistence.md` loads on
-every file and was absent from the count for a full review cycle. Enumerate by
-parsing frontmatter, never by grep.
+corpus grepped two and reported 8 of the 9 that were always-on at the time;
+`knowledge-persistence.md` loads on every file and was absent from the count
+for a full review cycle. Enumerate by parsing frontmatter, never by grep.
+
+Parse the **generated** `.github/instructions/` mirrors, not the
+`.claude/rules/` sources. `generate_rules.py` drops `alwaysApply:`, renames
+`paths:` to `applyTo:`, and synthesizes `applyTo: "**"` for any rule that
+declares no scope at all or whose globs are all filtered out as internal-only.
+Those last two paths reach the always-on corpus without any source line a
+grep could find, so the mirror is the authority for membership even though the
+source is the authority for content.
 
 They are fenced. The `software-engineering-library` skill contains an explicit
 design sentence saying these baseline rules stay loaded while the other eight
@@ -244,7 +260,7 @@ It was real. Commit `77edc827` (PR #1022, 2026-01-31) adopted the Vercel
 strategy and wrote "Total passive context: ~4.5KB (well under Vercel's 8KB
 threshold)".
 
-The always-on corpus is 9.9x that threshold and a Python edit sees 11.5x,
+The always-on corpus is 8.8x that threshold and a Python edit sees 11.8x,
 measured at source. The enforced budget ceiling in
 `scripts/validation/instruction_budget_constants.py` ratcheted upward to track
 measured size instead of holding at the goal, which made every increase look
