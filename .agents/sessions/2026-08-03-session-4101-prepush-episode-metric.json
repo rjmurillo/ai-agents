@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "This log is staged with the episode metric correction. endingCommit remains empty until a follow-up commit."
+        "evidence": "Committed the episode metric correction in 1bbb3b716. endingCommit records the reachable full SHA in this follow-up commit."
       },
       "validationPassed": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Targeted pre-push failure tests passed before this log was created."
+        "evidence": "Targeted pre-push failure tests passed before this follow-up log update."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -122,8 +122,12 @@
     {
       "step": "Corrected episode commits metric",
       "evidence": "tests/skills/memory/test_extract_session_episode.py detected the episode as the new metrics violation."
+    },
+    {
+      "step": "Recorded reachable ending commit",
+      "evidence": "Previous commit 1bbb3b716 contains the episode metric correction."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "1bbb3b716762b369d062d4a650cdf04c59e254de",
   "nextSteps": []
 }

@@ -13,6 +13,31 @@
       "type": "milestone",
       "content": "Corrected episode commits metric",
       "caused_by": [],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-03-session-4101-prepush-episode-metric"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded reachable ending commit",
+      "caused_by": [],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-03-session-4101-prepush-episode-metric"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T21:31:32+00:00",
+      "type": "commit",
+      "content": "Commit: 1bbb3b716762b369d062d4a650cdf04c59e254de",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-03-session-4101-prepush-episode-metric"
     }
@@ -22,7 +47,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 3
   },
   "lessons": []
