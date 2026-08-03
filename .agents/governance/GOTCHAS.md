@@ -30,7 +30,7 @@ for executable invocations of exactly that tree. All four live in
 |---|---|---|
 | `scripts/validation/check_vendor_portability.py` | skill scripts | code that reads an upstream-only path |
 | `scripts/validation/check_skill_portability.py` | skill scripts | drift against the script baseline |
-| `scripts/validation/check_skill_md_portability.py` | skill `.md` | an upstream path cited in **prose** |
+| `scripts/validation/check_skill_md_portability.py` | skill `.md`, `.claude/commands/`, `templates/agents/` | an upstream path cited in **prose** |
 | `scripts/validation/check_skill_md_exec_portability.py` | skill `.md` | a bare `.claude/skills/...` script **invocation** |
 
 Symptom: the first two pass, you commit, and the push is rejected by
