@@ -1149,8 +1149,8 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-ADDRESSED=$(grep -c "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
-WONTFIX=$(grep -c "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
+ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
+WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
 TOTAL=$TOTAL_COMMENTS
 
 echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
