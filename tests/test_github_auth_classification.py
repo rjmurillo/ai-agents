@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from contextlib import nullcontext
 from unittest.mock import patch
 
 import pytest
@@ -137,24 +138,43 @@ class TestGraphqlRetryEnvelope:
     outcome. These tests measure the envelope, which no classifier assertion can.
     """
 
-    def _run_with_recorded_sleeps(self, bodies, drained):
+    def _run_with_recorded_sleeps(self, bodies, drained, pin_jitter=False):
         calls = [_completed(stderr=body, rc=1) for body in bodies]
         sleeps: list[float] = []
+        jitter = patch(
+            "random.uniform", side_effect=lambda low, high: high
+        ) if pin_jitter else nullcontext()
         with patch("subprocess.run", side_effect=calls), patch(
             "scripts.github_core.api.drained_rate_limit_buckets", return_value=drained
-        ), patch("time.sleep", side_effect=sleeps.append):
+        ), patch("time.sleep", side_effect=sleeps.append), jitter:
             with pytest.raises(RuntimeError) as exc:
                 gh_graphql("query { viewer { login } }")
         return sleeps, str(exc.value)
 
     def test_quota_retry_budget_reaches_the_measured_recovery(self):
-        sleeps, _ = self._run_with_recorded_sleeps([GRAPHQL_QUOTA] * 3, drained=[])
+        # Pin the jitter to its ceiling so the assertion reads the ladder the
+        # code selected. An upper-bound assertion cannot do that: every value
+        # the short 1s/2s exponential ladder produces also satisfies
+        # `<= 15.0` and `<= 30.0`, so reverting the refusal branch of
+        # `_graphql_retry_ceiling` left this test green while the worst-case
+        # budget fell from 45s to 3s, back inside the refusal window issue
+        # #4326 measured at about a minute.
+        sleeps, _ = self._run_with_recorded_sleeps(
+            [GRAPHQL_QUOTA] * 3, drained=[], pin_jitter=True
+        )
 
         assert len(sleeps) == 2
-        # Full jitter, so assert the ceiling the ladder allows, not a point value.
-        assert sleeps[0] <= REFUSAL_BACKOFF_SECONDS[0]
-        assert sleeps[1] <= REFUSAL_BACKOFF_SECONDS[1]
-        assert sum(REFUSAL_BACKOFF_SECONDS) >= 45.0
+        assert sleeps == [REFUSAL_BACKOFF_SECONDS[0], REFUSAL_BACKOFF_SECONDS[1]]
+        assert sum(sleeps) >= 45.0
+
+    def test_transient_5xx_keeps_the_short_ladder(self):
+        """The long ladder is for refusals only; a 5xx must not wait 45s."""
+        sleeps, _ = self._run_with_recorded_sleeps(
+            ["HTTP 503 upstream"] * 3, drained=[], pin_jitter=True
+        )
+
+        assert len(sleeps) == 2
+        assert sum(sleeps) < sum(REFUSAL_BACKOFF_SECONDS)
 
     def test_drained_bucket_fails_fast_instead_of_burning_attempts(self):
         """Genuine exhaustion resets on the hour; no bounded retry reaches it."""
