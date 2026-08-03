@@ -83,3 +83,18 @@ The acceptance parser is a canary signal until the workflow removes
 `continue-on-error` and feeds its result into the final gate. Checked criteria
 are useful input for that signal, but current guidance must not describe them as
 a merge blocker.
+
+## Independent confirmation (2026-08-03)
+
+Measured from the server rather than the workflow source, which rules out a
+misread of the YAML:
+
+- `Validate Spec Coverage` **is** a required status check on `main`
+  (`gh api repos/rjmurillo/ai-agents/rules/branches/main`, `required_status_checks`).
+- PR #4400 had **no** `## Acceptance criteria` heading anywhere in its body.
+- All three `Validate Spec Coverage` runs on that head SHA returned
+  `completed / success`, and the PR merged.
+
+Required and blocking are different properties. The check must report a
+conclusion, and it reports success when the section is absent. Do not infer
+"blocks" from "required".
