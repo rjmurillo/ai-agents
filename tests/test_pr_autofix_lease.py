@@ -31,8 +31,10 @@ within the ADR-035 numeric range:
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
+import logging
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
@@ -469,8 +471,20 @@ def _patch_post():
     return patch.object(_mod, "post_lease_comment", return_value=None)
 
 
-def _patch_head(sha=_SHA):
-    return patch.object(_mod, "_git_head_sha", return_value=sha)
+@contextlib.contextmanager
+def _patch_head(sha=_SHA, pr_head=_SHA):
+    """Patch both SHA reads acquire performs.
+
+    ``sha`` is what the caller's checkout reports at HEAD; ``pr_head`` is
+    what GitHub reports as the PR head. They are separate inputs because
+    the defect in #4357 was acquire publishing the first as if it were the
+    second.
+    """
+    with (
+        patch.object(_mod, "_git_head_sha", return_value=sha),
+        patch.object(_mod, "_pr_head_sha", return_value=pr_head),
+    ):
+        yield
 
 
 def _patch_login(login=_AUTHOR):
@@ -589,8 +603,116 @@ class TestAcquire:
         assert result.action == "ACT"
         assert result.reason == "lease-store-unavailable"
 
-    def test_acquire_uses_zero_sha_when_git_unavailable(self):
-        with _patch_list([]), _patch_post(), _patch_head(sha=None), _patch_login():
+
+# ===========================================================================
+# base_sha provenance: the PR head, never the caller's checkout
+# (issues #4357, #4375; ADR-076 part 1 and part 3 acquire step 1)
+# ===========================================================================
+
+
+_PR_HEAD = "b" * 40
+_OTHER_CHECKOUT = "c" * 40
+
+
+def _captured_post():
+    """Patch post_lease_comment and hand back the bodies it was given."""
+    bodies: list[str] = []
+
+    def _capture(owner, repo, pr, body):
+        bodies.append(body)
+
+    return patch.object(_mod, "post_lease_comment", side_effect=_capture), bodies
+
+
+class TestBaseShaProvenance:
+    def test_base_sha_is_the_pr_head_not_the_local_checkout(self):
+        # The discriminating input: acquire runs from a checkout whose HEAD
+        # is NOT the PR head (the #4294 coordinator-on-main case). The
+        # pre-fix code published the local SHA here.
+        post, bodies = _captured_post()
+        with (
+            _patch_list([]),
+            post,
+            _patch_head(sha=_OTHER_CHECKOUT, pr_head=_PR_HEAD),
+            _patch_login(),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.base_sha == _PR_HEAD
+        published = parse_lease_block(bodies[0])
+        assert published is not None
+        assert published.base_sha == _PR_HEAD
+
+    def test_mismatch_reports_both_shas(self):
+        with (
+            _patch_list([]),
+            _patch_post(),
+            _patch_head(sha=_OTHER_CHECKOUT, pr_head=_PR_HEAD),
+            _patch_login(),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.local_head_sha == _OTHER_CHECKOUT
+        assert result.base_sha == _PR_HEAD
+
+    def test_mismatch_logs_both_shas(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            with (
+                _patch_list([]),
+                _patch_post(),
+                _patch_head(sha=_OTHER_CHECKOUT, pr_head=_PR_HEAD),
+                _patch_login(),
+            ):
+                acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        warnings = [rec.getMessage() for rec in caplog.records]
+        assert any("lease_checkout_mismatch" in line for line in warnings)
+        assert any(_OTHER_CHECKOUT in line and _PR_HEAD in line for line in warnings)
+
+    def test_matching_checkout_logs_no_mismatch(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            with (
+                _patch_list([]),
+                _patch_post(),
+                _patch_head(sha=_PR_HEAD, pr_head=_PR_HEAD),
+                _patch_login(),
+            ):
+                result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.local_head_sha == _PR_HEAD
+        assert not any("lease_checkout_mismatch" in rec.getMessage() for rec in caplog.records)
+
+    def test_detached_or_missing_git_still_records_the_pr_head(self):
+        # git unavailable (or a checkout git cannot resolve): the lease is
+        # still correct, because base_sha never depended on git.
+        with (
+            _patch_list([]),
+            _patch_post(),
+            _patch_head(sha=None, pr_head=_PR_HEAD),
+            _patch_login(),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.base_sha == _PR_HEAD
+        assert result.local_head_sha is None
+
+    def test_pr_head_read_failure_fails_open_without_posting(self):
+        with (
+            patch.object(_mod, "_pr_head_sha", side_effect=LeaseStoreError("api down")),
+            patch.object(_mod, "_git_head_sha", return_value=_OTHER_CHECKOUT),
+            _patch_list([]),
+            _patch_post() as post,
+            _patch_login(),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.action == "ACT"
+        assert result.reason == "lease-store-unavailable"
+        assert result.base_sha == "0" * 40
+        assert result.local_head_sha == _OTHER_CHECKOUT
+        post.assert_not_called()
+
+    def test_store_read_failure_records_no_pr_head(self):
+        with (
+            _patch_head(sha=_OTHER_CHECKOUT, pr_head=_PR_HEAD),
+            patch.object(_mod, "list_lease_comments", side_effect=LeaseStoreError("boom")),
+            _patch_post(),
+            _patch_login(),
+        ):
             result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
         assert result.base_sha == "0" * 40
 
@@ -731,6 +853,39 @@ class TestIOAdapter:
         with patch.object(_mod.subprocess, "run", return_value=_completed(stdout=_SHA + "\n")):
             assert _mod._git_head_sha() == _SHA
 
+    # --- _pr_head_sha adapter (issues #4357, #4375) -----------------------
+
+    def test_pr_head_returns_sha_on_success(self):
+        with patch.object(_mod.subprocess, "run", return_value=_completed(stdout=_SHA + "\n")):
+            assert _mod._pr_head_sha("o", "r", 1) == _SHA
+
+    def test_pr_head_raises_store_error_on_nonzero_exit(self):
+        with patch.object(_mod.subprocess, "run", return_value=_completed(rc=1, stderr="404")):
+            with pytest.raises(LeaseStoreError):
+                _mod._pr_head_sha("o", "r", 1)
+
+    def test_pr_head_raises_store_error_on_oserror(self):
+        with patch.object(_mod.subprocess, "run", side_effect=OSError("gh missing")):
+            with pytest.raises(LeaseStoreError):
+                _mod._pr_head_sha("o", "r", 1)
+
+    def test_pr_head_raises_store_error_on_non_sha_payload(self):
+        with patch.object(_mod.subprocess, "run", return_value=_completed(stdout="null\n")):
+            with pytest.raises(LeaseStoreError):
+                _mod._pr_head_sha("o", "r", 1)
+
+    def test_pr_head_reads_the_requested_pull_request(self):
+        seen: dict = {}
+
+        def _run(argv, **kwargs):
+            seen["argv"] = argv
+            return _completed(stdout=_SHA)
+
+        with patch.object(_mod.subprocess, "run", side_effect=_run):
+            _mod._pr_head_sha("acme", "widgets", 42)
+        assert "repos/acme/widgets/pulls/42" in seen["argv"]
+        assert ".head.sha" in seen["argv"]
+
     # --- _gh_authenticated_login adapter (must_fix #7) --------------------
 
     def test_login_returns_login_on_success(self):
@@ -788,6 +943,23 @@ class TestMainExitCodes:
                 ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
             )
         assert rc == 0
+
+    def test_acquire_output_carries_both_shas(self, capsys):
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            _patch_list([]),
+            _patch_post(),
+            _patch_head(sha=_OTHER_CHECKOUT, pr_head=_PR_HEAD),
+            _patch_login(),
+        ):
+            rc = main(
+                ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert payload["Data"]["base_sha"] == _PR_HEAD
+        assert payload["Data"]["local_head_sha"] == _OTHER_CHECKOUT
 
     def test_acquire_held_exits_one(self):
         held = _comment(
