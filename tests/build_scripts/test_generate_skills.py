@@ -42,6 +42,13 @@ _SKILL_ROUTE_RE = re.compile(
     re.MULTILINE,
 )
 _SKILLFORGE_TIMEOUT_SECONDS = 20
+_ISSUE_4327_URL = "https://github.com/rjmurillo/ai-agents/issues/4327"
+_ISSUE_4327_REFERENCE_FILES = (
+    ".claude/skills/SkillForge/scripts/skill_modularity_audit.py",
+    ".claude/skills/SkillForge/references/modularity-guidelines.md",
+    "src/copilot-cli/skills/SkillForge/scripts/skill_modularity_audit.py",
+    "src/copilot-cli/skills/SkillForge/references/modularity-guidelines.md",
+)
 
 
 # Helpers --------------------------------------------------------------------
@@ -153,6 +160,15 @@ def test_copilot_skill_routes_resolve_inside_copilot_skill_tree() -> None:
                 unresolved.append(f"{rel_path}: Skill: {routed_skill}")
 
     assert not unresolved, "unresolved Copilot Skill routes:\n" + "\n".join(unresolved)
+
+
+@pytest.mark.parametrize("relative_path", _ISSUE_4327_REFERENCE_FILES)
+def test_issue_4327_references_are_repo_qualified(relative_path: str) -> None:
+    """Shipped issue links must keep their upstream repository identity."""
+    text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+    assert _ISSUE_4327_URL in text
+    assert not re.search(r"(?i)(?<![\w/])(?:issue\s+)?#4327\b", text)
 
 
 @pytest.mark.parametrize("skill_name", _GATED_SKILL_TREE_MIRRORS)
