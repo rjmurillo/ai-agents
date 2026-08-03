@@ -83,6 +83,35 @@ three hand-maintained copies. The six are not byte identical by design: the
 `.claude` copy writes `mcp__context7__*` where others write `Context7`, so match
 local style rather than pasting one body into all six.
 
+## Running the validator bare passes vacuously
+
+`validate_install_parity.py` defaults to `--base @{push}`. On a branch that is
+already pushed, `@{push}` is that branch's own remote tip, so `@{push}..HEAD`
+covers only the commits you have not pushed yet. Run it bare after a merge commit
+and it inspects almost nothing and prints `install-parity: OK`.
+
+The pre-PR gate does not use that default. `validate_install_parity` in
+`scripts/validation/checks_plugin.py` passes an explicit `--base` from
+`_resolve_branch_base_ref`, which deliberately **rejects** a self-tracking
+upstream. Its docstring names the reason: "A self-tracking upstream produces an
+empty diff against HEAD once the branch is pushed, which would let 'since base'
+gates miss real changes", the bug behind issue #2571.
+
+So the script's own default has exactly the flaw the gate wrapper exists to avoid.
+`install-parity: OK` from a bare run is not evidence the gate will pass.
+
+Reproduce what the gate actually runs:
+
+```bash
+uv run --frozen python build/scripts/validate_install_parity.py \
+  --base "$(git merge-base origin/main HEAD)"
+```
+
+Measured 2026-08-06 on PR #4445: bare run printed `OK`, the push then failed on
+`pre-pr-validation`, and the same script with an explicit merge-base printed
+`DRIFT` naming three missing hand-maintained siblings. The bare run cost a full
+push cycle, roughly 1100 seconds of pre-push suite, to learn nothing.
+
 ## Generalization
 
 When a gate misses something, find the code path that actually ran before
