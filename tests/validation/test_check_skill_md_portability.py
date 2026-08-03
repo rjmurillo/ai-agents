@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, this suite covers one validator end to end.
 """Tests for the Markdown vendor-portability ratchet (issue #2050).
 
 scripts/validation/check_skill_md_portability.py is the Markdown counterpart to
@@ -1301,23 +1302,83 @@ class TestBaselineSemanticConflictGuard:
         subprocess.run(["git", "add", "."], cwd=root, check=True)
         subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
 
-    def test_baseline_and_measured_skill_input_cochange_fails_closed(
+    def test_new_marker_declaration_alongside_baseline_is_allowed(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """A stale baseline that does not match the current scan still fails.
+        """The documented opt-out flow must be reachable in one commit (issue #4300).
 
-        The guard fires when the baseline changed alongside a measured input AND
-        the baseline does not reflect the current scan. Either the semantic
-        conflict guard or the drift check fires; both produce exit 1.
+        ``validate-vendor-portability.yml`` tells an author to add a
+        ``vendor-portability`` marker and then run ``--update-baseline``. Under
+        the original blanket refusal that pair was rejected whenever
+        ``--base-ref`` was set, so following the documented remedy turned CI
+        red. Marker drift is still caught exactly against the on-disk baseline,
+        and the same check runs again on ``main`` after the merge.
         """
         self._init_repo(tmp_path)
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "<!-- vendor-portability: declares .agents/state -->\nUses .agents/state.\n",
             encoding="utf-8",
         )
-        # Baseline has the wrong marker count (0) while the scan would see 1.
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}
+            ),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "HEAD",
+            ]
+        )
+
+        assert rc == 0
+        assert "Semantic baseline conflict" not in capsys.readouterr().out
+
+    def test_stale_marker_declaration_baseline_still_fails(
+        self, tmp_path: Path
+    ) -> None:
+        """A stale baseline that does not match the current scan still fails."""
+        self._init_repo(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "<!-- vendor-portability: declares .agents/state -->\nUses .agents/state.\n",
+            encoding="utf-8",
+        )
         (tmp_path / "baseline.json").write_text(
             json.dumps({"files": {}, "marker_files": {}}),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "HEAD",
+            ]
+        )
+
+        assert rc == 1
+
+    def test_undeclared_refs_added_alongside_baseline_still_fail(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The guard's real target: a branch-local regeneration hiding new debt."""
+        self._init_repo(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Uses .agents/state.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {".claude/skills/a/SKILL.md": 1}, "marker_files": {}}
+            ),
             encoding="utf-8",
         )
 
@@ -1451,6 +1512,243 @@ class TestBaselineSemanticConflictGuard:
     def test_future_plugin_skill_root_counts_as_measured_input(self) -> None:
         """Edge: the co-change guard stays aligned with PLUGIN_ROOTS."""
         assert cmp._is_measured_input("src/claude/skills/example/SKILL.md") is True
+
+    def _init_repo_with_debt(self, root: Path) -> None:
+        """Seed a committed tree carrying one unsuppressed ref and a matching baseline."""
+        self._init_repo(root)
+        (root / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Uses .agents/state.\n", encoding="utf-8"
+        )
+        (root / "baseline.json").write_text(
+            json.dumps(
+                {"files": {".claude/skills/a/SKILL.md": 1}, "marker_files": {}}
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "debt"], cwd=root, check=True)
+
+    def _run(self, root: Path, base_ref: str) -> int:
+        return cmp.main(
+            [
+                "--repo-root",
+                str(root),
+                "--baseline",
+                str(root / "baseline.json"),
+                "--base-ref",
+                base_ref,
+            ]
+        )
+
+    def test_lowered_baseline_alongside_md_change_is_allowed(
+        self, tmp_path: Path
+    ) -> None:
+        """Issue #4300: paying debt down must not read as a semantic conflict.
+
+        Before this, the guard refused every baseline plus measured-input
+        co-change, which a main merge always produces, so the branch could
+        never be made green.
+        """
+        self._init_repo_with_debt(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
+        )
+
+        assert self._run(tmp_path, "HEAD") == 0
+
+    def test_raised_count_is_caught_even_when_baseline_is_regenerated(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Negative: the ratchet reads base_ref from git, so regenerating cannot launder it.
+
+        This is the property the old blanket refusal was protecting. The
+        working-tree baseline agrees with the scan and would report zero
+        regressions on its own.
+        """
+        self._init_repo_with_debt(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Files: .agents/a, .agents/b, .claude/review-axes/c.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {".claude/skills/a/SKILL.md": 3}, "marker_files": {}}
+            ),
+            encoding="utf-8",
+        )
+
+        rc = self._run(tmp_path, "HEAD")
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Counts rose above the baseline recorded at HEAD" in out
+        assert ".claude/skills/a/SKILL.md" in out
+
+    def test_scanner_change_stays_fatal_without_any_raised_count(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Edge: moving scanner semantics invalidates comparison, ratchet or not."""
+        self._init_repo_with_debt(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        (tmp_path / "scripts" / "validation" / "check_skill_md_portability.py").write_text(
+            "# scanner semantics changed\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
+        )
+
+        rc = self._run(tmp_path, "HEAD")
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Semantic baseline conflict" in out
+        assert "Scanner source changed" in out
+        assert "Counts rose above" not in out
+
+    def test_baseline_absent_at_base_ref_fails_closed(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Edge: with no recorded numbers there is nothing to ratchet against."""
+        self._init_repo_with_debt(tmp_path)
+        subprocess.run(["git", "rm", "-q", "baseline.json"], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "drop baseline"], cwd=tmp_path, check=True
+        )
+        base_ref = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        ).stdout.strip()
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
+        )
+        subprocess.run(["git", "add", "baseline.json"], cwd=tmp_path, check=True)
+
+        rc = self._run(tmp_path, base_ref)
+
+        assert rc == 1
+        assert "Semantic baseline conflict" in capsys.readouterr().out
+
+    def test_unparsable_baseline_at_base_ref_fails_closed(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Edge: a corrupt recorded baseline must not be read as permission."""
+        self._init_repo_with_debt(tmp_path)
+        (tmp_path / "baseline.json").write_text("{not json", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "corrupt"], cwd=tmp_path, check=True)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
+        )
+
+        rc = self._run(tmp_path, "HEAD")
+
+        assert rc == 1
+        assert "Semantic baseline conflict" in capsys.readouterr().out
+
+    def test_a_baseline_outside_the_repo_says_so_instead_of_failing_mutely(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Edge: the one fail-closed path that used to return None in silence.
+
+        Every other way ``_baseline_payload_at_ref`` gives up names the reason
+        on stderr. A baseline resolving outside the repository root did not, so
+        the guard reported nothing and the caller only saw a missing ratchet.
+        """
+        root = tmp_path / "repo"
+        root.mkdir()
+        outside = tmp_path / "elsewhere" / "baseline.json"
+
+        assert cmp._baseline_payload_at_ref(root, "HEAD", outside) is None
+
+        err = capsys.readouterr().err
+        assert str(outside) in err
+        assert str(root) in err
+        assert "outside the repository root" in err
+
+    def test_a_baseline_inside_the_repo_is_not_blamed_on_its_location(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Negative control: an in-tree baseline fails for its own reason.
+
+        Without this, the assertions above pass for a build that prints the
+        outside-the-root complaint on every failure.
+        """
+        self._init_repo(tmp_path)
+        missing = tmp_path / "no-such-baseline.json"
+
+        assert cmp._baseline_payload_at_ref(tmp_path, "HEAD", missing) is None
+
+        err = capsys.readouterr().err
+        assert "outside the repository root" not in err
+        assert "no-such-baseline.json" in err
+
+    def test_new_marker_declaration_is_allowed_against_base_ref(
+        self, tmp_path: Path
+    ) -> None:
+        """Edge: markers are declarations, so base_ref has nothing to ratchet.
+
+        A file added on the branch has no ``base_ref`` entry. Ratcheting the
+        marker section here would reject the sanctioned opt-out flow outright.
+        """
+        self._init_repo_with_debt(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        new_skill = tmp_path / ".claude" / "skills" / "b" / "SKILL.md"
+        new_skill.parent.mkdir(parents=True, exist_ok=True)
+        new_skill.write_text(
+            "<!-- vendor-portability: declares .agents/state -->\nUses .agents/state.\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {}, "marker_files": {".claude/skills/b/SKILL.md": 1}}
+            ),
+            encoding="utf-8",
+        )
+
+        assert self._run(tmp_path, "HEAD") == 0
+
+    def test_marker_decrease_alongside_md_change_is_allowed(
+        self, tmp_path: Path
+    ) -> None:
+        """Edge: exact-count marker drift is on-disk semantics, not the base_ref ratchet."""
+        self._init_repo(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "<!-- vendor-portability: declares .agents/state -->\nUses .agents/state.\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "marker"], cwd=tmp_path, check=True)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
+        )
+
+        assert self._run(tmp_path, "HEAD") == 0
 
 
 class TestTraversalErrorsSurface:

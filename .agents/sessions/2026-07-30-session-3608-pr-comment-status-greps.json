@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3608,
+    "date": "2026-07-30",
+    "branch": "fix/4034-pr-comment-responder-status-greps",
+    "startingCommit": "87b11766",
+    "objective": "Fix issue #4034 by anchoring pr-comment-responder status greps to emitted bold comment-map fields"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools were unavailable in this Hermes worker; degraded-mode fallback searched .serena/memories directly."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP instructions were unavailable; followed AGENTS.md fallback and documented degraded mode."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Kanban task context and issue #4034 acceptance criteria read via kanban_show."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This JSON session log."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded pr-comment-responder, github-url-intercept, test-driven-development, validate-pr-description, and kanban-worker skills."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded relevant pr-comment-responder memory fallback from .serena/memories."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read generator ownership guidance and platform sync rules before editing carriers."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/pr-review/pr-comment-responder-skills.md read."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch renamed to fix/4034-pr-comment-responder-status-greps before push."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work occurred in isolated worktree branch, not main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Git status checked before and after edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Started from 87b11766 per worktree snapshot."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Regression test, generator validation, ruff, install parity, PR description validation, and reproduction grep completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No HANDOFF.md changes needed for this issue-scoped fix."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable memory update needed; retrospective file captures session-specific learning."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit markdown-autofix and markdown-check passed after replacing raw table pipes."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit amended with code, tests, generated mirrors, plugin manifest bumps, and retrospective evidence."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted regression tests passed; full pytest reached 98% with no failures before 600s timeout; focused timeout point passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Kanban task will be completed with PR link after push."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-07-30-pr-comment-status-greps.md created; learnings captured."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-07-30T17:30:00-07:00",
+      "entry": "Wrote failing regression for old Status: grep patterns and confirmed 9 carrier failures."
+    },
+    {
+      "time": "2026-07-30T17:45:00-07:00",
+      "entry": "Updated anchored bold-field greps across sources, regenerated mirrors, and bumped plugin manifests."
+    },
+    {
+      "time": "2026-07-30T17:55:00-07:00",
+      "entry": "Validated targeted tests, generator parity, install parity, ruff, PR description, and reproduction grep."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Push branch and open PR for issue #4034.",
+    "Monitor CI and address any review feedback."
+  ]
+}

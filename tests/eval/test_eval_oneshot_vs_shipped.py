@@ -57,9 +57,7 @@ def _fixture_dict(**overrides: object) -> dict:
 
 def _write_fixture(fixtures_dir: Path, name: str, **overrides: object) -> None:
     fixtures_dir.mkdir(parents=True, exist_ok=True)
-    (fixtures_dir / name).write_text(
-        json.dumps(_fixture_dict(**overrides)), encoding="utf-8"
-    )
+    (fixtures_dir / name).write_text(json.dumps(_fixture_dict(**overrides)), encoding="utf-8")
 
 
 # --- config / exit codes -----------------------------------------------------
@@ -105,7 +103,7 @@ def test_dry_run_lists_fixtures_and_does_not_call_api(tmp_path: Path, capsys, mo
         raise AssertionError("dry run must not call the API")
 
     monkeypatch.setattr(cli, "_call_api", _boom)
-    monkeypatch.setattr(cli, "_load_api_key", _boom)
+    monkeypatch.setattr(cli, "_load_api_key_for_selected_provider", _boom)
     code = cli.main(["--fixtures", str(fx), "--dry-run"])
     out = capsys.readouterr().out
     assert code == cli.EXIT_OK
@@ -133,7 +131,7 @@ def test_live_run_grades_with_mocked_judge(tmp_path: Path, capsys, monkeypatch):
         )
 
     monkeypatch.setattr(cli, "_call_api", _fake_call)
-    monkeypatch.setattr(cli, "_load_api_key", lambda: "test-key")
+    monkeypatch.setattr(cli, "_load_api_key_for_selected_provider", lambda: "test-key")
     code = cli.main(["--fixtures", str(fx), "--output-format", "json"])
     payload = json.loads(capsys.readouterr().out)
     assert code == cli.EXIT_OK
@@ -150,7 +148,7 @@ def test_live_run_api_error_exits_external(tmp_path: Path, capsys, monkeypatch):
         raise RuntimeError("api down")
 
     monkeypatch.setattr(cli, "_call_api", _raise)
-    monkeypatch.setattr(cli, "_load_api_key", lambda: "test-key")
+    monkeypatch.setattr(cli, "_load_api_key_for_selected_provider", lambda: "test-key")
     code = cli.main(["--fixtures", str(fx)])
     assert code == cli.EXIT_EXTERNAL
     assert "API" in capsys.readouterr().out
@@ -165,7 +163,7 @@ def test_api_error_not_counted_as_judge_failure(tmp_path: Path, capsys, monkeypa
         raise RuntimeError("api down")
 
     monkeypatch.setattr(cli, "_call_api", _raise)
-    monkeypatch.setattr(cli, "_load_api_key", lambda: "test-key")
+    monkeypatch.setattr(cli, "_load_api_key_for_selected_provider", lambda: "test-key")
     code = cli.main(["--fixtures", str(fx), "--output-format", "json"])
     payload = json.loads(capsys.readouterr().out)
     assert code == cli.EXIT_EXTERNAL
@@ -186,7 +184,7 @@ def test_judge_parse_failure_exits_external(tmp_path: Path, capsys, monkeypatch)
         return "a real fix" if calls["n"] % 2 == 1 else "I refuse to grade."
 
     monkeypatch.setattr(cli, "_call_api", _fake_call)
-    monkeypatch.setattr(cli, "_load_api_key", lambda: "test-key")
+    monkeypatch.setattr(cli, "_load_api_key_for_selected_provider", lambda: "test-key")
     code = cli.main(["--fixtures", str(fx), "--output-format", "json"])
     payload = json.loads(capsys.readouterr().out)
     assert code == cli.EXIT_EXTERNAL
@@ -202,7 +200,7 @@ def test_load_api_key_failure_exits_external(tmp_path: Path, capsys, monkeypatch
     def _raise():
         raise RuntimeError("ANTHROPIC_API_KEY not set")
 
-    monkeypatch.setattr(cli, "_load_api_key", _raise)
+    monkeypatch.setattr(cli, "_load_api_key_for_selected_provider", _raise)
     code = cli.main(["--fixtures", str(fx)])
     assert code == cli.EXIT_CONFIG
     assert "API key" in capsys.readouterr().err
@@ -218,7 +216,7 @@ def test_live_run_writes_report(tmp_path: Path, monkeypatch):
         "_call_api",
         lambda *a, **k: json.dumps({"grade": "PARTIAL", "reasoning": "x"}),
     )
-    monkeypatch.setattr(cli, "_load_api_key", lambda: "test-key")
+    monkeypatch.setattr(cli, "_load_api_key_for_selected_provider", lambda: "test-key")
     code = cli.main(["--fixtures", str(fx), "--report", str(report)])
     assert code == cli.EXIT_OK
     assert report.exists()
@@ -235,7 +233,7 @@ def test_report_outside_repo_exits_config(tmp_path: Path, capsys, monkeypatch):
         "_call_api",
         lambda *a, **k: json.dumps({"grade": "PARTIAL", "reasoning": "x"}),
     )
-    monkeypatch.setattr(cli, "_load_api_key", lambda: "test-key")
+    monkeypatch.setattr(cli, "_load_api_key_for_selected_provider", lambda: "test-key")
     code = cli.main(["--fixtures", str(fx), "--report", str(outside_report)])
     assert code == cli.EXIT_CONFIG
     assert "outside repository root" in capsys.readouterr().err
@@ -253,7 +251,7 @@ def test_report_write_failure_exits_config(tmp_path: Path, capsys, monkeypatch):
         "_call_api",
         lambda *a, **k: json.dumps({"grade": "PARTIAL", "reasoning": "x"}),
     )
-    monkeypatch.setattr(cli, "_load_api_key", lambda: "test-key")
+    monkeypatch.setattr(cli, "_load_api_key_for_selected_provider", lambda: "test-key")
     code = cli.main(["--fixtures", str(fx), "--report", str(report)])
     assert code == cli.EXIT_CONFIG
     assert "cannot write report" in capsys.readouterr().err
