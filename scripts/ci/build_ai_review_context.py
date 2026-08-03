@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -84,31 +85,34 @@ def read_utf8_file(path: Path, description: str) -> str:
         raise ConfigError(f"{description} file must be UTF-8: {path}") from exc
 
 
-def get_pr_title(pr_number: str, repository: str) -> str:
-    result = run_gh(
-        ["pr", "view", pr_number, "--repo", repository, "--json", "title", "-q", ".title"]
-    )
+@dataclass(frozen=True, slots=True)
+class PrInfo:
+    title: str
+    body: str
+    number: str
+    fetch_error: str = ""
+
+
+def get_pr_info(pr_number: str, repository: str) -> PrInfo:
+    """Fetch PR title, body, and number in one REST call.
+
+    Uses ``gh api repos/{repository}/pulls/{pr_number}`` (REST) rather than
+    ``gh pr view`` (GraphQL) so the call draws from the separate REST quota
+    and does not fail when the GraphQL budget is exhausted.
+    """
+    result = run_gh(["api", f"repos/{repository}/pulls/{pr_number}"])
     if result.returncode != 0:
-        return "Unknown PR"
-    return sanitize_title(result.stdout)
-
-
-def get_pr_body(pr_number: str, repository: str) -> str:
-    result = run_gh(
-        ["pr", "view", pr_number, "--repo", repository, "--json", "body", "-q", ".body"]
+        error = result.stderr.strip() or f"gh api exited {result.returncode}"
+        return PrInfo("Unknown PR", "", "0", fetch_error=error)
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        return PrInfo("Unknown PR", "", "0", fetch_error=str(exc))
+    return PrInfo(
+        title=sanitize_title(data.get("title", "") or ""),
+        body=(data.get("body", "") or "").rstrip("\n"),
+        number=str(data.get("number", 0)),
     )
-    if result.returncode != 0:
-        return ""
-    return result.stdout.rstrip("\n")
-
-
-def get_actual_pr_number(pr_number: str, repository: str) -> str:
-    result = run_gh(
-        ["pr", "view", pr_number, "--repo", repository, "--json", "number", "-q", ".number"]
-    )
-    if result.returncode != 0:
-        return "0"
-    return result.stdout.strip() or "0"
 
 
 def get_pr_name_only(pr_number: str, repository: str) -> str:
@@ -188,21 +192,19 @@ def build_large_pr_context(pr_number: str, repository: str) -> ReviewContext:
 
 
 def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
-    title = get_pr_title(pr_number, repository)
+    pr_info = get_pr_info(pr_number, repository)
+    title = pr_info.title
     print(f"Building context for PR #{pr_number}: {title}")
     print(f"Fetching diff for PR #{pr_number} from repository {repository}")
 
-    actual_pr = get_actual_pr_number(pr_number, repository)
-    if actual_pr != pr_number:
-        print(
-            "::warning::PR number mismatch: "
-            f"requested {pr_number}, got {actual_pr}. "
-            "Token may lack permissions for first-time contributor PRs from forks."
-        )
+    if pr_info.number != pr_number:
+        if pr_info.fetch_error:
+            warning_detail = pr_info.fetch_error
+        else:
+            warning_detail = f"requested {pr_number}, got {pr_info.number}"
+        print(f"::warning::PR fetch failed: {warning_detail}")
         return ReviewContext(
-            "INFRASTRUCTURE_FAILURE: "
-            f"Could not fetch PR #{pr_number}. "
-            "The GH_TOKEN may lack permissions for first-time contributor PRs from forks.",
+            f"INFRASTRUCTURE_FAILURE: Could not fetch PR #{pr_number}: {warning_detail}",
             "error",
             True,
         )
@@ -234,7 +236,7 @@ def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) 
         else:
             built = ReviewContext(diff.stdout, "full")
 
-    body = get_pr_body(pr_number, repository)
+    body = pr_info.body
     if body:
         text = (
             f"## PR #{pr_number}: {title}\n\n"

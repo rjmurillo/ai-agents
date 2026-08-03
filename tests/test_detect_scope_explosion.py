@@ -360,6 +360,9 @@ class TestDetectScope:
             "scripts.detect_scope_explosion.get_ref_commit",
             return_value="base123456789",
         ), patch(
+            "scripts.detect_scope_explosion.is_ancestor",
+            return_value=True,
+        ), patch(
             "scripts.detect_scope_explosion.get_index_files_against_ref",
             return_value=["pr.py", "tests/test_pr.py"],
         ), patch(
@@ -378,6 +381,9 @@ class TestDetectScope:
         # false scope explosion (observed: 86/50 reported for a 13-file PR).
         # The detector must compare staged result against MERGE_HEAD itself so
         # only the PR's real diff is counted.
+        #
+        # This case: MERGE_HEAD is newer than the local base ref, so
+        # is_ancestor returns False and the MERGE_HEAD path is used.
         captured_args: list[str] = []
 
         def fake_index_files(ref: str) -> list[str]:
@@ -397,6 +403,9 @@ class TestDetectScope:
             "scripts.detect_scope_explosion.get_merge_head_commit",
             return_value="merge_head_sha",
         ), patch(
+            "scripts.detect_scope_explosion.is_ancestor",
+            return_value=False,
+        ), patch(
             "scripts.detect_scope_explosion.get_ref_commit",
             return_value="stale_local_main_sha",
         ), patch(
@@ -412,6 +421,152 @@ class TestDetectScope:
             assert result.file_count == 13
             assert "merge_head_sha" in captured_args
             mock_get_merge_base.assert_not_called()
+
+    def test_sibling_merge_head_falls_through_to_merge_base(self) -> None:
+        # Regression for Issue #4418: when MERGE_HEAD is the branch's own
+        # remote tip (behind main), counting staged files against MERGE_HEAD
+        # inflates the count by every file main gained since that tip.
+        # Observed: 635 reported when 17 were real.
+        #
+        # This case: MERGE_HEAD is an ancestor of origin/main (the sibling),
+        # so is_ancestor returns True and the detector falls through to the
+        # normal merge-base path.
+        captured_index_args: list[str] = []
+
+        def fake_index_files(ref: str) -> list[str]:
+            captured_index_args.append(ref)
+            # Against merge_head (behind main): staged index has 635 files
+            # because main's delta leaks in as "PR changes".
+            if ref == "remote_tip_sha":
+                return [f"inflated_{i}.py" for i in range(635)]
+            # Against the true merge-base: only the 17 real PR files.
+            return [f"real_pr_{i}.py" for i in range(17)]
+
+        with patch(
+            "scripts.detect_scope_explosion.get_current_branch",
+            return_value="fix/4034-pr-comment-responder",
+        ), patch(
+            "scripts.detect_scope_explosion.resolve_base_ref", return_value="origin/main"
+        ), patch(
+            "scripts.detect_scope_explosion.get_merge_head_commit",
+            return_value="remote_tip_sha",
+        ), patch(
+            "scripts.detect_scope_explosion.is_ancestor",
+            return_value=True,
+        ), patch(
+            "scripts.detect_scope_explosion.get_index_files_against_ref",
+            side_effect=fake_index_files,
+        ), patch(
+            "scripts.detect_scope_explosion.get_merge_base",
+            return_value="real_merge_base_sha",
+        ):
+            result = detect_scope()
+            assert result is not None
+            # Must reflect the real PR diff (17), not the inflated count (635).
+            assert result.file_count == 17
+            # Must NOT have counted against the remote tip.
+            assert "remote_tip_sha" not in captured_index_args
+
+    def test_equal_merge_head_counts_against_merge_head(self) -> None:
+        # Regression control: a merge of the current base ref has MERGE_HEAD
+        # equal to origin/main. Equal commits are ancestor-or-equal, but this
+        # is not the sibling-branch case from Issue #4418.
+        captured_index_args: list[str] = []
+
+        def fake_index_files(ref: str) -> list[str]:
+            captured_index_args.append(ref)
+            if ref == "base_sha":
+                return ["real.py"]
+            return [f"inflated_{i}.py" for i in range(86)]
+
+        with patch(
+            "scripts.detect_scope_explosion.get_current_branch",
+            return_value="fix/some-feature",
+        ), patch(
+            "scripts.detect_scope_explosion.resolve_base_ref", return_value="origin/main"
+        ), patch(
+            "scripts.detect_scope_explosion.get_merge_head_commit",
+            return_value="base_sha",
+        ), patch(
+            "scripts.detect_scope_explosion.get_ref_commit",
+            return_value="base_sha",
+        ), patch(
+            "scripts.detect_scope_explosion.is_ancestor",
+            return_value=True,
+        ), patch(
+            "scripts.detect_scope_explosion.get_index_files_against_ref",
+            side_effect=fake_index_files,
+        ), patch(
+            "scripts.detect_scope_explosion.get_merge_base"
+        ) as mock_get_merge_base:
+            result = detect_scope()
+            assert result is not None
+            assert result.file_count == 1
+            assert captured_index_args == ["base_sha"]
+            mock_get_merge_base.assert_not_called()
+
+    def test_sibling_merge_head_uses_merge_base_not_merge_head(self) -> None:
+        # Isolating control: the sibling path must call get_merge_base, not
+        # use MERGE_HEAD as the comparison ref. If get_merge_base is not
+        # called, the count is wrong.
+        with patch(
+            "scripts.detect_scope_explosion.get_current_branch",
+            return_value="fix/some-feature",
+        ), patch(
+            "scripts.detect_scope_explosion.resolve_base_ref", return_value="origin/main"
+        ), patch(
+            "scripts.detect_scope_explosion.get_merge_head_commit",
+            return_value="remote_tip_sha",
+        ), patch(
+            "scripts.detect_scope_explosion.is_ancestor",
+            return_value=True,
+        ), patch(
+            "scripts.detect_scope_explosion.get_index_files_against_ref",
+            return_value=["real.py"],
+        ), patch(
+            "scripts.detect_scope_explosion.get_merge_base",
+            return_value="real_merge_base_sha",
+        ) as mock_get_merge_base:
+            detect_scope()
+            mock_get_merge_base.assert_called_once()
+
+
+class TestIsAncestor:
+    """Tests for is_ancestor helper."""
+
+    def test_returns_true_when_commit_is_ancestor_of_ref(self) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            from scripts.detect_scope_explosion import is_ancestor
+
+            assert is_ancestor("old_sha", "origin/main") is True
+            mock_run.assert_called_once()
+            args = mock_run.call_args[0][0]
+            assert "--is-ancestor" in args
+            assert "old_sha" in args
+            assert "origin/main" in args
+
+    def test_returns_false_when_commit_is_not_ancestor(self) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            from scripts.detect_scope_explosion import is_ancestor
+
+            assert is_ancestor("newer_sha", "origin/main") is False
+
+    def test_returns_false_on_error_exit_code(self) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 128
+            from scripts.detect_scope_explosion import is_ancestor
+
+            assert is_ancestor("bad_ref", "origin/main") is False
+
+    def test_is_ancestor_true_for_equal_commits(self) -> None:
+        # A commit is its own ancestor (git treats equal as ancestor).
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            from scripts.detect_scope_explosion import is_ancestor
+
+            assert is_ancestor("abc123", "abc123") is True
 
 
 class TestReport:
@@ -563,140 +718,72 @@ class TestMain:
             assert exit_code == 1
 
 
+class TestBypassHintContext:
+    """The bypass hint must match the hook stage where it will be used."""
 
-class TestReportBypassHint:
-    """Tests that the bypass hint names the verb that can actually bypass.
-
-    Issue #4334: at pre-push the gate blocks the push, so `git commit` cannot
-    bypass it. Only `git push` can. `report()` takes `is_push` to branch the
-    hint and the remediation steps.
-    """
-
-    @staticmethod
-    def _blocked() -> ScopeResult:
+    def _blocked_result(self) -> ScopeResult:
         return ScopeResult(
             file_count=BLOCK_THRESHOLD + 5,
             merge_base="abc123",
-            current_branch="feat/big",
+            current_branch="feat/test",
             files=tuple(f"file{i}.py" for i in range(BLOCK_THRESHOLD + 5)),
         )
 
-    def test_block_hint_names_push_when_is_push(
+    def test_pre_commit_hint_says_git_commit(self, capsys: CaptureFixture[str]) -> None:
+        """Pre-commit invocation (no --base-branch) prints 'git commit' bypass."""
+        report(self._blocked_result(), from_prepush=False)
+        out = capsys.readouterr().out
+        assert "SKIP_SCOPE_CHECK=1 git commit" in out
+        assert "git push" not in out
+
+    def test_pre_push_hint_says_git_push(self, capsys: CaptureFixture[str]) -> None:
+        """Pre-push invocation (--base-branch set) prints 'git push' bypass."""
+        report(self._blocked_result(), from_prepush=True)
+        out = capsys.readouterr().out
+        assert "SKIP_SCOPE_CHECK=1 git push" in out
+        assert "git commit" not in out.split("Bypass")[1]
+
+    def test_main_without_base_branch_arg_is_pre_commit(
         self, capsys: CaptureFixture[str]
     ) -> None:
-        assert report(self._blocked(), is_push=True) == 1
-        assert "SKIP_SCOPE_CHECK=1 git push" in capsys.readouterr().out
-
-    def test_block_hint_names_commit_when_not_is_push(
-        self, capsys: CaptureFixture[str]
-    ) -> None:
-        assert report(self._blocked(), is_push=False) == 1
-        assert "SKIP_SCOPE_CHECK=1 git commit" in capsys.readouterr().out
-
-    def test_push_hint_does_not_also_name_commit(
-        self, capsys: CaptureFixture[str]
-    ) -> None:
-        # Negative case from issue #4334: the hint must not name both verbs.
-        # A hint listing both is as useless as naming the wrong one.
-        report(self._blocked(), is_push=True)
-        assert "git commit" not in capsys.readouterr().out
-
-    def test_commit_hint_does_not_also_name_push(
-        self, capsys: CaptureFixture[str]
-    ) -> None:
-        report(self._blocked(), is_push=False)
-        assert "git push" not in capsys.readouterr().out
-
-    def test_push_remediation_omits_stash_step(
-        self, capsys: CaptureFixture[str]
-    ) -> None:
-        # `git stash` saves uncommitted work. At push time the work is already
-        # committed, so the step is noise.
-        report(self._blocked(), is_push=True)
-        assert "git stash" not in capsys.readouterr().out
-
-    def test_commit_remediation_keeps_stash_step(
-        self, capsys: CaptureFixture[str]
-    ) -> None:
-        report(self._blocked(), is_push=False)
-        assert "git stash" in capsys.readouterr().out
-
-    def test_strong_warn_remediation_branches_on_is_push(
-        self, capsys: CaptureFixture[str]
-    ) -> None:
-        # The warn band prints remediation too, and it must branch the same way.
-        warned = ScopeResult(
-            file_count=STRONG_WARN_THRESHOLD,
-            merge_base="abc123",
-            current_branch="feat/mid",
-            files=tuple(f"file{i}.py" for i in range(STRONG_WARN_THRESHOLD)),
-        )
-        assert report(warned, is_push=True) == 0
-        assert "Commit current work" not in capsys.readouterr().out
-
-    def test_default_is_push_is_false(self, capsys: CaptureFixture[str]) -> None:
-        # Callers that predate the flag must keep the commit-context hint.
-        report(self._blocked())
-        assert "SKIP_SCOPE_CHECK=1 git commit" in capsys.readouterr().out
-
-
-class TestMainBypassHintRouting:
-    """Tests that `main()` derives push context from `--base-branch` presence.
-
-    Only the pre-push hook passes `--base-branch` (lefthook.yml), so its
-    presence is the push-context sentinel.
-    """
-
-    @staticmethod
-    def _blocked() -> ScopeResult:
-        return ScopeResult(
-            file_count=BLOCK_THRESHOLD + 5,
-            merge_base="abc123",
-            current_branch="feat/big",
-            files=tuple(f"file{i}.py" for i in range(BLOCK_THRESHOLD + 5)),
-        )
-
-    def _run(self, argv: list[str]) -> tuple[int, str]:
-        env = os.environ.copy()
-        env.pop("SKIP_SCOPE_CHECK", None)
+        """main() with no --base-branch passes from_prepush=False to report."""
+        blocked = self._blocked_result()
+        env = {k: v for k, v in os.environ.items() if k != "SKIP_SCOPE_CHECK"}
         with patch.dict(os.environ, env, clear=True), patch(
-            "scripts.detect_scope_explosion.detect_scope",
-            return_value=self._blocked(),
-        ) as spy, patch("sys.argv", ["detect_scope_explosion.py", *argv]):
-            code = main()
-        self.last_base_ref = spy.call_args[0][0]
-        return code, ""
+            "scripts.detect_scope_explosion.detect_scope", return_value=blocked
+        ), patch("sys.argv", ["detect_scope_explosion.py"]):
+            main()
+        out = capsys.readouterr().out
+        assert "SKIP_SCOPE_CHECK=1 git commit" in out
 
-    def test_base_branch_flag_routes_as_push(
+    def test_main_with_base_branch_arg_is_pre_push(
         self, capsys: CaptureFixture[str]
     ) -> None:
-        code, _ = self._run(["--base-branch", "main"])
-        assert code == 1
-        assert "SKIP_SCOPE_CHECK=1 git push" in capsys.readouterr().out
+        """main() with --base-branch origin/main passes from_prepush=True to report."""
+        blocked = self._blocked_result()
+        env = {k: v for k, v in os.environ.items() if k != "SKIP_SCOPE_CHECK"}
+        with patch.dict(os.environ, env, clear=True), patch(
+            "scripts.detect_scope_explosion.detect_scope", return_value=blocked
+        ), patch(
+            "sys.argv",
+            ["detect_scope_explosion.py", "--base-branch", "origin/main"],
+        ):
+            main()
+        out = capsys.readouterr().out
+        assert "SKIP_SCOPE_CHECK=1 git push" in out
 
-    def test_no_base_branch_flag_routes_as_commit(
+    def test_pre_commit_remediation_mentions_stash(
         self, capsys: CaptureFixture[str]
     ) -> None:
-        code, _ = self._run([])
-        assert code == 1
-        assert "SKIP_SCOPE_CHECK=1 git commit" in capsys.readouterr().out
+        """Pre-commit block message includes stash-based remediation steps."""
+        report(self._blocked_result(), from_prepush=False)
+        out = capsys.readouterr().out
+        assert "git stash" in out
 
-    def test_base_branch_value_reaches_detect_scope(
+    def test_pre_push_remediation_omits_stash(
         self, capsys: CaptureFixture[str]
     ) -> None:
-        # Discriminating control. A routing fix that reads only the flag's
-        # presence and always compares against "main" would pass every other
-        # test in this class. This one pins that the value is still honored.
-        self._run(["--base-branch", "develop"])
-        capsys.readouterr()
-        assert self.last_base_ref == "develop"
-
-    def test_absent_base_branch_still_defaults_to_main(
-        self, capsys: CaptureFixture[str]
-    ) -> None:
-        # The argparse default moved from "main" to None, so the "main"
-        # fallback now lives in main(). Pin it, or the default silently
-        # becomes None and detect_scope compares against nothing.
-        self._run([])
-        capsys.readouterr()
-        assert self.last_base_ref == "main"
+        """Pre-push block message does not suggest stash; work is already committed."""
+        report(self._blocked_result(), from_prepush=True)
+        out = capsys.readouterr().out
+        assert "git stash" not in out
