@@ -15,6 +15,15 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-03-session-01"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1bab3f4768",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-01"
     }
   ],
   "metrics": {
@@ -22,7 +31,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 7
   },
   "lessons": []

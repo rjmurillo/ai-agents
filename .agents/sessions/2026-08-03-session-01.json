@@ -124,6 +124,6 @@
       "action": "Updated all four push-lock recipe surfaces to use ~/src/scratch/locks/push-lock-SLUG.lock. Per-branch scheme, durable path outside /tmp."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "1bab3f4768",
   "nextSteps": []
 }
