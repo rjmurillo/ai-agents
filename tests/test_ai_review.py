@@ -246,6 +246,41 @@ class TestInvokeWithRetry:
 
         assert delays == [1, 2]
 
+    @pytest.mark.parametrize("max_retries", [0, -1, False])
+    def test_non_positive_max_retries_is_rejected(self, max_retries):
+        """A retry budget below 1 is a configuration mistake, not a failure.
+
+        Before #4121 the loop body never ran and the fallthrough raised
+        `All 0 attempts failed. Last error: None`, which reads as an
+        exhausted retry sequence for a call that was never made.
+        """
+        calls = []
+
+        def _never_called():
+            calls.append(1)
+            return "unreachable"
+
+        with pytest.raises(ValueError, match="max_retries must be >= 1"):
+            invoke_with_retry(_never_called, max_retries=max_retries, initial_delay=0)
+        assert calls == []
+
+    def test_zero_from_the_environment_is_rejected(self, monkeypatch):
+        """`MAX_RETRIES=0` resolves to 0, so the guard is reachable by config."""
+        monkeypatch.setenv("MAX_RETRIES", "0")
+        with pytest.raises(ValueError, match="max_retries must be >= 1"):
+            invoke_with_retry(lambda: "x", initial_delay=0)
+
+    def test_one_retry_calls_the_function_exactly_once(self):
+        """The boundary the guard admits."""
+        calls = []
+
+        def _once():
+            calls.append(1)
+            return "ok"
+
+        assert invoke_with_retry(_once, max_retries=1, initial_delay=0) == "ok"
+        assert len(calls) == 1
+
 
 # ---------------------------------------------------------------------------
 # Workflow: logging

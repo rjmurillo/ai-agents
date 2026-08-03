@@ -2922,17 +2922,78 @@ class TestAdapterTotalWallBudget:
         assert fast.calls == 3
 
 
-class TestAdapterNonPositiveMaxRetries:
-    """`max_retries <= 0` skips the loop and lands on the fallthrough return.
+class TestTransportsRefuseAMalformedFingerprint:
+    """Both adapter transports raise on a present non-string fingerprint.
 
-    Pinned because the record it produces is indistinguishable from a real
-    provider failure: `outcome="error"` carrying `ERR_UNKNOWN`. A caller
-    configuration mistake is reported in the provider's vocabulary, and no
-    attempt log is emitted to say otherwise. Refs #4121.
+    Before #4123 each coerced it to `None`, which records "the provider
+    supplied no fingerprint" for a response that supplied one. The archive
+    reader (`_run_persistence`) already refuses that shape, so the coercion
+    made its guard unable to fire on anything this codebase wrote. Refs #4123.
+    """
+
+    @pytest.mark.parametrize("malformed", [123, 4.5, True, {"id": "fp"}, ["fp"]])
+    def test_provider_transport_raises_on_a_non_string_fingerprint(
+        self, malformed: object
+    ) -> None:
+        class _Provider:
+            def __init__(self) -> None:
+                self.system_fingerprint = malformed
+
+            def complete(self, **kwargs: object) -> str:
+                return "answer"
+
+        transport = adapter_mod._OpenAIProviderTransport(_Provider(), seed=None)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            transport("prompt", "gpt-4o", "")
+        assert transport.system_fingerprint is None
+
+    def test_provider_transport_accepts_a_string_and_an_absent_value(self) -> None:
+        class _Provider:
+            def __init__(self, fingerprint: object) -> None:
+                self.system_fingerprint = fingerprint
+
+            def complete(self, **kwargs: object) -> str:
+                return "answer"
+
+        good = adapter_mod._OpenAIProviderTransport(_Provider("fp-1"), seed=None)
+        assert good("prompt", "gpt-4o", "") == "answer"
+        assert good.system_fingerprint == "fp-1"
+
+        absent = adapter_mod._OpenAIProviderTransport(_Provider(None), seed=None)
+        assert absent("prompt", "gpt-4o", "") == "answer"
+        assert absent.system_fingerprint is None
+
+    @pytest.mark.parametrize("malformed", [123, {"id": "fp"}])
+    def test_anthropic_transport_raises_on_a_non_string_fingerprint(
+        self, monkeypatch: pytest.MonkeyPatch, malformed: object
+    ) -> None:
+        def _call_api(**kwargs: object) -> str:
+            metadata = kwargs["metadata"]
+            assert isinstance(metadata, dict)
+            metadata["system_fingerprint"] = malformed
+            return "answer"
+
+        monkeypatch.setattr(adapter_mod, "call_api", _call_api)
+        transport = adapter_mod._AnthropicTransport("key", seed=None)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            transport("prompt", "claude-sonnet-4-6", "")
+        assert transport.system_fingerprint is None
+
+
+class TestAdapterNonPositiveMaxRetries:
+    """`max_retries <= 0` is refused instead of reported as a provider error.
+
+    Before #4121 the loop was skipped and the fallthrough returned
+    `outcome="error"` with `ERR_UNKNOWN`, which is indistinguishable from a
+    real provider failure and counted toward the provider error total for a
+    call the provider never received. The refusal is visible; the fabricated
+    record was not.
     """
 
     @pytest.mark.parametrize("max_retries", [0, -1, False])
-    def test_non_positive_max_retries_calls_no_transport(
+    def test_non_positive_max_retries_is_rejected(
         self, max_retries: int, capsys: pytest.CaptureFixture[str]
     ) -> None:
         calls: list[str] = []
@@ -2942,20 +3003,39 @@ class TestAdapterNonPositiveMaxRetries:
             raise AssertionError("transport must not be called")
 
         adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        with pytest.raises(ValueError, match="max_retries must be >= 1"):
+            adapter.call_model(
+                prompt="x",
+                model_id="claude-sonnet-4-6",
+                fixture_id="F-MR",
+                variant="agent",
+                run_index=0,
+                max_retries=max_retries,
+            )
+        # The guard fires before anything else: no transport call, no log.
+        assert calls == []
+        assert capsys.readouterr().err == ""
+
+    def test_max_retries_of_one_still_makes_exactly_one_call(self) -> None:
+        """The boundary the guard admits. 1 is valid and calls once."""
+        calls: list[str] = []
+
+        def transport(prompt: str, model_id: str, system: str) -> str:
+            calls.append(model_id)
+            return "ok"
+
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
         result = adapter.call_model(
             prompt="x",
             model_id="claude-sonnet-4-6",
-            fixture_id="F-MR",
+            fixture_id="F-MR1",
             variant="agent",
             run_index=0,
-            max_retries=max_retries,
+            max_retries=1,
         )
-        assert calls == []
-        assert result.outcome == "error"
-        assert result.error_category == ERR_UNKNOWN
-        assert result.attempts == 0
-        # Nothing was attempted, so no attempt log is written.
-        assert capsys.readouterr().err == ""
+        assert calls == ["claude-sonnet-4-6"]
+        assert result.outcome == "success"
+        assert result.attempts == 1
 
 
 # ---------------------------------------------------------------------------
