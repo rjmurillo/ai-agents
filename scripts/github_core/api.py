@@ -156,9 +156,68 @@ def resolve_repo_params(owner: str = "", repo: str = "") -> RepoInfo:
 # Authentication
 # ---------------------------------------------------------------------------
 
+#: Patterns in ``gh auth status`` or ``gh api graphql`` output that indicate
+#: GraphQL quota exhaustion rather than a missing or invalid credential.
+#: GitHub emits these through two channels: a GraphQL-level ``errors`` list
+#: (``"API rate limit exceeded"``) and an HTTP-level body (``"rate limit
+#: exceeded"``). Both must be caught before the auth-error branch fires.
+_QUOTA_EXHAUSTED_PATTERNS = re.compile(
+    r"API rate limit exceeded|rate limit exceeded|secondary rate limit",
+    re.IGNORECASE,
+)
+
+
+def _is_rest_reachable() -> bool:
+    """Return True when the GitHub REST API responds without auth error.
+
+    Uses ``gh api rate_limit`` (consumes no quota budget) to prove the
+    credential is valid and REST is reachable, even when GraphQL quota is
+    zero. This is the discriminator for issue #4344: ``gh auth status``
+    can return non-zero when GraphQL quota is exhausted on some ``gh``
+    versions; a successful ``rate_limit`` call proves the token is valid.
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "api", "rate_limit"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def _graphql_remaining() -> int | None:
+    """Return the GraphQL ``remaining`` quota from ``gh api rate_limit``.
+
+    Returns ``None`` when the call fails or the field is absent.
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "api", "rate_limit"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+        if result.returncode != 0:
+            return None
+        payload = json.loads(result.stdout)
+        return int(payload["resources"]["graphql"]["remaining"])
+    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError, KeyError, TypeError):
+        return None
+
 
 def is_gh_authenticated() -> bool:
-    """Check if GitHub CLI is installed and authenticated."""
+    """Check if GitHub CLI is installed and authenticated.
+
+    Uses ``gh auth status`` as the primary check. When that returns
+    non-zero, falls back to ``gh api rate_limit`` (REST, no quota cost)
+    to distinguish genuine auth failure from GraphQL quota exhaustion
+    (issue #4344): a successful REST call proves the credential is valid.
+    """
     try:
         result = subprocess.run(
             ["gh", "auth", "status"],
@@ -167,7 +226,18 @@ def is_gh_authenticated() -> bool:
             errors="replace",
             timeout=10,
         )
-        return result.returncode == 0
+        if result.returncode == 0:
+            return True
+        # ``gh auth status`` returned non-zero. On some gh versions this
+        # happens when the GraphQL quota is zero because auth-status
+        # internally calls GraphQL. Probe REST before declaring unauthenticated.
+        if _is_rest_reachable():
+            logger.debug(
+                "gh auth status returned non-zero but REST rate_limit succeeded; "
+                "treating as authenticated (likely GraphQL quota exhaustion)"
+            )
+            return True
+        return False
     except FileNotFoundError:
         logger.debug("GitHub CLI (gh) not found on PATH")
         return False
@@ -177,12 +247,38 @@ def is_gh_authenticated() -> bool:
 
 
 def assert_gh_authenticated() -> None:
-    """Ensure GitHub CLI is authenticated. Raises SystemExit if not."""
-    if not is_gh_authenticated():
+    """Ensure GitHub CLI is authenticated, distinguishing quota from auth errors.
+
+    When the credential is valid but the GraphQL quota is zero, emits a
+    quota-exhaustion message (exit 3) rather than the misleading auth
+    error (exit 4). This is the fix for issue #4344: both gate scripts
+    printed "not installed or not authenticated" when GraphQL remaining
+    was 0 but the token itself was valid and REST quota was available.
+    """
+    if is_gh_authenticated():
+        return
+    # Distinguish: gh not found vs. unauthenticated vs. quota exhausted.
+    # Try REST rate_limit to see if the token works at all.
+    if _is_rest_reachable():
+        # Token is valid; quota must be the issue.
+        remaining = _graphql_remaining()
+        if remaining == 0:
+            error_and_exit(
+                "GitHub GraphQL quota exhausted (0 remaining). "
+                "REST quota is available. "
+                "Re-run after the GraphQL reset window or use a REST fallback.",
+                3,
+            )
         error_and_exit(
-            "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
-            4,
+            "GitHub CLI is authenticated but GraphQL is unavailable. "
+            f"GraphQL remaining: {remaining}. "
+            "Check gh auth status and network connectivity.",
+            3,
         )
+    error_and_exit(
+        "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
+        4,
+    )
 
 
 # ---------------------------------------------------------------------------

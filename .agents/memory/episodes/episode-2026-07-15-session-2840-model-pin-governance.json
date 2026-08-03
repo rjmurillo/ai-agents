@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Owner authorized paid eval and confirmed gh act. Verified environment: network restored (pypi 200), gh act extension + Docker present, ANTHROPIC_API_KEY loads from .env. Re-verified all three remaining issues against primary sources.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Fixture-coverage discriminator: only ~17 of ~108 pinned units (the agents with evals/*-spike/fixtures) are sweepable; 81 skill/command pins have no fixtures. This matches ADR-080, which is already accepted and specifies a kind-split policy that does NOT require per-skill eval (skills/commands may never carry a versioned id).",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Bounded live sweep tracer: reviewer-asymmetry failed fixture validation (empty assertions) before spend; critic n=1 opus-vs-sonnet succeeded end-to-end (~$0.39), verdict DROP_PIN (default not beaten). Proves the harness path and cost; full agent sweep is ~$6.6 at n=1 / ~$20 at n=3.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "Implemented ADR-080 step 3: check_model_pins.py (scan source units, kind-split rules 1-3, manifest validation with path-traversal rejection and 180-day staleness, draining-ratchet baseline separating grandfathered backlog from new/changed hard violations, warn/enforce modes). Fixed two self-caught bugs during test: model_tiers is nested under agents: (recursive lookup), and unit paths must relativize against the scanned repo_root not the module constant.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e005",
@@ -44,14 +52,22 @@
       "type": "milestone",
       "content": "Seeded the frozen baseline (113 source pins), authored the empty evidence manifest, wrote 21 tests to the ADR's positive/negative/edge AC, and wired validate_model_pins into pre_pr.py in warn mode. Committed in two atomic commits.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e006"
+      ]
     },
     {
       "id": "e006",
-      "timestamp": "2026-07-15T00:00:00+00:00",
+      "timestamp": "2026-07-15T11:48:18+00:00",
       "type": "commit",
       "content": "Commit: d64f26de10",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
       "leads_to": []
     }
   ],

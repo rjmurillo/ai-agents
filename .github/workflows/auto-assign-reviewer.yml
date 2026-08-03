@@ -40,11 +40,12 @@ jobs:
 
     steps:
       - name: Add rjmurillo-bot as reviewer
+        continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr edit ${{ github.event.pull_request.number }} \
-            --repo ${{ github.repository }} \
-            --add-reviewer rjmurillo-bot
+          gh api --method POST \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/requested_reviewers" \
+            --field "reviewers[]=rjmurillo-bot"
 
           echo "Added rjmurillo-bot as reviewer for PR #${{ github.event.pull_request.number }}"
