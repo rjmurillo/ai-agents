@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 6e01c96f0)"
+        "Evidence": "All implementation changes committed through final origin/main merge 6ce10f87b"
       },
       "validationPassed": {
         "level": "MUST",
@@ -121,7 +121,7 @@
   "workLog": [
     {
       "action": "Merged fresh origin/main and resolved the fingerprint conflicts",
-      "outcome": "Kept main's centralized normalize_fingerprint seam while changing its malformed branch to the typed refusal contract; flipped the merged sentinel tests and recorded merges ccf576d63, 27a142f86, and 4ad00c94f"
+      "outcome": "Kept main's centralized normalize_fingerprint seam while changing its malformed branch to the typed refusal contract; flipped the merged sentinel tests and recorded merges ccf576d63, 27a142f86, 4ad00c94f, and 6ce10f87b"
     },
     {
       "action": "Audited issue and pull request closure claims",
@@ -152,7 +152,7 @@
       "outcome": "Executed the required done update for fix-eval-harness-p2 and verified exactly one row changed"
     }
   ],
-  "endingCommit": "6e01c96f0",
+  "endingCommit": "6ce10f87b",
   "nextSteps": [
     "Route the external process and metadata boundaries to security PIV before merge",
     "Keep #4123 open until this typed refusal implementation lands",
