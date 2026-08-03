@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9021,
+    "date": "2026-08-03",
+    "branch": "docs/eureka-merge-main-and-generator-order",
+    "startingCommit": "175bacf7dd",
+    "objective": "Record three measured gate behaviors in GOTCHAS.md: a count ratchet script can report OK on a tree its own test rejects, merging main clears an inherited red, and a squash-merged commit's file count is not evidence about the local commit gate."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable in this Copilot CLI session; used the committed .serena/memories/ fallback that AGENTS.md names."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; read the repository instruction blocks and .claude/rules/ directly."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read-only; no edits (ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/ before invoking the reflect skill for this capture."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used build/scripts/generate_rules.py for the instruction mirrors rather than hand-editing generated trees."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .github/instructions/ci-scripts.instructions.md MUST NOT 4 before writing the baseline guidance, and .agents/governance/GOTCHAS.md existing ratchet sections before adding a new one."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the existing GOTCHAS ratchet entries at lines 246 and 256 so the new section corrects the documented check rather than duplicating it."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/eureka-merge-main-and-generator-order"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/eureka-merge-main-and-generator-order"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status inspected before each commit; no git add -A used."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "175bacf7ddf0cf1d57959762dec3943ee7f68691"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items carry evidence above."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md absent from git diff origin/main --name-only."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable this session. The three findings are durable and always-applicable when touching ratchets or debugging a pre-push failure, so they are recorded in .agents/governance/GOTCHAS.md and .claude/rules/generated-artifacts.md rather than as individually recalled memories."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run over the branch's changed .md files via the lefthook markdown-autofix job on commit: 0 issues."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Generator-order rule and both instruction mirrors committed as 175bacf7dd; this commit lands the GOTCHAS sections and the session log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py exits 0 on this file."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "reflect skill invoked; these three entries are its output."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Correct the existing pre-push ratchet advice in GOTCHAS.md",
+      "outcome": "The documented check ran the four ratchet scripts. Measured on a pristine origin/main worktree: taste_count_ratchet.py prints OK at 594 <= 595 and exits 0, while tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree fails on the same tree with assert 594 == 595. Added a section naming the script/test divergence, quoting the test docstring's dead-allowance rationale, and replacing the recommended check with the 3-second pytest invocation."
+    },
+    {
+      "task": "Record that merging main clears an inherited red",
+      "outcome": "Measured on a branch whose diff was four files and no Python: 7 pre-push failures before git merge origin/main, 113 passed after, with the diff unchanged. Added the three-case discrimination table covering main's bug, a stale base, and your own bug."
+    },
+    {
+      "task": "Record that a merged commit's file count is not evidence about the local commit gate",
+      "outcome": "Repository merge config is allow_merge_commit false, allow_rebase_merge false, allow_squash_merge true, and every commit on main is single-parent. GitHub builds squash commits server-side, so MAX_AUTHORED_FILES_PER_COMMIT never inspected them. This refuted a defect report drafted earlier in the session that cited 43-file and 71-file commits on main as evidence the gate was unsatisfiable."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Push the branch and open the pull request referencing #3755 for the ratchet race context.",
+    "Check whether the ruff and type-ignore ratchets ship the same exact-equality test, which would make two more scalars equally fragile."
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "id": "episode-2026-08-03-session-9021",
+  "session": "2026-08-03-session-9021",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record three measured gate behaviors in GOTCHAS.md: a count ratchet script can report OK on a tree its own test rejects, merging main clears an inherited red, and a squash-merged commit's file count is not evidence about the local commit gate.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct the existing pre-push ratchet advice in GOTCHAS.md",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9021"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Record that merging main clears an inherited red",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9021"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "test",
+      "content": "Measured on a branch whose diff was four files and no Python: 7 pre-push failures before git merge origin/main, 113 passed after, with the diff unchanged. Added the three-case discrimination table covering main's bug, a stale base, and your own bug.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9021"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Record that a merged commit's file count is not evidence about the local commit gate",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9021"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
