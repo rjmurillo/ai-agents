@@ -51,6 +51,12 @@ _CANONICAL_PATH = re.compile(
     r"^(?:\$HOME|\$\{HOME\})/src/scratch/locks/push-lock-[^/]*\.lock$"
 )
 _FENCE = re.compile(r"^\s*(?:```|~~~)")
+# `exec 9>/path` opens the lock without ever naming it to `flock`.
+_EXEC_REDIRECT = re.compile(r"\bexec\s+\d*>+\s*([^\s;|&<>'\"]+)")
+# `LOCK=/path` then `flock "$LOCK"`. Name to (line number, value).
+_ASSIGNMENT = re.compile(r"\b(\w+)=(\S+)")
+# A whole token that is only a variable, so it points at an assignment above.
+_BARE_VARIABLE = re.compile(r"^\$\{?(\w+)\}?$")
 NO_PATH_MESSAGE = (
     "flock recipe names no canonical lock path in this block "
     "(expected {template}; see .claude/rules/push-lock.md, issue #4366)"
@@ -89,38 +95,92 @@ def _historical_line_numbers(lines: Sequence[str]) -> set[int]:
     return skipped
 
 
-def _scan_block(lines: Sequence[str], start: int, end: int) -> list[tuple[int, str]]:
-    """Scan one fenced block that mentions ``flock``.
+def _flock_argument(line: str) -> str | None:
+    """Return the token ``flock`` is given as its lock, ignoring options and fds."""
+    match = _FLOCK.search(line)
+    if match is None:
+        return None
+    for token in line[match.end() :].split():
+        if token.startswith("-") or token.isdigit():
+            continue
+        return token.strip("\"'")
+    return None
 
-    The block, not the line, is the unit. A recipe reaches its lock path four
-    ways and only the first keeps ``flock`` and the path together:
+
+def _is_path_like(token: str) -> bool:
+    """Return True when a token could name a file rather than a prose word."""
+    return "/" in token or token.endswith(".lock")
+
+
+def _assignments(block: Sequence[str], start: int) -> dict[str, tuple[int, str]]:
+    """Map each shell variable in the block to where it was set and to what."""
+    found: dict[str, tuple[int, str]] = {}
+    for offset, line in enumerate(block):
+        for name, value in _ASSIGNMENT.findall(line):
+            found.setdefault(name, (start + offset + 1, value.strip("\"'")))
+    return found
+
+
+def _candidate_tokens(block: Sequence[str], start: int) -> list[tuple[int, str]]:
+    """Return every token in the block that could name a lock file."""
+    candidates: list[tuple[int, str]] = []
+    for offset, line in enumerate(block):
+        number = start + offset + 1
+        candidates.extend((number, match.group(0)) for match in _LOCK_PATH.finditer(line))
+        candidates.extend((number, match.group(1)) for match in _EXEC_REDIRECT.finditer(line))
+        argument = _flock_argument(line)
+        if argument is not None:
+            candidates.append((number, argument))
+    return candidates
+
+
+def _lock_targets(block: Sequence[str], start: int) -> list[tuple[int, str]]:
+    """Return (line number, lock path) for every lock the block actually opens.
+
+    A recipe reaches its lock four ways and only the first keeps ``flock`` and
+    the path together:
 
         flock /tmp/a.lock git push
         LOCK=/tmp/a.lock ; flock "$LOCK" git push
         exec 9>/tmp/a.lock ; flock -n 9
         flock \\ (newline) /tmp/a.lock \\ (newline) git push
 
-    A same-line pattern sees only the first, so the other three used to pass
-    the gate and land a fifth scheme. Every ``.lock`` token in the block must
-    be canonical, and a block that reaches its lock some other way (an
-    extensionless file, a variable defined elsewhere) is reported for naming no
-    canonical path at all.
+    Reading only ``.lock`` tokens misses a lock file written without the
+    suffix, so the ``flock`` argument and the ``exec`` redirect target count as
+    targets whatever they are named. A bare variable reports at its assignment,
+    which is where a reader fixes it.
     """
-    findings: list[tuple[int, str]] = []
-    saw_canonical = False
-    flock_line = start + 1
-    for offset, line in enumerate(lines[start:end]):
-        line_number = start + offset + 1
-        if _FLOCK.search(line) and flock_line == start + 1:
-            flock_line = line_number
-        for match in _LOCK_PATH.finditer(line):
-            candidate = match.group(0)
-            if is_canonical(candidate):
-                saw_canonical = True
-            else:
-                findings.append((line_number, candidate))
-    if not saw_canonical and not findings:
-        findings.append((flock_line, ""))
+    assignments = _assignments(block, start)
+    targets: list[tuple[int, str]] = []
+    for number, token in _candidate_tokens(block, start):
+        variable = _BARE_VARIABLE.match(token)
+        if variable is not None:
+            number, token = assignments.get(variable.group(1), (number, ""))
+        if _is_path_like(token) and (number, token) not in targets:
+            targets.append((number, token))
+    return targets
+
+
+def _scan_block(lines: Sequence[str], start: int, end: int) -> list[tuple[int, str]]:
+    """Scan one fenced block that mentions ``flock``.
+
+    The block, not the line, is the unit, because three of the four recipe
+    forms above separate ``flock`` from its path. Every lock target in the
+    block must be canonical; a block whose lock target cannot be identified at
+    all is reported for naming no canonical path.
+
+    Every target, not merely the first: a block that contrasts the canonical
+    recipe with a dead scheme names two, and stopping at the canonical one hid
+    the dead one, which is the exact evidence shape issue #4366 recorded.
+    """
+    block = lines[start:end]
+    targets = _lock_targets(block, start)
+    findings = [(number, path) for number, path in targets if not is_canonical(path)]
+    if not targets:
+        flock_lines = [
+            start + offset + 1 for offset, line in enumerate(block) if _FLOCK.search(line)
+        ]
+        findings.append((flock_lines[0] if flock_lines else start + 1, ""))
     return findings
 
 

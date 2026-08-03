@@ -242,11 +242,52 @@ def test_a_path_on_a_continuation_line_is_caught() -> None:
     assert checker.scan_text(text) == [(3, "/tmp/push-lock.lock")]
 
 
-def test_a_flock_recipe_naming_no_canonical_path_is_reported() -> None:
-    """The extensionless case: no `.lock` token exists to compare."""
+def test_an_extensionless_lock_is_named_not_merely_flagged() -> None:
+    """No `.lock` token exists, so the `flock` argument is the lock target.
+
+    This used to report `(2, "")`, meaning "this block names no canonical
+    path". Reading the argument names the offender, and it is what lets the
+    coexistence cases below be seen at all.
+    """
     text = _fence("flock /tmp/aiagents-push git push")
 
-    assert checker.scan_text(text) == [(2, "")]
+    assert checker.scan_text(text) == [(2, "/tmp/aiagents-push")]
+
+
+def test_a_second_scheme_sharing_a_fence_with_the_canonical_one_is_caught() -> None:
+    """Issue #4366's evidence shape: the canonical recipe next to a dead one."""
+    text = _fence(
+        'flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push',
+        "flock /tmp/aiagents-push git push origin br",
+    )
+
+    assert checker.scan_text(text) == [(3, "/tmp/aiagents-push")]
+
+
+def test_a_second_scheme_reached_by_file_descriptor_is_caught() -> None:
+    text = _fence(
+        'flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push',
+        "exec 9>/tmp/aiagents-push",
+        "flock -n 9",
+    )
+
+    assert checker.scan_text(text) == [(3, "/tmp/aiagents-push")]
+
+
+def test_a_second_scheme_reached_by_variable_is_caught() -> None:
+    text = _fence(
+        'flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push',
+        "LOCK=/tmp/aiagents-push",
+        'flock "$LOCK" git push',
+    )
+
+    assert checker.scan_text(text) == [(3, "/tmp/aiagents-push")]
+
+
+def test_an_option_value_is_not_mistaken_for_the_lock_path() -> None:
+    text = _fence('flock -w 5 "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push')
+
+    assert checker.scan_text(text) == []
 
 
 def test_the_canonical_recipe_across_two_lines_is_accepted() -> None:
