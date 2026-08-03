@@ -1,0 +1,55 @@
+{
+  "id": "episode-2026-08-03-session-9012",
+  "session": "2026-08-03-session-9012",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Recover PR 4389 stranded spec-gate wording fixes and confirm the gate is observe-only",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T08:13:27+00:00",
+      "type": "commit",
+      "content": "Commit: 920fb22f6",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-03-session-9012"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T08:13:27+00:00",
+      "type": "commit",
+      "content": "Commit: 9f8150f24",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-03-session-9012"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T08:18:35+00:00",
+      "type": "commit",
+      "content": "Commit: ed0860131",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9012"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 2
+  },
+  "lessons": []
+}

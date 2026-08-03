@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 3646,
+    "date": "2026-07-30",
+    "branch": "fix/body-prose-validator",
+    "startingCommit": "8150dbb38",
+    "objective": "Extend portability ratchet to .claude/commands and templates/agents (issue #3646)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Copilot CLI harness; AGENTS.md fallback path used"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md read in context"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read, no blocking carryover"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reports fix/body-prose-validator"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree branch is fix/body-prose-validator, created from origin/main"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All items carry evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No memory update required; the extension is self-documented in the module docstring and constant comments"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on GOTCHAS.md: 0 issues (file in .agents/ exclusion list, silent pass as expected)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Single commit extending EXTRA_SCAN_ROOTS and updating baseline"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "205 tests passing; 3/3 mutants killed; --update-baseline runs clean"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Measure current scan scope",
+      "outcome": "Confirmed .claude/commands (6 files, 59 refs) and templates/agents (14 files, 81 refs) are unscanned. src/copilot-cli is generated, needs no separate pass."
+    },
+    {
+      "task": "Add EXTRA_SCAN_ROOTS constant and extra_scan_dirs() function",
+      "outcome": "Added to check_skill_md_portability.py; scan_plugin_roots() extended to iterate extra dirs"
+    },
+    {
+      "task": "Update baseline",
+      "outcome": "Baseline grew from 67 files/188 refs to 94 files/336 refs; all pre-existing refs grandfathered"
+    },
+    {
+      "task": "Add TestExtraScanDirs test class",
+      "outcome": "7 tests, 3/3 mutants killed"
+    }
+  ],
+  "endingCommit": "8150dbb384daf11c7a735b2977be5538af27344a",
+  "nextSteps": []
+}
