@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit dbe32ca7: fix(testing): add default pytest timeout."
+        "Evidence": "Commit 89eb3f100: fix(testing): add default pytest timeout."
       },
       "validationPassed": {
         "level": "MUST",
@@ -131,7 +131,7 @@
       "entry": "Targeted tests, ruff, full pytest suite, and pre_pr.py passed."
     }
   ],
-  "endingCommit": "dbe32ca7",
+  "endingCommit": "89eb3f100",
   "nextSteps": [
     "Push branch and open PR for #4184.",
     "Queue security review because the change adds a dependency."

@@ -9,7 +9,7 @@ name: Spec-to-Implementation Validation
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
     # No path filter - workflow runs on ALL PRs to satisfy required check
     # Path filtering done at job level using dorny/paths-filter
 

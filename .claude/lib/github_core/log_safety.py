@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/log_safety.py. Sync via scripts/sync_plugin_lib.py."""
+"""Log sanitation helpers for GitHub Core (CWE-117 log forging defense)."""
 
 from __future__ import annotations
 
