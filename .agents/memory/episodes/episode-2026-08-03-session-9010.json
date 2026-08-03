@@ -57,6 +57,28 @@
       "timestamp": "2026-08-03T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 685af5d12",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9010"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 12b261ff4",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-9010"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 647f05ff2",
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-03-session-9010"
@@ -67,7 +89,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 3,
     "files_changed": 5
   },
   "lessons": []
