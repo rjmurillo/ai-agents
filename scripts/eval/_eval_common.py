@@ -71,9 +71,7 @@ def aggregate_multi_run_scores(
             aggregated[dim] = 0.0
 
     # Flakiness detection: a scenario is flaky if any dimension varies by > threshold
-    max_variance = max(
-        (aggregated.get(f"{d}_variance", 0) for d in dimensions), default=0
-    )
+    max_variance = max((aggregated.get(f"{d}_variance", 0) for d in dimensions), default=0)
     aggregated["runs"] = len(run_scores)
     aggregated["flaky"] = max_variance > FLAKINESS_VARIANCE_THRESHOLD
     aggregated["max_variance"] = round(max_variance, 2)
