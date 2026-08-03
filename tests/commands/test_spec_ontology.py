@@ -75,39 +75,71 @@ def completeness_text() -> str:
 
 
 @pytest.fixture(scope="module")
-def step_1_region(spec_text: str) -> str:
+def prior_art_schema_text() -> str:
+    """Return the full text of the extracted prior-art-schema reference file.
+
+    The progressive-disclosure split (issue #3632) moved steps 1-9 and the
+    PriorArtBlock schema out of spec.md into this file. Tests that check
+    step-level content should search this fixture, not spec_text.
+    """
+    return SPEC_PRIOR_ART_PATH.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def spec_corpus(spec_text: str, prior_art_schema_text: str) -> str:
+    """Return the combined text of spec.md and its extracted reference file.
+
+    Use this fixture for tests that must find content that may live in either
+    the command file or its progressive-disclosure reference.
+    """
+    return spec_text + prior_art_schema_text
+
+
+@pytest.fixture(scope="module")
+def step_1_region(prior_art_schema_text: str) -> str:
     """Return the substring covering Step 1 of /spec.
 
     Step 1 begins at the ordered-list item `1. Clarify the problem.` and ends
     at the next top-level item (`2.`). The ontology sub-step must live inside
     this region (it is a Step 1 sub-step, not a new top-level step).
+
+    After issue #3632, steps 1-9 live in spec-prior-art-schema.md.
     """
-    start = spec_text.find("1. Clarify the problem.")
-    assert start != -1, "Step 1 anchor not found in spec.md"
-    end = spec_text.find("\n2. ", start)
+    text = prior_art_schema_text
+    start = text.find("1. Clarify the problem.")
+    assert start != -1, "Step 1 anchor not found in spec-prior-art-schema.md"
+    end = text.find("\n2. ", start)
     assert end != -1, "Step 1 has no terminator (`\\n2. `)"
-    return spec_text[start:end]
+    return text[start:end]
 
 
 @pytest.fixture(scope="module")
-def step_6_region(spec_text: str) -> str:
-    """Return the substring covering Step 6 of /spec (the spec-generator call)."""
-    start = spec_text.find("6. **Formalize the PRD into durable artifacts**")
-    assert start != -1, "Step 6 anchor not found in spec.md"
-    end_candidates = [spec_text.find("\n7.", start), spec_text.find("\n## ", start)]
+def step_6_region(prior_art_schema_text: str) -> str:
+    """Return the substring covering Step 6 of /spec (the spec-generator call).
+
+    After issue #3632, steps 1-9 live in spec-prior-art-schema.md.
+    """
+    text = prior_art_schema_text
+    start = text.find("6. **Formalize the PRD into durable artifacts**")
+    assert start != -1, "Step 6 anchor not found in spec-prior-art-schema.md"
+    end_candidates = [text.find("\n7.", start), text.find("\n## ", start)]
     end_candidates = [c for c in end_candidates if c != -1]
     assert end_candidates, "Step 6 has no terminator"
-    return spec_text[start : min(end_candidates)]
+    return text[start : min(end_candidates)]
 
 
 @pytest.fixture(scope="module")
-def step_2_region(spec_text: str) -> str:
-    """Return the substring covering Step 2 of /spec."""
-    start = spec_text.find("2. **Run the adversarial requirements interview**")
-    assert start != -1, "Step 2 anchor not found in spec.md"
-    end = spec_text.find("\n3. ", start)
+def step_2_region(prior_art_schema_text: str) -> str:
+    """Return the substring covering Step 2 of /spec.
+
+    After issue #3632, steps 1-9 live in spec-prior-art-schema.md.
+    """
+    text = prior_art_schema_text
+    start = text.find("2. **Run the adversarial requirements interview**")
+    assert start != -1, "Step 2 anchor not found in spec-prior-art-schema.md"
+    end = text.find("\n3. ", start)
     assert end != -1, "Step 2 has no terminator (`\\n3. `)"
-    return spec_text[start:end]
+    return text[start:end]
 
 
 # --- Positive: the ontology elicitation step exists and is well-formed ---
@@ -203,20 +235,24 @@ def test_requirements_interview_outputs_ontology_section(
 
 
 def test_ontology_checks_reference_real_spec_artifact_paths(
-    spec_text: str,
+    spec_corpus: str,
     completeness_text: str,
 ) -> None:
-    """Ontology coverage points at generated REQ and DESIGN artifacts."""
-    assert ".agents/specs/requirements/REQ-NNN-{slug}.md" in spec_text, (
+    """Ontology coverage points at generated REQ and DESIGN artifacts.
+
+    Searches the combined corpus (spec.md + spec-prior-art-schema.md) because
+    the step-level content was extracted by issue #3632.
+    """
+    assert ".agents/specs/requirements/REQ-NNN-{slug}.md" in spec_corpus, (
         "Step 1 ontology handoff must name the generated REQ artifact pattern"
     )
-    assert ".agents/specs/design/DESIGN-NNN-{slug}.md" in spec_text, (
+    assert ".agents/specs/design/DESIGN-NNN-{slug}.md" in spec_corpus, (
         "Step 1 ontology handoff must name the generated DESIGN artifact pattern"
     )
-    assert ".agents/specs/tasks/TASK-NNN-{slug}.md" in spec_text, (
+    assert ".agents/specs/tasks/TASK-NNN-{slug}.md" in spec_corpus, (
         "Step 1 ontology handoff must name the generated TASK artifact pattern"
     )
-    assert "`requirements.md`" not in spec_text, (
+    assert "`requirements.md`" not in spec_corpus, (
         "Step 1 ontology handoff must not point at a non-emitted requirements.md"
     )
     assert ".agents/specs/design/DESIGN-NNN-{slug}.md" in completeness_text, (
@@ -227,15 +263,18 @@ def test_ontology_checks_reference_real_spec_artifact_paths(
     )
 
 
-def test_ontology_coverage_not_mislabeled_as_step_7(spec_text: str) -> None:
-    """The ontology coverage gate lives in CI, not /spec Step 7."""
-    assert "Step 7 completeness" not in spec_text, (
+def test_ontology_coverage_not_mislabeled_as_step_7(spec_corpus: str) -> None:
+    """The ontology coverage gate lives in CI, not /spec Step 7.
+
+    Searches the combined corpus because step content was extracted by #3632.
+    """
+    assert "Step 7 completeness" not in spec_corpus, (
         "ontology completeness must not be mislabeled as /spec Step 7"
     )
-    assert "Step 7 ontology" not in spec_text, (
+    assert "Step 7 ontology" not in spec_corpus, (
         "ontology coverage must not be mislabeled as /spec Step 7"
     )
-    assert "CI completeness check" in spec_text, (
+    assert "CI completeness check" in spec_corpus, (
         "ontology coverage handoff must name the CI completeness check"
     )
 
@@ -424,10 +463,17 @@ def test_completeness_check_treats_fragment_as_canonical_source(
 
 
 def test_step_9_prior_art_check_independent_of_ontology(spec_text: str) -> None:
-    """Check 9d remains focused on Prior Art even when ontology text is present."""
-    start = spec_text.find("**Check 9d, Prior Art / Constraints elicitation**")
-    assert start != -1, "Check 9d heading not found"
-    region = spec_text[start : start + 1200].lower()
+    """Check 9d remains focused on Prior Art even when ontology text is present.
+
+    The Check 9d text was extracted to spec-prior-art-schema.md by issue #3632.
+    This test searches the combined corpus (spec.md + reference file) so both
+    the split and the content contract are verified in one assertion.
+    """
+    prior_art_text = SPEC_PRIOR_ART_PATH.read_text(encoding="utf-8")
+    combined = spec_text + prior_art_text
+    start = combined.find("**Check 9d, Prior Art / Constraints elicitation**")
+    assert start != -1, "Check 9d heading not found in spec.md or spec-prior-art-schema.md"
+    region = combined[start : start + 1200].lower()
     assert "evaluate 9d independently from ontology checks" in region, (
         "Check 9d must state ontology coverage cannot affect prior-art verdicts"
     )
@@ -480,10 +526,12 @@ def test_empty_entity_vacuous_coverage_requires_no_requirement_entities(
     )
 
 
-def test_ontology_fragment_never_halts(spec_text: str) -> None:
-    """The OntologyFragment is never a halt condition (graceful degradation)."""
-    # The Step 1 sub-step explicitly states the fragment is never a halt.
-    assert "never a halt" in spec_text.lower(), (
+def test_ontology_fragment_never_halts(prior_art_schema_text: str) -> None:
+    """The OntologyFragment is never a halt condition (graceful degradation).
+
+    After issue #3632, the step 1 sub-step lives in spec-prior-art-schema.md.
+    """
+    assert "never a halt" in prior_art_schema_text.lower(), (
         "Step 1 ontology elicitation must state the OntologyFragment is never a halt"
     )
 
@@ -525,4 +573,80 @@ def test_reference_fragment_slug_matches_directory_convention() -> None:
     ), "reference fragment must live under .agents/specs/ontology/"
     assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", REFERENCE_FRAGMENT.stem), (
         f"reference fragment slug {REFERENCE_FRAGMENT.stem!r} must be kebab-case"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Progressive-disclosure split tests (issue #3632)
+# ---------------------------------------------------------------------------
+
+SPEC_STEP0_GATES_PATH = (
+    REPO_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
+)
+SPEC_PRIOR_ART_PATH = (
+    REPO_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+)
+
+SPEC_BYTE_CEILING = 24_000
+SPEC_LINE_CEILING = 500
+
+
+def test_spec_md_is_under_byte_ceiling() -> None:
+    """spec.md must stay under the 24 KB byte ceiling (no size-exception needed)."""
+    size = SPEC_PATH.stat().st_size
+    assert size < SPEC_BYTE_CEILING, (
+        f"spec.md is {size} bytes, which exceeds the {SPEC_BYTE_CEILING}-byte ceiling. "
+        "Use progressive disclosure: extract reference material into spec-generator/references/."
+    )
+
+
+def test_spec_md_has_no_size_exception() -> None:
+    """spec.md must not carry a size-exception key after the split lands."""
+    text = SPEC_PATH.read_text(encoding="utf-8")
+    assert "size-exception" not in text, (
+        "spec.md still has a size-exception key. "
+        "The progressive-disclosure split (issue #3632) was supposed to remove it."
+    )
+
+
+def test_spec_step0_gates_reference_file_exists() -> None:
+    """The Step 0 gate reference file must exist after the split."""
+    assert SPEC_STEP0_GATES_PATH.exists(), (
+        f"{SPEC_STEP0_GATES_PATH.relative_to(REPO_ROOT)} is missing. "
+        "The step0-gates reference was extracted from spec.md by issue #3632."
+    )
+
+
+def test_spec_prior_art_reference_file_exists() -> None:
+    """The Prior Art schema reference file must exist after the split."""
+    assert SPEC_PRIOR_ART_PATH.exists(), (
+        f"{SPEC_PRIOR_ART_PATH.relative_to(REPO_ROOT)} is missing. "
+        "The prior-art-schema reference was extracted from spec.md by issue #3632."
+    )
+
+
+def test_spec_md_pointers_to_reference_files() -> None:
+    """spec.md must contain pointers to both extracted reference files."""
+    text = SPEC_PATH.read_text(encoding="utf-8")
+    assert "spec-step0-gates.md" in text, (
+        "spec.md is missing a pointer to spec-step0-gates.md"
+    )
+    assert "spec-prior-art-schema.md" in text, (
+        "spec.md is missing a pointer to spec-prior-art-schema.md"
+    )
+
+
+def test_step0_gates_contains_pass_criteria() -> None:
+    """The extracted step0 gates file must contain the pass criteria block."""
+    text = SPEC_STEP0_GATES_PATH.read_text(encoding="utf-8")
+    assert "Pass criteria" in text or "pass criteria" in text.lower(), (
+        "spec-step0-gates.md is missing the pass criteria content."
+    )
+
+
+def test_prior_art_schema_contains_prior_art_block_heading() -> None:
+    """The extracted prior art schema file must contain PriorArtBlock content."""
+    text = SPEC_PRIOR_ART_PATH.read_text(encoding="utf-8")
+    assert "PriorArtBlock" in text, (
+        "spec-prior-art-schema.md is missing the PriorArtBlock schema content."
     )

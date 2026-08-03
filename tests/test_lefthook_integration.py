@@ -5022,8 +5022,9 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
 ) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
-    head = "1" * 40
-    remote = "2" * 40
+    # Use real commits so the non-fast-forward check can resolve the objects.
+    remote = _commit_file(repo, "tracked", "base\n")
+    head = _commit_file(repo, "tracked", "head\n")
     destinations: list[str | None] = []
 
     def capture_limit(update: policy.PushUpdate, _root: Path) -> int:
@@ -5066,6 +5067,213 @@ def test_new_branch_uses_origin_main_for_policy_bases(tmp_path: Path) -> None:
     assert update.base == base
     assert update.head == head
     assert update.range_spec == f"{base}..{head}"
+
+
+# ---------------------------------------------------------------------------
+# _check_non_fast_forward tests (issue #4293)
+# ---------------------------------------------------------------------------
+
+
+def _make_push_ref(
+    local_sha: str,
+    remote_sha: str,
+    remote_ref: str = "refs/heads/feature/test",
+    local_ref: str = "refs/heads/feature/test",
+) -> policy.PushRef:
+    return policy.PushRef(local_ref, local_sha, remote_ref, remote_sha)
+
+
+def test_non_fast_forward_passes_on_fast_forward_push(tmp_path: Path) -> None:
+    """Fast-forward push: remote_sha is an ancestor of local_sha."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "f.txt", "v1\n")
+    local_sha = _commit_file(repo, "f.txt", "v2\n")
+    push_ref = _make_push_ref(local_sha, remote_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_blocks_history_rewrite(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Force push: local_sha does not descend from remote_sha."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    # Two divergent branches from base.
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    # Push feature as if remote is on side (not an ancestor).
+    push_ref = _make_push_ref(feature_sha, side_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 1
+    err = capsys.readouterr().err
+    assert "not a fast-forward" in err
+    assert "universal.md" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_non_fast_forward_passes_new_branch(tmp_path: Path) -> None:
+    """New branch: remote_sha is all zeros, nothing to rewrite."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    local_sha = _commit_file(repo, "f.txt", "v1\n")
+    push_ref = _make_push_ref(local_sha, "0" * 40)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_passes_deletion(tmp_path: Path) -> None:
+    """Branch deletion (local_sha all zeros) is not a force push."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "f.txt", "v1\n")
+    push_ref = _make_push_ref("0" * 40, remote_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_returns_2_when_remote_object_absent(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Missing remote object: guard fails closed, not a false positive."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    local_sha = _commit_file(repo, "f.txt", "v1\n")
+    # A plausible-looking SHA that is not present in the repo.
+    absent_sha = "abcdef1234567890abcdef1234567890abcdef12"
+    push_ref = _make_push_ref(local_sha, absent_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 2
+    err = capsys.readouterr().err
+    assert "not present in the local object store" in err
+    assert "git fetch" in err
+
+
+def test_non_fast_forward_skips_non_branch_refs(tmp_path: Path) -> None:
+    """Tag refs and other non-branch refs are out of scope.
+
+    The remote_sha and local_sha are on divergent branches (neither is an
+    ancestor of the other), so without the non-branch guard this test would
+    fail.  The guard must fire first and return 0 before the ancestry check.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    # Create two divergent branches from base.
+    _git(repo, "checkout", "-q", "-b", "branch-a")
+    branch_a_sha = _commit_file(repo, "f.txt", "branch-a\n")
+    _git(repo, "checkout", "-q", base)
+    _git(repo, "checkout", "-q", "-b", "branch-b")
+    branch_b_sha = _commit_file(repo, "f.txt", "branch-b\n")
+    # local=branch_b, remote=branch_a: genuinely divergent (non-ancestor).
+    # If the branch guard were absent, this would reach the ancestry check
+    # and return 1.  The guard must fire and return 0 first.
+    push_ref = _make_push_ref(
+        branch_b_sha, branch_a_sha, remote_ref="refs/tags/v1.0.0"
+    )
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+    assert base  # suppress unused-variable warning
+
+
+def test_non_fast_forward_env_var_bypasses_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """FORCE_PUSH_OK=1 allows a rewrite with a warning."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    push_ref = _make_push_ref(feature_sha, side_sha)
+    monkeypatch.setenv("FORCE_PUSH_OK", "1")
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+    err = capsys.readouterr().err
+    assert "bypassed" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_check_push_refs_blocks_force_push_end_to_end(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """check_push_refs end-to-end: force push is caught."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
+    stream = io.StringIO(
+        f"refs/heads/feature/test {feature_sha} refs/heads/feature/test {side_sha}\n"
+    )
+
+    result = policy.check_push_refs(stream, repo)
+
+    assert result == 1
+    err = capsys.readouterr().err
+    assert "not a fast-forward" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_check_push_refs_multi_ref_catches_second_rewrite(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Multiple refs: only the second is a rewrite; the first is a new branch."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
+    zero = "0" * 40
+    stream = io.StringIO(
+        # First ref: new branch (zero remote), passes.
+        f"refs/heads/new-branch {feature_sha} refs/heads/new-branch {zero}\n"
+        # Second ref: force push, blocked.
+        f"refs/heads/feature/test {feature_sha} refs/heads/feature/test {side_sha}\n"
+    )
+
+    result = policy.check_push_refs(stream, repo)
+
+    assert result == 1
+    assert "not a fast-forward" in capsys.readouterr().err
 
 
 def test_commit_limit_queries_the_destination_branch(
