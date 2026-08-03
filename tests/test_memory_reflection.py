@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pytest
 
+from memory_enhancement.confidence import update_confidence_scores_with_memories
 from memory_enhancement.reflection import (
     apply_confidence_decay,
     extract_session_facts,
     generate_skill_candidates,
-    reinforce_memories,
 )
 
 
@@ -30,14 +30,14 @@ def _make_memory_with_links(name: str, link_targets: list[str]) -> str:
     return "\n".join(lines)
 
 
-class TestReinforceMemories:
-    """Tests for confidence score recalculation."""
+class TestScoreRecalculation:
+    """Tests for confidence score recalculation. Scoring never writes."""
 
     @pytest.mark.unit
     def test_empty_directory(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        scores, memories = reinforce_memories(mem_dir, tmp_path)
+        scores, memories = update_confidence_scores_with_memories(mem_dir, tmp_path)
         assert scores == {}
         assert memories == []
 
@@ -46,7 +46,7 @@ class TestReinforceMemories:
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
         _write_memory(mem_dir, "m1", "# M1 (2026-01-01)\n\nContent\n")
-        scores, memories = reinforce_memories(mem_dir, tmp_path)
+        scores, memories = update_confidence_scores_with_memories(mem_dir, tmp_path)
         assert "m1" in scores
         assert 0.0 <= scores["m1"] <= 1.0
         assert len(memories) == 1
@@ -57,7 +57,7 @@ class TestReinforceMemories:
         mem_dir.mkdir()
         _write_memory(mem_dir, "m1", "# M1 (2026-01-01)\n\nContent\n")
         _write_memory(mem_dir, "m2", "# M2 (2026-01-01)\n\nOther content\n")
-        scores, memories = reinforce_memories(mem_dir, tmp_path)
+        scores, memories = update_confidence_scores_with_memories(mem_dir, tmp_path)
         assert len(scores) == 2
         assert len(memories) == 2
 

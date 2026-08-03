@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Invoke spec skill on issue #2003",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Step 0.5 Memory-First Gate",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Write 4 spec artifacts: PRD + REQ-011 + DESIGN-011 + TASK-011",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "Step 9 critic checks 9a/9b/9c/9d",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e005",
@@ -44,7 +52,9 @@
       "type": "milestone",
       "content": "Lock PRD \u00a711 open questions before commit",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e006",
@@ -52,7 +62,9 @@
       "type": "milestone",
       "content": "Commit spec artifacts on feat/issue-2003-agent-skill-audit-spec",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e007",
@@ -60,7 +72,9 @@
       "type": "milestone",
       "content": "Execute TASK-011: mechanical scoring of c1, c5, has_shared_template for all 23 agents",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e008",
@@ -68,7 +82,9 @@
       "type": "milestone",
       "content": "Execute TASK-011: c3 (sibling-is-skill) for c1=Yes agents with <3 pipelines",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e009",
@@ -76,7 +92,9 @@
       "type": "milestone",
       "content": "Execute TASK-011: c4 (PR schema-drift history) for structured-output agents",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e010",
@@ -84,7 +102,9 @@
       "type": "milestone",
       "content": "Execute TASK-011: c2 (reference vs reasoning) heuristic + manual deflation",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e011",
@@ -92,7 +112,9 @@
       "type": "milestone",
       "content": "Execute TASK-011: apply verdict rule per DESIGN-011 \u00a7C3",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e012",
@@ -100,7 +122,9 @@
       "type": "milestone",
       "content": "Write audit document at .agents/audits/2026-05-10-agent-skill-classification-audit.md",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e013",
@@ -108,7 +132,9 @@
       "type": "milestone",
       "content": "File Phase 3 CI check stub issue #2008 (per PRD AC-12)",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e014",
@@ -116,7 +142,9 @@
       "type": "milestone",
       "content": "File validator bug #2007 (per user directive)",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e015",
@@ -124,7 +152,9 @@
       "type": "milestone",
       "content": "Round 2: address 13 PR review threads (4 bot reviewers: copilot, devin, cursor, coderabbit)",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e016",
@@ -132,7 +162,9 @@
       "type": "milestone",
       "content": "Round 3: address 3 follow-up review threads (roadmap c1 miss, em-dash in own correction, episode lessons empty)",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e017",
@@ -140,7 +172,9 @@
       "type": "milestone",
       "content": "Round 4: address code-review agent finding (1 P1)",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e018",
@@ -148,7 +182,9 @@
       "type": "milestone",
       "content": "Round 5: address 7 follow-up review threads (5 stale-numbers, 2 grep-method docs)",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e019",
@@ -156,7 +192,9 @@
       "type": "milestone",
       "content": "Round 6: address 7 follow-up review threads (1 count, 1 path quote, 1 path style, 2 false-positive semgrep, 2 grep portability)",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e020",
@@ -164,7 +202,9 @@
       "type": "milestone",
       "content": "Round 7: restore episode manual corrections + file extractor bug as #2013",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e021",
@@ -172,14 +212,38 @@
       "type": "milestone",
       "content": "Round 7d: harmonize critic c2 evidence format",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e022"
+      ]
     },
     {
       "id": "e022",
-      "timestamp": "2026-05-10T00:00:00+00:00",
+      "timestamp": "2026-05-11T05:16:41+00:00",
       "type": "commit",
       "content": "Commit: e4ee4bd0",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016",
+        "e017",
+        "e018",
+        "e019",
+        "e020",
+        "e021"
+      ],
       "leads_to": []
     }
   ],
