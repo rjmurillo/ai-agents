@@ -29,6 +29,7 @@ Based on the above changes:
    - **List** specific files changed, test coverage added, security impacts
    - **Do NOT** leave template comments like `<!-- Brief description -->` unfilled
    - **Do NOT** copy the template verbatim - adapt every section to your changes
+   - **Include** an `## Acceptance criteria` heading with `- [x]` checked bullets. The Validate Spec Coverage gate parses this out of the PR body, not the linked issue, and blocks when the section is absent. Items must use a `-` or `*` bullet, so copying an issue's numbered criteria verbatim still blocks.
 5. Create a pull request using the new_pr skill script:
 
    ```bash

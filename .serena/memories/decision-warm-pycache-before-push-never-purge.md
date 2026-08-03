@@ -45,3 +45,11 @@ symptom, warm the cache and retry rather than clearing it.
 Note the second-order lesson: standard single-process advice inverts under a
 parallel hook runner. Check whether a hook group is parallel before applying
 any "clear the cache and retry" reflex.
+
+## Boundary
+
+This rule is about a shared tree under concurrent jobs. It does not apply to a
+single-process mutation harness that rewrites one source file repeatedly. There
+a purge is mandatory, because a line-swap mutation leaves file size unchanged
+and a same-second restore defeats CPython's (mtime, size) invalidation. See
+`ci/ci-line-swap-mutations-reuse-stale-bytecode.md`.
