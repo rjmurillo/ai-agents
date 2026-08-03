@@ -50,7 +50,6 @@ from scripts.github_core.api import (
     _403_PATTERN,
     _graphql_remaining,
     _is_rest_reachable,
-    _is_transient_graphql_error,
     _retry_after_delay,
 )
 from scripts.github_core.bot_config import _DEFAULT_BOTS
@@ -747,109 +746,6 @@ class TestGhGraphQL:
                 gh_graphql("query { x }")
         assert run_mock.call_count == 1
         assert sleep_mock.call_count == 0
-
-
-# ---------------------------------------------------------------------------
-# API: _is_transient_graphql_error and 403 burst-limiter retry (issue #4326)
-# ---------------------------------------------------------------------------
-
-
-class TestTransientGraphqlError:
-    """Unit tests for _is_transient_graphql_error covering the 403 burst case."""
-
-    def test_429_is_transient(self):
-        """HTTP 429 (primary rate limit) is retried."""
-        assert _is_transient_graphql_error("gh: rate limited (HTTP 429)") is True
-
-    def test_5xx_are_transient(self):
-        """Server errors 500/502/503/504 are retried."""
-        for code in ("500", "502", "503", "504"):
-            assert _is_transient_graphql_error(f"gh: error (HTTP {code})") is True, code
-
-    def test_403_with_rate_limit_wording_is_transient(self):
-        """HTTP 403 + 'API rate limit' is the burst limiter; it clears without reset.
-
-        Measured behavior: primary quota was >99% full at time of refusal (issue #4326).
-        """
-        assert _is_transient_graphql_error(
-            "gh: API rate limit exceeded for user ID 6811113 (HTTP 403)"
-        ) is True
-
-    def test_403_with_rate_limit_wording_variant(self):
-        """'rate limit' (space) also matches, covering gh's alternate phrasing."""
-        assert _is_transient_graphql_error(
-            "failed to get runs: HTTP 403: API rate limit exceeded for user ID 6811113"
-        ) is True
-
-    def test_403_without_rate_limit_wording_is_permanent(self):
-        """A genuine permission denial (403, no rate-limit phrase) must NOT be retried.
-
-        Retrying a real auth failure wastes attempts and delays the error surfacing.
-        """
-        assert _is_transient_graphql_error(
-            "gh: Resource not accessible by integration (HTTP 403)"
-        ) is False
-
-    def test_404_is_permanent(self):
-        """Not-found is a permanent client error; never retry."""
-        assert _is_transient_graphql_error("gh: Not Found (HTTP 404)") is False
-
-    def test_200_level_graphql_error_is_permanent(self):
-        """A GraphQL-level error returned in a 200 response is permanent."""
-        assert _is_transient_graphql_error("API rate limit exceeded") is False
-
-
-class TestGhGraphqlRetries403RateLimit:
-    """Integration tests: gh_graphql retries 403 burst limiter, not 403 auth (issue #4326)."""
-
-    def test_403_with_rate_limit_wording_is_retried(self):
-        """gh_graphql retries a 403 burst refusal and succeeds on the second attempt."""
-        import json as _json
-
-        ok = _json.dumps({"data": {"viewer": {"login": "rjmurillo"}}})
-        responses = [
-            _completed(
-                rc=1,
-                stderr="gh: API rate limit exceeded for user ID 6811113 (HTTP 403)",
-            ),
-            _completed(stdout=ok),
-        ]
-        with patch("scripts.github_core.api.time.sleep"), patch(
-            "subprocess.run", side_effect=responses
-        ) as run_mock:
-            result = gh_graphql("query { viewer { login } }")
-        assert run_mock.call_count == 2
-        assert result["viewer"]["login"] == "rjmurillo"
-
-    def test_403_without_rate_limit_wording_is_not_retried(self):
-        """A genuine permission 403 (no rate-limit phrase) fails fast; no retry loop."""
-        responses = [
-            _completed(
-                rc=1,
-                stderr="gh: Resource not accessible by integration (HTTP 403)",
-            ),
-        ]
-        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
-            "subprocess.run", side_effect=responses
-        ) as run_mock:
-            with pytest.raises(RuntimeError, match="GraphQL request failed"):
-                gh_graphql("query { x }")
-        assert run_mock.call_count == 1
-        assert sleep_mock.call_count == 0
-
-    def test_403_rate_limit_retries_give_up_after_max_attempts(self):
-        """Persistent burst limiter still raises after _GRAPHQL_MAX_ATTEMPTS."""
-        burst_resp = _completed(
-            rc=1,
-            stderr="gh: API rate limit exceeded for user ID 6811113 (HTTP 403)",
-        )
-        max_attempts = 3
-        with patch("scripts.github_core.api.time.sleep"), patch(
-            "subprocess.run", return_value=burst_resp
-        ) as run_mock:
-            with pytest.raises(RuntimeError, match="GraphQL request failed"):
-                gh_graphql("query { x }")
-        assert run_mock.call_count == max_attempts
 
 
 # ---------------------------------------------------------------------------

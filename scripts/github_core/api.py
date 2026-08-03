@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, facade keeps the legacy import surface stable.
 """GitHub API helpers: auth, pagination, GraphQL, issue comments, rate limits.
 
 Cohesive sub-concerns live in sibling modules and are re-exported here so the
@@ -356,38 +357,15 @@ _GRAPHQL_MAX_ATTEMPTS = 3
 _GRAPHQL_BACKOFF_BASE_SECONDS = 2.0
 _TRANSIENT_HTTP_PATTERN = re.compile(r"\(?\bHTTP\s+(429|500|502|503|504)\b")
 
-# GitHub secondary/burst limiter produces HTTP 403 with rate-limit wording
-# while primary quota (core/graphql) remains healthy (issue #4326). The
-# condition clears in roughly one minute without quota reset, so it is
-# transient. Bare 403 is not added to _TRANSIENT_HTTP_PATTERN because a
-# genuine permission denial is also 403; both status AND message text must
-# match to distinguish a burst refusal from a permanent auth error.
-_TRANSIENT_403_PATTERN = re.compile(
-    r"(?:"
-    r"\(?\bHTTP\s+403\b.*?(?:rate.limit|API rate)"
-    r"|"
-    r"(?:rate.limit|API rate).*?\(?\bHTTP\s+403\b"
-    r")",
-    re.IGNORECASE | re.DOTALL,
-)
-
 
 def _is_transient_graphql_error(error_msg: str) -> bool:
     """Return True when the gh error text indicates a retryable upstream status.
 
-    Transient statuses:
-    - HTTP 429 (rate limit) or 5xx (500/502/503/504): upstream overload.
-    - HTTP 403 + rate-limit wording: GitHub secondary/burst limiter. This is
-      distinct from a genuine permission denial (also 403) which lacks the
-      "rate limit" phrase (issue #4326).
-
-    Client errors (4xx other than the above) and GraphQL-level errors are
-    permanent and not retried.
+    Transient = HTTP 429 (rate limit) or 5xx (500/502/503/504). These are
+    upstream timeouts/overloads that a bounded retry can recover. Client errors
+    (4xx other than 429) and GraphQL-level errors are permanent and not retried.
     """
-    return (
-        _TRANSIENT_HTTP_PATTERN.search(error_msg) is not None
-        or _TRANSIENT_403_PATTERN.search(error_msg) is not None
-    )
+    return _TRANSIENT_HTTP_PATTERN.search(error_msg) is not None
 
 
 _RETRY_AFTER_PATTERN = re.compile(r"\bRetry-After:\s*(\d+)", re.IGNORECASE)
