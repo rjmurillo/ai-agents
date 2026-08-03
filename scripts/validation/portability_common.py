@@ -120,20 +120,18 @@ def resolve_baseline_path(
     root: Path,
     baseline: Path | None,
     default_baseline_name: str,
-    reject_outside_root: bool,
 ) -> Path | None:
-    """Resolve the baseline path, optionally rejecting root escapes.
+    """Resolve the baseline path, refusing escapes from the repository root.
 
     The single home for this reasoning. Every checker that accepts `--baseline`
-    delegates here rather than keeping a copy, because the copies drifted into
-    the same defect independently once already: both resolved the path before
-    handing it on, which erased the symlink the guard downstream exists to
-    refuse. Returns None when the candidate escapes the root.
+    and delegates here avoids the defect the copies drifted into independently:
+    both resolved the path before handing it on, which erased the symlink the
+    guard downstream exists to refuse. Returns None when the candidate escapes
+    the root. check_vendor_portability.py defines its own baseline_path() and
+    does not call this function.
     """
     if baseline is None:
         return root / "scripts" / "validation" / default_baseline_name
-    if not reject_outside_root:
-        return baseline if baseline.is_absolute() else root / baseline
 
     root_resolved = root.resolve()
     candidate = baseline.expanduser()
@@ -178,9 +176,7 @@ def resolve_checked_baseline(
     deeper. Refusing the link closes both, and it runs first because a link is
     the more basic objection: the target need not be inside the tree at all.
     """
-    resolved = resolve_baseline_path(
-        root, baseline, default_baseline_name, reject_outside_root=True
-    )
+    resolved = resolve_baseline_path(root, baseline, default_baseline_name)
     if resolved is None:
         print(
             f"Refusing a --baseline outside the repository root: {baseline}. "

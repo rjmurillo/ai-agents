@@ -412,8 +412,28 @@ def skills_dirs(root: Path) -> list[Path]:
     Absent roots are skipped rather than reported. ``src/claude`` ships agents
     and rules but has no skills tree, and a root that grows one later is picked
     up without touching this list.
+
+    Roots whose ``skills/`` directory is a symlink pointing outside the
+    repository are refused with exit 2 (configuration error). A symlinked root
+    scans files git does not track, so coverage checks can be satisfied by
+    content that no consumer will receive.
     """
-    return [root / name / "skills" for name in PLUGIN_ROOTS if (root / name / "skills").is_dir()]
+    repo_resolved = root.resolve()
+    result = []
+    for name in PLUGIN_ROOTS:
+        candidate = root / name / "skills"
+        if not candidate.is_dir():
+            continue
+        resolved = candidate.resolve()
+        if not resolved.is_relative_to(repo_resolved):
+            raise OSError(
+                f"Scan root {candidate} resolves to {resolved}, "
+                "which is outside the repository. "
+                "A symlinked scan root scans files git does not track. "
+                "Remove the symlink or redirect it inside the repository."
+            )
+        result.append(candidate)
+    return result
 
 
 def extra_scan_dirs(root: Path) -> list[Path]:
@@ -429,8 +449,26 @@ def extra_scan_dirs(root: Path) -> list[Path]:
 
     Absent directories are skipped: a checkout that does not have
     ``.claude/commands`` is not broken, it may just be a minimal clone.
+
+    Directories symlinked outside the repository are refused for the same
+    reason as plugin roots (see ``skills_dirs``).
     """
-    return [root / name for name in EXTRA_SCAN_ROOTS if (root / name).is_dir()]
+    repo_resolved = root.resolve()
+    result = []
+    for name in EXTRA_SCAN_ROOTS:
+        candidate = root / name
+        if not candidate.is_dir():
+            continue
+        resolved = candidate.resolve()
+        if not resolved.is_relative_to(repo_resolved):
+            raise OSError(
+                f"Extra scan dir {candidate} resolves to {resolved}, "
+                "which is outside the repository. "
+                "A symlinked scan dir scans files git does not track. "
+                "Remove the symlink or redirect it inside the repository."
+            )
+        result.append(candidate)
+    return result
 
 
 def missing_required_roots(root: Path) -> list[str]:
@@ -448,29 +486,85 @@ def missing_required_roots(root: Path) -> list[str]:
     ]
 
 
-def scan_plugin_roots(root: Path) -> dict[str, int]:
-    """Return {repo_relative_posix_path: count} across every plugin root and extra dirs.
+def scan_all(
+    root: Path,
+) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
+    """Scan all skill Markdown files in one traversal.
 
-    Keys are relative to the repository root rather than to the skills dir's
-    parent. Both roots hold a ``skills/spec/SKILL.md``, so the parent-relative
-    key that a single-root scan could use collides the moment a second root is
-    read, and one root's count would silently overwrite the other's.
+    Returns (ref_counts, marker_counts, files_by_root). A single walk ensures
+    the coverage decision and the baseline contents come from the same snapshot,
+    so a concurrent tree mutation cannot produce a short baseline that passes the
+    coverage check (issue #4211).
 
-    Extra dirs (``EXTRA_SCAN_ROOTS``) are scanned after the plugin roots. They
-    are flat source trees that are not under any plugin-root ``skills/``
-    subtree. ``.claude/commands`` mirrors into the scanned
-    ``src/copilot-cli/skills`` tree; ``templates/agents`` mirrors into
-    ``src/copilot-cli/agents``, which this validator deliberately does not
-    scan (issue #3646).
+    Keys in ref_counts and marker_counts are repo-relative posix paths. Keys in
+    files_by_root are the posix path of the ``skills/`` dir relative to root,
+    covering plugin roots only (not extra scan dirs); coverage-check semantics
+    are preserved from the original ``scanned_markdown_by_root``.
     """
-    counts: dict[str, int] = {}
-    for skills_dir in skills_dirs(root):
-        for rel, n in scan_skill_markdown(skills_dir).counts.items():
-            counts[(skills_dir.parent.relative_to(root) / rel).as_posix()] = n
-    for extra_dir in extra_scan_dirs(root):
-        for rel, n in scan_skill_markdown(extra_dir).counts.items():
-            counts[(extra_dir.parent.relative_to(root) / rel).as_posix()] = n
-    return counts
+    ref_counts: dict[str, int] = {}
+    marker_counts: dict[str, int] = {}
+    files_by_root: dict[str, int] = {}
+
+    plugin_dirs = skills_dirs(root)
+    extra_dirs = extra_scan_dirs(root)
+
+    for scan_dir in plugin_dirs:
+        rel_parent = scan_dir.parent.relative_to(root)
+        root_key = (rel_parent / scan_dir.name).as_posix()
+        scanned = 0
+        for dirpath, dirnames, filenames in os.walk(scan_dir, onerror=_reraise_os_error):
+            dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
+            directory = Path(dirpath)
+            for fname in sorted(filenames):
+                path = directory / fname
+                if path.suffix != MARKDOWN_SUFFIX:
+                    continue
+                if path.is_symlink() and not path.exists():
+                    raise OSError(f"Broken .md symlink (configuration error): {path}")
+                try:
+                    text = path.read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError) as exc:
+                    raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
+                scanned += 1
+                rel_key = (rel_parent / path.relative_to(scan_dir.parent)).as_posix()
+                n_refs = count_file_refs(text)
+                if n_refs > 0:
+                    ref_counts[rel_key] = n_refs
+                n_marker = count_marker_suppressed_refs(text)
+                if n_marker > 0:
+                    marker_counts[rel_key] = n_marker
+        files_by_root[root_key] = scanned
+
+    for extra_dir in extra_dirs:
+        rel_parent = extra_dir.parent.relative_to(root)
+        for dirpath, dirnames, filenames in os.walk(extra_dir, onerror=_reraise_os_error):
+            dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
+            directory = Path(dirpath)
+            for fname in sorted(filenames):
+                path = directory / fname
+                if path.suffix != MARKDOWN_SUFFIX:
+                    continue
+                if path.is_symlink() and not path.exists():
+                    raise OSError(f"Broken .md symlink (configuration error): {path}")
+                try:
+                    text = path.read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError) as exc:
+                    raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
+                rel_key = (rel_parent / path.relative_to(extra_dir.parent)).as_posix()
+                n_refs = count_file_refs(text)
+                if n_refs > 0:
+                    ref_counts[rel_key] = n_refs
+                n_marker = count_marker_suppressed_refs(text)
+                if n_marker > 0:
+                    marker_counts[rel_key] = n_marker
+
+    return ref_counts, marker_counts, files_by_root
+
+
+def scan_plugin_roots(root: Path) -> dict[str, int]:
+    """Return {repo_relative_posix_path: ref_count} across every plugin root and extra dirs."""
+    ref_counts, _, _ = scan_all(root)
+    return ref_counts
 
 
 def scanned_markdown_by_root(root: Path) -> dict[str, int]:
@@ -480,35 +574,14 @@ def scanned_markdown_by_root(root: Path) -> dict[str, int]:
     another root keeps positive, so a partial checkout would write a baseline
     dropping every file the unread root owned.
     """
-    return {
-        skills_dir.relative_to(root).as_posix(): scan_skill_markdown(skills_dir).scanned
-        for skills_dir in skills_dirs(root)
-    }
+    _, _, files_by_root = scan_all(root)
+    return files_by_root
 
 
 def scan_marker_suppressions(root: Path) -> dict[str, int]:
     """Return marker-suppressed reference counts across every plugin root."""
-    counts: dict[str, int] = {}
-    for skills_dir in skills_dirs(root):
-        base = skills_dir.parent
-        for dirpath, dirnames, filenames in os.walk(skills_dir, onerror=_reraise_os_error):
-            dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
-            directory = Path(dirpath)
-            for name in sorted(filenames):
-                path = directory / name
-                if path.suffix != MARKDOWN_SUFFIX:
-                    continue
-                if path.is_symlink() and not path.exists():
-                    raise OSError(f"Broken .md symlink (configuration error): {path}")
-                try:
-                    text = path.read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError) as exc:
-                    raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
-                n = count_marker_suppressed_refs(text)
-                if n > 0:
-                    rel = skills_dir.parent.relative_to(root) / path.relative_to(base)
-                    counts[rel.as_posix()] = n
-    return counts
+    _, marker_counts, _ = scan_all(root)
+    return marker_counts
 
 
 def _reraise_os_error(error: OSError) -> None:
@@ -786,9 +859,7 @@ def _scan_current_counts(
 ) -> tuple[dict[str, int], dict[str, int], dict[str, int]] | None:
     """Return current counts and scan coverage, or None after reporting a scan error."""
     try:
-        current = scan_plugin_roots(root)
-        marker_current = scan_marker_suppressions(root)
-        scanned_by_root = scanned_markdown_by_root(root)
+        current, marker_current, scanned_by_root = scan_all(root)
     except (OSError, MarkdownNestingError) as exc:
         print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
         return None
