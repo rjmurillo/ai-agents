@@ -5361,7 +5361,13 @@ def _skip_skillforge_path(path: str, repo_root: Path) -> bool:
     A mirror is not an authored skill, so the SkillForge schema (Triggers, Process,
     Verification) does not describe it and editing it is not how you fix it. The
     mirror set is derived from `.claude/commands/<name>.md`, the generator's own
-    input, so the two cannot drift. Do not restate the names here or in lefthook.yml.
+    input, so do not restate the names here or in lefthook.yml.
+
+    Derived is not the same as in sync. Nothing regenerates a mirror at commit
+    time, so a command edit that skips the generator ships a stale mirror; one
+    did, leaving the Copilot pr-autofix skill prescribing a push the pre-push
+    guard rejects. `test_committed_command_mirrors_match_the_generator` in
+    tests/build_scripts/test_generate_commands.py is what catches that.
     """
     if path.startswith("evals/"):
         return True

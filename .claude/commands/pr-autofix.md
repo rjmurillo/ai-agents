@@ -143,13 +143,12 @@ FORCE_PUSH_OK=1 git push origin "${SHA}:refs/heads/${BRANCH}" \
   --force-with-lease="refs/heads/${BRANCH}:${EXPECTED_REMOTE_SHA}"
 ```
 
-`FORCE_PUSH_OK=1` is required, not optional. The pre-push hook cannot read
-argv, so `_check_non_fast_forward` in `scripts/validation/git_hook_policy.py`
-sees a rewrite and exits 1 whether or not a lease is pinned. The variable is
-the one escape `.claude/rules/universal.md` MUST NOT 1 sanctions for a pinned
-lease, and it narrows that single guard while every other pre-push job runs
-(issue #4293). `.github/scripts/safe_push_pr_branch.py` sets it for you, so
-prefer that helper over the raw command.
+`FORCE_PUSH_OK=1` is required, not optional. A pre-push hook cannot read argv,
+so the repository's non-fast-forward guard sees a rewrite and exits 1 whether
+or not a lease is pinned. The variable is the one escape the force-push rule
+sanctions for a pinned lease, and it narrows that single guard while every
+other pre-push job runs (issue #4293). This repository's safe-push helper sets
+it for you, so prefer that helper over the raw command.
 
 Pin the lease to an explicit SHA; never use bare `--force-with-lease` here.
 Bare `--force-with-lease` takes its expected value from
