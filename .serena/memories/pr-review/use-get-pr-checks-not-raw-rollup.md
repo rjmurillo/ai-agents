@@ -82,6 +82,38 @@ I nearly filed an issue against that file on a blanket "unpaginated call" scan.
 Reading the docstring stopped it. A truncated read is only a defect where the
 dropped rows could change the answer.
 
+## Pagination is the least important of the three things a reader gets wrong
+
+Measured 2026-08-03. Across one session I wrote three bespoke check readers.
+Each one fixed the previous defect and introduced a new one.
+
+| Attempt | What it fixed | What it broke |
+|---|---|---|
+| `gh pr view --json statusCheckRollup` reduced to a `{name: conclusion}` dict | nothing | two rows share one name, so the dict kept SKIPPED and dropped SUCCESS; reported a green required check as skipped |
+| `gh api --paginate --jq` | truncation | `--jq` runs once per page, so the reduction saw a partial list |
+| `--paginate --slurp` plus my own reducer | truncation and per-page reduction | counted `cancelled` as a hard failure; reported two clean PRs as FAILURE |
+
+`get_pr_checks.py` already had all three properties before I started.
+
+- It paginates.
+- It groups rows by name and lets a passing re-run supersede a prior failure,
+  the "OK if any SUCCESS exists" rule from the PR #1887 retrospective.
+- Its severity map puts CANCELLED in the failing set so a CANCELLED-only group
+  still surfaces, while a CANCELLED row with a sibling SUCCESS does not.
+
+It also returns `IsRequired` per check plus `FailedRequiredChecks` and
+`PendingRequiredChecks`. None of my three readers reported required status at
+all, so none of them could answer the only question that decides a merge.
+
+The order of danger is the reverse of the order of visibility. Truncation is
+the defect you notice, because the row count looks wrong. Severity mapping and
+re-run supersession are the ones that hand you a confident, complete-looking
+answer with the sign flipped.
+
+`cancelled` on its own means superseded or auto-cancelled by a newer run, not
+broken. Treating it as a failure costs a re-run of a green suite at best, and a
+false defect report against working CI at worst.
+
 ## Related
 
 - `pr-review/mergestatestatus-blocked-can-be-stale.md`. The BLOCKED field is
