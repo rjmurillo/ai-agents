@@ -74,7 +74,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Lint read 0 files: NOT LINTED. All three changed paths, .claude/rules/testing.md and the two generated instruction mirrors, are ignored by .markdownlint-cli2.yaml. The lefthook markdown-autofix step reported selected 0 of 3 targets."
+        "evidence": "markdownlint-cli2 v0.23.2 run on all three changed markdown files (.claude/rules/testing.md, .github/instructions/testing.instructions.md, src/copilot-cli/instructions/testing.instructions.md): 3 files linted, 0 issues. An earlier revision of this entry claimed the paths were ignored by .markdownlint-cli2.yaml; that was wrong. The ignores list covers .agents/** and .serena/**, not .claude/rules/** or the instruction mirrors."
       },
       "checklistComplete": {
         "level": "MUST",
