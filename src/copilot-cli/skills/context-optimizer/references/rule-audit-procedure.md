@@ -1,5 +1,8 @@
 # Rule Audit Procedure
 
+<!-- vendor-portability: contributor-facing reference for the rjmurillo/ai-agents
+     repository itself; intentionally references upstream-only eval scripts
+     because repo contributors run the rule audit there (issue #2050) -->
 <!-- # taste-lint: ignore file-size -->
 <!-- file-size rationale: this is one linear procedure, executed top to bottom
 from step 0 through step 8. The 500-line limit encodes code cohesion, and the
@@ -21,6 +24,29 @@ proposes adding or cutting always-on content.
 The instrument has known limits. Skipping to the numbers without reading
 "What the instrument can and cannot resolve" below has already produced one
 wrong conclusion on this branch.
+
+## Step 0a. Pre-register the decision rule before any scored eval run
+
+This step is BLOCKING. A decision rule chosen after seeing the data it grades
+is exploratory analysis, not a reproducible audit. The sign-counting rule
+(issue #3957) was selected retroactively, which invalidates the p-value it
+produced and makes any conclusion from those runs non-reproducible.
+
+Before running `eval-rule-activation.py` for a new rule audit:
+
+1. Write down the decision rule in plain text. Example: "I will accept a
+   progressive-disclosure recommendation if and only if `description` ties or
+   beats `full` in at least 3 of 4 runs, with no run showing `full` beating
+   `description` by more than 0.5 points."
+2. Commit that text to a file or to the issue body BEFORE running any eval.
+   A commit timestamp before the first eval run is the evidence. A comment
+   added after seeing results is not pre-registration.
+3. Record what would falsify the recommendation. If no outcome would change
+   your conclusion, the eval is not providing evidence.
+
+Violating this step means the audit produced an exploratory finding, not a
+decision. Label it as such. Do not act on an exploratory finding as though it
+were a reproducible result.
 
 ## Step 0. Deterministic baseline
 

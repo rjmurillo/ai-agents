@@ -43,6 +43,23 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
 }
 PRICING_RATE_AS_OF = "2026-08-01"
 
+# Providers that bill by quota or premium-request rather than per token.
+# For these providers no USD estimate is meaningful or available, so the
+# plan runner skips the dollar-gate and prints a request-count summary instead.
+QUOTA_BILLED_PROVIDERS = frozenset({"github", "github-models", "copilot", "copilot-cli"})
+
+
+def cost_basis(provider: str | None = None) -> str:
+    """Return "requests" for quota-billed providers, "usd" for token-billed ones.
+
+    Uses the same provider normalization as _providers.resolve_provider. It does
+    not validate provider names or resolve aliases.
+    """
+    import os  # local import: only needed here, avoids module-level side effect
+
+    resolved = (provider or os.environ.get("EVAL_PROVIDER") or "anthropic").strip().lower()
+    return "requests" if resolved in QUOTA_BILLED_PROVIDERS else "usd"
+
 
 class MalformedProviderMetadataError(RuntimeError):
     """A provider returned metadata that cannot be recorded truthfully."""
