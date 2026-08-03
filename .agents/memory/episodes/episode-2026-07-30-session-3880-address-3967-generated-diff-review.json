@@ -13,7 +13,7 @@
       "content": "Reproduce the silent git diff failure",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e004"
       ]
     },
     {
@@ -21,11 +21,9 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Report git diff failure without masking the workflow failure",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e004"
       ]
     },
     {
@@ -33,17 +31,21 @@
       "timestamp": "2026-07-30T00:00:00+00:00",
       "type": "milestone",
       "content": "Validate the autofix",
-      "caused_by": [
-        "e002"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ]
     },
     {
       "id": "e004",
-      "timestamp": "2026-07-30T00:00:00+00:00",
+      "timestamp": "2026-07-30T10:46:11+00:00",
       "type": "commit",
       "content": "Commit: 75058db74",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
       "leads_to": []
     }
   ],
