@@ -1,6 +1,6 @@
 # Gotchas
 
-<!-- # taste-lint: ignore file-size -- a catalog read start-to-finish before a first push; splitting it by category would mean opening several files to learn what will bite you, which is the one thing this file exists to prevent. -->
+<!-- # taste-lint: ignore file-size (a catalog read start-to-finish before a first push; splitting it by category would mean opening several files to learn what will bite you, which is the one thing this file exists to prevent) -->
 
 Non-obvious repository behavior that cost real time to learn and cannot be
 inferred from reading the code. Each entry states the trap, the symptom you

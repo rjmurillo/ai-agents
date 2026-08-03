@@ -83,11 +83,24 @@ the first ten lines of any file and looks for the token, so a markdown file
 suppresses a rule by wrapping the same directive in an HTML comment:
 
 ```markdown
-<!-- # taste-lint: ignore file-size -- reason -->
+<!-- # taste-lint: ignore file-size (reason) -->
 ```
 
 Verified 2026-08-03: adding that line to a 521-line governance doc moved the
 repo count from 596 to 595 and dropped the file from `list_violations()`.
+
+Use parentheses or a comma to introduce the reason, never the ` -- ` separator
+that the `.py` precedents use. A double hyphen is illegal inside an HTML
+comment, so the line is malformed markup and does not reliably survive editing
+passes. Every markdown precedent in the repo (`CONTRIBUTING.md`,
+`.agents/SESSION-PROTOCOL.md`, `ADR-035`, the `memory-search` references)
+already avoids it.
+
+Losing the directive is silent, and the ratchet failure will not point at you:
+re-verified 2026-08-03 by deleting it from `GOTCHAS.md`, which produced
+`596 violations > baseline 595` followed by a list headed
+`.agents/analysis/worktrunk-integration.md` and `... and 556 more`. The file
+that actually regressed appears nowhere in the output.
 
 ## Related
 

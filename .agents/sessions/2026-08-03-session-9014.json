@@ -113,7 +113,56 @@
       }
     }
   },
-  "workLog": [],
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Reproduced all seven of main's test failures on a pristine worktree detached at b2729ee54",
+      "result": "7 failed, 31 passed. Every failure predates this branch; main was red in nine ways, not the two recorded on #4500.",
+      "files": []
+    },
+    {
+      "step": 2,
+      "action": "Traced the M7 mutation literal against git log -S to find why it matched zero times",
+      "result": "PR #4406 ratcheted the pinned --max value from 58 to 0. Re-anchored the mutation on the step-name line alone, which is unique and invariant. Harness kills all nine mutants.",
+      "files": [
+        "scripts/ci/mutation_harness_ciperms.py"
+      ]
+    },
+    {
+      "step": 3,
+      "action": "Walked the always-on byte total across 40 commits before touching the doctrine figures",
+      "result": "The 1,916-byte shrink was two deliberate dedup commits, 1ed4559b5 (-1,195) and 26d2d0293 (-721), not a truncation. Recomputed every figure with the tests' own helpers and swept four more files carrying the stale numbers.",
+      "files": [
+        ".claude/skills/context-optimizer/references/model-context-doctrine.md",
+        ".claude/rules/canonical-source-mirror.md"
+      ]
+    },
+    {
+      "step": 4,
+      "action": "Ran an adversarial review on gemini-3.1-pro-preview and verified both findings against the artifacts",
+      "result": "One correct HIGH: my allowlist comment claimed every uv consumer was guarded; seven are not. One overstated MEDIUM: the claimed permanent policy loss was actually compression into builder-ethos.md. Replaced the rotting comment with an enforced test rather than a truer comment.",
+      "files": [
+        "tests/ci/test_pr_validation_workflow.py"
+      ]
+    },
+    {
+      "step": 5,
+      "action": "Negative-controlled the new workflow test by deleting the second uv install",
+      "result": "Failed naming all seven orphaned steps, then restored clean. Two monkeypatched tests cover the ordering branch and reject the vacuous case.",
+      "files": [
+        "tests/ci/test_pr_validation_workflow.py"
+      ]
+    },
+    {
+      "step": 6,
+      "action": "Investigated an unattributed strip of the GOTCHAS.md taste-lint ignore",
+      "result": "The reason separator was ' -- ', illegal inside an HTML comment and the only markdown ignore in the repo using it. Negative control: without the directive the ratchet reports 596 > 595 and lists 556 unrelated files, never the offending one. Conformed to the parenthesized form and corrected the memory whose worked example taught the hazardous separator.",
+      "files": [
+        ".agents/governance/GOTCHAS.md",
+        ".serena/memories/ci/ci-count-ratchet-never-names-the-offending-file.md"
+      ]
+    }
+  ],
   "endingCommit": "3d3660f23",
   "nextSteps": []
 }
