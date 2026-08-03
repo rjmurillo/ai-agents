@@ -639,16 +639,29 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
         # in this file sits below a sys.path insert and so needs an E402
         # suppression, and a new suppression is exactly what the push gate
         # refuses. Function scope needs none, and the module is already loaded.
-        from scripts.validation.session_scope import commit_reachability_problem
+        from scripts.validation.session_scope import (
+            NOT_AN_ANCESTOR,
+            commit_reachability_problem,
+        )
 
         problem = commit_reachability_problem(ending, _PROJECT_ROOT)
         if problem is not None:
+            # State the observation and list only the candidates the check did
+            # not already rule out. Naming one cause sends readers after a
+            # mistake they did not make: this repository merges by squash,
+            # which orphans every branch SHA a session log records. And when
+            # the object is present but unreachable, `git cat-file -e` already
+            # found it here, so it was pushed (issue #4347).
+            causes = (
+                "the PR was squash merged, which orphans the branch SHA; the "
+                "commit was amended or rebased after the log named it"
+            )
+            if problem != NOT_AN_ANCESTOR:
+                causes += "; the SHA was never pushed"
             result.errors.append(
-                f"endingCommit {ending!r} {problem}; the SHA was most likely "
-                "orphaned by amending or rebasing the commit that carried it, "
-                "or by a squash merge that rewrites the branch tip. "
-                "Record the SHA in a follow-up commit instead of amending "
-                "afterwards (issue #3618)"
+                f"endingCommit {ending!r} {problem}. Candidate causes, most "
+                f"likely first: {causes}. Record the SHA in a follow-up "
+                "commit (issue #3618)"
             )
 
     if "nextSteps" not in data:
