@@ -40,6 +40,7 @@ from check_doc_interpreter_portability import (  # noqa: E402
 )
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_nested_tests import validate_no_nested_tests
+from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
 from check_unreachable_code import validate_unreachable_code
 from checks_coverage import (  # noqa: E402
@@ -161,6 +162,12 @@ def run_all_validations(
         "Unreachable Code Detection",
         state,
         lambda: validate_unreachable_code(repo_root),
+    )
+
+    run_validation(
+        "Subprocess Encoding Convention",
+        state,
+        lambda: validate_subprocess_encoding(repo_root),
     )
 
     run_validation(
