@@ -43,16 +43,9 @@ Baseline ratchet:
   so the baseline can be tightened with ``--update-baseline``.
 
 Scope: ``*.md`` under the ``skills/`` tree of every plugin root listed in
-``PLUGIN_ROOTS``, plus the flat source trees in ``EXTRA_SCAN_ROOTS``
-(``.claude/commands`` and ``templates/agents``). These extra directories ship
-or generate shipped output, but sit outside plugin-root ``skills/`` sources.
-``.claude/commands`` generates Copilot CLI skills under
-``src/copilot-cli/skills/`` via ``build/scripts/generate_commands.py``; that
-mirror is scanned by the plugin-root pass. ``templates/agents`` generates
-Copilot CLI agents under ``src/copilot-cli/agents/`` via
-``build/generate_agents.py``; this validator does not scan agent outputs, so
-the template source is the only covered surface. See issues #3578
-(plugin-root widening) and #3646 (commands and templates/agents widening).
+``PLUGIN_ROOTS``. Scanning only ``.claude/skills`` left thirty nine references
+unratcheted in ``src/copilot-cli/skills``, which is generated from
+``.claude/commands`` and so was covered by neither path. See issue #3578.
 
 Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -93,9 +86,6 @@ from scripts.validation.portability_common import (
 )
 from scripts.validation.portability_common import (
     resolve_root as _common_resolve_root,
-)
-from scripts.validation.portability_floor import (
-    read_previous_sections as _read_previous_sections,
 )
 
 # Upstream-only runtime path prefixes. Companion to check_skill_portability.py
@@ -260,15 +250,6 @@ PLUGIN_ROOTS: tuple[str, ...] = (".claude", "src/claude", "src/copilot-cli")
 # from this set because it ships agents and rules and has no skills tree today.
 REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/copilot-cli"})
 
-# Non-skills directories that also ship to consumers or generate shipped output
-# and carry upstream-path prose. ``.claude/commands`` generates Copilot CLI
-# skills, whose mirror under ``src/copilot-cli/skills`` is covered by the
-# plugin-root scan. ``templates/agents`` generates Copilot CLI agents under
-# ``src/copilot-cli/agents``, which this validator deliberately does not scan.
-# Scanning these source trees covers the otherwise unscanned source surface and
-# avoids double-counting command mirrors. Issue #3646.
-EXTRA_SCAN_ROOTS: tuple[str, ...] = (".claude/commands", "templates/agents")
-
 
 def has_portability_marker(text: str) -> bool:
     """Return True if the file self-declares its upstream path dependencies.
@@ -416,23 +397,6 @@ def skills_dirs(root: Path) -> list[Path]:
     return [root / name / "skills" for name in PLUGIN_ROOTS if (root / name / "skills").is_dir()]
 
 
-def extra_scan_dirs(root: Path) -> list[Path]:
-    """Return existing directories from ``EXTRA_SCAN_ROOTS``.
-
-    These are flat source trees that ship to consumers or generate shipped
-    output, but are not under a plugin root's ``skills/`` subtree.
-    ``.claude/commands`` mirrors into ``src/copilot-cli/skills``, which the
-    plugin-root scan covers. ``templates/agents`` mirrors into
-    ``src/copilot-cli/agents``, which this validator deliberately does not
-    scan. Listing the source keeps those template references covered without
-    double-counting command mirrors (issue #3646).
-
-    Absent directories are skipped: a checkout that does not have
-    ``.claude/commands`` is not broken, it may just be a minimal clone.
-    """
-    return [root / name for name in EXTRA_SCAN_ROOTS if (root / name).is_dir()]
-
-
 def missing_required_roots(root: Path) -> list[str]:
     """Return the required roots whose skills tree is absent, in declared order.
 
@@ -449,27 +413,17 @@ def missing_required_roots(root: Path) -> list[str]:
 
 
 def scan_plugin_roots(root: Path) -> dict[str, int]:
-    """Return {repo_relative_posix_path: count} across every plugin root and extra dirs.
+    """Return {repo_relative_posix_path: count} across every plugin root.
 
     Keys are relative to the repository root rather than to the skills dir's
     parent. Both roots hold a ``skills/spec/SKILL.md``, so the parent-relative
     key that a single-root scan could use collides the moment a second root is
     read, and one root's count would silently overwrite the other's.
-
-    Extra dirs (``EXTRA_SCAN_ROOTS``) are scanned after the plugin roots. They
-    are flat source trees that are not under any plugin-root ``skills/``
-    subtree. ``.claude/commands`` mirrors into the scanned
-    ``src/copilot-cli/skills`` tree; ``templates/agents`` mirrors into
-    ``src/copilot-cli/agents``, which this validator deliberately does not
-    scan (issue #3646).
     """
     counts: dict[str, int] = {}
     for skills_dir in skills_dirs(root):
         for rel, n in scan_skill_markdown(skills_dir).counts.items():
             counts[(skills_dir.parent.relative_to(root) / rel).as_posix()] = n
-    for extra_dir in extra_scan_dirs(root):
-        for rel, n in scan_skill_markdown(extra_dir).counts.items():
-            counts[(extra_dir.parent.relative_to(root) / rel).as_posix()] = n
     return counts
 
 
@@ -551,16 +505,6 @@ def build_parser() -> argparse.ArgumentParser:
             "guard."
         ),
     )
-    parser.add_argument(
-        "--allow-marker-grow",
-        action="store_true",
-        default=False,
-        help=(
-            "Allow the total marker_files suppressed-ref count to increase "
-            "during --update-baseline. Required when deliberately adding a new "
-            "vendor-portability marker or expanding an existing one (issue #4204)."
-        ),
-    )
     return parser
 
 
@@ -638,11 +582,6 @@ def check_semantic_baseline_conflict(
     except ValueError:
         return []
     if baseline_rel not in changed:
-        return []
-    # When the scanner script itself changes (e.g. extending EXTRA_SCAN_ROOTS),
-    # the baseline MUST be regenerated to match the new scan scope. That co-change
-    # is intentional, not a conflict. Skip the guard in this case. Issue #4195.
-    if any(rel in _MEASURED_SCANNER_FILES for rel in changed):
         return []
     return [rel for rel in changed if rel != baseline_rel and _is_measured_input(rel)]
 
@@ -846,48 +785,6 @@ def diff_marker_baseline(
     return regressions, []
 
 
-
-def _refuse_marker_files_growth(
-    root: Path,
-    baseline_path: Path,
-    marker_current: dict[str, int],
-    *,
-    allow_marker_grow: bool,
-) -> bool:
-    """Refuse when the total marker_files count has grown.
-
-    A marker declares that a file's upstream references are intentional. Once
-    a file carries the marker every future reference added to that file inherits
-    the exemption automatically. Treating a growth in the total suppressed-ref
-    count as a ratchet regression makes that growth visible at review time
-    instead of silently absorbed into the next baseline regeneration.
-
-    Pass allow_marker_grow=True (via --allow-marker-grow) to acknowledge a
-    deliberate expansion, for example when adding a new marked file.
-
-    Returns True when the write should be refused.
-    """
-    if allow_marker_grow:
-        return False
-    previous, problem = _read_previous_sections(root, baseline_path)
-    if problem or previous is None:
-        # No committed predecessor to compare against; let the write proceed.
-        return False
-    committed_marker = previous.get("marker_files", {})
-    committed_total = sum(committed_marker.values())
-    current_total = sum(marker_current.values())
-    if current_total > committed_total:
-        print(
-            f"Refusing --update-baseline: marker_files total grew from "
-            f"{committed_total} to {current_total}. "
-            "A vendor-portability marker now suppresses more refs than before. "
-            "If this is deliberate, pass --allow-marker-grow.",
-            file=sys.stderr,
-        )
-        return True
-    return False
-
-
 def _write_baseline(
     root: Path,
     baseline_path: Path,
@@ -976,38 +873,10 @@ def _report(
     )
 
 
-def _run_update_baseline(
-    args: argparse.Namespace,
-    root: Path,
-    baseline_path: Path,
-    current: dict[str, int],
-    marker_current: dict[str, int],
-    scanned_by_root: dict[str, int],
-) -> int:
-    """Execute the --update-baseline path and return an exit code."""
-    if refuse_unsafe_baseline_write(
-        root,
-        scanned_by_root,
-        baseline_path,
-        {"files": current, "marker_files": marker_current},
-        "skill .md files",
-        args.allow_baseline_shrink,
-    ):
-        return 2
-    if _refuse_marker_files_growth(
-        root,
-        baseline_path,
-        marker_current,
-        allow_marker_grow=args.allow_marker_grow,
-    ):
-        return 2
-    return _write_baseline(root, baseline_path, current, marker_current, args.allow_baseline_shrink)
-
-
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
-    scanned = skills_dirs(root) + extra_scan_dirs(root)
+    scanned = skills_dirs(root)
     missing = missing_required_roots(root)
     if missing:
         absent = ", ".join(f"{name}/skills" for name in missing)
@@ -1023,8 +892,17 @@ def main(argv: list[str] | None = None) -> int:
     current, marker_current, scanned_by_root = counts
 
     if args.update_baseline:
-        return _run_update_baseline(
-            args, root, baseline_path, current, marker_current, scanned_by_root
+        if refuse_unsafe_baseline_write(
+            root,
+            scanned_by_root,
+            baseline_path,
+            {"files": current, "marker_files": marker_current},
+            "skill .md files",
+            args.allow_baseline_shrink,
+        ):
+            return 2
+        return _write_baseline(
+            root, baseline_path, current, marker_current, args.allow_baseline_shrink
         )
 
     if args.base_ref:
@@ -1050,7 +928,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     regressions, improvements = diff_against_baseline(current, baseline)
-    marker_regressions, marker_improvements = diff_marker_baseline(marker_current, marker_baseline)
+    marker_regressions, marker_improvements = diff_marker_baseline(
+        marker_current, marker_baseline
+    )
     regressions.extend(marker_regressions)
     improvements.extend(marker_improvements)
     _report(
