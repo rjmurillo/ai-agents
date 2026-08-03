@@ -1,5 +1,7 @@
 # Script Integration Framework
 
+<!-- vendor-portability-exec: example invocations only; scripts referenced here are illustrative and do not exist in this repository -->
+
 Scripts transform skills from documentation-only guides into executable, verifiable systems. This framework provides decision criteria for when to create scripts, how to integrate them effectively, and patterns for making skills autonomous and self-verifying.
 
 ---
