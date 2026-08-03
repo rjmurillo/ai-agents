@@ -62,6 +62,39 @@ uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --update
 
 **The failure never names the offending file.** It reports a delta, and the remediation command it suggests prints the same aggregate. Locate the offender by diffing per-file counts against `origin/main`; the linter needs `--format json -- <files>` because with no file arguments it scans nothing and reports zero, which reads as a clean tree. Prove attribution instead of inferring it: `git rm --cached <suspect>` and re-run; if the ratchet returns OK, that file was the whole delta.
 
+## Path filters gate the diff, never the tree
+
+A path filter states that the verdict cannot change unless those paths change.
+That is true for a check whose input is the diff. It is false for a check that
+scores the whole tree. When the filter misses on a whole-tree check, the gated
+job is skipped and its companion skip job reports success in its place. Nothing
+is inherited from a previous run. A fresh green tick is manufactured, and it
+asserts only that the diff was uninteresting.
+
+Decide by the check's input, not by which paths look related:
+
+| Check reads | Path filter | On `push` to `main` |
+| --- | --- | --- |
+| The diff | Correct | May skip |
+| The whole tree | Wrong on the mainline | MUST run |
+
+Force the mainline run in Python, not in a YAML `if:` (ADR-006).
+`scripts/workflows/determine_should_run_from_filters.py` reads
+`FORCE_RUN_EVENTS`, so a whole-tree check sets `FORCE_RUN_EVENTS: push` on its
+determine step and leaves the job conditions alone.
+
+Do not reach for the concurrency group instead. Within one group GitHub keeps
+one run in flight and one queued, and a newly queued run cancels the previously
+queued one whatever `cancel-in-progress` says; that setting governs only the
+running run. Measured 2026-08-02: 21 commits to `main` in 45 seconds produced 20
+cancelled runs, each with `jobs=0` and a lifetime of 2 to 5 seconds.
+
+Cancellation alone is survivable for a whole-tree check, because the surviving
+run measures the tree as it now stands and nobody needs the intermediate states.
+It stopped being survivable because the survivor also skipped on the path
+filter. That window produced zero measurements and one green tick on a tree 201
+bytes over its ceiling.
+
 ## References
 
 - `.agents/architecture/ADR-006-thin-workflows-testable-modules.md`. Workflow pattern
