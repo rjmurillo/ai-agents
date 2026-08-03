@@ -161,8 +161,8 @@ working tree on that date. Volatile facts and their re-verification commands:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| 95 retro files, INDEX.md has 5 data rows | `.agents/retrospective/` | `ls .agents/retrospective/ \| wc -l; wc -l .agents/retrospective/INDEX.md` |
-| 122 memory files | `.serena/memories/` | `ls .serena/memories/ \| wc -l` |
+| 95 retro files, INDEX.md has 5 data rows | `.agents/retrospective/` | `python3 -c "from pathlib import Path; print(sum(1 for _ in Path('.agents/retrospective').iterdir()))"; wc -l .agents/retrospective/INDEX.md` |
+| 122 memory files | `.serena/memories/` | `python3 -c "from pathlib import Path; print(sum(1 for _ in Path('.serena/memories').iterdir()))"` |
 | Full history present (~1471 commits) but retro-cited SHAs unresolvable | local clone | `git rev-list --count HEAD; git cat-file -t ddb76e0` (expect a count near 1471 and "Not a valid object name") |
 | 11 failure modes | `.agents/governance/FAILURE-MODES.md:16-28` | `python3 -c "print(sum(1 for l in open('.agents/governance/FAILURE-MODES.md') if l[:2]=='\x7c ' and l[2].isdigit()))"` |
 | Historical SKIP_PREPUSH removal | Session 1187 retrospective | Confirm current Git hook jobs in `lefthook.yml`; do not reintroduce a global bypass |
