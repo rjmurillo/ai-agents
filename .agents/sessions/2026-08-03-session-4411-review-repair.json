@@ -117,6 +117,10 @@
     {
       "action": "Resolved PR review thread",
       "detail": "Updated the session-end checklist evidence row so zero-file markdownlint runs use NOT LINTED wording instead of contradicting the verification contract."
+    },
+    {
+      "action": "Corrected generated episode metrics",
+      "detail": "Set the generated review-repair episode commit count to 1 so the committed episode-store ratchet stays at its baseline."
     }
   ],
   "endingCommit": "eebeb5ccd7c154821decfa464477a52775598832",

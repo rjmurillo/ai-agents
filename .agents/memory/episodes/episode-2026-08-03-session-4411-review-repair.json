@@ -15,6 +15,15 @@
       "caused_by": [],
       "leads_to": [],
       "_source_session": "2026-08-03-session-4411-review-repair"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected generated episode metrics",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4411-review-repair"
     }
   ],
   "metrics": {
