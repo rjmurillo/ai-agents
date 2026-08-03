@@ -627,6 +627,48 @@ def _commit_datetime(sha: str) -> datetime | None:
         return None
 
 
+@lru_cache(maxsize=256)
+def _sha_is_reachable(sha: str) -> bool:
+    """Return True when ``sha`` is reachable from at least one named ref.
+
+    A commit that resolves (``git cat-file -t`` succeeds) but is reachable from
+    zero refs is a dangling object: clone residue from a squash-merged branch.
+    Whether the object is present depends on local ``git gc`` timing, not on
+    the repository content. Using it as evidence of commit order produces
+    clone-dependent results: green on CI, red on a developer clone that never
+    collected. Issue #4240.
+
+    This check uses ``git for-each-ref --contains`` because it queries the
+    object's position in the ref graph rather than the object database.
+    ``--contains`` iterates all refs by default and exits as soon as one match
+    is found; on large repositories the optional ``--format=%(refname)`` and a
+    short-circuit via ``head -1`` make it faster, but the default is safe here.
+
+    Returns ``False`` on any subprocess error, missing git binary, or timeout.
+    A ``False`` is treated as unknown, matching the ``None`` contract of
+    ``_commit_datetime``.
+    """
+    if not sha:
+        return False
+    env = os.environ.copy()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(var, None)
+    env["LC_ALL"] = "C"
+    try:
+        result = subprocess.run(
+            ["git", "for-each-ref", "--contains", sha, "--format=%(refname)"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return bool(result.stdout.strip())
+
+
 def _chronological(shas: list[str]) -> list[str]:
     """``shas`` in committer-date order, or unchanged when git cannot order them.
 
@@ -1007,6 +1049,46 @@ def _staged_files_changed(cwd: str | Path | None = None) -> int:
     return sum(1 for line in result.stdout.splitlines() if line.strip())
 
 
+_DURATION_TEXT_RE = re.compile(r"(\d+)\s*minutes?", re.IGNORECASE)
+
+
+def _duration_from_worklogs(entries: list) -> int:
+    """Compute duration in minutes from first to last workLog timestamp.
+
+    Returns 0 when fewer than two timestamped entries exist or when parsing
+    fails, so callers always receive a non-negative integer.
+    """
+    times: list[datetime] = []
+    for entry in entries:
+        raw = _as_dict(entry).get("time") if isinstance(entry, dict) else None
+        if not raw:
+            continue
+        try:
+            dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            times.append(dt)
+        except (ValueError, TypeError):
+            continue
+    if len(times) < 2:
+        return 0
+    delta = times[-1] - times[0]
+    return max(0, int(delta.total_seconds() / 60))
+
+
+def _duration_from_metrics_block(metrics_block: dict) -> int:
+    """Parse duration from the old-schema top-level metrics block.
+
+    Handles strings like "~20 minutes" or "25 minutes" and integer values.
+    Returns 0 when nothing parseable is found.
+    """
+    raw = metrics_block.get("duration") or metrics_block.get("duration_minutes")
+    if raw is None:
+        return 0
+    if isinstance(raw, (int, float)):
+        return max(0, int(raw))
+    m = _DURATION_TEXT_RE.search(str(raw))
+    return int(m.group(1)) if m else 0
+
+
 def json_metrics(data: dict) -> dict:
     # Count every distinct commit the session documents, from the same source
     # as the commit events so the two can never disagree: endingCommit plus the
@@ -1014,15 +1096,30 @@ def json_metrics(data: dict) -> dict:
     # when neither of those yields a SHA (issue #3363). Excludes the starting
     # commit: it is the base, not a commit the session produced.
     commit_count = len(_collect_shas(data))
+
+    worklogs = _as_list(data.get("workLog"))
+    metrics_block = _as_dict(data.get("metrics"))
+
+    # duration_minutes: prefer structured timestamps (first-to-last workLog entry),
+    # fall back to the old-schema metrics.duration text/integer.
+    duration = _duration_from_worklogs(worklogs)
+    if duration == 0:
+        duration = _duration_from_metrics_block(metrics_block)
+
+    # tool_calls: only the old schema carries a structured count (metrics.toolCalls).
+    # Modern session logs have no machine-readable tool count, so this field stays
+    # at zero for those sessions rather than emitting a misleading non-zero value.
+    tool_calls = int(metrics_block.get("toolCalls") or 0)
+
     metrics = {
-        "duration_minutes": 0,
-        "tool_calls": 0,
+        "duration_minutes": duration,
+        "tool_calls": tool_calls,
         "errors": 0,
         "recoveries": 0,
         "commits": commit_count,
         "files_changed": 0,
     }
-    for entry in _as_list(data.get("workLog")):
+    for entry in worklogs:
         text = _entry_text(entry)
         fail = _valid_fail_match(text)
         if fail:
@@ -1886,13 +1983,45 @@ def validate_event_ids(events: Any) -> list[str]:
     return problems
 
 
-def _commit_event_dates(events: list) -> dict[str, datetime]:
-    """Map event id to committer date, for commit events whose SHA resolves here.
+def validate_metrics_consistency(metrics: Any) -> list[str]:
+    """Return one message per metrics-consistency violation.
 
-    A squash-merged branch takes its SHAs with it, so an abbreviated SHA from a
-    branch that no longer exists resolves nowhere. Those events are absent from
-    the map, and every caller skips what is missing rather than guessing a
-    position git did not supply.
+    Catches the specific case where commits==0 but files_changed>0, which
+    indicates the episode's commit-collection logic failed to record the
+    commits that produced the file changes (issue #3873).
+    """
+    if not isinstance(metrics, dict):
+        return []
+    try:
+        commits = int(metrics.get("commits") or 0)
+    except (TypeError, ValueError):
+        commits = 0
+    try:
+        files_changed = int(metrics.get("files_changed") or 0)
+    except (TypeError, ValueError):
+        files_changed = 0
+    if commits == 0 and files_changed > 0:
+        return [
+            f"metrics.commits==0 but metrics.files_changed=={files_changed};"
+            " commit collection may have failed"
+        ]
+    return []
+
+
+def _commit_event_dates(events: list) -> dict[str, datetime]:
+    """Map event id to committer date, for commit events reachable from a named ref.
+
+    Reachability (``git for-each-ref --contains``) is the filter, not mere
+    resolvability (``git cat-file -t``). A SHA that resolves but is reachable
+    from zero refs is a dangling object: clone residue from a squash-merged
+    branch. Whether it is present depends on local ``git gc`` timing, not on
+    the repository content, so the same artifact produces different verdicts on
+    different machines. Issue #4240, CI-scripts rule MUST-9: a claim about what
+    the repository contains MUST be computed from a named ref.
+
+    Treating an unreachable SHA as absent matches the intent of the original
+    skip-when-unresolvable policy from #4219: absence of evidence is not
+    evidence of order.
     """
     dates: dict[str, datetime] = {}
     for evt in events:
@@ -1901,7 +2030,9 @@ def _commit_event_dates(events: list) -> dict[str, datetime]:
         if entry.get("type") != "commit" or not isinstance(identifier, str):
             continue
         sha = _commit_sha(entry)
-        moment = _commit_datetime(sha) if sha else None
+        if not sha or not _sha_is_reachable(sha):
+            continue
+        moment = _commit_datetime(sha)
         if moment is not None:
             dates[identifier] = moment
     return dates
@@ -2003,6 +2134,7 @@ def validate_episode_file(path: Path) -> list[str]:
     problems = validate_event_ids(events)
     if not problems:
         problems = validate_commit_order(events)
+    problems = [*problems, *validate_metrics_consistency(data.get("metrics"))]
     return [f"{path}: {problem}" for problem in problems]
 
 

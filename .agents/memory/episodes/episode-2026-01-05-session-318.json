@@ -44,5 +44,7 @@
     "Tooling instability (flaky CI and unreliable automation) is a major bottleneck for merge velocity.",
     "A Draft PR policy is effective for surfacing work-in-progress early while protecting the main branch from unstable changes.",
     "Standardizing pre-merge validation flows reduces lead time by minimizing back-and-forth on failing checks."
-  ]
+  ],
+  "causal_order_version": 2,
+  "migration_note": "stamp_only by migrate_causal_version.py on 2026-08-02: v2 edge rebuild agrees with stored edges"
 }

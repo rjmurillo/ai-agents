@@ -95,7 +95,7 @@ def test_the_block_boundary_agrees_with_the_local_hook(count: int, blocked: bool
 
     The hook widens ``limit`` to 40 when the update contains a merge of main,
     and CI applies the same widening: ``count_pr_commits`` reads the pull
-    request's own commit list through ``_external_non_first_parent_shas``. A main-merge
+    request's own commit list through ``main_merge_evidence``. A main-merge
     branch at 21 through 40 therefore needs no bypass label. This test pins
     only the default boundary; ``test_classify_count_honours_an_explicit_limit``
     pins the widened one.
@@ -419,7 +419,7 @@ def test_contains_base_merge_is_false_for_a_linear_branch() -> None:
 
 def test_contains_base_merge_is_true_when_a_merge_parent_is_outside_the_branch() -> None:
     payload = json.loads(_merge_commits_json(5, external_parent=True))
-    assert mod._external_non_first_parent_shas(payload) != set()
+    assert mod._external_non_first_parent_shas(payload) == {"f" * 40}
 
 
 def test_contains_base_merge_ignores_a_merge_between_two_branch_commits() -> None:
@@ -572,7 +572,7 @@ def test_the_drift_detector_ignores_unrelated_assignments() -> None:
 
 
 # ---------------------------------------------------------------------------
-# contains_base_merge: malformed parents must not grant the relaxed ceiling
+# _external_non_first_parent_shas: malformed parents yield no relief candidate
 # ---------------------------------------------------------------------------
 
 
@@ -596,10 +596,11 @@ def test_malformed_parents_do_not_grant_the_relaxed_ceiling(
 ) -> None:
     """Malformed payloads fail closed, keeping the stricter 20-commit ceiling.
 
-    ``_external_non_first_parent_shas`` gates an *exemption*: non-empty raises
+    These SHAs are the only candidates ``main_merge_evidence`` can intersect
+    with the trunk, and that intersection gates an *exemption*: a hit raises
     the ceiling from BLOCK_THRESHOLD to MAIN_MERGE_BLOCK_THRESHOLD. A parent
-    entry we cannot read is not evidence of a base merge, so it must not buy
-    the relief.
+    entry we cannot read is not evidence of anything, so it must not become a
+    candidate.
     """
     assert mod._external_non_first_parent_shas(payload) == set(), label
 
@@ -620,6 +621,19 @@ def test_malformed_parents_do_not_grant_the_relaxed_ceiling(
 def test_contains_base_merge_controls(label: str, payload: list[object], expected: bool) -> None:
     """Behaviour that must survive the malformed-parent narrowing unchanged."""
     assert bool(mod._external_non_first_parent_shas(payload)) == expected, label
+
+
+def test_the_broader_base_merge_predicate_is_not_importable() -> None:
+    """``contains_base_merge`` must stay deleted, not merely unused.
+
+    It returned True for any external non-first parent, including a side
+    branch main had already landed, and that over-grant is what issue #3997
+    removed from the ceiling decision. The module defines no ``__all__``, so
+    while the name exists a future caller can reach for the shorter spelling
+    and reintroduce the 20-versus-40 divergence with no test failing. Only its
+    absence blocks that (issue #4047).
+    """
+    assert not hasattr(mod, "contains_base_merge")
 
 
 # ---------------------------------------------------------------------------

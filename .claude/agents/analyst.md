@@ -111,6 +111,18 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 
 **Do not** silently skip steps. **Do not** retry the same tool more than twice. **Do not** halt when a documented fallback exists.
 
+**PR identity gate (required before reporting any findings)**: After fetching PR data via `get_pr_context.py`, reconcile these five identities before proceeding. A mismatch means the local checkout and the requested PR are different work items; stop and return the mismatch as an error rather than mixing evidence.
+
+| Identity | API field | Local source | Mismatch action |
+|----------|-----------|--------------|-----------------|
+| Repository | `owner/repo` from URL | `git remote get-url origin` | Stop, report: requested `A`, local is `B` |
+| PR state | `merged` from API | (any claim of merged state) | A claimed merge requires `merged: true` from the API |
+| Head ref | `headRefName` from API | `git branch --show-current` | Stop if they differ and you are on a branch not `main` |
+| Head SHA | `headRefOid` from API | `git rev-parse HEAD` | Stop if they differ; report both SHAs |
+| Merge commit | `mergeCommit.oid` from API | Any cited merge commit | Stop if they differ; do not cite a merge that is not the API's merge commit |
+
+If the tool that would provide API data is unavailable and no fallback can reach the GitHub API, stop and return `[BLOCKED: PR identity gate cannot be satisfied without GitHub API access]`. Do not substitute local checkout content for the requested PR (issue #4221).
+
 ## Read-Only Constraint
 
 You do not modify production code. You may write research documents to:

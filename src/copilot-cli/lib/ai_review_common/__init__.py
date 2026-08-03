@@ -1,7 +1,13 @@
-"""Canonical: scripts/ai_review_common/__init__.py. Sync via scripts/sync_plugin_lib.py."""
+"""AI Review Common module: shared helpers for AI-powered review workflows."""
 
 from __future__ import annotations
 
+from .feature_review import (
+    VALID_RECOMMENDATIONS,
+    get_feature_review_assignees,
+    get_feature_review_labels,
+    get_feature_review_recommendation,
+)
 from .issue_triage import (
     convert_to_json_escaped,
     format_collapsible_section,
@@ -15,12 +21,6 @@ from .issue_triage import (
     write_log_error,
     write_output,
     write_step_summary,
-)
-from .feature_review import (
-    VALID_RECOMMENDATIONS,
-    get_feature_review_assignees,
-    get_feature_review_labels,
-    get_feature_review_recommendation,
 )
 from .quality_gate import (
     FAIL_VERDICTS,

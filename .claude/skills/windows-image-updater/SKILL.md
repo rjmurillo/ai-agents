@@ -13,11 +13,11 @@ Automates the end-to-end workflow for migrating Windows container images (e.g., 
 
 ## Triggers
 
-- `update windows image` — Start the full migration workflow
-- `fix ltsc2019 warning` — Triggered by OneBranch EOL warning
-- `migrate onebranch image` — Alternative phrasing
-- `bump AdoPipelineGeneration` — Package-specific trigger
-- `windows container image update for {repo}` — Repo-specific trigger
+- `update windows image`: start the full migration workflow
+- `fix ltsc2019 warning`: triggered by OneBranch EOL warning
+- `migrate onebranch image`: alternative phrasing
+- `bump AdoPipelineGeneration`: package-specific trigger
+- `windows container image update for {repo}`: repo-specific trigger
 
 ## Quick Reference
 
@@ -36,10 +36,10 @@ Automates the end-to-end workflow for migrating Windows container images (e.g., 
 | **OneBranch** | Microsoft's CI/CD build platform used for official builds and releases |
 | **ConfigGen** | Configuration Generation tool that produces pipeline YAML files from package definitions |
 | **Topology project** | A .NET project in resources repos that generates pipeline configs when run |
-| **LTSC** | Long-Term Servicing Channel — a Windows release model (e.g., LTSC2019, LTSC2022) |
+| **LTSC** | Long-Term Servicing Channel, a Windows release model (e.g., LTSC2019, LTSC2022) |
 | **Buddy build** | Pre-merge validation pipeline that builds and tests changes before merge |
 | **Buddy release** | Pre-merge pipeline that validates the release process before merge |
-| **CPM** | Central Package Management — NuGet feature where all versions are in Directory.Packages.props |
+| **CPM** | Central Package Management, a NuGet feature where all versions are in Directory.Packages.props |
 
 ### Required Tools
 
@@ -105,7 +105,7 @@ Automates the end-to-end workflow for migrating Windows container images (e.g., 
 
    ```
 
-   **Decision guide — how to identify repo type:**
+   **Decision guide, how to identify repo type:**
 
    | Repo Type | How to Identify | Project to Run |
    | **Resources** | Repo name contains `.resources` (e.g., `MyService.resources`) OR folder contains `.resources` in name | **Topology** project (e.g., `*Topology*.csproj`) |
@@ -192,13 +192,15 @@ Automates the end-to-end workflow for migrating Windows container images (e.g., 
 | Creating non-draft PR | Premature review notifications before pipeline validation | Always create as draft first |
 | Hardcoding ltsc2022 as the target | Next migration cycle will need different target | Use parameterized image names |
 
+## Verification
+
 After complete execution:
 
 - [ ] `dotnet test` succeeds
 
 - [ ] No `ltsc2019` references in `.pipelines/` yml/yaml files
 - [ ] Draft PR created with description
-- [ ] pipeline-validator completed — all pipelines pass (PR, buddy build, buddy release)
+- [ ] pipeline-validator completed, all pipelines pass (PR, buddy build, buddy release)
 - [ ] PR description updated with pipeline run links
 
 ---
@@ -220,5 +222,5 @@ After complete execution:
 
 ## References
 
-- [Troubleshooting Guide](references/troubleshooting.md) — Common errors and fixes during the update workflow
-- [Pipeline Validator Skill](../pipeline-validator/SKILL.md) — Automated pipeline discovery, triggering, and fix-retry loop (invoked in Phase 4)
+- [Troubleshooting Guide](references/troubleshooting.md): common errors and fixes during the update workflow
+- [Pipeline Validator Skill](../pipeline-validator/SKILL.md): automated pipeline discovery, triggering, and fix-retry loop (invoked in Phase 4)

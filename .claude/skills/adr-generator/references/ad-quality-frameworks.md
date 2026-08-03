@@ -102,7 +102,7 @@ Seven questions for reviewing ADRs:
 
 | Anti-Pattern | Problem |
 |-------------|---------|
-| **Fairy Tale** | Shallow justification — only pros, no cons |
+| **Fairy Tale** | Shallow justification: only pros, no cons |
 | **Sales Pitch** | Marketing language, exaggerations, unverifiable adjectives |
 | **Free Lunch Coupon** | No consequences documented, or only harmless ones |
 | **Dummy Alternative** | Fake option to make the preferred one shine |
@@ -149,5 +149,5 @@ Seven questions for reviewing ADRs:
 - Zimmermann, O. (2023). "Definition of Ready for Architectural Decisions." <https://ozimmer.ch/practices/2023/12/01/ADDefinitionOfReady.html>
 - Zimmermann, O. (2020). "A Definition of Done for Architectural Decision Making." <https://www.ozimmer.ch/practices/2020/05/22/ADDefinitionOfDone.html>
 - Zimmermann, O. (2020). "Architectural Significance Test." <https://www.ozimmer.ch/practices/2020/09/24/ASRTestECSADecisions.html>
-- Zimmermann, O. (2023). "How to Create ADRs — and How Not To." <https://www.ozimmer.ch/practices/2023/04/03/ADRCreation.html>
-- Zimmermann, O. (2023). "How to Review ADRs — and How Not To." <https://www.ozimmer.ch/practices/2023/04/05/ADRReview.html>
+- Zimmermann, O. (2023). "How to Create ADRs", subtitled "and How Not To." <https://www.ozimmer.ch/practices/2023/04/03/ADRCreation.html>
+- Zimmermann, O. (2023). "How to Review ADRs", subtitled "and How Not To." <https://www.ozimmer.ch/practices/2023/04/05/ADRReview.html>

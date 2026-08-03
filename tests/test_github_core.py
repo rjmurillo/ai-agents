@@ -196,9 +196,7 @@ class TestIsSafeFilePath:
         ):
             assert is_safe_file_path(str(child)) is True
 
-    def test_default_base_falls_back_to_cwd_when_there_is_no_repository(
-        self, tmp_path: Path
-    ):
+    def test_default_base_falls_back_to_cwd_when_there_is_no_repository(self, tmp_path: Path):
         """Git answered. "No repository" is a fact, so cwd is a real boundary."""
         child = tmp_path / "file.txt"
         child.touch()
@@ -280,9 +278,7 @@ class TestAssertValidBodyFile:
         finally:
             f.unlink(missing_ok=True)
 
-    def test_accepts_tmpdir_file_when_base_is_none(
-        self, tmp_path: Path, monkeypatch
-    ):
+    def test_accepts_tmpdir_file_when_base_is_none(self, tmp_path: Path, monkeypatch):
         """File under TMPDIR accepted when allowed_base is None (mktemp staging)."""
         monkeypatch.setenv("TMPDIR", str(tmp_path))
         body = tmp_path / "pr-reply.md"
@@ -294,9 +290,7 @@ class TestAssertValidBodyFile:
         import tempfile
 
         monkeypatch.delenv("TMPDIR", raising=False)
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".md", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
             f.write("draft")
             tmp_file = f.name
         try:
@@ -304,9 +298,7 @@ class TestAssertValidBodyFile:
         finally:
             Path(tmp_file).unlink(missing_ok=True)
 
-    def test_rejects_file_outside_repo_and_all_tempdirs(
-        self, external_tmp_path: Path, monkeypatch
-    ):
+    def test_rejects_file_outside_repo_and_all_tempdirs(self, external_tmp_path: Path, monkeypatch):
         """File outside both repo and every candidate temp root is rejected."""
         outside_dir = external_tmp_path / "not-a-temp-dir"
         outside_dir.mkdir()
@@ -594,7 +586,6 @@ class TestGhGraphQL:
             with pytest.raises(RuntimeError, match="Failed to parse"):
                 gh_graphql("query { ... }")
 
-
     def test_retries_transient_504_then_succeeds(self):
         """A transient HTTP 504 followed by success returns data (issue #2631)."""
         ok = json.dumps({"data": {"viewer": {"login": "u"}}})
@@ -602,9 +593,10 @@ class TestGhGraphQL:
             _completed(rc=1, stderr="gh: We couldn't respond in time. (HTTP 504)"),
             _completed(stdout=ok),
         ]
-        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
-            "subprocess.run", side_effect=responses
-        ) as run_mock:
+        with (
+            patch("scripts.github_core.api.time.sleep") as sleep_mock,
+            patch("subprocess.run", side_effect=responses) as run_mock,
+        ):
             result = gh_graphql("query { viewer { login } }")
         assert result == {"viewer": {"login": "u"}}
         assert run_mock.call_count == 2
@@ -613,9 +605,10 @@ class TestGhGraphQL:
     def test_retries_exhausted_on_persistent_504_raises(self):
         """Three consecutive 504s exhaust the bounded retry and raise (issue #2631)."""
         resp = _completed(rc=1, stderr="gh: timeout (HTTP 504)")
-        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
-            "subprocess.run", return_value=resp
-        ) as run_mock:
+        with (
+            patch("scripts.github_core.api.time.sleep") as sleep_mock,
+            patch("subprocess.run", return_value=resp) as run_mock,
+        ):
             with pytest.raises(RuntimeError, match="GraphQL request failed"):
                 gh_graphql("query { viewer { login } }")
         assert run_mock.call_count == 3
@@ -629,18 +622,20 @@ class TestGhGraphQL:
                 _completed(rc=1, stderr=f"server error (HTTP {code})"),
                 _completed(stdout=ok),
             ]
-            with patch("scripts.github_core.api.time.sleep"), patch(
-                "subprocess.run", side_effect=responses
-            ) as run_mock:
+            with (
+                patch("scripts.github_core.api.time.sleep"),
+                patch("subprocess.run", side_effect=responses) as run_mock,
+            ):
                 gh_graphql("query { x }")
             assert run_mock.call_count == 2, code
 
     def test_permanent_404_does_not_retry(self):
         """A permanent client error (404, not 5xx/429) fails fast without retry."""
         resp = _completed(rc=1, stderr="gh: Not Found (HTTP 404)")
-        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
-            "subprocess.run", return_value=resp
-        ) as run_mock:
+        with (
+            patch("scripts.github_core.api.time.sleep") as sleep_mock,
+            patch("subprocess.run", return_value=resp) as run_mock,
+        ):
             with pytest.raises(RuntimeError, match="GraphQL request failed"):
                 gh_graphql("query { x }")
         assert run_mock.call_count == 1
@@ -648,12 +643,11 @@ class TestGhGraphQL:
 
     def test_graphql_level_error_does_not_retry(self):
         """A GraphQL-level error (HTTP 200 with errors) is permanent, no retry."""
-        resp = _completed(
-            stdout=json.dumps({"data": None, "errors": [{"message": "Bad"}]})
-        )
-        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
-            "subprocess.run", return_value=resp
-        ) as run_mock:
+        resp = _completed(stdout=json.dumps({"data": None, "errors": [{"message": "Bad"}]}))
+        with (
+            patch("scripts.github_core.api.time.sleep") as sleep_mock,
+            patch("subprocess.run", return_value=resp) as run_mock,
+        ):
             with pytest.raises(RuntimeError, match="GraphQL errors"):
                 gh_graphql("query { x }")
         assert run_mock.call_count == 1
@@ -743,9 +737,7 @@ class TestGetAllPRsWithComments:
         }
 
         with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
-            result = get_all_prs_with_comments(
-                "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC)
-            )
+            result = get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
         assert len(result) == 1
         assert result[0]["number"] == 1
 
@@ -764,9 +756,7 @@ class TestGetAllPRsWithComments:
         }
 
         with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
-            result = get_all_prs_with_comments(
-                "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC)
-            )
+            result = get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
         assert len(result) == 1
 
     def test_raises_when_repository_is_null(self):
@@ -795,9 +785,7 @@ class TestGetAllPRsWithComments:
         }
 
         with patch("subprocess.run", return_value=_completed(stdout=json.dumps(graphql_response))):
-            result = get_all_prs_with_comments(
-                "owner", "repo", datetime(2026, 1, 1, tzinfo=UTC)
-            )
+            result = get_all_prs_with_comments("owner", "repo", datetime(2026, 1, 1, tzinfo=UTC))
         assert len(result) == 0
 
 
@@ -940,9 +928,7 @@ class TestGetTrustedSourceComments:
 class TestGetBotAuthorsConfig:
     def test_returns_dict_with_required_keys(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
-        config.write_text(
-            "reviewer:\n  - bot1\nautomation:\n  - bot2\nrepository:\n  - bot3\n"
-        )
+        config.write_text("reviewer:\n  - bot1\nautomation:\n  - bot2\nrepository:\n  - bot3\n")
         # Mock _find_repo_root to skip CWE-22 check (tmp_path is outside repo)
         with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             result = get_bot_authors_config(config_path=str(config), force=True)
@@ -950,9 +936,7 @@ class TestGetBotAuthorsConfig:
 
     def test_each_category_has_entries(self, tmp_path: Path):
         config = tmp_path / "bot-authors.yml"
-        config.write_text(
-            "reviewer:\n  - r1\n  - r2\nautomation:\n  - a1\nrepository:\n  - p1\n"
-        )
+        config.write_text("reviewer:\n  - r1\n  - r2\nautomation:\n  - a1\nrepository:\n  - p1\n")
         with patch("scripts.github_core.bot_config._find_repo_root", return_value=None):
             result = get_bot_authors_config(config_path=str(config), force=True)
         assert len(result["reviewer"]) == 2
@@ -1160,56 +1144,52 @@ class TestFilterUnresolvedThreads:
 
 class TestGetUnresolvedReviewThreads:
     def test_returns_unresolved_threads(self):
-        graphql_response = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": [
-                                _thread("t1", False, 1),
-                                _thread("t2", True, 2),
-                                _thread("t3", False, 3),
-                            ]
+        graphql_response = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": [
+                                    _thread("t1", False, 1),
+                                    _thread("t2", True, 2),
+                                    _thread("t3", False, 3),
+                                ]
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         with patch("subprocess.run", return_value=_completed(stdout=graphql_response)):
             result = get_unresolved_review_threads("owner", "repo", 42)
         assert len(result) == 2
         assert all(not t["isResolved"] for t in result)
 
     def test_returns_empty_on_all_resolved(self):
-        graphql_response = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": [
-                                _thread("t1", True, 1),
-                            ]
+        graphql_response = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": [
+                                    _thread("t1", True, 1),
+                                ]
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         with patch("subprocess.run", return_value=_completed(stdout=graphql_response)):
             result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
 
     def test_returns_empty_on_no_threads(self):
-        graphql_response = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": []
-                        }
-                    }
-                }
-            }
-        })
+        graphql_response = json.dumps(
+            {"data": {"repository": {"pullRequest": {"reviewThreads": {"nodes": []}}}}}
+        )
         with patch("subprocess.run", return_value=_completed(stdout=graphql_response)):
             result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
@@ -1235,40 +1215,40 @@ class TestGetUnresolvedReviewThreads:
         the second page entirely and reported "0 unresolved" while threads
         sat there. With pagination, all 105 are returned.
         """
-        page_one = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {
-                                "hasNextPage": True,
-                                "endCursor": "CURSOR_PAGE_2",
-                            },
-                            "nodes": [
-                                _thread(f"page1-{i}", False, i) for i in range(100)
-                            ],
+        page_one = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {
+                                    "hasNextPage": True,
+                                    "endCursor": "CURSOR_PAGE_2",
+                                },
+                                "nodes": [_thread(f"page1-{i}", False, i) for i in range(100)],
+                            }
                         }
                     }
                 }
             }
-        })
-        page_two = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {
-                                "hasNextPage": False,
-                                "endCursor": None,
-                            },
-                            "nodes": [
-                                _thread(f"page2-{i}", False, 1000 + i) for i in range(5)
-                            ],
+        )
+        page_two = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {
+                                    "hasNextPage": False,
+                                    "endCursor": None,
+                                },
+                                "nodes": [_thread(f"page2-{i}", False, 1000 + i) for i in range(5)],
+                            }
                         }
                     }
                 }
             }
-        })
+        )
 
         responses = [_completed(stdout=page_one), _completed(stdout=page_two)]
         with patch("subprocess.run", side_effect=responses) as mock_run:
@@ -1291,33 +1271,37 @@ class TestGetUnresolvedReviewThreads:
         Without that, GitHub returns page 1 again forever. We assert the
         gh argv on call #2 contains the cursor value from page 1.
         """
-        page_one = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {
-                                "hasNextPage": True,
-                                "endCursor": "CURSOR_FROM_PAGE_1",
-                            },
-                            "nodes": [_thread("t1", False, 1)],
+        page_one = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {
+                                    "hasNextPage": True,
+                                    "endCursor": "CURSOR_FROM_PAGE_1",
+                                },
+                                "nodes": [_thread("t1", False, 1)],
+                            }
                         }
                     }
                 }
             }
-        })
-        page_two = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {"hasNextPage": False, "endCursor": None},
-                            "nodes": [],
+        )
+        page_two = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                                "nodes": [],
+                            }
                         }
                     }
                 }
             }
-        })
+        )
 
         responses = [_completed(stdout=page_one), _completed(stdout=page_two)]
         with patch("subprocess.run", side_effect=responses) as mock_run:
@@ -1332,18 +1316,20 @@ class TestGetUnresolvedReviewThreads:
 
     def test_pagination_stops_when_endcursor_is_empty(self):
         """Defensive: a hasNextPage=true with empty endCursor must not loop forever."""
-        page_one = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {"hasNextPage": True, "endCursor": ""},
-                            "nodes": [_thread("t1", False, 1)],
+        page_one = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {"hasNextPage": True, "endCursor": ""},
+                                "nodes": [_thread("t1", False, 1)],
+                            }
                         }
                     }
                 }
             }
-        })
+        )
 
         with patch("subprocess.run", side_effect=[_completed(stdout=page_one)]) as mock_run:
             result = get_unresolved_review_threads("owner", "repo", 42)
@@ -1358,6 +1344,7 @@ class TestGetUnresolvedReviewThreads:
         would not see why a transport error occurred.
         """
         import logging
+
         with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
             with patch(
                 "subprocess.run",
@@ -1367,17 +1354,15 @@ class TestGetUnresolvedReviewThreads:
                     result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
         assert any(
-            "op=review_threads_failed" in r.message
-            and "reason=graphql_error" in r.message
+            "op=review_threads_failed" in r.message and "reason=graphql_error" in r.message
             for r in caplog.records
         ), "api.py-level transport error must log op=review_threads_failed reason=graphql_error"
 
     def test_field_missing_logs_reason_at_api_level(self, caplog):
         """When pullRequest is null, api.py path emits reason=pr_not_found."""
         import logging
-        graphql_response = json.dumps({
-            "data": {"repository": {"pullRequest": None}}
-        })
+
+        graphql_response = json.dumps({"data": {"repository": {"pullRequest": None}}})
         with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
             with patch(
                 "subprocess.run",
@@ -1385,9 +1370,9 @@ class TestGetUnresolvedReviewThreads:
             ):
                 result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
-        assert any(
-            "reason=pr_not_found" in r.message for r in caplog.records
-        ), "Null pullRequest must log reason=pr_not_found at api.py level"
+        assert any("reason=pr_not_found" in r.message for r in caplog.records), (
+            "Null pullRequest must log reason=pr_not_found at api.py level"
+        )
 
     def test_nodes_missing_logs_reason_at_api_level(self, caplog):
         """reviewThreads.nodes is null (distinct from connection-missing).
@@ -1397,18 +1382,21 @@ class TestGetUnresolvedReviewThreads:
         so operators grepping by reason find both surfaces.
         """
         import logging
-        graphql_response = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": None,
-                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+
+        graphql_response = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "nodes": None,
+                                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
             with patch(
                 "subprocess.run",
@@ -1416,9 +1404,9 @@ class TestGetUnresolvedReviewThreads:
             ):
                 result = get_unresolved_review_threads("owner", "repo", 42)
         assert result == []
-        assert any(
-            "reason=nodes_missing" in r.message for r in caplog.records
-        ), "Null reviewThreads.nodes must log reason=nodes_missing"
+        assert any("reason=nodes_missing" in r.message for r in caplog.records), (
+            "Null reviewThreads.nodes must log reason=nodes_missing"
+        )
 
     def test_cursor_missing_emits_warning_and_logs_reason(self, caplog):
         """When hasNextPage=true but endCursor is empty/null, the loop must
@@ -1428,29 +1416,33 @@ class TestGetUnresolvedReviewThreads:
         Defensive guardrail flagged by Copilot review on PR #1897.
         """
         import logging
-        page_one = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {"hasNextPage": True, "endCursor": ""},
-                            "nodes": [_thread("t1", False, 1)],
+
+        page_one = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {"hasNextPage": True, "endCursor": ""},
+                                "nodes": [_thread("t1", False, 1)],
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
             with patch(
-                "subprocess.run", side_effect=[_completed(stdout=page_one)],
+                "subprocess.run",
+                side_effect=[_completed(stdout=page_one)],
             ) as mock_run:
                 with pytest.warns(UserWarning, match=r"cursor_missing"):
                     result = get_unresolved_review_threads("owner", "repo", 42)
         assert mock_run.call_count == 1
         assert len(result) == 1
-        assert any(
-            "reason=cursor_missing" in r.message for r in caplog.records
-        ), "cursor_missing branch must emit op=review_threads_failed reason=cursor_missing"
+        assert any("reason=cursor_missing" in r.message for r in caplog.records), (
+            "cursor_missing branch must emit op=review_threads_failed reason=cursor_missing"
+        )
 
     def test_mid_pagination_structural_failure_emits_warning(self, caplog):
         """Page 1 OK, page 2 structurally invalid → caller sees a warning.
@@ -1461,30 +1453,36 @@ class TestGetUnresolvedReviewThreads:
         with no signal that pages 2+ were dropped.
         """
         import logging
-        page_one = json.dumps({
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "pageInfo": {"hasNextPage": True, "endCursor": "cur1"},
-                            "nodes": [_thread("t1", False, 1)],
+
+        page_one = json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {"hasNextPage": True, "endCursor": "cur1"},
+                                "nodes": [_thread("t1", False, 1)],
+                            }
                         }
                     }
                 }
             }
-        })
+        )
         page_two_invalid = json.dumps({"data": {"repository": None}})
         with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
-            with patch("subprocess.run", side_effect=[
-                _completed(stdout=page_one),
-                _completed(stdout=page_two_invalid),
-            ]):
+            with patch(
+                "subprocess.run",
+                side_effect=[
+                    _completed(stdout=page_one),
+                    _completed(stdout=page_two_invalid),
+                ],
+            ):
                 with pytest.warns(UserWarning, match=r"structural_failure"):
                     result = get_unresolved_review_threads("owner", "repo", 42)
         assert len(result) == 1, "page 1 result must be preserved on page 2 failure"
-        assert any(
-            "reason=structural_failure" in r.message for r in caplog.records
-        ), "mid-pagination structural failure must emit reason=structural_failure"
+        assert any("reason=structural_failure" in r.message for r in caplog.records), (
+            "mid-pagination structural failure must emit reason=structural_failure"
+        )
 
     def test_pagination_cap_emits_warning_and_stops(self):
         """At-cap exit must warn the caller, not silently truncate.
@@ -1501,28 +1499,27 @@ class TestGetUnresolvedReviewThreads:
         # Every page reports hasNextPage=True and a fresh cursor; one
         # unresolved thread per page so we can count.
         def _page_response(page_idx: int) -> str:
-            return json.dumps({
-                "data": {
-                    "repository": {
-                        "pullRequest": {
-                            "reviewThreads": {
-                                "pageInfo": {
-                                    "hasNextPage": True,
-                                    "endCursor": f"CURSOR_PAGE_{page_idx + 1}",
-                                },
-                                "nodes": [
-                                    _thread(f"page{page_idx}-t", False, page_idx)
-                                ],
+            return json.dumps(
+                {
+                    "data": {
+                        "repository": {
+                            "pullRequest": {
+                                "reviewThreads": {
+                                    "pageInfo": {
+                                        "hasNextPage": True,
+                                        "endCursor": f"CURSOR_PAGE_{page_idx + 1}",
+                                    },
+                                    "nodes": [_thread(f"page{page_idx}-t", False, page_idx)],
+                                }
                             }
                         }
                     }
                 }
-            })
+            )
 
         # Provide cap+5 pages. Loop must stop at cap.
         responses = [
-            _completed(stdout=_page_response(i))
-            for i in range(_REVIEW_THREADS_MAX_PAGES + 5)
+            _completed(stdout=_page_response(i)) for i in range(_REVIEW_THREADS_MAX_PAGES + 5)
         ]
 
         with patch("subprocess.run", side_effect=responses) as mock_run:
@@ -1542,31 +1539,37 @@ class TestGetUnresolvedReviewThreads:
 # Rate limits
 # ---------------------------------------------------------------------------
 
-RATE_LIMIT_ALL_OK = json.dumps({
-    "resources": {
-        "core": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
-        "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
-        "code_search": {"remaining": 10, "limit": 10, "reset": 1234567890},
-        "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+RATE_LIMIT_ALL_OK = json.dumps(
+    {
+        "resources": {
+            "core": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+            "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
+            "code_search": {"remaining": 10, "limit": 10, "reset": 1234567890},
+            "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+        }
     }
-})
+)
 
-RATE_LIMIT_CORE_LOW = json.dumps({
-    "resources": {
-        "core": {"remaining": 50, "limit": 5000, "reset": 1234567890},
-        "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
-        "code_search": {"remaining": 10, "limit": 10, "reset": 1234567890},
-        "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+RATE_LIMIT_CORE_LOW = json.dumps(
+    {
+        "resources": {
+            "core": {"remaining": 50, "limit": 5000, "reset": 1234567890},
+            "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
+            "code_search": {"remaining": 10, "limit": 10, "reset": 1234567890},
+            "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+        }
     }
-})
+)
 
-RATE_LIMIT_MISSING_RESOURCE = json.dumps({
-    "resources": {
-        "core": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
-        "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
-        "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+RATE_LIMIT_MISSING_RESOURCE = json.dumps(
+    {
+        "resources": {
+            "core": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+            "search": {"remaining": 30, "limit": 30, "reset": 1234567890},
+            "graphql": {"remaining": 5000, "limit": 5000, "reset": 1234567890},
+        }
     }
-})
+)
 
 
 class TestCheckWorkflowRateLimit:
@@ -1698,9 +1701,7 @@ class TestYamlFallback:
     def test_parse_simple_yaml_matches_yaml_safe_load(self) -> None:
         import yaml as _yaml
 
-        text = (_REPO_ROOT / ".github" / "bot-authors.yml").read_text(
-            encoding="utf-8"
-        )
+        text = (_REPO_ROOT / ".github" / "bot-authors.yml").read_text(encoding="utf-8")
         reference = _yaml.safe_load(text)
         assert bot_config._parse_simple_yaml(text) == reference
 
@@ -1716,9 +1717,7 @@ class TestYamlFallback:
         assert bot_config.is_bot("coderabbitai[bot]")
         assert not bot_config.is_bot("octocat-human")
 
-    def test_missing_file_without_yaml_uses_defaults(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_missing_file_without_yaml_uses_defaults(self, tmp_path, monkeypatch) -> None:
         monkeypatch.setattr(bot_config, "yaml", None)
         missing = str(tmp_path / "none.yml")
         cfg = bot_config.get_bot_authors_config(config_path=missing, force=True)
@@ -1734,9 +1733,7 @@ class TestParseSimpleYaml:
         }
 
     def test_inline_comment_stripped_from_item(self) -> None:
-        assert bot_config._parse_simple_yaml("bots:\n  - foo  # note\n") == {
-            "bots": ["foo"]
-        }
+        assert bot_config._parse_simple_yaml("bots:\n  - foo  # note\n") == {"bots": ["foo"]}
 
     def test_comments_and_blanks_ignored(self) -> None:
         text = "# header\n\nbots:\n  - foo\n\n  - bar\n# trailer\n"
@@ -1744,38 +1741,24 @@ class TestParseSimpleYaml:
 
     def test_item_with_space_and_brackets_preserved(self) -> None:
         text = "bots:\n  - Copilot   # no suffix\n  - renovate[bot]\n"
-        assert bot_config._parse_simple_yaml(text) == {
-            "bots": ["Copilot", "renovate[bot]"]
-        }
+        assert bot_config._parse_simple_yaml(text) == {"bots": ["Copilot", "renovate[bot]"]}
 
     def test_literal_hash_in_item_preserved(self) -> None:
-        assert bot_config._parse_simple_yaml("bots:\n  - foo#bar\n") == {
-            "bots": ["foo#bar"]
-        }
+        assert bot_config._parse_simple_yaml("bots:\n  - foo#bar\n") == {"bots": ["foo#bar"]}
 
     def test_inline_scalar_value(self) -> None:
-        assert bot_config._parse_simple_yaml("name: value\n") == {
-            "name": "value"
-        }
+        assert bot_config._parse_simple_yaml("name: value\n") == {"name": "value"}
 
     def test_quoted_value_unwrapped(self) -> None:
-        assert bot_config._parse_simple_yaml('name: "value"\n') == {
-            "name": "value"
-        }
+        assert bot_config._parse_simple_yaml('name: "value"\n') == {"name": "value"}
 
     def test_quoted_item_unwrapped(self) -> None:
-        assert bot_config._parse_simple_yaml("bots:\n  - 'foo'\n") == {
-            "bots": ["foo"]
-        }
+        assert bot_config._parse_simple_yaml("bots:\n  - 'foo'\n") == {"bots": ["foo"]}
 
     def test_hash_inside_quoted_item_preserved(self) -> None:
         # A # inside quotes is literal content, not a comment marker.
-        assert bot_config._parse_simple_yaml("bots:\n  - 'foo # bar'\n") == {
-            "bots": ["foo # bar"]
-        }
-        assert bot_config._parse_simple_yaml('name: "value # note"\n') == {
-            "name": "value # note"
-        }
+        assert bot_config._parse_simple_yaml("bots:\n  - 'foo # bar'\n") == {"bots": ["foo # bar"]}
+        assert bot_config._parse_simple_yaml('name: "value # note"\n') == {"name": "value # note"}
 
     def test_empty_text(self) -> None:
         assert bot_config._parse_simple_yaml("") == {}
@@ -1790,9 +1773,7 @@ class TestParseSimpleYaml:
 
     def test_mismatched_quote_left_intact(self) -> None:
         # Only a matched surrounding pair is stripped.
-        assert bot_config._parse_simple_yaml("bots:\n  - \"foo'\n") == {
-            "bots": ['"foo\'']
-        }
+        assert bot_config._parse_simple_yaml("bots:\n  - \"foo'\n") == {"bots": ["\"foo'"]}
 
     def test_colon_value_without_space(self) -> None:
         # Per YAML spec, a colon without a following space is part of a plain
@@ -1802,20 +1783,15 @@ class TestParseSimpleYaml:
         assert bot_config._parse_simple_yaml("name:value\n") == {}
 
     def test_crlf_line_endings(self) -> None:
-        assert bot_config._parse_simple_yaml("bots:\r\n  - foo\r\n") == {
-            "bots": ["foo"]
-        }
+        assert bot_config._parse_simple_yaml("bots:\r\n  - foo\r\n") == {"bots": ["foo"]}
 
 
 class TestMirrorParity:
     """The install mirrors must equal the canonical loader's sync transform.
 
-    The mirrors are NOT byte-identical to the canonical file. scripts/sync_plugin_lib.py
-    (_transform_file -> _replace_first_docstring_line) rewrites the first module
-    docstring line to a canonical note and converts intra-package absolute imports to
-    relative ones. Asserting raw byte-identity always fails on the first docstring line.
-    This test asserts each mirror equals the transform the sync tool itself produces, so
-    it cannot drift from the real sync contract.
+    scripts/sync_plugin_lib.py (_transform_file) converts intra-package absolute
+    imports to relative ones. The mirrors must equal that output exactly so
+    they cannot drift from the real sync contract.
     """
 
     def test_mirrors_match_sync_transform(self) -> None:
@@ -1861,9 +1837,7 @@ class TestCapturedTextDecoding:
     def test_repo_root_pins_utf8(self, tmp_path: Path):
         from scripts.github_core import repo
 
-        with patch(
-            "subprocess.run", return_value=_completed(stdout=str(tmp_path))
-        ) as run:
+        with patch("subprocess.run", return_value=_completed(stdout=str(tmp_path))) as run:
             repo.get_repo_root()
         assert run.call_args.kwargs.get("encoding") == "utf-8"
         assert "errors" not in run.call_args.kwargs
@@ -1969,16 +1943,12 @@ class TestEscapedNewlineGuardIsWiredAtEveryInlineBodySite:
         return path.read_text(encoding="utf-8")
 
     @pytest.mark.parametrize("rel,entry", sorted(_SITE_ENTRY_POINTS.items()))
-    def test_site_imports_and_calls_the_shared_predicate(
-        self, rel: str, entry: str
-    ) -> None:
+    def test_site_imports_and_calls_the_shared_predicate(self, rel: str, entry: str) -> None:
         source = self._script(rel)
         assert "from github_core.validation import" in source, rel
         tree = ast.parse(source)
         called = any(
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == entry
+            isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == entry
             for node in ast.walk(tree)
         )
         assert called, f"{rel} never calls {entry}"
