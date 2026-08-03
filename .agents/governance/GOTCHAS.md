@@ -1,5 +1,7 @@
 # Gotchas
 
+<!-- # taste-lint: ignore file-size -- a catalog read start-to-finish before a first push; splitting it by category would mean opening several files to learn what will bite you, which is the one thing this file exists to prevent. -->
+
 Non-obvious repository behavior that cost real time to learn and cannot be
 inferred from reading the code. Each entry states the trap, the symptom you
 will actually see, and the fix.
@@ -305,6 +307,47 @@ HEAD` accepts, so the record breaks only when history rewrites that specific
 commit. Amending `HEAD` is safe whenever the recorded commit stays reachable,
 which includes `HEAD~1` and anything older. It is unsafe only when the commit
 you are rewriting *is* the recorded one; there, add a follow-up commit instead.
+
+## Two green PRs can merge into a red main, and the count ratchets will not warn
+
+The count ratchets compare one scalar baseline against a count taken over the
+whole tree. Neither number is scoped to your diff, so the gate cannot tell
+"this branch added a violation" from "this branch lowered the allowance while
+somebody else added one." Each PR is measured only against the baseline in
+force while it is open.
+
+That leaves a race. On 2026-08-03, PR #4476 lowered the taste baseline from 596
+to 595 after removing a violation. PR #4414 grew `.agents/governance/GOTCHAS.md`
+past the 500-line ceiling, adding one. Both were green. Both merged. `main`
+went red at 596 against a baseline of 595, and neither author did anything
+wrong.
+
+This is a different failure from the branch-behind case above. There the branch
+is stale and merging main fixes it. Here main itself is broken, so merging main
+*imports* the failure. Every branch that syncs afterward fails a gate it never
+touched, and the message reads the same in both cases.
+
+Two consequences worth knowing before you spend an hour on it:
+
+Measure main before blaming your branch. A pristine worktree at `origin/main`
+answers this in seconds and is the only way to tell the two cases apart:
+
+```bash
+git worktree add --detach <path> origin/main
+cd <path> && uv run --frozen python scripts/ci/taste_count_ratchet.py
+```
+
+And the usual "diff my per-file counts against `origin/main`" recipe returns
+nothing when main is the thing that is red, because your branch and main are
+both at the higher number. Diff against the commit that last wrote the baseline
+file instead:
+
+```bash
+git log -1 --format=%h -- scripts/ci/taste_count_baseline.txt
+```
+
+Check out that commit in a detached worktree and diff its violation list
+against HEAD's. The offender is the one net-new entry.
 
 ## Eval harness
 

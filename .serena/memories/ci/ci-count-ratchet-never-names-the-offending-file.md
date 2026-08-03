@@ -46,6 +46,49 @@ uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --update
 
 Raising the baseline to clear the block. The gate exists to refuse a new error-severity violation; raising it defeats the purpose. Split the file or fix the violation. Lowering a baseline after a genuine improvement is required, though: an unrecorded improvement leaves slack that lets the next regression up to the stale number pass silently.
 
+## Gotcha: the against-main diff goes blind when main is the problem
+
+The recipe above assumes `origin/main` is clean, so a per-file count that rose
+relative to main names the offender. When main itself is red, your branch and
+main sit at the same number and the diff is empty. Diff against the commit that
+last wrote the baseline file instead:
+
+```bash
+git log -1 --format=%h -- scripts/ci/taste_count_baseline.txt
+git worktree add --detach <path> <that-sha>
+```
+
+Dump both violation lists and diff them. `list_violations()` is easier than the
+JSON counter recipe when you want the raw entries rather than per-file totals,
+and it sidesteps the 40-line truncation in the ratchet's own output:
+
+```bash
+uv run --frozen python -c "
+import sys, pathlib; sys.path.insert(0, '.')
+from scripts.ci.taste_count_ratchet import list_violations
+v = list_violations(pathlib.Path('.'))
+pathlib.Path('OUT.txt').write_text('\n'.join(sorted(v)) + '\n')
+print(len(v))"
+```
+
+2026-08-03: this located `.agents/governance/GOTCHAS.md: [file-size] File
+exceeds 500 lines (521 lines)` as the sole net-new entry between 595 and 596,
+after the against-main diff came back empty because main carried the same 596.
+
+## Gotcha: the ignore escape works in markdown, as an HTML comment
+
+Every in-repo precedent for `# taste-lint: ignore <rule>` is a `.py` file, so
+the bare `#` form is the only one you will find by grepping. The scanner reads
+the first ten lines of any file and looks for the token, so a markdown file
+suppresses a rule by wrapping the same directive in an HTML comment:
+
+```markdown
+<!-- # taste-lint: ignore file-size -- reason -->
+```
+
+Verified 2026-08-03: adding that line to a 521-line governance doc moved the
+repo count from 596 to 595 and dropped the file from `list_violations()`.
+
 ## Related
 
 - Issue #4207 (the ceiling plus the missing filename in the message)

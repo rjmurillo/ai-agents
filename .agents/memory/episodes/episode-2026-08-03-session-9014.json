@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-03-session-9014",
+  "session": "2026-08-03-session-9014",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair origin/main, which fails the taste count ratchet and the subprocess encoding validator and so blocks every push in the repository",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}
