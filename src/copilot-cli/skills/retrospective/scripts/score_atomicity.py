@@ -87,8 +87,9 @@ _MAX_WORDS = 15
 _MISSING_EVIDENCE_PENALTY = 25
 # No actionable guidance costs 30% (canonical table).
 _NO_ACTION_PENALTY = 30
-# Minimum word count for a statement to be considered actionable. Fewer than
-# this many words cannot convey specific, reproducible guidance (issue #4306).
+# Minimum word count for a statement to be considered actionable. This scorer
+# treats shorter statements as too small for specific, reproducible guidance
+# (issue #4306).
 _MIN_ACTIONABLE_WORDS = 4
 
 
@@ -152,9 +153,9 @@ def _is_actionable(text: str) -> bool:
     state. Statements shaped like "The caching strategy was effective" describe
     an outcome without telling a future reader what to do, so they fail.
 
-    Statements with fewer than ``_MIN_ACTIONABLE_WORDS`` words cannot express
-    a specific, reproducible action regardless of their vocabulary; single
-    letters and keyboard mash are not actionable by definition (issue #4306).
+    This scorer treats statements with fewer than ``_MIN_ACTIONABLE_WORDS``
+    words as too small for a specific, reproducible action; single letters and
+    keyboard mash are not actionable by definition (issue #4306).
     """
     stripped = text.strip()
     if not stripped:
