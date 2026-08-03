@@ -122,15 +122,28 @@ def _extract_tree(repo_root: Path, tree_oid: str, dest: Path) -> bool:
 
 
 def _init_scratch_repo(scratch: Path) -> bool:
-    """Init a minimal git repo in scratch so tracked_files() works."""
+    """Init a minimal git repo in scratch so tracked_files() works.
+
+    LEFTHOOK=0 and GIT_CONFIG_NOSYSTEM=1 prevent hooks from firing during the
+    scratch commit. --no-verify skips any other hook system (e.g. husky).
+    Without these guards, git commit triggers the repo's pre-commit lefthook
+    suite, which fails because pyproject.toml in the scratch tree triggers a
+    package build.
+    """
+    _env = {
+        "HOME": str(Path.home()),
+        "PATH": "/usr/bin:/bin:/usr/local/bin",
+        "LEFTHOOK": "0",
+        "GIT_CONFIG_NOSYSTEM": "1",
+    }
     for cmd in (
         ["git", "init", "-q", "-b", "main", str(scratch)],
         ["git", "-C", str(scratch), "config", "user.email", "ci@example.com"],
         ["git", "-C", str(scratch), "config", "user.name", "ci"],
         ["git", "-C", str(scratch), "add", "-A"],
-        ["git", "-C", str(scratch), "commit", "-qm", "merge-tree snapshot"],
+        ["git", "-C", str(scratch), "commit", "--no-verify", "-qm", "merge-tree snapshot"],
     ):
-        proc = subprocess.run(cmd, capture_output=True, check=False)
+        proc = subprocess.run(cmd, capture_output=True, check=False, env=_env)
         if proc.returncode != 0:
             sys.stderr.write(
                 f"git init step failed: {cmd}\n"
