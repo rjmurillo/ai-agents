@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size -- 4 issue fixes share fixtures; splitting would orphan them
 """Tests for #4359, #4393, #4462, #4490 fixes.
 
 Covers:

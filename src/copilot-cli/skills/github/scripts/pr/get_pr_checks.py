@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- extraction would scatter cohesive logic
 """Get CI check status for a GitHub Pull Request.
 
 Retrieves CI check information using GraphQL statusCheckRollup API.
@@ -696,6 +697,35 @@ def _resolve_status(
     return f"PR #{number}: All {output['PassedCount']} check(s) passing", "PASS"
 
 
+def _check_data_error_exit(
+    check_data: dict,
+    fmt: str,
+    pr: int,
+) -> int | None:
+    """Return an exit code if check_data contains an error, else None."""
+    if check_data.get("Error") == "NotFound":
+        write_skill_error(
+            check_data["Message"],
+            2,
+            error_type="NotFound",
+            output_format=fmt,
+            script_name="get_pr_checks.py",
+            extra={"Number": pr},
+        )
+        return 2
+    if check_data.get("Error") == "ApiError":
+        write_skill_error(
+            check_data["Message"],
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_pr_checks.py",
+            extra={"Number": pr},
+        )
+        return 3
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     assert_gh_authenticated()
@@ -718,27 +748,9 @@ def main(argv: list[str] | None = None) -> int:
         check_data = fetch_checks(owner, repo, args.pull_request)
 
         # Handle errors
-        if check_data.get("Error") == "NotFound":
-            write_skill_error(
-                check_data["Message"],
-                2,
-                error_type="NotFound",
-                output_format=fmt,
-                script_name="get_pr_checks.py",
-                extra={"Number": args.pull_request},
-            )
-            return 2
-
-        if check_data.get("Error") == "ApiError":
-            write_skill_error(
-                check_data["Message"],
-                3,
-                error_type="ApiError",
-                output_format=fmt,
-                script_name="get_pr_checks.py",
-                extra={"Number": args.pull_request},
-            )
-            return 3
+        rc = _check_data_error_exit(check_data, fmt, args.pull_request)
+        if rc is not None:
+            return rc
 
         # Fetch ruleset required contexts once (on the first iteration);  # ctrl the
         # base branch does not change across poll iterations.
@@ -795,6 +807,14 @@ def main(argv: list[str] | None = None) -> int:
         script_name="get_pr_checks.py",
     )
 
+    return _exit_code(output, checks_incomplete, timed_out_pending)
+
+
+def _exit_code(
+    output: dict,
+    checks_incomplete: bool,
+    timed_out_pending: bool,
+) -> int:
     missing = output.get("MissingRequiredChecks") or []
     if output["FailedCount"] > 0 or missing:
         return 1

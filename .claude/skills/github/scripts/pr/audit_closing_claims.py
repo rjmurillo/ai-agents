@@ -152,7 +152,7 @@ def _strip_html_comments(text: str) -> tuple[str, set[int]]:
 
 def classify_claim(
     text: str,
-    match: re.Match,  # type: ignore[type-arg]
+    match: re.Match[str],
     fenced_positions: set[int],
     html_comment_positions: set[int],
 ) -> str:
