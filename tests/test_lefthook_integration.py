@@ -21,6 +21,8 @@ import yaml
 
 from scripts.validation import git_hook_policy as policy
 
+pytestmark = pytest.mark.windows_path
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEFTHOOK = shutil.which("lefthook")
 SEMGREP = shutil.which("semgrep")
