@@ -65,8 +65,16 @@ def _parse_iso_date(date_str: str) -> datetime | None:
         return None
 
 
-def _fetch_pr_author(owner: str, repo: str, pr_number: int) -> str:
-    """Fetch the PR author login."""
+def _account_id(actor: dict[str, Any]) -> int | None:
+    """Return a numeric REST or GraphQL account ID when present."""
+    account_id = actor.get("id")
+    if not isinstance(account_id, int):
+        account_id = actor.get("databaseId")
+    return account_id if isinstance(account_id, int) else None
+
+
+def _fetch_pr_author(owner: str, repo: str, pr_number: int) -> tuple[str, int | None]:
+    """Fetch the PR author login and numeric account ID when available."""
     result = subprocess.run(
         [
             "gh", "pr", "view", str(pr_number),
@@ -84,7 +92,8 @@ def _fetch_pr_author(owner: str, repo: str, pr_number: int) -> str:
             error_and_exit(f"PR #{pr_number} not found", 2)
         error_and_exit(f"Failed to get PR #{pr_number}: {err_msg}", 3)
     data = json.loads(result.stdout)
-    return (data.get("author") or {}).get("login", "")
+    author = data.get("author") or {}
+    return author.get("login", ""), _account_id(author)
 
 
 def get_pr_comments_by_reviewer(
@@ -129,17 +138,19 @@ def get_pr_comments_by_reviewer(
     prs_processed = 0
 
     for pr_number in pr_numbers:
-        pr_author = _fetch_pr_author(owner, repo, pr_number)
-        comments: list[dict] = []
+        pr_author, pr_author_id = _fetch_pr_author(owner, repo, pr_number)
+        comments: list[dict[str, Any]] = []
 
         if comment_type in ("review", "all"):
             review_comments = gh_api_paginated(
                 f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
             )
             for c in review_comments:
+                user = c.get("user") or {}
                 comments.append({
-                    "login": (c.get("user") or {}).get("login", ""),
-                    "user_type": (c.get("user") or {}).get("type", "User"),
+                    "login": user.get("login", ""),
+                    "actor_id": _account_id(user),
+                    "user_type": user.get("type", "User"),
                     "body": c.get("body", ""),
                     "created_at": c.get("created_at", ""),
                     "updated_at": c.get("updated_at", ""),
@@ -154,9 +165,11 @@ def get_pr_comments_by_reviewer(
                 f"repos/{owner}/{repo}/issues/{pr_number}/comments"
             )
             for c in issue_comments:
+                user = c.get("user") or {}
                 comments.append({
-                    "login": (c.get("user") or {}).get("login", ""),
-                    "user_type": (c.get("user") or {}).get("type", "User"),
+                    "login": user.get("login", ""),
+                    "actor_id": _account_id(user),
+                    "user_type": user.get("type", "User"),
                     "body": c.get("body", ""),
                     "created_at": c.get("created_at", ""),
                     "updated_at": c.get("updated_at", ""),
@@ -166,12 +179,13 @@ def get_pr_comments_by_reviewer(
                     "pr_number": pr_number,
                 })
 
-        author_key = canonicalize_login(pr_author)
+        author_key = canonicalize_login(pr_author, pr_author_id)
         for comment in comments:
             observed = comment["login"]
             if not observed:
                 continue
-            login = canonicalize_login(observed)
+            actor_id = comment["actor_id"]
+            login = canonicalize_login(observed, actor_id)
             if exclude_self_comments and login == author_key:
                 continue
             if include_set and login not in include_set:
@@ -195,11 +209,14 @@ def get_pr_comments_by_reviewer(
                     "prs": [],
                     "comments": [],
                     "aliases": [],
+                    "actor_ids": [],
                 }
 
             entry = reviewer_map[login]
             if observed not in entry["aliases"]:
                 entry["aliases"].append(observed)
+            if actor_id is not None and actor_id not in entry["actor_ids"]:
+                entry["actor_ids"].append(actor_id)
             entry["total_comments"] += 1
             if comment["comment_type"] == "review":
                 entry["review_comments"] += 1

@@ -55,9 +55,10 @@ def _make_review_comment(
     created_at: str = "2025-06-01T00:00:00Z",
     path: str = "src/main.py",
     user_type: str = "User",
+    actor_id: int | None = None,
 ):
     return {
-        "user": {"login": login, "type": user_type},
+        "user": {"login": login, "type": user_type, "id": actor_id},
         "body": body,
         "created_at": created_at,
         "updated_at": created_at,
@@ -71,9 +72,10 @@ def _make_issue_comment(
     body: str = "Looks good",
     created_at: str = "2025-06-01T00:00:00Z",
     user_type: str = "User",
+    actor_id: int | None = None,
 ):
     return {
-        "user": {"login": login, "type": user_type},
+        "user": {"login": login, "type": user_type, "id": actor_id},
         "body": body,
         "created_at": created_at,
         "updated_at": created_at,
@@ -206,10 +208,21 @@ class TestMain:
 
 
 class TestGetPrCommentsByReviewer:
-    def _run(self, review_comments=None, issue_comments=None, pr_author="author1", **kwargs):
+    def _run(
+        self,
+        review_comments=None,
+        issue_comments=None,
+        pr_author="author1",
+        pr_author_id: int | None = None,
+        **kwargs,
+    ):
         review_comments = review_comments or []
         issue_comments = issue_comments or []
-        pr_view = _completed(stdout=json.dumps({"author": {"login": pr_author}}))
+        pr_view = _completed(
+            stdout=json.dumps(
+                {"author": {"login": pr_author, "databaseId": pr_author_id}}
+            )
+        )
 
         def paginated_side_effect(endpoint, **_kw):
             if "/pulls/" in endpoint and "/comments" in endpoint:
@@ -384,6 +397,7 @@ class TestGetPrCommentsByReviewer:
         entry = result["reviewers"][0]
         assert entry["login"] == "github-copilot[bot]"
         assert entry["total_comments"] == 3
+        assert entry["actor_ids"] == []
         assert sorted(entry["aliases"]) == [
             "Copilot",
             "copilot-pull-request-reviewer",
@@ -402,6 +416,25 @@ class TestGetPrCommentsByReviewer:
             "copilot-swe-agent[bot]",
             "github-copilot[bot]",
         ]
+
+    def test_shared_copilot_login_is_separated_by_account_id(self):
+        result = self._run(
+            review_comments=[
+                _make_review_comment(
+                    "Copilot", user_type="Bot", actor_id=175728472
+                ),
+                _make_review_comment(
+                    "Copilot", user_type="Bot", actor_id=198982749
+                ),
+            ],
+        )
+        reviewers = {r["login"]: r for r in result["reviewers"]}
+        assert set(reviewers) == {
+            "github-copilot[bot]",
+            "copilot-swe-agent[bot]",
+        }
+        assert reviewers["github-copilot[bot]"]["actor_ids"] == [175728472]
+        assert reviewers["copilot-swe-agent[bot]"]["actor_ids"] == [198982749]
 
     def test_distinct_humans_stay_separate(self):
         result = self._run(
@@ -451,6 +484,19 @@ class TestGetPrCommentsByReviewer:
                 _make_review_comment("copilot-pull-request-reviewer[bot]", user_type="Bot")
             ],
             pr_author="app/copilot-swe-agent",
+        )
+        assert result["total_comments"] == 1
+        assert [r["login"] for r in result["reviewers"]] == ["github-copilot[bot]"]
+
+    def test_ids_separate_an_ambiguous_author_from_the_reviewer(self):
+        result = self._run(
+            review_comments=[
+                _make_review_comment(
+                    "Copilot", user_type="Bot", actor_id=175728472
+                )
+            ],
+            pr_author="Copilot",
+            pr_author_id=198982749,
         )
         assert result["total_comments"] == 1
         assert [r["login"] for r in result["reviewers"]] == ["github-copilot[bot]"]

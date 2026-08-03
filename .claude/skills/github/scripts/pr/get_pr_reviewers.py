@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -69,18 +70,33 @@ def _is_bot(login: str, user_type: str) -> bool:
 
     Delegates to the shared is_bot utility in github_core.bot_config.
     """
-    return is_bot(login, user_type)
+    return bool(is_bot(login, user_type))
 
 
-def _ensure_reviewer(reviewer_map: dict, login: str, user_type: str) -> str:
+def _account_id(actor: dict[str, Any]) -> int | None:
+    """Return a numeric REST or GraphQL account ID when present."""
+    account_id = actor.get("id")
+    if not isinstance(account_id, int):
+        account_id = actor.get("databaseId")
+    return account_id if isinstance(account_id, int) else None
+
+
+def _ensure_reviewer(
+    reviewer_map: dict[str, dict[str, Any]],
+    login: str,
+    user_type: str,
+    account_id: int | None = None,
+) -> str:
     """Register *login* under its canonical identity and return that key.
 
     GitHub reports one integration under several logins depending on the API
     path, so keying on the raw login splits a single actor across rows and
     inflates total_reviewers and bot_count. Every observed spelling is kept in
-    ``aliases`` so the collapse stays auditable.
+    ``aliases`` and every numeric account ID in ``actor_ids`` so the collapse
+    stays auditable. IDs also separate two accounts both reported as
+    ``Copilot``.
     """
-    canonical = canonicalize_login(login)
+    canonical: str = canonicalize_login(login, account_id)
     entry = reviewer_map.get(canonical)
     if entry is None:
         entry = reviewer_map[canonical] = {
@@ -90,9 +106,12 @@ def _ensure_reviewer(reviewer_map: dict, login: str, user_type: str) -> str:
             "review_comments": 0,
             "issue_comments": 0,
             "aliases": [],
+            "actor_ids": [],
         }
     if login not in entry["aliases"]:
         entry["aliases"].append(login)
+    if account_id is not None and account_id not in entry["actor_ids"]:
+        entry["actor_ids"].append(account_id)
     return canonical
 
 
@@ -123,37 +142,43 @@ def main(argv: list[str] | None = None) -> int:
         error_and_exit(f"Failed to get PR: {err_msg}", 3)
 
     pr_data = json.loads(pr_result.stdout)
-    pr_author = pr_data.get("author", {}).get("login", "")
+    pr_author_data = pr_data.get("author") or {}
+    raw_pr_author = pr_author_data.get("login", "")
+    pr_author = raw_pr_author if isinstance(raw_pr_author, str) else ""
+    pr_author_id = _account_id(pr_author_data)
 
-    reviewer_map: dict[str, dict] = {}
+    reviewer_map: dict[str, dict[str, Any]] = {}
 
     review_comments = gh_api_paginated(f"repos/{owner}/{repo}/pulls/{pr}/comments")
     for c in review_comments:
-        login = c.get("user", {}).get("login", "")
+        user = c.get("user") or {}
+        login = user.get("login", "")
         if not login:
             continue
-        user_type = c.get("user", {}).get("type", "User")
-        key = _ensure_reviewer(reviewer_map, login, user_type)
+        user_type = user.get("type", "User")
+        key = _ensure_reviewer(reviewer_map, login, user_type, _account_id(user))
         reviewer_map[key]["review_comments"] += 1
 
     issue_comments = gh_api_paginated(f"repos/{owner}/{repo}/issues/{pr}/comments")
     for c in issue_comments:
-        login = c.get("user", {}).get("login", "")
+        user = c.get("user") or {}
+        login = user.get("login", "")
         if not login:
             continue
-        user_type = c.get("user", {}).get("type", "User")
-        key = _ensure_reviewer(reviewer_map, login, user_type)
+        user_type = user.get("type", "User")
+        key = _ensure_reviewer(reviewer_map, login, user_type, _account_id(user))
         reviewer_map[key]["issue_comments"] += 1
 
     for r in pr_data.get("reviewRequests", []):
         login = r.get("login", "")
         if login:
-            _ensure_reviewer(reviewer_map, login, "User")
+            _ensure_reviewer(reviewer_map, login, "User", _account_id(r))
 
     for r in pr_data.get("reviews", []):
-        login = r.get("author", {}).get("login", "")
+        author = r.get("author") or {}
+        login = author.get("login", "")
         if login:
-            key = _ensure_reviewer(reviewer_map, login, "User")
+            key = _ensure_reviewer(reviewer_map, login, "User", _account_id(author))
             reviewer_map[key]["is_bot"] = _is_bot(key, "User")
 
     reviewers = list(reviewer_map.values())
@@ -165,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.exclude_author:
         # Compare canonical identities: an author who also reviews under an
         # alias would otherwise survive the filter as a separate actor.
-        author_key = canonicalize_login(pr_author)
+        author_key = canonicalize_login(pr_author, pr_author_id)
         reviewers = [r for r in reviewers if r["login"] != author_key]
 
     reviewers.sort(key=lambda r: r["total_comments"], reverse=True)
@@ -177,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
         "success": True,
         "pull_request": pr,
         "pr_author": pr_author,
+        "pr_author_id": pr_author_id,
         "total_reviewers": len(reviewers),
         "bot_count": bot_count,
         "human_count": human_count,

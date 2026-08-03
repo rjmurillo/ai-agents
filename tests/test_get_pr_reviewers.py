@@ -46,9 +46,17 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
-def _pr_json(author: str = "alice", review_requests=None, reviews=None):
+def _pr_json(
+    author: str = "alice",
+    review_requests=None,
+    reviews=None,
+    author_id: int | None = None,
+):
+    author_data: dict[str, str | int] = {"login": author}
+    if author_id is not None:
+        author_data["databaseId"] = author_id
     return json.dumps({
-        "author": {"login": author},
+        "author": author_data,
         "reviewRequests": review_requests or [],
         "reviews": reviews or [],
     })
@@ -381,6 +389,7 @@ class TestAliasCanonicalization:
         entry = output["reviewers"][0]
         assert entry["login"] == "github-copilot[bot]"
         assert entry["total_comments"] == 2
+        assert entry["actor_ids"] == []
         assert sorted(entry["aliases"]) == [
             "Copilot",
             "copilot-pull-request-reviewer",
@@ -411,6 +420,62 @@ class TestAliasCanonicalization:
             rc = main(["--pull-request", "10", "--exclude-author"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
+        assert [r["login"] for r in output["reviewers"]] == ["github-copilot[bot]"]
+
+    def test_shared_copilot_login_is_separated_by_account_id(self, capsys):
+        """REST uses Copilot for both account ids 175728472 and 198982749."""
+        pr_data = _pr_json(author="alice")
+        review_comments = [
+            {"user": {"login": "Copilot", "id": 175728472, "type": "Bot"}},
+        ]
+        issue_comments = [
+            {"user": {"login": "Copilot", "id": 198982749, "type": "Bot"}},
+        ]
+        with patch(
+            "get_pr_reviewers.assert_gh_authenticated",
+        ), patch(
+            "get_pr_reviewers.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout=pr_data, rc=0),
+        ), patch(
+            "get_pr_reviewers.gh_api_paginated",
+            side_effect=[review_comments, issue_comments],
+        ):
+            rc = main(["--pull-request", "10"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        reviewers = {r["login"]: r for r in output["reviewers"]}
+        assert set(reviewers) == {
+            "github-copilot[bot]",
+            "copilot-swe-agent[bot]",
+        }
+        assert reviewers["github-copilot[bot]"]["actor_ids"] == [175728472]
+        assert reviewers["copilot-swe-agent[bot]"]["actor_ids"] == [198982749]
+
+    def test_account_id_keeps_reviewer_visible_on_ambiguous_author_login(self, capsys):
+        """The PR author and reviewer can both arrive as Copilot."""
+        pr_data = _pr_json(author="Copilot", author_id=198982749)
+        review_comments = [
+            {"user": {"login": "Copilot", "id": 175728472, "type": "Bot"}},
+        ]
+        with patch(
+            "get_pr_reviewers.assert_gh_authenticated",
+        ), patch(
+            "get_pr_reviewers.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout=pr_data, rc=0),
+        ), patch(
+            "get_pr_reviewers.gh_api_paginated",
+            side_effect=[review_comments, []],
+        ):
+            rc = main(["--pull-request", "10", "--exclude-author"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["pr_author_id"] == 198982749
         assert [r["login"] for r in output["reviewers"]] == ["github-copilot[bot]"]
 
     def test_distinct_humans_are_not_collapsed(self, capsys):
