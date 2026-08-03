@@ -40,6 +40,50 @@ The scripts listed in this reference are primarily PR-related, so most are under
 | `resolve_pr_review_thread.py` | Resolve thread | `--owner`, `--repo`, `--pull-request`, `--thread-id` |
 | `get_unaddressed_comments.py` | Comments needing response | `--owner`, `--repo`, `--pull-request` |
 
+### Output schemas (the args are documented, the shapes were not)
+
+These two are the ones worth writing down. Guessing at their keys and getting
+back `null` reads like "no findings," which is the expensive failure: an empty
+reduction looks like a clean PR.
+
+`get_pr_checks.py --output-format json` puts checks at `.Data.Checks[]`, and
+each element is PascalCase:
+
+```json
+{ "Name": "PR Merge State", "State": "COMPLETED",
+  "Conclusion": "FAILURE",
+  "DetailsUrl": "https://github.com/.../job/91547032403",
+  "IsRequired": false }
+```
+
+So the real-failures filter is on `Conclusion`, not `Status`:
+
+```bash
+jq -r '.Data.Checks[]
+       | select(.Conclusion!="SUCCESS" and .Conclusion!="NEUTRAL" and .Conclusion!="SKIPPED")
+       | "\(.Conclusion) req=\(.IsRequired)  \(.Name)"' | sort -u
+```
+
+`get_unresolved_review_threads.py` is snake_case at the top level
+(`success`, `pull_request`, `owner`, `repo`, `unresolved_count`,
+`fetched_pages_complete`, `threads`). Per thread: `thread_id`, `is_resolved`,
+`is_outdated`, `path`, `line`, `start_line`, `diff_side`, `comment_count`,
+`first_comment_id`, `first_comment_author`, `first_comment_body`,
+`first_comment_created_at`, `comments`.
+
+**`comments` comes back empty.** The body you want is `first_comment_body`.
+
+Prefer this over `gh pr view --json statusCheckRollup`, which silently
+truncates (77 rows against a true 133) and returns a union type: `CheckRun`
+carries `name`/`conclusion` while `StatusContext` carries `context`/`state`.
+
+### Gotcha: `--body-file` rejects `~/src/scratch`
+
+`add_pr_review_thread_reply.py --body-file` refuses any path outside the repo
+with "Body file path traversal not allowed" (issue #4276). The repo forbids
+in-tree scratch and the user forbids `/tmp`, so the sanctioned location is the
+rejected one. Use `--body "$(cat ~/src/scratch/reply.md)"`.
+
 ### Actions
 
 | Script | Purpose | Key Args |
