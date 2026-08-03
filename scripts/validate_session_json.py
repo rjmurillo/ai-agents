@@ -643,11 +643,17 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
 
         problem = commit_reachability_problem(ending, _PROJECT_ROOT)
         if problem is not None:
+            # State the observation and list the candidates. The reachability
+            # check knows the SHA is unreachable and nothing else, so naming
+            # one cause sends readers after a mistake they did not make: this
+            # repository merges by squash, which orphans every branch SHA a
+            # session log records (issue #4347).
             result.errors.append(
-                f"endingCommit {ending!r} {problem}; the SHA was most likely "
-                "orphaned by amending or rebasing the commit that carried it. "
-                "Record the SHA in a follow-up commit instead of amending "
-                "afterwards (issue #3618)"
+                f"endingCommit {ending!r} {problem}. Candidate causes, most "
+                "likely first: the PR was squash merged, which orphans the "
+                "branch SHA; the commit was amended or rebased after the log "
+                "named it; the SHA was never pushed. Record the SHA in a "
+                "follow-up commit (issue #3618)"
             )
 
     if "nextSteps" not in data:
