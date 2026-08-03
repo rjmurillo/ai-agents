@@ -281,44 +281,48 @@ class TestRunProvenance:
             if _path_added and str(EVAL_DIR) in sys.path:
                 sys.path.remove(str(EVAL_DIR))
 
+    def _make_args(self, mod):
+        """Build a minimal argparse.Namespace for _build_run_provenance."""
+        import argparse
+
+        return argparse.Namespace(
+            scenarios=[],
+            model="claude-sonnet-4-6",
+        )
+
     def test_build_run_provenance_returns_dict(self, mod):
-        prov = mod._build_run_provenance()
+        prov = mod._build_run_provenance(self._make_args(mod))
         assert isinstance(prov, dict)
 
     def test_provenance_has_timestamp(self, mod):
-        prov = mod._build_run_provenance()
+        prov = mod._build_run_provenance(self._make_args(mod))
         assert "timestamp_utc" in prov
         assert prov["timestamp_utc"] is not None
-        # Must be an ISO 8601 string, not None or empty.
         ts = prov["timestamp_utc"]
         assert isinstance(ts, str)
         assert "T" in ts
 
-    def test_provenance_has_git_sha_key(self, mod):
-        prov = mod._build_run_provenance()
-        # git_sha is present; may be None in a detached env but key must exist.
-        assert "git_sha" in prov
+    def test_provenance_has_git_commit_key(self, mod):
+        prov = mod._build_run_provenance(self._make_args(mod))
+        # git_commit is present; may be empty string in a detached env.
+        assert "git_commit" in prov
 
-    def test_provenance_has_git_branch_key(self, mod):
-        prov = mod._build_run_provenance()
-        assert "git_branch" in prov
+    def test_provenance_has_provider_key(self, mod):
+        prov = mod._build_run_provenance(self._make_args(mod))
+        assert "provider" in prov
+        assert isinstance(prov["provider"], str)
 
-    def test_provenance_git_fields_are_str_or_none(self, mod):
-        prov = mod._build_run_provenance()
-        for key in ("git_sha", "git_branch"):
-            val = prov[key]
-            assert val is None or isinstance(val, str), (
-                f"{key} must be str or None, got {type(val)}"
-            )
+    def test_provenance_git_commit_is_str(self, mod):
+        prov = mod._build_run_provenance(self._make_args(mod))
+        assert isinstance(prov["git_commit"], str)
 
     def test_provenance_survives_git_unavailable(self, mod):
         # Simulate git not on PATH; provenance must still return a dict
-        # with timestamp populated and sha/branch as None.
-        with patch("subprocess.check_output", side_effect=FileNotFoundError):
-            prov = mod._build_run_provenance()
+        # with timestamp populated and git_commit as empty string.
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            prov = mod._build_run_provenance(self._make_args(mod))
         assert isinstance(prov, dict)
-        assert prov["git_sha"] is None
-        assert prov["git_branch"] is None
+        assert prov["git_commit"] == ""
         assert prov["timestamp_utc"] is not None
 
     def test_provenance_injected_into_all_results(self):
@@ -329,8 +333,7 @@ class TestRunProvenance:
         hard-coded expected string, not the production source read at runtime.
         """
         source = (EVAL_DIR / "eval-rule-activation.py").read_text(encoding="utf-8")
-        # The injection must appear as a key in the all_results literal dict.
-        assert '"run": _build_run_provenance()' in source, (
+        assert '"run": _build_run_provenance(' in source, (
             "eval-rule-activation.py does not inject provenance into all_results; "
             "the 'run' key must appear in the all_results dict literal"
         )
