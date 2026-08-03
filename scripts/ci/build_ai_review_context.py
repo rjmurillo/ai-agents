@@ -84,31 +84,45 @@ def read_utf8_file(path: Path, description: str) -> str:
         raise ConfigError(f"{description} file must be UTF-8: {path}") from exc
 
 
-def get_pr_title(pr_number: str, repository: str) -> str:
-    result = run_gh(
-        ["pr", "view", pr_number, "--repo", repository, "--json", "title", "-q", ".title"]
-    )
+def get_pr_metadata(pr_number: str, repository: str) -> tuple[str, str, str]:
+    """Return (title, body, actual_number) for a PR via the REST pulls endpoint.
+
+    Uses ``gh api repos/{repository}/pulls/{pr_number}`` which draws on the
+    REST core quota, not GraphQL. A single call replaces the three separate
+    ``gh pr view`` calls that previously ran against GraphQL (issue #4333).
+
+    Returns ("Unknown PR", "", "0") on failure so callers degrade gracefully.
+    """
+    result = run_gh(["api", f"repos/{repository}/pulls/{pr_number}"])
     if result.returncode != 0:
-        return "Unknown PR"
-    return sanitize_title(result.stdout)
+        return "Unknown PR", "", "0"
+
+    import json as _json
+
+    try:
+        data = _json.loads(result.stdout)
+    except (_json.JSONDecodeError, ValueError):
+        return "Unknown PR", "", "0"
+
+    title = sanitize_title(str(data.get("title") or ""))
+    body = str(data.get("body") or "").rstrip("\n")
+    number = str(data.get("number") or "0")
+    return title, body, number
+
+
+def get_pr_title(pr_number: str, repository: str) -> str:
+    title, _body, _number = get_pr_metadata(pr_number, repository)
+    return title
 
 
 def get_pr_body(pr_number: str, repository: str) -> str:
-    result = run_gh(
-        ["pr", "view", pr_number, "--repo", repository, "--json", "body", "-q", ".body"]
-    )
-    if result.returncode != 0:
-        return ""
-    return result.stdout.rstrip("\n")
+    _title, body, _number = get_pr_metadata(pr_number, repository)
+    return body
 
 
 def get_actual_pr_number(pr_number: str, repository: str) -> str:
-    result = run_gh(
-        ["pr", "view", pr_number, "--repo", repository, "--json", "number", "-q", ".number"]
-    )
-    if result.returncode != 0:
-        return "0"
-    return result.stdout.strip() or "0"
+    _title, _body, number = get_pr_metadata(pr_number, repository)
+    return number
 
 
 def get_pr_name_only(pr_number: str, repository: str) -> str:
