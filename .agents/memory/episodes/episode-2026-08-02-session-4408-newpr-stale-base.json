@@ -1,0 +1,150 @@
+{
+  "id": "episode-2026-08-02-session-4408-newpr-stale-base",
+  "session": "2026-08-02-session-4408-newpr-stale-base",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Stop new_pr.py from failing a PR over a session log the branch never touched, by diffing against the remote-tracking base instead of a stale local one.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T23:10:00+00:00",
+      "type": "milestone",
+      "content": "reproduced the failure mode",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T23:25:00+00:00",
+      "type": "milestone",
+      "content": "located the root cause",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T23:40:00+00:00",
+      "type": "milestone",
+      "content": "split the two roles the base was playing",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T23:52:00+00:00",
+      "type": "milestone",
+      "content": "made the failure self-diagnosing",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005",
+        "e006"
+      ],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:05:00+00:00",
+      "type": "milestone",
+      "content": "proved the tests discriminate",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T00:05:00+00:00",
+      "type": "test",
+      "content": "Reverted new_pr.py to HEAD and re-ran: all 6 new tests failed. Restored the fix: all 6 passed. A test that passes both ways would have proved nothing.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-03T00:14:00+00:00",
+      "type": "milestone",
+      "content": "caught a real defect via an existing meta-test",
+      "caused_by": [
+        "e005",
+        "e006"
+      ],
+      "leads_to": [
+        "e008",
+        "e009"
+      ],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-03T00:20:00+00:00",
+      "type": "milestone",
+      "content": "regenerated the shipped mirror",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-03T00:20:00+00:00",
+      "type": "test",
+      "content": "build/scripts/generate_skills.py regenerated src/copilot-cli/skills/github/scripts/pr/new_pr.py; diff -q confirms it matches the canonical file. Full file: 80 passed.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-03T00:26:00+00:00",
+      "type": "milestone",
+      "content": "confirmed no manifest version bump applies",
+      "caused_by": [
+        "e008",
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 76,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}

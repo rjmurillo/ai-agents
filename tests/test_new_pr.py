@@ -162,6 +162,7 @@ class TestMain:
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
                 _completed(rc=0),  # gh --version
                 _completed(stdout="feat/branch\n", rc=0),  # git branch
+                _completed(rc=0),  # git rev-parse origin/main (comparison base)
                 _completed(stdout="", rc=0),  # git diff
             ],
         ):
@@ -177,6 +178,7 @@ class TestMain:
             side_effect=[
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
                 _completed(rc=0),  # gh --version
+                _completed(rc=0),  # git rev-parse origin/main (comparison base)
                 _completed(rc=1, stderr="error creating PR"),  # gh pr create
             ],
         ), patch("new_pr.run_validations"):
@@ -296,6 +298,7 @@ class TestMain:
             side_effect=[
                 _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
                 _completed(rc=0),  # gh --version
+                _completed(rc=0),  # git rev-parse origin/main (comparison base)
                 _completed(stdout="", rc=0),  # git diff (validations)
                 _completed(stdout="{}", stderr="", rc=0),  # PR description validation
                 _completed(rc=0),  # gh pr create
@@ -1180,3 +1183,75 @@ class TestValidation6EscapedNewlineCheck:
         out = capsys.readouterr().out
         for step in range(1, 7):
             assert f"[{step}/6]" in out, f"missing step {step}/6"
+
+
+# ---------------------------------------------------------------------------
+# Tests: resolve_comparison_base
+# ---------------------------------------------------------------------------
+
+
+class TestResolveComparisonBase:
+    """The diff base must prefer the remote-tracking ref.
+
+    A local ``main`` goes stale while you work on feature branches. Diffing
+    against it inflates the changed-file set with everything merged upstream
+    since, which makes Session End validation pick a stranger's session log.
+    """
+
+    def test_prefers_remote_tracking_ref_when_it_exists(self):
+        with patch("subprocess.run", return_value=_completed(rc=0)) as run:
+            assert _mod.resolve_comparison_base("main") == "origin/main"
+        assert "origin/main^{commit}" in run.call_args[0][0]
+
+    def test_falls_back_when_remote_ref_is_missing(self):
+        with patch("subprocess.run", return_value=_completed(rc=128)):
+            assert _mod.resolve_comparison_base("local-only") == "local-only"
+
+    def test_base_already_remote_qualified_is_left_alone(self):
+        # origin/origin/main never exists, so the probe fails and we fall back.
+        with patch("subprocess.run", return_value=_completed(rc=128)):
+            assert _mod.resolve_comparison_base("origin/main") == "origin/main"
+
+    def test_slashed_branch_name_still_resolves(self):
+        with patch("subprocess.run", return_value=_completed(rc=0)):
+            assert _mod.resolve_comparison_base("release/1.0") == "origin/release/1.0"
+
+    def test_probe_strips_git_hook_env_overrides(self, monkeypatch):
+        monkeypatch.setenv("GIT_DIR", "/wrong/git")
+        with patch("subprocess.run", return_value=_completed(rc=0)) as run:
+            _mod.resolve_comparison_base("main")
+        assert "GIT_DIR" not in run.call_args.kwargs["env"]
+
+
+class TestComparisonBaseIsNotThePullRequestTarget:
+    """Validation diffs against origin/main; the PR still targets main.
+
+    Resolving the PR target too would ask gh to open a pull request against a
+    branch named ``origin/main``, which does not exist on the server.
+    """
+
+    def _run_main(self, seen):
+        def _fake_validations(repo_root, base, head, **kwargs):
+            seen["validation_base"] = base
+
+        with patch.object(_mod, "run_validations", _fake_validations):
+            with patch(
+                "subprocess.run",
+                side_effect=[
+                    _completed(stdout="/tmp/repo", rc=0),   # git rev-parse
+                    _completed(rc=0),                        # gh --version
+                    _completed(stdout="feat/x\n", rc=0),     # git branch
+                    _completed(rc=0),                        # git rev-parse origin/main
+                    _completed(stdout="https://pr", rc=0),   # gh pr create
+                ],
+            ) as run:
+                main(["--title", "feat: test", "--body", "b"])
+        seen["gh_args"] = run.call_args_list[-1][0][0]
+
+    def test_validation_uses_remote_ref_but_pr_targets_plain_base(self):
+        seen: dict = {}
+        self._run_main(seen)
+        assert seen["validation_base"] == "origin/main"
+        gh_args = seen["gh_args"]
+        assert gh_args[:3] == ["gh", "pr", "create"]
+        assert gh_args[gh_args.index("--base") + 1] == "main"
