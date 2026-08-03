@@ -6,8 +6,8 @@
 |protocol blocking gate RFC MUST verification template legacy: [skills-protocol-index](skills-protocol-index.md) (245)
 
 [GitHub and PR Operations]
-|self-assessment ready-to-push refuted independent review negative control inert fix guard does not bite: [decision-agent-self-assessment-does-not-survive-review](decision-agent-self-assessment-does-not-survive-review.md) (0)
-|merge invalidates open PRs stale baseline ratchet strict status checks merge queue thread non-monotonic: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (0)
+|self-assessment ready-to-push refuted independent review negative control inert fix guard does not bite: [decision-agent-self-assessment-does-not-survive-review](decision-agent-self-assessment-does-not-survive-review.md) (1149)
+|merge invalidates open PRs stale baseline ratchet strict status checks merge queue thread non-monotonic: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (932)
 |gh graphql rest rate limit budget separate exhaustion pr list api repos: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (902)
 |new_pr create stale main ref session end validation failed opaque diff: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
 |close_issue comment-file must stay under repo root git scratch verify-claims unmerged reason quoting: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (891)
@@ -36,6 +36,7 @@
 |adr decision record active proposed superseded rationale artifact amendment: [adr-reference-index](adr-reference-index.md) (673), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (401), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (824), [adr/adr-review-observations](adr/adr-review-observations.md) (749)
 |cache invalidation TTL session-local cloudmcp stale refresh: [adr-reference-index](adr-reference-index.md) (673)
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
+|always-on corpus membership applyTo mirror generated synthesized internal-only glob yaml block list frontmatter regex: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (1255)
 
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
@@ -70,7 +71,7 @@
 |edit file read search replace text operation: [patterns/edit-001-read-before-edit-pattern](patterns/edit-001-read-before-edit-pattern.md) (464), [patterns/edit-002-unique-context-for-edit-matching](patterns/edit-002-unique-context-for-edit-matching.md) (368)
 |git hook pre-commit autofix cross-language grep TOCTOU: [skills-git-hooks-index](skills-git-hooks-index.md) (368)
 |git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (287)
-|git stash shared across worktrees pop takes another agent work switch abort commits to wrong branch: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (0)
+|git stash shared across worktrees pop takes another agent work switch abort commits to wrong branch: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (738)
 |git branch switch checkout file state verification lost: [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) (851)
 |lost code recovery investigation unmerged branch orphaned: [session/recovery-001-lost-code-investigation](session/recovery-001-lost-code-investigation.md) (552)
 |cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1251)
