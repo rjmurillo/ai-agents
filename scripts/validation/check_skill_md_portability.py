@@ -658,6 +658,12 @@ def _is_measured_input(rel_path: str) -> bool:
     )
 
 
+def _is_skill_markdown(rel_path: str) -> bool:
+    return rel_path.endswith(".md") and any(
+        rel_path.startswith(f"{root}/skills/") for root in PLUGIN_ROOTS
+    )
+
+
 def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
     """List files changed in the working tree relative to ``base_ref``.
 
@@ -685,8 +691,31 @@ def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
+def _baseline_matches_scan(
+    baseline_path: Path,
+    current: dict[str, int],
+    marker_current: dict[str, int],
+) -> bool:
+    """Return True when the baseline on disk reflects the current scan result.
+
+    When it does, the semantic-conflict guard is unnecessary: the baseline was
+    regenerated against the exact tree being validated, so there is no stale
+    data risk (issue #4300).
+    """
+    try:
+        on_disk_files = _load_baseline(baseline_path)
+        on_disk_markers = _load_marker_baseline(baseline_path)
+    except (OSError, ValueError):
+        return False
+    return on_disk_files == current and on_disk_markers == marker_current
+
+
 def check_semantic_baseline_conflict(
-    root: Path, base_ref: str, baseline_path: Path
+    root: Path,
+    base_ref: str,
+    baseline_path: Path,
+    current: dict[str, int] | None = None,
+    marker_current: dict[str, int] | None = None,
 ) -> list[str] | None:
     """Return measured inputs that changed alongside the baseline (issue #4195).
 
@@ -700,6 +729,9 @@ def check_semantic_baseline_conflict(
     A non-empty result is a finding, not yet a verdict.
     ``_semantic_conflict_is_fatal`` decides: scanner changes always fail,
     while .md changes fail only on a real count increase against ``base_ref``.
+
+    Skill-file changes still return a finding here. The fatality check decides
+    whether those changes raised undeclared counts above ``base_ref``.
     """
     changed = _changed_files_against_base(root, base_ref)
     if changed is None:
@@ -1100,7 +1132,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.base_ref:
         conflicting_inputs = check_semantic_baseline_conflict(
-            root, args.base_ref, baseline_path
+            root, args.base_ref, baseline_path, current, marker_current
         )
         if conflicting_inputs is None:
             return 2
