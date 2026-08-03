@@ -29,7 +29,13 @@ _SAFE_PUSH = ".trusted-helper/.github/scripts/safe_push_pr_branch.py"
 
 
 def _git(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["git", *args], capture_output=True, text=True, encoding="utf-8")
+    return subprocess.run(
+        ["git", *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
 
 
 def _safe_repo_path(filepath: str) -> str:
