@@ -232,6 +232,7 @@ _TRANSIENT_SIGNATURE = re.compile(
     r"|connection (?:reset|refused|error|timed out)"
     r"|could not resolve host"
     r"|server error"
+    r"|no server is currently available"
     r"|error connecting to"
     r"|check your internet connection"
     r"|githubstatus\.com"
