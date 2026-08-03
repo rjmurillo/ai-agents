@@ -186,10 +186,12 @@ def get_requested_files(paths: Sequence[str]) -> list[str]:
 def get_all_files(repo_root: Path) -> list[str]:
     """Get all relevant files in the repository.
 
-    Walks the tree once with os.walk and prunes SKIP_DIRS in place so the
-    walk never descends into the largest, source-free subtrees (.venv, agent
-    worktrees, caches). See the SKIP_DIRS comment for the performance
-    contract behind issue #2047 / #2010.
+    Uses ``git ls-files`` to enumerate tracked files so that paths listed in
+    ``.gitignore`` (generated files, caches, vendored trees) are excluded
+    automatically. Filters to extensions in ``VALID_EXTENSIONS`` afterwards.
+
+    Falls back to ``os.walk`` with ``SKIP_DIRS`` pruning when the directory is
+    not a git repository (bare checkouts, temp trees used in tests).
 
     Args:
         repo_root: Repository root path.
@@ -197,9 +199,25 @@ def get_all_files(repo_root: Path) -> list[str]:
     Returns:
         List of file paths (relative to repo root), POSIX-separated.
     """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "ls-files", "--cached", "--others", "--exclude-standard"],
+            capture_output=True,
+            check=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        return [
+            p for p in result.stdout.splitlines()
+            if p and Path(p).suffix in VALID_EXTENSIONS
+        ]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    # Fallback: os.walk with SKIP_DIRS for non-git directories.
     files: list[str] = []
     for current_dir, dir_names, file_names in os.walk(repo_root):
-        # Prune in place so os.walk does not descend into skipped subtrees.
         dir_names[:] = [d for d in dir_names if d not in SKIP_DIRS]
         for name in file_names:
             if Path(name).suffix not in VALID_EXTENSIONS:

@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Verified branch agent/eval2926 and read HANDOFF.md.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Read issue #2926, triage fixture schema, memory-search SKILL.md, memory-reflexion SKILL.md, ADR-063, and eval harness docs.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Added six memory-search and six memory-reflexion routing prompts to tests/evals/skills/triage-prompts.json.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "Validated JSON and ran zero-cost dry runs for both sibling skills.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e005",
@@ -44,7 +52,9 @@
       "type": "milestone",
       "content": "Ran live ADR-063 kill-gate evals with ANTHROPIC_API_KEY exported from .env. memory-search PROCEED delta 2.83; memory-reflexion PROCEED delta 2.89.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e006",
@@ -52,7 +62,9 @@
       "type": "milestone",
       "content": "Recorded eval outputs under evals/reports/adr-063-kill-gate-20260708/.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e007",
@@ -60,14 +72,24 @@
       "type": "milestone",
       "content": "Ran scoped markdownlint, dash checks, targeted pytest, diff check, pre-PR validation, and build check.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e008"
+      ]
     },
     {
       "id": "e008",
-      "timestamp": "2026-07-08T00:00:00+00:00",
+      "timestamp": "2026-07-08T09:49:02+00:00",
       "type": "commit",
       "content": "Commit: f1ce4e401ce97c7d46c6d1eabc306ae3f996d651",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
       "leads_to": []
     }
   ],

@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "ADR-074 authoring + architect/adr-review routing decision",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003"
+      ]
     },
     {
       "id": "e002",
@@ -20,14 +22,19 @@
       "type": "milestone",
       "content": "Validation evidence",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e003"
+      ]
     },
     {
       "id": "e003",
-      "timestamp": "2026-06-17T00:00:00+00:00",
+      "timestamp": "2026-06-17T16:48:04+00:00",
       "type": "commit",
       "content": "Commit: e6d1f3d34a",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
       "leads_to": []
     }
   ],
