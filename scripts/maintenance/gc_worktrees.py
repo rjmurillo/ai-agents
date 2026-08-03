@@ -85,19 +85,22 @@ from scripts.maintenance.worktree_report import (
 )
 
 _DEFAULT_BASE = "origin/main"
-_GIT_TIMEOUT_SECONDS = 30
+_GIT_TIMEOUT_SECONDS = 10
 _DECIDE_WORKERS = 8
 
 # Inspecting one worktree costs up to three git subprocesses, so the wall clock
 # grows with the worktree count while the caller's patience does not. The
 # pre-push job that runs this reporter is capped by lefthook, and a kill there
-# rejects the push even though this script only reports. Staying under that cap
-# keeps a report from deciding whether code can ship. The cap itself lives in
-# lefthook.yml; tests/ci/test_worktree_gc_wiring.py pins the two together so
-# neither can drift into a push-rejecting pair. The budget is a bound on work
-# attempted, not on elapsed time, so the cap needs headroom over it rather
-# than a tight arithmetic fit. See build_report for why.
-_DEFAULT_TIME_BUDGET_SECONDS = 90.0
+# rejects the push even though this script only reports: a lefthook timeout
+# kill cannot be swallowed by the job's own shell, unlike a non-zero exit,
+# which the job's `|| echo` guard absorbs. That asymmetry is why these two
+# constants must keep the worst case under the lefthook cap rather than lean
+# on the guard. Issue 4257 rules out buying headroom by raising the cap, since
+# that only moves the cliff and lengthens the block before a push dies. The cap
+# itself lives in lefthook.yml; tests/ci/test_worktree_gc_wiring.py pins the
+# two together so neither can drift into a push-rejecting pair. The budget is a
+# bound on work attempted, not on elapsed time. See build_report for why.
+_DEFAULT_TIME_BUDGET_SECONDS = 60.0
 
 
 def _run_git(args: list[str], cwd: str | None = None) -> str:
@@ -330,7 +333,7 @@ def build_report(
     """
     deadline = clock() + time_budget if time_budget and time_budget > 0 else None
     worktrees = list_worktrees()
-    occupancy = Occupancy(cwds, 0) if cwds is not None else occupied_paths()
+    occupancy = Occupancy(cwds, 0, proc_available=True) if cwds is not None else occupied_paths()
     live_cwds = occupancy.cwds
     main_path = worktrees[0].path if worktrees else ""
     current_path = _run_git(["rev-parse", "--show-toplevel"])
@@ -353,6 +356,7 @@ def build_report(
         main_worktree=main_path,
         total_worktrees=len(worktrees),
         occupancy_unreadable=occupancy.unreadable,
+        occupancy_unavailable=not occupancy.proc_available,
         remote_head_lookup_failed=remote_head_lookup_failed,
         remote_head_lookup_error=remote_head_lookup_error,
     )

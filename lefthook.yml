@@ -389,8 +389,8 @@ pre-push:
               SKIP_AUTOFIX: "1"
 
           - name: worktree-gc-report
-            timeout: 5m
-            run: uv run --frozen python scripts/maintenance/gc_worktrees.py
+            timeout: 2m
+            run: uv run --frozen python scripts/maintenance/gc_worktrees.py || echo "worktree-gc-report exited non-zero; ignored because this job is advisory (issue 4257)"
 
           - name: python-tests
             timeout: 30m
