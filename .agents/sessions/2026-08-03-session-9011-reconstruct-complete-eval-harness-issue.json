@@ -142,6 +142,14 @@
     {
       "action": "Ran scoped quality and security checks",
       "outcome": "Ruff, mypy, complexity C901, build_all --check, git diff checks, and security path detection passed; Bandit reported six pre-existing findings outside changed lines"
+    },
+    {
+      "action": "Ran the full pre-PR gate twice after refreshing origin/main",
+      "outcome": "The branch-owned taste regression was fixed in 60d124530; the remaining failure is inherited from origin/main, whose Markdown instruction corpus is 83,516 bytes against an 83,000-byte ceiling tracked by #4345"
+    },
+    {
+      "action": "Wrote the required per-issue continuation record",
+      "outcome": "Created .agents/sessions/handoffs/2026-08-03-4123-handoff.md with the inherited gate blocker and resume commands"
     }
   ],
   "endingCommit": "53531f254",
