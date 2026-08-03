@@ -5022,8 +5022,11 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
 ) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
-    head = "1" * 40
-    remote = "2" * 40
+    # Real objects, and remote an ancestor of head: the non-fast-forward guard
+    # added for issue #4293 blocks a remote tip the clone cannot resolve, so a
+    # synthetic SHA here would fail for a reason this test is not about.
+    remote = _commit_file(repo, "tracked", "base\n")
+    head = _commit_file(repo, "tracked", "head\n")
     destinations: list[str | None] = []
 
     def capture_limit(update: policy.PushUpdate, _root: Path) -> int:
