@@ -47,9 +47,20 @@ completion checks use only these values.
 | `[COMPLETE]` | Fix committed and pushed | Yes |
 | `[WONTFIX]` | Explicitly decided not to change | Yes |
 
-Non-terminal statuses (`[NEW]`, `[ACKNOWLEDGED]`) count as pending. Any unrecognized
-status also counts as pending (fail closed). Both counts use the same grep pattern:
-`grep -Ec "Status: \[NEW\]|Status: \[ACKNOWLEDGED\]|Status: pending"`.
+Comment map fields render as `**Status**: [NEW]`, so every status grep must match the
+bold field at line start. Dropping the `**` delimiters or the `^` anchor matches nothing
+and reports zero.
+
+Non-terminal statuses (`[NEW]`, `[ACKNOWLEDGED]`) count as pending. Gate 3 and Gate 5
+enumerate those two statuses. Phase 8.1 is the fail-closed backstop: it counts only the
+terminal statuses, so anything else, including a status outside this table, stays in the
+remaining count.
+
+```bash
+ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
+WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
+REMAINING=$((TOTAL - ADDRESSED - WONTFIX))
+```
 
 ## Prose Self-Check
 
