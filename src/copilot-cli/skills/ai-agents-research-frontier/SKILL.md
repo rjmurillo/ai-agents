@@ -30,7 +30,7 @@ build on it.
 
 | Rank | Program | Anchor artifacts | Status (as of 2026-07-30) | Falsifiable milestone (short form) |
 |------|---------|------------------|---------------------------|-------------------------------------|
-| 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool exists, 12 rule scenario fixtures exist | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
+| 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool exists, 15 rule scenario fixtures exist | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
 | 2 | Cross-harness abstraction | ADR-072, ADR-068, `build/generate_agents.py`, `tests/build_scripts/test_generate_hooks_runtime_contract.py` | ADR-072 PROPOSED, ADR-068 ACCEPTED as of 2026-07-30; generators and contract tests exist and run | New harness target added with zero hand-edits to generated trees, contract suite green |
 | 3 | Self-improving loop | issue #1345 hooks, `guard-maturity` tiers, `EVENT=` telemetry | Apply-step hooks unregistered; end-to-end consumer pipeline UNVERIFIED | A correction observed once auto-proposes a guard that survives calibration |
 
@@ -47,8 +47,8 @@ issue, or write-up. All commands run from the repo root.
 | ADR-072 status is Proposed with approval conditions | `sed -n '1,15p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
 | ADR-068 status is Accepted as of 2026-07-30 | `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md` |
 | Rule-activation eval exists with a no-spend path | `python3 scripts/eval/eval-rule-activation.py --help` |
-| 12 rule scenario fixtures as of 2026-07-30 | `set -- tests/evals/rule-scenarios/*; echo $#` |
-| Corpus size (98 skill directories, 25 rule files, 121 retrospective corpus files, 879 Markdown memory files as of 2026-07-30) | `set -- .claude/skills/*/; echo $#; set -- .claude/rules/*.md; echo $#; python3 -c "from pathlib import Path; print(sum(1 for p in Path('.agents/retrospective').glob('*.md') if p.is_file())); print(sum(1 for p in Path('.serena/memories').rglob('*.md') if p.is_file()))"` |
+| 15 rule scenario fixtures as of 2026-08-02 | `set -- tests/evals/rule-scenarios/*; echo $#` |
+| Corpus size (98 skill directories, 26 rule files, 132 retrospective corpus files, 931 Markdown memory files as of 2026-08-02) | `set -- .claude/skills/*/; echo $#; set -- .claude/rules/*.md; echo $#; python3 -c "from pathlib import Path; print(sum(1 for p in Path('.agents/retrospective').glob('*.md') if p.is_file())); print(sum(1 for p in Path('.serena/memories').rglob('*.md') if p.is_file()))"` |
 | Runtime contract tests pass | `uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -q` |
 | Apply-step hooks unregistered | `uv run pytest -q "tests/build_scripts/test_copilot_dispatcher_artifact.py::TestDispatcherArtifacts::test_retired_hooks_are_absent_and_keepers_are_plugin_only"` |
 
@@ -89,19 +89,19 @@ durable competitive surface and everything else is plumbing.
 
 - Prompt engineering is folklore: rules ship because they sound right, and
   almost nobody measures whether a rule changes model behavior at all.
-- Rules are unmeasured even here: this repo has 25 rule files under
-  `.claude/rules/` but only 12 scenario fixtures under
-  `tests/evals/rule-scenarios/` (as of 2026-07-30). Those fixtures name 12
-  distinct rules, so 13 of 25 rules have no activation baseline.
+- Rules are unmeasured even here: this repo has 26 rule files under
+  `.claude/rules/` but only 15 scenario fixtures under
+  `tests/evals/rule-scenarios/` (as of 2026-08-02). Those fixtures name 7
+  distinct rules, so 19 of 26 rules have no activation baseline.
 - Weight tuning is unavailable to a repository: you cannot fine-tune the vendor
   model, so context curation is the only lever, and the field has no shared
   methodology for verifying it.
 
 ### This repo's asset
 
-- 98 skill directories, 25 rule files, 121 retrospective corpus files,
-  879 Serena Markdown memory files
-  (counts as of 2026-07-30; re-verify with the Phase 1 corpus-size command).
+- 98 skill directories, 26 rule files, 132 retrospective corpus files,
+  931 Serena Markdown memory files
+  (counts as of 2026-08-02; re-verify with the Phase 1 corpus-size command).
 - Gates that produce inspectable artifacts (verification-based governance,
   SESSION-PROTOCOL.md): every rule violation leaves evidence, so compliance is
   measurable after the fact.
