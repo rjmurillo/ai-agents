@@ -28,6 +28,8 @@ def git(repo: Path, *argv: str) -> subprocess.CompletedProcess[str]:
         ["git", "-C", str(repo), *argv],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 

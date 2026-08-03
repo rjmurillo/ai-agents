@@ -29,7 +29,7 @@ Blocking the second merge is a branch-policy gate, not a code change here: the
 enforcement point chosen for issue #4057, and the alternatives rejected, are
 recorded in ``.github/AGENTS.md`` under "Ratchet Baselines and the Concurrent
 Merge Race". The regression test that proves the gate blocks lives in
-``tests/ci/test_count_ratchet_against_real_git.py``.
+``tests/ci/test_count_ratchet_concurrent_merge.py``.
 
 Stdlib only: these gates run by path in CI (``python scripts/ci/<name>.py``) and
 must not depend on the project's import graph.
