@@ -129,14 +129,15 @@ def hedge_phrases(spec_step0_gates_text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def test_step0_heading_precedes_step1_in_spec_md(
+def test_step0_in_spec_md_and_step1_in_prior_art_reference(
     spec_text: str, spec_prior_art_text: str
 ) -> None:
-    """AC-1a: the Step 0 heading appears in spec.md; Step 1 lives in the prior-art reference.
+    """AC-1a: Step 0 lives in spec.md; Step 1 lives in the prior-art reference.
 
-    After issue #3632, steps 1-9 are in spec-prior-art-schema.md. The ordering
-    contract is preserved: spec.md MUST contain the Step 0 heading, and the
-    reference file MUST contain '1. Clarify the problem.'.
+    After issue #3632, steps 1-9 moved to spec-prior-art-schema.md. The two
+    headings are now in separate files, so there is no in-file ordering left to
+    assert. What this pins is placement: spec.md MUST contain the Step 0
+    heading, and the reference file MUST contain '1. Clarify the problem.'.
     """
     step0_offset = spec_text.find("### Step 0:")
     step1_offset = spec_prior_art_text.find("1. Clarify the problem.")

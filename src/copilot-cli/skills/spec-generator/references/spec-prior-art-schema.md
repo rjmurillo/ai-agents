@@ -40,7 +40,7 @@ Halt triggers fire BEFORE the PriorArtBlock is emitted to the PRD. When any halt
 | H10 | Spec proposes changing behavior of a validator, linter, hook, or shared infrastructure component without prior-art citation in PriorArtBlock. |
 | H11 | Adjudicated blast-radius entities meet or exceed the threshold (human mode: 2; auto mode: 3). |
 
-H11 is the most common trigger; the H6-H10 set encodes Memory-First Gate's documented BLOCKING conditions (`.claude/skills/memory/SKILL.md` lines 78-85).
+H11 is the most common trigger; the H6-H10 set encodes the BLOCKING conditions documented in the `memory-gate` skill, under its Memory-First Gate section.
 
 #### Step 0.5 halt block format
 

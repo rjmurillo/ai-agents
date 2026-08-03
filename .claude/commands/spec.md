@@ -30,11 +30,11 @@ The six questions, asked in order:
 
 Write the answers as a structured block (the `## Step 0 First Principles` block) with six `### Q1..Q6` subheads, each containing the author's verbatim answer. The block flows downstream as input: Step 1 (Clarify) reads it as problem context, Step 2 (`requirements-interview`) carries it into the PRD it produces, Step 3 (Tier classification) re-validates Q4 at Tier 5, Step 6 (`spec-generator`) formalizes the PRD into durable artifacts with this block as the first section, and Step 9 (critic pre-mortem) checks that Q1/Q3/Q4 did not drift. Do not paraphrase; downstream steps depend on the verbatim answers.
 
-The pass criteria, hedge phrase validation table, script-resolution rules, kill criteria, and archival policy are in `.claude/skills/spec-generator/references/spec-step0-gates.md`.
+The pass criteria, hedge phrase validation table, script-resolution rules, kill criteria, and archival policy are in the `spec-generator` skill's `references/spec-step0-gates.md`.
 
 ### Step 0.5: Memory-First Gate (blocking, runs after Step 0)
 
-After Step 0 passes, surface the backward-looking context the proposer should have read before drafting requirements. Step 0 asks "is this work demanded?" Step 0.5 asks "do we already know why the current state is the way it is?" Both gates fire, in order. The memory skill at `.claude/skills/memory/SKILL.md` declares the Memory-First Gate as BLOCKING under the `### Memory-First Gate (BLOCKING)` section ("Before changing existing systems, you MUST..."); this section wires it into `/spec`.
+After Step 0 passes, surface the backward-looking context the proposer should have read before drafting requirements. Step 0 asks "is this work demanded?" Step 0.5 asks "do we already know why the current state is the way it is?" Both gates fire, in order. The `memory-gate` skill declares the gate as BLOCKING under its `## Memory-First Gate (BLOCKING)` section ("Before changing existing systems, you MUST..."); this section wires it into `/spec`.
 
 The gate composes three skills in sequence: `chestertons-fence` (frame: do not change without understanding why), `memory` (point-search prior decisions), `exploring-knowledge-graph` (multi-hop traversal of connected entities). Each answers a distinct question; the three layered together form the "Prior Art / Constraints" output that Step 6 carries into the PRD as its first section.
 
@@ -128,9 +128,9 @@ The blast-radius halt threshold differs by mode:
 | Human (proposer adjudicates each entity) | 2 or more |
 | Auto (whole-token equality only) | 3 or more |
 
-The halt itself, the metrics tally, and the supplemental traversal hook are defined in `.claude/skills/spec-generator/references/spec-prior-art-schema.md`.
+The halt itself, the metrics tally, and the supplemental traversal hook are defined in the `spec-generator` skill's `references/spec-prior-art-schema.md`.
 
-The PriorArtBlock output schema, halt criteria, halt block format, supplemental traversal hook, metrics tally, and process steps 1 through 9 are in `.claude/skills/spec-generator/references/spec-prior-art-schema.md`.
+The PriorArtBlock output schema, halt criteria, halt block format, supplemental traversal hook, metrics tally, and process steps 1 through 9 are in the `spec-generator` skill's `references/spec-prior-art-schema.md`.
 
    - **Check 9e, Operating-model drift (Tier 5 only)**:
      - Applies only when the spec is Tier 5 and Step 1 invoked `work-operating-model` (the "Operating Model Context" section is present in the PRD). For Tier 1-4, this check is N/A and does not gate.

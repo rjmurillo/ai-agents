@@ -152,7 +152,6 @@
     "src/copilot-cli/skills/slo-designer/SKILL.md": 2,
     "src/copilot-cli/skills/spec-generator/SKILL.md": 1,
     "src/copilot-cli/skills/spec-generator/references/spec-schemas.md": 2,
-    "src/copilot-cli/skills/spec/SKILL.md": 2,
     "src/copilot-cli/skills/steering-matcher/SKILL.md": 3,
     "src/copilot-cli/skills/stuck-detection/SKILL.md": 7,
     "src/copilot-cli/skills/style-enforcement/SKILL.md": 12,

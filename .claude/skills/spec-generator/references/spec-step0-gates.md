@@ -37,7 +37,7 @@
 | `nice to have` | low-priority aspiration |
 <!-- step0:hedge-table-end -->
 
-This table in `.claude/commands/spec.md` is the canonical source for the blocklist. The Copilot-side mirror at `src/copilot-cli/skills/spec/SKILL.md` MUST keep the Step 0 block byte-identical; `tests/commands/test_spec_step0.py::test_step0_block_identical` enforces that parity. A public, annotated mirror with the RFC 2119 exemptions, the technical-suffix exemption table, and a "how to extend the list" section is published at `docs/spec-quality/hedge-phrases.md`. Edit this table first; update the Copilot-side mirror and the public mirror in the same commit.
+This table is the canonical source for the blocklist. Two mirrors track it and MUST stay byte-identical between the `step0:hedge-table-start` and `step0:hedge-table-end` markers: the Copilot-side copy of this reference file, and the public annotated version in the `rjmurillo/ai-agents` documentation tree, which adds the RFC 2119 exemptions, the technical-suffix exemption table, and a section on extending the list. That repository's Step 0 command tests enforce the parity. Edit this table first, then update both mirrors in the same commit.
 
 Single words `should`, `might`, `could` are NOT hedges in this list. They conflict with RFC 2119 requirement language and produce false positives.
 
