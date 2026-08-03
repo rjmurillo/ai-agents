@@ -5918,6 +5918,16 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
         command = [sys.executable, "scripts/validate_session_json.py", path]
         if path not in new_logs:
             command.append("--existing-log")
+        else:
+            # New logs are committed at session start before sessionEnd items
+            # are populated. Without --creation-mode the validator enforces
+            # the full sessionEnd MUST set, which cannot be satisfied at that
+            # point, and the log is never dirty except for the log itself,
+            # so complete_session_log.py cannot mark changesCommitted either.
+            # --creation-mode skips sessionEnd compliance checks so a pristine
+            # log can be committed at session start and completed at session end.
+            # Fixes #4425.
+            command.append("--creation-mode")
         result = _run_command(command, repo_root)
         _print_process_output(result)
         failed |= result.returncode != 0

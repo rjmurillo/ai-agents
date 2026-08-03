@@ -177,6 +177,54 @@ class TestUncommittedChanges:
         mock_run.return_value = MagicMock(returncode=0, stdout="M file.py\n")
         assert complete_session_log._test_uncommitted_changes() is True
 
+    @patch("complete_session_log.subprocess.run")
+    def test_exclude_path_hides_session_log(self, mock_run):
+        """The session log being completed appears dirty in porcelain output.
+        Excluding it lets changesCommitted be set True when everything else
+        is clean. Fixes the second half of issue #4425 (changesCommitted
+        deadlock).
+
+        Git porcelain v1 format: "XY PATH" where XY are 2 status chars and
+        PATH starts at index 3. A modified-unstaged file (not yet staged)
+        shows as " M PATH" (space + M + space + path).
+        """
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=" M .agents/sessions/2026-08-03-session-0001.json\n",
+        )
+        assert (
+            complete_session_log._test_uncommitted_changes(
+                exclude_path=".agents/sessions/2026-08-03-session-0001.json"
+            )
+            is False
+        ), "Session log must be excluded from uncommitted-changes check"
+
+    @patch("complete_session_log.subprocess.run")
+    def test_exclude_path_does_not_hide_other_changes(self, mock_run):
+        """Excluding the session log must not suppress other dirty files."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=(
+                " M .agents/sessions/2026-08-03-session-0001.json\n"
+                " M scripts/validation/checks_common.py\n"
+            ),
+        )
+        assert (
+            complete_session_log._test_uncommitted_changes(
+                exclude_path=".agents/sessions/2026-08-03-session-0001.json"
+            )
+            is True
+        ), "Other dirty files must still be detected even when session log is excluded"
+
+    @patch("complete_session_log.subprocess.run")
+    def test_no_exclude_path_still_reports_dirty(self, mock_run):
+        """Cosmetic: omitting exclude_path preserves original behaviour (no regression)."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=" M .agents/sessions/2026-08-03-session-0001.json\n",
+        )
+        assert complete_session_log._test_uncommitted_changes() is True
+
 
 class TestPathContainment:
     """Tests for _validate_path_containment (CWE-22)."""

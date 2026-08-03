@@ -2138,7 +2138,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             git_hook_policy.validate_branch_sessions(["old.json"], Path.cwd())
         assert commands and "--existing-log" in commands[0]
 
-    def test_the_hook_omits_the_flag_for_a_new_log(self) -> None:
+    def test_the_hook_passes_creation_mode_for_a_new_log(self) -> None:
+        """A new session log gets --creation-mode so sessionEnd MUST checks are
+        deferred. Without this flag the hook rejects a pristine log at commit
+        time (the changesCommitted deadlock from issue #4425).
+        """
         from scripts.validation import git_hook_policy, session_scope
 
         commands: list[list[str]] = []
@@ -2153,7 +2157,9 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             mock.patch.object(session_scope, "_git", stub),
         ):
             git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
-        assert commands and "--existing-log" not in commands[0]
+        assert commands
+        assert "--creation-mode" in commands[0], "new log must get --creation-mode"
+        assert "--existing-log" not in commands[0], "new log must not get --existing-log"
 
     def test_an_empty_batch_forks_no_git_at_all(self) -> None:
         from scripts.validation import git_hook_policy, session_scope
