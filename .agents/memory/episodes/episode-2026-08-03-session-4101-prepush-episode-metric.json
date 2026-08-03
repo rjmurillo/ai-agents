@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-03-session-4101-prepush-episode-metric",
+  "session": "2026-08-03-session-4101-prepush-episode-metric",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Correct the PR 4101 episode metric so the committed episode store passes the pre-push validation gate.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected episode commits metric",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4101-prepush-episode-metric"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
