@@ -22,6 +22,12 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 12. **Distinguish a run that did nothing from a run that succeeded**. A workflow, checker, or gate that early-returns when there is no work MUST NOT report that outcome the same way it reports completed work, or the signal inverts: the job goes green exactly when it is idle and red exactly when it acts, and the failure hides inside a mostly-green history. Always print the examined count alongside the violation count: "0 violations in 381 files" is verifiable; "OK" is not. A mutation harness MUST report DID-NOT-APPLY when the target literal is absent so that a moved or renamed target does not become an undetected surviving mutant.
 13. **A PR introducing a gate MUST demonstrate the gate passing against the full corpus before merge**. A unit test over fixtures proves the checker's logic; it proves nothing about whether the existing corpus satisfies the gate. Those are separate claims and only the second determines whether main goes red. The PR body or a PR comment MUST quote the output of the gate's own command run against the full corpus on the PR branch. A gate that ships with known outstanding violations blocks every subsequent push by every contributor and must not merge. Measured cost: two violations in a single episode file blocked the entire repository for a multi-hour window after PR #4219 merged, driving three hook-bypass attempts, each of which is a policy violation under ADR-086:95-98 (Issue #4262).
 
+12. **Merge `origin/main` and re-measure before hunting a tripped count ratchet**. The count ratchets under `scripts/ci/` compare the branch's whole tree against a baseline integer that main lowers whenever main adds an exemption or clears violations. A branch behind main therefore reports an increase indistinguishable from a self-inflicted regression, and the failure text names the branch as the party that raised the baseline. Measured on PR #4055: pre-push reported `taste count ratchet: BASELINE RAISED. 601 -> 602` and `ruff count ratchet: 326 -> 329`, and `git merge origin/main` alone returned both to `601` and `326` with no source edit, because commit `aea3a49cd9` had added `# taste-lint: ignore file-size` to `tests/validation/test_check_vendor_portability.py` while the branch still carried the pre-exemption copy of that same file. PR #4109 failed `test_the_shipped_baseline_matches_the_tracked_tree` with `baseline is 602 but current tree has 603` and passed after the same merge, again with no source edit. The merge is the first diagnostic step, not the last resort. Re-fetch immediately before measuring, and treat a `main` ref fetched earlier in the same session as already stale: this repository merges several times an hour, so a long operation is enough to fall behind. Measured in one session: four branches were rebased onto a `main` fetched fifteen minutes earlier, all four then reported `602 > 601`, and the count that looked like a shared regression in main was a suppression that had landed in `c02f61ddd2` during the rebase. Re-fetching and rebasing again returned all four to `601` with no source edit. The distinguishing check is `git rev-parse main` against the remote, not a re-run of the ratchet, which reports the same number either way. A baseline MUST NOT be raised to clear a count the branch did not introduce.
+13. **Diff violations on `(file, rule)` identity, never on the rendered message**. A taste message embeds the measurement it is reporting (`File exceeds 500 lines (566 lines)`), so a text diff of two trees' violation lists reports nearly every violation as both removed and added once any file's length changes. Diffing `(file, rule)` tuples collapsed one such comparison from 16-versus-15 noise to the true signal of exactly one added violation.
+14. **Size a pre-push job's timeout for a loaded machine, not an idle one.** A script's standalone wall clock does not predict its wall clock as a lefthook job. Historical observation, 2026-08-02, on `worktree-gc-report` against a checkout holding 288 registered worktrees with 0 removal candidates: 6.83s and 11.47s standalone, against 92.87s, 94.45s, 99.48s and 101.33s across four consecutive real pushes. Those figures record one machine on one date. They establish that a gap existed and repeated within that session; they say nothing about its size on any other machine, checkout, or date, so do not carry the ratio forward as a planning number. The job wiring is a fact you can check now in `lefthook.yml`: `worktree-gc-report` carries a 2m cap inside a `parallel: true` pre-push group of 24 jobs that also holds `python-tests` and `workflow-local-run` at 30m caps. Concurrent resource contention is a plausible mechanism for the gap, not an established cause: no CPU, disk, or git-lock telemetry was collected during those pushes and no run isolated the job from the group, so the causal claim is unverified and no single resource may be reasoned from. What follows regardless of mechanism is the practice: measure a candidate cap during a real push, not a standalone run, because a cap sized on an idle run is a cap a real push can exceed, at which point a job that only reports is deciding whether code can ship.
+15. **Read `lefthook.yml` for a group's scheduling. Do not infer it from the run summary.** In four consecutive pushes recorded on 2026-08-02, the summary reported a group's duration as the sum of its jobs' durations, matching to the hundredth (1017.69, 950.28, 930.85, 926.49) while the longest single job sat well below it (818.73, 765.34, 738.28, 733.33). Those numbers are a dated observation from one session, not a measurement to re-derive. That arithmetic reads as proof of serial execution and is not: the group in question declares `parallel: true`, which `lefthook.yml` states outright and which you can check at any time. A summary that reports a sum reports it regardless of scheduling, so the identity carries no information about scheduling. Timeout and contention reasoning that rests on the summary's arithmetic instead of the config will be backwards.
+16. **A step that invokes a script with bare `python3` may import only the standard library.** `uv run --frozen python <script>` resolves the locked environment; a bare `python3 <script>` resolves the runner's ambient interpreter, and a job whose only preceding step is `actions/checkout` has installed nothing. The script's own imports, and every module it imports transitively, must therefore be stdlib. This is not a style preference: a third-party import added to such a script fails at module load, before the first line of its logic, and takes a required check red on every PR. Six steps in `ai-spec-validation.yml` are in this shape today, at lines 126, 134, 142, 191, 209, and 242, covering `spec_extract_refs.py`, `spec_load_content.py`, `spec_prepare_context.py`, `spec_external_signal_wrapper.py`, `generate_spec_report.py`, and `check_spec_failures.py`. They feed the required check `Validate Spec Coverage`. Re-derive that list with `grep -n "run: python3" .github/workflows/ai-spec-validation.yml` rather than trusting these numbers, which drift. Confirm the trap rather than trusting this paragraph: `python3 -c "import markdown_it"` fails with `ModuleNotFoundError` while `uv run --frozen python -c "import markdown_it"` succeeds, so routing `spec_extract_refs.py` through `scripts/utils/markdown_parser.py`, whose line 16 reads `from markdown_it import MarkdownIt`, wedges the gate. The failure is invisible to local testing, because a contributor runs the script under `uv` and sees it pass. Before adding an import to any script a workflow calls with bare `python3`, run it with bare `python3` yourself, or change the step to `uv run --frozen python` in the same commit.
+
 ## SHOULD
 
 1. **Thin workflows**. Workflow YAML SHOULD delegate to a testable module (ADR-006). No inline multi-step logic.
@@ -48,6 +54,41 @@ uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --update
 `scripts/ci/count_ratchet.py --update <name>` reports success and changes nothing. Verify the file afterwards rather than trusting the message.
 
 **The failure never names the offending file.** It reports a delta, and the remediation command it suggests prints the same aggregate. Locate the offender by diffing per-file counts against `origin/main`; the linter needs `--format json -- <files>` because with no file arguments it scans nothing and reports zero, which reads as a clean tree. Prove attribution instead of inferring it: `git rm --cached <suspect>` and re-run; if the ratchet returns OK, that file was the whole delta.
+
+## Path filters gate the diff, never the tree
+
+A path filter states that the verdict cannot change unless those paths change.
+That is true for a check whose input is the diff. It is false for a check that
+scores the whole tree. When the filter misses on a whole-tree check, the gated
+job is skipped and its companion skip job reports success in its place. Nothing
+is inherited from a previous run. A fresh green tick is manufactured, and it
+asserts only that the diff was uninteresting.
+
+Decide by the check's input, not by which paths look related:
+
+| Check reads | Path filter | On `push` to `main` |
+| --- | --- | --- |
+| The diff | Correct | May skip |
+| The whole tree | Wrong on the mainline | MUST run |
+
+Delete the filter, do not force one event past it. `instruction-budget.yml`
+now runs one unconditional job. Forcing only `push` leaves every PR
+unmeasured, so two PRs each green against their own base still merge to a
+breaching union. `determine_should_run_from_filters.py` still reads
+`FORCE_RUN_EVENTS` for a diff-shaped check that wants a mainline run; no
+workflow uses it today.
+
+Do not reach for the concurrency group instead. Within one group GitHub keeps
+one run in flight and one queued, and a newly queued run cancels the previously
+queued one whatever `cancel-in-progress` says; that setting governs only the
+running run. Measured 2026-08-02: 21 commits to `main` in 45 seconds produced 20
+cancelled runs, each with `jobs=0` and a lifetime of 2 to 5 seconds.
+
+Cancellation alone is survivable for a whole-tree check, because the surviving
+run measures the tree as it now stands and nobody needs the intermediate states.
+It stopped being survivable because the survivor also skipped on the path
+filter. That window produced zero measurements and one green tick on a tree 201
+bytes over its ceiling.
 
 ## References
 

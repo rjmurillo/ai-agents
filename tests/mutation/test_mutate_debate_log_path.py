@@ -47,7 +47,11 @@ _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
 def _run_tests() -> subprocess.CompletedProcess[str]:
     cmd = [sys.executable, "-m", "pytest", "--tb=short", "-q", *TESTS]
     return subprocess.run(
-        cmd, cwd=str(REPO_ROOT), capture_output=True, text=True, encoding="utf-8"
+        cmd,
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
     )
 
 

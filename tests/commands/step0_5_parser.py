@@ -476,7 +476,7 @@ def extract_step9_block(spec_text: str) -> str:
     extractor.
     """
     step9_match = re.search(
-        r"^9\. .*?(?=^## Evaluation Axes)",
+        r"^9\. .*?(?=^## Evaluation Axes|\Z)",
         spec_text,
         re.DOTALL | re.MULTILINE,
     )

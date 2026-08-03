@@ -11,11 +11,12 @@ These rules apply to every change in this repository.
 
 1. **Branch discipline**. MUST NOT push or commit directly to `main` or `master`. Create a feature branch first.
 2. **Issue linkage**. Every PR MUST reference an issue with `Fixes #<n>` or `Refs #<n>` in the description.
-3. **Conventional commits**. Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
-4. **Atomic commits**. Each commit MUST touch five or fewer authored files (see `AGENTS.md` boundaries). Hook-generated companions (session episodes, MCP config, agent catalog, memory index) are exempt and do not count toward the limit.
-5. **No secrets**. MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
-6. **Pin Actions to SHA**. New GitHub Actions references MUST pin to a commit SHA, never a floating tag.
-7. **Session log**. Long-running work MUST have a session log under `.agents/sessions/` per `.agents/SESSION-PROTOCOL.md`.
+3. **Verify every closing keyword against the diff before merging.** `Fixes #<n>` is an instruction to GitHub, not a note to the reader: merging executes it whether or not the diff does the work. Confirm each claimed issue is actually closed by the diff, and downgrade the rest to `Refs #<n>` with the reason in the body. A claim is supported only when you can name the hunk. Measured 2026-08-03 across five PRs: 15 keywords failed this check, including two already-closed issues and one whose fix lived in another PR. The failure is silent and inverts the signal, since the backlog shrinks exactly as it becomes less accurate.
+4. **Conventional commits**. Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
+5. **Atomic commits**. Each commit MUST touch five or fewer authored files (see `AGENTS.md` boundaries). Hook-generated companions (session episodes, MCP config, agent catalog, memory index) are exempt and do not count toward the limit.
+6. **No secrets**. MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
+7. **Pin Actions to SHA**. New GitHub Actions references MUST pin to a commit SHA, never a floating tag.
+8. **Session log**. Long-running work MUST have a session log under `.agents/sessions/` per `.agents/SESSION-PROTOCOL.md`.
 
 ## SHOULD
 
@@ -54,6 +55,10 @@ These rules apply to every change in this repository.
    `tests/hooks/fixtures/` are exempt because they intentionally carry the
    prohibited bytes to exercise detection logic; the dash-guard hook and the
    `validate_dash_prohibition` validator both skip that prefix. Refs Issue #1923.
+   **Quotations**: the ban still applies inside external quotes. If a quoted
+   span or title has a prohibited dash, do not rewrite it. End the quote before
+   it, use `[...]`, or split the quote and explain the dash's job in your prose.
+   Refs Issue #4079.
 6. MUST NOT add auto-generated headers, generation timestamps, or "do not edit"
    comments to any file (agent prompts, documentation, code, template outputs).
    Generated output must be indistinguishable from hand-written content:

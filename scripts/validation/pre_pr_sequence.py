@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size
-#
-# file-size suppression rationale: this module is a registration sequence, not
-# logic. It holds one function whose body is 48 ordered ``run_validation``
-# calls, so its line count tracks how many gates the project has, not how hard
-# the module is to read. The rule's own remediation (extract helpers) does not
-# apply: the docstring below records that this file was itself extracted from
-# ``pre_pr.py`` for the same ceiling, which reset the count without reducing
-# anything. A second extraction would do the same. The real fix is a
-# table-driven registry (issue #4285), which is out of scope for the change
-# that crossed the line.
 """Ordered pre-PR validation sequence (extracted from ``pre_pr.py``, Issue #3073).
 
-Holds ``run_all_validations``: the ordered list of ``run_validation`` calls that
-``pre_pr.main()`` used to inline. Extracted so ``pre_pr.py`` stays under the
-module size ceiling while a new governance gate is added.
+Holds ``run_all_validations``: the ordered list of gates that ``pre_pr.main()``
+used to inline. Extracted so ``pre_pr.py`` stays under the module size ceiling
+while a new governance gate is added.
+
+The sequence is data. ``_SEQUENCE`` is a tuple of ``_Gate`` rows read top to
+bottom by one loop, so ordering is visible as a list rather than inferred from
+408 lines of call sites (issue #4285). Adding a gate is a one-line edit, and the
+module's length now tracks how many gates exist without pretending to measure
+complexity.
 
 Validators are imported directly from the ``checks_*`` sibling modules, not from
 ``pre_pr``: ``pre_pr`` runs as ``__main__`` when invoked as a script, so
@@ -27,6 +23,7 @@ from __future__ import annotations
 
 import os
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -47,6 +44,7 @@ from checks_coverage import (  # noqa: E402
 )
 from checks_dash import validate_dash_prohibition  # noqa: E402
 from checks_plugin import (  # noqa: E402
+    validate_agent_content_parity,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
     validate_install_parity,
@@ -110,6 +108,207 @@ class _ValidationStateLike(Protocol):
     skipped: int
 
 
+@dataclass(frozen=True)
+class _Gate:
+    """One row of the ordered sequence.
+
+    ``run`` receives the repo root and the parsed CLI namespace and returns the
+    validator's pass/fail. Taking both keeps every row the same shape, so the
+    three gates that need more than a repo root do not need a second mechanism.
+
+    ``skip_when_quick`` maps to ``run_validation(..., skip=...)``, which records a
+    SKIP result. ``skip_flag`` is different: it names an ``args`` attribute that,
+    when truthy, bypasses ``run_validation`` entirely and only bumps the totals.
+    Only ``--skip-tests`` behaves that way, and it predates the SKIP record.
+    """
+
+    name: str
+    run: Callable[[Path, argparse.Namespace], bool]
+    skip_when_quick: bool = False
+    skip_flag: str | None = None
+    skip_note: str = ""
+    notes: str = field(default="", repr=False)
+
+
+def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
+    """Adapt a ``validate_x(repo_root)`` validator to the uniform gate signature."""
+
+    def _run(repo_root: Path, _args: argparse.Namespace) -> bool:
+        return validator(repo_root)
+
+    return _run
+
+
+def _run_pester(repo_root: Path, args: argparse.Namespace) -> bool:
+    return validate_pester_tests(repo_root, args.verbose)
+
+
+def _run_orphaned_build_deferrals(repo_root: Path, _args: argparse.Namespace) -> bool:
+    """Honor ``GH_REPO`` so the gate can run against a different upstream.
+
+    The validator keeps the canonical default when ``GH_REPO`` is unset, so the
+    override is passed positionally only when the environment supplies one.
+    """
+    deferral_repo = os.environ.get("GH_REPO")
+    return validate_no_orphaned_build_deferrals(
+        repo_root / "build" / "scripts" / "build_all.py",
+        *([deferral_repo] if deferral_repo else []),
+    )
+
+
+def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) -> bool:
+    """Import lazily; ``run_validation`` turns any raise into a recorded failure.
+
+    The previous shape wrapped both the import and the ``run_validation`` call in
+    one ``try``, so a raise from the runner would have run the gate a second time
+    and double-counted ``state.total``. Importing inside the callback keeps the
+    failure path to one record and reports the real import error rather than a
+    fixed string.
+    """
+    from checks_copilot import validate_copilot_routing_exclusions
+
+    return validate_copilot_routing_exclusions(repo_root)
+
+
+_SEQUENCE: tuple[_Gate, ...] = (
+    # Blocking parse gate over every tracked .py file (issue #2655). A
+    # SyntaxError in a hook module wedges the CLI (the PreToolUse dispatcher
+    # fails closed on import), and ruff/pytest never caught PR #2640 because
+    # ruff is advisory and nothing imports those modules. Runs first and fast so
+    # the cheapest, highest-impact defect is caught before anything slower.
+    _Gate("Python Syntax (compile gate)", _root_only(validate_python_syntax)),
+    # Second so the cheapest push-blocking signal arrives first. See the
+    # checks_ratchet module docstring for why these run here (issue #4251).
+    _Gate("Count Ratchets", _root_only(validate_count_ratchets)),
+    _Gate("Nested Test Detection", _root_only(validate_no_nested_tests)),
+    _Gate("Duplicate Test Helper Detection", _root_only(validate_duplicate_test_helpers)),
+    _Gate("Unreachable Code Detection", _root_only(validate_unreachable_code)),
+    _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
+    _Gate("Session End Validation", _root_only(validate_session_end)),
+    _Gate(
+        "Pester Unit Tests",
+        _run_pester,
+        skip_flag="skip_tests",
+        skip_note="skipped via --skip-tests",
+    ),
+    _Gate("Markdown Linting", _root_only(validate_markdown_lint)),
+    _Gate("Workflow YAML Validation", _root_only(validate_workflow_yaml)),
+    # Fails when the pinned @github/copilot version is missing, unparseable, or
+    # known-bad (0.0.397). Issue #2630.
+    _Gate("Copilot CLI Version Pin", _root_only(validate_copilot_version_pin)),
+    # Fails when a hand-written pkg==version literal under .github/ contradicts
+    # the pyproject constraint for that package (issue #3377). Two pytest pins
+    # disagreed and one sat a major below the declared floor; a review then
+    # proposed aligning the correct one down.
+    _Gate("CI Dependency Pins", _root_only(validate_ci_dependency_pins)),
+    _Gate("Design Review Frontmatter", _root_only(validate_design_review_frontmatter)),
+    # PR #1887 retrospective, Layer 2.
+    _Gate("Build Command Exit Gates", _root_only(validate_build_gates)),
+    # Fails when live docs command a removed script (issue #2916), the
+    # PowerShell-to-Python migration regression behind issues #2914 and #2915.
+    _Gate("Stale Script References", _root_only(validate_stale_script_refs)),
+    # Fails when a live doc tells a contributor to run a script with third-party
+    # imports under a bare `python3`, which dies with ModuleNotFoundError on a
+    # clean checkout. Issue #3791.
+    _Gate("Documented Interpreter Portability", _root_only(validate_doc_interpreter_portability)),
+    # Fails when a staleness-deferral exemption in build_all.py cites a CLOSED
+    # tracking issue, the orphan signature that hid stale mirrors before #2780.
+    # Issue #2770.
+    _Gate("Orphaned Build Deferrals", _run_orphaned_build_deferrals),
+    _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
+    _Gate("Traceability", _root_only(validate_traceability)),
+    # No new hard-coded upstream-only paths (issue #2050).
+    _Gate("Vendor Portability", _root_only(validate_vendor_portability)),
+    # The same rule over .md path refs (issue #2050).
+    _Gate("Skill Markdown Portability", _root_only(validate_skill_md_portability)),
+    # Skill dir with tracked content but no SKILL.md (issue #2677). Catches an
+    # "invisible" skill the catalog still counts after a prune removed its
+    # SKILL.md but left tracked files behind.
+    _Gate("Skill Shell Detection", _root_only(validate_skill_shells)),
+    # Fails when a multi-member leading-token skill family lacks a well-formed
+    # route to a real sibling. Issue #3484.
+    _Gate("Skill SKIP Clause Routing", _root_only(validate_skill_skip_clauses)),
+    # Ratchet (issue #3457). Fails when a rule or skill has no activation
+    # scenario and is not baselined, or when a scenario points at a deleted
+    # artifact. Fail-closed on any config or structural fault so an unmeasured
+    # artifact never reads as clean.
+    _Gate("Rule Activation Coverage", _root_only(validate_rule_activation_coverage)),
+    # Copilot shipped skills must not route to an excluded skill name
+    # (templates/platforms/copilot-cli.yaml).
+    _Gate("Copilot Routing Exclusions", _run_copilot_routing_exclusions),
+    _Gate("Sync Registry Provenance", _root_only(validate_sync_registry)),  # Issue #1909
+    # docs/agent-catalog.md vs templates/agents/ (issue #1904).
+    _Gate("Agent Catalog Drift", _root_only(validate_agent_catalog)),
+    # Fails when a routing table in a shipped tree points at a skill that tree
+    # does not ship. Issue #2026 coordination drift.
+    _Gate("Shipped Skill Routes", _root_only(validate_shipped_skill_routes)),
+    # Heuristic; soft warn unless STRICT_CANONICAL_CHECK=1. PR #1887
+    # retrospective, Layer 4.
+    _Gate("Canonical Citation Check", _root_only(validate_canonical_citations)),
+    # Fails when a backtick path citation in .claude/commands/pr-quality/all.md
+    # points to a file that no longer exists. Issue #1966.
+    _Gate("Orchestrator Citation Check", _root_only(validate_orchestrator_citations)),
+    # Branch-wide em/en-dash check (issue #1923, REQ-006-AC7).
+    _Gate("Em/en-dash Prohibition", _root_only(validate_dash_prohibition)),
+    # Advisory (issue #1920). Catches the PR #1897 round-7 loop (linked issue
+    # claims one model tier, committed agent frontmatter ships another) locally
+    # instead of after each push.
+    _Gate("Spec Contradiction Check", _root_only(validate_spec_contradiction)),
+    # ADR-080, warn mode (issue #3073). Advisory gate wrapping
+    # check_model_pins.py --mode warn. Surfaces unpinned or mismatched model
+    # references locally; warn mode never blocks (enforcement stays in CI), but a
+    # config error (exit 2) still fails.
+    _Gate("Model Pin Governance (warn)", _root_only(validate_model_pins)),
+    # Advisory warning when every tracking issue on an active execution plan is
+    # closed, so stale plans do not silently refill .agents/plans/active/.
+    # Issue #3426.
+    _Gate("Active Plan Closeout Advisory", _root_only(validate_active_plan_closeout)),
+    _Gate("YAML Style Validation", _root_only(validate_yaml_style), skip_when_quick=True),
+    _Gate("Path Normalization", _root_only(validate_path_normalization), skip_when_quick=True),
+    _Gate("Planning Artifacts", _root_only(validate_planning_artifacts), skip_when_quick=True),
+    _Gate("Agent Drift Detection", _root_only(validate_agent_drift), skip_when_quick=True),
+    # Changed-together sibling check; cheap, always on.
+    _Gate("Install Parity (agents and rules)", _root_only(validate_install_parity)),
+    # validate_install_parity checks co-change; it does not compare on-disk
+    # content. This gate catches drift that already exists regardless of what
+    # changed in the current PR. Issue #4082.
+    _Gate(
+        "Agent Content Parity (.claude/agents vs src/claude)",
+        _root_only(validate_agent_content_parity),
+    ),
+    # A source change requires a plugin.json bump (issue #2118).
+    _Gate("Plugin Version Bump", _root_only(validate_plugin_version_bump)),
+    # Claude and Copilot plugin hooks.json must anchor to the plugin root. Bare
+    # paths regressed Copilot CLI in #2205, and the same trap exists on Claude.
+    _Gate("Hook Anchoring (Claude + Copilot)", _root_only(validate_hook_anchoring)),
+    # Copilot agent frontmatter must parse as YAML (#2491 through #2496): an
+    # unquoted description embedding colon-bearing examples makes Copilot fail to
+    # load the agent.
+    _Gate("Copilot Agent Frontmatter", _root_only(validate_copilot_agent_frontmatter)),
+    # Argument-hint frontmatter must be a bracket-safe string scalar: adjacent
+    # optional groups (e.g. ``[a] [b]``) make Copilot CLI parse separate flow
+    # nodes. Canonical CI source: .github/workflows/validate-generated-agents.yml,
+    # step "Validate Copilot agent frontmatter (issues #2491-#2497, #2500)", which
+    # runs doc-interpreter-portability: verbatim CI quote; CI installs deps
+    # system-wide verbatim: ``python3 scripts/validation/validate_argument_hint.py``.
+    # This local check calls validate_argument_hint() over the same default scan
+    # surface.
+    _Gate("Argument-Hint Frontmatter", _root_only(validate_argument_hint)),
+    # Local clones must dispatch repository guardrails. Skipped under CI, where
+    # workflows invoke validation directly.
+    _Gate("Lefthook Installed", _root_only(validate_lefthook_installed)),
+    # actionlint plus gh act dry-run for changed workflows.
+    _Gate("Workflow Local Run", _root_only(validate_workflow_local_run)),
+    # Advisory by default; /ship blocks (issue #1938). Reports whether HEAD
+    # carries a SHA-bound Reviewed-By: /review@... marker.
+    _Gate("Review Marker (SHA-bound /review)", _root_only(validate_review_marker)),
+    # Always-on non-regression ratchet (issue #3419) on the summed bytes of
+    # language-universal .github/instructions/*.instructions.md files, so the
+    # always-on corpus cannot grow silently on a new all-language rule.
+    _Gate("Instruction Budget (always-on)", _root_only(validate_instruction_budget)),
+)
+
+
 def run_all_validations(
     repo_root: Path,
     args: argparse.Namespace,
@@ -121,400 +320,19 @@ def run_all_validations(
     ``run_validation`` and ``state`` are owned by ``pre_pr.main()`` and injected
     to avoid importing ``pre_pr`` (which runs as ``__main__``). ``args`` supplies
     the CLI flags (``quick``, ``skip_tests``, ``verbose``) the sequence reads.
+
+    The order is ``_SEQUENCE``. Read that table, not this loop.
     """
-    quick = args.quick
-
-    # 0. Python Syntax (issue #2655). Blocking parse gate over every tracked
-    # .py file. A SyntaxError in a hook module wedges the CLI (PreToolUse
-    # dispatcher fails closed on import), and ruff/pytest never caught PR #2640
-    # because ruff is advisory and nothing imports those modules. Runs first
-    # and fast so the cheapest, highest-impact defect is caught before anything
-    # slower.
-    run_validation(
-        "Python Syntax (compile gate)",
-        state,
-        lambda: validate_python_syntax(repo_root),
-    )
-
-    # Placed second so the cheapest push-blocking signal arrives first. See the
-    # checks_ratchet module docstring for why these run here (issue #4251).
-    run_validation(
-        "Count Ratchets",
-        state,
-        lambda: validate_count_ratchets(repo_root),
-    )
-
-    run_validation(
-        "Nested Test Detection",
-        state,
-        lambda: validate_no_nested_tests(repo_root),
-    )
-
-    run_validation(
-        "Duplicate Test Helper Detection",
-        state,
-        lambda: validate_duplicate_test_helpers(repo_root),
-    )
-
-    run_validation(
-        "Unreachable Code Detection",
-        state,
-        lambda: validate_unreachable_code(repo_root),
-    )
-
-    run_validation(
-        "Test Working Tree Writes",
-        state,
-        lambda: validate_test_tree_writes(repo_root),
-    )
-
-    # 1. Session End
-    run_validation(
-        "Session End Validation",
-        state,
-        lambda: validate_session_end(repo_root),
-    )
-
-    # 2. Pester Tests
-    if not args.skip_tests:
-        run_validation(
-            "Pester Unit Tests",
-            state,
-            lambda: validate_pester_tests(repo_root, args.verbose),
-        )
-    else:
-        print("[SKIP] Pester Unit Tests (skipped via --skip-tests)")
-        state.total += 1
-        state.skipped += 1
-
-    # 3. Markdown Lint
-    run_validation(
-        "Markdown Linting",
-        state,
-        lambda: validate_markdown_lint(repo_root),
-    )
-
-    # 3.5 Workflow YAML
-    run_validation(
-        "Workflow YAML Validation",
-        state,
-        lambda: validate_workflow_yaml(repo_root),
-    )
-
-    # 3.55 Copilot CLI Version Pin (Issue #2630). Fails when the pinned
-    # @github/copilot version is missing, unparseable, or known-bad (0.0.397).
-    run_validation(
-        "Copilot CLI Version Pin",
-        state,
-        lambda: validate_copilot_version_pin(repo_root),
-    )
-
-    # 3.57 CI Dependency Pins (Issue #3377). Fails when a hand-written
-    # pkg==version literal under .github/ contradicts the pyproject constraint
-    # for that package. Two pytest pins disagreed and one sat a major below the
-    # declared floor; a review then proposed aligning the correct one down.
-    run_validation(
-        "CI Dependency Pins",
-        state,
-        lambda: validate_ci_dependency_pins(repo_root),
-    )
-
-    # 3.6 Design Review Frontmatter
-    run_validation(
-        "Design Review Frontmatter",
-        state,
-        lambda: validate_design_review_frontmatter(repo_root),
-    )
-
-    # 3.7 Build Command Exit Gates (PR #1887 retrospective Layer 2)
-    run_validation(
-        "Build Command Exit Gates",
-        state,
-        lambda: validate_build_gates(repo_root),
-    )
-
-    # 3.71 Stale script refs (Issue #2916). Fails when live docs command a
-    # removed script, the PowerShell-to-Python migration regression behind
-    # issues #2914 and #2915.
-    run_validation(
-        "Stale Script References",
-        state,
-        lambda: validate_stale_script_refs(repo_root),
-    )
-
-    # 3.715 Documented interpreter portability (Issue #3791). Fails when a live
-    # doc tells a contributor to run a script with third-party imports under a
-    # bare `python3`, which dies with ModuleNotFoundError on a clean checkout.
-    run_validation(
-        "Documented Interpreter Portability",
-        state,
-        lambda: validate_doc_interpreter_portability(repo_root),
-    )
-
-    # 3.72 Orphaned build_all --check deferrals (Issue #2770). Fails when a
-    # staleness-deferral exemption in build_all.py cites a CLOSED tracking
-    # issue, the orphan signature that hid stale mirrors before #2780. Honor
-    # GH_REPO so the gate can run against a different upstream without code edits;
-    # the validator keeps the canonical default when GH_REPO is unset.
-    deferral_repo = os.environ.get("GH_REPO")
-    run_validation(
-        "Orphaned Build Deferrals",
-        state,
-        lambda: validate_no_orphaned_build_deferrals(
-            repo_root / "build" / "scripts" / "build_all.py",
-            *([deferral_repo] if deferral_repo else []),
-        ),
-    )
-
-    # 3.75 Spec ID Uniqueness (Issue #2068)
-    run_validation(
-        "Spec ID Uniqueness",
-        state,
-        lambda: validate_spec_id_uniqueness(repo_root),
-    )
-
-    run_validation(
-        "Traceability",
-        state,
-        lambda: validate_traceability(repo_root),
-    )
-
-    # 3.76 Vendor Portability (no new hard-coded upstream-only paths; Issue #2050)
-    run_validation(
-        "Vendor Portability",
-        state,
-        lambda: validate_vendor_portability(repo_root),
-    )
-
-    # 3.765 Skill Markdown Vendor Portability (.md path refs; Issue #2050)
-    run_validation(
-        "Skill Markdown Portability",
-        state,
-        lambda: validate_skill_md_portability(repo_root),
-    )
-
-    # 3.766 Skill Shell Detection (skill dir with tracked content but no
-    # SKILL.md; Issue #2677). Catches an "invisible" skill the catalog still
-    # counts after a prune removed its SKILL.md but left tracked files behind.
-    run_validation(
-        "Skill Shell Detection",
-        state,
-        lambda: validate_skill_shells(repo_root),
-    )
-
-    # 3.767 Skill SKIP clauses (Issue #3484). Fails when a multi-member
-    # leading-token skill family lacks a well-formed route to a real sibling.
-    run_validation(
-        "Skill SKIP Clause Routing",
-        state,
-        lambda: validate_skill_skip_clauses(repo_root),
-    )
-
-    # 3.768 Rule and Skill Activation Coverage (ratchet; Issue #3457). Fails
-    # when a rule or skill has no activation scenario and is not baselined, or
-    # when a scenario points at a deleted artifact. Fail-closed on any config
-    # or structural fault so an unmeasured artifact never reads as clean.
-    run_validation(
-        "Rule Activation Coverage",
-        state,
-        lambda: validate_rule_activation_coverage(repo_root),
-    )
-
-    # 3.769 Copilot Routing Exclusions: ensure Copilot shipped skills do not
-    # route to an excluded skill name (templates/platforms/copilot-cli.yaml)
-    try:
-        from checks_copilot import validate_copilot_routing_exclusions
+    for gate in _SEQUENCE:
+        if gate.skip_flag is not None and getattr(args, gate.skip_flag, False):
+            print(f"[SKIP] {gate.name} ({gate.skip_note})")
+            state.total += 1
+            state.skipped += 1
+            continue
 
         run_validation(
-            "Copilot Routing Exclusions",
+            gate.name,
             state,
-            lambda: validate_copilot_routing_exclusions(repo_root),
+            lambda g=gate: g.run(repo_root, args),
+            skip=gate.skip_when_quick and args.quick,
         )
-    except Exception:
-        # Import errors should not break the runner; surface as a failure
-        run_validation(
-            "Copilot Routing Exclusions",
-            state,
-            lambda: (_ for _ in ()).throw(Exception("Failed to import copilot checks")),
-        )
-
-    # 3.77 Sync Registry Provenance (Issue #1909)
-    run_validation(
-        "Sync Registry Provenance",
-        state,
-        lambda: validate_sync_registry(repo_root),
-    )
-
-    # 3.78 Agent Catalog Drift (docs/agent-catalog.md vs templates/agents/; #1904)
-    run_validation(
-        "Agent Catalog Drift",
-        state,
-        lambda: validate_agent_catalog(repo_root),
-    )
-
-    # 3.79 Shipped Skill Routes (Issue #2026 coordination drift). Fails when a
-    # routing table in a shipped tree points at a skill that tree does not ship.
-    run_validation(
-        "Shipped Skill Routes",
-        state,
-        lambda: validate_shipped_skill_routes(repo_root),
-    )
-
-    # 3.8 Canonical Citation Check (heuristic; soft warn unless
-    # STRICT_CANONICAL_CHECK=1; PR #1887 retrospective Layer 4)
-    run_validation(
-        "Canonical Citation Check",
-        state,
-        lambda: validate_canonical_citations(repo_root),
-    )
-
-    # 3.82 Orchestrator Citation Check (Issue #1966). Fails when a backtick
-    # path citation in .claude/commands/pr-quality/all.md points to a file
-    # that no longer exists.
-    run_validation(
-        "Orchestrator Citation Check",
-        state,
-        lambda: validate_orchestrator_citations(repo_root),
-    )
-
-    # 3.85 Em/en-dash branch-wide check (Issue #1923, REQ-006-AC7)
-    run_validation(
-        "Em/en-dash Prohibition",
-        state,
-        lambda: validate_dash_prohibition(repo_root),
-    )
-
-    # 3.87 Spec Contradiction Check (advisory; Issue #1920). Catches the
-    # PR #1897 round-7 loop (linked issue claims one model tier, committed
-    # agent frontmatter ships another) locally instead of after each push.
-    run_validation(
-        "Spec Contradiction Check",
-        state,
-        lambda: validate_spec_contradiction(repo_root),
-    )
-
-    # 3.88 Model Pin Governance (ADR-080, warn mode; Issue #3073). Advisory
-    # gate wrapping check_model_pins.py --mode warn. Surfaces unpinned or
-    # mismatched model references locally; warn mode never blocks (enforcement
-    # stays in CI), but a config error (exit 2) still fails.
-    run_validation(
-        "Model Pin Governance (warn)",
-        state,
-        lambda: validate_model_pins(repo_root),
-    )
-
-    # 3.89 Active Plan Closeout (Issue #3426). Advisory warning when every
-    # tracking issue on an active execution plan is closed, so stale plans do
-    # not silently refill .agents/plans/active/.
-    run_validation(
-        "Active Plan Closeout Advisory",
-        state,
-        lambda: validate_active_plan_closeout(repo_root),
-    )
-
-    # 3.9 YAML Style (skip if quick)
-    run_validation(
-        "YAML Style Validation",
-        state,
-        lambda: validate_yaml_style(repo_root),
-        skip=quick,
-    )
-
-    # 4. Path Normalization (skip if quick)
-    run_validation(
-        "Path Normalization",
-        state,
-        lambda: validate_path_normalization(repo_root),
-        skip=quick,
-    )
-
-    # 5. Planning Artifacts (skip if quick)
-    run_validation(
-        "Planning Artifacts",
-        state,
-        lambda: validate_planning_artifacts(repo_root),
-        skip=quick,
-    )
-
-    # 6. Agent Drift (skip if quick)
-    run_validation(
-        "Agent Drift Detection",
-        state,
-        lambda: validate_agent_drift(repo_root),
-        skip=quick,
-    )
-
-    # 6b. Install Parity (changed-together sibling check; cheap, always on)
-    run_validation(
-        "Install Parity (agents and rules)",
-        state,
-        lambda: validate_install_parity(repo_root),
-    )
-
-    # 6c. Plugin Version Bump (source change requires a plugin.json bump; #2118)
-    run_validation(
-        "Plugin Version Bump",
-        state,
-        lambda: validate_plugin_version_bump(repo_root),
-    )
-
-    # 6c2. Hook Anchoring (Claude + Copilot plugin hooks.json must anchor to the
-    # plugin root; bare paths regressed Copilot CLI in #2205, same trap on Claude)
-    run_validation(
-        "Hook Anchoring (Claude + Copilot)",
-        state,
-        lambda: validate_hook_anchoring(repo_root),
-    )
-
-    # 6c3. Copilot agent frontmatter must parse as YAML (#2491-#2496): an unquoted
-    # description embedding colon-bearing examples makes Copilot fail to load the agent.
-    run_validation(
-        "Copilot Agent Frontmatter",
-        state,
-        lambda: validate_copilot_agent_frontmatter(repo_root),
-    )
-
-    # 6c4. Argument-hint frontmatter must be a bracket-safe string scalar: adjacent
-    # optional groups (e.g. ``[a] [b]``) make Copilot CLI parse separate flow nodes.
-    # Canonical CI source: .github/workflows/validate-generated-agents.yml, step
-    # "Validate Copilot agent frontmatter (issues #2491-#2497, #2500)", which runs
-    # doc-interpreter-portability: verbatim CI quote; CI installs deps system-wide
-    # verbatim: ``python3 scripts/validation/validate_argument_hint.py``. This local
-    # check calls validate_argument_hint() over the same default scan surface.
-    run_validation(
-        "Argument-Hint Frontmatter",
-        state,
-        lambda: validate_argument_hint(repo_root),
-    )
-
-    # 6d. Lefthook Installed (local clones must dispatch repository guardrails).
-    # Skipped under CI, where workflows invoke validation directly.
-    run_validation(
-        "Lefthook Installed",
-        state,
-        lambda: validate_lefthook_installed(repo_root),
-    )
-
-    # 6e. Workflow Local Run (actionlint + gh act dry-run for changed workflows)
-    run_validation(
-        "Workflow Local Run",
-        state,
-        lambda: validate_workflow_local_run(repo_root),
-    )
-
-    # 7. Review Marker (advisory by default; /ship blocks, Issue #1938).
-    # Reports whether HEAD carries a SHA-bound Reviewed-By: /review@... marker.
-    run_validation(
-        "Review Marker (SHA-bound /review)",
-        state,
-        lambda: validate_review_marker(repo_root),
-    )
-
-    # 7c. Instruction Budget (always-on, Issue #3419). Non-regression ratchet on
-    # the summed bytes of language-universal .github/instructions/*.instructions.md files, so
-    # the always-on corpus cannot grow silently on a new all-language rule.
-    run_validation(
-        "Instruction Budget (always-on)",
-        state,
-        lambda: validate_instruction_budget(repo_root),
-    )

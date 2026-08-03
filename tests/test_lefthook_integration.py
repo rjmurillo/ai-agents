@@ -764,6 +764,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "extract-session-episodes",
         "commit-file-count",
         "memory-size",
+        "taste-advisory",
     }
     pure_jobs = {
         "action-pin-policy",
@@ -779,7 +780,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "memory-tier",
         "memory-skill-format",
         "adr-review-policy",
-        "taste-advisory",
     }
     for name in merge_exempt_jobs:
         skip = pre_commit_jobs[name].get("skip", [])
@@ -2442,18 +2442,26 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
         calls.append(list(args))
         return _completed(0)
 
+    # `build` is a generated command mirror because .claude/commands/build.md
+    # exists; `hand-written` sits in the same directory with no command source,
+    # so it is an authored skill and must still reach the validator.
+    commands = tmp_path / ".claude" / "commands"
+    commands.mkdir(parents=True)
+    (commands / "build.md").write_text("# build\n", encoding="utf-8")
+
     monkeypatch.setattr(policy, "_run_command", fake_run)
     result = policy.run_skillforge(
         [
             "evals/example/SKILL.md",
             "src/copilot-cli/skills/build/SKILL.md",
+            "src/copilot-cli/skills/hand-written/SKILL.md",
             ".claude/skills/real-skill/SKILL.md",
         ],
         tmp_path,
     )
 
     # Fixtures and command mirrors are skipped before any subprocess runs, so
-    # the only skill that reaches SkillForge is the real one. The
+    # the skills that reach SkillForge are the authored ones. The
     # frontmatter-only exemption probes HEAD and index blobs via _run_command
     # first, so filter to the validator invocation rather than counting every
     # subprocess call.
@@ -2461,8 +2469,60 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
         call for call in calls if any("validate-skill.py" in str(arg) for arg in call)
     ]
     assert result == 0
-    assert len(validate_calls) == 1
-    assert validate_calls[0][-1] == ".claude/skills/real-skill"
+    assert [call[-1] for call in validate_calls] == [
+        "src/copilot-cli/skills/hand-written",
+        ".claude/skills/real-skill",
+    ]
+
+
+def test_skillforge_mirror_skip_is_derived_from_the_commands_directory(
+    tmp_path: Path,
+) -> None:
+    """The mirror set has one source of truth: .claude/commands/<name>.md.
+
+    Enumerating names in lefthook.yml and again in git_hook_policy.py is what
+    let the two lists drift (9 of 14 in one, 14 in the other).
+    """
+    commands = tmp_path / ".claude" / "commands"
+    commands.mkdir(parents=True)
+    (commands / "research.md").write_text("# research\n", encoding="utf-8")
+
+    # Positive: a mirror whose command source exists is skipped.
+    assert (
+        policy._skip_skillforge_path("src/copilot-cli/skills/research/SKILL.md", tmp_path) is True
+    )
+    # Positive: eval fixtures are skipped regardless of the commands directory.
+    assert policy._skip_skillforge_path("evals/example/SKILL.md", tmp_path) is True
+
+    # Negative: no command source, so the skill is authored and stays gated.
+    assert (
+        policy._skip_skillforge_path("src/copilot-cli/skills/analyze/SKILL.md", tmp_path) is False
+    )
+    # Negative: the Claude tree is never a mirror, even for a command name.
+    assert policy._skip_skillforge_path(".claude/skills/research/SKILL.md", tmp_path) is False
+
+    # Edge: a nested file under a mirror directory is not the mirror itself.
+    assert (
+        policy._skip_skillforge_path(
+            "src/copilot-cli/skills/research/references/workflow.md", tmp_path
+        )
+        is False
+    )
+    # Edge: a sub-directory command (forgetful/memory-save.md) has no flat
+    # mirror, so the flat path must not be skipped on its account.
+    assert (
+        policy._skip_skillforge_path("src/copilot-cli/skills/memory-save/SKILL.md", tmp_path)
+        is False
+    )
+
+
+def test_lefthook_skillforge_exclude_does_not_restate_the_mirror_names() -> None:
+    """lefthook.yml must not carry a second copy of the mirror list."""
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+
+    excludes = _job_map(config, "pre-commit")["skillforge"]["exclude"]
+
+    assert excludes == ["evals/**"]
 
 
 def test_generated_staging_uses_the_named_allowlist(tmp_path: Path) -> None:
@@ -4196,6 +4256,11 @@ def test_mypy_policy_aggregates_failures_and_ignores_deleted_files(
     assert policy.run_mypy(["source.py", "deleted.py"], tmp_path) == 1
 
 
+def test_mypy_policy_rejects_empty_paths(tmp_path: Path) -> None:
+    """#3966: run_mypy with no file arguments must return rc=2 (false green guard)."""
+    assert policy.run_mypy([], tmp_path) == 2
+
+
 def test_mypy_policy_rejects_unsafe_paths_and_symlinks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4568,6 +4633,69 @@ def test_push_files_warning_emits_for_new_branch(
     assert "quality coverage may be incomplete" in capsys.readouterr().err
 
 
+def test_push_files_warning_is_quiet_for_explicit_refspec_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """HEAD pushed to a differently-named remote branch must not warn.
+
+    Reproduces issue #4236: autofix worktrees push checked-out HEAD to the PR's
+    branch using 'git push origin HEAD:pr-branch'. The local ref and remote ref
+    differ, but the local commit IS the checked-out HEAD, so {push_files} covers
+    the pushed files. The warning should be silent.
+    """
+    head = "1" * 40
+
+    def run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args == ["rev-parse", "HEAD"]:
+            return _completed(0, f"{head}\n")
+        if args == ["rev-parse", "--verify", "@{push}"]:
+            return _completed(128, "", "no upstream configured\n")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(policy, "_run_git", run_git)
+
+    refs = [
+        policy.PushRef(
+            "refs/heads/local-repair",
+            head,
+            "refs/heads/pr-target-branch",
+            "0" * 40,
+        )
+    ]
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_push_files_warning_emits_for_multi_ref_with_explicit_refspec(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Multiple refs still warn even if one is a HEAD explicit-refspec push."""
+    head = "1" * 40
+    other = "2" * 40
+
+    def run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args == ["rev-parse", "HEAD"]:
+            return _completed(0, f"{head}\n")
+        if args == ["rev-parse", "--verify", "@{push}"]:
+            return _completed(128, "", "no upstream\n")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(policy, "_run_git", run_git)
+
+    refs = [
+        policy.PushRef("refs/heads/local-a", head, "refs/heads/pr-target", "0" * 40),
+        policy.PushRef("refs/heads/local-b", other, "refs/heads/local-b", "0" * 40),
+    ]
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert "quality coverage may be incomplete" in capsys.readouterr().err
+
+
 def test_push_policy_allows_deletion_only_input(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
@@ -4894,8 +5022,9 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
 ) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
-    head = "1" * 40
-    remote = "2" * 40
+    # Use real commits so the non-fast-forward check can resolve the objects.
+    remote = _commit_file(repo, "tracked", "base\n")
+    head = _commit_file(repo, "tracked", "head\n")
     destinations: list[str | None] = []
 
     def capture_limit(update: policy.PushUpdate, _root: Path) -> int:
@@ -4938,6 +5067,213 @@ def test_new_branch_uses_origin_main_for_policy_bases(tmp_path: Path) -> None:
     assert update.base == base
     assert update.head == head
     assert update.range_spec == f"{base}..{head}"
+
+
+# ---------------------------------------------------------------------------
+# _check_non_fast_forward tests (issue #4293)
+# ---------------------------------------------------------------------------
+
+
+def _make_push_ref(
+    local_sha: str,
+    remote_sha: str,
+    remote_ref: str = "refs/heads/feature/test",
+    local_ref: str = "refs/heads/feature/test",
+) -> policy.PushRef:
+    return policy.PushRef(local_ref, local_sha, remote_ref, remote_sha)
+
+
+def test_non_fast_forward_passes_on_fast_forward_push(tmp_path: Path) -> None:
+    """Fast-forward push: remote_sha is an ancestor of local_sha."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "f.txt", "v1\n")
+    local_sha = _commit_file(repo, "f.txt", "v2\n")
+    push_ref = _make_push_ref(local_sha, remote_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_blocks_history_rewrite(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Force push: local_sha does not descend from remote_sha."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    # Two divergent branches from base.
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    # Push feature as if remote is on side (not an ancestor).
+    push_ref = _make_push_ref(feature_sha, side_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 1
+    err = capsys.readouterr().err
+    assert "not a fast-forward" in err
+    assert "universal.md" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_non_fast_forward_passes_new_branch(tmp_path: Path) -> None:
+    """New branch: remote_sha is all zeros, nothing to rewrite."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    local_sha = _commit_file(repo, "f.txt", "v1\n")
+    push_ref = _make_push_ref(local_sha, "0" * 40)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_passes_deletion(tmp_path: Path) -> None:
+    """Branch deletion (local_sha all zeros) is not a force push."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "f.txt", "v1\n")
+    push_ref = _make_push_ref("0" * 40, remote_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_returns_2_when_remote_object_absent(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Missing remote object: guard fails closed, not a false positive."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    local_sha = _commit_file(repo, "f.txt", "v1\n")
+    # A plausible-looking SHA that is not present in the repo.
+    absent_sha = "abcdef1234567890abcdef1234567890abcdef12"
+    push_ref = _make_push_ref(local_sha, absent_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 2
+    err = capsys.readouterr().err
+    assert "not present in the local object store" in err
+    assert "git fetch" in err
+
+
+def test_non_fast_forward_skips_non_branch_refs(tmp_path: Path) -> None:
+    """Tag refs and other non-branch refs are out of scope.
+
+    The remote_sha and local_sha are on divergent branches (neither is an
+    ancestor of the other), so without the non-branch guard this test would
+    fail.  The guard must fire first and return 0 before the ancestry check.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    # Create two divergent branches from base.
+    _git(repo, "checkout", "-q", "-b", "branch-a")
+    branch_a_sha = _commit_file(repo, "f.txt", "branch-a\n")
+    _git(repo, "checkout", "-q", base)
+    _git(repo, "checkout", "-q", "-b", "branch-b")
+    branch_b_sha = _commit_file(repo, "f.txt", "branch-b\n")
+    # local=branch_b, remote=branch_a: genuinely divergent (non-ancestor).
+    # If the branch guard were absent, this would reach the ancestry check
+    # and return 1.  The guard must fire and return 0 first.
+    push_ref = _make_push_ref(
+        branch_b_sha, branch_a_sha, remote_ref="refs/tags/v1.0.0"
+    )
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+    assert base  # suppress unused-variable warning
+
+
+def test_non_fast_forward_env_var_bypasses_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """FORCE_PUSH_OK=1 allows a rewrite with a warning."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    push_ref = _make_push_ref(feature_sha, side_sha)
+    monkeypatch.setenv("FORCE_PUSH_OK", "1")
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+    err = capsys.readouterr().err
+    assert "bypassed" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_check_push_refs_blocks_force_push_end_to_end(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """check_push_refs end-to-end: force push is caught."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
+    stream = io.StringIO(
+        f"refs/heads/feature/test {feature_sha} refs/heads/feature/test {side_sha}\n"
+    )
+
+    result = policy.check_push_refs(stream, repo)
+
+    assert result == 1
+    err = capsys.readouterr().err
+    assert "not a fast-forward" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_check_push_refs_multi_ref_catches_second_rewrite(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Multiple refs: only the second is a rewrite; the first is a new branch."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
+    zero = "0" * 40
+    stream = io.StringIO(
+        # First ref: new branch (zero remote), passes.
+        f"refs/heads/new-branch {feature_sha} refs/heads/new-branch {zero}\n"
+        # Second ref: force push, blocked.
+        f"refs/heads/feature/test {feature_sha} refs/heads/feature/test {side_sha}\n"
+    )
+
+    result = policy.check_push_refs(stream, repo)
+
+    assert result == 1
+    assert "not a fast-forward" in capsys.readouterr().err
 
 
 def test_commit_limit_queries_the_destination_branch(
@@ -6870,6 +7206,48 @@ def test_history_integrity_rejects_shallow_or_unknown_state(
     monkeypatch.setattr(policy, "_check_no_grafts", lambda _root: 0)
 
     assert policy._check_history_integrity(tmp_path) == expected
+
+
+def test_history_integrity_shallow_message_names_remedy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Shallow clone error must name the fix command (issue #4086)."""
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args: _completed(0, "true\n"),
+    )
+
+    assert policy._check_history_integrity(tmp_path) == 2
+
+    err = capsys.readouterr().err
+    assert "git fetch --unshallow origin" in err
+
+
+def test_history_integrity_shallow_message_names_pin_sha(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Shallow message includes the pinning SHA from .git/shallow (issue #4086)."""
+    pin = "a" * 40
+    shallow_file = tmp_path / ".git" / "shallow"
+    shallow_file.parent.mkdir(parents=True, exist_ok=True)
+    shallow_file.write_text(f"{pin}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args: _completed(0, "true\n"),
+    )
+
+    assert policy._check_history_integrity(tmp_path) == 2
+
+    err = capsys.readouterr().err
+    assert pin in err
+    assert "git fetch --unshallow origin" in err
 
 
 def test_push_update_defense_blocks_protected_destination(
