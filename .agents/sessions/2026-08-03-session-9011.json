@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "markdownlint-cli2 run over the branch's changed .md files: 0 issues. Both changed .md files sit under .serena/, which the repo config excludes, so 0 files were linted."
+        "Evidence": "NOT LINTED: markdownlint-cli2 read 0 files because both changed .md files sit under .serena/, which the repo config excludes."
       },
       "changesCommitted": {
         "level": "MUST",
