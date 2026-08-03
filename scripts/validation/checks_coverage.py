@@ -21,11 +21,34 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from checks_common import _run_subprocess  # noqa: E402
 
+_FAIL_TOKEN = "[FAIL]"
+_WARN_TOKEN = "[WARN]"
+
+
+def _as_advisory(line: str) -> str:
+    """Rewrite a leading ``[FAIL]`` token to ``[WARN]``.
+
+    ``validate_review_marker.py`` writes ``[FAIL]`` because it blocks under
+    ``/ship``. Forwarding that token from a caller that goes on to return True
+    prints a blocking severity on a passing check, so the reader reconciles it
+    against the ``RESULT:`` count at the bottom of the log (issue #4315).
+    """
+    stripped = line.lstrip()
+    if not stripped.startswith(_FAIL_TOKEN):
+        return line
+    indent = line[: len(line) - len(stripped)]
+    return indent + _WARN_TOKEN + stripped[len(_FAIL_TOKEN) :]
+
 
 def _print_output(output: str, rewrite_fail_to_warn: bool = False) -> None:
-    """Print up to 20 lines of subprocess output, optionally rewriting [FAIL] to [WARN]."""
+    """Print up to 20 lines of subprocess output, optionally downgrading [FAIL].
+
+    Printing happens on the exit path that knows the verdict, never before it.
+    An earlier unconditional print forwarded the token before the severity was
+    decided, and every branch below printed the same lines a second time.
+    """
     for line in output.strip().splitlines()[:20]:
-        print(line.replace("[FAIL]", "[WARN]", 1) if rewrite_fail_to_warn else line)
+        print(_as_advisory(line) if rewrite_fail_to_warn else line)
 
 
 def validate_review_marker(repo_root: Path) -> bool:
