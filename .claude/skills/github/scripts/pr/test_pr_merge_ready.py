@@ -74,6 +74,9 @@ from github_core.api import (  # noqa: E402
     resolve_repo_params,
     safe_log_str,
 )
+from github_core.checks_rollup import (  # noqa: E402
+    partition_rows_by_run,
+)
 
 # ---------------------------------------------------------------------------
 # GraphQL query
@@ -106,6 +109,7 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
                                 name
                                 status
                                 conclusion
+                                detailsUrl
                                 isRequired(pullRequestNumber: $number)
                             }
                             ... on StatusContext {
@@ -157,6 +161,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
                                         name
                                         status
                                         conclusion
+                                        detailsUrl
                                         isRequired(pullRequestNumber: $number)
                                     }
                                     ... on StatusContext {
@@ -211,6 +216,32 @@ def _check_run_verdict(rows: list[dict]) -> str:
 
     Aligns with the brief in the PR #1887 retrospective: "OK if any SUCCESS
     exists." A passing conclusion from a re-run supersedes a prior failure.
+
+    "Any SUCCESS" applies ACROSS runs, never within one. Two jobs of one
+    workflow run may publish the same check name deliberately; those are
+    concurrent siblings, so a failing sibling makes the whole run FAIL and a
+    passing sibling cannot mask it. Refs issue #4499.
+    """
+    verdicts = [
+        _single_run_check_verdict(group)
+        for group in partition_rows_by_run(rows, "detailsUrl")
+    ]
+
+    if "OK" in verdicts:
+        return "OK"
+    if "FAIL" in verdicts:
+        return "FAIL"
+    if "PENDING" in verdicts:
+        return "PENDING"
+    return "SKIP"
+
+
+def _single_run_check_verdict(rows: list[dict]) -> str:
+    """Reduce the rows of ONE workflow run to a verdict, failure-first.
+
+    Within a run every row really executed, so a failure is authoritative and
+    a passing sibling must not mask it. This inverts the cross-run precedence
+    on purpose: OK only when the run produced no failure at all.
     """
     has_failure = False
     has_pending = False
@@ -231,10 +262,10 @@ def _check_run_verdict(rows: list[dict]) -> str:
         else:
             has_failure = True
 
-    if has_passing:
-        return "OK"
     if has_failure:
         return "FAIL"
+    if has_passing:
+        return "OK"
     if has_pending:
         return "PENDING"
     return "SKIP"
