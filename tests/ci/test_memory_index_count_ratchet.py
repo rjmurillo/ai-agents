@@ -55,6 +55,13 @@ def _fake(
     def _run(cmd, **kwargs):
         argv = [str(part) for part in cmd]
         if "ls-files" in argv:
+            # Assert the pathspec, not just the subcommand. Without this a glob
+            # mutation (".serena/memories/**" -> "*.py") empties the tracked set,
+            # the ratchet reports zero violations, and every count test still
+            # passes. Terra's adversarial review found that fail-open hole.
+            assert f"{ratchet._MEMORIES_DIR}/**" in argv, (
+                f"git ls-files must scope to the memories tree, got: {argv}"
+            )
             stdout = "".join(f".serena/memories/{name}\0" for name in tracked)
             return subprocess.CompletedProcess(cmd, git_rc, stdout=stdout, stderr="")
         if str(ratchet._VALIDATOR) in argv:
@@ -302,6 +309,67 @@ class TestListViolations:
     ) -> None:
         monkeypatch.setattr(subprocess, "run", _fake(validator_rc=2))
         assert ratchet.list_violations(_repo(tmp_path)) is None
+
+
+class TestWindowsPathSeparators:
+    """``validate_memory_tier.py:171`` emits ``str(Path.relative_to(...))``.
+
+    On Windows that is ``git\\rebase-costs.md`` while ``git ls-files`` always
+    reports ``git/rebase-costs.md``. Before normalization every nested memory
+    looked untracked on Windows, so a contributor there counted 49 instead of
+    425. That direction is the dangerous one: a low count passes the ratchet
+    and ``--update`` would write it into the baseline permanently. Windows is a
+    supported platform (``.github/workflows/pytest.yml``), so this is reachable.
+    """
+
+    WINDOWS_WARNING = "git\\rebase-costs.md: not referenced by any domain index"
+
+    def test_nested_windows_subject_matches_a_posix_tracked_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(warnings=(self.WINDOWS_WARNING,), tracked=("git/rebase-costs.md",)),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) == 1
+
+    def test_windows_subject_still_honours_priority_paths(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(
+                warnings=(ATOMIC_WARNING, self.WINDOWS_WARNING),
+                tracked=("git/rebase-costs.md",),
+            ),
+        )
+        violations = ratchet.list_violations(
+            _repo(tmp_path),
+            frozenset({".serena/memories/git/rebase-costs.md"}),
+        )
+        assert violations is not None
+        assert violations[0] == ATOMIC_WARNING
+
+    def test_untracked_windows_subject_is_still_excluded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Discriminating control: normalization must not match everything.
+
+        Without this, replacing ``_subject`` with one that returns a constant
+        would satisfy the two tests above.
+        """
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(warnings=(self.WINDOWS_WARNING,), tracked=("git/other-file.md",)),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) == 0
+
+    def test_subject_normalizes_separators_without_touching_the_reason(self) -> None:
+        assert ratchet._subject(self.WINDOWS_WARNING) == "git/rebase-costs.md"
+        assert ratchet._subject(ATOMIC_WARNING) == "git/rebase-costs.md"
 
 
 class TestConstants:

@@ -165,16 +165,29 @@ def _tracked_relative_paths(repo_root: Path) -> set[str] | None:
     return {path[len(prefix):] for path in files if path.startswith(prefix)}
 
 
-def _is_tracked(warning: str, tracked: set[str]) -> bool:
-    """True when the file a warning names is git-tracked.
+def _subject(warning: str) -> str:
+    """The file a warning names, as a POSIX path relative to the memories dir.
 
     Both warning shapes lead with the subject and separate it from the reason
     with ``": "``. An atomic warning names a path relative to the memories
     directory; a domain-index warning names a bare file name, which sits at the
     top level of that directory and so compares against the same set.
+
+    ``validate_memory_tier.py`` builds that subject with
+    ``str(Path.relative_to(...))``, which yields ``\\`` separators on Windows,
+    while ``git ls-files`` always reports ``/``. Normalizing here keeps the two
+    comparable on every platform. Without it a Windows run matches only the
+    top-level memories and silently under-counts, which is the direction that
+    disarms the gate: a low count passes the ratchet and ``--update`` would
+    write it into the baseline.
     """
     subject, _, _ = warning.partition(": ")
-    return subject in tracked
+    return subject.replace("\\", "/")
+
+
+def _is_tracked(warning: str, tracked: set[str]) -> bool:
+    """True when the file a warning names is git-tracked."""
+    return _subject(warning) in tracked
 
 
 def _collect(repo_root: Path) -> list[str] | None:
@@ -213,7 +226,7 @@ def list_violations(
     hot: list[str] = []
     rest: list[str] = []
     for warning in warnings:
-        subject, _, _ = warning.partition(": ")
+        subject = _subject(warning)
         target = hot if f"{_MEMORIES_DIR}/{subject}" in priority_paths else rest
         target.append(warning)
     return hot + rest
