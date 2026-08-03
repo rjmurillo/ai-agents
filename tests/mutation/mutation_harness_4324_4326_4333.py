@@ -24,6 +24,9 @@ _API_TARGET = _REPO_ROOT / "scripts" / "github_core" / "api.py"
 _RATE_TARGET = _REPO_ROOT / "scripts" / "github_core" / "rate_limit.py"
 _NEW_PR_TARGET = _REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr" / "new_pr.py"
 
+_BUILD_AI_TARGET = _REPO_ROOT / "scripts" / "ci" / "build_ai_review_context.py"
+_BUILD_AI_TESTS = ["tests/test_build_ai_review_context.py"]
+
 _API_TESTS = ["tests/test_github_core.py"]
 _RATE_TESTS = ["tests/test_test_rate_limit.py"]
 _NEW_PR_TESTS = ["tests/test_new_pr.py"]
@@ -160,9 +163,6 @@ def main() -> None:
 
     print()
     print("=== Mutation harness: #4333 get_pr_metadata REST ===")
-
-    _BUILD_AI_TARGET = _REPO_ROOT / "scripts" / "ci" / "build_ai_review_context.py"
-    _BUILD_AI_TESTS = ["tests/test_build_ai_review_context.py"]
 
     # Mutant 5: change REST path to wrong endpoint (should fail extraction)
     run_mutant(
