@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/api.py. Sync via scripts/sync_plugin_lib.py.
+"""GitHub API helpers: auth, pagination, GraphQL, issue comments, rate limits.
 
 Cohesive sub-concerns live in sibling modules and are re-exported here so the
 public import surface ``from .api import ...`` stays stable

@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/repo.py. Sync via scripts/sync_plugin_lib.py."""
+"""Repository root resolution with git worktree awareness."""
 
 from __future__ import annotations
 

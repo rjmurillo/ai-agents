@@ -1049,6 +1049,46 @@ def _staged_files_changed(cwd: str | Path | None = None) -> int:
     return sum(1 for line in result.stdout.splitlines() if line.strip())
 
 
+_DURATION_TEXT_RE = re.compile(r"(\d+)\s*minutes?", re.IGNORECASE)
+
+
+def _duration_from_worklogs(entries: list) -> int:
+    """Compute duration in minutes from first to last workLog timestamp.
+
+    Returns 0 when fewer than two timestamped entries exist or when parsing
+    fails, so callers always receive a non-negative integer.
+    """
+    times: list[datetime] = []
+    for entry in entries:
+        raw = _as_dict(entry).get("time") if isinstance(entry, dict) else None
+        if not raw:
+            continue
+        try:
+            dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            times.append(dt)
+        except (ValueError, TypeError):
+            continue
+    if len(times) < 2:
+        return 0
+    delta = times[-1] - times[0]
+    return max(0, int(delta.total_seconds() / 60))
+
+
+def _duration_from_metrics_block(metrics_block: dict) -> int:
+    """Parse duration from the old-schema top-level metrics block.
+
+    Handles strings like "~20 minutes" or "25 minutes" and integer values.
+    Returns 0 when nothing parseable is found.
+    """
+    raw = metrics_block.get("duration") or metrics_block.get("duration_minutes")
+    if raw is None:
+        return 0
+    if isinstance(raw, (int, float)):
+        return max(0, int(raw))
+    m = _DURATION_TEXT_RE.search(str(raw))
+    return int(m.group(1)) if m else 0
+
+
 def json_metrics(data: dict) -> dict:
     # Count every distinct commit the session documents, from the same source
     # as the commit events so the two can never disagree: endingCommit plus the
@@ -1056,15 +1096,30 @@ def json_metrics(data: dict) -> dict:
     # when neither of those yields a SHA (issue #3363). Excludes the starting
     # commit: it is the base, not a commit the session produced.
     commit_count = len(_collect_shas(data))
+
+    worklogs = _as_list(data.get("workLog"))
+    metrics_block = _as_dict(data.get("metrics"))
+
+    # duration_minutes: prefer structured timestamps (first-to-last workLog entry),
+    # fall back to the old-schema metrics.duration text/integer.
+    duration = _duration_from_worklogs(worklogs)
+    if duration == 0:
+        duration = _duration_from_metrics_block(metrics_block)
+
+    # tool_calls: only the old schema carries a structured count (metrics.toolCalls).
+    # Modern session logs have no machine-readable tool count, so this field stays
+    # at zero for those sessions rather than emitting a misleading non-zero value.
+    tool_calls = int(metrics_block.get("toolCalls") or 0)
+
     metrics = {
-        "duration_minutes": 0,
-        "tool_calls": 0,
+        "duration_minutes": duration,
+        "tool_calls": tool_calls,
         "errors": 0,
         "recoveries": 0,
         "commits": commit_count,
         "files_changed": 0,
     }
-    for entry in _as_list(data.get("workLog")):
+    for entry in worklogs:
         text = _entry_text(entry)
         fail = _valid_fail_match(text)
         if fail:
@@ -1928,6 +1983,31 @@ def validate_event_ids(events: Any) -> list[str]:
     return problems
 
 
+def validate_metrics_consistency(metrics: Any) -> list[str]:
+    """Return one message per metrics-consistency violation.
+
+    Catches the specific case where commits==0 but files_changed>0, which
+    indicates the episode's commit-collection logic failed to record the
+    commits that produced the file changes (issue #3873).
+    """
+    if not isinstance(metrics, dict):
+        return []
+    try:
+        commits = int(metrics.get("commits") or 0)
+    except (TypeError, ValueError):
+        commits = 0
+    try:
+        files_changed = int(metrics.get("files_changed") or 0)
+    except (TypeError, ValueError):
+        files_changed = 0
+    if commits == 0 and files_changed > 0:
+        return [
+            f"metrics.commits==0 but metrics.files_changed=={files_changed};"
+            " commit collection may have failed"
+        ]
+    return []
+
+
 def _commit_event_dates(events: list) -> dict[str, datetime]:
     """Map event id to committer date, for commit events reachable from a named ref.
 
@@ -2054,6 +2134,7 @@ def validate_episode_file(path: Path) -> list[str]:
     problems = validate_event_ids(events)
     if not problems:
         problems = validate_commit_order(events)
+    problems = [*problems, *validate_metrics_consistency(data.get("metrics"))]
     return [f"{path}: {problem}" for problem in problems]
 
 

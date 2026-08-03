@@ -1,4 +1,4 @@
-"""Canonical: scripts/ai_review_common/quality_gate.py. Sync via scripts/sync_plugin_lib.py."""
+"""Quality gate facade: re-exports from retry, verdict, workflow submodules."""
 
 from .retry import (  # noqa: F401
     invoke_with_retry,
