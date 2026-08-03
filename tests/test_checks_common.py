@@ -823,7 +823,7 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
         self, tmp_path: Path
     ) -> None:
         """Happy path: local branch name matches the PR, first gh call succeeds."""
-        responses = {
+        responses: dict[tuple[str, ...], tuple[int, str, str]] = {
             ("gh", "pr", "view", "--json", "baseRefName"): (0, "main\n", ""),
         }
         with (

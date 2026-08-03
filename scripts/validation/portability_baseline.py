@@ -23,7 +23,7 @@ import os
 import sys
 import tempfile
 import time
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -299,8 +299,8 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
 def _baseline_write_lock(
     lock_path: Path,
     *,
-    _lock: object = None,
-    _unlock: object = None,
+    _lock: Callable[[int], None] | None = None,
+    _unlock: Callable[[int], None] | None = None,
 ) -> Iterator[None]:
     """Serialize baseline writes with a file lock.
 
