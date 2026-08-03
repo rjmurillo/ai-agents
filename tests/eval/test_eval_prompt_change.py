@@ -1239,7 +1239,11 @@ class TestMainCLI:
             eval_mod.main()
         assert exc.value.code == 3
 
-    def test_github_models_retirement_brownout_exits_zero(self, tmp_path, monkeypatch, capsys):
+    def test_github_models_retirement_brownout_exits_nonzero(self, tmp_path, monkeypatch, capsys):
+        """The retirement brownout is a permanent failure, not a transient outage.
+        After removing the three retirement markers from _is_provider_outage()
+        (issue #4339), a brownout response surfaces as an execution fault (exit 3)
+        rather than a neutral skip (exit 0)."""
         scen = self._make_scenarios_file(tmp_path)
         before = tmp_path / "a.md"
         before.write_text("p", encoding="utf-8")
@@ -1261,8 +1265,7 @@ class TestMainCLI:
         ])
         with pytest.raises(SystemExit) as exc:
             eval_mod.main()
-        assert exc.value.code == 0
-        assert "SKIP: behavioral eval could not run" in capsys.readouterr().err
+        assert exc.value.code == 3
 
     def test_identical_before_after_warning_emitted(self, tmp_path, monkeypatch, capsys):
         scen = self._make_scenarios_file(tmp_path)
