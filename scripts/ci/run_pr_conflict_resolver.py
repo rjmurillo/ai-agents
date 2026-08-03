@@ -58,6 +58,7 @@ def main() -> int:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
 
     # Resolver exit contract: 0=all resolved, 1=some blocked (both valid JSON).

@@ -80,6 +80,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
       - name: Check for new vendor-portability offenders
         run: python3 scripts/validation/check_vendor_portability.py
 
@@ -87,10 +90,10 @@ jobs:
         run: python3 -m scripts.validation.check_skill_portability
 
       - name: "Check for new bare-exec skill-path offenders (issue #2838)"
-        run: python3 scripts/validation/check_skill_md_exec_portability.py
+        run: uv run --frozen python scripts/validation/check_skill_md_exec_portability.py
 
       - name: Check skill prose portability ratchet
-        run: python3 scripts/validation/check_skill_md_portability.py
+        run: uv run --frozen python scripts/validation/check_skill_md_portability.py
 
       - name: Check skill resolver anchoring
         run: python3 scripts/validation/check_skill_resolver_anchoring.py

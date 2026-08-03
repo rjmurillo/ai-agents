@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "spec workflow complete",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "plan workflow complete",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "M1 build complete",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "commit 1 landed",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e005",
@@ -44,7 +52,9 @@
       "type": "milestone",
       "content": "test gate 5 fixes applied",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e006",
@@ -52,7 +62,9 @@
       "type": "milestone",
       "content": "M2 commit 2A drafted",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e007",
@@ -60,7 +72,9 @@
       "type": "milestone",
       "content": "M2 commit 2B drafted",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e008",
@@ -68,7 +82,9 @@
       "type": "milestone",
       "content": "M3 commit drafted",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e009",
@@ -76,7 +92,9 @@
       "type": "milestone",
       "content": "M4 complete",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e010",
@@ -84,7 +102,9 @@
       "type": "milestone",
       "content": "M5 complete",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e011",
@@ -92,7 +112,9 @@
       "type": "milestone",
       "content": "M5 close",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e012",
@@ -100,7 +122,9 @@
       "type": "milestone",
       "content": "review fixes spec layer",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e013",
@@ -108,7 +132,9 @@
       "type": "milestone",
       "content": "review fixes test layer",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e014",
@@ -116,7 +142,9 @@
       "type": "milestone",
       "content": "deferred items filed as sub-issues",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e015",
@@ -124,7 +152,9 @@
       "type": "milestone",
       "content": "PR review fixes",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e016",
@@ -132,7 +162,9 @@
       "type": "milestone",
       "content": "PR review additional bot threads",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e017",
@@ -140,7 +172,9 @@
       "type": "milestone",
       "content": "PR review iteration 3 fixes",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e018",
@@ -148,7 +182,9 @@
       "type": "milestone",
       "content": "PR review iteration 4 fixes",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e019",
@@ -156,7 +192,9 @@
       "type": "milestone",
       "content": "PR review iteration 5 fixes",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e020",
@@ -164,7 +202,9 @@
       "type": "milestone",
       "content": "PR review iteration 6",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e021",
@@ -172,7 +212,9 @@
       "type": "milestone",
       "content": "Adversarial review iteration 2 fixes",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e022",
@@ -180,7 +222,9 @@
       "type": "milestone",
       "content": "Adversarial review iter 4 fix",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e023",
@@ -188,7 +232,9 @@
       "type": "milestone",
       "content": "Adversarial review iter 5 fix",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e024",
@@ -196,7 +242,9 @@
       "type": "milestone",
       "content": "Adversarial review iter 6 fixes",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e025",
@@ -204,7 +252,9 @@
       "type": "milestone",
       "content": "Adversarial review fresh pass fixes",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e026",
@@ -212,7 +262,9 @@
       "type": "milestone",
       "content": "Adversarial review revert AC-09 split",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e027",
@@ -220,7 +272,9 @@
       "type": "milestone",
       "content": "AC-13 propagation fixes",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e028",
@@ -228,14 +282,45 @@
       "type": "milestone",
       "content": "AC-13 metric example + heading fix",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e029"
+      ]
     },
     {
       "id": "e029",
-      "timestamp": "2026-05-10T00:00:00+00:00",
+      "timestamp": "2026-05-10T07:33:34+00:00",
       "type": "commit",
       "content": "Commit: 7be6b55a",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016",
+        "e017",
+        "e018",
+        "e019",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e024",
+        "e025",
+        "e026",
+        "e027",
+        "e028"
+      ],
       "leads_to": []
     }
   ],

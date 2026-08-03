@@ -21,6 +21,8 @@ import yaml
 
 from scripts.validation import git_hook_policy as policy
 
+pytestmark = pytest.mark.windows_path
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEFTHOOK = shutil.which("lefthook")
 SEMGREP = shutil.which("semgrep")
@@ -764,6 +766,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "extract-session-episodes",
         "commit-file-count",
         "memory-size",
+        "adr-review-policy",
         "taste-advisory",
     }
     pure_jobs = {
@@ -779,7 +782,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "memory-index",
         "memory-tier",
         "memory-skill-format",
-        "adr-review-policy",
     }
     for name in merge_exempt_jobs:
         skip = pre_commit_jobs[name].get("skip", [])
@@ -1667,7 +1669,7 @@ def test_branch_context_fails_open_when_git_is_unavailable(
     def no_git(*args: object, **kwargs: object) -> NoReturn:
         raise FileNotFoundError(2, "No such file or directory: 'git'")
 
-    monkeypatch.setattr(policy.subprocess, "run", no_git)
+    monkeypatch.setattr(policy.subprocess, "Popen", no_git)
 
     assert policy.check_branch_context(repo) == 0
 
@@ -2071,12 +2073,21 @@ def test_git_command_boundary_forces_utf8_replacement(
     monkeypatch.setenv("SEMGREP_BASELINE_REF", "HEAD")
     monkeypatch.setenv("SEMGREP_URL", "https://attacker.invalid")
 
-    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured["args"] = args[0]
-        captured.update(kwargs)
-        return _completed(0)
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", fake_run)
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
+            captured["args"] = args
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     policy._run_git(tmp_path, ["status", "--short"])
 
@@ -2107,20 +2118,30 @@ def test_command_boundary_maps_timeout_to_external_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        command = args[0]
-        timeout = kwargs["timeout"]
-        assert isinstance(command, list)
-        assert all(isinstance(part, str) for part in command)
-        assert isinstance(timeout, (int, float))
-        raise subprocess.TimeoutExpired(
-            command,
-            timeout,
-            output="partial output\n",
-            stderr="child stalled\n",
-        )
+    class FakePopen:
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", time_out)
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
+            self._args = list(args)
+            self._called = 0
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            self._called += 1
+            if self._called == 1:
+                raise subprocess.TimeoutExpired(
+                    self._args,
+                    timeout or 0.0,
+                    output="partial output\n",
+                    stderr="child stalled\n",
+                )
+            return ("", "")
+
+        def kill(self) -> None:
+            pass
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     result = policy._run_command(
         [sys.executable, "scripts/slow_tool.py", "scan"],
@@ -2140,20 +2161,30 @@ def test_binary_command_boundary_maps_timeout_to_external_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
-        command = args[0]
-        timeout = kwargs["timeout"]
-        assert isinstance(command, list)
-        assert all(isinstance(part, str) for part in command)
-        assert isinstance(timeout, (int, float))
-        raise subprocess.TimeoutExpired(
-            command,
-            timeout,
-            output=b"partial bytes\n",
-            stderr=b"binary child stalled\n",
-        )
+    class FakePopen:
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", time_out)
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
+            self._args = list(args)
+            self._called = 0
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[bytes, bytes]:
+            self._called += 1
+            if self._called == 1:
+                raise subprocess.TimeoutExpired(
+                    self._args,
+                    timeout or 0.0,
+                    output=b"partial bytes\n",
+                    stderr=b"binary child stalled\n",
+                )
+            return (b"", b"")
+
+        def kill(self) -> None:
+            pass
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     result = policy._run_command_bytes(
         ["git", "-c", "core.commitGraph=false", "diff", "--name-only"],
@@ -3157,7 +3188,6 @@ def test_semgrep_disables_native_suppressions(
     assert "--x-ignore-semgrepignore-files" in calls[0]
     assert "--max-target-bytes=0" in calls[0]
     assert "--no-exclude-binary-files" in calls[0]
-    assert "--exclude-rule" not in calls[0]
     assert "--" in calls[0]
     assert str(tmp_path / "source.py") in calls[0]
     assert str(tmp_path) not in calls[0]
@@ -6510,11 +6540,20 @@ def test_pytest_policy_cleans_hook_environment(
     ):
         monkeypatch.setenv(key, "leaked")
 
-    def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured.update(kwargs)
-        return _completed(0)
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", fake_run)
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     assert policy.run_pytest(tmp_path) == 0
     env = captured["env"]
@@ -6709,11 +6748,20 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
     monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
     captured: dict[str, object] = {}
 
-    def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured.update(kwargs)
-        return _completed(0)
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", fake_run)
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
     env = captured["env"]
@@ -9871,3 +9919,35 @@ def test_the_tracked_scan_reports_a_git_failure_as_a_config_error(
     not_a_repo.mkdir()
 
     assert policy.check_tracked_conflict_markers(not_a_repo) == 2
+
+
+# ---------------------------------------------------------------------------
+# _semgrep_command excludes python36/37 compatibility families (#4217 unblock)
+# ---------------------------------------------------------------------------
+
+
+def test_semgrep_command_excludes_python36_compat_family() -> None:
+    """_semgrep_command must exclude the python36 compatibility rule family.
+
+    pyproject.toml sets python_requires >= 3.14. The python36 compatibility
+    rules flag valid patterns such as subprocess.Popen(encoding=, errors=) as
+    errors, producing false positives that block legitimate pushes.
+    """
+    cmd = policy._semgrep_command("auto", ["path/to/file.py"])
+    exclude_values = [
+        cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"
+    ]
+    assert any(
+        "python.lang.compatibility.python36" in v for v in exclude_values
+    ), f"python36 compat family not excluded. --exclude-rule values: {exclude_values}"
+
+
+def test_semgrep_command_excludes_python37_compat_family() -> None:
+    """_semgrep_command must exclude the python37 compatibility rule family."""
+    cmd = policy._semgrep_command("auto", ["path/to/file.py"])
+    exclude_values = [
+        cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"
+    ]
+    assert any(
+        "python.lang.compatibility.python37" in v for v in exclude_values
+    ), f"python37 compat family not excluded. --exclude-rule values: {exclude_values}"
