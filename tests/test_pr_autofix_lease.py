@@ -1343,25 +1343,29 @@ class TestRenewSubcommand:
         posted = []
         now_ptr = [_NOW]
 
-        def _advance_and_renew(minutes: int) -> LeaseResult:
+        def _advance_and_renew(minutes: int):
             now_ptr[0] = now_ptr[0] + timedelta(minutes=minutes)
             # The latest posted comment is the live lease at renew-time.
-            comments = posted[-1:] if posted else []
-            current = select_authoritative_lease(comments)
+            current = select_authoritative_lease(posted[-1:] if posted else [])
             if current:
-                current = _stamped(current, _AUTHOR)
-                # Replace with author-stamped version
                 lease_list = [
-                    {"body": posted[-1]["body"], "created_at": posted[-1]["created_at"],
-                     "user": {"login": _AUTHOR}}
-                ] if posted else []
+                    {
+                        "body": posted[-1]["body"],
+                        "created_at": posted[-1]["created_at"],
+                        "user": {"login": _AUTHOR},
+                    }
+                ]
             else:
                 lease_list = []
             with (
                 patch.object(_mod, "list_lease_comments", return_value=lease_list),
-                patch.object(_mod, "post_lease_comment", side_effect=lambda o, r, p, b: posted.append(
-                    {"body": b, "created_at": _rfc(now_ptr[0])}
-                )),
+                patch.object(
+                    _mod,
+                    "post_lease_comment",
+                    side_effect=lambda o, r, p, b: posted.append(
+                        {"body": b, "created_at": _rfc(now_ptr[0])}
+                    ),
+                ),
                 _patch_head(),
             ):
                 return acquire(_OWNER, _SESSION, "o", "r", 1, now=now_ptr[0],
@@ -1370,9 +1374,13 @@ class TestRenewSubcommand:
         # Initial acquire at t=0.
         with (
             patch.object(_mod, "list_lease_comments", return_value=[]),
-            patch.object(_mod, "post_lease_comment", side_effect=lambda o, r, p, b: posted.append(
-                {"body": b, "created_at": _rfc(_NOW)}
-            )),
+            patch.object(
+                _mod,
+                "post_lease_comment",
+                side_effect=lambda o, r, p, b: posted.append(
+                    {"body": b, "created_at": _rfc(_NOW)}
+                ),
+            ),
             _patch_head(),
         ):
             r0 = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW, acting_author=_AUTHOR)
