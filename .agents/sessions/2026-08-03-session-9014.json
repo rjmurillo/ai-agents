@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Two atomic commits: the subprocess encoding fix and the gotchas taste exemption, plus this log."
+        "Evidence": "Three commits: the subprocess encoding fix (380d09b1d), the gotchas taste exemption plus the merge-race writeups (3d3660f23), and this log update recording the ending commit."
       },
       "validationPassed": {
         "level": "MUST",
@@ -114,6 +114,6 @@
     }
   },
   "workLog": [],
-  "endingCommit": "",
+  "endingCommit": "3d3660f23",
   "nextSteps": []
 }

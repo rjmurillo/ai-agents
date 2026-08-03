@@ -101,6 +101,43 @@ protocol literally (create and stage at start) cannot pass both gates.
 Symptom: a commit is rejected by one of the two policies no matter which order
 you try. Refs #3904.
 
+## An empty `endingCommit` breaks the episode store on the next push
+
+The pre-commit hook extracts an episode from every staged session log. It reads
+`files_changed` from the staged diff, but `commits` from the SHAs the log names,
+and a first commit has none: the commit being created has no SHA yet, and
+`endingCommit` is still `""`. The episode therefore ships with `commits: 0`
+beside a non-zero `files_changed`, which is exactly the pair
+`validate_metrics_consistency` rejects.
+
+Nothing fails at commit time. The push fails, minutes later, in the full suite:
+
+```text
+tests/skills/memory/test_extract_session_episode.py::
+  TestValidateModeRejectsUnusableEventIds::test_the_committed_episode_store_is_clean
+AssertionError: metrics violations grew to 22 (was 21); new episodes with
+commits==0 but metrics.files_changed>0 must be fixed
+```
+
+That count is a ratchet, so raising it is not the fix. Record the SHA and let
+the extractor derive the number, which is what it is built to do:
+
+```bash
+# set "endingCommit" in the session log to the commit you just made, then
+uv run --frozen python .claude/skills/memory/scripts/extract_session_episode.py \
+  .agents/sessions/<log>.json --preserve
+```
+
+`--preserve` recomputes `metrics.commits` from the commit-event stream, so the
+value stays derived rather than hand-set. Commit the log and the regenerated
+episode together as the follow-up commit the section above already requires.
+
+Watch for the interaction: `session-policy` forces any `.agents/` change to
+stage a session log, so a governance or architecture edit cannot avoid creating
+an episode, and the first such commit on a branch always produces a violating
+one. The follow-up commit is not optional bookkeeping; it is what keeps the
+branch pushable.
+
 ## Never record `endingCommit` and then amend
 
 `endingCommit` must name a commit that is still reachable:

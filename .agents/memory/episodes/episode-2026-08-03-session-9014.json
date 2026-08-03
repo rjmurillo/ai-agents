@@ -6,14 +6,37 @@
   "outcome": "success",
   "task": "Repair origin/main, which fails the taste count ratchet and the subprocess encoding validator and so blocks every push in the repository",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T20:40:29+00:00",
+      "type": "commit",
+      "content": "Commit: 380d09b1d",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T20:49:39+00:00",
+      "type": "commit",
+      "content": "Commit: 3d3660f23",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9014"
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 5
+    "commits": 2,
+    "files_changed": 6
   },
   "lessons": []
 }
