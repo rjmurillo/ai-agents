@@ -95,6 +95,18 @@ def check_workflow_rate_limit(
 ) -> RateLimitResult:
     """Check GitHub API rate limits before workflow execution.
 
+    Compares remaining quota for each resource against its threshold. Returns
+    success=True when all resources are above threshold.
+
+    KNOWN BLIND SPOT (issue #4326): GitHub's secondary/burst limiter produces
+    HTTP 403 with rate-limit wording while primary quota remains healthy. The
+    ``rate_limit`` endpoint does not expose this limiter, so this function can
+    return success=True while individual API calls are being refused. Callers
+    should not treat success=True as a guarantee that the API will serve
+    requests; treat it as "primary quota is sufficient, proceed with backoff
+    on 403 responses." Use ``probe_api_reachability`` when a live reachability
+    check is required.
+
     Args:
         resource_thresholds: Map of resource name to minimum remaining threshold.
 
@@ -132,3 +144,33 @@ def check_workflow_rate_limit(
             "remaining", 0
         ),
     )
+
+
+def probe_api_reachability(owner: str, repo: str) -> bool:
+    """Make a cheap real REST call to detect burst-limiter 403 refusals.
+
+    ``check_workflow_rate_limit`` cannot detect GitHub's secondary/burst
+    limiter because that limiter does not appear in the ``rate_limit``
+    payload (issue #4326). This function makes a single lightweight call
+    (``GET /repos/{owner}/{repo}``) that is subject to the same limiter,
+    returning False when the call is refused with a 403.
+
+    Use before starting a workflow that will make many calls. A False return
+    with healthy primary quota indicates a burst window; back off 60 to 90
+    seconds and retry rather than resetting the reset timestamp.
+
+    Returns:
+        True when the API is reachable, False on any failure (403, timeout,
+        transport error).
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{owner}/{repo}", "--jq", ".full_name"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=15,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return result.returncode == 0
