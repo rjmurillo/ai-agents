@@ -22,6 +22,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _TARGET = _REPO_ROOT / "scripts" / "security" / "run_semgrep.py"
 _TESTS = [
     "tests/test_run_semgrep_pinning.py",
+    # Covers the exec-fault handler in _run_semgrep, whose mutant below is
+    # invisible to the pinning tests.
+    "tests/test_run_semgrep.py",
 ]
 
 
@@ -57,28 +60,41 @@ def run_mutants() -> None:
             "remove venv sibling semgrep check",
             b"    sibling = Path(sys.executable).parent / sibling_name\n"
             b"    if sibling.is_file() and os.access(sibling, os.X_OK):\n"
-            b"        return str(sibling)",
+            b"        return _verify_pinned_version(str(sibling), repo_root)",
             b"    sibling = Path(sys.executable).parent / sibling_name\n"
             b"    if False:  # MUTANT-DELETED-4190\n"
-            b"        return str(sibling)",
+            b"        return _verify_pinned_version(str(sibling), repo_root)",
         ),
         (
-            "remove version mismatch check in _resolve_semgrep_executable",
+            "remove version mismatch check in _verify_pinned_version",
             b"    if version != pinned:\n"
             b"        raise _SemgrepExecutableError(\n"
             b"            f\"semgrep version mismatch: pyproject.toml pins {pinned!r}, \"\n"
-            b"            f\"but {resolved} reports {version!r}\"\n"
+            b"            f\"but {executable} reports {version!r}. \"\n"
+            b"            f\"Reinstall the pin with: {_INSTALL_HINT}\"\n"
             b"        )",
             b"    if False:  # MUTANT-DELETED-4190\n"
             b"        raise _SemgrepExecutableError(\n"
             b"            f\"semgrep version mismatch: pyproject.toml pins {pinned!r}, \"\n"
-            b"            f\"but {resolved} reports {version!r}\"\n"
+            b"            f\"but {executable} reports {version!r}. \"\n"
+            b"            f\"Reinstall the pin with: {_INSTALL_HINT}\"\n"
             b"        )",
         ),
         (
             "weaken version regex to match any semgrep line",
             b'        r\'^\\s*"semgrep==([^"]+)",\\s*$\',',
             b'        r\'"semgrep==([^"]+)",\',  # MUTANT-DELETED-4190',
+        ),
+        (
+            "flip the platform mapping for the venv sibling filename",
+            b'sibling_name = "semgrep.exe" if os.name == "nt" else "semgrep"',
+            b'sibling_name = "semgrep" if os.name == "nt" else "semgrep.exe"'
+            b"  # MUTANT-DELETED-4190",
+        ),
+        (
+            "drop OSError from the scan spawn failure handler",
+            b"        except (subprocess.SubprocessError, OSError) as e:",
+            b"        except subprocess.SubprocessError as e:  # MUTANT-DELETED-4190",
         ),
         (
             "suppress _SemgrepExecutableError on no PATH semgrep",
