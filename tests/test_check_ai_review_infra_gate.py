@@ -16,6 +16,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.windows_path
+
 _MODULE_PATH = (
     Path(__file__).resolve().parents[1] / "scripts" / "ci" / "check_ai_review_infra_gate.py"
 )
