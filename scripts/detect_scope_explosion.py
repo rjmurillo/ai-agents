@@ -105,6 +105,42 @@ def get_merge_head_commit() -> str | None:
     return get_ref_commit("MERGE_HEAD")
 
 
+def is_ancestor(commit: str, ref: str) -> bool:
+    """Return True if ``commit`` is reachable from ``ref`` (i.e. an ancestor).
+
+    ``git merge-base --is-ancestor A B`` exits 0 when A is an ancestor of B
+    (or equal to B) and 1 otherwise.  Exit 2+ signals an error (unknown ref,
+    repository problems) and is treated as False so the caller falls through to
+    the safe non-MERGE_HEAD path.
+
+    Used to distinguish the two MERGE_HEAD cases:
+
+    * MERGE_HEAD is upstream of HEAD (e.g. ``git merge origin/main``).
+      MERGE_HEAD is *ahead* of the base branch; it is NOT an ancestor of
+      ``origin/main``.  Counting staged files against MERGE_HEAD gives the
+      correct PR-only delta.
+    * MERGE_HEAD is the branch's own remote tip, which is *behind* main
+      (e.g. a non-fast-forward recovery via ``git merge origin/<same-branch>``).
+      MERGE_HEAD IS an ancestor of ``origin/main``.  Counting staged files
+      against it inflates the count by every file main gained since that tip
+      (Issue #4418: 635 reported when 17 were real).
+
+    Args:
+        commit: A commit SHA or ref to test.
+        ref: The ref to test reachability against.
+
+    Returns:
+        True when ``commit`` is an ancestor-or-equal of ``ref``.
+    """
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", commit, ref],
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    return result.returncode == 0
+
+
 def resolve_base_ref(base_branch: str) -> str | None:
     """Resolve the most accurate base ref for diff comparison.
 
@@ -199,18 +235,26 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         # During an in-progress merge, the staged index already contains every
         # file from the upstream branch being merged. Counting that against the
         # base ref would surface upstream files as if they were PR changes
-        # (Issue #2376 — observed 86 files reported when the real PR diff was
+        # (Issue #2376 -- observed 86 files reported when the real PR diff was
         # 13). Compare the staged result directly against MERGE_HEAD so we
         # only count files this PR actually touches relative to what is being
         # merged in.
-        files = sorted(set(get_index_files_against_ref(merge_head)))
-        base_commit = get_ref_commit(base_ref) or merge_head
-        return ScopeResult(
-            file_count=len(files),
-            merge_base=base_commit[:12],
-            current_branch=branch,
-            files=tuple(files),
-        )
+        #
+        # Exception (Issue #4418): when MERGE_HEAD is an ancestor of the base
+        # branch, the branch is merging its own remote tip, not an upstream
+        # branch. MERGE_HEAD is *behind* main, so counting staged files against
+        # it inflates the count by every file main gained since that tip
+        # (observed: 635 reported when 17 were real). Fall through to the
+        # normal merge-base path in this case.
+        if not is_ancestor(merge_head, base_ref):
+            files = sorted(set(get_index_files_against_ref(merge_head)))
+            base_commit = get_ref_commit(base_ref) or merge_head
+            return ScopeResult(
+                file_count=len(files),
+                merge_base=base_commit[:12],
+                current_branch=branch,
+                files=tuple(files),
+            )
 
     merge_base = get_merge_base(base_branch)
     if not merge_base:
