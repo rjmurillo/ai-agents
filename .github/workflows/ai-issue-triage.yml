@@ -26,7 +26,8 @@ jobs:
     name: AI Issue Triage
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 10
+    # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 2, 3, 2, 8.
+    timeout-minutes: 56
 
     # Skip for bots and non-substantive edits (title-only changes)
     # For 'edited' events, only run if the body changed (not just title)
@@ -126,7 +127,7 @@ jobs:
           context-type: issue
           issue-number: ${{ github.event.issue.number }}
           prompt-file: .github/prompts/issue-prd-generation.md
-          timeout-minutes: 15
+          timeout-minutes: 8
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           copilot-model: 'auto'

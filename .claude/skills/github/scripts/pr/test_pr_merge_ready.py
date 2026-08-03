@@ -49,9 +49,9 @@ from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root:
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
 elif _workspace:
     _lib_dir = os.path.join(_workspace, ".claude", "lib")
@@ -377,7 +377,7 @@ def _classify_check_contexts(
     of OK appends to nothing (caller computes passed_checks from the
     surviving names minus blocked minus skipped). A verdict of SKIP
     (CANCELLED-only, no opinion) appends to ``skipped_names`` so the
-    passed-checks count can subtract it out — without that subtraction,
+    passed-checks count can subtract it out. Without that subtraction,
     a debounce-cancelled rollup would be counted as passed.
 
     Closes the false-FAIL class on CANCELLED+SUCCESS dedupe AND the

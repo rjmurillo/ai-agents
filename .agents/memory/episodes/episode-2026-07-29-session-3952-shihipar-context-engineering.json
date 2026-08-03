@@ -15,6 +15,56 @@
       "rationale": "",
       "outcome": "success",
       "effects": []
+    },
+    {
+      "id": "d002",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "recovery",
+      "context": "",
+      "chosen": "Chose a structural fix over a fifth point patch. Eleven defects were all disagreements about which candidate object was the verdict, so the search itself was the defect. Deleted the search: _salvage_anchor now requires the payload to start with an opening brace after lstrip and anchors at offset zero, with no candidate iteration.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    },
+    {
+      "id": "d003",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "Changed _fenced_blocks to report whether anything but whitespace sat outside the fences, and made _unwrap_lone_fence require that. Chose the directly-checked invariant over inferring it from the first and last lines.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    },
+    {
+      "id": "d004",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "recovery",
+      "context": "",
+      "chosen": "Fixed by running _names_a_score_field_twice once before any parse rather than on the success branch, so a fourth parse path inherits the refusal instead of having to remember it. Chose the existing textual guard over a bespoke structural one: Sol's own finding 2 is that divergent strictness between paths is itself a defect, and a second differently-shaped guard would recreate exactly that.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    },
+    {
+      "id": "d005",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "design",
+      "context": "",
+      "chosen": "Repaired by reversing a round-14 design decision. Round 14 ran one textual guard everywhere because divergent strictness between paths looked like a defect in itself. That conflated divergent strictness for the same question with genuinely different questions needing different instruments. Where the parse succeeded, count score-bearing objects at any depth and scan decoded strings; where an unparsed tail follows the object, keep the raw count and its blanket.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    },
+    {
+      "id": "d006",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "recovery",
+      "context": "",
+      "chosen": "Rejected Sol's proposed fix of refusing any string containing a literal backslash-u. It produces false refusals on prose that merely mentions an escape and cannot distinguish a contradiction from a restatement. Adopted a contradiction-based contract instead: a payload is ambiguous when it names a score field whose value conflicts with the value actually filed at top level, measured across up to three peeled escape layers, with uncomparable mentions still refused. This corrects a bias the session had been applying, since a dropped sample moves a published median exactly as a fabricated one does.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
     }
   ],
   "events": [
@@ -152,7 +202,25 @@
       "type": "commit",
       "content": "Commit: 1d234ea45e",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e041",
+        "e056",
+        "e070",
+        "e079",
+        "e082",
+        "e095",
+        "e100",
+        "e107",
+        "e117",
+        "e127",
+        "e141",
+        "e148",
+        "e153",
+        "e160",
+        "e168",
+        "e180",
+        "e189"
+      ]
     },
     {
       "id": "e018",
@@ -192,7 +260,25 @@
       "type": "commit",
       "content": "Commit: fff763ba1a",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e041",
+        "e056",
+        "e070",
+        "e079",
+        "e082",
+        "e095",
+        "e100",
+        "e107",
+        "e117",
+        "e127",
+        "e141",
+        "e148",
+        "e153",
+        "e160",
+        "e168",
+        "e180",
+        "e189"
+      ]
     },
     {
       "id": "e023",
@@ -200,7 +286,9 @@
       "type": "commit",
       "content": "Commit: d73ee09796",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e071"
+      ]
     },
     {
       "id": "e024",
@@ -313,15 +401,1362 @@
       "content": "Fixed three self-contradictions I had introduced myself. The contamination probe told readers to use the CLI token counter the same document lists as unusable and omitted --disable-builtin-mcps. The claim that ambient context compresses deltas toward zero was asserted, but substitution and priming cut the other way, so bias direction is now stated as unknown with a 2x2 experiment named as the way to settle it. The 94,088 and 75,528 byte figures were both called the always-on corpus; they are now the .py effective context and the strict always-on corpus.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e038",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran adversarial review round 4 with GPT-5.6 Sol. It confirmed the corrected arithmetic and found no over-hedging, then returned 12 new findings, 2 CRITICAL, both against the salvage parser. Reproduced both before accepting: a nested rubric with its own reasoning key ended the search window early and returned the exemplar's zeros as the verdict, and two disjoint objects each satisfied the exactly-once check with a different field, producing a triple present in neither.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e039",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the regex salvage with a structure-aware scanner rather than patching it, because patching preserves the class of defect. The scanner tracks string state and nesting depth and returns only depth-1 scalar members of the first object, so nested rubrics are skipped whole and a second root object is never reached. Values must match the JSON integer grammar in full, closing 5junk, 05, 5., 5e, +5, and NBSP-prefixed digits.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e040",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Answered Sol's closing question with data instead of judgment. Re-ran the eight archived artifacts through the stricter parser: 24 of 24 failed samples still recover and every published cell reproduces to two decimals. The salvaged samples do not need to be excluded. Not a blind test, since the same author wrote both parsers, but it rules out the specific failure mode where a permissive regex manufactured the numbers.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e041",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "error",
+      "content": "Answered Sol's closing question with data instead of judgment. Re-ran the eight archived artifacts through the stricter parser: 24 of 24 failed samples still recover and every published cell reproduces to two decimals. The salvaged samples do not need to be excluded. Not a blind test, since the same author wrote both parsers, but it rules out the specific failure mode where a permissive regex manufactured the numbers.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e042",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Archived the eight eval artifacts into .agents/analysis/eval-artifacts/ with a provenance README. They had been cited from /tmp, so the analysis was uncheckable and one reboot from gone.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e043",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the remaining round-4 doc findings. Separated the two byte figures everywhere (75,528 always-on at 9.2x the 8KB threshold, 94,088 Python-edit effective at 11.5x). Renamed the mechanism table column from System prompt to Treatment text and stated that the Copilot provider injects into the user message. Deleted a reference to a negative control that did not exist. Marked the effort-tier claim as unmeasured convention. Resolved the cut-versus-keep threshold contradiction: a cut succeeds on absence of replicated degradation, since demanding a cut clear the noise floor is incoherent.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e044",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol adversarial round 5 found a CRITICAL score-fabrication defect plus two duplicate-key bypasses in _salvage_scores. Fixed, then self-attacked the fixes with 30 constructed payloads and found a sixth defect of the same class: two disjoint score objects returned the exemplar's values as a clean parse.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e045",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discovered a second Copilot session (0006555b) pushing to this same branch. A push that reported success had actually been rejected non-fast-forward. Always git fetch and compare tips before believing a push landed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e046",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "That session's e3e60dc9 had replaced the structure-aware salvage scanner with a regex. Compared both against the same four payloads before overriding: the regex fabricated 1/1/1 on all three attack payloads and also rejected the one legitimate recovery. Strictly worse on both axes, so the scanner was kept and the evidence recorded in the merge commit.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e047",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged the concurrent work rather than discarding it. Its stricter tests immediately earned their keep by exposing a SEVENTH fabrication defect in this session's own code: salvage ran after the shape gate and re-admitted out-of-range scores the gate had just rejected, so a judge answer of 6 came back as a clean 5.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e048",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced the round-6 global field-name count with a root-object walk requiring exactly one complete verdict, and added the missing 1-5 bound. The two designs each fixed what the other missed; combining them is strictly better on both axes rather than trading recovery for safety. It recovers the agentic tool-trace case AND rejects the decoy-pair case.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e049",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Consolidated the 1-5 range rule into a single _SCORE_RANGE constant. It had been triplicated across _clamp_score, _judge_score_shape_error and the new checker, and the three had already disagreed once, which is how defect seven survived.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e050",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol adversarial round 6 returned four blocking findings, all fixed and each verified against its own payload: _iter_json_objects descended INSIDE an unbalanced object; json.loads silently kept the last duplicate key and compared keys after unescaping, so \\u0061ctivation_score collided; a malformed scalar swallowed its separator and promoted depth-2 scores to depth 1; and knowledge-persistence.md declares paths:['**'] and had been omitted from the always-on corpus.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e051",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 6 also ran an independent numeric audit that reproduced every published table cell. The headline stands: the always-on book-rule cut is NOT justified. Two-tailed sign p = 0.0703, and only 3 of 8 per-run full-versus-description deltas clear the noise floor.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e052",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the published corpus numbers. Always-on status is declared THREE ways, not two, and the docs had counted two and reported 8 rules. It is 9. The docs also mixed two measurement bases in adjacent sentences: 75,528 was .claude/rules/ minus knowledge-persistence while 94,088 was the generated-mirror basis. Both bases are now named, and hardcoded sizes are replaced with the existing CI-gated instruction_budget.py command so the figures stay reproducible.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e053",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retracted the failure-cause claim. The docs said all 24 lost judge samples were unescaped quotes and that verbose models trip it more often. The archive cannot support either: every stored prefix is exactly 200 characters, so re-parsing reports Unterminated string for 19 of 24 purely from truncation, and only 5 show a stray quote in the window. Filed #3975, because the truncation does not merely hide the cause, it supplies a convincing wrong one.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e054",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the Vercel source date against the post itself: January 27, 2026, by Jude Gao. The 2026-02-08 in the local analysis is when this repo wrote the analysis. The two had been conflated.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e055",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote nine tests the round-7 change reversed, and added tests pinning every round-6 payload. Suite is 1520 passed, 4 skipped. All 24 archived recoveries still return identical values.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e056",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Rewrote nine tests the round-7 change reversed, and added tests pinning every round-6 payload. Suite is 1520 passed, 4 skipped. All 24 archived recoveries still return identical values.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e057",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol adversarial round 8 reported four more salvage defects (8 through 11). A second Opus 5 reviewer confirmed all four independently. Root cause was shared: both root-object walkers counted only braces and never brackets, so an object nested inside a top-level array read as root level and became a salvage candidate.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e058",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Chose a structural fix over a fifth point patch. Eleven defects were all disagreements about which candidate object was the verdict, so the search itself was the defect. Deleted the search: _salvage_anchor now requires the payload to start with an opening brace after lstrip and anchors at offset zero, with no candidate iteration.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e059",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added _names_a_score_field_twice, which counts the quoted field name in the raw text and refuses on any count above one. It also refuses when a unicode escape appears anywhere, because a unicode-escaped key would evade the count.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e060",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added _iter_root_brace_positions, which tracks brace depth and bracket depth outside string literals and yields only braces at depth zero on both. It fixes the strict _extract_json_object path as well as salvage.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e061",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the cost of the fix instead of assuming it. Leading tool traces, nested rubric exemplars, and prose that quotes a field name are no longer salvaged. All 24 archived recoveries return identical values, so no published cell changes.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e062",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote eight tests whose recoveries were deliberately given up, and added the first array-rooted coverage the suite has ever had plus a property-style invariant test that a second candidate can only withdraw a salvage.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e063",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A new test caught a real distinction worth pinning. A bare prose mention of a field name cannot be a JSON key, so it creates no ambiguity and still recovers. A quoted mention is indistinguishable from a duplicate key and refuses.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e064",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed the blocked push correctly on the second attempt. The pre-existing assumption that rule-audit-procedure.md crossing 500 lines was the blocker was wrong. A worktree diff of taste-lint errors against origin/main showed the two extra errors were authored complexity on the two new scanner functions. Decomposed both.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e065",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Introduced and caught an infinite recursion. A bulk string replace rewrote the body of _members_read_so_far into a call to itself. pytest reported recursion with identical locals and position. When bulk-replacing a pattern into a helper call, exclude the helper's own definition.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e066",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discovered PR #3953 was squash-merged as f811adbb while rounds 5 through 8 were still local, and the remote branch was deleted. Main is therefore shipping the fabricating instrument.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e067",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured main's shipped instrument against the six traced attack payloads rather than asserting it was broken. It fabricates on four of six shapes. The worst returns 5/5/5 for a judge that explicitly wrote that it cannot score the response, with no judge_salvaged marker, so no post-hoc audit can surface it.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e068",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main into the branch. The squash left no shared commit, so every file both sides touched conflicted. Resolution was uniform toward this branch, which carries the squashed snapshot plus rounds 5 through 8. Both plugin manifests go to 0.6.5430, strictly above main's 0.6.5428.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e069",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the merge result: 1530 passed and 4 skipped, six attacks refuse, two negative controls recover, and all 24 archived recoveries return identical values.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e070",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified the merge result: 1530 passed and 4 skipped, six attacks refuse, two negative controls recover, and all 24 archived recoveries return identical values.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e071",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 33ed7df6",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e041",
+        "e056",
+        "e070",
+        "e079",
+        "e082",
+        "e095",
+        "e100",
+        "e107",
+        "e117",
+        "e127",
+        "e141",
+        "e148",
+        "e153",
+        "e160",
+        "e168",
+        "e180",
+        "e189"
+      ]
+    },
+    {
+      "id": "e072",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebuilt the change as a focused branch off current main. The push gate blocks at 40 commits and the branch carried 48; the commit-by-commit trail of eleven defects is already preserved in rule-audit-procedure.md and in this log, so the git history was redundant with both. Full history retained locally under tag shihipar-full-history.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e073",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial round 9 (GPT-5.6 Sol) reported five findings against the salvage path. Reproduced all five independently in a dedicated git worktree rather than switching the main worktree's branch, since Sol had flagged that a branch switch corrupted its own earlier run.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e074",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Finding 4 was the twelfth defect of the single class the previous eleven belong to: a search picking the wrong candidate object. _salvage_anchor had already anchored the failure path, but _extract_json_object is the success path, so a verdict found past offset 0 returned through the ordinary result branch and was indistinguishable from a clean parse. Deleted the search; _iter_json_objects and _iter_root_brace_positions became dead and were removed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e075",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked the deleted search's stated justification before removing it. Its docstring claimed agentic CLI providers interleave tool-call traces into stdout. _copilot_cli._read_session_transcript reads assistant.message events, and tool calls sit in a sibling toolRequests field that never reaches the parser, so the justification was stale.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e076",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Finding 3: a second verdict serialized inside a string spells its keys with escaped quotes and evaded count('\"activation_score\"'). Switched _names_a_score_field_twice to count the bare identifier. Measured the cost before accepting it: of the 264 graded samples across the eight archived runs, none has a reasoning string naming a score field, so the refusal is free on observed output.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e077",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Finding 1 is an accepted trade-off, not a fix. An exemplar at offset 0 followed by an explicit refusal still grades, because refusing would require reading English out of a string field. It now carries judge_salvaged, so the recovery is auditable after the run. Corollary recorded in the procedure doc: an unauditable recovery is worse than an auditable refusal.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e078",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Finding 5 was a claim-precision defect, not a code defect. The published claim '24 of 24 failed samples recover, reproducing every cell' framed 24 failures as recoveries. Re-measured: 288 judge samples, 264 graded, 24 failed, 0 carrying a salvage marker. _reduce_samples drops failures rather than folding them in as zeros, so the 24 never reached a cell and salvage never produced a published number. Replaced the claim with the stronger, checkable one: no change to the salvage path can move the published table.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e079",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "error",
+      "content": "Finding 5 was a claim-precision defect, not a code defect. The published claim '24 of 24 failed samples recover, reproducing every cell' framed 24 failures as recoveries. Re-measured: 288 judge samples, 264 graded, 24 failed, 0 carrying a salvage marker. _reduce_samples drops failures rather than folding them in as zeros, so the 24 never reached a cell and salvage never produced a published number. Replaced the claim with the stronger, checkable one: no change to the salvage path can move the published table.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e080",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected an arithmetic error of my own found while re-measuring. The earlier figure of 252 samples / 228 graded undercounted by one run's worth; the full walk over all eight files gives 288 / 264 / 24. Fixed the number in the instrument docstring, the test docstring, and both reference documents.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e081",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote nine tests that pinned the searching behavior and added four: the judge_salvaged marker is set on a prefix recovery and absent on a clean parse, an escaped-quote duplicate refuses, and a leading prose block refuses end to end. Full eval suite 1532 passed, 4 skipped; ruff clean on both changed files.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e082",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Rewrote nine tests that pinned the searching behavior and added four: the judge_salvaged marker is set on a prefix recovery and absent on a clean parse, an escaped-quote duplicate refuses, and a leading prose block refuses end to end. Full eval suite 1532 passed, 4 skipped; ruff clean on both changed files.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e083",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran both adversarial payload suites against the hardened parser. Six attacks refuse, two negative controls still recover, and the round 9 script confirms findings 3 and 4 now refuse while the clean control still parses.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e084",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split the delivery into two commits so the code change carries no .agents/ path: parser hardening first, then the two reference documents and the artifact README. Kept the procedure document at 497 lines against the 500-line taste limit by putting the short form there and the full accounting in the artifact README.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e085",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 10 (GPT-5.6 Sol) found the thirteenth parser defect, one layer upstream of everything hardened in rounds 1 through 9. A four-line Markdown-fence stripper ran a bare re.search before both the duplicate guard and the offset-0 anchor, and replaced the whole payload with the first fence it found. A real verdict at offset 0 followed by a fenced rubric exemplar graded 5/5/5 with no salvage marker. Same class as the other twelve: a search picking the wrong candidate object. Fixed by removing the choice rather than adding a disqualifier: a fence is unwrapped only when the payload holds exactly one.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e086",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed round 10 finding 5, the inverse error. Bare-identifier counting refused a payload whose prose said 'The activation_score reflects', which is plausible judge output. The guard now counts the JSON key shape, matching quoted and escaped-quoted spellings so round 9's escaped-quote fix survives. Verified against all three prior-round regression scripts: round 8's A/B/C/E/F/G still refuse and D/H still recover, round 9's escaped-quote and off-offset cases still refuse, all 24 archived failures still recover.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e087",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Caught myself publishing a clean result from zero data. A walker written to check whether the round 10 findings moved any published cell returned no samples and printed 'no cell moves'. That is the same failure class as the parser defects it was auditing, so I refused the result and rewrote the walker against the real artifact schema. The rules and mechanisms keys are dicts, not lists; only scenarios is a list.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e088",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The corrected walker showed a claim I published last segment is false. The document said no archived sample carries a salvage marker, therefore salvage never produced a published number. The zero is real; the inference is wrong. The artifacts store the state before recovery was applied. The published table was recomputed with all 24 recovered, and that moved one cell, fx-opus5 baseline 3.83 to 3.89, changing that row's delta-full from +0.28 to +0.22. Sign count unchanged. Corrected in both the artifact README and the procedure document, with the wrong inference named rather than quietly replaced.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e089",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found a second false claim in the same document while verifying the first. It placed all 24 lost judge samples in var-opus-*.json artifacts. Six of them are in fx-opus5.json. Measured the real distribution: fx-opus5 6, var-opus-1 8, var-opus-2 4, var-opus-3 6, all four Sol files zero. Also corrected a carried-forward cell count that was wrong in my own notes: 79 cells at n=3, not 55.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e090",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Published two confounds that were measured but never written down. All 24 judge failures are on Opus runs and none on Sol, and the Opus rows are the ones carrying the large positive delta-full that drives the headline result. Seven published cells rest on a single graded sample, all seven Opus. A median of one sample is one observation.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e091",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issue #3989 for round 10 finding 3, the coordinate-wise median. Taking each score field's median independently can publish a triple no judge gave: three samples of 5/5/1, 5/1/5, 1/5/5 reduce to 5/5/5 when every judge rated the cell 3.67. Measured across all 96 archived cells, 3 diverge, worst 0.333 on a cell and 0.111 on a run mean. Recomputed end to end the sign test is identical at 7/1, p = 0.0703125, so the conclusion holds and the defect is real anyway.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e092",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issue #3990 for round 10 finding 4 and immediately closed it as a duplicate of #3933, which already tracked negative scenarios not gating the verdict with the same diagnosis. Process failure on my part: the procedure document I was editing cites #3933 twelve lines from where I was writing, and I filed without checking. Carried the one thing the duplicate added, a positive-strong negative-catastrophic regression test that must FAIL, forward as a comment on #3933.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e093",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split rule-audit-procedure.md at 517 lines against the 500-line taste limit. Rather than compressing prose again, separated the two concerns the file had grown: the reusable procedure, and the forensics of the 2026-07-29 run. The forensics moved to references/rule-audit-evidence.md with a five-line pointer left behind. That is the same progressive-disclosure move this session's doctrine argues for, applied to the session's own artifact. Procedure 421 lines, evidence 123.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e094",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the split: taste-lints file-size clean on both files, orphan-ref scan PASS on 9 refs, vendor-portability no new offenders, skill-portability no drift, zero em or en dashes byte-checked, copilot-cli mirror byte-identical by diff -rq, both plugin manifests bumped to 0.6.5431. Full eval suite 1539 passed 4 skipped, ruff clean.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e095",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified the split: taste-lints file-size clean on both files, orphan-ref scan PASS on 9 refs, vendor-portability no new offenders, skill-portability no drift, zero em or en dashes byte-checked, copilot-cli mirror byte-identical by diff -rq, both plugin manifests bumped to 0.6.5431. Full eval suite 1539 passed 4 skipped, ruff clean.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e096",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed the rejected push on PR #3983. Three causes, none of them a non-fast-forward: mypy reported one new error (Returning Any from _unwrap_lone_fence, because re.findall types as list[Any]), check_skill_md_portability.py found the new rule-audit-evidence.md carried an undeclared upstream path reference, and the review-marker FAIL is advisory. Fixed the first with a list[str] annotation on the local, the idiomatic fix rather than a suppression, and the second by adding the vendor-portability HTML marker the sibling procedure file already carries. Recorded the gotcha: three portability checkers exist with similar names (check_vendor_portability, check_skill_portability, check_skill_md_portability) and running the first two is not running the third.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e097",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran adversarial review round 11 with GPT-5.6 Sol and independently reproduced all four findings before accepting any. Finding 1, the duplicate-name guard recognizes double-quoted and escaped-double-quoted keys but not the single-quote JSON5 dialect, so a payload stating two conflicting triples returned the first one silently. Confirmed and fixed; it is the fourteenth defect and the same selection class as the thirteen before it. Finding 2, a four-backtick fence is miscounted by _FENCE_RE and refused. Confirmed; it fails in the safe direction and no archived payload contains a four-backtick run, so it is recorded as a known limit rather than fixed, because widening the fence regex would restore the candidate-selection choice the exactly-one-fence rule removes.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e098",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Findings 3 and 4 were both false claims in documents I wrote, and both are the same shape as the two I corrected last segment. Finding 3: the evidence doc said seven published cells rest on a single graded sample, then said three paragraphs later that the published table is recomputed with all 24 recovered. Those contradict. Measured: pre-recovery the archive holds 7 cells at n=1, 10 at n=2, 79 at n=3, and 7 times 2 plus 10 equals exactly the 24 lost samples; post-recovery all 96 cells are n=3. The honest statement is that seventeen published cells carry a recovered sample, seven of them two. Finding 4: all 24 stored prefixes are exactly 200 characters, the truncation ceiling, so all 24 are cut. Recovering a truncated prefix does not establish that the original payload was recoverable, and a longer original whose discarded tail named the score fields again would produce a byte-identical prefix and be refused. The same 200-character limit the document already applies to the failure cause was omitted from the recovery claim. Both corrected in place, naming the wrong inference rather than quietly replacing it.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e099",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the round 11 fix does not regress. Eval suite 1541 passed and 4 skipped, up 2 for the new tests. Round 8 regression holds with A, B, C, E, F, G refusing and the D and H negative controls recovering. Round 9 escaped-quote duplicate still refuses and the clean control still parses. Round 10 F1, F2, F5 hold; F3 and F4 still diverge by design as issues #3989 and #3933. All 24 archived prefixes still recover with identical triples, 17 at 5/4/5, 5 at 5/5/5, one 2/2/1, one 2/3/1. Measured the false-refusal cost of the wider guard directly: 0 of the 264 graded reasonings and 0 of the 24 failure prefixes spell a score key with single quotes, so the cost is measured-at-zero on this corpus rather than free, which is one judge, one prompt, one provider. ruff clean, mypy clean, taste-lint file-size 0 errors, mirror byte-identical, zero em or en dashes.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e100",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified the round 11 fix does not regress. Eval suite 1541 passed and 4 skipped, up 2 for the new tests. Round 8 regression holds with A, B, C, E, F, G refusing and the D and H negative controls recovering. Round 9 escaped-quote duplicate still refuses and the clean control still parses. Round 10 F1, F2, F5 hold; F3 and F4 still diverge by design as issues #3989 and #3933. All 24 archived prefixes still recover with identical triples, 17 at 5/4/5, 5 at 5/5/5, one 2/2/1, one 2/3/1. Measured the false-refusal cost of the wider guard directly: 0 of the 264 graded reasonings and 0 of the 24 failure prefixes spell a score key with single quotes, so the cost is measured-at-zero on this corpus rather than free, which is one judge, one prompt, one provider. ruff clean, mypy clean, taste-lint file-size 0 errors, mirror byte-identical, zero em or en dashes.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e101",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issue #3991. .github/copilot-instructions.md is injected into every Copilot session at 6351 bytes and no gate measures it: validate_workspace_budget.py covers only CLAUDE.md, AGENTS.md, and .claude/CLAUDE.md at 3000 bytes each, and instruction_budget.py covers only .github/instructions/*.instructions.md. The Copilot entry point sits in the gap at 2.1 times the ceiling its Claude-side equivalents are held to. AGENTS.md has one byte of headroom, so the gate shape actively steers new always-on guidance into the unmeasured file. Observed symptom: its Gotchas section duplicates .agents/governance/GOTCHAS.md, which exists so that detail is not paid for on every turn.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e102",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the PR #3983 description. It claimed salvage never produced a published number, citing 0 samples carrying a judge_salvaged marker. Verified the marker is absent from all 288 archived samples rather than present-and-false: it was introduced by this line of work, so all eight runs predate it. Absence of a field that did not exist yet is not a measurement. Graded samples retain only a truncated reasoning string, not the raw payload, so the question cannot be answered from the archive at all. Fifth false published claim of one shape: a number read off a population other than the one the sentence attaches it to.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e103",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Shipped PR #3994, the deduplication half of objective item 2. .github/copilot-instructions.md carried its own inline gotchas section duplicating .agents/governance/GOTCHAS.md with no gate to catch drift. Moved the three unique entries into the governance file, added three more traps found while shipping #3983, and replaced the section with a pointer. 6351 to 4579 bytes, a 28 percent cut with no knowledge lost. All three always-on entry points now cite one source: AGENTS.md directly, CLAUDE.md through its @AGENTS.md import, copilot-instructions.md through the new pointer.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e104",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol adversarial round 12. First round in twelve to find no defect of the selection class, and it was aimed at the two least-tested surfaces: the duplicate guard's paired-quote alternation and the strict-parse path that eleven rounds of attacks on salvage had never touched. Confirmed no fourth score-key spelling evades the alternation, and that strict parsing rejects wrong-typed, out-of-range, duplicate, and array-rooted verdicts before any reaches a cell.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e105",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 12 overturned a justification rather than a parser. Round 11's four-backtick fence finding had been recorded as a known limit on the reasoning that widening the matcher would restore the candidate selection the exactly-one-fence rule removes. That reasoning was wrong: pairing the close to the width of the run that opened it collects every block exactly as before and still refuses anything other than one. Replaced _FENCE_RE with _fenced_blocks, a width-paired line scan that refuses an unterminated fence. Fifteenth defect, and the first of a different class: a delimiter boundary that refuses valid input, failing safe rather than fabricating.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e106",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the fence fix does not move the published table. Archive regression holds exactly: 24 of 24 prefixes recover with identical triples (17x 5/4/5, 5x 5/5/5, one 2/2/1, one 2/3/1). Added five regression tests including the negative controls that pin the exactly-one-block invariant at every delimiter width: two four-backtick fences refuse, a three-run does not close a four-fence, an unterminated fence refuses. Suite 1546 passed and 4 skipped, up from 1541. Ruff clean, mypy Success.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e107",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verified the fence fix does not move the published table. Archive regression holds exactly: 24 of 24 prefixes recover with identical triples (17x 5/4/5, 5x 5/5/5, one 2/2/1, one 2/3/1). Added five regression tests including the negative controls that pin the exactly-one-block invariant at every delimiter width: two four-backtick fences refuse, a three-run does not close a four-fence, an unterminated fence refuses. Suite 1546 passed and 4 skipped, up from 1541. Ruff clean, mypy Success.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e108",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the sixth false published claim, found by round 12 and independently reproduced. rule-audit-evidence.md said the recovered values are a genuine prefix of what the judge wrote so they cannot be wrong. The second half does not follow: genuine bytes are not a final verdict. Verified on the exact sample that drives the one cell recovery moved, fx-opus5 S3 baseline, the only baseline cell in that run with a failed sample: appending a self-correction to the stored prefix leaves the first 200 characters byte-identical and makes the real parser refuse the payload outright.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e109",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review round 13 found the sixteenth defect, back in the selection class: a payload holding one fenced block plus an unfenced verdict was answered with the fence.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e110",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced it end-to-end through score_response with a stubbed transport. A judge verdict of 1/1/1 in unfenced prose plus a fenced exemplar labelled 'do not use' published 5/5/5 with judge_salvaged True.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e111",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the cost of the fix before writing it: 0 of the 24 archived failed-sample prefixes contain a fence at all, so requiring a whole-payload fence cannot move the published table.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e112",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Changed _fenced_blocks to report whether anything but whitespace sat outside the fences, and made _unwrap_lone_fence require that. Chose the directly-checked invariant over inferring it from the first and last lines.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e113",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added four regression tests including the property adversarial review asked for: content added outside a recoverable fence may only cause refusal, never preserve or change a score.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e114",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The property test failed on U+00A0 and the test case was wrong, not the code: Python classifies NBSP as whitespace and it carries no verdict. Replaced with U+200B and U+2060, which are not whitespace and do refuse.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e115",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Probed the U+2028, U+2029 and U+0085 interaction with splitlines separately. All three fail safe: the unwrap can mutate a body but the strict parse then rejects it.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e116",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Suite 1553 passed / 4 skipped, up from 1546. Ruff clean, mypy Success. Archive regression exact: 24 of 24 recover with identical triples. Rounds 8 through 11 regressions all hold.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e117",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Suite 1553 passed / 4 skipped, up from 1546. Ruff clean, mypy Success. Archive regression exact: 24 of 24 recover with identical triples. Rounds 8 through 11 regressions all hold.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e118",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retracted the published claim that round 12 was the first clean round. Round 13 found a selection defect in the code round 12 examined, so a quiet round is a fact about the attack, not about the code. Seventh false claim, second of the inference-from-absence shape.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e119",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed the PR description gate on PR 3994 by reproducing extract_mentioned_files offline instead of round-tripping through CI, and recorded the two load-bearing citation-cue constraints in the governance gotchas file.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e120",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol round 14 found the seventeenth defect, on the strict-parse path that eleven rounds had treated as safe by construction. A payload that parses whole was read as naming one answer; JSON nests, so a second verdict can sit inside the first and the grammar is still satisfied.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e121",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced independently with four shapes Sol did not use: a nested 'revised' object, a verdict in a list, a verdict quoted inside a string, and one nested three deep. All four are valid JSON, all four published a clean verdict, and none carried judge_salvaged, so unlike the recovery defects there was no audit trail at all.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e122",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found the guard already existed and already argued in its own docstring why it applies. It was wired into all three recovery paths and none of the strict one. The miss was a path that did not know it needed a check, not a missing check.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e123",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed by running _names_a_score_field_twice once before any parse rather than on the success branch, so a fourth parse path inherits the refusal instead of having to remember it. Chose the existing textual guard over a bespoke structural one: Sol's own finding 2 is that divergent strictness between paths is itself a defect, and a second differently-shaped guard would recreate exactly that.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e124",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the cost first, as with the previous sixteen, and the measurement failed in a way that is itself the finding. The archive stores raw payloads only for failed samples: 264 successful samples retain six keys and no payload. A success-path defect is retroactively unmeasurable by construction. Filed as issue #3998.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e125",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the tests catch the defect by stashing the fix and re-running: 5 of the new tests fail without it, and the over-breadth negative control passes either way.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e126",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Archive regression exact after the fix: 24/24 recover to byte-identical triples (17x 5/4/5, 5x 5/5/5, one 2/2/1, one 2/3/1). Round 8 negative controls D and H still recover. Suite 1553 to 1559 passed, 4 skipped. Ruff and mypy clean.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e127",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Archive regression exact after the fix: 24/24 recover to byte-identical triples (17x 5/4/5, 5x 5/5/5, one 2/2/1, one 2/3/1). Round 8 negative controls D and H still recover. Suite 1553 to 1559 passed, 4 skipped. Ruff and mypy clean.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e128",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected Sol finding 3: the evidence doc claimed every defect reported a wrong verdict as a clean parse. False for the sixteenth, which was marked judge_salvaged and wrong anyway. Rewrote to distinguish the two, since the marked case is the one showing an audit trail is a weaker defence than a refusal.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e129",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected Sol finding 4: the doc cited issue #3988 as the full round-by-round history. Its log stops at nine rounds and twelve defects. Reworded so the doc is the history of record and #3988 tracks only the argument.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e130",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed issue #3999 for the remaining Sol finding: _recover_verdict and _salvage_scores accept different payloads in both directions, and archive replay calls the latter directly, so a future archived score can depend on which helper the caller reached for. Left unfixed here as it belongs with the aggregator work.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e131",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol round 15 disproved this session's published claim that a success-path parser defect was retroactively unmeasurable. Copilot CLI keeps full assistant messages in session transcripts, so the raw judge payloads behind the 264 successful samples were still on disk. That was the eighth false claim of the session and the same shape as the other seven: a negative inferred from absence, asserted because the data was not in the place I looked.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e132",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Independently reproduced and extended the recovery: 465 of 3366 sessions mention activation_score, yielding 474 candidate messages and 466 distinct payload texts. Correlated each parsed triple back to the published cells and matched 264 of 264 successes with none unmatched; 10 cells had multiple candidates agreeing on the same triple.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e133",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fell into two traps during correlation and caught both. First, _recover_verdict returns JSON text rather than a dict, so an isinstance(v, dict) check silently matched 0 of 264 and printed a clean-looking result. Second, my first regression script incremented a match counter without ever comparing to the published triple, which is exactly the fabrication pattern this session exists to hunt. Caught on re-read before it produced a number.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e134",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Used the recovered instrument to run the regression I had published as impossible: all 264 successful cells re-score to their archived triples exactly, and the 24 archived failures recover to byte-identical triples. That moves the parser from verified on 24 of 288 published cells to verified on all 288.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e135",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The regression found a defect I introduced in round 14. Moving the textual ambiguity guard pre-parse on every path meant any payload containing a unicode escape was refused outright, and json.dumps defaults to ensure_ascii=True, so an em-dash or curly quote in judge prose serializes as \\uXXXX. A healthy strictly-parseable verdict was scored 0/0/0. Sol reported the fenced case; the plain case is worse and I found it myself.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e136",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired by reversing a round-14 design decision. Round 14 ran one textual guard everywhere because divergent strictness between paths looked like a defect in itself. That conflated divergent strictness for the same question with genuinely different questions needing different instruments. Where the parse succeeded, count score-bearing objects at any depth and scan decoded strings; where an unparsed tail follows the object, keep the raw count and its blanket.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e137",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Declined Sol's blocking finding 1 deliberately and recorded why in a test. Python adjacent string literals concatenate under the grammar, so no textual method sees the field name; the encoding space is open, so enumerating spellings cannot close the class. The source is a cooperating judge, none of the 288 payloads carries the shape, and the top-level object is the schema's answer slot. Sol's own recommendation is provider-enforced structured output, which I agree with.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e138",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Archived the 264 recovered payloads as recovered-judge-payloads.json beside the results they produced, and added a replay test that re-scores every published cell on each run. Negative control: sabotaging the ambiguity check makes the test report all 264 cells as changed, so it is not a test that can only pass. This is the durable fix for the archive gap in issue #3998.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e139",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected three published claims in rule-audit-evidence.md: the unmeasurability claim, the assertion that the unicode blanket costs nothing on recovery paths (true for the tail path, false for the fenced one), and the statement that all sixteen prior defects were bounded exactly by replaying 24 prefixes, which reads a bound from the failed population and attaches it to a sentence about all samples.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e140",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verification: ruff clean, mypy clean, 4 of 6 new tests fail without the source fix under a targeted git stash, all prior round controls still hold, full suite 19020 passed and 30 skipped.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e141",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verification: ruff clean, mypy clean, 4 of 6 new tests fail without the source fix under a targeted git stash, all prior round controls still hold, full suite 19020 passed and 30 skipped.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e142",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol round 16 finding 1 reproduced: the round 15 structural ambiguity check walked dict.values() only, so a second verdict serialized into a JSON object KEY passed as a clean 1/1/1 on the plain path and a salvaged 1/1/1 on the fenced path. The raw guard it replaced caught that shape, so the replacement was a regression on the exact case it exists to stop.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e143",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed _string_values to yield object keys as well as values. All three shapes (plain, fenced, tail) now refuse, while the control payload whose reasoning carries an em-dash still scores 5/4/5, proving the fix is not a restored blanket text scan.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e144",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol round 16 finding 2 reproduced: the round 15 payload-to-cell correlation matched by parsed triple and then verified by parsed triple, which is circular. Measured 264 coordinates drawing on only 258 distinct source events, with 4 events assigned across 10 coordinates, so 6 coordinates carried a payload that was not theirs.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e145",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Built an independent oracle from the judge prompt's **Actual response** block matched against each mechanism's response_preview, which ties a payload to a cell by its INPUT rather than its score. First pass returned 0 of 474 because it tested for a real newline against JSON-escaped transcript text; caught the instrument error instead of concluding the prompts were absent, and the corrected pass recovered 448 of 474.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e146",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-correlated on the input oracle: every published mechanism matched exactly its own judge repeats, chronological ordering assigned every sample, and the result is 288 coordinates on 288 distinct source events with zero reuse. Exactly 6 attributions changed, matching the count the circularity analysis predicted.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e147",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rebuilt recovered-judge-payloads.json from the input-based correlation with the oracle recorded in the file, and extended it to the 24 failures so their full payloads are archived instead of the 200-character reasoning prefix, retiring that truncation limit for this run.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e148",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "error",
+      "content": "Rebuilt recovered-judge-payloads.json from the input-based correlation with the oracle recorded in the file, and extended it to the 24 failures so their full payloads are archived instead of the 200-character reasoning prefix, retiring that truncation limit for this run.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e149",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the recovery divergence exactly: all 24 samples the published run refused are recovered by the current parser, each to a triple whose three values appear literally in its raw payload as score fields. Pinned those as recovered_triple since they were never published. That is the concrete size of issue #3999 for this run: 24 of 288 cells.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e150",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Strengthened the replay test with the two assertions Sol identified as missing: coordinate-set equality against the published table and source-event uniqueness. Negative-controlled both by dropping an archive entry and by duplicating a source event; each fires.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e151",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Process failure worth recording: negative-controlling a source fix with git checkout on the file destroyed both uncommitted fixes in it. The deep-nesting tests written minutes earlier caught the loss at 7 of 9 failing. Rebuilt both fixes and switched to copying the file aside instead.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e152",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added test_a_verdict_hidden_in_an_object_key_is_two_verdicts as a standing regression guard, negative-controlled by reverting only the key-walking change. Verification: ruff clean, mypy clean, 0 em/en dashes, mirrors byte-identical, full suite 19029 passed and 30 skipped.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e153",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Added test_a_verdict_hidden_in_an_object_key_is_two_verdicts as a standing regression guard, negative-controlled by reverting only the key-walking change. Verification: ruff clean, mypy clean, 0 em/en dashes, mirrors byte-identical, full suite 19029 passed and 30 skipped.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e154",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol adversarial round 17 returned three findings and all three reproduced exactly. One BLOCKING: a second verdict spelled with unicode escapes inside reasoning survives the parse as literal backslash-u text, which no pattern for the score field names matches, so a payload carrying a corrected 5/5/5 beside a filed 1/1/1 published the 1/1/1 unmarked on both parsed-region paths. Two others: both ambiguity walkers recursed and raised RecursionError on deeply nested but healthy payloads, which the scoring call site catches as RuntimeError and mislabels a judge API failure, dropping a valid sample; and a single agreeing mention of a score field in prose was refused as a second verdict.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e155",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rejected Sol's proposed fix of refusing any string containing a literal backslash-u. It produces false refusals on prose that merely mentions an escape and cannot distinguish a contradiction from a restatement. Adopted a contradiction-based contract instead: a payload is ambiguous when it names a score field whose value conflicts with the value actually filed at top level, measured across up to three peeled escape layers, with uncomparable mentions still refused. This corrects a bias the session had been applying, since a dropped sample moves a published median exactly as a fabricated one does.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e156",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Converted both ambiguity walkers to iterative stack walks and documented the RecursionError to RuntimeError to judge-API-failure mislabel chain in the docstring, so the next reader sees why the recursion mattered rather than only that it was removed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e157",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified all three fixes against the reproduction script: nested escapes now refuse on all three parsed-region shapes, the 996-deep healthy payload now scores 5/4/5 instead of being dropped, and the self-restating payload now scores 5/4/5. Controls hold: em-dash prose still scores, a conflicting quoted verdict still refuses, a verdict hidden in an object key still refuses.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e158",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added three regression tests, each negative-controlled with a cp backup rather than git checkout: disabling escape peeling fails the escape test, refusing on any match fails the restatement test, and restoring the recursive counter fails the deep-nesting test. Re-ran the 288-cell replay: every archived payload is unaffected by all three changes, confirming Sol's measurement that none carries either shape.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e159",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verification: full suite 19032 passed and 30 skipped, up 3 from the new tests. ruff clean, mypy clean after annotating the filed-scores parameter, 0 em/en dashes, mirrors byte-identical, taste ratchet OK at baseline 616. Shipped as dea1e35f and 8a52e03a on PR #3983.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e160",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verification: full suite 19032 passed and 30 skipped, up 3 from the new tests. ruff clean, mypy clean after annotating the filed-scores parameter, 0 em/en dashes, mirrors byte-identical, taste ratchet OK at baseline 616. Shipped as dea1e35f and 8a52e03a on PR #3983.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e161",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol round 18 returned three BLOCKING findings and one NIT, and also rebutted the load-bearing claim round 17 rested on. Round 17 argued an over-eager refusal is the same class of defect as an over-eager accept. Sol: a refusal is visible in judge_failed and the sample count, a fabrication is an unmarked false observation. An equal restatement may be accepted only where equality is established exactly. Two of the four findings are cases where round 17 claimed equality without establishing it exactly.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e162",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced all four in /tmp/r18.py. (1) json.dumps applied twice yields two backslashes; a uXXXX-only peel consumes the second, leaving \\activation_score that nothing can decode or match. (2) The named-value pattern captured an integer prefix, so a judge filing 1 while writing 1.5 read as agreement; 1e1 the same. (3) A four-layer escape exhausted the peel budget and the exhausted walk returned no contradiction, which the caller read as agreement. (4) Round 17 made both ambiguity walkers iterative, which removed the recursion limit that had been terminating self-referential objects by accident.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e163",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed all four. _peel_one_escape_layer now handles backslash-backslash first, then quote, solidus, the control escapes, and uXXXX. The named-value pattern captures the whole token and _EXACT_INT_RE refuses anything not exactly an integer. _escape_layers yields a truncated flag and the caller refuses on a truncated walk. Both walkers carry an identity-keyed seen set. Five new tests.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e164",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "My own negative control caught a fifth defect I introduced while fixing the third. The first truncation fix refused on any layer that still had anything to decode rather than on a truncated walk. A judge quoting a Windows path leaves a literal backslash-b, which is a JSON escape, so that payload would have been refused. The symptom was a negative control PASSING: disabling the backslash handling left the double-serialization test green because the refusal was coming from the truncation arm. A negative control that passes is as informative as one that fails.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e165",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Five negative controls all discriminate against the corrected code. Dropping backslash handling fails the double-serialization test; an integer-prefix capture fails the non-integer test; accepting a truncated walk fails the budget test; dropping the cycle guards hangs at 30s; refusing on any undecoded layer fails the new backslash-prose test.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e166",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replayed all 288 archived judge payloads through both the committed parser and the round-18 parser. Both produce 24 recovery divergences and the sets are identical by coordinate, not merely equal in count. None of the five shapes occurs in the archive, so the published table is unmoved. The 24 remain issue #3999.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e167",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verification: full suite 19037 passed and 30 skipped, up 5 from the new tests. Eval suite 1583 passed and 4 skipped. ruff clean, mypy clean, 0 em/en dashes in every changed file, context-optimizer mirrors byte-identical, taste ratchet OK at baseline 616.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e168",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verification: full suite 19037 passed and 30 skipped, up 5 from the new tests. Eval suite 1583 passed and 4 skipped. ruff clean, mypy clean, 0 em/en dashes in every changed file, context-optimizer mirrors byte-identical, taste ratchet OK at baseline 616.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e169",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol adversarial round 19 returned two BLOCKING and three NIT findings against the round-18 parser. All five were reproduced against the committed code before any fix was written.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e170",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "BLOCKING 1: the value token stops at whitespace, so a judge writing \"activation_score\": 5 - 1 beside a filed 5 captured 5, compared equal, and would have published a 5 the judge corrected to 4. An unmarked fabrication reached through the fix meant to prevent that class.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e171",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "BLOCKING 2: int(token) on a digit run past 4300 characters raises ValueError, which CPython imposes deliberately. eval_one_scenario catches RuntimeError only, so one adversarial judge response would have aborted every scenario after it. Reproduced as a live crash.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e172",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "NIT 3, 4, 5 were over-refusals and a spelling gap: a three-layer decode budget refused a judge discussing regex escaping, ordinary sentence punctuation (5. 5; 5) and backtick) refused every judge who ended a sentence on the number, and 05 was accepted as agreement with a filed 5.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e173",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix: compare decimal spellings rather than converting. Strip trailing sentence closers, refuse when an arithmetic operator follows the token, delete the integer conversion entirely, and raise the decode budget from 3 to 8. Removing int() closes the crash and the 05 acceptance together.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e174",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Two self-introduced defects were caught only by negative controls. Including ( in the operator set refused ordinary parentheticals. The budget-exhaustion test kept passing after the budget was raised, because the buried field then decoded into view and refused as a contradiction: the right outcome for the wrong reason. Rewritten to carry no score field at all, so only truncation can refuse it.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e175",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "The decode-budget boundary was measured rather than assumed: 256 consecutive backslashes resolve inside 8 layers, 512 exhaust it. Both sides are now pinned as tests.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e176",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Seven negative controls run, one per fix, and all seven fail as required. 22 boundary cases traced through the comparison, 0 wrong. A control that passes is treated as a failure signal.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e177",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaying all 288 archived judge payloads through the round-19 parser produces the same 24 recovery divergences as round 18, identical by coordinate and not merely by count. The published table is unmoved: p = 0.0703125, 7 positive and 1 negative. The book-rule cut remains unjustified.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e178",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol's round-19 doc finding: the round-18 write-up claimed the pattern captures the whole token and refuses anything not exactly an integer. Both halves were false. Corrected, and the archive-walking schema moved to the procedure document where reproduction steps belong. Evidence 491 lines, procedure 484, both under the 500 ceiling.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e179",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verification: full suite 19043 passed and 30 skipped, up 6 from the net new tests. Eval suite 237 passed and 1 skipped, up from 232 collected. ruff clean after fixing a real B023 late-binding catch in a loop-scoped lambda, mypy clean, 0 em/en dashes, context-optimizer mirrors byte-identical, taste ratchet OK at baseline 616, skill_size 0 failures.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e180",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verification: full suite 19043 passed and 30 skipped, up 6 from the net new tests. Eval suite 237 passed and 1 skipped, up from 232 collected. ruff clean after fixing a real B023 late-binding catch in a loop-scoped lambda, mypy clean, 0 em/en dashes, context-optimizer mirrors byte-identical, taste ratchet OK at baseline 616, skill_size 0 failures.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e181",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Sol adversarial round 22 returned a publish verdict of no: one blocking defect and three nits. Reproduced all four independently before touching anything. Blocking: the round-21 refusal required the score field name to be quoted and followed by a colon, so a JSON5 bare key, a Python dict(field=1) call, and unbraced prose each restated a verdict and published unmarked.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e182",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rejected Sol's proposed fix of adding a bare-name-plus-colon alternative. It still enumerates separators, which is the trap that broke rounds 19, 20, and 21 in turn. Implemented the terminal form instead: match the bare field name with no quoting and no separator required, so nothing remains to enumerate. Measured the cost first: all three candidate policies refuse zero of the 264 nested reasoning values across the 288 archived payloads.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e183",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Name-only broke 17 tests, because the string walker yields object keys as well as values, so a healthy payload's own root key activation_score reached the check and every healthy payload refused. Added an exemption that is exact rather than a pattern: a string that is entirely a field name carries no verdict because it carries no number, so equality against the closed _SCORE_FIELDS set exempts it and any other character puts it back under the refusal.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e184",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Flipped one existing assertion deliberately. Prose that merely mentions a field name now refuses, because no bounded rule separates it from the round-22 bypass string. The neighbouring assertion stays False and serves as the control proving the check has not become universal.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e185",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected two wrong-population numbers of my own. The 1732 count walked the whole archive envelope including artifact names and provenance prose; the population the claim attaches to is the 264 nested reasoning values. And the claim that the exemption silently excused three errors counted files over 500 lines, not files the rule gates: file-size covers markdown and code, not .xml or .txt, so the true number is one.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e186",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Narrowed the taste-lints generated-data exemption to require a .json suffix as well as the path. Re-exposed exactly one file, a closed 913-line generated audit catalog, which now carries an explicit suppression stating why splitting a resolved historical record would break what it is for.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e187",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the archive claim that issue #3998 rests on. The archive stores a raw payload for all 288 samples, successes included, so a defect on the success path can be replayed rather than argued about. Fixed the round-count contradictions across three reference docs and removed the aggregate defect count, whose categories shifted between rounds and so had no stable population.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e188",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verification: full suite 19460 passed and 30 skipped. Eval suite 1590 passed and 4 skipped, matching baseline. Negative controls confirmed load-bearing: removing the exact-equality exemption fails 17 tests, removing the .json suffix condition fails exactly the two over-breadth tests, and the file was byte-identical after each restore. Replaying all 288 archived payloads gives 24 divergences, an identical set by coordinate to HEAD, so nothing published moved. ruff and mypy clean, all four portability checkers OK, 0 em or en dashes, manifest parity at 0.6.5433, ratchet OK at 613.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e189",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "test",
+      "content": "Verification: full suite 19460 passed and 30 skipped. Eval suite 1590 passed and 4 skipped, matching baseline. Negative controls confirmed load-bearing: removing the exact-equality exemption fails 17 tests, removing the .json suffix condition fails exactly the two over-breadth tests, and the file was byte-identical after each restore. Replaying all 288 archived payloads gives 24 divergences, an identical set by coordinate to HEAD, so nothing published moved. ruff and mypy clean, all four portability checkers OK, 0 em or en dashes, manifest parity at 0.6.5433, ratchet OK at 613.",
+      "caused_by": [
+        "e017",
+        "e022",
+        "e071",
+        "e190"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e190",
+      "timestamp": "2026-07-29T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3dbb52bf8445e2ae58571ca1c1586c00678b7b44",
+      "caused_by": [],
+      "leads_to": [
+        "e041",
+        "e056",
+        "e070",
+        "e079",
+        "e082",
+        "e095",
+        "e100",
+        "e107",
+        "e117",
+        "e127",
+        "e141",
+        "e148",
+        "e153",
+        "e160",
+        "e168",
+        "e180",
+        "e189"
+      ]
     }
   ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 72,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 6
+    "commits": 5,
+    "files_changed": 14
   },
   "lessons": []
 }

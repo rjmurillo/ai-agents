@@ -17,7 +17,7 @@ See: ADR-035 Exit Code Standardization
 
 References:
     - Vercel Research: .agents/analysis/vercel-passive-context-vs-skills-research.md
-    - Example: SKILL-QUICK-REF.md (pipe-delimited format)
+    - Example: AGENTS.md (pipe-delimited format)
     - Issue: #1108
 """
 

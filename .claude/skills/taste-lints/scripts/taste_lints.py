@@ -41,13 +41,40 @@ SCANNABLE_EXTENSIONS = {
     ".json",
 }
 
-# Path segments whose files are exempt from the file-size rule. These hold
-# append-only generated data (the episode-extraction hook writes an episode
-# record under .agents/memory/episodes/ on every session-log commit). The data
-# has no module boundaries to split on, so a line ceiling is the wrong gate,
-# and JSON cannot carry a `# taste-lint: ignore` suppression comment. A path
-# exemption is the only mechanism. See issue #2785.
-FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = ((".agents", "memory"),)
+# Path segments holding captured or generated JSON that is exempt from the
+# file-size rule. A line ceiling is the wrong gate for these: the content has no
+# boundaries to split on, and JSON cannot carry a `# taste-lint: ignore`
+# suppression comment, so a path exemption is the only mechanism available.
+#
+# The exemption requires the `.json` suffix as well as the path. The rationale
+# above is about JSON specifically, and without the suffix condition the
+# exemption reached every authored file that happened to sit in one of these
+# directories: a 913-line markdown catalog and a 542-line XML spec under
+# `sessions/` were silently excused, and both have ordinary section boundaries
+# to split on.
+#
+#   memory/: the episode-extraction hook appends an episode record on every
+#   session-log commit (issue #2785).
+#
+#   analysis/eval-artifacts/: raw eval result files, archived so the numbers
+#   published in an analysis can be re-derived instead of taken on faith.
+#   Splitting one would break the provenance it exists to provide, and the
+#   file-size remediation text proposes extracting "helper functions" from a
+#   JSON dump, which is advice no author can act on (issue #3970).
+#
+#   sessions/: session logs, which SESSION-PROTOCOL.md requires to carry one
+#   workLog entry per step, so length tracks how much work a session did and
+#   nothing else. validate_session_json.py validates one file per session, so
+#   splitting one is not available either.
+_AGENT_STATE_DIR = ".agents"
+
+FILE_SIZE_EXEMPT_SUFFIX = ".json"
+
+FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
+    (_AGENT_STATE_DIR, "memory"),
+    (_AGENT_STATE_DIR, "analysis", "eval-artifacts"),
+    (_AGENT_STATE_DIR, "sessions"),
+)
 
 _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli"),
@@ -258,6 +285,96 @@ def get_diff_files(base: str) -> list[str]:
     return sorted(os.path.join(root, f) for f in files if is_safe_path(f))
 
 
+def _parse_hunk_header(header: str) -> tuple[int, int]:
+    """Parse a unified-diff hunk header and return (start_line, line_count).
+
+    The header format is ``@@ -a,b +c,d @@`` where ``c`` is the starting line
+    in the new file and ``d`` is the number of lines in the hunk.  A missing
+    comma means the hunk is exactly one line (implicit count of 1).
+    """
+    match = re.search(r"\+(\d+)(?:,(\d+))?", header)
+    if not match:
+        return 0, 0
+    start = int(match.group(1))
+    count = int(match.group(2)) if match.group(2) is not None else 1
+    return start, count
+
+
+def _run_git_diff(base: str) -> str:
+    """Return the unified-diff output for *base*...HEAD.
+
+    Raises ``RuntimeError`` on git failure so callers treat an error as
+    non-empty (fail safe: report violations rather than silently skip them).
+    """
+    if not base or base.startswith("-"):
+        raise ValueError(f"invalid --diff-scope base: {base!r}")
+    root = _git_root()
+    try:
+        result = subprocess.run(
+            ["git", "diff", "-U0", f"{base}...HEAD"],
+            capture_output=True,
+            check=True,
+            cwd=root,
+            encoding="utf-8",
+            errors="ignore",
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("git is not available to compute diff lines") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"git diff timed out for base {base!r}") from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"git diff failed for base {base!r} (exit {exc.returncode})") from exc
+    return result.stdout
+
+
+def get_diff_line_numbers(base: str) -> dict[str, set[int]]:
+    """Return a mapping of absolute file path to changed line numbers.
+
+    Each value is the set of *new-file* line numbers that appear in a unified
+    diff hunk for that file against ``base...HEAD``.  Only added or context
+    lines are counted; removed lines (prefixed with ``-``) are not in the new
+    file and are excluded.
+
+    When ``base`` is empty or ``None`` the function returns an empty dict so
+    callers treat every line as changed (no filtering).
+    """
+    if not base:
+        return {}
+    raw = _run_git_diff(base)
+    result: dict[str, set[int]] = {}
+    current_file: str | None = None
+    current_line = 0
+    root = _git_root()
+    for line in raw.splitlines():
+        if line.startswith("+++ "):
+            path = line[4:].strip()
+            if path.startswith("b/"):
+                path = path[2:]
+            abs_path = os.path.join(root, path)
+            current_file = abs_path if is_safe_path(path) else None
+            current_line = 0
+        elif line.startswith("@@ "):
+            start, _ = _parse_hunk_header(line)
+            current_line = start
+        elif current_file is not None and line.startswith("-"):
+            pass  # removed line; no position in new file
+        elif current_file is not None:
+            if current_line > 0:
+                result.setdefault(current_file, set()).add(current_line)
+            current_line += 1
+    return result
+
+
+def get_base_file_line_count(filepath: str) -> int:
+    """Return the number of lines in *filepath*, or 0 if unreadable."""
+    try:
+        with open(filepath, encoding="utf-8", errors="ignore") as fh:
+            return sum(1 for _ in fh)
+    except OSError:
+        return 0
+
+
 def get_files_from_directory(directory: str) -> list[str]:
     """Recursively get scannable files from a directory."""
     files = []
@@ -288,16 +405,23 @@ def has_suppression(lines: list[str], rule: str) -> bool:
 
 
 def _is_file_size_exempt(filepath: str) -> bool:
-    """True when filepath lives under a generated-data dir exempt from file-size.
+    """True when filepath is captured JSON under a dir exempt from file-size.
 
-    The exempt segment must anchor at the START of the repository-relative path,
-    not match anywhere in it. Otherwise a checkout whose parent directories happen
-    to contain ``.agents/memory`` (for example a clone under
-    ``/home/me/.agents/memory/repo``) would leak the exemption to unrelated files.
+    Both conditions are required. The exempt segment must anchor at the START of
+    the repository-relative path, not match anywhere in it. Otherwise a checkout
+    whose parent directories happen to contain ``.agents/memory`` (for example a
+    clone under ``/home/me/.agents/memory/repo``) would leak the exemption to
+    unrelated files. The suffix must be ``.json``, because the reason these
+    directories are exempt at all is that JSON cannot carry a suppression
+    comment; an authored markdown or XML file sitting in one of them has
+    ordinary boundaries to split on and is not excused.
+
     Absolute paths are first made relative to the current working directory (the
     linter runs from the repo root); a path outside the repo is never exempt.
     """
     path = Path(filepath).expanduser()
+    if path.suffix.lower() != FILE_SIZE_EXEMPT_SUFFIX:
+        return False
     if path.is_absolute():
         try:
             parts = path.resolve().relative_to(Path.cwd().resolve()).parts
@@ -308,6 +432,13 @@ def _is_file_size_exempt(filepath: str) -> bool:
     return any(parts[: len(segment)] == segment for segment in FILE_SIZE_EXEMPT_SEGMENTS)
 
 
+# Extensions that hold structured data rather than authored source code. The
+# file-size rule still fires (oversized data files do affect context cost and
+# ratchet counts), but the remediation text for these files must not suggest
+# extracting helper functions or type definitions. Issue #3970.
+_DATA_EXTENSIONS: frozenset[str] = frozenset({".json", ".yaml", ".yml"})
+
+
 def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
     """Check file line count against thresholds."""
     if _is_file_size_exempt(filepath):
@@ -315,9 +446,27 @@ def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
     if has_suppression(lines, "file-size"):
         return []
     line_count = len(lines)
+    is_data_file = Path(filepath).suffix.lower() in _DATA_EXTENSIONS
     if line_count > 500:
-        bn = Path(filepath).stem
-        sx = Path(filepath).suffix
+        if is_data_file:
+            remediation = (
+                "AGENT_REMEDIATION: Data file exceeds 500 lines. Options:\n"
+                "  1. Shard by a natural key (e.g. date, id range, category)\n"
+                "  2. Exempt the path in FILE_SIZE_EXEMPT_SEGMENTS if the file\n"
+                "     is append-only generated data with no module boundary.\n"
+                "  Target: each shard under 500 lines or path-exempt the directory."
+            )
+        else:
+            bn = Path(filepath).stem
+            sx = Path(filepath).suffix
+            remediation = (
+                f"AGENT_REMEDIATION: Split this file into smaller modules. "
+                f"Consider extracting:\n"
+                f"  1. Helper functions -> {bn}_helpers{sx}\n"
+                f"  2. Type definitions -> {bn}_types{sx}\n"
+                f"  3. Constants -> {bn}_constants{sx}\n"
+                f"  Target: each module under 300 lines for good cohesion."
+            )
         return [
             Violation(
                 rule="file-size",
@@ -325,17 +474,25 @@ def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
                 file=filepath,
                 line=line_count,
                 message=f"File exceeds 500 lines ({line_count} lines)",
-                remediation=(
-                    f"AGENT_REMEDIATION: Split this file into smaller modules. "
-                    f"Consider extracting:\n"
-                    f"  1. Helper functions -> {bn}_helpers{sx}\n"
-                    f"  2. Type definitions -> {bn}_types{sx}\n"
-                    f"  3. Constants -> {bn}_constants{sx}\n"
-                    f"  Target: each module under 300 lines for good cohesion."
-                ),
+                remediation=remediation,
             )
         ]
     if line_count > 300:
+        if is_data_file:
+            remediation = (
+                "AGENT_REMEDIATION: Data file is growing large. If it is "
+                "append-only generated data, consider exempting the path in "
+                "FILE_SIZE_EXEMPT_SEGMENTS or sharding by a natural key before "
+                "it exceeds 500 lines."
+            )
+        else:
+            remediation = (
+                "AGENT_REMEDIATION: File is growing large. Plan extraction "
+                "before it exceeds 500 lines. Look for:\n"
+                "  1. Groups of related functions that form a cohesive module\n"
+                "  2. Data classes or constants that can be separated\n"
+                "  3. Test helpers that belong in a conftest or fixture file"
+            )
         return [
             Violation(
                 rule="file-size",
@@ -343,13 +500,7 @@ def check_file_size(filepath: str, lines: list[str]) -> list[Violation]:
                 file=filepath,
                 line=line_count,
                 message=f"File approaching size limit ({line_count}/500 lines)",
-                remediation=(
-                    "AGENT_REMEDIATION: File is growing large. Plan extraction "
-                    "before it exceeds 500 lines. Look for:\n"
-                    "  1. Groups of related functions that form a cohesive module\n"
-                    "  2. Data classes or constants that can be separated\n"
-                    "  3. Test helpers that belong in a conftest or fixture file"
-                ),
+                remediation=remediation,
             )
         ]
     return []
@@ -619,7 +770,77 @@ RULE_CHECKERS = {
 }
 
 
-def run_lint(files: list[str], rules: tuple[str, ...]) -> LintResult:
+def _filter_violations_for_diff(
+    violations: list[Violation],
+    filepath: str,
+    diff_lines: dict[str, set[int]],
+    diff_base: str,
+) -> list[Violation]:
+    """Keep only violations whose line numbers fall within the diff.
+
+    A violation with ``line == 0`` is file-level (e.g. file-size).  File-level
+    violations are kept only when the file grew in this diff, i.e. the new
+    line count exceeds the line count at ``diff_base``.  A file already over
+    the threshold that did not grow further is suppressed: its size violation
+    was pre-existing, not introduced by this PR.  Any other violation is kept
+    only if its line number appears in the changed-line set for that file.
+
+    When ``filepath`` is not in ``diff_lines`` (no changed lines recorded for
+    the file), all violations are suppressed so pre-existing issues in
+    unchanged files are not reported.
+    """
+    if filepath not in diff_lines:
+        return []
+    changed = diff_lines[filepath]
+    result = []
+    for v in violations:
+        if v.line == 0:
+            try:
+                root = _git_root()
+                rel = os.path.relpath(filepath, root)
+                proc = subprocess.run(
+                    ["git", "show", f"{diff_base}:{rel}"],
+                    capture_output=True,
+                    check=True,
+                    encoding="utf-8",
+                    errors="ignore",
+                    timeout=_GIT_TIMEOUT_SECONDS,
+                )
+                old_count = proc.stdout.count("\n")
+            except Exception:
+                old_count = 0
+            new_count = get_base_file_line_count(filepath)
+            if new_count > old_count:
+                result.append(v)
+        elif v.line in changed:
+            result.append(v)
+    return result
+
+
+def _lint_file_rules(
+    filepath: str,
+    lines: list[str],
+    rules: tuple[str, ...],
+    category: str,
+) -> list[Violation]:
+    """Run all rule checkers for a single file and return violations."""
+    violations: list[Violation] = []
+    for rule in rules:
+        checker = RULE_CHECKERS.get(rule)
+        if checker:
+            rule_violations = checker(filepath, lines)
+            for v in rule_violations:
+                v.category = category
+            violations.extend(rule_violations)
+    return violations
+
+
+def run_lint(
+    files: list[str],
+    rules: tuple[str, ...],
+    diff_lines: dict[str, set[int]] | None = None,
+    diff_base: str = "",
+) -> LintResult:
     """Run taste lints on the given files."""
     result = LintResult()
 
@@ -637,9 +858,7 @@ def run_lint(files: list[str], rules: tuple[str, ...]) -> LintResult:
         # instruction copies are known from the path alone, so avoid the I/O.
         if _generated_by_path(Path(filepath)):
             result.files_scanned += 1
-            result.files_by_category["generated"] = (
-                result.files_by_category.get("generated", 0) + 1
-            )
+            result.files_by_category["generated"] = result.files_by_category.get("generated", 0) + 1
             continue
 
         lines = read_file_lines(filepath)
@@ -649,13 +868,10 @@ def run_lint(files: list[str], rules: tuple[str, ...]) -> LintResult:
         if category == "generated":
             continue
 
-        for rule in rules:
-            checker = RULE_CHECKERS.get(rule)
-            if checker:
-                violations = checker(filepath, lines)
-                for violation in violations:
-                    violation.category = category
-                result.violations.extend(violations)
+        violations = _lint_file_rules(filepath, lines, rules, category)
+        if diff_lines is not None:
+            violations = _filter_violations_for_diff(violations, filepath, diff_lines, diff_base)
+        result.violations.extend(violations)
 
     return result
 
@@ -757,11 +973,15 @@ def main() -> int:
     rules = parse_rules(args.rules)
 
     files: list[str] = []
+    diff_lines: dict[str, set[int]] | None = None
+    diff_base: str = ""
     if args.git_staged:
         files = get_staged_files()
     elif args.diff_scope is not None:
         try:
             files = get_diff_files(args.diff_scope)
+            diff_lines = get_diff_line_numbers(args.diff_scope)
+            diff_base = args.diff_scope
         except (ValueError, RuntimeError) as exc:
             print(f"taste-lints: {exc}", file=sys.stderr)
             return EXIT_ERROR
@@ -777,7 +997,7 @@ def main() -> int:
         print("taste-lints: no files to scan.")
         return EXIT_SUCCESS
 
-    result = run_lint(files, rules)
+    result = run_lint(files, rules, diff_lines, diff_base)
 
     if args.format == "json":
         print(format_json(result))

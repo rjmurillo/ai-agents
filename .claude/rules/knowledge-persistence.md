@@ -18,8 +18,9 @@ When you learn a durable fact, convention, or decision procedure that future ses
 
 1. **Canonical rule lives in `.claude/rules/`**. A convention that must bind across Claude, Codex, and Copilot MUST be written to `.claude/rules/<name>.md`, not only to Serena memory or Copilot Memory. `AGENTS.md` directs every harness to read `.claude/rules/*.md` first, so Claude (reads the tree directly) and Codex (reads `AGENTS.md`) both resolve to it, and Copilot reads the generated mirror.
 2. **Regenerate the mirrors in the same change**. Adding or editing a `.claude/rules/*.md` file MUST regenerate `.github/instructions/<name>.instructions.md` and `src/copilot-cli/instructions/<name>.instructions.md` with `build/scripts/generate_rules.py`, committed in the same change. A stale mirror is torn state (see `.claude/rules/generated-artifacts.md`).
-3. **Bump the plugin manifests**. `.claude/` and `src/copilot-cli/` ship in the project-toolkit plugin, so a rule change MUST bump both `.claude-plugin/plugin.json` manifests to the same strictly-greater version (see `.claude/rules/plugin-version-bump.md`, parity gate). One bump covers all rule changes in the same PR.
+3. **Leave the plugin manifests alone**. `.claude/` and `src/copilot-cli/` ship in the project-toolkit plugin, but the manifests carry no `version` field: Claude Code resolves freshness from the commit SHA instead, so a rule change needs no manifest edit. Adding a `version` back fails `build/scripts/validate_plugin_version_bump.py` (see `.claude/rules/plugin-version-bump.md` and ADR-092).
 4. **Scope by `paths:`**. Set `paths:` to the narrowest glob that fires where the convention applies (`tests/**`, `**/*.ps1`). A universally-binding convention sets `paths: ["**"]`.
+5. **Index a new Serena memory by hand**. A memory under `.serena/memories/` MUST get a keyword line in `memory-index.md` in the same change, or keyword retrieval cannot reach it. `memory_index.py --ci` checks only that index rows resolve to files, never the reverse, so nothing catches the omission. Write `(0)` as the token placeholder.
 
 ## SHOULD
 
@@ -58,7 +59,7 @@ Before persisting anything, ask in order:
 3. **Required investigation?** If it took failed attempts, non-obvious codebase traversal, or
    cross-file reasoning to arrive at -> persist it.
 4. **Which surface?**
-   - Binds all harnesses / all contributors -> `.claude/rules/<name>.md` (+ mirrors + manifest bump)
+   - Binds all harnesses / all contributors -> `.claude/rules/<name>.md` (+ mirrors)
    - Retrieval context, useful to recall -> write a Serena memory
    - Ephemeral / task-only -> neither; session log only if relevant for handoff
 
@@ -66,11 +67,12 @@ Before persisting anything, ask in order:
 
 1. MUST NOT rely on Serena memory or Copilot Memory alone to persist a convention that other harnesses or contributors must obey. Those are retrieval complements, not the cross-harness binding.
 2. MUST NOT hand-edit a generated mirror under `.github/instructions/` or `src/copilot-cli/instructions/`. Edit the canonical rule and regenerate.
+3. MUST NOT cite an operator preference as a repository rule. Anything in a rule file or a Serena memory is repo-scoped, so it binds every contributor, while operator context such as `~/.copilot/copilot-instructions.md` or a personal `SOUL.md` binds one person on one machine. The two arrive in a session with identical authority and read identically once paraphrased, so the distinction cannot be recovered by feel. Before writing "the repository forbids X" or "per the standing prohibition on X", grep the rule tree for X and cite the file and item number, or drop the attribution and let the advice stand on its own reason. Measured: a memory asserted a repository prohibition on `rm -rf` that does not exist, and `.serena/memories/parallel/parallel-001-worktree-isolation.md` uses `rm -rf` as normal procedure, so the invented rule contradicted a committed memory in the same tree.
 
 ## References
 
 - `AGENTS.md`. Directs every harness to read `.claude/rules/*.md` by `applyTo` first; the Codex common denominator.
 - `build/scripts/generate_rules.py`. Generates both instruction mirrors from `.claude/rules/`.
 - `.claude/rules/generated-artifacts.md`. Regenerate-and-commit-in-the-same-change discipline.
-- `.claude/rules/plugin-version-bump.md`. Parity and strictly-greater bump gates.
+- `.claude/rules/plugin-version-bump.md`. Why the manifests carry no version field.
 - `.claude/rules/canonical-source-mirror.md`. Load-bearing "mirrors" claims must cite and quote the source.

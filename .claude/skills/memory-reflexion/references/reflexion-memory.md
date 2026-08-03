@@ -96,7 +96,7 @@ Episodes are structured extracts from session logs, optimized for replay and ana
   },
   "lessons": [
     "Pre-commit hooks check all markdown, not just staged files",
-    "Use --no-verify with documented justification for unrelated failures"
+    "When a hook fails on unrelated files, fix the validator or open an issue; do not bypass hooks with --no-verify"
   ]
 }
 ```

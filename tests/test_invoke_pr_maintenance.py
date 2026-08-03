@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
@@ -160,13 +162,10 @@ class TestHasConflicts:
 
 
 class TestHasFailingChecks:
-    def test_failure_state(self):
-        pr = _make_pr(check_state="FAILURE")
-        assert has_failing_checks(pr) is True
-
-    def test_error_state(self):
-        pr = _make_pr(check_state="ERROR")
-        assert has_failing_checks(pr) is True
+    @pytest.mark.parametrize("aggregate_state", ["ERROR", "FAILURE"])
+    def test_stale_aggregate_failure_state_is_ignored(self, aggregate_state):
+        pr = _make_pr(check_state=aggregate_state)
+        assert has_failing_checks(pr) is False
 
     def test_success_state(self):
         pr = _make_pr(check_state="SUCCESS")
@@ -183,6 +182,157 @@ class TestHasFailingChecks:
     def test_context_level_failure(self):
         pr = _make_pr(check_state="SUCCESS", check_conclusion="FAILURE")
         assert has_failing_checks(pr) is True
+
+    def test_incomplete_context_page_is_failing(self):
+        pr = {
+            "number": 77,
+            "commits": {
+                "nodes": [
+                    {
+                        "commit": {
+                            "statusCheckRollup": {
+                                "state": "SUCCESS",
+                                "contexts": {"totalCount": 2, "nodes": []},
+                            }
+                        }
+                    }
+                ]
+            },
+        }
+        assert has_failing_checks(pr) is True
+
+    @pytest.mark.parametrize(
+        ("first_conclusion", "second_conclusion", "expected"),
+        [
+            ("FAILURE", "SUCCESS", False),
+            ("SUCCESS", "FAILURE", True),
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("context_type", "name_field", "result_field", "timestamp_field"),
+        [
+            ("CheckRun", "name", "conclusion", "completedAt"),
+            ("StatusContext", "context", "state", "createdAt"),
+        ],
+    )
+    def test_duplicate_context_uses_latest_timestamp(
+        self,
+        first_conclusion,
+        second_conclusion,
+        expected,
+        context_type,
+        name_field,
+        result_field,
+        timestamp_field,
+    ):
+        pr = {
+            "number": 78,
+            "commits": {
+                "nodes": [
+                    {
+                        "commit": {
+                            "statusCheckRollup": {
+                                "state": "FAILURE",
+                                "contexts": {
+                                    "totalCount": 2,
+                                    "nodes": [
+                                        {
+                                            "__typename": context_type,
+                                            name_field: "ci",
+                                            result_field: first_conclusion,
+                                            timestamp_field: "2026-07-31T10:00:00Z",
+                                        },
+                                        {
+                                            "__typename": context_type,
+                                            name_field: "ci",
+                                            result_field: second_conclusion,
+                                            timestamp_field: "2026-07-31T10:05:00Z",
+                                        },
+                                    ],
+                                },
+                            }
+                        }
+                    }
+                ]
+            },
+        }
+        assert has_failing_checks(pr) is expected
+
+    def test_empty_rollup_is_not_failing(self):
+        pr = {
+            "commits": {
+                "nodes": [
+                    {
+                        "commit": {
+                            "statusCheckRollup": {
+                                "state": "SUCCESS",
+                                "contexts": {"totalCount": 0, "nodes": []},
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+        assert has_failing_checks(pr) is False
+
+    def test_paginated_tail_failure_is_loaded(self):
+        payload = {
+            "repository": {
+                "pullRequests": {
+                    "nodes": [
+                        {
+                            "number": 79,
+                            "commits": {
+                                "nodes": [
+                                    {
+                                        "commit": {
+                                            "oid": "abc123",
+                                            "statusCheckRollup": {
+                                                "state": "SUCCESS",
+                                                "contexts": {
+                                                    "totalCount": 2,
+                                                    "pageInfo": {
+                                                        "hasNextPage": True,
+                                                        "endCursor": "cursor-1",
+                                                    },
+                                                    "nodes": [
+                                                        {
+                                                            "__typename": "CheckRun",
+                                                            "name": "ci",
+                                                            "conclusion": "SUCCESS",
+                                                            "completedAt": "2026-07-31T10:00:00Z",
+                                                        }
+                                                    ],
+                                                },
+                                            },
+                                        }
+                                    }
+                                ]
+                            },
+                        }
+                    ]
+                }
+            }
+        }
+        page = [
+            {
+                "__typename": "CheckRun",
+                "name": "late-required",
+                "conclusion": "FAILURE",
+                "completedAt": "2026-07-31T10:01:00Z",
+            }
+        ]
+        with patch("invoke_pr_maintenance.gh_graphql", return_value=payload), patch(
+            "invoke_pr_maintenance._fetch_status_context_page",
+            return_value=(page, {"hasNextPage": False, "endCursor": None}),
+        ) as fetch_page:
+            prs = get_open_prs("owner", "repo", 1)
+
+        contexts = prs[0]["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]
+        fetch_page.assert_called_once_with("owner", "repo", "abc123", "cursor-1")
+        assert len(contexts["nodes"]) == 2
+        assert contexts["__incomplete"] is False
+        assert has_failing_checks(prs[0]) is True
 
 
 # ---------------------------------------------------------------------------

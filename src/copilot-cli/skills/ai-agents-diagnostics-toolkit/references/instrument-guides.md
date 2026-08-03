@@ -128,7 +128,7 @@ uv run python ./scripts/eval/eval-agent-vs-baseline.py --agent <name> --fixtures
 git rev-list --count HEAD ^origin/main
 ```
 
-Cap 20 commits per PR, warn above 15 (AGENTS.md Mid gate, ADR-008; enforced by `pr-validation.yml` and the pre-push hook). Current reading on a fresh main checkout: 0. Run it mid-session, not at push time, so you can split the branch while it is still cheap.
+Cap 20 commits per PR (or 40 if the branch merges main), notice at 10, warning at 15 (AGENTS.md Mid gate; enforced by `pr-validation.yml` and the pre-push hook; thresholds in `scripts/validation/pr_commit_count.py`). Current reading on a fresh main checkout: 0. Run it mid-session, not at push time, so you can split the branch while it is still cheap.
 
 ## Current Baselines Summary (as of 2026-07-29)
 
@@ -147,4 +147,3 @@ Cap 20 commits per PR, warn above 15 (AGENTS.md Mid gate, ADR-008; enforced by `
 Two instruments read red on main: golden principles (exit 10) and the description budget in gate mode (exit 1). Guard maturity is unassessable rather than green: its telemetry feed is not wired, so exit 0 only proves the classifier runs. Every other instrument is green.
 
 Re-measure before trusting any of these numbers; they are a snapshot, and the whole point of this skill is that re-measuring costs one command.
-

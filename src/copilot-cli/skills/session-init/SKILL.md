@@ -22,7 +22,7 @@ Create protocol-compliant session logs with verification-based enforcement.
 ### Automated (Recommended)
 
 ```bash
-python3 .claude/skills/session-init/scripts/new_session_log.py
+uv run python .claude/skills/session-init/scripts/new_session_log.py
 ```
 
 The script will:
@@ -226,7 +226,7 @@ git status --short
 **CRITICAL**: Use the new_session_log.py script to read the template from SESSION-PROTOCOL.md.
 
 ```bash
-python3 .claude/skills/session-init/scripts/new_session_log.py
+uv run python .claude/skills/session-init/scripts/new_session_log.py
 ```
 
 **DO NOT** generate the template from memory or read specific line numbers. The script extracts the canonical template dynamically:
@@ -285,7 +285,7 @@ Write the populated template to this file.
 Run validation script:
 
 ```bash
-python3 scripts/validate_session_json.py ".agents/sessions/YYYY-MM-DD-session-NN.json"
+uv run python scripts/validate_session_json.py ".agents/sessions/YYYY-MM-DD-session-NN.json"
 ```
 
 Check exit code:
@@ -349,7 +349,7 @@ Session log created but validation FAILED
   Errors:
     - Missing Session End checklist header
 
-Run: python3 scripts/validate_session_json.py ".agents/sessions/2026-01-05-session-375.json" 
+Run: uv run python scripts/validate_session_json.py ".agents/sessions/2026-01-05-session-375.json" 
 
 Fix the issues and re-validate.
 ```
@@ -378,13 +378,13 @@ Fix the issues and re-validate.
 
 ```bash
 # Create session log with parameters
-python3 .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X"
+uv run python .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X"
 
 # Skip validation
-python3 .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X" --skip-validation
+uv run python .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X" --skip-validation
 
 # Simplified JSON-only version
-python3 .claude/skills/session-init/scripts/new_session_log_json.py --session-number 375 --objective "Implement feature X"
+uv run python .claude/skills/session-init/scripts/new_session_log_json.py --session-number 375 --objective "Implement feature X"
 ```
 
 ---

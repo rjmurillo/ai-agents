@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -27,6 +28,16 @@ _VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 sys.path.insert(0, str(_VALIDATION))
 
 import check_skill_md_portability as cmp  # noqa: E402
+
+
+def _seed_git_tree(root: Path) -> None:
+    """Make the fixture a repository: an unverifiable tree refuses the write."""
+    for args in (
+        ("init", "-q", "-b", "main"),
+        ("add", "-A"),
+        ("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "s"),
+    ):
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
 
 
 class TestCountUpstreamRefs:
@@ -59,7 +70,6 @@ class TestCountUpstreamRefs:
         text = "Run .claude/skills/memory/scripts/search_memory.py here.\n"
         assert cmp.count_upstream_refs(text) == 0
 
-
     @pytest.mark.parametrize(
         "text",
         [
@@ -85,6 +95,7 @@ class TestCountUpstreamRefs:
     )
     def test_ignores_partial_word_directory_refs(self, text: str) -> None:
         assert cmp.count_upstream_refs(text) == 0
+
     def test_counts_templates_agents_and_platforms(self) -> None:
         # Both hold generator inputs that never ship in the plugin, so a
         # consumer following either reference lands on nothing (issue #3459).
@@ -93,6 +104,10 @@ class TestCountUpstreamRefs:
             "Event mapping: `templates/platforms/copilot-cli.yaml`.\n"
         )
         assert cmp.count_upstream_refs(text) == 2
+
+    def test_counts_build_root_paths(self) -> None:
+        text = "Regenerate with `build/scripts/generate_rules.py` before shipping.\n"
+        assert cmp.count_upstream_refs(text) == 1
 
     def test_counts_templates_windows_separators_and_mixed_case(self) -> None:
         text = "See TEMPLATES\\AGENTS\\x.md and templates\\Platforms\\y.yaml.\n"
@@ -107,6 +122,10 @@ class TestCountUpstreamRefs:
             "Render from templates/ at request time, and the bundled "
             "templates/report.md ships beside this skill.\n"
         )
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_does_not_count_bare_build_word(self) -> None:
+        text = "Run the build before committing.\n"
         assert cmp.count_upstream_refs(text) == 0
 
     def test_does_not_count_templates_nested_under_another_dir(self) -> None:
@@ -314,9 +333,7 @@ class TestTerminatorWordBoundary:
         """A skill file with a newly counted bare ref drifts from an empty baseline."""
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
-        (skills / "SKILL.md").write_text(
-            "Writes under .agents today.\n", encoding="utf-8"
-        )
+        (skills / "SKILL.md").write_text("Writes under .agents today.\n", encoding="utf-8")
         # issue #3582: main() now requires every REQUIRED_SKILLS_ROOTS entry to
         # exist, not just .claude, so a bare `.claude`-only fixture exits 2.
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
@@ -551,12 +568,7 @@ class TestCodeBlockAndInlineHandling:
 
     def test_indented_fences_are_stripped(self) -> None:
         # CommonMark allows 0-3 spaces of indentation on fence markers.
-        text = (
-            "   ```bash\n"
-            "   .agents/foo\n"
-            "   ```\n"
-            "Real .claude/lib/bar here.\n"
-        )
+        text = "   ```bash\n   .agents/foo\n   ```\nReal .claude/lib/bar here.\n"
         assert cmp.count_upstream_refs(text) == 1
 
     def test_indented_fence_marker_not_opted_out(self) -> None:
@@ -610,6 +622,17 @@ class TestVendorPortabilityMarker:
         assert cmp.has_portability_marker(text) is False
         assert cmp.count_file_refs(text) == 1
 
+    def test_marker_suppressed_count_excludes_marker_text(self) -> None:
+        text = (
+            "<!-- vendor-portability: declares .agents/state -->\n"
+            "This prose references .agents/state once.\n"
+        )
+        assert cmp.count_marker_suppressed_refs(text) == 1
+
+    def test_marker_suppressed_count_is_zero_without_marker(self) -> None:
+        text = "This prose references .agents/state once.\n"
+        assert cmp.count_marker_suppressed_refs(text) == 0
+
 
 class TestScan:
     def _skill_md(self, root: Path, rel: str, body: str) -> None:
@@ -620,9 +643,7 @@ class TestScan:
     def test_scan_collects_md_with_refs(self, tmp_path: Path) -> None:
         self._skill_md(tmp_path, "alpha/SKILL.md", "Writes .agents/analysis/a.md\n")
         self._skill_md(tmp_path, "beta/references/b.md", "Clean prose only.\n")
-        self._skill_md(
-            tmp_path, "gamma/SKILL.md", "Reads .claude/lib/x and .agents/y\n"
-        )
+        self._skill_md(tmp_path, "gamma/SKILL.md", "Reads .claude/lib/x and .agents/y\n")
         skills_dir = tmp_path / ".claude" / "skills"
         counts = cmp.scan_skill_markdown(skills_dir).counts
         assert counts == {
@@ -673,9 +694,20 @@ class TestPluginRootScan:
         """
         self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
         self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
-        assert cmp.scan_plugin_roots(tmp_path) == {
-            "src/copilot-cli/skills/a/SKILL.md": 1
-        }
+        assert cmp.scan_plugin_roots(tmp_path) == {"src/copilot-cli/skills/a/SKILL.md": 1}
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    def test_marker_scan_reports_broken_md_symlink(self, tmp_path: Path) -> None:
+        """Marker drift scan must fail closed on the same partial-scan case."""
+        skill = tmp_path / ".claude" / "skills" / "a"
+        skill.mkdir(parents=True)
+        (skill / "broken.md").symlink_to(tmp_path / "missing.md")
+
+        with pytest.raises(OSError, match="Broken .md symlink"):
+            cmp.scan_marker_suppressions(tmp_path)
 
     def test_same_named_skills_in_two_roots_do_not_collide(self, tmp_path: Path) -> None:
         """Keys are repository relative because both roots hold ``skills/spec``.
@@ -699,15 +731,11 @@ class TestPluginRootScan:
         self._skill_md(tmp_path, "src/copilot-cli", "a/SKILL.md", "Reads .agents/x\n")
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
-        code = cmp.main(
-            ["--repo-root", str(tmp_path), "--baseline", str(baseline)]
-        )
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert code == 1
 
     @pytest.mark.parametrize("absent", sorted(cmp.REQUIRED_SKILLS_ROOTS))
-    def test_exit_2_when_a_required_root_is_missing(
-        self, tmp_path: Path, absent: str
-    ) -> None:
+    def test_exit_2_when_a_required_root_is_missing(self, tmp_path: Path, absent: str) -> None:
         """A partial scan must fail, not narrow silently.
 
         This is the same failure shape as issue #3578 one level up. If a
@@ -755,9 +783,7 @@ class TestPluginRootScan:
         this test fails and names the root to add.
         """
         root = Path(__file__).resolve().parents[2]
-        have_skills = {
-            name for name in cmp.PLUGIN_ROOTS if (root / name / "skills").is_dir()
-        }
+        have_skills = {name for name in cmp.PLUGIN_ROOTS if (root / name / "skills").is_dir()}
         assert have_skills, "no plugin root has a skills tree; the scan would be empty"
         assert have_skills <= cmp.REQUIRED_SKILLS_ROOTS, (
             f"these roots ship skills but are not required: "
@@ -871,6 +897,24 @@ class TestDiff:
         assert improvements == []
 
 
+class TestMarkerDiff:
+    def test_marker_count_increase_is_regression(self) -> None:
+        regressions, improvements = cmp.diff_marker_baseline(
+            {".claude/skills/a/SKILL.md": 2},
+            {".claude/skills/a/SKILL.md": 1},
+        )
+        assert regressions and ".claude/skills/a/SKILL.md" in regressions[0]
+        assert improvements == []
+
+    def test_marker_count_decrease_is_regression(self) -> None:
+        regressions, improvements = cmp.diff_marker_baseline(
+            {".claude/skills/a/SKILL.md": 0},
+            {".claude/skills/a/SKILL.md": 1},
+        )
+        assert regressions and "baseline 1" in regressions[0]
+        assert improvements == []
+
+
 class TestMainCli:
     def _required_roots(self, root: Path) -> None:
         """Create an empty skills tree in every required root.
@@ -892,6 +936,13 @@ class TestMainCli:
         (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
             "Writes .agents/x\n", encoding="utf-8"
         )
+        # Every shipped root must hold a readable file or the scan-coverage guard
+        # refuses the write, because one starved root is a partial checkout.
+        (tmp_path / "src" / "copilot-cli" / "skills" / "a").mkdir(parents=True)
+        (tmp_path / "src" / "copilot-cli" / "skills" / "a" / "SKILL.md").write_text(
+            "Nothing upstream.\n", encoding="utf-8"
+        )
+        _seed_git_tree(tmp_path)
         baseline = tmp_path / "baseline.json"
         rc = cmp.main(
             ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--update-baseline"]
@@ -904,9 +955,7 @@ class TestMainCli:
         self._required_roots(tmp_path)
         skills = tmp_path / ".claude" / "skills" / "a"
         skills.mkdir(parents=True)
-        (skills / "SKILL.md").write_text(
-            "Writes .agents/x and .agents/z\n", encoding="utf-8"
-        )
+        (skills / "SKILL.md").write_text("Writes .agents/x and .agents/z\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(
             json.dumps({"files": {".claude/skills/a/SKILL.md": 1}}), encoding="utf-8"
@@ -924,23 +973,40 @@ class TestMainCli:
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 0
 
-    def test_baseline_path_traversal_returns_empty(self, tmp_path: Path) -> None:
-        # A --baseline argument escaping the repo root must resolve to Path("")
-        # and cause a config error (exit 2), not read an arbitrary file.
+    def test_marker_stale_count_returns_exit_1(self, tmp_path: Path) -> None:
+        self._required_roots(tmp_path)
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text(
+            "<!-- vendor-portability: declares .agents/state -->\n"
+            "The declaration stayed but the prose moved away.\n",
+            encoding="utf-8",
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps({"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}),
+            encoding="utf-8",
+        )
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 1
+
+    def test_baseline_path_traversal_is_refused(self, tmp_path: Path) -> None:
+        # A --baseline argument escaping the repo root must be refused and
+        # cause a config error (exit 2), not read an arbitrary file.
         root = tmp_path / "repo"
         root.mkdir()
         (root / ".claude" / "skills").mkdir(parents=True)
         traversal = Path("../../etc/passwd")
         result = cmp._resolve_baseline_path(root, traversal)
-        assert result == Path(""), "path traversal must return empty Path"
+        assert result is None, "path traversal must be refused"
 
-    def test_absolute_baseline_outside_root_returns_empty(self, tmp_path: Path) -> None:
+    def test_absolute_baseline_outside_root_is_refused(self, tmp_path: Path) -> None:
         root = tmp_path / "repo"
         root.mkdir()
         outside = tmp_path / "outside.json"
         outside.write_text("{}", encoding="utf-8")
         result = cmp._resolve_baseline_path(root, outside)
-        assert result == Path(""), "absolute path outside root must return empty Path"
+        assert result is None, "absolute path outside root must be refused"
 
 
 class TestUnexpectedScanException:
@@ -997,9 +1063,7 @@ class TestCommittedRepoHasNoDrift:
         root = Path(__file__).resolve().parents[2]
         if not cmp.skills_dirs(root):
             pytest.skip("no plugin root has a skills dir in this checkout")
-        baseline_path = (
-            root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
-        )
+        baseline_path = root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
         current = cmp.scan_plugin_roots(root)
         baseline = cmp._load_baseline(baseline_path)
         regressions, _ = cmp.diff_against_baseline(current, baseline)
@@ -1019,9 +1083,7 @@ class TestCommittedRepoHasNoDrift:
             pytest.skip("no plugin root has a skills dir in this checkout")
         baseline_path = root / "scripts" / "validation" / cmp._DEFAULT_BASELINE_NAME
         scanned = {d.parent.relative_to(root).as_posix() for d in cmp.skills_dirs(root)}
-        recorded = {
-            key.split("/skills/", 1)[0] for key in cmp._load_baseline(baseline_path)
-        }
+        recorded = {key.split("/skills/", 1)[0] for key in cmp._load_baseline(baseline_path)}
         assert recorded <= scanned, f"baseline names unscanned roots: {recorded - scanned}"
 
 
@@ -1214,6 +1276,421 @@ class TestScanAccounting:
         assert payload["current_total"] == 0
 
 
+class TestBaselineSemanticConflictGuard:
+    """Issue #4195: a checked-in baseline is bound to its generated tree."""
+
+    def _init_repo(self, root: Path) -> None:
+        (root / ".claude" / "skills" / "a").mkdir(parents=True)
+        (root / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        (root / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        (root / "scripts" / "validation").mkdir(parents=True)
+        (root / "scripts" / "validation" / "check_skill_md_portability.py").write_text(
+            "# scanner\n", encoding="utf-8"
+        )
+        baseline = root / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8")
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.invalid"],
+            cwd=root,
+            check=True,
+        )
+        subprocess.run(["git", "config", "user.name", "Test User"], cwd=root, check=True)
+        subprocess.run(["git", "add", "."], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+
+    def test_new_marker_declaration_alongside_baseline_is_allowed(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The documented opt-out flow must be reachable in one commit (issue #4300).
+
+        ``validate-vendor-portability.yml`` tells an author to add a
+        ``vendor-portability`` marker and then run ``--update-baseline``. Under
+        the original blanket refusal that pair was rejected whenever
+        ``--base-ref`` was set, so following the documented remedy turned CI
+        red. Marker drift is still caught exactly against the on-disk baseline,
+        and the same check runs again on ``main`` after the merge.
+        """
+        self._init_repo(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "<!-- vendor-portability: declares .agents/state -->\nUses .agents/state.\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}
+            ),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "HEAD",
+            ]
+        )
+
+        assert rc == 0
+        assert "Semantic baseline conflict" not in capsys.readouterr().out
+
+    def test_undeclared_refs_added_alongside_baseline_still_fail(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The guard's real target: a branch-local regeneration hiding new debt."""
+        self._init_repo(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Uses .agents/state.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {".claude/skills/a/SKILL.md": 1}, "marker_files": {}}
+            ),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "HEAD",
+            ]
+        )
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Semantic baseline conflict" in out
+        assert "baseline.json" in out
+        assert ".claude/skills/a/SKILL.md" in out
+
+    def test_baseline_only_change_does_not_trigger_semantic_conflict(
+        self, tmp_path: Path
+    ) -> None:
+        """A baseline-only remediation against current main remains allowed."""
+        self._init_repo(tmp_path)
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {
+                    "_comment": "refreshed wording only",
+                    "files": {},
+                    "marker_files": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "HEAD",
+            ]
+        )
+
+        assert rc == 0
+
+    def test_baseline_and_counter_code_cochange_fails_closed(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Changing the scanner changes what the stored baseline means."""
+        self._init_repo(tmp_path)
+        (tmp_path / "scripts" / "validation" / "check_skill_md_portability.py").write_text(
+            "# scanner semantics changed\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"_comment": "regenerated", "files": {}, "marker_files": {}}),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "HEAD",
+            ]
+        )
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "scripts/validation/check_skill_md_portability.py" in out
+
+    def test_bad_base_ref_fails_closed_as_config_error(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Negative: an explicit but unreadable base ref cannot skip the guard."""
+        self._init_repo(tmp_path)
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "missing-ref",
+            ]
+        )
+
+        assert rc == 2
+        err = capsys.readouterr().err
+        assert "Could not compare against --base-ref missing-ref" in err
+
+    def test_future_plugin_skill_root_counts_as_measured_input(self) -> None:
+        """Edge: the co-change guard stays aligned with PLUGIN_ROOTS."""
+        assert cmp._is_measured_input("src/claude/skills/example/SKILL.md") is True
+
+    def _init_repo_with_debt(self, root: Path) -> None:
+        """Seed a committed tree carrying one unsuppressed ref and a matching baseline."""
+        self._init_repo(root)
+        (root / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Uses .agents/state.\n", encoding="utf-8"
+        )
+        (root / "baseline.json").write_text(
+            json.dumps(
+                {"files": {".claude/skills/a/SKILL.md": 1}, "marker_files": {}}
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=root, check=True)
+        subprocess.run(["git", "commit", "-qm", "debt"], cwd=root, check=True)
+
+    def _run(self, root: Path, base_ref: str) -> int:
+        return cmp.main(
+            [
+                "--repo-root",
+                str(root),
+                "--baseline",
+                str(root / "baseline.json"),
+                "--base-ref",
+                base_ref,
+            ]
+        )
+
+    def test_lowered_baseline_alongside_md_change_is_allowed(
+        self, tmp_path: Path
+    ) -> None:
+        """Issue #4300: paying debt down must not read as a semantic conflict.
+
+        Before this, the guard refused every baseline plus measured-input
+        co-change, which a main merge always produces, so the branch could
+        never be made green.
+        """
+        self._init_repo_with_debt(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
+        )
+
+        assert self._run(tmp_path, "HEAD") == 0
+
+    def test_raised_count_is_caught_even_when_baseline_is_regenerated(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Negative: the ratchet reads base_ref from git, so regenerating cannot launder it.
+
+        This is the property the old blanket refusal was protecting. The
+        working-tree baseline agrees with the scan and would report zero
+        regressions on its own.
+        """
+        self._init_repo_with_debt(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Files: .agents/a, .agents/b, .claude/review-axes/c.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {".claude/skills/a/SKILL.md": 3}, "marker_files": {}}
+            ),
+            encoding="utf-8",
+        )
+
+        rc = self._run(tmp_path, "HEAD")
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Counts rose above the baseline recorded at HEAD" in out
+        assert ".claude/skills/a/SKILL.md" in out
+
+    def test_scanner_change_stays_fatal_without_any_raised_count(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Edge: moving scanner semantics invalidates comparison, ratchet or not."""
+        self._init_repo_with_debt(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        (tmp_path / "scripts" / "validation" / "check_skill_md_portability.py").write_text(
+            "# scanner semantics changed\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
+        )
+
+        rc = self._run(tmp_path, "HEAD")
+
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "Semantic baseline conflict" in out
+        assert "Scanner source changed" in out
+        assert "Counts rose above" not in out
+
+    def test_baseline_absent_at_base_ref_fails_closed(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Edge: with no recorded numbers there is nothing to ratchet against."""
+        self._init_repo_with_debt(tmp_path)
+        subprocess.run(["git", "rm", "-q", "baseline.json"], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "drop baseline"], cwd=tmp_path, check=True
+        )
+        base_ref = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        ).stdout.strip()
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
+        )
+        subprocess.run(["git", "add", "baseline.json"], cwd=tmp_path, check=True)
+
+        rc = self._run(tmp_path, base_ref)
+
+        assert rc == 1
+        assert "Semantic baseline conflict" in capsys.readouterr().out
+
+    def test_unparsable_baseline_at_base_ref_fails_closed(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Edge: a corrupt recorded baseline must not be read as permission."""
+        self._init_repo_with_debt(tmp_path)
+        (tmp_path / "baseline.json").write_text("{not json", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "corrupt"], cwd=tmp_path, check=True)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
+        )
+
+        rc = self._run(tmp_path, "HEAD")
+
+        assert rc == 1
+        assert "Semantic baseline conflict" in capsys.readouterr().out
+
+    def test_a_baseline_outside_the_repo_says_so_instead_of_failing_mutely(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Edge: the one fail-closed path that used to return None in silence.
+
+        Every other way ``_baseline_payload_at_ref`` gives up names the reason
+        on stderr. A baseline resolving outside the repository root did not, so
+        the guard reported nothing and the caller only saw a missing ratchet.
+        """
+        root = tmp_path / "repo"
+        root.mkdir()
+        outside = tmp_path / "elsewhere" / "baseline.json"
+
+        assert cmp._baseline_payload_at_ref(root, "HEAD", outside) is None
+
+        err = capsys.readouterr().err
+        assert str(outside) in err
+        assert str(root) in err
+        assert "outside the repository root" in err
+
+    def test_a_baseline_inside_the_repo_is_not_blamed_on_its_location(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Negative control: an in-tree baseline fails for its own reason.
+
+        Without this, the assertions above pass for a build that prints the
+        outside-the-root complaint on every failure.
+        """
+        self._init_repo(tmp_path)
+        missing = tmp_path / "no-such-baseline.json"
+
+        assert cmp._baseline_payload_at_ref(tmp_path, "HEAD", missing) is None
+
+        err = capsys.readouterr().err
+        assert "outside the repository root" not in err
+        assert "no-such-baseline.json" in err
+
+    def test_new_marker_declaration_is_allowed_against_base_ref(
+        self, tmp_path: Path
+    ) -> None:
+        """Edge: markers are declarations, so base_ref has nothing to ratchet.
+
+        A file added on the branch has no ``base_ref`` entry. Ratcheting the
+        marker section here would reject the sanctioned opt-out flow outright.
+        """
+        self._init_repo_with_debt(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        new_skill = tmp_path / ".claude" / "skills" / "b" / "SKILL.md"
+        new_skill.parent.mkdir(parents=True, exist_ok=True)
+        new_skill.write_text(
+            "<!-- vendor-portability: declares .agents/state -->\nUses .agents/state.\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {}, "marker_files": {".claude/skills/b/SKILL.md": 1}}
+            ),
+            encoding="utf-8",
+        )
+
+        assert self._run(tmp_path, "HEAD") == 0
+
+    def test_marker_decrease_alongside_md_change_is_allowed(
+        self, tmp_path: Path
+    ) -> None:
+        """Edge: exact-count marker drift is on-disk semantics, not the base_ref ratchet."""
+        self._init_repo(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "<!-- vendor-portability: declares .agents/state -->\nUses .agents/state.\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "marker"], cwd=tmp_path, check=True)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8"
+        )
+
+        assert self._run(tmp_path, "HEAD") == 0
+
+
 class TestTraversalErrorsSurface:
     """Finding 3: traversal errors must fail closed, not be swallowed.
 
@@ -1305,9 +1782,12 @@ class TestNestingExhaustionGate:
     def _nested_fence(depth: int) -> str:
         quote = ">" * depth + " "
         return (
-            quote + "```\n"
-            + quote + "<!-- vendor-portability: example -->\n"
-            + quote + "```\n"
+            quote
+            + "```\n"
+            + quote
+            + "<!-- vendor-portability: example -->\n"
+            + quote
+            + "```\n"
             + "Ref .agents/analysis/foo.md.\n"
         )
 
@@ -1335,3 +1815,52 @@ class TestNestingExhaustionGate:
         baseline = self._write_skill(tmp_path, self._nested_fence(19))
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 1
+
+
+class TestScriptsPathDetection:
+    """Prose reference detection for scripts/ paths (issue #4013).
+
+    The scripts/ tree exists only in the upstream checkout; neither plugin root
+    ships it. A skill that instructs the agent to open or run scripts/x.py will
+    fail silently in every consumer install.
+    """
+
+    def test_counts_scripts_inline_code_ref(self) -> None:
+        """An inline-code scripts/ reference is counted as an upstream ref.
+
+        Isolating negative control: removing the scripts[\\/] pattern from
+        UPSTREAM_PATTERNS causes count_upstream_refs to return 0, failing this
+        assertion. The text contains no .agents/, .claude/lib/, templates/, or
+        other upstream prefix, so only the scripts/ component triggers it.
+        """
+        text = "Run `scripts/validation/check_vendor_portability.py` to validate.\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_counts_scripts_bare_prose_ref(self) -> None:
+        """A bare prose scripts/ reference (no backticks) is also counted."""
+        text = "Edit scripts/validation/pre_pr.py before running.\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_ignores_scripts_in_fenced_code_block(self) -> None:
+        """A scripts/ path inside a fenced code block is stripped before counting.
+
+        Fenced blocks document example invocations; they do not represent prose
+        instructions to the agent.
+        """
+        text = "```bash\npython3 scripts/validation/pre_pr.py\n```\n"
+        assert cmp.count_upstream_refs(text) == 0
+
+    def test_counts_build_scripts_prose_ref(self) -> None:
+        """A build/scripts reference is counted as an upstream ref."""
+        text = "Generated by `build/scripts/generate_rules.py`.\n"
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_ignores_plain_word_scripts_without_separator(self) -> None:
+        """The bare English word "scripts" without a trailing slash is not counted.
+
+        The pattern requires scripts[\\/] (a path separator after the word), so
+        prose like "the scripts are located here" does not count as an upstream
+        path reference.
+        """
+        text = "The scripts are maintained by the team.\n"
+        assert cmp.count_upstream_refs(text) == 0

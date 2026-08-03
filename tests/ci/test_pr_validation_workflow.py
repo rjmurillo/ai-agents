@@ -574,8 +574,9 @@ def test_workflow_delegates_all_pr_validation_blocks():
 class TestBlockedMessageNamesTheLimitThatWasApplied:
     """The block message must report the ceiling the check actually used.
 
-    ADR-008 relieves the ceiling from 20 to 40 for a branch that merges its
-    base (issue #3596), and `pr_commit_count` publishes the applied value as
+    The main-merge relief lifts the ceiling from 20 to 40 for a branch that
+    merges its base (issue #3596), and `pr_commit_count` publishes the applied
+    value as
     the `commit_limit` output. The workflow already binds it into the
     environment as COMMIT_LIMIT. This script ignored it and printed a literal
     20, so a branch blocked at 41 commits was told the limit was 20 and that
@@ -747,7 +748,252 @@ class TestModelPinEnforcementIsWiredIntoCI:
                 "enforce",
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             cwd=REPO_ROOT,
         )
         assert result.returncode == 0, result.stdout + result.stderr
+
+
+class TestTheCommitCountGateCanReadMainsTrunk:
+    """The commit-limit relief needs origin/main in the runner (issue #3997).
+
+    ``pr_commit_count.contains_main_merge`` decides the 20 vs 40 ceiling by
+    asking whether a merge parent sits on ``origin/main``'s first-parent trunk,
+    and it reads that trunk with ``git rev-list`` against the checkout. A default
+    ``actions/checkout`` is shallow and creates only ``refs/remotes/pull/<n>/
+    merge``, so the read fails, the predicate fails closed, and a branch that
+    genuinely merges main is capped at 20 in CI while the pre-push hook grants
+    it 40. That is the divergence issue #3997 removed, so the checkout that
+    hosts the gate has to carry the ref. These tests pin the wiring; the
+    predicate itself is covered in tests/validation/test_commit_limit_parity.py.
+    """
+
+    HOST_JOB = "validate-pr"
+
+    @staticmethod
+    def _jobs() -> dict:
+        return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+
+    @classmethod
+    def _host_steps(cls) -> list:
+        return cls._jobs()[cls.HOST_JOB]["steps"]
+
+    @classmethod
+    def _gate_step(cls) -> dict:
+        steps = [
+            step for step in cls._host_steps() if "pr_commit_count.py" in str(step.get("run", ""))
+        ]
+        assert len(steps) == 1, "expected exactly one commit-count step"
+        return steps[0]
+
+    @classmethod
+    def _checkout_steps(cls) -> list:
+        """The checkouts that run on the same condition as the gate.
+
+        This job also checks out on the *inverse* condition, to validate
+        workflow YAML on PRs whose author suppressed the main path. That
+        checkout never coexists with the gate, so it is not the one under test.
+        """
+        guard = cls._gate_step().get("if")
+        return [
+            step
+            for step in cls._host_steps()
+            if "actions/checkout" in str(step.get("uses")) and step.get("if") == guard
+        ]
+
+    def test_the_commit_count_gate_runs_in_the_checked_out_job(self) -> None:
+        """Positive: the gate and the checkout it depends on share a job.
+
+        The predicate resolves the repository from the process working
+        directory, so a checkout in some other job would not reach it.
+        """
+        assert len(self._checkout_steps()) == 1
+
+    def test_the_checkout_fetches_the_full_history(self) -> None:
+        """Positive: fetch-depth 0 is what populates refs/remotes/origin/main.
+
+        actions/checkout writes ``+refs/heads/*:refs/remotes/origin/*`` only on
+        an unshallow fetch. Any positive depth leaves origin/main absent or
+        truncated, and a truncated trunk is worse than an absent one because it
+        answers wrongly instead of failing closed.
+        """
+        checkout = self._checkout_steps()[0]
+        assert checkout.get("with", {}).get("fetch-depth") == 0
+
+    def test_the_hosting_job_is_not_conditional(self) -> None:
+        """Edge: a skipped host job would report no ceiling at all.
+
+        ``validate-pr`` is a required check that always reports status, so it
+        carries no job-level ``if``. A path filter here would let a PR skip the
+        commit ceiling entirely.
+        """
+        assert "if" not in self._jobs()[self.HOST_JOB]
+
+
+class TestBotSkipGuardClassification:
+    """Every step behind the skip guard must have a documented classification.
+
+    Issue #4151: the skip guard exempts dependabot[bot], github-actions[bot],
+    and renovate[bot] for throughput reasons (dependency-bump PRs should not
+    pay for the full validation suite). That reasoning holds for expensive
+    advisory checks against the PR body or diff. It does not hold for gates
+    whose job is to catch a class of change regardless of who authored it.
+
+    Bots open workflow-only PRs (action SHA bumps). A correctness gate that is
+    skip-guarded is invisible to exactly those PRs. The ADR-006 run-block
+    ratchet was the only correctness gate still gated behind the skip guard; it
+    is now unconditional.
+
+    Classification rationale (throughput-motivated = OK to remain skip-guarded):
+    - Checkout repository: bot PRs receive a separate unconditional checkout
+    - Setup PowerShell: UI tooling for the skip-guarded steps
+    - Validate PR Description vs Diff: meaningless for a bot dep-bump PR body
+    - Validate PR Description Standards: same
+    - Check QA Report Exists: same
+    - Generate Validation Report: same
+    - Post PR Comment: same
+    - Set Job Summary: same
+    - Check PR commit count: a single-commit dep-bump is never blocked
+    - Enforce Blocking Issues: depends on outputs of skip-guarded steps above
+
+    Security/correctness gates that MUST be unconditional:
+    - Run ADR-006 run-block ratchet (moved here by Issue #4151 fix)
+    """
+
+    HOST_JOB = "validate-pr"
+    BOT_SKIP_GUARD = "steps.should-run.outputs.skip != 'true'"
+
+    @staticmethod
+    def _jobs() -> dict:
+        return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+
+    @classmethod
+    def _host_steps(cls) -> list:
+        return cls._jobs()[cls.HOST_JOB]["steps"]
+
+    @classmethod
+    def _skip_guarded_steps(cls) -> list[dict]:
+        return [
+            step
+            for step in cls._host_steps()
+            if cls._has_bot_skip_guard_component(step.get("if"))
+        ]
+
+    @classmethod
+    def _has_bot_skip_guard_component(cls, condition: object) -> bool:
+        if not isinstance(condition, str):
+            return False
+
+        expression = condition.strip()
+        if expression.startswith("${{") and expression.endswith("}}"):
+            expression = expression[3:-2].strip()
+
+        return any(
+            component.strip().strip("()").strip() == cls.BOT_SKIP_GUARD
+            for component in expression.split("&&")
+        )
+
+    def test_skip_guard_classifier_detects_compound_conditions(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Positive: a step can add a condition and still stay bot-skipped."""
+        guarded_step = {
+            "name": "Compound guarded step",
+            "if": f"{self.BOT_SKIP_GUARD} && github.event_name == 'push'",
+        }
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: [guarded_step]))
+
+        assert self._skip_guarded_steps() == [guarded_step]
+
+    def test_skip_guard_classifier_rejects_negated_conditions(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative: a negated occurrence is not a skip guard."""
+        unguarded_step = {
+            "name": "Negated guarded step",
+            "if": f"!({self.BOT_SKIP_GUARD}) && github.event_name == 'push'",
+        }
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: [unguarded_step]))
+
+        assert self._skip_guarded_steps() == []
+
+    def test_skip_guard_classifier_accepts_wrapped_expression(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Edge: GitHub expressions may carry the optional wrapper."""
+        guarded_step = {
+            "name": "Wrapped guarded step",
+            "if": f"${{{{ ({self.BOT_SKIP_GUARD}) && github.event_name == 'push' }}}}",
+        }
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: [guarded_step]))
+
+        assert self._skip_guarded_steps() == [guarded_step]
+
+    # Exactly these step names are permitted behind the skip guard.
+    # If this set grows, the new step must be justified as throughput-motivated.
+    _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
+        {
+            "Checkout repository",
+            "Setup PowerShell",
+            "Validate PR Description vs Diff",
+            "Validate PR Description Standards",
+            "Check QA Report Exists",
+            "Generate Validation Report",
+            "Post PR Comment",
+            "Set Job Summary",
+            "Check PR commit count",
+            "Enforce Blocking Issues",
+        }
+    )
+
+    def test_adr006_ratchet_is_unconditional(self) -> None:
+        """Positive: the ADR-006 gate must run for bot-authored PRs.
+
+        Renovate and Dependabot open workflow-only PRs. A run-block scanner
+        that is skip-guarded is invisible to the actors most likely to touch
+        workflow YAML. The comment in the workflow already says 'Runs on every
+        PR because workflow YAML can change in any PR'; this test pins that.
+        """
+        adr006_steps = [
+            step
+            for step in self._host_steps()
+            if "adr006_run_block_scanner.py" in str(step.get("run", ""))
+        ]
+        assert len(adr006_steps) == 1, "expected exactly one ADR-006 step"
+        step = adr006_steps[0]
+        assert "if" not in step, (
+            f"ADR-006 ratchet must be unconditional, found: if: {step.get('if')!r}"
+        )
+
+    def test_no_security_gate_is_skip_guarded(self) -> None:
+        """Negative: every skip-guarded step must be throughput-motivated.
+
+        A step whose name is not in _ALLOWED_BEHIND_GUARD and is behind the
+        skip guard is a new security/correctness gate that slipped past the
+        exemption check. Adding a name to _ALLOWED_BEHIND_GUARD requires a
+        written justification showing the step is throughput-motivated, not
+        correctness-motivated.
+        """
+        guarded = {str(step.get("name", "")) for step in self._skip_guarded_steps()}
+        unknown = guarded - self._ALLOWED_BEHIND_GUARD
+        assert unknown == set(), (
+            f"Steps behind the bot-skip guard without a throughput justification: {unknown!r}. "
+            "Add the name to _ALLOWED_BEHIND_GUARD with a comment explaining why it is "
+            "throughput-motivated, not a correctness or security gate."
+        )
+
+    def test_all_allowed_guarded_steps_are_present(self) -> None:
+        """Edge: the allowlist must not include names that no longer exist.
+
+        A step removed from the workflow without pruning the allowlist leaves
+        phantom permission in _ALLOWED_BEHIND_GUARD that is never exercised.
+        This test requires every allowed name to actually exist in the workflow,
+        either as a skip-guarded step or elsewhere in the job (the commit-count
+        label steps are conditional on a different output, not on skip).
+        """
+        all_step_names = {str(step.get("name", "")) for step in self._host_steps()}
+        for name in self._ALLOWED_BEHIND_GUARD:
+            assert name in all_step_names, (
+                f"_ALLOWED_BEHIND_GUARD contains {name!r} but no step with that name "
+                "exists in the workflow. Remove the stale entry."
+            )

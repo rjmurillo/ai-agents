@@ -18,7 +18,8 @@ import tempfile
 import time
 import unicodedata
 import warnings
-from collections.abc import Mapping, Sequence
+from collections import Counter
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from fnmatch import fnmatch
@@ -38,6 +39,7 @@ from scripts.validation.object_id import ZERO_SHA_LENGTHS, is_full_object_id
 from scripts.validation.pr_commit_count import (
     BLOCK_THRESHOLD,
     MAIN_MERGE_BLOCK_THRESHOLD,
+    main_first_parent_shas,
 )
 from scripts.validation.session_scope import new_session_logs
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
@@ -58,11 +60,11 @@ ADR_REVIEW_PATH_RE = re.compile(
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 ADR_REVIEW_PATTERNS = (
-    re.compile(r"/adr-review"),
-    re.compile(r"adr-review skill"),
-    re.compile(r"ADR Review Protocol"),
-    re.compile(r"multi-agent consensus.{0,200}\bADR\b", re.DOTALL),
-    re.compile(r"\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b", re.DOTALL),
+    # Matches /adr-review, adr-review, adr review, ADR Review Protocol, etc.
+    # Case-insensitive; dot matches the hyphen or space separator (Issue #4135).
+    re.compile(r"\badr.review\b", re.IGNORECASE),
+    re.compile(r"multi-agent consensus.{0,200}\bADR\b", re.DOTALL | re.IGNORECASE),
+    re.compile(r"\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b", re.DOTALL | re.IGNORECASE),
 )
 RETROSPECTIVE_EVIDENCE_PATTERNS = (
     re.compile(r"(?i)(##\s*retrospective|retrospective\s*section|learnings?\s*captured)"),
@@ -78,31 +80,59 @@ DOCUMENTATION_PATTERNS = (
     re.compile(r"\.editorconfig$"),
 )
 TRIVIAL_SESSION_SECONDS = 10 * 60
+# `type: ignore` is excluded because this gate owns security suppressions.
+# Issue #4039 tracks separate enforcement for typing suppressions.
 SECURITY_SUPPRESSION_RE = re.compile(
     r"(?:#|//|/\*)\s*"
     r"(?:"
-    r"lgtm\[|"
+    r"(?:lgtm|codeql)\[|"
     r"nosec\b|"
     r"nosem(?:grep)?\b|"
-    r"noqa\b(?:\s*:[^\r\n]*)?|"
-    r"type:\s*ignore(?:\[[^\]\r\n]*\])?|"
+    r"(?:(?:ruff|flake8)\s*:\s*)?"
+    r"noqa\b(?:\s*:\s*(?:[A-Z]+\d+(?:\s*,\s*|\s+))*S\d+\b"
+    r"(?:(?:\s*,\s*|\s+)[A-Z]+\d+\b)*|(?!\s*:))|"
     r"cwe-suppress\b"
-    r")"
+    r")",
+    re.IGNORECASE,
 )
 SEMGREP_SUFFIXES = frozenset({".js", ".ps1", ".psm1", ".py", ".ts", ".yaml", ".yml"})
 RUFF_COUNT_RATCHET = REPO_ROOT / "scripts" / "ci" / "ruff_count_ratchet.py"
 BANDIT_SUFFIXES = frozenset({".py", ".pyw"})
 TEXTUAL_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv", "--text")
 EMPTY_TREE_SHA1 = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
-ACTIVE_GIT_OPERATION_FILES = (
-    ("MERGE_HEAD", "merge", "git commit to finish the merge or git merge --abort"),
-    ("REBASE_HEAD", "rebase", "git rebase --continue or git rebase --abort"),
+# Git deletes MERGE_HEAD and CHERRY_PICK_HEAD when those operations finish, so
+# their presence means the operation is still open. REBASE_HEAD is not usable
+# the same way: measured on git 2.43.0, it survives a conflicted rebase that has
+# already been continued to completion, so a gate keyed on it blocks every push
+# afterwards. Git's own code calls delete_ref on REBASE_HEAD (builtin/rebase.c
+# and sequencer.c in v2.43.0), so treat this as a cleanup gap rather than a
+# documented guarantee, and re-measure before relying on it in another version.
+# Rebase state lives in the rebase-merge and rebase-apply directories, which git
+# does remove on completion, so those are what this table tracks. The kind field
+# keeps a stray directory named MERGE_HEAD from reading as an open merge.
+ACTIVE_GIT_OPERATION_PATHS = (
+    (
+        "MERGE_HEAD",
+        "file",
+        "merge",
+        "git commit to finish the merge or git merge --abort",
+    ),
+    ("rebase-merge", "dir", "rebase", "git rebase --continue or git rebase --abort"),
+    ("rebase-apply", "dir", "rebase", "git rebase --continue or git rebase --abort"),
     (
         "CHERRY_PICK_HEAD",
+        "file",
         "cherry-pick",
         "git cherry-pick --continue or git cherry-pick --abort",
     ),
 )
+# git am and the apply-backend rebase both use the rebase-apply directory, and a
+# marker file inside it says which one is running. The remedies are not
+# interchangeable: git rebase --continue during a git am exits 128 with
+# "It looks like 'git am' is in progress. Cannot rebase."
+GIT_AM_MARKER = "applying"
+GIT_AM_OPERATION = "git am"
+GIT_AM_REMEDY = "git am --continue or git am --abort"
 SEMGREP_POWERSHELL_RULES = frozenset(
     {
         "yaml.github-actions.security.curl-eval.curl-eval",
@@ -193,9 +223,31 @@ SHELL_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\[[^]]*\])?\+?=")
 # command and the spliced word merely its argument.
 SHELL_RESERVED_WORDS = frozenset(
     {
-        "!", "(", ")", "{", "}", "&&", "||", "|", ";", "&",
-        "case", "do", "done", "elif", "else", "esac", "fi", "for", "if",
-        "in", "select", "then", "time", "until", "while",
+        "!",
+        "(",
+        ")",
+        "{",
+        "}",
+        "&&",
+        "||",
+        "|",
+        ";",
+        "&",
+        "case",
+        "do",
+        "done",
+        "elif",
+        "else",
+        "esac",
+        "fi",
+        "for",
+        "if",
+        "in",
+        "select",
+        "then",
+        "time",
+        "until",
+        "while",
     },
 )
 # Words that open and close a compound command. A compound opened inside a
@@ -208,12 +260,46 @@ SHELL_COMPOUND_CLOSERS = frozenset({"done", "esac", "fi", "}"})
 # from code.
 SHELL_SINK_COMMANDS = frozenset(
     {
-        ".", "ash", "awk", "bash", "builtin", "busybox", "chroot", "command",
-        "coproc", "dash", "doas", "env", "eval", "exec", "flock", "gawk",
-        "ionice", "ksh", "mawk", "nice", "nohup", "parallel", "rbash",
-        "runuser", "script", "setsid", "sh", "source", "ssh", "stdbuf", "su",
-        "sudo", "taskset", "time", "timeout", "trap", "unbuffer", "watch",
-        "xargs", "zsh",
+        ".",
+        "ash",
+        "awk",
+        "bash",
+        "builtin",
+        "busybox",
+        "chroot",
+        "command",
+        "coproc",
+        "dash",
+        "doas",
+        "env",
+        "eval",
+        "exec",
+        "flock",
+        "gawk",
+        "ionice",
+        "ksh",
+        "mawk",
+        "nice",
+        "nohup",
+        "parallel",
+        "rbash",
+        "runuser",
+        "script",
+        "setsid",
+        "sh",
+        "source",
+        "ssh",
+        "stdbuf",
+        "su",
+        "sudo",
+        "taskset",
+        "time",
+        "timeout",
+        "trap",
+        "unbuffer",
+        "watch",
+        "xargs",
+        "zsh",
     },
 )
 # Interpreters that run a script file by default and only become sinks when an
@@ -276,8 +362,7 @@ def _ruff_scan_suffixes() -> frozenset[str]:
         if not isinstance(node, ast.Assign):
             continue
         has_scan_globs_assignment = any(
-            isinstance(target, ast.Name) and target.id == "_SCAN_GLOBS"
-            for target in node.targets
+            isinstance(target, ast.Name) and target.id == "_SCAN_GLOBS" for target in node.targets
         )
         if not has_scan_globs_assignment:
             continue
@@ -372,6 +457,10 @@ GENERATED_GLOBS = {
     "memory": (".serena/memories/**/*.md",),
 }
 
+# Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
+# Generated companions (episodes, mcp, agents, memory-index) are exempt.
+MAX_AUTHORED_FILES_PER_COMMIT = 5
+
 
 @dataclass(frozen=True, slots=True)
 class PushRef:
@@ -396,6 +485,12 @@ class PushUpdate:
     head: str
     range_spec: str
     destination_branch: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class SuppressionRenames:
+    pure_scanned_destinations: frozenset[str]
+    promoted_destinations: frozenset[str]
 
 
 class PushUpdateConfigError(ValueError):
@@ -824,6 +919,26 @@ def _today_session_log(sessions_dir: Path) -> Path | None:
     return best
 
 
+def _session_log_for_current_branch(sessions_dir: Path, repo_root: Path) -> Path | None:
+    """Return the session log for the current branch, falling back to mtime.
+
+    Calls ``_current_branch`` to identify the active branch, then uses
+    ``_session_log_for_branch`` to find its log deterministically. Falls back
+    to ``_today_session_log`` (newest by mtime) so callers fail open rather
+    than hard-blocking when no branch-specific log exists yet.
+
+    This is the correct replacement for bare ``_today_session_log`` calls
+    in ADR and retrospective gates: concurrent agents on other branches
+    frequently own a newer mtime and the mtime winner names the wrong session.
+    """
+    branch = _current_branch(repo_root)
+    if branch is not None:
+        log = _session_log_for_branch(sessions_dir, branch)
+        if log is not None:
+            return log
+    return _today_session_log(sessions_dir)
+
+
 def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
     """Split a document into its frontmatter and its body, without decoding.
 
@@ -989,7 +1104,7 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         if not gated_paths:
             return 0
 
-    session_log = _today_session_log(repo_root / ".agents" / "sessions")
+    session_log = _session_log_for_current_branch(repo_root / ".agents" / "sessions", repo_root)
     if session_log is None or not _session_has_adr_review(session_log):
         print(
             "ERROR: ADR changes require adr-review evidence in today's session log",
@@ -997,13 +1112,20 @@ def check_adr_review_policy(paths: Sequence[str], repo_root: Path) -> int:
         )
         return 1
 
-    analysis_dir = repo_root / ".agents" / "analysis"
+    # Canonical debate-log directory per:
+    #   .claude/skills/adr-review/references/artifacts.md line 3:
+    #     "Save debate artifacts to `.agents/critique/`."
+    #   .claude/skills/adr-review/references/artifacts.md line 7:
+    #     "Save to: `.agents/critique/ADR-NNN-debate-log.md`"
+    # Issue #4250: the hook previously searched .agents/analysis/ but the
+    # skill writes to .agents/critique/.
+    critique_dir = repo_root / ".agents" / "critique"
     try:
-        debate_logs = list(analysis_dir.glob("*debate*.md"))
+        debate_logs = list(critique_dir.glob("*debate*.md"))
     except OSError:
         debate_logs = []
     if not debate_logs:
-        print("ERROR: ADR changes require a debate log in .agents/analysis", file=sys.stderr)
+        print("ERROR: ADR changes require a debate log in .agents/critique", file=sys.stderr)
         return 1
 
     adr_ids = _extract_adr_ids(gated_paths)
@@ -1263,7 +1385,7 @@ def check_retrospective_evidence(paths: Sequence[str], repo_root: Path) -> int:
     if paths and _documentation_only(paths):
         return 0
 
-    session_log = _today_session_log(repo_root / ".agents" / "sessions")
+    session_log = _session_log_for_current_branch(repo_root / ".agents" / "sessions", repo_root)
     if paths and _is_trivial_retrospective_session(session_log, paths):
         return 0
     if _today_retrospective_exists(repo_root):
@@ -1409,10 +1531,18 @@ def _git_path(repo_root: Path, path_name: str) -> Path | None:
 
 
 def _active_git_operation(repo_root: Path) -> tuple[str, str] | None:
-    for path_name, operation, remedy in ACTIVE_GIT_OPERATION_FILES:
+    for path_name, kind, operation, remedy in ACTIVE_GIT_OPERATION_PATHS:
         git_path = _git_path(repo_root, path_name)
-        if git_path is not None and git_path.is_file():
-            return operation, remedy
+        if git_path is None:
+            continue
+        if kind == "dir":
+            if not git_path.is_dir():
+                continue
+            if (git_path / GIT_AM_MARKER).is_file():
+                return GIT_AM_OPERATION, GIT_AM_REMEDY
+        elif not git_path.is_file():
+            continue
+        return operation, remedy
     return None
 
 
@@ -1898,6 +2028,88 @@ def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
     return 0
 
 
+def _is_generated(relative_path: str) -> bool:
+    """Return True when *relative_path* matches any generated-file pattern."""
+    for entries in GENERATED_PATHS.values():
+        if relative_path in entries:
+            return True
+    for globs in GENERATED_GLOBS.values():
+        if any(_matches_generated_glob(relative_path, pat) for pat in globs):
+            return True
+    return False
+
+
+def _atomic_commit_paths(diff_output: str) -> list[str]:
+    paths: list[str] = []
+    for line in diff_output.splitlines():
+        if not line:
+            continue
+        parts = line.split("\t")
+        status = parts[0]
+        if status.startswith(("R", "C")) and len(parts) >= 3:
+            paths.append(parts[2])
+        elif len(parts) >= 2:
+            paths.append(parts[1])
+    return paths
+
+
+def check_atomic_commit(repo_root: Path) -> int:
+    """Block when authored staged files exceed MAX_AUTHORED_FILES_PER_COMMIT.
+
+    Generated companions (episodes, mcp, agents, memory-index) are exempt from
+    the count so that a hook-generated sixth file cannot silently produce a
+    policy-violating commit. The function prints the generated files it found
+    so authors can see the full staged set.
+
+    EXIT CODES:
+      0 - staged authored files are within the limit
+      1 - staged authored files exceed the limit
+      2 - unexpected error determining the staged set
+    """
+    result = _run_git(
+        repo_root,
+        ["diff", "--cached", "--name-status", "-M", "--diff-filter=ACMRD"],
+    )
+    if result.returncode != 0:
+        print("ERROR: could not determine staged files", file=sys.stderr)
+        return 2
+
+    staged = _atomic_commit_paths(result.stdout)
+    authored: list[str] = []
+    generated: list[str] = []
+    for path in staged:
+        if _is_generated(path):
+            generated.append(path)
+        else:
+            authored.append(path)
+
+    authored_count = len(authored)
+    if generated:
+        print(
+            f"INFO: {len(generated)} generated file(s) excluded from atomic-commit count:",
+            file=sys.stderr,
+        )
+        for gp in generated:
+            print(f"  {gp}", file=sys.stderr)
+
+    if authored_count <= MAX_AUTHORED_FILES_PER_COMMIT:
+        return 0
+
+    print(
+        f"ERROR: commit touches {authored_count} authored files"
+        f" (limit is {MAX_AUTHORED_FILES_PER_COMMIT}).",
+        file=sys.stderr,
+    )
+    print("Authored files staged:", file=sys.stderr)
+    for ap in authored:
+        print(f"  {ap}", file=sys.stderr)
+    print(
+        "Split this commit. This local pre-commit check has no PR-label bypass.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def _episode_id_from_output(stdout: str) -> str | None:
     try:
         payload = json.loads(stdout)
@@ -1946,7 +2158,6 @@ MYPY_ERROR_RE = re.compile(r"^(?P<path>.+?):(?P<line>\d+):(?:\d+:)?\s*error:")
 # span (post-image).
 DIFF_ADDED_FILE_RE = re.compile(r"^\+\+\+ (?:b/)?(?P<path>.+)$")
 DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
-
 
 
 def _normalize_ratchet_path(path: str) -> str:
@@ -2048,6 +2259,12 @@ def _mypy_result_blocks(
 
 
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
+    if not paths:
+        print(
+            "ERROR: run_mypy called with no file arguments; refusing (bare mypy is a false green)",
+            file=sys.stderr,
+        )
+        return 2
     checked_paths: list[str] = []
     for raw_path in paths:
         path = _safe_relative_path(raw_path)
@@ -2157,8 +2374,18 @@ def _check_history_integrity(repo_root: Path) -> int:
         print(f"ERROR: unexpected shallow repository state: {shallow_state}", file=sys.stderr)
         return 2
     if shallow_state == "true":
+        shallow_file = repo_root / ".git" / "shallow"
+        pin_sha = ""
+        if shallow_file.is_file():
+            first_line = shallow_file.read_text(encoding="utf-8").splitlines()
+            pin_sha = first_line[0].strip() if first_line else ""
+        pin_detail = f"  .git/shallow pins history at {pin_sha}." if pin_sha else ""
         print(
-            "ERROR: push validation requires complete Git history; fetch the full history",
+            "ERROR: push validation requires complete Git history."
+            + (f"\n  {pin_detail}" if pin_detail else "")
+            + "\n  A `git fetch --depth=<n>` made this clone shallow,"
+            " most likely while reproducing a CI step locally."
+            "\n  Fix: git fetch --unshallow origin",
             file=sys.stderr,
         )
         return 2
@@ -2226,76 +2453,427 @@ def _added_suppression_violations(
     ]
     if not scan_paths:
         return []
-    pure_rename_destinations = _pure_scanned_rename_destinations(update, repo_root)
-    if pure_rename_destinations is None:
+    renames = _suppression_renames(repo_root, update.range_spec)
+    if renames is None:
         return None
-    scan_paths = [path for path in scan_paths if path not in pure_rename_destinations]
-    if not scan_paths:
+    promoted_paths = [path for path in scan_paths if path in renames.promoted_destinations]
+    scan_paths = [
+        path
+        for path in scan_paths
+        if path not in renames.pure_scanned_destinations
+        and path not in renames.promoted_destinations
+    ]
+    if not scan_paths and not promoted_paths:
         return []
-    notebook_paths = [path for path in scan_paths if Path(path).suffix.lower() == ".ipynb"]
-    diff_scan_paths = [path for path in scan_paths if Path(path).suffix.lower() != ".ipynb"]
-    violations: list[str] = []
-    if diff_scan_paths:
-        result = _run_git(
-            repo_root,
-            [
-                "-c",
-                "diff.noprefix=false",
-                "diff",
-                *TEXTUAL_DIFF_FLAGS,
-                "--src-prefix=a/",
-                "--dst-prefix=b/",
-                "--no-renames",
-                "--unified=0",
-                "--no-color",
-                update.range_spec,
-                "--",
-                *diff_scan_paths,
-            ],
-        )
-        if result.returncode != 0:
-            _print_process_output(result)
-            return None
-        violations.extend(_suppression_violations_in_diff(update.head, result.stdout))
+    notebook_paths, diff_scan_paths = _partition_suppression_paths(scan_paths)
+    violations = _textual_suppression_violations(
+        repo_root,
+        range_spec=update.range_spec,
+        paths=diff_scan_paths,
+        head_label=update.head,
+    )
+    if violations is None:
+        return None
     notebook_violations = _notebook_suppression_violations(update, notebook_paths, repo_root)
     if notebook_violations is None:
         return None
     violations.extend(notebook_violations)
+    promoted_violations = _commit_full_content_suppression_violations(
+        update,
+        promoted_paths,
+        repo_root,
+    )
+    if promoted_violations is None:
+        return None
+    violations.extend(promoted_violations)
     return violations
 
 
-def _suppression_violations_in_diff(head: str, diff_text: str) -> list[str]:
+def suppression_identity(text: str, match: re.Match[str]) -> str:
+    """Identity used to credit a removed suppression against an added one.
+
+    `match.group(0)` stops at the directive token, so a Bandit `B324` waiver
+    and a `B605` waiver share one key. Keying credits on that lets an
+    unrelated harmless removal authorize a dangerous addition (issue #4152).
+    The same truncation applies to the semgrep directive and to the bracketed
+    rule in the CodeQL and LGTM forms.
+
+    The comment tail from the match start carries the rule ID and any
+    justification, so it distinguishes suppressions that the token alone
+    conflates. Whitespace is dropped so reindentation, and a directive
+    written with or without a space after the comment marker, still credit a
+    relocated suppression.
+    """
+    return "".join(text[match.start() :].split())
+
+
+def _suppression_violations_in_diff(
+    head: str,
+    diff_text: str,
+    allowed_paths: frozenset[str] | None = None,
+) -> list[str]:
+    changes = [
+        change
+        for change in _iter_diff_changes(diff_text)
+        if allowed_paths is None or change[0] in allowed_paths
+    ]
+    removed: dict[str, Counter[str]] = {}
+    for path, operation, _line_number, text in changes:
+        if operation != "-":
+            continue
+        match = SECURITY_SUPPRESSION_RE.search(text)
+        if match is None:
+            continue
+        removed.setdefault(path, Counter())[suppression_identity(text, match)] += 1
+
     violations: list[str] = []
-    current_path: str | None = None
+    for path, operation, line_number, text in changes:
+        if operation != "+":
+            continue
+        match = SECURITY_SUPPRESSION_RE.search(text)
+        if match is None:
+            continue
+        identity = suppression_identity(text, match)
+        file_removed = removed.get(path)
+        if file_removed and file_removed[identity] > 0:
+            file_removed[identity] -= 1
+            continue
+        violations.append(f"{head[:12]}:{path}:{line_number}")
+    return violations
+
+
+def _iter_diff_changes(diff_text: str) -> Iterator[tuple[str, str, int, str]]:
+    current_path = None
     current_line: int | None = None
-    in_hunk = False
     for line in diff_text.splitlines():
         if line.startswith("diff --git "):
             current_path = None
             current_line = None
-            in_hunk = False
             continue
-        file_match = None if in_hunk else DIFF_ADDED_FILE_RE.match(line)
-        if file_match is not None and file_match.group("path") != "/dev/null":
-            current_path = _normalize_ratchet_path(file_match.group("path"))
-            current_line = None
-            continue
+        if current_line is None:
+            file_match = DIFF_ADDED_FILE_RE.match(line)
+            if file_match is not None and file_match.group("path") != "/dev/null":
+                current_path = _normalize_ratchet_path(file_match.group("path"))
+                continue
         hunk_match = DIFF_HUNK_RE.match(line)
         if hunk_match is not None:
             current_line = int(hunk_match.group("start"))
-            in_hunk = True
             continue
-        if not in_hunk or current_path is None or current_line is None or line.startswith("\\"):
-            continue
-        if line.startswith("+"):
-            if SECURITY_SUPPRESSION_RE.search(line[1:]):
-                violations.append(f"{head[:12]}:{current_path}:{current_line}")
-            current_line += 1
+        if current_path is None or current_line is None or line.startswith("\\"):
             continue
         if line.startswith("-"):
+            yield current_path, "-", current_line, line[1:]
+            continue
+        if line.startswith("+"):
+            yield current_path, "+", current_line, line[1:]
+            current_line += 1
             continue
         current_line += 1
+
+
+def _partition_suppression_paths(paths: Sequence[str]) -> tuple[list[str], list[str]]:
+    notebook_paths = [path for path in paths if Path(path).suffix.lower() == ".ipynb"]
+    textual_paths = [path for path in paths if Path(path).suffix.lower() != ".ipynb"]
+    return notebook_paths, textual_paths
+
+
+def _textual_suppression_violations(
+    repo_root: Path,
+    *,
+    range_spec: str,
+    paths: Sequence[str],
+    head_label: str,
+    cached: bool = False,
+) -> list[str] | None:
+    if not paths:
+        return []
+    args = [
+        "-c",
+        "diff.noprefix=false",
+        "-c",
+        "core.quotePath=false",
+        "diff",
+    ]
+    if cached:
+        args.append("--cached")
+    args.extend(
+        (
+            *TEXTUAL_DIFF_FLAGS,
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
+            "--find-renames",
+            "--unified=0",
+            "--no-color",
+            range_spec,
+            "--",
+        )
+    )
+    result = _run_git(repo_root, args)
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    return _suppression_violations_in_diff(
+        head_label,
+        result.stdout,
+        frozenset(paths),
+    )
+
+
+def check_staged_suppressions(repo_root: Path) -> int:
+    """Check staged changes (git diff --cached) for net-new security suppressions."""
+    base_ref = _staged_suppression_base(repo_root)
+    scan_paths = _staged_suppression_paths(repo_root, base_ref)
+    if scan_paths is None:
+        return 2
+    violations = _staged_suppression_violations(scan_paths, repo_root, base_ref)
+    if violations is None:
+        return 2
+    if not violations:
+        return 0
+    print("ERROR: security suppression comments detected in staged changes:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    return 1
+
+
+def _staged_suppression_violations(
+    scan_paths: Sequence[str],
+    repo_root: Path,
+    base_ref: str,
+) -> list[str] | None:
+    if not scan_paths:
+        return []
+    renames = _suppression_renames(
+        repo_root,
+        base_ref,
+        cached=True,
+        context="staged changes",
+    )
+    if renames is None:
+        return None
+    promoted_paths = [path for path in scan_paths if path in renames.promoted_destinations]
+    scan_paths = [
+        path
+        for path in scan_paths
+        if path not in renames.pure_scanned_destinations
+        and path not in renames.promoted_destinations
+    ]
+    if not scan_paths and not promoted_paths:
+        return []
+    notebook_paths, diff_scan_paths = _partition_suppression_paths(scan_paths)
+    violations = _textual_suppression_violations(
+        repo_root,
+        range_spec=base_ref,
+        paths=diff_scan_paths,
+        head_label="staged",
+        cached=True,
+    )
+    if violations is None:
+        return None
+    notebook_violations = _staged_notebook_suppression_violations(
+        notebook_paths,
+        repo_root,
+        base_ref,
+    )
+    if notebook_violations is None:
+        return None
+    violations.extend(notebook_violations)
+    promoted_violations = _staged_full_content_suppression_violations(
+        promoted_paths,
+        repo_root,
+    )
+    if promoted_violations is None:
+        return None
+    violations.extend(promoted_violations)
     return violations
+
+
+def _staged_suppression_base(repo_root: Path) -> str:
+    merge_heads = _approved_merge_head_commits(repo_root)
+    return merge_heads[0] if len(merge_heads) == 1 else "HEAD"
+
+
+def _staged_suppression_paths(repo_root: Path, base_ref: str) -> list[str] | None:
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            "--cached",
+            "--name-only",
+            "-z",
+            "--diff-filter=ACMRT",
+            base_ref,
+        ],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    paths: list[str] = []
+    for raw_path in result.stdout.split("\0"):
+        if not raw_path:
+            continue
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe staged suppression path: {raw_path}", file=sys.stderr)
+            return None
+        if Path(path).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES:
+            paths.append(path)
+    return paths
+
+
+def _staged_notebook_suppression_violations(
+    paths: Sequence[str],
+    repo_root: Path,
+    base_ref: str,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        head_text = _index_text_or_none(path, repo_root)
+        if head_text is None:
+            return None
+        base_text = _commit_text_or_empty(base_ref, path, repo_root)
+        violations.extend(
+            _notebook_suppression_violations_for_text(
+                "staged",
+                path,
+                base_text,
+                head_text,
+            )
+        )
+    return violations
+
+
+def _staged_full_content_suppression_violations(
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        text = _index_text_or_none(path, repo_root)
+        if text is None:
+            return None
+        violations.extend(_full_content_suppression_violations("staged", path, text))
+    return violations
+
+
+def _diff_notebook_suppression_violations(
+    base_ref: str,
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        head_text = _commit_text_or_none("HEAD", path, repo_root)
+        if head_text is None:
+            return None
+        base_text = _commit_text_for_base(base_ref, path, repo_root)
+        if base_text is None:
+            return None
+        violations.extend(
+            _notebook_suppression_violations_for_text("HEAD", path, base_text, head_text)
+        )
+    return violations
+
+
+def _diff_full_content_suppression_violations(
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        text = _commit_text_or_none("HEAD", path, repo_root)
+        if text is None:
+            return None
+        violations.extend(_full_content_suppression_violations("HEAD", path, text))
+    return violations
+
+
+def _added_suppression_violations_for_range(
+    range_spec: str,
+    base_ref: str,
+    scan_paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    """Suppression-violation finder for a git range without a PushUpdate."""
+    if not scan_paths:
+        return []
+    renames = _suppression_renames(repo_root, range_spec)
+    if renames is None:
+        return None
+    promoted_paths = [path for path in scan_paths if path in renames.promoted_destinations]
+    scan_paths = [
+        path
+        for path in scan_paths
+        if path not in renames.pure_scanned_destinations
+        and path not in renames.promoted_destinations
+    ]
+    if not scan_paths and not promoted_paths:
+        return []
+    notebook_paths, diff_scan_paths = _partition_suppression_paths(scan_paths)
+    violations = _textual_suppression_violations(
+        repo_root,
+        range_spec=range_spec,
+        paths=diff_scan_paths,
+        head_label="HEAD",
+    )
+    if violations is None:
+        return None
+    notebook_violations = _diff_notebook_suppression_violations(base_ref, notebook_paths, repo_root)
+    if notebook_violations is None:
+        return None
+    violations.extend(notebook_violations)
+    promoted_violations = _diff_full_content_suppression_violations(promoted_paths, repo_root)
+    if promoted_violations is None:
+        return None
+    violations.extend(promoted_violations)
+    return violations
+
+
+def check_suppression_diff(base_ref: str, repo_root: Path) -> int:
+    """CI mirror of security-suppressions-push: compares HEAD against base_ref.
+
+    Returns:
+        0  no new security suppressions detected
+        1  new security suppressions found
+        3  git error (external failure)
+    """
+    range_spec = f"{base_ref}..HEAD"
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            *TEXTUAL_DIFF_FLAGS,
+            "--name-only",
+            "--diff-filter=ACMRT",
+            "--no-renames",
+            "-z",
+            range_spec,
+        ],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return 3
+    scan_paths: list[str] = []
+    for raw_path in result.stdout.split("\0"):
+        if not raw_path:
+            continue
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe path in diff range: {raw_path}", file=sys.stderr)
+            return 3
+        if Path(path).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES:
+            scan_paths.append(path)
+    violations = _added_suppression_violations_for_range(
+        range_spec, base_ref, scan_paths, repo_root
+    )
+    if violations is None:
+        return 3
+    if not violations:
+        return 0
+    print("ERROR: security suppression comments detected in diff range:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    return 1
 
 
 def _notebook_suppression_violations(
@@ -2309,12 +2887,67 @@ def _notebook_suppression_violations(
         if head_text is None:
             return None
         base_text = _commit_text_or_empty(update.base, path, repo_root)
-        base_lines = _notebook_code_lines(base_text)
-        head_lines = _notebook_code_lines(head_text)
-        for line_number in _added_line_numbers(base_lines, head_lines):
-            if SECURITY_SUPPRESSION_RE.search(head_lines[line_number - 1]):
-                violations.append(f"{update.head[:12]}:{path}:{line_number}")
+        violations.extend(
+            _notebook_suppression_violations_for_text(
+                update.head[:12],
+                path,
+                base_text,
+                head_text,
+            )
+        )
     return violations
+
+
+def _commit_full_content_suppression_violations(
+    update: PushUpdate,
+    paths: Sequence[str],
+    repo_root: Path,
+) -> list[str] | None:
+    violations: list[str] = []
+    for path in paths:
+        text = _commit_text_or_none(update.head, path, repo_root)
+        if text is None:
+            return None
+        violations.extend(_full_content_suppression_violations(update.head[:12], path, text))
+    return violations
+
+
+def _full_content_suppression_violations(
+    head_label: str,
+    path: str,
+    text: str,
+) -> list[str]:
+    lines = (
+        _notebook_code_lines(text) if Path(path).suffix.lower() == ".ipynb" else text.splitlines()
+    )
+    return [
+        f"{head_label}:{path}:{line_number}"
+        for line_number, line in enumerate(lines, start=1)
+        if SECURITY_SUPPRESSION_RE.search(line)
+    ]
+
+
+def _notebook_suppression_violations_for_text(
+    head_label: str,
+    path: str,
+    base_text: str,
+    head_text: str,
+) -> list[str]:
+    base_lines = _notebook_code_lines(base_text)
+    head_lines = _notebook_code_lines(head_text)
+    return [
+        f"{head_label}:{path}:{line_number}"
+        for line_number in _added_line_numbers(base_lines, head_lines)
+        if SECURITY_SUPPRESSION_RE.search(head_lines[line_number - 1])
+    ]
+
+
+def _index_text_or_none(path: str, repo_root: Path) -> str | None:
+    result = _run_git(repo_root, ["show", f":{path}"])
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    return result.stdout
 
 
 def _commit_text_or_none(head: str, path: str, repo_root: Path) -> str | None:
@@ -2328,6 +2961,22 @@ def _commit_text_or_none(head: str, path: str, repo_root: Path) -> str | None:
 def _commit_text_or_empty(head: str, path: str, repo_root: Path) -> str:
     result = _run_git(repo_root, ["show", f"{head}:{path}"])
     return result.stdout if result.returncode == 0 else ""
+
+
+def _commit_text_for_base(base_ref: str, path: str, repo_root: Path) -> str | None:
+    """Return the text of a file at ``base_ref``, or ``""`` when the file is
+    absent at that ref (new file), or ``None`` when ``base_ref`` itself is
+    invalid so the caller can propagate rc=3 rather than rc=1."""
+    result = _run_git(repo_root, ["show", f"{base_ref}:{path}"])
+    if result.returncode == 0:
+        return result.stdout
+    # Distinguish "file not in tree" (new file, treat as empty) from any
+    # other git failure (bad ref, corrupt repo, etc.) which is an external
+    # error that should surface as rc=3, not produce spurious violations.
+    if "does not exist in" in result.stderr or "exists on disk, but not in" in result.stderr:
+        return ""
+    _print_process_output(result)
+    return None
 
 
 def _notebook_code_lines(text: str) -> list[str]:
@@ -2348,9 +2997,7 @@ def _notebook_code_lines(text: str) -> list[str]:
         if isinstance(source, str):
             lines.extend(source.splitlines())
         elif isinstance(source, list):
-            for item in source:
-                if isinstance(item, str):
-                    lines.extend(item.splitlines())
+            lines.extend("".join(item for item in source if isinstance(item, str)).splitlines())
     return lines
 
 
@@ -2534,8 +3181,7 @@ def _posix_shell_invocations(body: str) -> list[str]:
             previous = word
             continue
         executes = (
-            at_command
-            or previous.strip("'\"").rstrip(":").lower() in POWERSHELL_EXEC_PARAMETERS
+            at_command or previous.strip("'\"").rstrip(":").lower() in POWERSHELL_EXEC_PARAMETERS
         )
         if executes and _is_posix_shell_name(word):
             invocations.append(word)
@@ -2726,6 +3372,70 @@ def _filesystem_collision_key(path: str) -> str | None:
     return "/".join(normalized_parts)
 
 
+class _SemgrepExecutableError(RuntimeError):
+    """Semgrep executable resolution failed before the scan ran."""
+
+
+@lru_cache(maxsize=1)
+def _semgrep_pinned_version(repo_root: Path = REPO_ROOT) -> str:
+    pyproject = repo_root / "pyproject.toml"
+    try:
+        pyproject_text = pyproject.read_text(encoding="utf-8")
+    except OSError as error:
+        raise _SemgrepExecutableError(
+            f"cannot read semgrep pin from {pyproject}: {error}\n"
+        ) from error
+    matches: list[str] = re.findall(
+        r'^\s*"semgrep==([^"]+)",\s*$',
+        pyproject_text,
+        re.MULTILINE,
+    )
+    versions = set(matches)
+    if len(versions) != 1:
+        raise _SemgrepExecutableError(
+            f"pyproject.toml must declare one semgrep pin, found: {sorted(versions)!r}\n"
+        )
+    return versions.pop()
+
+
+@lru_cache(maxsize=1)
+def _resolve_semgrep_executable(repo_root: Path = REPO_ROOT) -> str:
+    sibling_name = "semgrep.exe" if os.name == "nt" else "semgrep"
+    sibling = Path(sys.executable).parent / sibling_name
+    if sibling.is_file() and os.access(sibling, os.X_OK):
+        return str(sibling)
+
+    resolved = shutil.which("semgrep")
+    if resolved is None:
+        raise FileNotFoundError("semgrep")
+
+    version = _probe_semgrep_version(resolved, repo_root)
+    pinned = _semgrep_pinned_version(repo_root)
+    if version != pinned:
+        raise _SemgrepExecutableError(
+            f"semgrep version mismatch: pyproject.toml pins {pinned}, "
+            f"but {resolved} reports {version}\n"
+        )
+    return resolved
+
+
+def _probe_semgrep_version(executable: str, repo_root: Path) -> str:
+    result = _run_command(
+        [executable, "--version"],
+        repo_root,
+        timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
+    )
+    if result.returncode != 0:
+        raise _SemgrepExecutableError(
+            f"semgrep version probe failed for {executable}: {result.stderr.strip()}\n"
+        )
+    version = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
+    if not version:
+        raise _SemgrepExecutableError(
+            f"semgrep version probe returned no version for {executable}\n"
+        )
+    return version
+
 def _run_semgrep_tree(
     tree: Path,
     paths: Sequence[str],
@@ -2735,9 +3445,9 @@ def _run_semgrep_tree(
     finding: subprocess.CompletedProcess[str] | None = None
     last_result: subprocess.CompletedProcess[str] | None = None
     try:
-        for batch in _semgrep_target_batches(targets):
+        for batch in _semgrep_target_batches(targets, repo_root):
             result = _run_command(
-                _semgrep_command("auto", batch),
+                _semgrep_command("auto", batch, repo_root),
                 repo_root,
                 timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
             )
@@ -2751,14 +3461,20 @@ def _run_semgrep_tree(
                 finding = verified
     except FileNotFoundError:
         return subprocess.CompletedProcess([], 2, "", "semgrep executable not found\n")
+    except _SemgrepExecutableError as error:
+        return subprocess.CompletedProcess([], 2, "", str(error))
     except OSError as error:
         return subprocess.CompletedProcess([], 2, "", f"cannot execute semgrep: {error}\n")
     return finding or last_result or subprocess.CompletedProcess([], 0, "", "")
 
 
-def _semgrep_command(config: str, targets: Sequence[str]) -> list[str]:
+def _semgrep_command(
+    config: str,
+    targets: Sequence[str],
+    repo_root: Path = REPO_ROOT,
+) -> list[str]:
     return [
-        "semgrep",
+        _resolve_semgrep_executable(repo_root),
         "scan",
         "--config",
         config,
@@ -2776,8 +3492,11 @@ def _semgrep_command(config: str, targets: Sequence[str]) -> list[str]:
     ]
 
 
-def _semgrep_target_batches(targets: Sequence[str]) -> list[list[str]]:
-    base_length = sum(len(argument) + 1 for argument in _semgrep_command("auto", []))
+def _semgrep_target_batches(
+    targets: Sequence[str],
+    repo_root: Path = REPO_ROOT,
+) -> list[list[str]]:
+    base_length = sum(len(argument) + 1 for argument in _semgrep_command("auto", [], repo_root))
     batches: list[list[str]] = []
     batch: list[str] = []
     batch_length = base_length
@@ -3048,9 +3767,7 @@ def _is_non_bash_shell(shell: str | None) -> bool:
     if not tokens or tokens[0] not in NON_BASH_INTERPRETERS:
         return False
     interpreter = tokens[0]
-    return all(
-        _is_reviewed_shell_argument(token, interpreter) for token in tokens[1:]
-    )
+    return all(_is_reviewed_shell_argument(token, interpreter) for token in tokens[1:])
 
 
 WINDOWS_BASH_FALLBACKS = (
@@ -3409,10 +4126,7 @@ def _shell_code_flags(word: str) -> set[str]:
     return {
         flag
         for flag in SHELL_CODE_FLAGS
-        if len(flag) == 2
-        and flag.startswith("-")
-        and word.startswith(flag)
-        and word[len(flag) :]
+        if len(flag) == 2 and flag.startswith("-") and word.startswith(flag) and word[len(flag) :]
     }
 
 
@@ -3462,9 +4176,7 @@ def _record_positional_arguments(scan: _ShellScan, written: dict[str, set[int]])
                 written.setdefault(name, set()).add(pipeline)
 
 
-def _promote_staged_files(
-    scan: _ShellScan, sinks: set[int], written: dict[str, set[int]]
-) -> None:
+def _promote_staged_files(scan: _ShellScan, sinks: set[int], written: dict[str, set[int]]) -> None:
     """Fold a pipeline that stages a file a sink later executes into that sink.
 
     ``echo payload > /tmp/f & sh /tmp/f`` moves the payload through the
@@ -3605,8 +4317,7 @@ def _splices_expression_into_command_word(run: str) -> bool:
     if not tainted:
         return False
     return any(
-        is_command and _leading_variable_reference(word) in tainted
-        for word, is_command, _ in words
+        is_command and _leading_variable_reference(word) in tainted for word, is_command, _ in words
     )
 
 
@@ -3652,6 +4363,7 @@ def _blob_id_at(repo_root: Path, commit: str, path: str) -> str | None:
         return None
     return result.stdout.strip() or None
 
+
 def _decoded_frontmatter(raw: bytes) -> str | None:
     """Decode frontmatter strictly, or report that it cannot be reasoned about.
 
@@ -3665,6 +4377,7 @@ def _decoded_frontmatter(raw: bytes) -> str | None:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
         return None
+
 
 def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]:
     """Blob ids from one `--follow` traversal of `path` on `origin/main`.
@@ -3763,6 +4476,7 @@ def _followed_blob_ids(repo_root: Path, path: str, diff_merges: str) -> set[str]
     # the repository's hash.
     return {blob_id for blob_id in blob_ids if not _is_zero_sha(blob_id)}
 
+
 def _frontmatter_pair_for_a_body_unchanged_edit(
     path: str,
     repo_root: Path,
@@ -3788,6 +4502,7 @@ def _frontmatter_pair_for_a_body_unchanged_edit(
         return None
     return old_text, new_text
 
+
 def _governed_document_identity(path: str) -> str | None:
     """Which record `path` holds, or None if this gate does not govern it.
 
@@ -3810,6 +4525,7 @@ def _governed_document_identity(path: str) -> str | None:
         return "SESSION-PROTOCOL"
     return None
 
+
 def _normalized_record_number(identifier: str) -> str:
     """One record's number, written the one way, so a repad is not a new record.
 
@@ -3828,55 +4544,71 @@ def _normalized_record_number(identifier: str) -> str:
     prefix, _, number = identifier.upper().partition("-")
     return f"{prefix}-{number.lstrip('0') or '0'}"
 
-def _is_scanned_suppression_rename(source: str, destination: str) -> bool:
-    return (
-        Path(source).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
-        and Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
-    )
 
-def _parse_pure_scanned_rename_destinations(output: str) -> set[str] | None:
+def _parse_suppression_renames(
+    output: str,
+    *,
+    context: str = "pushed range",
+) -> SuppressionRenames | None:
     records = [record for record in output.split("\0") if record]
-    destinations: set[str] = set()
+    pure_scanned: set[str] = set()
+    promoted: set[str] = set()
     index = 0
     while index < len(records):
         status = records[index]
         if index + 2 >= len(records):
-            print("ERROR: malformed rename status in pushed range", file=sys.stderr)
+            print(f"ERROR: malformed rename status in {context}", file=sys.stderr)
             return None
         source = _safe_relative_path(records[index + 1])
         destination = _safe_relative_path(records[index + 2])
         if source is None or destination is None:
-            print("ERROR: unsafe rename path in pushed range", file=sys.stderr)
+            print(f"ERROR: unsafe rename path in {context}", file=sys.stderr)
             return None
-        if status == "R100" and _is_scanned_suppression_rename(source, destination):
-            destinations.add(destination)
+        source_scanned = Path(source).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+        destination_scanned = Path(destination).suffix.lower() in SECURITY_SUPPRESSION_SUFFIXES
+        if status == "R100" and source_scanned and destination_scanned:
+            pure_scanned.add(destination)
+        if not source_scanned and destination_scanned:
+            promoted.add(destination)
         index += 3
-    return destinations
+    return SuppressionRenames(
+        pure_scanned_destinations=frozenset(pure_scanned),
+        promoted_destinations=frozenset(promoted),
+    )
 
-def _pure_scanned_rename_destinations(
-    update: PushUpdate,
+
+def _suppression_renames(
     repo_root: Path,
-) -> set[str] | None:
-    result = _run_git(
-        repo_root,
-        [
-            "diff",
+    range_spec: str,
+    *,
+    cached: bool = False,
+    context: str = "pushed range",
+) -> SuppressionRenames | None:
+    args = ["diff"]
+    if cached:
+        args.append("--cached")
+    args.extend(
+        (
             *TEXTUAL_DIFF_FLAGS,
-            "--find-renames=100%",
+            "--find-renames",
             "--name-status",
             "--diff-filter=R",
             "-z",
-            update.range_spec,
-        ],
+            range_spec,
+        )
+    )
+    result = _run_git(
+        repo_root,
+        args,
     )
     if result.returncode != 0:
         _print_process_output(result)
         return None
-    return _parse_pure_scanned_rename_destinations(result.stdout)
+    return _parse_suppression_renames(result.stdout, context=context)
+
+
 
 PATH_SEPARATOR_RE = re.compile(r"[\\/]")
-
-
 
 def _step_defeats_bash_subparse(shell: str | None, run: str) -> bool:
     if _body_declares_its_own_interpreter(run):
@@ -4191,9 +4923,88 @@ def _fetch_origin_main(repo_root: Path) -> None:
         print("WARNING: could not refresh origin/main; using local ref", file=sys.stderr)
 
 
+# Environment variable that allows force-pushing a branch the actor owns.
+# Set to "1" for a single push of a personal feature branch that has been
+# deliberately rebased.  universal.md MUST NOT #1 still applies: this escape
+# is for branches only the author has touched.  Use the 4-slot semaphore
+# described in AGENTS.md to serialize, not this env var.
+FORCE_PUSH_OK_ENV = "FORCE_PUSH_OK"
+
+
+def _check_non_fast_forward(push_ref: PushRef, repo_root: Path) -> int:
+    """Return 1 when push_ref rewrites published history on a branch ref.
+
+    Detects a force push by testing whether the current remote tip
+    (remote_sha) is reachable from what is about to land (local_sha).  If it
+    is not reachable, the push discards commits the remote already has.
+
+    Returns:
+        0 - fast-forward, new branch, deletion, non-branch ref, or env-var
+            escape active.
+        1 - non-fast-forward detected (history rewrite).
+        2 - remote object absent locally; fetch first.
+    """
+    # Only guard branch refs.
+    if _branch_name(push_ref.remote_ref) is None:
+        return 0
+
+    # Deletions and new branches do not rewrite history.
+    if push_ref.is_deletion or push_ref.is_new:
+        return 0
+
+    if os.environ.get(FORCE_PUSH_OK_ENV) == "1":
+        print(
+            f"WARNING: force-push check bypassed via {FORCE_PUSH_OK_ENV}=1 "
+            f"for {push_ref.remote_ref}",
+            file=sys.stderr,
+        )
+        return 0
+
+    # The remote tip must be present locally before we can test ancestry.
+    # merge-base --is-ancestor exits non-zero both for "not an ancestor" and
+    # for "unknown object", so we must distinguish those two cases first.
+    if not _commit_ref_exists(repo_root, push_ref.remote_sha):
+        print(
+            f"ERROR: remote tip {push_ref.remote_sha[:12]} for "
+            f"{push_ref.remote_ref} is not present in the local object store. "
+            "Run 'git fetch' and retry.",
+            file=sys.stderr,
+        )
+        return 2
+
+    result = _run_git(
+        repo_root,
+        ["merge-base", "--is-ancestor", push_ref.remote_sha, push_ref.local_sha],
+    )
+    if result.returncode == 0:
+        # remote_sha is an ancestor of local_sha: fast-forward push.
+        return 0
+
+    # returncode == 1 means not-an-ancestor; anything else is a git error.
+    # Fail closed in both cases.
+    print(
+        f"ERROR: push to {push_ref.remote_ref} is not a fast-forward. "
+        f"Remote tip {push_ref.remote_sha[:12]} is not reachable from "
+        f"{push_ref.local_sha[:12]}. "
+        "This rewrites published history, which universal.md MUST NOT #1 forbids. "
+        f"To override for a personal branch you own, set {FORCE_PUSH_OK_ENV}=1.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def _protected_push_destination(push_ref: PushRef) -> str | None:
     branch = _branch_name(push_ref.remote_ref)
     return branch if branch in {"main", "master"} else None
+
+
+def _check_all_non_fast_forward(refs: list[PushRef], repo_root: Path) -> int:
+    """Run _check_non_fast_forward for each ref; return first non-zero result."""
+    for push_ref in refs:
+        result = _check_non_fast_forward(push_ref, repo_root)
+        if result != 0:
+            return result
+    return 0
 
 
 def check_push_refs(stream: TextIO, repo_root: Path) -> int:
@@ -4218,6 +5029,9 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if protected is not None:
         print(f"ERROR: cannot delete or update protected branch '{protected}'", file=sys.stderr)
         return 1
+    nff_result = _check_all_non_fast_forward(refs, repo_root)
+    if nff_result != 0:
+        return nff_result
     active_refs = [push_ref for push_ref in refs if not push_ref.is_deletion]
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
@@ -4248,13 +5062,17 @@ def warn_if_push_files_incomplete(
         return
     checked_out_head = head_result.stdout.strip()
     push_base = _run_git(repo_root, ["rev-parse", "--verify", "@{push}"])
-    if (
-        len(push_refs) == 1
-        and push_refs[0].local_sha == checked_out_head
-        and push_base.returncode == 0
-        and push_refs[0].remote_sha == push_base.stdout.strip()
-    ):
-        return
+    if len(push_refs) == 1 and push_refs[0].local_sha == checked_out_head:
+        ref = push_refs[0]
+        # Quiet path 1: configured push target matches the remote SHA.
+        if push_base.returncode == 0 and ref.remote_sha == push_base.stdout.strip():
+            return
+        # Quiet path 2: explicit refspec push (HEAD -> differently-named remote
+        # branch). The local commit is checked-out HEAD, so Lefthook {push_files}
+        # does cover the pushed files. The @{push} target is irrelevant here
+        # because the caller named the destination explicitly.
+        if ref.local_ref != ref.remote_ref:
+            return
     print(
         "WARNING: Lefthook {push_files} quality coverage may be incomplete because "
         "the pushed ref set does not match checked-out HEAD and its configured push "
@@ -4291,23 +5109,12 @@ def _contains_main_merge(update: PushUpdate, repo_root: Path) -> bool:
         return False
     # Every merge is read against the same trunk, and a push may carry many.
     # Reading it here keeps the walk once per push rather than once per merge.
-    trunk = _main_trunk_commits(repo_root)
+    # main_first_parent_shas is the shared implementation; contains_main_merge
+    # in pr_commit_count uses it too so both gates use the same predicate. This
+    # module's _run_git goes with it so a hook keeps the scrubbed git env and
+    # the timeout it applies to every other git call it makes.
+    trunk = main_first_parent_shas(repo_root, run_git=_run_git)
     return any(_merge_has_main_parent(merge_sha, repo_root, trunk) for merge_sha in merges)
-
-
-def _main_trunk_commits(repo_root: Path) -> frozenset[str]:
-    """Read the commits `origin/main` reaches by first parent alone.
-
-    A branch main has landed is an ancestor of main, but it is not one of
-    these. It sits on the second parent of the merge that landed it. Merging
-    such a branch brings in no history main had not already handed out, so
-    asking only whether main can reach a parent answers a wider question than
-    the raised limit is for.
-    """
-    result = _run_git(repo_root, ["rev-list", "--first-parent", "origin/main"])
-    if result.returncode != 0:
-        return frozenset()
-    return frozenset(result.stdout.split())
 
 
 def _merge_has_main_parent(
@@ -4329,7 +5136,7 @@ def _merge_has_main_parent(
         return False
     parents = result.stdout.split()[1:]
     if trunk is None:
-        trunk = _main_trunk_commits(repo_root)
+        trunk = main_first_parent_shas(repo_root, run_git=_run_git)
     return any(parent in trunk for parent in parents)
 
 
@@ -4359,6 +5166,75 @@ def _unpushed_commit_count(update: PushUpdate, repo_root: Path) -> int | None:
         return None
 
 
+def _new_commits_for_branch(update: PushUpdate, branch: str | None, repo_root: Path) -> int | None:
+    """Count commits in this push that are not yet on the remote branch.
+
+    Returns None on any git failure. Used for the needs-split bypass: a PR
+    labelled needs-split may still receive small fix commits even when the
+    branch is over the total limit (issue #3895).
+    """
+    if not branch:
+        return None
+    result = _run_git(
+        repo_root,
+        ["rev-list", "--count", update.source.local_sha, f"^origin/{branch}"],
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        return int(result.stdout.strip())
+    except ValueError:
+        return None
+
+
+# Maximum new commits allowed through the needs-split bypass per push.
+# The bypass is for small fix/merge commits while the PR awaits splitting, not
+# for landing an entirely new batch of work (issue #3895).
+_NEEDS_SPLIT_NEW_COMMIT_CAP = 5
+
+_NEEDS_SPLIT_LABEL = "needs-split"
+
+
+def _check_needs_split_bypass(
+    update: PushUpdate, branch: str | None, repo_root: Path
+) -> int | None:
+    """Return 0 if needs-split label permits this push, None if not.
+
+    Checks the PR for a needs-split label and validates that the number of new
+    commits in this push stays within _NEEDS_SPLIT_NEW_COMMIT_CAP (issue #3895).
+    """
+    split_args = [
+        sys.executable,
+        "scripts/validation/check_pr_bypass_label.py",
+        "--label",
+        _NEEDS_SPLIT_LABEL,
+    ]
+    if branch:
+        split_args.extend(["--branch", branch])
+    split_check = _run_command(split_args, repo_root)
+    if split_check.returncode != 0:
+        return None
+    new_count = _new_commits_for_branch(update, branch, repo_root)
+    if new_count is not None and new_count <= _NEEDS_SPLIT_NEW_COMMIT_CAP:
+        print(
+            f"NOTE: PR is labelled {_NEEDS_SPLIT_LABEL!r}; this push adds "
+            f"{new_count} new commit(s) (cap {_NEEDS_SPLIT_NEW_COMMIT_CAP}). "
+            "Allowing while splitting is in progress.",
+        )
+        return 0
+    cap_msg = (
+        f"{new_count} new commit(s) exceeds the needs-split cap ({_NEEDS_SPLIT_NEW_COMMIT_CAP})"
+        if new_count is not None
+        else "could not count new commits"
+    )
+    print(
+        f"NOTE: PR has {_NEEDS_SPLIT_LABEL!r} but {cap_msg}; "
+        "use commit-limit-bypass to override the ceiling entirely.",
+        file=sys.stderr,
+    )
+    return None
+
+
 def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     result = _run_git(repo_root, ["rev-list", "--count", update.range_spec])
     if result.returncode != 0:
@@ -4369,9 +5245,7 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
     except ValueError:
         return 2
     limit = (
-        MAIN_MERGE_BLOCK_THRESHOLD
-        if _contains_main_merge(update, repo_root)
-        else BLOCK_THRESHOLD
+        MAIN_MERGE_BLOCK_THRESHOLD if _contains_main_merge(update, repo_root) else BLOCK_THRESHOLD
     )
     if commit_count <= limit:
         return 0
@@ -4391,6 +5265,14 @@ def _check_commit_limit(update: PushUpdate, repo_root: Path) -> int:
             f"limit is {limit}.",
         )
         return 0
+    # needs-split bypass (issue #3895): a PR labelled needs-split is already
+    # scheduled for splitting. Block only when this push itself is large; allow
+    # small fix pushes (up to _NEEDS_SPLIT_NEW_COMMIT_CAP new commits) so the
+    # author can address review comments without being forced onto --no-verify.
+    # commit-limit-bypass (checked above) remains the unconditional escape.
+    needs_split_rc = _check_needs_split_bypass(update, branch, repo_root)
+    if needs_split_rc is not None:
+        return needs_split_rc
     _print_process_output(bypass, stdout_stream=sys.stderr)
     print(f"ERROR: push has {commit_count} commits, limit is {limit}", file=sys.stderr)
     return 1
@@ -4469,7 +5351,7 @@ def run_yamllint(paths: Sequence[str], repo_root: Path) -> int:
 def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
     for path in paths:
-        if _skip_skillforge_path(path):
+        if _skip_skillforge_path(path, repo_root):
             continue
         if _is_skill_frontmatter_only_change(path, repo_root):
             continue
@@ -4486,27 +5368,22 @@ def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
     return 1 if failed else 0
 
 
-def _skip_skillforge_path(path: str) -> bool:
+def _skip_skillforge_path(path: str, repo_root: Path) -> bool:
+    """Skip evals and the command mirrors build/scripts/generate_commands.py writes.
+
+    A mirror is not an authored skill, so the SkillForge schema (Triggers, Process,
+    Verification) does not describe it and editing it is not how you fix it. The
+    mirror set is derived from `.claude/commands/<name>.md`, the generator's own
+    input, so the two cannot drift. Do not restate the names here or in lefthook.yml.
+    """
     if path.startswith("evals/"):
         return True
-    command_mirrors = {
-        "spec",
-        "plan",
-        "build",
-        "test",
-        "ship",
-        "checkpoint",
-        "pr-review",
-        "retro",
-        "sync",
-    }
     parts = PurePosixPath(path).parts
-    return (
-        len(parts) == 5
-        and parts[:3] == ("src", "copilot-cli", "skills")
-        and parts[3] in command_mirrors
-        and parts[4] == "SKILL.md"
-    )
+    if len(parts) != 5 or parts[:3] != ("src", "copilot-cli", "skills"):
+        return False
+    if parts[4] != "SKILL.md":
+        return False
+    return (repo_root / ".claude" / "commands" / f"{parts[3]}.md").is_file()
 
 
 def run_planning_advisory(repo_root: Path) -> int:
@@ -5212,12 +6089,24 @@ def _handle_suppressions_push(args: argparse.Namespace) -> int:
     return check_pushed_suppressions(sys.stdin, _repo_root(args))
 
 
+def _handle_staged_suppressions(args: argparse.Namespace) -> int:
+    return check_staged_suppressions(_repo_root(args))
+
+
+def _handle_suppression_diff(args: argparse.Namespace) -> int:
+    return check_suppression_diff(args.base_ref, _repo_root(args))
+
+
 def _handle_stage_generated(args: argparse.Namespace) -> int:
     return stage_generated(args.kind, _repo_root(args))
 
 
 def _handle_extract_episodes(args: argparse.Namespace) -> int:
     return extract_session_episodes(args.paths, _repo_root(args))
+
+
+def _handle_atomic_commit(args: argparse.Namespace) -> int:
+    return check_atomic_commit(_repo_root(args))
 
 
 def _handle_semgrep(args: argparse.Namespace) -> int:
@@ -5270,8 +6159,10 @@ def build_parser() -> argparse.ArgumentParser:
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
         ("security-suppressions-push", _handle_suppressions_push),
+        ("security-suppressions-staged", _handle_staged_suppressions),
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),
+        ("atomic-commit", _handle_atomic_commit),
     )
     for name, handler in path_commands:
         _add_path_command(subparsers, name, handler)
@@ -5283,6 +6174,12 @@ def build_parser() -> argparse.ArgumentParser:
     generated = subparsers.add_parser("stage-generated")
     generated.add_argument("kind", choices=sorted(GENERATED_PATHS | GENERATED_GLOBS))
     generated.set_defaults(handler=_handle_stage_generated)
+    suppression_diff = subparsers.add_parser(
+        "security-suppressions-diff",
+        help="CI backstop: check HEAD..base_ref range for new security suppressions",
+    )
+    suppression_diff.add_argument("--base-ref", required=True, metavar="REF")
+    suppression_diff.set_defaults(handler=_handle_suppression_diff)
     return parser
 
 

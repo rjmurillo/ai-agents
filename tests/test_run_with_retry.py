@@ -39,7 +39,7 @@ def _run(
             inner,
         ],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8",
         timeout=30,
     )
 
@@ -87,7 +87,7 @@ class TestExitCodeTwoConfigError:
                 script,
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
         assert result.returncode == 2
@@ -124,7 +124,7 @@ class TestExitCodeThreeTransientRetry:
                 script,
             ],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=30,
         )
         assert result.returncode == 0
@@ -157,7 +157,7 @@ class TestCliParsing:
         result = subprocess.run(
             [sys.executable, str(SCRIPT), "--"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=10,
         )
         assert result.returncode != 0
@@ -166,7 +166,7 @@ class TestCliParsing:
         result = subprocess.run(
             [sys.executable, str(SCRIPT), sys.executable, "-c", "pass"],
             capture_output=True,
-            text=True,
+            text=True, encoding="utf-8",
             timeout=10,
         )
         assert result.returncode == 0

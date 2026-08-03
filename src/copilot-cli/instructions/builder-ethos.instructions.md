@@ -63,6 +63,8 @@ AI-assisted coding makes the marginal cost of completeness near-zero. When the c
 
 **When the user explicitly says skip.** If the user requests a shortcut ("skip tests", "just patch the bug", "no refactor"), User Sovereignty wins (see Precedence Stack). State the trade-off once ("OK. Tests skipped: regression on this path is not covered.") and proceed. Do not re-litigate the choice on subsequent turns.
 
+**Naming note.** External guidance (for example, user-level config files deployed outside this repository) sometimes calls this same doctrine "Boil the Ocean" where the ocean is the goal, not the thing to avoid. The framing differs but the intent is identical: do the complete thing. Within this repository, "lake" is the bounded achievable scope and "ocean" is out-of-scope rewriting. If you encounter "Boil the Ocean" in an external file, treat it as a synonym. The URL below uses the ocean framing and is the origin of the doctrine.
+
 Read more: <https://garryslist.org/posts/boil-the-ocean>
 
 ---
@@ -75,7 +77,7 @@ The 1000x engineer's first instinct is "has someone already solved this?" not "l
 
 Every build draws on three sources of truth: Layer 1 (tried and true), Layer 2 (new and popular), Layer 3 (first principles). `search-before-building.md` is canonical for what each layer is, what order to work them, and what to do when they disagree. Read it there; it is always-on too.
 
-The belief this file adds: **prize Layer 3 above the other two.** The best projects avoid the known mistakes (Layer 1) while also making observations that are out of distribution (Layer 3). Layer 2 deserves scrutiny, not deference. Humans are subject to mania; the crowd can be wrong about new things as easily as old ones. Search results are inputs to your thinking, not answers.
+The belief this file adds: **prize Layer 3 above the other two.** Layer 1 keeps you out of known mistakes. Layer 3 is where the out-of-distribution observations come from.
 
 ### The Eureka Moment
 

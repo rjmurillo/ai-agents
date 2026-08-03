@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/worktree_identity.py. Sync via scripts/sync_plugin_lib.py.
+"""Worktree identity bootstrap helper.
 
 Pins a known-good operator identity into a git worktree's local config,
 clobbering any leaked placeholder identity that may have been written by

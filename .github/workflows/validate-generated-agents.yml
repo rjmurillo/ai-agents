@@ -21,7 +21,7 @@ on:
 
 concurrency:
   group: validate-agents-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # Check if relevant files changed using paths-filter
@@ -33,7 +33,7 @@ jobs:
       contents: read
     outputs:
       # For workflow_dispatch, always run validation; otherwise use paths-filter result
-      should-run-agents: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run-agents }}
+      should-run-agents: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.agents }}
 
     steps:
       - name: Checkout repository
@@ -71,30 +71,6 @@ jobs:
               - '.github/workflows/**'
               - 'tests/ci/test_validation_scripts_are_reachable.py'
               - 'tests/ci/test_frontmatter_gate_paths_filter.py'
-
-      - name: Determine if validation should run
-        id: determine
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          AGENTS_CHANGED: ${{ steps.filter.outputs.agents }}
-        run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "should-run-agents=true" >> "$GITHUB_OUTPUT"
-            echo "Decision: Run validation (manual trigger)"
-          else
-            AGENTS="$AGENTS_CHANGED"
-
-            echo "Agent files changed: $AGENTS"
-
-            # Run validation if agent files changed, skip otherwise
-            if [ "$AGENTS" = "true" ]; then
-              echo "should-run-agents=true" >> "$GITHUB_OUTPUT"
-              echo "Decision: Run validation (agent files changed)"
-            else
-              echo "should-run-agents=false" >> "$GITHUB_OUTPUT"
-              echo "Decision: Skip validation (no agent files changed)"
-            fi
-          fi
 
   validate:
     name: Validate Generated Files
@@ -222,16 +198,14 @@ jobs:
           echo "Running sync_plugin_lib.py --check..."
           uv run python scripts/sync_plugin_lib.py --check
 
-      - name: "Plugin manifest parity and description count check (Issues #2222, #3651)"
+      - name: "Plugin manifest description count check (Issue #3651)"
         if: steps.should-run.outputs.skip != 'true'
-        # Two invariants, one script:
-        # 1. Version parity: `.claude/.claude-plugin/plugin.json` and
-        #    `src/copilot-cli/.claude-plugin/plugin.json` must declare
-        #    identical `version` fields.
-        # 2. No component counts: no description in either marketplace file or
-        #    any plugin manifest may embed a count, because nothing recomputes
-        #    it and it goes stale on the next component change (PR #2187).
-        # Exits 1 on staleness, 2 on malformed input, 0 when both hold.
+        # One invariant: no description in either marketplace file or any plugin
+        # manifest may embed a component count, because nothing recomputes it and
+        # it goes stale on the next component change (PR #2187).
+        # The version-parity half (Issue #2222) was retired with ADR-092: the
+        # manifests carry no version, so there is nothing to hold in parity.
+        # Exits 1 on staleness, 2 on malformed input, 0 when it holds.
         run: |
           echo "Running check_plugin_manifest_parity.py..."
           uv run python build/scripts/check_plugin_manifest_parity.py
@@ -257,31 +231,4 @@ jobs:
 
       - name: Show diff on failure
         if: failure() && steps.should-run.outputs.skip != 'true'
-        run: |
-          echo ""
-          echo "=== Files that differ from generated output ==="
-          echo ""
-
-          # Regenerate without validation to get the expected content
-          uv run python build/generate_agents.py
-
-          # Show which files changed
-          CHANGED_FILES=$(git diff --name-only)
-
-          if [ -n "$CHANGED_FILES" ]; then
-            echo "The following generated files were manually edited:"
-            echo ""
-            echo "$CHANGED_FILES" | while read -r file; do
-              echo "  - $file"
-            done
-            echo ""
-            echo "To fix this issue:"
-            echo "  1. Edit the source template in templates/agents/*.shared.md"
-            echo "  2. Run: uv run python build/generate_agents.py"
-            echo "  3. Commit the regenerated files"
-            echo ""
-            echo "=== Detailed diff ==="
-            git diff
-          else
-            echo "No differences detected in git diff (validation may have failed for other reasons)"
-          fi
+        run: uv run python scripts/ci/show_generated_agent_diff.py
