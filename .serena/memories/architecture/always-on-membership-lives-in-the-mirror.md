@@ -27,6 +27,9 @@ always-on in the plugin. A vendor install pays 7,532 bytes every turn that this
 repository never measures, on three rules that point at `.agents/` paths the
 installing repository does not have. Always name the tree with the number.
 
+The scope inversion behind this is tracked as issue #4317. Re-measure before
+quoting any number here if that issue closes.
+
 ## Why the source cannot answer it
 
 `build/scripts/generate_rules.py` reaches `applyTo: "**"` four ways. Only the

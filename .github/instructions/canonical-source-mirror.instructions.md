@@ -84,6 +84,8 @@ The question is whether a rule loads on every agent turn. A rule is always-on wh
 
 `governance`, `secret-redaction`, and `session-logs` are narrowly scoped rules here and always-on in the plugin. A vendor install carries 7,532 bytes on every turn that this repository never measures, and those three rules point at `.agents/` paths that do not exist in the installing repository.
 
+That the generator inverts scope this way is a tracked defect, issue #4317: the narrower the source scope, the more likely the plugin consumer loads the rule on every file. This section describes the behaviour as it stands; do not read it as an endorsement. If #4317 closes, re-measure before quoting any number here.
+
 `build/scripts/generate_rules.py` reaches `applyTo: "**"` from four different source situations. Only the first is visible in the source file:
 
 1. **The source declares it.** `paths: ["**"]` or `applyTo: '**'`, renamed verbatim per the generator's contract at `build/scripts/generate_rules.py:24`.
