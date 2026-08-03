@@ -10,5 +10,5 @@
 - Verified the resolved files with git diff --check -- <file> while noting the pre-existing .github/agents/analyst.agent.md whitespace issue.
 
 ## Outstanding Actions
-1. Coordinate with the analyst agent owner before pushing—.github/agents/analyst.agent.md remains dirty locally and was out-of-scope for this merge.
+1. Coordinate with the analyst agent owner before pushing. `.github/agents/analyst.agent.md` remains dirty locally and was out-of-scope for this merge.
 2. Re-run the broader QA + markdown lint suite once the remaining local edits are staged, then push the branch so reviewers see the merged state.

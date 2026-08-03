@@ -1,4 +1,4 @@
-"""Canonical: scripts/hook_utilities/utilities.py. Sync via scripts/sync_plugin_lib.py.
+"""Shared utilities for Claude Code hook scripts.
 
 Migrated from .claude/hooks/Common/HookUtilities.psm1 per issue #1053.
 

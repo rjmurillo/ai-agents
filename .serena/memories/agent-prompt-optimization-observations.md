@@ -104,7 +104,7 @@ Slimming these out saved 40-89% per agent without any capability loss.
 
 Before filing improvement issues, dedup against ALL open issues (`gh issue list`). Ground proposed changes in the committed eval baseline (`evals/baseline-report.md`) + triage docs (`evals/agent-triage.md`, `evals/skill-triage.md`). After editing, PROVE effectiveness: (a) regression-run every edited eval-able agent vs its committed baseline delta, and (b) author NEW fixtures for behaviours the existing harness does not measure. Most description/safety edits are non-regression-only against the verdict-recall harness; the real signal needs new behavioural fixtures.
 
-**Source**: user — "check for issues already filed so we don't get dupes", "the items need to have their evals run to determine if the edits are effective". (2026-05-30)
+**Source**: user, "check for issues already filed so we don't get dupes", "the items need to have their evals run to determine if the edits are effective". (2026-05-30)
 
 ### Delegate, do not re-embed another skill's framework
 

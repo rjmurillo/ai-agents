@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -143,6 +144,41 @@ def validate_install_parity(repo_root: Path) -> bool:
     return bool(_run_build_script_gate(
         repo_root, "validate_install_parity.py", "install-parity"
     ))
+
+
+def validate_agent_content_parity(repo_root: Path) -> bool:
+    """Fail when .claude/agents/ and src/claude/ have differing file content.
+
+    validate_install_parity checks co-change in a diff (did both siblings move
+    together). It does NOT compare file contents on disk. This gate fills that
+    gap: it reads both trees and byte-compares every shared file.
+
+    Wraps ``build/scripts/check_agent_content_parity.py``. Exit 0 = clean,
+    exit 1 = drift found, exit 2 = configuration error. All non-zero exits are
+    hard failures; a configuration error means the gate could not run, so we
+    fail closed.
+    """
+    script = repo_root / "build" / "scripts" / "check_agent_content_parity.py"
+    if not script.is_file():
+        print(
+            f"[ERROR] check_agent_content_parity.py not found at {script}",
+            file=sys.stderr,
+        )
+        return False
+
+    result = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    output = (result.stdout + result.stderr).strip()
+    if output:
+        for line in output.splitlines()[:40]:
+            print(line)
+    return result.returncode == 0
 
 
 def validate_plugin_version_bump(repo_root: Path) -> bool:
