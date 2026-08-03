@@ -174,9 +174,9 @@ as an implementer.
 
 ## Where this repo stands
 
-Measured at `0c75045d6`. Two numbers, and they are not interchangeable. The
-**always-on corpus is 8 rules, 72,291 bytes**: the ones that load regardless
-of what you touch. The **effective context on a `.py` edit is 96,785 bytes
+Measured at `b2729ee54`. Two numbers, and they are not interchangeable. The
+**always-on corpus is 8 rules, 70,375 bytes**: the ones that load regardless
+of what you touch. The **effective context on a `.py` edit is 94,869 bytes
 across 11 files**, which is the always-on corpus plus the path-scoped rules
 that a Python file activates. Use the first when arguing about what every
 session pays. Use the second when arguing about what a specific edit pays.
@@ -190,7 +190,7 @@ uv run --frozen python scripts/validation/instruction_budget.py --format table
 
 **State the basis whenever you quote a number.** That command measures the
 generated `.github/instructions/` mirrors. The `.claude/rules/` sources are
-135 bytes larger in total (72,426 always-on) because `generate_rules.py`
+135 bytes larger in total (70,510 always-on) because `generate_rules.py`
 strips the `priority:` frontmatter key that the Copilot tree does not use.
 An earlier draft of this document mixed the two bases in one paragraph and
 published a corpus size that matched neither. If a figure here disagrees with
@@ -200,7 +200,7 @@ disagrees by more, the document is stale and the command wins.
 One book rule loads on every file. `pragmatic-programmer.md` was narrowed to
 code files in PR #4424, which recovered 11,225 always-on bytes, the largest
 single reduction this corpus has taken. What remains always-on is not the
-largest rule either: `voice.md` at 19,624 bytes is the single biggest
+largest rule either: `voice.md` at 17,527 bytes is the single biggest
 always-on file.
 
 | Rule | Bytes | Loading | Scenario file | Scored result |
@@ -209,8 +209,8 @@ always-on file.
 | `pragmatic-programmer.md` | 11,375 | code files only | 3 positive, 1 negative | none |
 | `unified-software-engineering.md` | 8,242 | code files only | 3 positive, 1 negative | yes |
 
-That leaves 14,152 always-on bytes of book-derived rule, 19.5% of the
-72,426-byte always-on corpus measured at source. `code-quality` and
+That leaves 14,152 always-on bytes of book-derived rule, 20.1% of the
+70,510-byte always-on corpus measured at source. `code-quality` and
 `pragmatic-programmer` had no scenario file at all until PR #4017 added one to
 each on 2026-08-03, which is how they grew unchallenged for four months.
 
@@ -248,8 +248,8 @@ Name the tree with the number, because the two mirror trees disagree.
 `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions` under
 `keepInternalGlobsFor`, so the internal-glob filter is disabled there and the
 internal-only fallback cannot fire. It fires only for the plugin tree. At
-`0c75045d6` that leaves `.github/instructions` at 8 rules and 72,291 bytes while
-`src/copilot-cli/instructions` carries 11 rules and 79,823 bytes: `governance`,
+`b2729ee54` that leaves `.github/instructions` at 8 rules and 70,375 bytes while
+`src/copilot-cli/instructions` carries 11 rules and 77,907 bytes: `governance`,
 `secret-redaction`, and `session-logs` are narrowly scoped here and always-on in
 the shipped plugin. Every figure in this document is the `.github/instructions`
 number. A vendor install pays 7,532 bytes a turn that this repository never
@@ -271,7 +271,7 @@ It was real. Commit `77edc827` (PR #1022, 2026-01-31) adopted the Vercel
 strategy and wrote "Total passive context: ~4.5KB (well under Vercel's 8KB
 threshold)".
 
-The always-on corpus is 8.8x that threshold and a Python edit sees 11.8x,
+The always-on corpus is 8.6x that threshold and a Python edit sees 11.6x,
 measured at source. The enforced budget ceiling in
 `scripts/validation/instruction_budget_constants.py` ratcheted upward to track
 measured size instead of holding at the goal, which made every increase look
