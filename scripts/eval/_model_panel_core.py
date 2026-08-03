@@ -101,7 +101,9 @@ def default_panel() -> Panel:
 
 
 def parse_panel(
-    payload: dict[str, Any], *, known_providers: set[str] | None = None,
+    payload: dict[str, Any],
+    *,
+    known_providers: set[str] | None = None,
 ) -> Panel:
     """Build a Panel from a config mapping. Raises PanelConfigError on any defect.
 
@@ -119,9 +121,7 @@ def parse_panel(
             raise PanelConfigError(f"tier {index} is not an object")
         missing = [k for k in ("label", "role", "provider", "model") if not row.get(k)]
         if missing:
-            raise PanelConfigError(
-                f"tier {index} missing field(s): {', '.join(missing)}"
-            )
+            raise PanelConfigError(f"tier {index} missing field(s): {', '.join(missing)}")
         role = str(row["role"])
         if role not in _ROLES:
             raise PanelConfigError(
@@ -133,9 +133,7 @@ def parse_panel(
                 f"tier {row['label']!r} names unknown provider {provider!r}; "
                 f"known: {sorted(known_providers)}"
             )
-        tiers.append(
-            PanelTier(str(row["label"]), role, provider, str(row["model"]))
-        )
+        tiers.append(PanelTier(str(row["label"]), role, provider, str(row["model"])))
     if not any(t.is_reference for t in tiers):
         raise PanelConfigError("panel needs at least one 'reference' tier")
     threshold = payload.get("drop_threshold", DEFAULT_DROP_THRESHOLD)
@@ -179,11 +177,7 @@ class UnitVerdict:
 def cell_from_report(unit: str, tier: str, report: dict[str, Any]) -> CellResult:
     """Extract the effect size from a harness report.json mapping."""
     error_count = report.get("error_count")
-    if (
-        not isinstance(error_count, int)
-        or isinstance(error_count, bool)
-        or error_count != 0
-    ):
+    if not isinstance(error_count, int) or isinstance(error_count, bool) or error_count != 0:
         return CellResult(unit, tier, error="report error_count must be exactly 0")
     delta = report.get("recall_delta")
     ci = report.get("bootstrap_ci_95")
@@ -193,9 +187,7 @@ def cell_from_report(unit: str, tier: str, report: dict[str, Any]) -> CellResult
         or not math.isfinite(delta)
         or not -1.0 <= float(delta) <= 1.0
     ):
-        return CellResult(
-            unit, tier, error="report recall_delta must be finite and in [-1, 1]"
-        )
+        return CellResult(unit, tier, error="report recall_delta must be finite and in [-1, 1]")
     if not isinstance(ci, list) or len(ci) != 2:
         return CellResult(unit, tier, error="report bootstrap_ci_95 must be a pair")
     low, high = ci
@@ -210,9 +202,7 @@ def cell_from_report(unit: str, tier: str, report: dict[str, Any]) -> CellResult
         or not -1.0 <= float(high) <= 1.0
         or float(low) > float(high)
     ):
-        return CellResult(
-            unit, tier, error="report bootstrap_ci_95 must be finite and bounded"
-        )
+        return CellResult(unit, tier, error="report bootstrap_ci_95 must be finite and bounded")
     return CellResult(
         unit=unit,
         tier=tier,
@@ -223,7 +213,9 @@ def cell_from_report(unit: str, tier: str, report: dict[str, Any]) -> CellResult
 
 
 def summarize_unit(
-    unit: str, panel: Panel, cells: dict[str, CellResult],
+    unit: str,
+    panel: Panel,
+    cells: dict[str, CellResult],
 ) -> UnitVerdict:
     """Classify one unit's degradation across the panel.
 
@@ -263,7 +255,8 @@ def summarize_unit(
 
 
 def summarize(
-    panel: Panel, results: list[CellResult],
+    panel: Panel,
+    results: list[CellResult],
 ) -> list[UnitVerdict]:
     """Group cells by unit and classify each. Deterministic unit order."""
     by_unit: dict[str, dict[str, CellResult]] = {}
@@ -281,12 +274,10 @@ def to_json(panel: Panel, verdicts: list[UnitVerdict]) -> dict[str, object]:
             {
                 "unit": v.unit,
                 "reference_delta": (
-                    round(v.reference_delta, 4)
-                    if v.reference_delta is not None else None
+                    round(v.reference_delta, 4) if v.reference_delta is not None else None
                 ),
                 "probe_deltas": {
-                    k: (round(x, 4) if x is not None else None)
-                    for k, x in v.probe_deltas.items()
+                    k: (round(x, 4) if x is not None else None) for k, x in v.probe_deltas.items()
                 },
                 "degraded_tiers": v.degraded_tiers,
                 "robust": v.robust,
@@ -312,8 +303,7 @@ def to_human(panel: Panel, verdicts: list[UnitVerdict]) -> str:
             tag = f"DEGRADES at {', '.join(v.degraded_tiers)}"
         ref = "n/a" if v.reference_delta is None else f"{v.reference_delta:+.3f}"
         probes = ", ".join(
-            f"{k}={'n/a' if x is None else f'{x:+.3f}'}"
-            for k, x in v.probe_deltas.items()
+            f"{k}={'n/a' if x is None else f'{x:+.3f}'}" for k, x in v.probe_deltas.items()
         )
         lines.append(f"  {v.unit}: ref={ref} | {probes} | {tag}")
     return "\n".join(lines)
