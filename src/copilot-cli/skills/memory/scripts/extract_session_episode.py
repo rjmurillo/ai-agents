@@ -1049,6 +1049,57 @@ def _staged_files_changed(cwd: str | Path | None = None) -> int:
     return sum(1 for line in result.stdout.splitlines() if line.strip())
 
 
+_FULL_SHA_RE = re.compile(r"\A[0-9a-fA-F]{7,40}\Z")
+
+
+def _range_files_changed(start: str, end: str, cwd: str | Path | None = None) -> int:
+    """Count files changed between two commits (best-effort).
+
+    The staged diff is the primary source, but it is empty on any run where the
+    session's commit already exists: ``--preserve`` re-extractions, backfills,
+    and every post-commit invocation. In that case the prose fallback took over
+    and ``_FILES_RE`` matched the first "N files" phrase anywhere in the work
+    log, which is a tool's own output as often as it is the session's diff
+    (issue #4416). The session log already names the commit range, so ask git
+    instead. Returns 0 when either SHA is missing or malformed, when the range
+    is empty, or when git is unavailable, which returns the caller to the prose
+    fallback rather than inventing a number.
+
+    Both SHAs are shape-checked against ``_FULL_SHA_RE`` before reaching the
+    command line: the values come from a JSON file, and a value like
+    ``--output=/etc/passwd`` would otherwise be handed to git as a flag.
+    """
+    start = str(start or "").strip()
+    end = str(end or "").strip()
+    if not _FULL_SHA_RE.match(start) or not _FULL_SHA_RE.match(end):
+        return 0
+    if start.lower() == end.lower():
+        return 0
+    cmd = ["git"]
+    if cwd is not None:
+        cmd += ["-C", str(cwd)]
+    cmd += ["diff", "--name-only", f"{start}..{end}"]
+    env = os.environ.copy()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(var, None)
+    env["LC_ALL"] = "C"
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return 0
+    if result.returncode != 0:
+        return 0
+    return sum(1 for line in result.stdout.splitlines() if line.strip())
+
+
 _DURATION_TEXT_RE = re.compile(r"(\d+)\s*minutes?", re.IGNORECASE)
 
 
@@ -2317,6 +2368,19 @@ def main(argv: list[str] | None = None) -> int:
             if episode_rel_path is not None and episode_rel_path not in staged_paths:
                 staged += 1
         metrics["files_changed"] = staged
+    elif json_data is not None:
+        # Post-commit and --preserve runs stage nothing, so the primary above is
+        # 0 and the prose fallback took over unguarded (issue #4416). The log
+        # names the commit range; ask git before trusting a "N files" phrase
+        # that may belong to a linter's output rather than the session's diff.
+        session_block = _as_dict(json_data.get("session")) if isinstance(json_data, dict) else {}
+        ranged = _range_files_changed(
+            session_block.get("startingCommit", ""),
+            json_data.get("endingCommit", ""),
+            session_log_path.parent,
+        )
+        if ranged:
+            metrics["files_changed"] = ranged
 
     episode = {
         "id": f"episode-{session_id}",
