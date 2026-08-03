@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, parser and CLI stay together to keep ratchet semantics auditable.
 """Exec-path vendor-portability ratchet for skill instruction files (issue #2838).
 
 Companion to ``check_skill_md_portability.py``. That validator counts *prose*
@@ -84,6 +85,7 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import re
 import sys
@@ -114,6 +116,12 @@ SCAN_ROOTS: tuple[tuple[str, ...], ...] = (
 EXEC_PATTERN = re.compile(
     r"(?<![\w.])(?:(?:python3?|bash|sh)[ \t]+(?:-\S+[ \t]+)*|\./)"
     r"[\"']?(?:\.claude/skills/|build/|scripts/)\S+\.(?:py|sh)(?!\.\w)[\"']?"
+)
+
+# Skill-relative script invocations: ``python3 scripts/foo.py`` (issue #3916).
+_SKILL_REL_SCRIPT_PAT = re.compile(
+    r"(?<![\w.])(?:python3?|bash|sh)[ \t]+(?:-\S+[ \t]+)*"
+    r"[\"']?([a-zA-Z0-9_][a-zA-Z0-9_./-]*/[a-zA-Z0-9_./-]*\.(?:py|sh))[\"']?(?!\.\w)"
 )
 
 # Shell line-continuation: a backslash immediately before a newline splices the
@@ -154,6 +162,60 @@ def _repo_root(start: Path) -> Path:
 def has_portability_marker(text: str) -> bool:
     """Return True if the file self-declares an intentional bare invocation."""
     return _MARKER_PATTERN.search(text) is not None
+
+
+def find_skill_relative_scripts(text: str) -> list[str]:
+    """Return skill-relative script paths; empty when portability-exec marker present."""
+    if has_portability_marker(text):
+        return []
+    joined = _CONTINUATION_PATTERN.sub(" ", text)
+    return _SKILL_REL_SCRIPT_PAT.findall(joined)
+
+
+def _scan_skill_for_dangling(
+    paths: list[Path],
+    skill_root: Path,
+    repo_root: Path,
+    seen: set[tuple[str, str]],
+) -> list[tuple[str, str]]:
+    result: list[tuple[str, str]] = []
+    for path in paths:
+        if not path.is_file() or "__pycache__" in path.parts:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise OSError(f"Failed to read {path}: {exc}") from exc
+        rel = path.relative_to(repo_root).as_posix()
+        for script_path in find_skill_relative_scripts(text):
+            if (skill_root / script_path).is_file() or (repo_root / script_path).is_file():
+                continue
+            key = (rel, script_path)
+            if key not in seen:
+                seen.add(key)
+                result.append(key)
+    return result
+
+
+def scan_dangling_skill_relative_scripts(repo_root: Path) -> list[tuple[str, str]]:
+    """Return ``[(file_rel_path, script_path)]`` for unresolvable script refs."""
+    seen: set[tuple[str, str]] = set()
+    dangling: list[tuple[str, str]] = []
+    for parts in SCAN_ROOTS:
+        root = repo_root.joinpath(*parts)
+        if not root.is_dir():
+            continue
+        valid = (
+            p
+            for p in root.iterdir()
+            if p.is_dir() and "__pycache__" not in p.parts and (p / SKILL_FILE_NAME).is_file()
+        )
+        for skill_root in sorted(valid):
+            paths = sorted(
+                set(itertools.chain.from_iterable(skill_root.glob(p) for p in SCAN_FILE_PATTERNS))
+            )
+            dangling.extend(_scan_skill_for_dangling(paths, skill_root, repo_root, seen))
+    return dangling
 
 
 def count_exec_invocations(text: str) -> int:
@@ -400,6 +462,7 @@ def _print_report(
     output_format: str,
     regressions: list[str],
     improvements: list[str],
+    dangling: list[tuple[str, str]],
     current: dict[str, int],
     baseline: dict[str, int],
 ) -> None:
@@ -411,6 +474,7 @@ def _print_report(
                     "improvements": improvements,
                     "current_total": sum(current.values()),
                     "baseline_total": sum(baseline.values()),
+                    "dangling": dangling,
                 },
                 indent=2,
             )
@@ -425,6 +489,14 @@ def _print_report(
         print("Skill exec-path vendor-portability drift detected (issue #2838, #4013):")
         for line in regressions:
             print(f"  [DRIFT] {line}")
+        return
+    if dangling:
+        print(
+            "Skill-relative scripts resolving nowhere (#3916).\n"
+            "Suppress with '<!-- vendor-portability-exec: ... -->' if intentional:"
+        )
+        for rel_file, script in dangling:
+            print(f"  [DANGLING] {rel_file}: {script!r}")
         return
     print(
         f"No skill exec-path vendor-portability drift. "
@@ -451,6 +523,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         current, marker_current, scanned_by_root = scan_all(root)
+        dangling = scan_dangling_skill_relative_scripts(root)
     except OSError as exc:
         print(f"Could not scan skill files under {root}: {exc}", file=sys.stderr)
         return 2
@@ -482,9 +555,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     regressions.extend(marker_regressions)
     improvements.extend(marker_improvements)
-    _print_report(args.output_format, regressions, improvements, current, baseline)
+    _print_report(args.output_format, regressions, improvements, dangling, current, baseline)
 
-    return 1 if regressions else 0
+    return 1 if (regressions or dangling) else 0
 
 
 if __name__ == "__main__":

@@ -1,0 +1,90 @@
+{
+  "id": "episode-2026-08-01-session-4042-close-two-adversarial-review-findings-4136",
+  "session": "2026-08-01-session-4042-close-two-adversarial-review-findings-4136",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Close two adversarial-review findings on PR 4136: repair a memory citation that named a nonexistent file and was backticked rather than fixed, and extend the session skill declaration to name the exact ADR path MUST 1 requires",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify both adversarial-review findings first-hand",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-01-session-4042-close-two-adversarial-review-findings-4136"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repair both defects in the canonical tree and regenerate mirrors",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-01-session-4042-close-two-adversarial-review-findings-4136"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measure whether any gate catches a nonexistent declared path",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-01-session-4042-close-two-adversarial-review-findings-4136"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Tighten the portability baseline for an improvement this PR produced",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-01-session-4042-close-two-adversarial-review-findings-4136"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct the PR description",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-01-session-4042-close-two-adversarial-review-findings-4136"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-01T03:47:33+00:00",
+      "type": "commit",
+      "content": "Commit: 8beb505bc2",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4042-close-two-adversarial-review-findings-4136"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

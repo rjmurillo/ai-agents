@@ -59,7 +59,10 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "test",
       "content": "Verification: uv run pytest tests/skills/github tests/skills/merge-resolver 428 passed; tests/test_timeout_hardening_2811b.py 6 passed; mypy no issues in 12 source files.",
-      "caused_by": [],
+      "caused_by": [
+        "e008",
+        "e009"
+      ],
       "leads_to": []
     },
     {
@@ -68,7 +71,9 @@
       "type": "commit",
       "content": "Commit: f13f73f",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e009",
@@ -76,7 +81,9 @@
       "type": "commit",
       "content": "Commit: 05a16e6",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     }
   ],
   "metrics": {
@@ -87,5 +94,7 @@
     "commits": 1,
     "files_changed": 4
   },
-  "lessons": []
+  "lessons": [],
+  "causal_order_version": 2,
+  "migration_note": "relinked by migrate_causal_version.py on 2026-08-02: edges 0 -> 2"
 }

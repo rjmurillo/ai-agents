@@ -1,4 +1,4 @@
-"""Canonical: scripts/ai_review_common/cache_guard.py. Sync via scripts/sync_plugin_lib.py."""
+"""Cache population guard for the agent-review composite action."""
 
 from __future__ import annotations
 

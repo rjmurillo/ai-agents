@@ -26,7 +26,7 @@ Validate and complete session logs before commit. Complements `session-init` (wh
 ### Automated (Recommended)
 
 ```bash
-python3 .claude/skills/session-end/scripts/complete_session_log.py
+uv run python .claude/skills/session-end/scripts/complete_session_log.py
 ```
 
 The script will:
@@ -40,7 +40,7 @@ The script will:
 ### Preview Changes First
 
 ```bash
-python3 .claude/skills/session-end/scripts/complete_session_log.py --dry-run
+uv run python .claude/skills/session-end/scripts/complete_session_log.py --dry-run
 ```
 
 ---
@@ -165,13 +165,13 @@ Before running this skill, ensure you have:
 
 ```bash
 # Auto-detect and complete
-python3 .claude/skills/session-end/scripts/complete_session_log.py
+uv run python .claude/skills/session-end/scripts/complete_session_log.py
 
 # Or specify session explicitly
-python3 .claude/skills/session-end/scripts/complete_session_log.py --session-path ".agents/sessions/2026-02-07-session-05.json"
+uv run python .claude/skills/session-end/scripts/complete_session_log.py --session-path ".agents/sessions/2026-02-07-session-05.json"
 
 # Preview only
-python3 .claude/skills/session-end/scripts/complete_session_log.py --dry-run
+uv run python .claude/skills/session-end/scripts/complete_session_log.py --dry-run
 ```
 
 ### Step 3: Address Any Failures
@@ -297,7 +297,7 @@ File: .agents/sessions/2026-02-07-session-05.json
 
 ## Vendored install
 
-<!-- vendor-portability: declared. This skill writes session logs under .agents/sessions/. A consumer repo without that path gets "[FAIL] No session log found in .agents/sessions/", not a silent no-op. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes session logs under .agents/sessions/. A consumer repo without that path gets "[FAIL] No session log found in .agents/sessions/", not a silent no-op. It also cites .agents/SESSION-PROTOCOL.md and scripts/validate_session_json.py as references. Issue #2050. -->
 
 This skill depends on upstream-only paths. In a vendored install (a consumer
 repo that is not `rjmurillo/ai-agents`) these paths do not exist:
@@ -313,8 +313,10 @@ skill has disclosed its path dependencies instead of hiding them in prose.
 
 ## References
 
-- [SESSION-PROTOCOL.md](../../../.agents/SESSION-PROTOCOL.md) - Session end requirements
-- [validate_session_json.py](../../../scripts/validate_session_json.py) - Validation script
+Backticked paths below are in the `rjmurillo/ai-agents` repository. They do not ship with this skill; a consumer install cannot resolve them.
+
+- `.agents/SESSION-PROTOCOL.md` - Session end requirements
+- `scripts/validate_session_json.py` - Validation script
 - [new_session_log_json.py](../session-init/scripts/new_session_log_json.py) - Session creation script
 
 ---

@@ -109,5 +109,5 @@
     "Re-push PR #4109 and PR #4164 once this lands; both were failing pre-push on nothing but this test.",
     "File an issue on the branch-protection gap that let PR #4219 merge with a red required test."
   ],
-  "endingCommit": "74896f00463e"
+  "endingCommit": "77e305c6ed"
 }
