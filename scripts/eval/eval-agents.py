@@ -48,7 +48,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 from _anthropic_api import DEFAULT_MODEL, load_custom_prompts, verify_model_available
 from _anthropic_api import call_api as _call_api
-from _anthropic_api import load_api_key as _load_api_key
+from _anthropic_api import load_api_key_for_selected_provider as _load_api_key
 from _eval_common import EST_TOKENS_PER_CALL, aggregate_multi_run_scores
 
 # ---------------------------------------------------------------------------

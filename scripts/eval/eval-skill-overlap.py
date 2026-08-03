@@ -65,7 +65,7 @@ from typing import Any, Literal, TextIO
 # the sole thing tests mock.
 # ---------------------------------------------------------------------------
 from _anthropic_api import call_api as _call_api
-from _anthropic_api import load_api_key as _load_api_key
+from _anthropic_api import load_api_key_for_selected_provider as _load_api_key
 from _eval_common import (
     EST_TOKENS_PER_CALL,
     MODEL_PRICING_RATES_USD_PER_1K_TOKENS,

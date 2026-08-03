@@ -9,7 +9,8 @@ report writing.
 
 Spend boundary: `--dry-run` validates fixtures and prints the call plan with
 ZERO API spend, mirroring the main harness's no-spend path. A live run calls the
-model twice per fixture (agent + judge) and requires `ANTHROPIC_API_KEY`.
+model twice per fixture (agent + judge) and requires a key for the selected
+provider (or none for a keyless provider).
 
 Exit codes (AGENTS.md): 0 ok, 2 config (bad path, malformed fixture, missing
 credentials, report write failure), 3 external (API failure during a live run).
@@ -28,7 +29,7 @@ if str(_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(_EVAL_DIR))
 
 from _anthropic_api import call_api as _call_api  # noqa: E402
-from _anthropic_api import load_api_key as _load_api_key  # noqa: E402
+from _anthropic_api import load_api_key_for_selected_provider as _load_api_key  # noqa: E402
 from _oneshot_bench_core import (  # noqa: E402
     BenchmarkSummary,
     Fixture,
