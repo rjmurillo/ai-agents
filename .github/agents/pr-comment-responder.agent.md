@@ -1235,7 +1235,7 @@ EXIT_CODE=$?
 # Handle timeout (exit code 7)
 if [ "$EXIT_CODE" -eq 7 ]; then
   echo "[BLOCKED] Timeout waiting for CI checks to complete"
-  echo "  Pending: $(echo "$CHECKS" | jq '.PendingCount') check(s) still running"
+  echo "  Pending: $(echo "$CHECKS" | jq '.Data.PendingCount') check(s) still running"
   exit 1
 fi
 
@@ -1303,12 +1303,12 @@ echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
 CHECKS=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
-ALL_PASSING=$(echo "$CHECKS" | jq -r '.AllPassing')
+ALL_PASSING=$(echo "$CHECKS" | jq -r '.Data.AllPassing')
 if [ "$ALL_PASSING" = "true" ]; then
   CI_STATUS="PASS"
 else
-  FAILED=$(echo "$CHECKS" | jq '.FailedCount')
-  PENDING=$(echo "$CHECKS" | jq '.PendingCount')
+  FAILED=$(echo "$CHECKS" | jq '.Data.FailedCount')
+  PENDING=$(echo "$CHECKS" | jq '.Data.PendingCount')
   CI_STATUS="$FAILED failures, $PENDING pending"
 fi
 echo "[ ] CI checks: $CI_STATUS"
