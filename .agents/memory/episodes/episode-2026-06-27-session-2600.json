@@ -12,14 +12,18 @@
       "type": "milestone",
       "content": "Fixed SkillForge ERRORS in cva-analysis and slashcommandcreator source skills; regenerated copilot mirrors via build_all.py --platform copilot-cli.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e002"
+      ]
     },
     {
       "id": "e002",
-      "timestamp": "2026-06-27T00:00:00+00:00",
+      "timestamp": "2026-06-27T19:24:01+00:00",
       "type": "commit",
       "content": "Commit: fedd71a097",
-      "caused_by": [],
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": []
     }
   ],
