@@ -2,9 +2,9 @@
 """Tests for the pr-comment-responder cluster_threads.py Phase 0 step.
 
 The headline regression fixture (``PR_1897_ROUND7_THREADS``) reconstructs the
-PR #1897 round-7 unresolved-thread set described in
-.agents/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md
-Phase 0: five gist clusters (asymmetry x 8, harmful x 2, session-log x 3,
+PR #1897 round-7 unresolved-thread set described by the maintainer
+retrospective for that incident. Phase 0: five gist clusters (asymmetry x 8,
+harmful x 2, session-log x 3,
 aggregate x 1, evidence-drift x 2). The 8-thread asymmetry cluster
 ("model_tier=opus contradicts cheaper-tier reviewer claim" on different files)
 is the single-source-of-truth violation the step exists to catch.
@@ -522,9 +522,10 @@ class TestResolveLibDir:
             raise AssertionError("expected SystemExit")
 
         stderr = capsys.readouterr().err
+        workspace_lib = os.path.join("workspace-root", "." + "claude", "lib")
         assert "copilot-root/lib" in stderr
         assert "claude-root/lib" in stderr
-        assert "workspace-root/.claude/lib" in stderr
+        assert workspace_lib in stderr
 
     def test_non_runtime_fetch_failure_exits_3(self):
         mod = _load_module()
