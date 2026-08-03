@@ -62,6 +62,20 @@ def _isolate_git_config_for_test_git() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _clear_ci_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clear CI from every test so behavior does not depend on ambient env.
+
+    Tests that need CI set must do so explicitly via monkeypatch.setenv.
+    Mirrors the same fixture in tests/validation/conftest.py, which only
+    covers files under that package. The twelve test_validation_*.py files
+    in tests/ root and any other file in this directory that reads CI
+    inherit ambient CI from the caller's environment without this fixture.
+    See issue #4380.
+    """
+    monkeypatch.delenv("CI", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _default_project_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     """Default every test to the ai-agents project repo (issue #2610).
 

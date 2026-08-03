@@ -89,12 +89,12 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No markdown files changed"
+        "Evidence": "Post-merge correction: the original no-Markdown claim was false; an out-of-tree markdownlint-cli2 configuration examined 1 changed .serena Markdown file and found 0 issues."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 24ea04759)"
+        "Evidence": "Post-merge correction: PR #4305 landed as squash commit 85b20b2a20f748c256ae39d2c1383e6d9fe0279d, verified as an ancestor of HEAD."
       },
       "validationPassed": {
         "level": "MUST",
@@ -119,6 +119,6 @@
     }
   },
   "workLog": [],
-  "endingCommit": "24ea04759",
+  "endingCommit": "85b20b2a20f748c256ae39d2c1383e6d9fe0279d",
   "nextSteps": []
 }

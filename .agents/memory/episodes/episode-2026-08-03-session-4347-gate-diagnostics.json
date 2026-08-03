@@ -1,0 +1,74 @@
+{
+  "id": "episode-2026-08-03-session-4347-gate-diagnostics",
+  "session": "2026-08-03-session-4347-gate-diagnostics",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix #4347 (detect_scope_explosion bypass hint says wrong command at pre-push), #4349 (pr-autofix lacks live-state recheck before base refresh). #4355 was already closed by PR #4432 before this session shipped.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged #4347, #4349, #4355",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4347-gate-diagnostics"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed scripts/detect_scope_explosion.py (#4347)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4347-gate-diagnostics"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added 6 tests in TestBypassHintContext in tests/test_detect_scope_explosion.py",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4347-gate-diagnostics"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed .claude/commands/pr-autofix.md (#4349)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4347-gate-diagnostics"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main twice",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4347-gate-diagnostics"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 52698ae2d1699af4e2a1e09f442dfc4e662a3e1c",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4347-gate-diagnostics"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
