@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -34,6 +35,11 @@ from scripts.validation.portability_floor import (
     read_previous_sections,
 )
 from scripts.validation.portability_git import run_git
+
+
+def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
+    """Private alias of run_git kept for internal use and test mocking."""
+    return run_git(repo_root, *args)
 
 __all__ = [
     "COUNTED_SECTIONS",
@@ -311,23 +317,109 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
     return False
 
 
+def _diff_attribute(repo_root: Path, path: Path) -> str | None:
+    """Return the git diff attribute for path, None if git cannot answer."""
+    try:
+        rel = str(path.resolve().relative_to(repo_root.resolve()))
+    except (OSError, ValueError):
+        return None
+    proc = _run_git(repo_root, "check-attr", "diff", "--", rel)
+    if proc is None or proc.returncode != 0:
+        return None
+    # Output: "<path>: diff: <value>" where value is set/unset/unspecified/<driver>
+    parts = proc.stdout.decode(errors="replace").strip().split(": ", 2)
+    return parts[2] if len(parts) == 3 else None
+
+
+def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> bool:
+    """Refuse to write a baseline whose diff attribute is 'unset'.
+
+    A single .gitattributes line such as:
+        scripts/validation/*_portability_baseline.json -diff
+    makes git treat the baseline as binary for diff purposes. GitHub honors
+    the head-branch attributes when rendering a PR, so a count lowered from
+    5 to 1 shows only "Binary files differ" and the change is invisible to
+    reviewers. The content is unchanged so CI still parses the real number
+    and passes. Refusing to write when diff is unset means the only way to
+    suppress diffs is to also break every --update-baseline run, making the
+    suppression observable before it can be exploited.
+    """
+    attr = _diff_attribute(repo_root, baseline_path)
+    if attr is None:
+        print(
+            f"Refusing to write a baseline: git check-attr failed for {baseline_path}. "
+            "Cannot confirm the baseline is visible in code review diffs.",
+            file=sys.stderr,
+        )
+        return True
+    if attr != "unset":
+        return False
+    print(
+        f"Refusing to write a baseline whose diff attribute is 'unset': "
+        f"{baseline_path}. A .gitattributes entry is hiding this file's changes "
+        "from code review. Remove the -diff override for this path, then rerun.",
+        file=sys.stderr,
+    )
+    return True
+
+
 @contextmanager
 def _baseline_write_lock(lock_path: Path) -> Iterator[None]:
-    deadline = time.monotonic() + 10.0
-    while True:
+    """Serialize baseline writes with an fcntl advisory lock.
+
+    The lock file is created (not truncated) with O_CREAT|O_RDWR so it
+    survives a crash intact and flock() still acquires on the next run.
+    A stale directory left by a SIGKILL is removed on entry so a single
+    prior crash does not permanently wedge the lock path.
+    """
+    if lock_path.is_dir():
+        # Stale directory left by a process that was killed before rmdir ran.
+        # Remove it so the fcntl path can create the lock file.
         try:
-            lock_path.mkdir(mode=0o700)
-            break
-        except FileExistsError:
-            if time.monotonic() >= deadline:
-                raise TimeoutError(
-                    f"timed out waiting for baseline lock {lock_path}"
-                ) from None
-            time.sleep(0.05)
+            lock_path.rmdir()
+        except OSError:
+            pass
+
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
     try:
-        yield
+        deadline = time.monotonic() + 10.0
+        if sys.platform == "win32":
+            import msvcrt
+
+            while True:
+                try:
+                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(
+                            f"timed out waiting for baseline lock {lock_path}"
+                        ) from None
+                    time.sleep(0.05)
+            try:
+                yield
+            finally:
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            while True:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(
+                            f"timed out waiting for baseline lock {lock_path}"
+                        ) from None
+                    time.sleep(0.05)
+            try:
+                yield
+            finally:
+                fcntl.flock(fd, fcntl.LOCK_UN)
     finally:
-        lock_path.rmdir()
+        os.close(fd)
 
 
 def _replace_atomically(baseline_path: Path, text: str) -> None:
@@ -376,6 +468,9 @@ def write_baseline_json(
     try:
         with _baseline_write_lock(lock_path):
             if refuse_symlinked_baseline(repo_root, baseline_path):
+                return 2
+
+            if refuse_diff_suppressed_baseline(repo_root, baseline_path):
                 return 2
 
             previous, problem = read_previous_sections(repo_root, baseline_path)

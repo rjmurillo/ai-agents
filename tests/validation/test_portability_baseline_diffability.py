@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, baseline diffability contract needs paired controls in one file.
 """The baseline must stay visible in review, or it protects nothing.
 
 The floor forces a lowered count to appear in a diff. `.gitattributes` can
