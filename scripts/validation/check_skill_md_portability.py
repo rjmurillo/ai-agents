@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, validator keeps path grammar and scan policy together.
 """Markdown vendor-portability ratchet for skill instruction files (issue #2050).
 
 Companion to ``check_skill_portability.py``. That validator scopes to skill
