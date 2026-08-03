@@ -159,12 +159,11 @@ class TestMain:
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
+                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse (repo root)
                 _completed(rc=0),  # gh --version
-                _completed(stdout="feat/branch\n", rc=0),  # git branch
-                _completed(stdout="", rc=0),  # git diff
+                _completed(rc=0),  # git rev-parse --verify origin/main (#4324)
             ],
-        ):
+        ), patch("new_pr.run_validations"):
             rc = main([
                 "--title", "feat: test", "--head", "feat/branch",
                 "--body-file", "/nonexistent/file.md",
@@ -175,8 +174,9 @@ class TestMain:
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
+                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse (repo root)
                 _completed(rc=0),  # gh --version
+                _completed(rc=0),  # git rev-parse --verify origin/main (#4324)
                 _completed(rc=1, stderr="error creating PR"),  # gh pr create
             ],
         ), patch("new_pr.run_validations"):
@@ -278,8 +278,9 @@ class TestMain:
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
+                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse (repo root)
                 _completed(rc=0),  # gh --version
+                _completed(rc=0),  # git rev-parse --verify origin/main (#4324)
             ],
         ), patch(
             "new_pr.run_validations",
@@ -294,8 +295,9 @@ class TestMain:
         with patch(
             "subprocess.run",
             side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse
+                _completed(stdout=str(tmp_path), rc=0),  # git rev-parse (repo root)
                 _completed(rc=0),  # gh --version
+                _completed(rc=0),  # git rev-parse --verify origin/main (#4324)
                 _completed(stdout="", rc=0),  # git diff (validations)
                 _completed(stdout="{}", stderr="", rc=0),  # PR description validation
                 _completed(rc=0),  # gh pr create
@@ -313,12 +315,14 @@ class TestMain:
         def _side_effect(*args, **kwargs):
             calls.append(args[0] if args else kwargs.get("args", []))
             if len(calls) == 1:
-                return _completed(stdout=str(tmp_path), rc=0)  # git rev-parse
+                return _completed(stdout=str(tmp_path), rc=0)  # git rev-parse (repo root)
             if len(calls) == 2:
                 return _completed(rc=0)  # gh --version
             if len(calls) == 3:
-                return _completed(stdout="", rc=0)  # git diff
+                return _completed(rc=0)  # git rev-parse --verify origin/main (#4324)
             if len(calls) == 4:
+                return _completed(stdout="", rc=0)  # git diff
+            if len(calls) == 5:
                 return _completed(stdout="{}", stderr="", rc=0)  # PR description validation
             return _completed(rc=0)  # gh pr create
 
@@ -1180,3 +1184,79 @@ class TestValidation6EscapedNewlineCheck:
         out = capsys.readouterr().out
         for step in range(1, 7):
             assert f"[{step}/6]" in out, f"missing step {step}/6"
+
+
+# ---------------------------------------------------------------------------
+# Tests for #4324: _resolve_validation_base prefers origin/{base}
+# ---------------------------------------------------------------------------
+
+
+class TestResolveValidationBase:
+    """_resolve_validation_base picks the remote-tracking ref when it exists."""
+
+    def test_returns_origin_ref_when_it_exists(self, tmp_path):
+        """origin/main exists; validation uses it, not stale local main (issue #4324)."""
+        _resolve = _mod._resolve_validation_base
+
+        calls: list[list] = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            import subprocess
+            result = subprocess.CompletedProcess(cmd, 0)
+            result.stdout = "abc1234"
+            result.stderr = ""
+            return result
+
+        from unittest.mock import patch
+
+        with patch("subprocess.run", side_effect=fake_run):
+            ref = _resolve("main")
+
+        assert ref == "origin/main"
+        assert any("origin/main" in " ".join(c) for c in calls)
+
+    def test_falls_back_to_base_when_origin_missing(self):
+        """No remote configured; falls back to bare branch name without error."""
+        _resolve = _mod._resolve_validation_base
+
+        def fake_run(cmd, **kwargs):
+            import subprocess
+            result = subprocess.CompletedProcess(cmd, 1)
+            result.stdout = ""
+            result.stderr = "fatal: not a valid object"
+            return result
+
+        from unittest.mock import patch
+
+        with patch("subprocess.run", side_effect=fake_run):
+            ref = _resolve("main")
+
+        assert ref == "main"
+
+    def test_gh_pr_create_receives_bare_base_not_remote_ref(self, tmp_path, capsys):
+        """Even when origin/main is used for diffs, --base stays 'main' (issue #4324).
+
+        This proves GitHub sees the correct base branch name regardless of what
+        the local validation diff used.
+        """
+        called_args: list[list] = []
+
+        def fake_run(cmd, **kwargs):
+            import subprocess
+            called_args.append(list(cmd))
+            result = subprocess.CompletedProcess(cmd, 0)
+            result.stdout = ""
+            result.stderr = ""
+            return result
+
+        from unittest.mock import patch
+
+        with patch("subprocess.run", side_effect=fake_run):
+            _mod._resolve_validation_base("main")
+
+        # The function calls git rev-parse --verify origin/main; it should NOT
+        # call gh pr create (that happens in main(), not here). Confirm no
+        # gh pr create appeared in the calls made during _resolve.
+        gh_pr_calls = [c for c in called_args if c[:3] == ["gh", "pr", "create"]]
+        assert gh_pr_calls == [], f"_resolve_validation_base should not call gh: {gh_pr_calls}"

@@ -120,6 +120,36 @@ def _git_env() -> dict[str, str]:
     }
 
 
+def _resolve_validation_base(base: str) -> str:
+    """Return the remote-tracking ref for *base* when available.
+
+    ``git diff main...HEAD`` uses the local ``main`` ref, which can lag
+    origin by hundreds of commits in a linked worktree. Using
+    ``origin/main`` ensures the diff compares against the current remote
+    state rather than a stale local snapshot (issue #4324).
+
+    Falls back to ``base`` unchanged when:
+    - the ref name resolution fails (not a git repo, no remote configured),
+    - ``origin/{base}`` does not exist.
+
+    The GitHub API always receives the bare branch name (``--base main``);
+    this ref is used only for local ``git diff`` commands.
+    """
+    candidate = f"origin/{base}"
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", candidate],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    if result.returncode == 0:
+        return candidate
+    return base
+
+
 def get_repo_root() -> str:
     """Get the current worktree root directory.
 
@@ -582,10 +612,13 @@ def main(argv: list[str] | None = None) -> int:
         write_audit_log(repo_root, head, args.base, args.title, args.audit_reason)
         print()
     else:
+        validation_base = _resolve_validation_base(args.base)
+        if validation_base != args.base:
+            print(f"Validating against {validation_base} (local {args.base} may be stale)")
         try:
             run_validations(
                 repo_root,
-                args.base,
+                validation_base,
                 head,
                 title=args.title,
                 body=args.body,
