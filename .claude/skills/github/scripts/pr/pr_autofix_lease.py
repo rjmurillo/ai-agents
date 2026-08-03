@@ -525,8 +525,9 @@ def _pr_head_sha(owner: str, repo: str, pr: int) -> str:
     ADR-076 part 3 acquire step 1: "Fetch the PR ``head.sha`` and the latest
     N lease comments in one bounded read". The value is read from GitHub, so
     it describes the PR branch no matter which checkout the caller stands
-    in. A failure is a lease-store failure, so the caller fails open to ACT
-    (step 6) instead of publishing freshness evidence it could not verify.
+    in. Acquire catches the failure and records the zero sentinel rather
+    than failing open, because losing freshness evidence must not also lose
+    the lock (see ``acquire``).
     """
     try:
         result = subprocess.run(
@@ -727,6 +728,11 @@ def acquire(
     local HEAD is still read and reported as ``local_head_sha``, and a
     mismatch is logged with both values (issues #4357, #4375).
 
+    Only the comment read fails open. The head read runs after the lease
+    verdict and records the zero sentinel on failure, so a transient error
+    on it cannot skip the read that enforces mutual exclusion, and it costs
+    nothing on the SKIP path.
+
     ``now`` is injectable for deterministic tests; production passes None
     and the current UTC instant is used.
     """
@@ -734,19 +740,27 @@ def acquire(
     author = _gh_authenticated_login() if acting_author is None else acting_author
     local_sha = _git_head_sha()
     try:
-        base_sha = _pr_head_sha(repo_owner, repo, pr)
         comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
         logger.warning("op=lease_acquire_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
         return LeaseResult(
             "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
         )
-    _warn_on_checkout_mismatch(pr, local_sha, base_sha)
 
     current = select_authoritative_lease(comments)
     verdict = classify_acquire(current, author, now)
     if verdict["action"] == "SKIP":
         return LeaseResult("SKIP", verdict["reason"], expires_at=verdict.get("expires_at"))
+
+    # The head read is freshness evidence, not the lock. Failing it open to ACT
+    # alongside the comment read would let a transient API error skip the read
+    # that enforces mutual exclusion, so it is scoped to the sentinel instead.
+    try:
+        base_sha = _pr_head_sha(repo_owner, repo, pr)
+    except LeaseStoreError as exc:
+        logger.warning("op=lease_pr_head_unavailable pr=%d err=%s", pr, safe_log_str(str(exc)))
+        base_sha = "0" * 40
+    _warn_on_checkout_mismatch(pr, local_sha, base_sha)
 
     claim = build_claim(owner, session, base_sha, now)
     try:

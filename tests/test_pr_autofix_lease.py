@@ -35,6 +35,8 @@ import contextlib
 import importlib.util
 import json
 import logging
+import os
+import shutil
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
@@ -691,7 +693,10 @@ class TestBaseShaProvenance:
         assert result.base_sha == _PR_HEAD
         assert result.local_head_sha is None
 
-    def test_pr_head_read_failure_fails_open_without_posting(self):
+    def test_pr_head_read_failure_still_claims_a_free_lock(self):
+        # The head read is freshness evidence, not the lock. Failing it open
+        # would surrender mutual exclusion over a transient API error, so a
+        # failure records the sentinel and the claim is still posted.
         with (
             patch.object(_mod, "_pr_head_sha", side_effect=LeaseStoreError("api down")),
             patch.object(_mod, "_git_head_sha", return_value=_OTHER_CHECKOUT),
@@ -701,9 +706,29 @@ class TestBaseShaProvenance:
         ):
             result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
         assert result.action == "ACT"
-        assert result.reason == "lease-store-unavailable"
+        assert result.reason == "free"
         assert result.base_sha == "0" * 40
         assert result.local_head_sha == _OTHER_CHECKOUT
+        post.assert_called_once()
+
+    def test_pr_head_read_failure_cannot_steal_a_live_foreign_lease(self):
+        # The regression this ordering exists to prevent: with both reads in
+        # one fail-open block, a failed head read returned ACT without ever
+        # reading the lease comments, so a live foreign lease was ignored.
+        live = _comment(
+            _body(owner="remote:coderabbit-autofix", session="ci-1"),
+            "2026-06-19T11:59:00Z",
+            author="coderabbit[bot]",
+        )
+        with (
+            patch.object(_mod, "_pr_head_sha", side_effect=LeaseStoreError("api down")),
+            patch.object(_mod, "_git_head_sha", return_value=_OTHER_CHECKOUT),
+            _patch_list([live]),
+            _patch_post() as post,
+            _patch_login(),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.action == "SKIP"
         post.assert_not_called()
 
     def test_store_read_failure_records_no_pr_head(self):
@@ -852,6 +877,88 @@ class TestIOAdapter:
     def test_head_sha_returns_sha_on_success(self):
         with patch.object(_mod.subprocess, "run", return_value=_completed(stdout=_SHA + "\n")):
             assert _mod._git_head_sha() == _SHA
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestGitHeadShaAgainstRealGit:
+    """#4357 acceptance criterion 3, run against the real git binary.
+
+    The mocked tests above prove the parsing. They cannot prove that the
+    command answers correctly in a detached checkout or once refs are
+    packed, because both change what git reads, not what it prints.
+    """
+
+    def _git(self, repo, *args):
+        # GIT_DIR and GIT_WORK_TREE leak in from an outer checkout and would
+        # point every command at the wrong repository.
+        env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        env["HOME"] = str(repo)
+        result = subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@e", *args],
+            cwd=repo,
+            env=env,
+            capture_output=True,
+            encoding="utf-8",
+            check=True,
+        )
+        return result.stdout.strip()
+
+    def _repo(self, tmp_path):
+        repo = tmp_path / "wt"
+        repo.mkdir()
+        self._git(repo, "init", "-b", "main", "-q")
+        (repo / "f.txt").write_text("one", encoding="utf-8")
+        self._git(repo, "add", "f.txt")
+        self._git(repo, "commit", "-qm", "one")
+        return repo
+
+    @pytest.fixture(autouse=True)
+    def _isolated(self, monkeypatch):
+        for name in [k for k in os.environ if k.startswith("GIT_")]:
+            monkeypatch.delenv(name, raising=False)
+
+    def test_reads_the_checked_out_branch_head(self, tmp_path, monkeypatch):
+        repo = self._repo(tmp_path)
+        expected = self._git(repo, "rev-parse", "HEAD")
+
+        monkeypatch.chdir(repo)
+
+        assert _mod._git_head_sha() == expected
+
+    def test_a_second_branch_does_not_change_the_answer(self, tmp_path, monkeypatch):
+        # The #4357 defect shape: standing on one branch while the PR is on
+        # another. _git_head_sha must report where it stands, nothing else.
+        repo = self._repo(tmp_path)
+        on_main = self._git(repo, "rev-parse", "HEAD")
+        self._git(repo, "checkout", "-qb", "feature")
+        (repo / "f.txt").write_text("two", encoding="utf-8")
+        self._git(repo, "commit", "-qam", "two")
+        on_feature = self._git(repo, "rev-parse", "HEAD")
+        self._git(repo, "checkout", "-q", "main")
+
+        monkeypatch.chdir(repo)
+
+        assert on_feature != on_main
+        assert _mod._git_head_sha() == on_main
+
+    def test_detached_head_still_resolves(self, tmp_path, monkeypatch):
+        repo = self._repo(tmp_path)
+        expected = self._git(repo, "rev-parse", "HEAD")
+        self._git(repo, "checkout", "-q", "--detach")
+
+        monkeypatch.chdir(repo)
+
+        assert _mod._git_head_sha() == expected
+
+    def test_packed_refs_still_resolve(self, tmp_path, monkeypatch):
+        repo = self._repo(tmp_path)
+        expected = self._git(repo, "rev-parse", "HEAD")
+        self._git(repo, "pack-refs", "--all")
+        assert not (repo / ".git" / "refs" / "heads" / "main").exists()
+
+        monkeypatch.chdir(repo)
+
+        assert _mod._git_head_sha() == expected
 
     # --- _pr_head_sha adapter (issues #4357, #4375) -----------------------
 
