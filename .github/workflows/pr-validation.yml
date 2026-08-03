@@ -86,6 +86,13 @@ jobs:
           # truncated trunk still reads as a trunk.
           fetch-depth: 0
 
+      # Must precede every `uv run` in this job. `Check PR commit count` below
+      # is the first one, and the runner has no preinstalled uv, so ordering
+      # this after it fails the step with `uv: command not found` (exit 127).
+      - name: Setup uv
+        if: steps.should-run.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
       - name: Setup PowerShell
         if: steps.should-run.outputs.skip != 'true'
         shell: pwsh
@@ -165,7 +172,7 @@ jobs:
         # live in the testable module. A transient GitHub API failure degrades
         # to status=UNKNOWN and exit 0 (issue #3262); the downstream Enforce
         # Blocking Issues step still enforces a real BLOCKED status.
-        run: python3 scripts/validation/pr_commit_count.py --pr-number "$PR_NUMBER"
+        run: uv run --frozen python scripts/validation/pr_commit_count.py --pr-number "$PR_NUMBER"
 
       - name: Apply needs-split label
         # Fixes #2557: this step is ADVISORY and must never fail the job.
