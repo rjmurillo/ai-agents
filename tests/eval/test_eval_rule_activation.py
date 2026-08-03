@@ -48,6 +48,10 @@ finally:
     if _path_added and str(EVAL_DIR) in sys.path:
         sys.path.remove(str(EVAL_DIR))
 
+MalformedProviderMetadataError = sys.modules[
+    "_eval_common"
+].MalformedProviderMetadataError
+
 
 # ---------------------------------------------------------------------------
 # Test helpers
@@ -1106,6 +1110,74 @@ class TestJudgeSampleReduction:
                 judge_repeats=1,
                 judge_reducer="median",
             )
+
+    def test_eval_one_scenario_propagates_metadata_error_from_response_call(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        calls = 0
+
+        def fake_call_api(*args: object, **kwargs: object) -> str:
+            nonlocal calls
+            calls += 1
+            raise MalformedProviderMetadataError("malformed response fingerprint")
+
+        monkeypatch.setattr(eval_mod, "_call_api", fake_call_api)
+
+        with pytest.raises(
+            MalformedProviderMetadataError, match="malformed response fingerprint"
+        ):
+            eval_mod.eval_one_scenario(
+                "key",
+                self._rule(),
+                "rule",
+                self._scenario(),
+                "model",
+                dry_run=False,
+                seed=10,
+                judge_repeats=3,
+                judge_reducer="median",
+            )
+
+        assert calls == 1
+
+    def test_eval_one_scenario_propagates_metadata_error_from_judge_call(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        response_calls = 0
+        judge_calls = 0
+
+        def fake_call_api(*args: object, **kwargs: object) -> str:
+            nonlocal response_calls
+            response_calls += 1
+            return "response"
+
+        def fake_score(*args: object, **kwargs: object) -> dict[str, object]:
+            nonlocal judge_calls
+            judge_calls += 1
+            raise MalformedProviderMetadataError("malformed judge fingerprint")
+
+        monkeypatch.setattr(eval_mod, "_call_api", fake_call_api)
+        monkeypatch.setattr(eval_mod, "score_response", fake_score)
+
+        with pytest.raises(
+            MalformedProviderMetadataError, match="malformed judge fingerprint"
+        ):
+            eval_mod.eval_one_scenario(
+                "key",
+                self._rule(),
+                "rule",
+                self._scenario(),
+                "model",
+                dry_run=False,
+                seed=10,
+                judge_repeats=3,
+                judge_reducer="median",
+            )
+
+        assert response_calls == 1
+        assert judge_calls == 1
 
     def test_eval_one_scenario_records_a_string_response_fingerprint(
         self, monkeypatch: pytest.MonkeyPatch
