@@ -109,6 +109,58 @@
 
 ---
 
+## Anti-Pattern 7: Self-Shape Assertions
+
+**Description**: A test asserts a property of the function's own return literal rather than a property of the input. The most common form compares the key set of a returned dict against a hardcoded set, when the function builds that dict as a literal. The assertion holds unconditionally and can never fail.
+
+This differs from Anti-Pattern 1 in how it hides. Coverage theater looks thin. A self-shape assertion looks like a contract test, names real keys, and reads as deliberate. It survives review because the reader checks whether the keys are correct, not whether the comparison can ever be false.
+
+**Detection**:
+- `assert set(result) == {...}` where the function under test ends in a dict literal with exactly those keys
+- Assertions on the length, type, or field names of a hardcoded return shape
+- An assertion whose truth you can confirm by reading only the function body, never the input
+- Once the function returns, no input change can falsify the assertion. A parser that raises on unrecognized input still fails on garbage, so "would it survive unrelated content" is the wrong question; ask what surviving input makes the assertion false
+
+**Correction**:
+- Ask the discriminating question: what input change makes this assertion false? If none exists, the assertion is vacuous.
+- Assert on values derived from the input, not on the shape the function always returns.
+- Blanket range guards such as `all(value > 0 ...)` are a related trap: they also fail when a legitimate zero appears, such as `source_delta` if source and mirror totals converge. Guard the specific figure that cannot be zero, not every field.
+
+**Deleting a vacuous test is half the fix.** The vacuous test existed because someone believed that surface needed coverage. Before deleting, measure what the surviving tests actually cover; the vacuous test was masking the gap, not filling it. A parser with five patterns and one fail-closed test leaves four patterns free to fail open.
+
+Prove the replacement discriminates. Mutate the code so the guarded property is false, then confirm the failure count matches the number of cases you expect. In the incident that produced this entry, a fail-open mutation failed exactly five tests, one per pattern; the single-case test it replaced caught one, and the deleted self-shape assertion caught none.
+
+**Related**: Anti-Pattern 1 (Coverage Theater), `TESTING-RIGOR.md` positive/negative/edge requirement
+
+## Anti-Pattern 8: A Totalizing Fallback That Erases Its Own Special Cases
+
+**Description**: A lookup gains a catch-all fallback so no input can crash it. The fallback returns the same observable result as one of the specific entries beside it. From that moment the specific entry is behaviorally dead: adding it and deleting it produce identical output, so no test can tell them apart, and any test named for it passes whether or not the entry exists.
+
+Defensive programming asks for the fallback. Nothing warns you that it just made a neighbor untestable. The tension is real and the entry is not redundant, because a decided mapping and an unrecognized token mean different things to a maintainer even when they mean the same thing to the caller.
+
+**Detection**:
+
+- A `dict.get(key, DEFAULT)` or `if key not in KNOWN: key = DEFAULT` where `DEFAULT` equals the value of an existing entry
+- A test named for a specific case that still passes after you delete that case from the table
+- A table entry whose only justification in review was "it is clearer to be explicit"
+- The mapping and the fallback agree on the value, so the fallback silently absorbs the case
+
+The cheap check is one command: delete the entry and rerun the suite. If it stays green, the entry has no test, and the test you thought covered it is covering the fallback.
+
+**Correction**:
+
+Do not delete the fallback and do not delete the entry. Make the two paths observably different, then assert on the difference.
+
+The natural discriminator is diagnostics, and it is the one you want anyway. A decided mapping is a settled question and stays silent. An unrecognized token is a gap in the table, so the fallback says so on stderr. That asymmetry is a real requirement rather than a testing device: without it, the next producer that grows a verdict the adapter never learned drifts in unnoticed, which is the failure the fallback was added to contain.
+
+Measured on `agent_signal` in `scripts/quality_gate/external_signal_gate.py` (issue #4487). `DID_NOT_RUN` maps to `UNKNOWN`, and the fallback also yields `UNKNOWN`. With both paths silent, deleting the alias entry left all tests green. After splitting them so the alias returns quietly and the fallback warns, deleting the entry fails exactly one test, `test_did_not_run_is_aliased_not_merely_caught_by_the_fallback`, on the presence of the warning, at 1 failed and 41 passed. Same code path, same return value, now falsifiable.
+
+Where a warning is genuinely wrong, the other discriminators are a counter or a structured result that names which branch produced the value. Asserting on the return value alone is what does not work.
+
+**Related**: `.claude/rules/testing.md` SHOULD 15 (catch-all fallback), added in the same change; `TESTING-RIGOR.md` positive/negative/edge requirement
+
+---
+
 ## Coverage Targets by Risk Tier
 
 | Code Category | Target | Rationale |

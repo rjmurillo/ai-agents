@@ -3,7 +3,7 @@
 **Atomicity Score**: 95%
 **Source**: Retrospective `.agents/retrospective/2026-08-02-wrong-fix-before-search.md`
 **Date**: 2026-08-02
-**Validation Count**: 1 (PR #4302 built and closed unmerged; issue #4285 already open)
+**Validation Count**: 2 (PR #4302 built and closed unmerged, issue #4285 already open; issue #4461 filed for a trap already documented in Serena the day before)
 **Tag**: helpful
 **Impact**: 9/10 (one hour of wasted work, and the wrong design shipped to review)
 
@@ -50,6 +50,44 @@ Its line count tracks how many gates the project has, not how hard it is to read
 moves 57 lines to a new file; the counter drops below the ceiling and nothing gets simpler
 (408 -> ~350). The repo's own `code-quality` rule already prescribes the real fix: "replace a
 long sequence with a table."
+
+## Second validation: the two indexes are not interchangeable
+
+2026-08-03. The inverse failure, same cost. I lost about 20 minutes to `new_pr.py` rejecting a
+PR with `Session End validation failed`, a message naming no file. I root-caused it to `--base`
+defaulting to the local `main` ref, which never advances inside a worktree, so the changed-file
+set spanned 797 files instead of 3 and pulled in a session log the branch never touched.
+
+Before filing I searched the issue tracker, which is what this memory tells you to do:
+
+```bash
+gh issue list -R rjmurillo/ai-agents --state all --search "new_pr in:title,body"
+```
+
+One hit, closed, unrelated. So I filed issue #4461.
+
+I never searched Serena. The trap was already there in full:
+`.serena/memories/tools/github-skill-scripts-reference.md`, section "Gotcha: pass
+`--base origin/main`, not the default", added by **PR #4331 on 2026-08-02**, whose own title is
+"docs(memory): two new_pr.py traps that each cost a fleet session". Written down one day before
+I hit it. It even carries the better workaround: pass `--base origin/main` rather than fetching.
+
+**The issue tracker and Serena are separate indexes over the same problem space, and they hold
+different things.** The tracker holds what is unfixed. Serena holds what is known. A trap that
+someone documented but never filed exists in exactly one of them, and that is the common case,
+because writing the memory is the cheaper act. Searching one and finding nothing tells you
+nothing about the other.
+
+Search both. The second search is another 20 seconds:
+
+```bash
+grep -rn "new_pr" .serena/memories/
+```
+
+The filing was still correct here, and knowing this made it stronger: documentation demonstrably
+failed to prevent a recurrence within 24 hours, which is the argument for changing the default
+rather than writing the gotcha down a third time. But the 20 minutes were avoidable, and I used
+the worse of the two workarounds because I found it myself instead of reading the better one.
 
 ## Related
 

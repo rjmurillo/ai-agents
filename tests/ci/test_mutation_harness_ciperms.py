@@ -213,6 +213,129 @@ class TestMainExitCodes:
         assert "unmeasured rather than killed" in capsys.readouterr().out
 
 
+
+
+class TestRestoreFailureExitCode:
+    """Exit-code contract for restore failures (issue #4497).
+
+    A caller must be able to distinguish:
+      exit 1 -- mutation survived (normal, expected)
+      exit 2 -- source file could not be restored (emergency; tree is dirty)
+
+    Before the fix, an OSError during write_bytes in the finally block
+    propagated uncaught, exiting 1 with a traceback -- identical to a
+    surviving mutant. The two paths were indistinguishable to any caller.
+    """
+
+    def _mutation(self, tmp_path, old=b"target\n", new=b"changed\n"):
+        target = tmp_path / "sample.py"
+        target.write_bytes(old)
+        return harness.Mutation(
+            description="restore-test",
+            target_file=target,
+            old_bytes=old,
+            new_bytes=new,
+            test_filter="tests/does_not_matter.py::test_x",
+        )
+
+    def test_oserror_on_restore_exits_2(self, tmp_path, monkeypatch):
+        """The decisive test: OSError during restore must exit 2, not 1."""
+        mutation = self._mutation(tmp_path)
+        write_count = [0]
+        original_write = mutation.target_file.__class__.write_bytes
+
+        def patched_write(self_path, data):
+            write_count[0] += 1
+            if write_count[0] >= 2:
+                raise OSError("simulated disk full on restore")
+            original_write(self_path, data)
+
+        monkeypatch.setattr(mutation.target_file.__class__, "write_bytes", patched_write)
+        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+
+        with pytest.raises(SystemExit) as excinfo:
+            harness.apply_mutation(mutation)
+        assert excinfo.value.code == 2, (
+            f"Expected exit 2 (tree dirty / restore failed), got {excinfo.value.code}. "
+            "A caller cannot distinguish this from a surviving mutant (exit 1)."
+        )
+
+    def test_oserror_on_restore_prints_recovery_hint(self, tmp_path, monkeypatch, capsys):
+        """The recovery command must appear in stderr."""
+        target_dir = tmp_path / "path with spaces & shell chars"
+        target_dir.mkdir()
+        mutation = self._mutation(target_dir)
+        write_count = [0]
+        original_write = mutation.target_file.__class__.write_bytes
+
+        def patched_write(self_path, data):
+            write_count[0] += 1
+            if write_count[0] >= 2:
+                raise OSError("simulated disk full")
+            original_write(self_path, data)
+
+        monkeypatch.setattr(mutation.target_file.__class__, "write_bytes", patched_write)
+        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+
+        with pytest.raises(SystemExit):
+            harness.apply_mutation(mutation)
+
+        err = capsys.readouterr().err
+        assert "git checkout" in err, f"Recovery hint missing from stderr: {err!r}"
+        assert f"'{mutation.target_file}'" in err
+
+    def test_survived_mutant_does_not_raise_system_exit(self, tmp_path, monkeypatch):
+        """Surviving mutant returns SURVIVED outcome without raising SystemExit.
+
+        Distinguishes normal exit-1 (survived) from exit-2 (dirty tree).
+        """
+        mutation = self._mutation(tmp_path)
+        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+        result = harness.apply_mutation(mutation)
+        assert result.outcome == harness.SURVIVED
+
+    def test_bytes_differ_after_write_exits_2(self, tmp_path, monkeypatch):
+        """write_bytes succeeded but read-back differs -> exit 2 (external race)."""
+        mutation = self._mutation(tmp_path)
+        write_count = [0]
+        original_write = mutation.target_file.__class__.write_bytes
+
+        def patched_write(self_path, data):
+            write_count[0] += 1
+            if write_count[0] >= 2:
+                original_write(self_path, b"wrong bytes\n")
+            else:
+                original_write(self_path, data)
+
+        monkeypatch.setattr(mutation.target_file.__class__, "write_bytes", patched_write)
+        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+
+        with pytest.raises(SystemExit) as excinfo:
+            harness.apply_mutation(mutation)
+        assert excinfo.value.code == 2
+
+    def test_oserror_on_restore_verification_exits_2(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """OSError while checking restored bytes exits 2."""
+        mutation = self._mutation(tmp_path)
+        original_read = mutation.target_file.__class__.read_bytes
+        read_count = [0]
+
+        def patched_read(self_path):
+            read_count[0] += 1
+            if read_count[0] >= 2:
+                raise OSError("simulated read-back failure")
+            return original_read(self_path)
+
+        monkeypatch.setattr(mutation.target_file.__class__, "read_bytes", patched_read)
+        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+
+        with pytest.raises(SystemExit) as excinfo:
+            harness.apply_mutation(mutation)
+        assert excinfo.value.code == 2
+        assert "could not verify restore" in capsys.readouterr().err
+
 class TestMutationsAreRunnable:
     """Regression guards for the two silent-failure classes.
 
