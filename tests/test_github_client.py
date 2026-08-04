@@ -210,6 +210,36 @@ class TestGhCliClientIsAuthenticated:
         ):
             assert GhCliClient().is_authenticated() is False
 
+    def test_quota_refusal_is_not_reported_as_unauthenticated(self):
+        """A 403 quota refusal is not proof of a bad token (issue #3139).
+
+        `gh auth status` exits nonzero for a quota refusal, a 5xx, and a dead
+        network as well as for a bad token. Reading only its return code made
+        this method answer a GitHub outage with False, and the callers turned
+        that into "run gh auth login".
+        """
+        refusal = _completed(
+            rc=1, stderr="gh: API rate limit exceeded for user ID 6811113 (HTTP 403)"
+        )
+        viewer_ok = _completed(rc=0, stdout='{"data":{"viewer":{"login":"octocat"}}}')
+
+        with patch("subprocess.run", side_effect=[refusal, viewer_ok]):
+            assert GhCliClient().is_authenticated() is True
+
+    def test_delegates_to_the_shared_classifier(self):
+        """Wiring guard: the method must route through `api.is_gh_authenticated`.
+
+        Without this, a future edit can reintroduce a local `returncode == 0`
+        read here and every test above still passes, because those tests only
+        observe the boolean.
+        """
+        with patch(
+            "scripts.github_core.gh_client.is_gh_authenticated", return_value=True
+        ) as delegate:
+            assert GhCliClient().is_authenticated() is True
+
+        assert delegate.call_count == 1
+
 
 # ---------------------------------------------------------------------------
 # get_issue_comments with client injection
@@ -285,12 +315,17 @@ class TestCreateIssueCommentWithClient:
 # ---------------------------------------------------------------------------
 
 
+# `is_authenticated` is deliberately absent. It no longer runs a gh command of
+# its own: it delegates to `github_core.api.is_gh_authenticated`, whose helper
+# uses `errors="replace"` and a 10s timeout because an auth preflight is a
+# diagnostic, not a payload the caller writes back to GitHub. The contract below
+# governs calls that decode a body; `TestGhCliClientIsAuthenticated` pins the
+# delegation instead.
 _CAPTURING_CALLS = (
     ("rest_get", lambda c: c.rest_get("repos/o/r/issues/1")),
     ("rest_post", lambda c: c.rest_post("repos/o/r/issues/1/comments", {"body": "x"})),
     ("rest_patch", lambda c: c.rest_patch("repos/o/r/issues/1", {"state": "closed"})),
     ("graphql", lambda c: c.graphql("query { viewer { login } }")),
-    ("is_authenticated", lambda c: c.is_authenticated()),
 )
 
 

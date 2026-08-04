@@ -41,6 +41,7 @@ import argparse
 import os
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -51,10 +52,31 @@ except ImportError:  # pragma: no cover - script execution path
 
 _GITHUB_SCRIPTS = REPOSITORY_ROOT / ".github" / "scripts"
 sys.path.insert(0, str(_GITHUB_SCRIPTS))
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from quality_gate_agents import QUALITY_GATE_AGENTS  # noqa: E402
 
+# The workflow step runs this file with bare `python3`, so only stdlib imports
+# survive. `scripts.github_core.api` is stdlib-only; keep it that way.
+from scripts.github_core.api import (  # noqa: E402
+    REFUSAL_BACKOFF_SECONDS,
+    GhAuthStatus,
+    classify_gh_failure_text,
+)
+
 _LABEL = "infrastructure-failure"
+
+# A refusal that clears on its own gets one retry. This runs during exactly the
+# window it is reporting on, so the label that tells an operator "the red gate
+# was infrastructure, not your code" is the thing most likely to be refused.
+_RETRYABLE_LABEL_STATUSES = frozenset(
+    {
+        GhAuthStatus.RATE_LIMITED,
+        GhAuthStatus.SECONDARY_RATE_LIMITED,
+        GhAuthStatus.TRANSIENT_ERROR,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -113,48 +135,77 @@ def detect_failures(results_dir: Path) -> list[InfraFinding]:
     return findings
 
 
-def _gh_authenticated(timeout: float) -> bool:
-    """Return True when ``gh auth status`` exits 0 within the timeout."""
+def _label_argv(pr_number: str, repository: str) -> list[str]:
+    """REST label add.
 
-    try:
-        result = subprocess.run(
-            ["gh", "auth", "status"],
-            timeout=timeout,
-            capture_output=True,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        print("::warning::gh auth status timed out")
-        return False
-    except FileNotFoundError:
-        print("::warning::gh CLI not found, cannot add label")
-        return False
-    return result.returncode == 0
+    ``gh pr edit --add-label`` routes through GraphQL (see
+    ``tests/workflows/test_pr_validation_needs_split.py``), so it fails in the
+    same GraphQL quota window that took the reviewer assignment down in issue
+    #4335. This step runs during exactly that kind of window, because the window
+    is what it is reporting on. ``POST /repos/{repo}/issues/{n}/labels`` is REST
+    and needs the same write permission the step already has.
+    """
+    return [
+        "gh",
+        "api",
+        "--method",
+        "POST",
+        f"repos/{repository}/issues/{pr_number}/labels",
+        "-f",
+        f"labels[]={_LABEL}",
+    ]
 
 
 def _add_label(pr_number: str, repository: str, timeout: float) -> None:
-    """Add the infrastructure-failure label, best-effort (never raises)."""
+    """Add the infrastructure-failure label, best-effort (never raises).
 
-    try:
-        sys.stdout.flush()
-        result = subprocess.run(
-            ["gh", "pr", "edit", pr_number, "--repo", repository, "--add-label", _LABEL],
-            timeout=timeout,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        print("::warning::Adding infrastructure-failure label timed out")
-        return
-    except FileNotFoundError:
-        print("::warning::gh CLI not found, cannot add label")
-        return
-    if result.returncode != 0:
+    No `gh auth status` preflight. That preflight collapsed a quota refusal and
+    a 5xx into "authentication failed" and then skipped the label silently, so
+    the one signal that separates an infrastructure failure from a real code
+    failure disappeared during the exact window it exists to report (issue
+    #3139). The label call is its own evidence: it names the classified
+    condition and retries the ones that clear on their own.
+    """
+    argv = _label_argv(pr_number, repository)
+    for attempt in range(1, len(REFUSAL_BACKOFF_SECONDS) + 1):
+        try:
+            sys.stdout.flush()
+            result = subprocess.run(
+                argv,
+                timeout=timeout,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            print("::warning::Adding infrastructure-failure label timed out")
+            return
+        except FileNotFoundError:
+            print("::warning::gh CLI not found, cannot add label")
+            return
+
+        if result.returncode == 0:
+            print("Successfully added infrastructure-failure label")
+            return
+
+        detail = (result.stderr or result.stdout or "").strip()
+        status = classify_gh_failure_text(detail)
+        if status not in _RETRYABLE_LABEL_STATUSES or attempt == len(
+            REFUSAL_BACKOFF_SECONDS
+        ):
+            print(
+                f"::warning::Failed to add infrastructure-failure label "
+                f"({status.value}): {detail}"
+            )
+            return
+
+        delay = REFUSAL_BACKOFF_SECONDS[attempt - 1]
         print(
-            f"::warning::Failed to add infrastructure-failure label "
-            f"(exit code: {result.returncode})"
+            f"::warning::Label add refused ({status.value}); "
+            f"retrying in {delay:.0f}s"
         )
-    else:
-        print("Successfully added infrastructure-failure label")
+        time.sleep(delay)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -207,9 +258,16 @@ def main(argv: list[str] | None = None) -> int:
     if not pr_number or not repository:
         print("::warning::PR_NUMBER or GITHUB_REPOSITORY is missing, cannot add label")
         return 0
+    if not pr_number.isdecimal():
+        print(f"::warning::PR_NUMBER {pr_number!r} is not a decimal integer, cannot add label")
+        return 0
+    import re as _re
 
-    if not _gh_authenticated(args.gh_timeout):
-        print("::warning::gh CLI authentication failed, cannot add label")
+    if not _re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        print(
+            f"::warning::GITHUB_REPOSITORY {repository!r} "
+            "does not match owner/repo, cannot add label"
+        )
         return 0
 
     _add_label(pr_number, repository, args.gh_timeout)
