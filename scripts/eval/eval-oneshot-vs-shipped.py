@@ -28,6 +28,7 @@ if str(_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(_EVAL_DIR))
 
 from _anthropic_api import call_api as _call_api  # noqa: E402
+from _eval_common import MalformedProviderMetadataError  # noqa: E402
 from _oneshot_bench_core import (  # noqa: E402
     BenchmarkSummary,
     Fixture,
@@ -100,7 +101,9 @@ def grade_fixture(fixture: Fixture, *, api_key: str, model: str) -> FixtureResul
             model=model,
             max_tokens=_AGENT_MAX_TOKENS,
         )
-    except Exception as exc:  # noqa: BLE001 - transport boundary, recorded not raised
+    except MalformedProviderMetadataError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - ordinary transport failure is recorded
         return FixtureResult(
             fixture_id=fixture.id,
             issue_number=fixture.issue_number,
@@ -115,7 +118,9 @@ def grade_fixture(fixture: Fixture, *, api_key: str, model: str) -> FixtureResul
             model=model,
             max_tokens=_JUDGE_MAX_TOKENS,
         )
-    except Exception as exc:  # noqa: BLE001 - transport boundary, recorded not raised
+    except MalformedProviderMetadataError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - ordinary transport failure is recorded
         return FixtureResult(
             fixture_id=fixture.id,
             issue_number=fixture.issue_number,
