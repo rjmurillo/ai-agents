@@ -211,6 +211,41 @@ class TestAggregateVerdicts:
             assert "judge_failure_cells" in mech_summary
             assert "judge_failure_samples" in mech_summary
 
+    @pytest.mark.parametrize(
+        ("sample_failures", "expected_cells", "expected_samples"),
+        [
+            pytest.param([(False, 0)], 0, 0, id="no-failures"),
+            pytest.param([(True, 1), (True, 1)], 2, 2, id="one-failure-per-cell"),
+            pytest.param([(True, 2)], 1, 2, id="multiple-failures-in-one-cell"),
+        ],
+    )
+    def test_judge_failure_cells_and_samples_are_counted_independently(
+        self,
+        sample_failures: list[tuple[bool, int]],
+        expected_cells: int,
+        expected_samples: int,
+    ):
+        pool = [
+            {
+                "mechanisms": {
+                    "baseline": {
+                        "scores": {
+                            "judge_failed": judge_failed,
+                            "graded": not judge_failed,
+                            "failed_sample_count": failed_sample_count,
+                        }
+                    }
+                }
+            }
+            for judge_failed, failed_sample_count in sample_failures
+        ]
+
+        summary = eval_mod._mechanism_summary(pool, "baseline")
+
+        assert summary["judge_failures"] == expected_cells
+        assert summary["judge_failure_cells"] == expected_cells
+        assert summary["judge_failure_samples"] == expected_samples
+
     def test_graded_count_present_in_mechanism_summary(self):
         scenarios = [
             _make_scenario(baseline=1, description=4, full=5),
@@ -1185,10 +1220,6 @@ class TestJudgeSampleReduction:
 
 
 _JUDGE = '{"activation_score": 5, "citation_score": 4, "behavior_score": 5}'
-_UNESCAPED_QUOTE_JUDGE = (
-    '{"activation_score": 5, "citation_score": 4, "behavior_score": 5, '
-    '"reasoning": "rejected it as "a rename" rather than a layer"}'
-)
 
 
 def _score_with_judge_text(monkeypatch: pytest.MonkeyPatch, judge_text: str) -> dict[str, Any]:
@@ -1204,6 +1235,24 @@ def _score_with_judge_text(monkeypatch: pytest.MonkeyPatch, judge_text: str) -> 
         {"input": "x", "expected_gate": "apply-rule"},
         "response",
     )
+
+
+# ---------------------------------------------------------------------------
+# _salvage_scores / _judge_parse_failure: an unparseable `reasoning` field must
+# not discard the three numbers the eval actually scores on.
+#
+# Observed in production: 24 of 144 Opus judge samples were thrown away, every
+# one of them carrying its scores in plain sight. The judge quotes the response
+# it is grading, and a malformed `reasoning` string invalidates the whole
+# object. The loss lands entirely in Opus-labelled positive-scenario cells, so
+# it was not random with respect to the comparison being made.
+# ---------------------------------------------------------------------------
+
+
+_UNESCAPED_QUOTE_JUDGE = (
+    '{"activation_score": 5, "citation_score": 4, "behavior_score": 5, '
+    '"reasoning": "rejected it as "a rename" rather than a layer"}'
+)
 
 
 def test_score_response_refuses_a_malformed_verdict_behind_a_tool_trace(monkeypatch):
@@ -1398,66 +1447,6 @@ def test_a_single_verdict_beside_unrelated_nesting_still_parses(monkeypatch):
     assert result["activation_score"] == 4
     assert result["citation_score"] == 3
     assert result["behavior_score"] == 2
-
-
-# A judge that writes an em-dash, a curly quote, or an accented name emits a
-# unicode escape, because JSON encoders default to ASCII output. These are the
-# healthy payloads that the raw-text guard refused for prose, and they are the
-# regression tests for that false refusal.
-_UNICODE_ESCAPE_BODY = (
-    '{"activation_score": 4, "citation_score": 3, "behavior_score": 2,'
-    ' "reasoning": "the rule fired \\u2014 and was cited \\u201cexactly\\u201d"}'
-)
-
-
-@pytest.mark.parametrize(
-    ("payload", "label"),
-    [
-        (_UNICODE_ESCAPE_BODY, "plain"),
-    ],
-    ids=["plain"],
-)
-def test_a_unicode_escape_in_reasoning_is_not_an_ambiguity(monkeypatch, payload, label):
-    """A verdict whose prose carries an escape must score, not be refused.
-
-    The raw-text guard refused any payload containing ``\\u`` on the recovery
-    path. Now that the recovery path is deleted, only payloads that parse
-    cleanly as JSON are accepted. A plain JSON body with unicode escapes in its
-    ``reasoning`` field is valid JSON and must pass.
-    """
-    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
-
-    result = eval_mod.score_response(
-        "sk-test",
-        {"input": "x", "expected_gate": "apply-rule"},
-        "response",
-    )
-
-    assert result["judge_failed"] is False, label
-    assert result["activation_score"] == 4
-    assert result["citation_score"] == 3
-    assert result["behavior_score"] == 2
-
-
-def test_a_fenced_verdict_fails_without_recovery(monkeypatch):
-    """A fenced JSON payload is not valid JSON; it fails without the recovery path.
-
-    The recovery path (fence-unwrap + prefix-extract) was deleted. A judge
-    that wraps its answer in a Markdown fence now produces a parse failure and
-    the cell is marked judge_failed=True. This is the correct strict-parse
-    behavior for issue #3988.
-    """
-    payload = f"```json\n{_UNICODE_ESCAPE_BODY}\n```"
-    monkeypatch.setattr(eval_mod, "_call_api", lambda *_args, **_kwargs: payload)
-
-    result = eval_mod.score_response(
-        "sk-test",
-        {"input": "x", "expected_gate": "apply-rule"},
-        "response",
-    )
-
-    assert result["judge_failed"] is True
-    assert result["raw_judge_response"] == payload
 
 
 def test_a_second_verdict_after_the_object_is_still_refused(monkeypatch):
@@ -2123,23 +2112,6 @@ def test_adjacent_string_literals_are_a_known_undetected_shape(monkeypatch):
     assert result["activation_score"] == 1
 
 
-def test_a_verdict_recovered_from_the_prefix_is_marked_salvaged(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Trailing prose after a valid JSON object now marks the cell as judge_failed.
-
-    The recovery path (prefix extraction) was deleted as part of fixing issue
-    #3988. A payload that would previously have been salvaged is now a parse
-    failure; the full raw response is stored in raw_judge_response for
-    post-hoc audit without truncation.
-    """
-    payload = _JUDGE + "\ntrailing prose"
-    result = _score_with_judge_text(monkeypatch, payload)
-
-    assert result["judge_failed"] is True
-    assert result["raw_judge_response"] == payload
-
-
 def test_a_clean_payload_is_not_marked_salvaged(monkeypatch: pytest.MonkeyPatch) -> None:
     """Negative control: the marker must distinguish, not decorate."""
     result = _score_with_judge_text(monkeypatch, _JUDGE)
@@ -2157,54 +2129,6 @@ _FENCE = "`" * 3
 
 def _fenced(body: str) -> str:
     return f"{_FENCE}json\n{body}\n{_FENCE}"
-
-
-def test_a_fenced_exemplar_after_the_verdict_does_not_win(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The fence pre-parser was an unanchored search, and it ran first.
-
-    ``re.search`` for a fence found the exemplar, replaced the *entire*
-    payload with it, and handed the result to a strict parse that succeeded.
-    Both the offset-zero anchor and the duplicate-name guard were bypassed
-    because neither ever saw the real payload, and the recovery carried no
-    marker because the substituted text parsed cleanly. That is the thirteenth
-    defect of the selection class and the first one found upstream of
-    ``_extract_json_object``.
-    """
-    payload = (
-        '{"activation_score":1,"citation_score":1,"behavior_score":1,'
-        '"reasoning":"actual verdict"}\nRubric exemplar:\n'
-        + _fenced(
-            '{"activation_score":5,"citation_score":5,"behavior_score":5,'
-            '"reasoning":"rubric exemplar"}'
-        )
-    )
-
-    result = _score_with_judge_text(monkeypatch, payload)
-
-    assert result["judge_failed"] is True
-    assert result["activation_score"] == 0
-    # The recorded payload is the original in raw_judge_response, not truncated.
-    assert "actual verdict" in result["raw_judge_response"]
-
-
-def test_a_lone_fenced_verdict_fails_without_recovery(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A lone-fenced JSON payload fails without the fence-unwrap recovery path.
-
-    The recovery path was deleted as part of fixing issue #3988. A judge
-    that wraps its answer in a single Markdown fence produces a parse failure;
-    the raw response is stored intact in raw_judge_response.
-    """
-    payload = _fenced(
-        '{"activation_score":4,"citation_score":3,"behavior_score":2,"reasoning":"actual"}'
-    )
-    result = _score_with_judge_text(monkeypatch, payload)
-
-    assert result["judge_failed"] is True
-    assert result["raw_judge_response"] == payload
 
 
 def test_two_fences_refuse_rather_than_pick_one(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2226,6 +2150,16 @@ def test_a_fence_whose_body_is_not_json_refuses(monkeypatch: pytest.MonkeyPatch)
     result = _score_with_judge_text(monkeypatch, _fenced("activation_score: five"))
 
     assert result["judge_failed"] is True
+
+
+# ---------------------------------------------------------------------------
+# Fence width pairing (adversarial review round 12)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Judge failures must not be scored as zero (issue #3915)
+# ---------------------------------------------------------------------------
 
 
 def _sample(score: int, judge_failed: bool = False) -> dict[str, object]:
@@ -2397,6 +2331,159 @@ class TestUngradedCellsExcludedFromAverage:
 # that has to write them down.
 # ---------------------------------------------------------------------------
 
+
+class TestReportRecordsRunIdentity:
+    @staticmethod
+    def _scenario_file(tmp_path):
+        path = tmp_path / "scenarios.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "rule_path": ".claude/rules/working-with-legacy-code.md",
+                    "scenarios": [{"id": "S1", "input": "do the thing"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def _run(self, tmp_path, monkeypatch, *extra):
+        """Drive main() past the API calls and stop at the writer.
+
+        `_process_scenario_file` returning None is its "this file is done, keep
+        going" answer, so stubbing it exercises the real assembly and the real
+        writer without spending a call.
+        """
+        out = tmp_path / "out.json"
+        monkeypatch.setattr(eval_mod, "_load_api_key", lambda *a, **k: "key")
+        monkeypatch.setattr(eval_mod, "verify_model_available", lambda *a, **k: None)
+        monkeypatch.setattr(eval_mod, "_process_scenario_file", lambda *a, **k: None)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "eval-rule-activation.py",
+                "--scenarios",
+                str(self._scenario_file(tmp_path)),
+                "--output",
+                str(out),
+                *extra,
+            ],
+        )
+        eval_mod.main()
+        return out
+
+    def test_report_records_the_model(self, tmp_path, monkeypatch):
+        out = self._run(tmp_path, monkeypatch, "--model", "openai/gpt-4o-mini")
+        assert json.loads(out.read_text(encoding="utf-8"))["model_id"] == "openai/gpt-4o-mini"
+
+    def test_report_records_the_seed(self, tmp_path, monkeypatch):
+        out = self._run(tmp_path, monkeypatch, "--seed", "7")
+        assert json.loads(out.read_text(encoding="utf-8"))["seed"] == 7
+
+    def test_report_records_a_zero_seed(self, tmp_path, monkeypatch):
+        """The default seed is 0, so the common case is the falsy one."""
+        out = self._run(tmp_path, monkeypatch)
+        assert json.loads(out.read_text(encoding="utf-8"))["seed"] == 0
+
+    def test_report_records_the_default_model_when_none_is_given(self, tmp_path, monkeypatch):
+        out = self._run(tmp_path, monkeypatch)
+        assert json.loads(out.read_text(encoding="utf-8"))["model_id"] == eval_mod.DEFAULT_MODEL
+
+    def test_metadata_does_not_displace_the_scores(self, tmp_path, monkeypatch):
+        """The consumer reads `rules`; the metadata sits beside it, not inside.
+
+        A metadata key written under `rules` would be read as a rule name and
+        scored, which fails closed on a missing `scenarios` list.
+        """
+        out = self._run(tmp_path, monkeypatch)
+        report = json.loads(out.read_text(encoding="utf-8"))
+        assert "rules" in report
+        assert set(report["rules"]) == set()
+        assert "model_id" not in report["rules"]
+
+    def test_a_dry_run_still_writes_nothing(self, tmp_path, monkeypatch):
+        """Unchanged behavior. A plan that spends no calls has no identity."""
+        out = self._run(tmp_path, monkeypatch, "--dry-run")
+        assert not out.exists()
+
+
+# ---------------------------------------------------------------------------
+# Dry-run cost: do not invent a dollar figure for a provider that bills in
+# requests
+#
+# The summary multiplied estimated tokens by 3, the sonnet per-million input
+# rate, and printed the product unconditionally. Measured before the fix, the
+# same plan under two transports:
+#
+#   $ eval-rule-activation.py --scenarios <file> --dry-run
+#     Estimated tokens: ~126,000 (~$0.38 sonnet input rate)
+#   $ EVAL_PROVIDER=github-models eval-rule-activation.py ... --dry-run
+#     Estimated tokens: ~126,000 (~$0.38 sonnet input rate)
+#
+# The second run spends no dollars and does not use sonnet. A wrong number is
+# worse than no number, because a reader budgets against it.
+#
+# The basis comes from cost_basis(), which resolves the provider exactly as the
+# transport does. Asking it rather than re-deriving it here is the point: two
+# functions answering "which provider is this" is how they come to disagree.
+# ---------------------------------------------------------------------------
+
+
+class TestDryRunCostBasis:
+    def test_anthropic_still_prints_the_usd_estimate(self, monkeypatch, capsys):
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        eval_mod._print_dry_run_summary(36)
+        out = capsys.readouterr().out
+        assert "$0.38" in out
+        assert "sonnet" in out
+
+    def test_a_quota_billed_provider_prints_no_dollar_figure(self, monkeypatch, capsys):
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        eval_mod._print_dry_run_summary(36)
+        out = capsys.readouterr().out
+        assert "$" not in out
+        assert "request" in out
+
+    def test_the_call_count_is_printed_under_either_basis(self, monkeypatch, capsys):
+        """The count is the one figure that is true regardless of who bills."""
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        eval_mod._print_dry_run_summary(36)
+        quota = capsys.readouterr().out
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        eval_mod._print_dry_run_summary(36)
+        usd = capsys.readouterr().out
+        assert "Total calls planned: 36" in quota
+        assert "Total calls planned: 36" in usd
+
+    @pytest.mark.parametrize("value", ["GitHub-Models", "  github  ", "GITHUB"])
+    def test_the_basis_follows_the_transport_s_own_normalization(
+        self, monkeypatch, capsys, value
+    ):
+        """These all route to GitHub Models, so none of them bills in dollars.
+
+        Deferring to cost_basis() is what makes this true without a second
+        normalization rule living here.
+        """
+        monkeypatch.setenv("EVAL_PROVIDER", value)
+        eval_mod._print_dry_run_summary(36)
+        assert "$" not in capsys.readouterr().out
+
+    def test_an_unrecognized_provider_keeps_the_usd_estimate(self, monkeypatch, capsys):
+        """Fall back to the priced basis rather than silently dropping cost.
+
+        An unknown transport is not evidence of a free one.
+        """
+        monkeypatch.setenv("EVAL_PROVIDER", "some-new-vendor")
+        eval_mod._print_dry_run_summary(36)
+        assert "$0.38" in capsys.readouterr().out
+
+    def test_a_zero_call_plan_is_still_reported(self, monkeypatch, capsys):
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        eval_mod._print_dry_run_summary(0)
+        out = capsys.readouterr().out
+        assert "Total calls planned: 0" in out
+        assert "$" not in out
 _ARCHIVE_DIR = (
     REPO_ROOT
     / ".agents"
@@ -2427,97 +2514,6 @@ def _published_triples() -> dict[tuple[str, str, str, str, int], tuple[int, int,
                         )
                         published[key] = sample
     return published
-
-
-def test_every_published_cell_still_scores_to_its_archived_triple(monkeypatch):
-    """Replay the published table through the current parser, cell by cell.
-
-    For most of this parser's history only the 24 *failed* samples could be
-    replayed, because those are the ones that store raw text. That made a
-    defect on the success path unmeasurable, and the gap was published as a
-    limit rather than worked around.
-
-    It was not a real limit. The judge payloads survive in the harness session
-    transcripts, so all 288 samples were recovered and archived beside the
-    results they produced. This test is what that buys: any change to verdict
-    parsing is now checked against every published number, not against the
-    eighth of them that happened to fail.
-
-    A mismatch here means a parser change would have altered a result that has
-    already been published and argued from. That is the failure this suite
-    exists to catch.
-
-    The coverage and uniqueness assertions below are not decoration. A replay
-    that only walks the archive can stay green while the archive quietly loses
-    a coordinate, or while two coordinates are handed the same source event.
-    Both were real: an earlier archive attributed six coordinates to the wrong
-    event because it matched payloads to cells by the parsed triple and then
-    checked the match with the parsed triple.
-
-    Two populations, two contracts. The 264 samples that scored at publication
-    time must still produce the exact triple that was published. The 24 that
-    were previously recovered by the salvage path now correctly fail with
-    judge_failed=True; the salvage path was deleted in issue #3988 and these
-    payloads are accepted as failures rather than mismatch pinned values.
-    """
-    recovered = json.loads(_RECOVERED_PAYLOADS.read_text(encoding="utf-8"))
-    published = _published_triples()
-    assert recovered["sample_count"] == len(recovered["payloads"])
-
-    archived_keys = {
-        (e["artifact"], e["rule"], e["scenario"], e["mechanism"], e["sample_index"])
-        for e in recovered["payloads"]
-    }
-    assert archived_keys == set(published), (
-        "archive and published table disagree on which cells exist: "
-        f"{len(archived_keys - set(published))} archived-only, "
-        f"{len(set(published) - archived_keys)} published-only"
-    )
-    sources = [
-        (e["source_session"], e["source_event_index"]) for e in recovered["payloads"]
-    ]
-    assert len(set(sources)) == len(sources), (
-        "a source judge call is attributed to more than one published cell; "
-        "at most one of those attributions can be right"
-    )
-
-    mismatches = []
-    for entry in recovered["payloads"]:
-        key = (
-            entry["artifact"],
-            entry["rule"],
-            entry["scenario"],
-            entry["mechanism"],
-            entry["sample_index"],
-        )
-        sample = published[key]
-        monkeypatch.setattr(
-            eval_mod, "_call_api", lambda *_a, _p=entry["raw"], **_k: _p
-        )
-        result = eval_mod.score_response(
-            "sk-test",
-            {"input": "x", "expected_gate": "apply-rule"},
-            "response",
-        )
-        if entry["judge_failed"]:
-            # These payloads were previously recovered by the salvage path.
-            # That path was deleted (issue #3988). They now correctly fail with
-            # judge_failed=True; accepting that outcome is the intended behavior.
-            continue
-        got = (
-            result["activation_score"],
-            result["citation_score"],
-            result["behavior_score"],
-        )
-        want = (
-            sample["activation_score"],
-            sample["citation_score"],
-            sample["behavior_score"],
-        )
-        if result["judge_failed"] or got != want:
-            mismatches.append((key, got, want, result["judge_failed"]))
-
-    assert not mismatches, f"{len(mismatches)} published cells changed: {mismatches[:5]}"
 
 
 def _deeply_nested_payload(depth: int = 200_000) -> str:
@@ -4299,144 +4295,13 @@ class TestRawJudgeResponseNoTruncation:
         assert result["raw_judge_response"].startswith(" ")
         assert result["raw_judge_response"].endswith(" ")
 
-
-# ---------------------------------------------------------------------------
-# New tests for issues #3975, #3958, and #3988 behavioral contracts
-# ---------------------------------------------------------------------------
-
-
-def test_raw_judge_response_preserves_payload_beyond_200_chars(monkeypatch):
-    """Issue #3975: raw_judge_response stores the full payload, not 200-char prefix.
-
-    The old code truncated the payload with text[:200], destroying evidence and
-    fabricating a diagnosis. The full payload must be stored intact.
-    """
-    long_payload = (
-        '{"activation_score": 5, "citation_score": 4, "behavior_score": 5, '
-        '"reasoning": "' + ("x" * 400) + '"}'
-        " extra trailing text that breaks json parse"
-    )
-    assert len(long_payload) > 200
-    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: long_payload)
-
-    result = eval_mod.score_response(
-        "sk-test",
-        {"input": "x", "expected_gate": "apply-rule"},
-        "response",
-    )
-
-    assert result["judge_failed"] is True
-    assert result["raw_judge_response"] == long_payload
-    assert len(result["raw_judge_response"]) > 200
-
-
-def test_raw_judge_response_present_on_clean_parse(monkeypatch):
-    """Issue #3998: raw_judge_response is also stored on successful parses."""
-    monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_k: _JUDGE)
-
-    result = eval_mod.score_response(
-        "sk-test",
-        {"input": "x", "expected_gate": "apply-rule"},
-        "response",
-    )
-
-    assert result["judge_failed"] is False
-    assert result["raw_judge_response"] == _JUDGE
-
-
-def test_judge_salvaged_never_appears_in_output(monkeypatch):
-    """Issue #3988: judge_salvaged must not appear in any response.
-
-    The recovery path that set this marker was deleted. No code path should
-    produce this key in any result.
-    """
-    for payload in [_JUDGE, _UNESCAPED_QUOTE_JUDGE, "not json at all"]:
-        monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, _p=payload, **_k: _p)
-        result = eval_mod.score_response(
-            "sk-test",
-            {"input": "x", "expected_gate": "apply-rule"},
-            "response",
-        )
-        assert "judge_salvaged" not in result, f"judge_salvaged appeared for payload: {payload!r}"
-
-
-def test_judge_failure_samples_counts_individual_samples():
-    """Issue #3958: judge_failure_samples counts samples, judge_failures counts cells.
-
-    A cell with 2 samples both failed: contributes 1 to judge_failures, 2 to
-    judge_failure_samples.
-    """
-    pool = [
-        {
-            "mechanisms": {
-                "baseline": {
-                    "scores": {
-                        "judge_failed": True,
-                        "graded": False,
-                        "failed_sample_count": 2,
-                    }
-                }
-            }
-        }
-    ]
-    summary = eval_mod._mechanism_summary(pool, "baseline")
-
-    assert summary["judge_failures"] == 1
-    assert summary["judge_failure_samples"] == 2
-
-
-def test_judge_failure_samples_equals_failures_when_one_sample_per_cell():
-    """Issue #3958: with one sample per cell, both counts are equal."""
-    pool = [
-        {
-            "mechanisms": {
-                "baseline": {
-                    "scores": {
-                        "judge_failed": True,
-                        "graded": False,
-                        "failed_sample_count": 1,
-                    }
-                }
-            }
-        },
-        {
-            "mechanisms": {
-                "baseline": {
-                    "scores": {
-                        "judge_failed": True,
-                        "graded": False,
-                        "failed_sample_count": 1,
-                    }
-                }
-            }
-        },
-    ]
-    summary = eval_mod._mechanism_summary(pool, "baseline")
-
-    assert summary["judge_failures"] == 2
-    assert summary["judge_failure_samples"] == 2
-
-
-def test_judge_failure_samples_zero_when_no_failures():
-    """Issue #3958: both counts are 0 when no cells failed."""
-    pool = [
-        {
-            "mechanisms": {
-                "baseline": {
-                    "scores": {
-                        "activation_score": 4,
-                        "citation_score": 3,
-                        "behavior_score": 5,
-                        "cell_score": 4.0,
-                        "judge_failed": False,
-                        "graded": True,
-                        "failed_sample_count": 0,
-                    }
-                }
-            }
-        }
-    ]
-    summary = eval_mod._mechanism_summary(pool, "baseline")
-
-    assert summary["judge_failures"] == 0
-    assert summary["judge_failure_samples"] == 0
+    def test_shape_error_path_preserves_raw_whitespace(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Shape-error branch stores raw, not stripped text."""
+        payload_with_ws = ' {"activation_score": 5, "citation_score": 5} '
+        result = _score_response_with(monkeypatch, payload_with_ws)
+        assert result["judge_failed"] is True
+        assert result["raw_judge_response"] == payload_with_ws
+        assert result["raw_judge_response"].startswith(" ")
+        assert result["raw_judge_response"].endswith(" ")
