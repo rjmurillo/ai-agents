@@ -14,20 +14,19 @@
       "content": "Ran independent artifact-only review",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e005"
       ],
       "_source_session": "2026-08-04-session-4588-repair-4435-session-chronology-sol"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-04T22:16:12+00:00",
+      "timestamp": "2026-08-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Filed the extractor defect",
-      "caused_by": [
-        "e001",
-        "e003"
+      "caused_by": [],
+      "leads_to": [
+        "e005"
       ],
-      "leads_to": [],
       "_source_session": "2026-08-04-session-4588-repair-4435-session-chronology-sol"
     },
     {
@@ -37,8 +36,33 @@
       "content": "Restored the causal episode",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e005"
       ],
+      "_source_session": "2026-08-04-session-4588-repair-4435-session-chronology-sol"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed the chronology repair",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-4588-repair-4435-session-chronology-sol"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T22:31:03+00:00",
+      "type": "commit",
+      "content": "Commit: 202e72e2e61fb455aa517c6574d260fecda9e20c",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [],
       "_source_session": "2026-08-04-session-4588-repair-4435-session-chronology-sol"
     }
   ],
@@ -47,7 +71,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 3
   },
   "lessons": []

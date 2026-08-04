@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The staged chronology repair is this commit. endingCommit will be recorded in a follow-up commit per issue #3618."
+        "Evidence": "Commit 202e72e2e61fb455aa517c6574d260fecda9e20c restores the causal episode and records this repair session."
       },
       "validationPassed": {
         "level": "MUST",
@@ -126,11 +126,15 @@
     {
       "action": "Restored the causal episode",
       "detail": "Placed the 10:26:49 closeout milestone after commit 02d2f0da2 and the 19:35:33 merged-outcome milestone after commit 0fd1ea30f."
+    },
+    {
+      "timestamp": "2026-08-04T22:31:03+00:00",
+      "action": "Committed the chronology repair",
+      "detail": "Commit 202e72e2e61fb455aa517c6574d260fecda9e20c passed normal pre-commit and commit-message hooks."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "202e72e2e61fb455aa517c6574d260fecda9e20c",
   "nextSteps": [
-    "Record the chronology repair commit SHA in a follow-up commit.",
     "Push normally, rerun the artifact-only Sol review, and merge the follow-up PR after all gates pass."
   ]
 }
