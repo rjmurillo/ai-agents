@@ -13,7 +13,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "eval"))
 
-import _pr_churn  # noqa: E402
+import _pr_churn
 
 
 @pytest.mark.parametrize(

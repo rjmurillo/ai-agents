@@ -28,7 +28,7 @@ for _p in (
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from github_core.api import RepoInfo  # noqa: E402
+from github_core.api import RepoInfo
 
 
 def make_proc(stdout="", stderr="", returncode=0):

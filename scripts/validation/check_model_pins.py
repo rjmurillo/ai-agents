@@ -467,7 +467,7 @@ def run_check(
     unchanged. This is the draining ratchet: existing debt is reported, never
     fails CI, and new debt is blocked so the baseline can only shrink.
     """
-    resolved_today = today or datetime.now(timezone.utc).date()  # noqa: UP017
+    resolved_today = today or datetime.now(timezone.utc).date()
     units = scan_units(repo_root)
     manifest = load_manifest(manifest_path)
     baseline, frozen_count = load_baseline(baseline_path)
