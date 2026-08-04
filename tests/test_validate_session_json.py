@@ -2289,7 +2289,9 @@ class TestCheckSessionsCreationMode:
             rc = git_hook_policy.check_sessions([existing], Path.cwd())
         assert rc == 0
         assert validate_commands
-        assert "--creation-mode" not in validate_commands[0], "existing log must not get --creation-mode"
+        assert "--creation-mode" not in validate_commands[0], (
+            "existing log must not get --creation-mode"
+        )
         assert "--pre-commit" in validate_commands[0], "existing log must still get --pre-commit"
 
     def test_check_sessions_rejects_commit_without_session_log(self) -> None:
