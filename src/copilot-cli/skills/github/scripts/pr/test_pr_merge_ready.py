@@ -46,6 +46,7 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +237,7 @@ def _check_run_verdict(rows: list[dict]) -> str:
     return "SKIP"
 
 
-def _single_run_check_verdict(rows: list[dict]) -> str:
+def _single_run_check_verdict(rows: list[dict[Any, Any]]) -> str:
     """Reduce the rows of ONE workflow run to a verdict, failure-first.
 
     Within a run every row really executed, so a failure is authoritative and
