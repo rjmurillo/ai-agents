@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.validation.portability_baseline import (
     read_previous_sections,
     refuse_dropped_entries,
+    refuse_oversized_baseline,
     refuse_symlinked_baseline,
     write_baseline_json,
 )
@@ -224,6 +225,28 @@ class TestReductionsAreRefused:
         previous = {"files": {"a.md": 2}, "marker_files": {"m.md": 13}}
         refuse_dropped_entries(previous, {"files": {"a.md": 2}}, UNIT, False)
         assert "marker_files" in capsys.readouterr().err
+
+
+class TestBaselineSizeCeiling:
+    """A padded baseline must remain visible in code review."""
+
+    def test_a_missing_baseline_is_left_to_the_loader(self, tmp_path: Path) -> None:
+        assert not refuse_oversized_baseline(tmp_path / "missing.json")
+
+    def test_a_baseline_at_the_ceiling_is_permitted(self, tmp_path: Path) -> None:
+        path = tmp_path / "baseline.json"
+        path.write_bytes(b"x" * 200_000)
+
+        assert not refuse_oversized_baseline(path)
+
+    def test_a_baseline_above_the_ceiling_is_refused(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        path = tmp_path / "baseline.json"
+        path.write_bytes(b"x" * 200_001)
+
+        assert refuse_oversized_baseline(path)
+        assert "exceeds the reviewability ceiling" in capsys.readouterr().err
 
 
 class TestTheWriteItself:

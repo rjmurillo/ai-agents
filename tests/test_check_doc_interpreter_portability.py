@@ -575,6 +575,27 @@ def test_update_baseline_requires_existing_baseline(
     assert "baseline not found" in capsys.readouterr().err
 
 
+def test_update_baseline_refuses_oversized_baseline(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n"})
+    baseline = repo / "baseline.json"
+    baseline.write_bytes(b"x" * 200_001)
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(repo),
+            "--baseline",
+            str(baseline),
+            "--update-baseline",
+        ]
+    )
+
+    assert exit_code == 2
+    assert "exceeds the reviewability ceiling" in capsys.readouterr().err
+
+
 def test_update_baseline_refuses_symlink(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
