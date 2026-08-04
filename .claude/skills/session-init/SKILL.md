@@ -22,7 +22,7 @@ Create protocol-compliant session logs with verification-based enforcement.
 ### Automated (Recommended)
 
 ```bash
-uv run python .claude/skills/session-init/scripts/new_session_log.py
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-init/scripts/new_session_log.py"
 ```
 
 The script will:
@@ -226,7 +226,7 @@ git status --short
 **CRITICAL**: Use the new_session_log.py script to read the template from SESSION-PROTOCOL.md.
 
 ```bash
-uv run python .claude/skills/session-init/scripts/new_session_log.py
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-init/scripts/new_session_log.py"
 ```
 
 **DO NOT** generate the template from memory or read specific line numbers. The script extracts the canonical template dynamically:
@@ -378,13 +378,13 @@ Fix the issues and re-validate.
 
 ```bash
 # Create session log with parameters
-uv run python .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X"
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-init/scripts/new_session_log.py" --session-number 375 --objective "Implement feature X"
 
 # Skip validation
-uv run python .claude/skills/session-init/scripts/new_session_log.py --session-number 375 --objective "Implement feature X" --skip-validation
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-init/scripts/new_session_log.py" --session-number 375 --objective "Implement feature X" --skip-validation
 
 # Simplified JSON-only version
-uv run python .claude/skills/session-init/scripts/new_session_log_json.py --session-number 375 --objective "Implement feature X"
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-init/scripts/new_session_log_json.py" --session-number 375 --objective "Implement feature X"
 ```
 
 ---

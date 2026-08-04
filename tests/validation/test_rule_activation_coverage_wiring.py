@@ -30,10 +30,12 @@ POSITIVE_PROMPT = "Fix the token expiration bug in auth.py before it ships."
 # so `scripts.validation.*` resolves here rather than in the real checkout, and
 # a partial copy raises ModuleNotFoundError. That is the hermetic behavior we
 # want: the fixture repo has to be complete on its own.
-#   portability_baseline -> portability_floor, portability_git
+#   portability_baseline -> portability_baseline_write, portability_floor,
+#                           portability_git
 #   portability_floor    -> portability_git
 _RUNTIME_DEPS = [
     "portability_baseline.py",
+    "portability_baseline_write.py",
     "portability_floor.py",
     "portability_git.py",
 ]
