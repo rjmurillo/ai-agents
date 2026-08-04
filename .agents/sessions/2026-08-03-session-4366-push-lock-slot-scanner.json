@@ -38,6 +38,26 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "On fix/push-lock-consolidation-4366"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/ directly; memory-index.md reviewed."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and PROJECT-CONSTRAINTS.md read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS.md reviewed."
+      },
+      "skillScriptsListed": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Skills listed via .claude/skills/ directory."
       }
     },
     "sessionEnd": {

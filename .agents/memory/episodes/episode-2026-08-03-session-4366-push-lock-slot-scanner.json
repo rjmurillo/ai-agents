@@ -13,15 +13,19 @@
       "type": "milestone",
       "content": "Updated all four documented push-lock surfaces",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e002"
+      ],
       "_source_session": "2026-08-03-session-4366-push-lock-slot-scanner"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-03T00:00:00+00:00",
+      "timestamp": "2026-08-03T12:21:24+00:00",
       "type": "commit",
       "content": "Commit: 5f27499705",
-      "caused_by": [],
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-03-session-4366-push-lock-slot-scanner"
     }
