@@ -166,3 +166,15 @@ class TestTheWriteCannotBeRedirectedOffThePathGitTracks:
 
         assert rc == 2
         assert victim.read_text(encoding="utf-8") == original
+
+    def test_parent_step_does_not_hide_an_intermediate_symlink(
+        self, tmp_path: Path
+    ) -> None:
+        """The symlink walk must catch `link/../file` before any write."""
+        root = _repo(tmp_path)
+        (root / "target" / "a" / "b").mkdir(parents=True)
+        (root / "target" / "a" / "victim.json").write_text("{}", encoding="utf-8")
+        (root / "link").symlink_to(root / "target" / "a" / "b")
+        path = root / "link" / ".." / "victim.json"
+
+        assert refuse_symlinked_baseline(root, path)

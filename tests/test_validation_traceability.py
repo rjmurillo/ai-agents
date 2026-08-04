@@ -416,7 +416,7 @@ class TestMain:
     """Integration tests for main entry point."""
 
     def test_valid_empty_specs(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path,
     ) -> None:
         specs = tmp_path / "specs"
         specs.mkdir()
@@ -498,7 +498,7 @@ class TestMain:
         assert result == 1
 
     def test_errors_without_ci_return_zero(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path,
     ) -> None:
         task_dir = tmp_path / "tasks"
         task_dir.mkdir()
@@ -519,7 +519,7 @@ class TestMain:
         assert result == 1
 
     def test_json_output(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path,
     ) -> None:
         specs = tmp_path / "specs"
         specs.mkdir()
