@@ -71,7 +71,6 @@ finally:
 # Fired-hook probe: ONE source of truth shared with test_cli_hook_e2e.py (#3148).
 from copilot_hook_probe import (  # noqa: E402
     PROBE_EVENT,
-    copilot_auth_failed,
     copilot_auth_failure_headline,
     copilot_command,
     copilot_run_blocked,
