@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
 # ruff: noqa: E402
 """Narrow Git policies that Lefthook cannot express declaratively."""
 

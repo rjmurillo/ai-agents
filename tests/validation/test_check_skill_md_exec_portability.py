@@ -19,7 +19,7 @@ _VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 _ORIGINAL_SYS_PATH = sys.path.copy()
 try:
     sys.path.insert(0, str(_VALIDATION))
-    import check_skill_md_exec_portability as cep  # noqa: E402
+    import check_skill_md_exec_portability as cep
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
 

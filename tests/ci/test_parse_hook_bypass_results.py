@@ -18,7 +18,7 @@ _SCRIPTS_CI = Path(__file__).resolve().parent.parent.parent / "scripts" / "ci"
 _original_path = sys.path.copy()
 try:
     sys.path.insert(0, str(_SCRIPTS_CI))
-    from parse_hook_bypass_results import main  # noqa: E402
+    from parse_hook_bypass_results import main
 finally:
     sys.path[:] = _original_path
 

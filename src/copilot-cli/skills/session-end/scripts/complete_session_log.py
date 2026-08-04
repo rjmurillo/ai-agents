@@ -358,7 +358,7 @@ def _ensure_rework_loaded() -> None:
         _rework_cache["REWORK_THRESHOLD"] = _mod.REWORK_THRESHOLD
         _rework_cache["compute_rework_warning"] = _mod.compute_rework_warning
         _rework_cache["emit_rework_warning_lines"] = _mod.emit_rework_warning_lines
-    except Exception:  # noqa: BLE001 - informational; must never block
+    except Exception:
         _rework_cache["REWORK_THRESHOLD"] = 6
         _rework_cache["compute_rework_warning"] = None
         _rework_cache["emit_rework_warning_lines"] = None
@@ -413,7 +413,7 @@ def _run_rework_warning_step() -> tuple[str, list[str]]:
         lines = list(_emit(rework_items))
         for line in lines:
             print(line)
-    except Exception as exc:  # noqa: BLE001 - informational; must never block
+    except Exception as exc:
         notice = f"rework-warning: skipped (runtime error: {type(exc).__name__})"
         print(notice)
         return "Rework warning: skipped (runtime error)", [notice]

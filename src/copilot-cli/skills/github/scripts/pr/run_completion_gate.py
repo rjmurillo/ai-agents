@@ -135,7 +135,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 try:
-    from scripts.utils.path_validation import validate_safe_path  # noqa: E402
+    from scripts.utils.path_validation import validate_safe_path
 except ModuleNotFoundError:
     # Installed-plugin fallback (issue #2572): the repo's top-level scripts/
     # package is not bundled with the skill, so the canonical import is
@@ -691,7 +691,7 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
             verdict = _eval_pass_when_python(parsed, pass_when_python)
         else:
             verdict = _eval_pass_when(parsed, pass_when)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         # A broken pass_when expression is a config bug, not a verifier
         # outage. fail_open does NOT apply: masking a typo with a
         # green gate would defeat the dispatcher's purpose.
