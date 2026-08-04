@@ -109,7 +109,7 @@
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "reflect skill run over this segment; this branch is one of its outputs."
+        "Evidence": "Learnings captured in the learnings object of this log."
       }
     }
   },
@@ -144,6 +144,22 @@
       ]
     }
   ],
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "A fallback that maps every unrecognized state into one bucket hides the states it cannot name.",
+        "context": "The gate aggregator mapped a missing external signal onto the same verdict as a real failure, so a gate that never ran was indistinguishable from a gate that ran and failed.",
+        "application": "Added an explicit DID_NOT_RUN alias in external_signal_gate.py and a test proving the alias is reached on its own rather than absorbed by the fallback."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Quoting a test count measured before the file grew.",
+        "consequence": "The draft documented 1 failed and 40 passed, a number taken when the file held 41 tests, against a file that had since reached 42.",
+        "correction": "Re-ran the negative control against the shipping tree, deleted the alias entry, and recorded the observed 1 failed and 41 passed."
+      }
+    ]
+  },
   "endingCommit": "",
   "nextSteps": [
     "Push and open the PR",

@@ -86,5 +86,8 @@
     "commits": 1,
     "files_changed": 6
   },
-  "lessons": []
+  "lessons": [
+    "A fallback that maps every unrecognized state into one bucket hides the states it cannot name.. Added an explicit DID_NOT_RUN alias in external_signal_gate.py and a test proving the alias is reached on its own rather than absorbed by the fallback.",
+    "Avoid: Quoting a test count measured before the file grew.. Re-ran the negative control against the shipping tree, deleted the alias entry, and recorded the observed 1 failed and 41 passed."
+  ]
 }
