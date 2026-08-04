@@ -53,10 +53,9 @@ from github_core.output import (  # noqa: E402
 
 _JSON_FIELDS = (
     "number,title,body,headRefName,headRefOid,baseRefName,baseRefOid,state,author,labels,"
-    "reviewRequests,commits,additions,deletions,changedFiles,"
-    "mergeable,mergeStateStatus,isDraft,autoMergeRequest,"
-    "headRepository,reviews,"
-    "mergedAt,mergedBy,createdAt,updatedAt"
+    "reviewRequests,reviews,reviewDecision,commits,additions,deletions,changedFiles,"
+    "mergeable,mergeStateStatus,autoMergeRequest,isDraft,"
+    "headRepository,headRepositoryOwner,mergedAt,mergedBy,createdAt,updatedAt"
 )
 
 
@@ -67,18 +66,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
-        "--include-diff", action="store_true",
+        "--include-diff",
+        action="store_true",
         help="Include the PR diff (may be large)",
     )
     parser.add_argument(
-        "--include-changed-files", action="store_true",
+        "--include-changed-files",
+        action="store_true",
         help="Include list of changed files",
     )
     parser.add_argument(
-        "--diff-stat", action="store_true",
+        "--diff-stat",
+        action="store_true",
         help="With --include-diff, return stat format instead of full diff",
     )
     add_output_format_arg(parser)
@@ -115,31 +120,42 @@ def main(argv: list[str] | None = None) -> int:
     author = pr_data.get("author")
     merged_by = pr_data.get("mergedBy")
     head_repo = pr_data.get("headRepository") or {}
+    head_repo_owner = pr_data.get("headRepositoryOwner") or (head_repo.get("owner") or {})
     auto_merge = pr_data.get("autoMergeRequest")
+    reviews_raw = pr_data.get("reviews") or []
+    review_counts: dict[str, int] = {}
+    for rev in reviews_raw:
+        state = rev.get("state", "UNKNOWN") if isinstance(rev, dict) else "UNKNOWN"
+        review_counts[state] = review_counts.get(state, 0) + 1
 
-    data: dict = {
+    data: dict[str, object] = {
         "number": pr_data.get("number"),
         "title": pr_data.get("title"),
         "body": pr_data.get("body"),
         "state": pr_data.get("state"),
+        "is_draft": pr_data.get("isDraft", False),
         "author": author.get("login") if isinstance(author, dict) else None,
         "head_branch": pr_data.get("headRefName"),
         "head_sha": pr_data.get("headRefOid"),
+        "head_repo": head_repo.get("nameWithOwner"),
+        "head_repo_name": head_repo.get("name"),
+        "head_repo_owner": head_repo_owner.get("login"),
         "base_branch": pr_data.get("baseRefName"),
         "base_sha": pr_data.get("baseRefOid"),
-        "is_draft": pr_data.get("isDraft", False),
-        "merge_state_status": pr_data.get("mergeStateStatus"),
-        "auto_merge": auto_merge is not None,
-        "auto_merge_method": auto_merge.get("mergeMethod") if auto_merge else None,
-        "head_repo_name": head_repo.get("name"),
-        "head_repo_owner": (head_repo.get("owner") or {}).get("login"),
-        "reviews": pr_data.get("reviews", []),
         "labels": labels,
         "commits": len(pr_data.get("commits", [])),
         "additions": pr_data.get("additions"),
         "deletions": pr_data.get("deletions"),
         "changed_files": pr_data.get("changedFiles"),
         "mergeable": pr_data.get("mergeable"),
+        "merge_state_status": pr_data.get("mergeStateStatus"),
+        "auto_merge": auto_merge is not None,
+        "auto_merge_method": (
+            auto_merge.get("mergeMethod") if isinstance(auto_merge, dict) else None
+        ),
+        "reviews": reviews_raw,
+        "review_decision": pr_data.get("reviewDecision"),
+        "review_counts": review_counts,
         "merged": bool(pr_data.get("mergedAt")),
         "merged_by": merged_by.get("login") if merged_by else None,
         "created_at": pr_data.get("createdAt"),
@@ -155,7 +171,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.diff_stat:
             diff_args.append("--stat")
         diff_result = subprocess.run(
-            diff_args, capture_output=True, text=True, timeout=60, check=False,
+            diff_args,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
         )
         if diff_result.returncode == 0:
             data["diff"] = diff_result.stdout
@@ -169,9 +189,7 @@ def main(argv: list[str] | None = None) -> int:
             check=False,
         )
         if files_result.returncode == 0:
-            data["files"] = [
-                f for f in files_result.stdout.splitlines() if f.strip()
-            ]
+            data["files"] = [f for f in files_result.stdout.splitlines() if f.strip()]
 
     write_skill_output(
         data,
