@@ -53,8 +53,9 @@ object shape, not a fragment of the text.
 
 Both hooks have generated Copilot CLI shims under `src/copilot-cli/hooks/`. After
 editing the canonical `.claude/hooks/PreToolUse/*` copy, regenerate so the
-hook-drift guard exits 0, and bump `.claude/.claude-plugin/plugin.json`
-(0.5.134 to 0.5.135 in the original fix) in lockstep with the Copilot mirror.
+hook-drift guard exits 0. The original fix also bumped
+`.claude/.claude-plugin/plugin.json` (0.5.134 to 0.5.135); that step no longer
+applies, since ADR-092 removed the `version` field from every manifest.
 
 ## Evidence
 
