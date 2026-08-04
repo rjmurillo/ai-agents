@@ -128,7 +128,7 @@ def _try_lock_helpers() -> tuple[
     matters when two writers race.
     """
     try:
-        from hook_utilities import lock_file, unlock_file  # noqa: PLC0415
+        from hook_utilities import lock_file, unlock_file
     except ImportError:
         return None, None
     return lock_file, unlock_file
