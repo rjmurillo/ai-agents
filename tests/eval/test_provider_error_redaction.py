@@ -7,7 +7,10 @@ import json
 import sys
 import traceback
 import urllib.error
+import urllib.request
+from email.message import Message
 from pathlib import Path
+from typing import NoReturn
 
 import pytest
 
@@ -43,12 +46,12 @@ def test_anthropic_http_body_never_reaches_exception_or_json(
 ) -> None:
     body = json.dumps({"token": SECRET, "prompt": PROMPT_FRAGMENT}).encode()
 
-    def fail(request: object, timeout: int) -> object:
+    def fail(request: urllib.request.Request, timeout: float) -> NoReturn:
         raise urllib.error.HTTPError(
             "https://api.anthropic.com/v1/messages",
             400,
             "Bad Request",
-            {},
+            Message(),
             io.BytesIO(body),
         )
 
@@ -94,12 +97,12 @@ def test_models_endpoint_http_body_never_reaches_exception(
 ) -> None:
     body = json.dumps({"token": SECRET, "prompt": PROMPT_FRAGMENT}).encode()
 
-    def fail(request: object, timeout: int) -> object:
+    def fail(request: urllib.request.Request, timeout: float) -> NoReturn:
         raise urllib.error.HTTPError(
             "https://api.anthropic.com/v1/models",
             503,
             "Unavailable",
-            {},
+            Message(),
             io.BytesIO(body),
         )
 

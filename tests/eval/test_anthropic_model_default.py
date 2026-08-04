@@ -10,6 +10,7 @@ import io
 import json
 import sys
 from pathlib import Path
+from types import TracebackType
 
 import pytest
 
@@ -35,8 +36,14 @@ class _Resp(io.BytesIO):
     def __enter__(self) -> _Resp:
         return self
 
-    def __exit__(self, *_: object) -> bool:
-        return False
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+        /,
+    ) -> None:
+        return None
 
 
 def _models_payload(ids: list[str]) -> bytes:
@@ -135,13 +142,19 @@ def test_verify_passes_when_model_reachable(monkeypatch: pytest.MonkeyPatch) -> 
 def test_verify_fails_closed_on_missing_model(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_SKIP_MODEL_PREFLIGHT", raising=False)
     monkeypatch.delenv("EVAL_PROVIDER", raising=False)
-    payload = _models_payload(["claude-sonnet-4-6", "claude-opus-4-8"])
+    requested = "ghp_" + "M" * 36
+    reachable = "private model prompt fragment"
+    payload = _models_payload([reachable])
     monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=None: _Resp(payload))
     with pytest.raises(RuntimeError) as exc:
-        _anthropic_api.verify_model_available("key", "claude-sonnet-4-20250514")
-    # Error lists the reachable ids so the user can pick one.
-    assert "claude-sonnet-4-6" in str(exc.value)
-    assert "claude-opus-4-8" in str(exc.value)
+        _anthropic_api.verify_model_available("key", requested)
+    message = str(exc.value)
+    assert requested not in message
+    assert reachable not in message
+    assert message == (
+        "Requested model is not reachable with this API key. "
+        "Query the models endpoint and pass a reachable model ID."
+    )
 
 
 def test_verify_fails_open_on_infra_error(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
@@ -165,7 +178,7 @@ def test_verify_fails_closed_on_empty_model_list(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(
         "urllib.request.urlopen", lambda req, timeout=None: _Resp(_models_payload([]))
     )
-    with pytest.raises(RuntimeError, match=r"Reachable ids: \(none\)"):
+    with pytest.raises(RuntimeError, match="Requested model is not reachable"):
         _anthropic_api.verify_model_available("key", "claude-sonnet-4-6")
 
 
@@ -225,11 +238,13 @@ def test_verify_fails_open_on_non_string_id(monkeypatch: pytest.MonkeyPatch, cap
 # --- 404 enrichment in call_api ----------------------------------------
 
 
-def test_call_api_404_enriches_with_reachable_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_call_api_404_does_not_disclose_model_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("EVAL_PROVIDER", raising=False)
     import urllib.error
 
     calls = {"n": 0}
+    requested = "ghp_" + "R" * 36
+    reachable = "private fixture model fragment"
 
     def _dispatch(req, timeout=None):
         # First call is the POST /v1/messages -> 404; second is the
@@ -239,14 +254,20 @@ def test_call_api_404_enriches_with_reachable_ids(monkeypatch: pytest.MonkeyPatc
             raise urllib.error.HTTPError(
                 req.full_url, 404, "Not Found", {}, io.BytesIO(b"not_found_error")
             )
-        return _Resp(_models_payload(["claude-sonnet-4-6"]))
+        return _Resp(_models_payload([reachable]))
 
     monkeypatch.setattr("urllib.request.urlopen", _dispatch)
     with pytest.raises(RuntimeError) as exc:
-        _anthropic_api.call_api("key", [{"role": "user", "content": "x"}], model="dead-id")
+        _anthropic_api.call_api(
+            "key",
+            [{"role": "user", "content": "x"}],
+            model=requested,
+        )
     msg = str(exc.value)
     assert "HTTP 404" in msg
-    assert "claude-sonnet-4-6" in msg
+    assert requested not in msg
+    assert reachable not in msg
+    assert "Requested model is unavailable" in msg
     assert calls["n"] == 1
 
 

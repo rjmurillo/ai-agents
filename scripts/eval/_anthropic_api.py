@@ -172,24 +172,24 @@ def _build_messages_request(
     )
 
 
-def _reachable_model_hint(api_key: str, model: str) -> str:
+def _reachable_model_hint(api_key: str) -> str:
     try:
-        reachable = list_available_models(api_key)
+        list_available_models(api_key)
     except Exception:
         print(
             "warning: reachable-model lookup failed: provider details redacted",
             file=sys.stderr,
         )
         return ""
-    if not reachable:
-        return ""
-    return f". Model '{model}' may be unavailable; reachable ids: {', '.join(sorted(reachable))}"
+    return (
+        ". Requested model is unavailable; query the models endpoint "
+        "for reachable model IDs"
+    )
 
 
 def _read_messages_response(
     request: urllib.request.Request,
     api_key: str,
-    model: str,
 ) -> object:
     try:
         with urllib.request.urlopen(request, timeout=120) as response:
@@ -197,7 +197,7 @@ def _read_messages_response(
     except urllib.error.HTTPError as error:
         message = safe_http_error_message("Anthropic API", error.code)
         if error.code == 404:
-            message += _reachable_model_hint(api_key, model)
+            message += _reachable_model_hint(api_key)
         raise RuntimeError(message) from None
     except urllib.error.URLError as error:
         if isinstance(error.reason, (TimeoutError, socket.timeout)):
@@ -256,7 +256,7 @@ def call_api(
         max_tokens,
         temperature,
     )
-    result = _read_messages_response(request, api_key, model)
+    result = _read_messages_response(request, api_key)
     if not isinstance(result, dict):
         raise RuntimeError(
             "Anthropic API returned an unexpected payload shape: "
@@ -353,8 +353,9 @@ def verify_model_available(
     fail-open/fail-closed doctrine:
 
     - **Protocol violation (fail-closed):** the key reaches ``/v1/models`` and
-      ``model`` is not in the returned list -> raise ``RuntimeError`` listing
-      the reachable ids, so a live run never spends on a dead model id.
+      ``model`` is not in the returned list -> raise ``RuntimeError`` without
+      persisting provider-controlled model ids, so a live run never spends on
+      a dead model id.
     - **Infrastructure error (fail-open):** the ``/v1/models`` lookup itself
       fails (network down, auth error, malformed body) -> print a warning to
       stderr and return, letting the run proceed and surface the real error
@@ -400,12 +401,9 @@ def verify_model_available(
     # signal (the probe worked and returned zero models), so it also fails
     # closed rather than silently proceeding to a guaranteed 404.
     if model not in reachable:
-        listed = ", ".join(sorted(reachable)) if reachable else "(none)"
         raise RuntimeError(
-            f"Model '{model}' is not reachable with this API key. "
-            f"Reachable ids: {listed}. "
-            "Pass --model with one of these, or update DEFAULT_MODEL in "
-            "scripts/eval/_anthropic_api.py."
+            "Requested model is not reachable with this API key. "
+            "Query the models endpoint and pass a reachable model ID."
         )
 
 
