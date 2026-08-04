@@ -1,0 +1,13 @@
+{
+  "session_id": "mutharn-4346-4457-4493-4494",
+  "date": "2026-08-04",
+  "branch": "fix/mutation-harness-cluster",
+  "issues": [4346, 4457, 4493, 4494],
+  "summary": "Drive mutation harness issues 4346, 4457, 4493, 4494 to terminal states.",
+  "outcome": "FIXED",
+  "retrospective": "## Retrospective\n\nLearnings captured from this session:\n\n1. Shadow PYTHONPATH injection fails when the package uses an editable install with a custom MetaPathFinder. The finder intercepts `import scripts` before PYTHONPATH is consulted and always redirects to the repo root. Solution: use a git worktree so the editable install in the isolated worktree points to the mutation tree.\n\n2. The taste-count baseline must be compared against `refs/remotes/origin/HEAD`, not just the local baseline file. A branch created from an older origin/main can have a stale baseline.\n\n3. Rebase onto origin/main before push to pick up any lowered baselines from concurrent PRs.\n\n4. The worktree isolation approach (Issue #4457) eliminates the need for the pre-push marker gate (Issue #4346 item 4) because no tracked file is ever modified.",
+  "commits": [
+    "ed4ac018c589c0a9bab091e55e77bcdd32b9c6a9",
+    "9af0a558f0459d5a62f573b461214e584cd21baa"
+  ]
+}
