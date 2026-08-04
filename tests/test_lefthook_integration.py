@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import Any, NoReturn, Self, cast
@@ -7249,6 +7249,32 @@ def test_graft_check_fails_closed_on_git_and_read_errors(
     assert policy._check_no_grafts(tmp_path) == 2
 
 
+def _git_fake(
+    shallow_path: str,
+    shallow: subprocess.CompletedProcess[str] | None = None,
+) -> Callable[..., subprocess.CompletedProcess[str]]:
+    """An arg-aware `_run_git` stand-in.
+
+    The arg-blind `lambda *_args: _completed(0, "true\\n")` these tests used
+    is what let issue #4576 through: it answered every query with the shallow
+    verdict, so a second query could not be observed to be wrong. Worse, it
+    fed that verdict to the path lookup as well, so `_shallow_file` resolved
+    `repo_root / "true"` and the tests passed only because `is_file()`
+    tolerates a path that does not exist.
+
+    `shallow_path` answers `rev-parse --git-path shallow`; `shallow` answers
+    `rev-parse --is-shallow-repository` and defaults to a shallow verdict.
+    """
+    verdict = _completed(0, "true\n") if shallow is None else shallow
+
+    def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "shallow" in args:
+            return _completed(0, f"{shallow_path}\n")
+        return verdict
+
+    return fake
+
+
 @pytest.mark.parametrize(
     ("result", "expected"),
     [
@@ -7264,7 +7290,7 @@ def test_history_integrity_rejects_shallow_or_unknown_state(
     result: subprocess.CompletedProcess[str],
     expected: int,
 ) -> None:
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: result)
+    monkeypatch.setattr(policy, "_run_git", _git_fake(".git/shallow", shallow=result))
     monkeypatch.setattr(policy, "_check_no_grafts", lambda _root: 0)
 
     assert policy._check_history_integrity(tmp_path) == expected
@@ -7276,11 +7302,7 @@ def test_history_integrity_shallow_message_names_remedy(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Shallow clone error must name the fix command (issue #4086)."""
-    monkeypatch.setattr(
-        policy,
-        "_run_git",
-        lambda *_args: _completed(0, "true\n"),
-    )
+    monkeypatch.setattr(policy, "_run_git", _git_fake(".git/shallow"))
 
     assert policy._check_history_integrity(tmp_path) == 2
 
@@ -7299,17 +7321,145 @@ def test_history_integrity_shallow_message_names_pin_sha(
     shallow_file.parent.mkdir(parents=True, exist_ok=True)
     shallow_file.write_text(f"{pin}\n", encoding="utf-8")
 
-    monkeypatch.setattr(
-        policy,
-        "_run_git",
-        lambda *_args: _completed(0, "true\n"),
-    )
+    monkeypatch.setattr(policy, "_run_git", _git_fake(".git/shallow"))
 
     assert policy._check_history_integrity(tmp_path) == 2
 
     err = capsys.readouterr().err
     assert pin in err
     assert "git fetch --unshallow origin" in err
+
+
+def test_history_integrity_names_pin_sha_from_a_linked_worktree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The pin SHA must survive the worktree shape (issue #4576).
+
+    In a linked worktree `<root>/.git` is a pointer file, not a directory, so
+    the old `repo_root / ".git" / "shallow"` named a child of a file and never
+    existed. The guard still blocked, but silently dropped the one line that
+    says where the graft is, in exactly the layout this repository runs dozens
+    of. `shallow` lives in the common directory, which is shared, so the graft
+    is usually not even from the worktree you are standing in.
+
+    Built on a real worktree with real git rather than a hand-made pointer
+    file, so the path resolution itself is under test. A hardcoded fake would
+    pass with the wrong `rev-parse` flag; this does not.
+    """
+    repo = tmp_path / "repo"
+    linked = tmp_path / "linked"
+    _init_repo(repo)
+    _commit_file(repo, "source.py", "value = 1\n")
+    _git(repo, "worktree", "add", "-q", "-b", "feature/linked", str(linked))
+    assert (linked / ".git").is_file(), "fixture must reproduce the pointer-file shape"
+
+    common_dir = Path(_git(linked, "rev-parse", "--git-common-dir").stdout.strip())
+    if not common_dir.is_absolute():
+        common_dir = (linked / common_dir).resolve()
+    pin = "b" * 40
+    _write_lf(common_dir / "shallow", f"{pin}\n")
+
+    real_run_git = policy._run_git
+
+    def fake(root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "--is-shallow-repository" in args:
+            return _completed(0, "true\n")
+        return real_run_git(root, args)
+
+    monkeypatch.setattr(policy, "_run_git", fake)
+
+    assert policy._check_history_integrity(linked) == 2
+
+    err = capsys.readouterr().err
+    assert pin in err, "pin SHA dropped in a worktree"
+    assert str(common_dir / "shallow") in err
+    assert "every worktree" in err
+    assert "git fetch --unshallow origin" in err
+
+
+def test_history_integrity_distrusts_stdout_when_the_path_lookup_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A non-zero rc makes stdout untrustworthy, so fall back to the clone shape.
+
+    Written as a discriminating input on purpose. An empty-stdout failure
+    cannot tell the rc guard apart from the malformed-output guard below it,
+    so such a test would pass with either one deleted. Garbage on stdout
+    separates them: without the rc check the guard reads `<root>/junk`, finds
+    nothing, and drops the pin line.
+    """
+    pin = "c" * 40
+    shallow_file = tmp_path / ".git" / "shallow"
+    shallow_file.parent.mkdir(parents=True)
+    shallow_file.write_text(f"{pin}\n", encoding="utf-8")
+
+    def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "shallow" in args:
+            return _completed(128, "junk\n", "fatal: not a git repository\n")
+        return _completed(0, "true\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake)
+
+    assert policy._check_history_integrity(tmp_path) == 2
+
+    err = capsys.readouterr().err
+    assert pin in err, "fallback dropped the pin when the lookup failed"
+    assert "git fetch --unshallow origin" in err
+
+
+def test_history_integrity_distrusts_malformed_path_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A zero rc with output that is not one path is still untrustworthy.
+
+    Discriminating on the line count specifically: rc is zero here, so only
+    the `len(lines) != 1` clause can produce the fallback that recovers the
+    pin. `_check_no_grafts` guards the same shape 30 lines above.
+    """
+    pin = "d" * 40
+    shallow_file = tmp_path / ".git" / "shallow"
+    shallow_file.parent.mkdir(parents=True)
+    shallow_file.write_text(f"{pin}\n", encoding="utf-8")
+
+    def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "shallow" in args:
+            return _completed(0, "junk/one\njunk/two\n")
+        return _completed(0, "true\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake)
+
+    assert policy._check_history_integrity(tmp_path) == 2
+
+    err = capsys.readouterr().err
+    assert pin in err, "fallback dropped the pin on malformed output"
+
+
+def test_history_integrity_survives_a_failed_path_lookup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A broken `rev-parse --git-path` must not stop the guard from blocking.
+
+    Degrading to the primary-clone path costs the pin line; swallowing the
+    verdict would let a shallow clone push.
+    """
+
+    def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "shallow" in args:
+            return _completed(128, "", "fatal: not a git repository\n")
+        return _completed(0, "true\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake)
+
+    assert policy._check_history_integrity(tmp_path) == 2
+    assert "git fetch --unshallow origin" in capsys.readouterr().err
 
 
 def test_push_update_defense_blocks_protected_destination(

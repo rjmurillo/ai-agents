@@ -1,6 +1,7 @@
 | Keywords | File |
 |----------|------|
 | merge conflict resolve theirs ours accept reject resolution-strategy | [git/git-conflict-resolution-workflow](git/git-conflict-resolution-workflow.md) |
+| checkout drift stale steering system prompt behind main detached superseded rule | [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) |
 | stale branch delete prune cleanup obsolete local-only tracking | [git/git-branch-cleanup-pattern](git/git-branch-cleanup-pattern.md) |
 | merge pre-flight deletion upstream conflict detect | [git/git-merge-preflight](git/git-merge-preflight.md) |
 | worktree parallel isolation PR cross-contamination | [git/git-worktree-parallel](git/git-worktree-parallel.md) |
@@ -9,3 +10,4 @@
 | staged changes guard empty commit merge scenario check defensive | [git/git-003-staged-changes-guard](git/git-003-staged-changes-guard.md) |
 | branch switch file verification state reset uncommitted lost | [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) |
 | branch verify current show-current commit push reset mutating MUST | [git/git-004-branch-verification-before-commit](git/git-004-branch-verification-before-commit.md) |
+| diff direction reversed minus lines predates misread restore | [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) |
