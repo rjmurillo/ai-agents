@@ -128,7 +128,7 @@
       "result": "The session log contains branch metadata and retrospective evidence for fix/push-lock-and-force-push."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "389dcf0ed",
   "nextSteps": [
     "Validate this session log.",
     "Run the targeted retrospective gate.",

@@ -20,10 +20,23 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-08-04T02:07:45+00:00",
+      "timestamp": "2026-08-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Added branch-local session evidence after the pre-push retrospective-policy gate selected a different branch's session log.",
       "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-04-session-9014-push-lock-merge"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T02:11:36+00:00",
+      "type": "commit",
+      "content": "Commit: 389dcf0ed",
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9014-push-lock-merge"
     }
@@ -33,8 +46,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 2
+    "commits": 1,
+    "files_changed": 3
   },
   "lessons": []
 }
