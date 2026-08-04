@@ -660,6 +660,21 @@ class TestExtendedMetadata:
         out = json.loads(capsys.readouterr().out)
         assert len(out["Data"]["reviews"]) == 1
 
+    def test_review_counts_aggregated(self, capsys):
+        pr = _pr_data(reviews=[
+            {"id": "r1", "state": "APPROVED", "author": {"login": "bob"}},
+            {"id": "r2", "state": "APPROVED", "author": {"login": "carol"}},
+            {"id": "r3", "state": "CHANGES_REQUESTED", "author": {"login": "dave"}},
+        ])
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Data"]["review_counts"] == {"APPROVED": 2, "CHANGES_REQUESTED": 1}
+
     def test_missing_new_fields_handled_gracefully(self, capsys):
         """API response lacking new fields should not crash."""
         pr = _pr_data()

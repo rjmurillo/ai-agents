@@ -54,7 +54,7 @@ Quality trumps quantity: `.agents/governance/TESTING-ANTI-PATTERNS.md` bans cove
 
 ### Phase 2: Know where tests live and how they are collected
 
-pytest collects only `testpaths = ["tests"]` (pyproject.toml:62). Everything else runs explicitly.
+pytest collects only `testpaths = ["tests"]` (pyproject.toml:67). Everything else runs explicitly.
 
 | Location | Collected by default | What lives there | Run it |
 |----------|---------------------|------------------|--------|
@@ -74,7 +74,7 @@ uv run pytest .claude/skills/prose-self-check/tests/ -q    # one skill's colocat
 uv run pytest .claude/skills/NAME/tests/ --collect-only -q # prove tests are discoverable without running
 ```
 
-Markers (pyproject.toml:67-74): `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `windows_path`. `safe_push_transport` means the test touches a non-local transport and is excluded from pre-push. `smoke` means real-CLI tests needing auth/credits, nightly only; the smoke gate asserts they were not skipped (issue #2231 item 4). `windows_path` means the test exercises Windows path handling and must run on a Windows runner. Always `uv run pytest`, never bare `pytest` or `python3 -m pytest` outside the venv: PyYAML and friends live in the uv venv (see `ai-agents-build-and-env`).
+Markers (pyproject.toml:72-79): `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `windows_path`. `safe_push_transport` means the test touches a non-local transport and is excluded from pre-push. `smoke` means real-CLI tests needing auth/credits, nightly only; the smoke gate asserts they were not skipped (issue #2231 item 4). `windows_path` means the test exercises Windows path handling and must run on a Windows runner. Always `uv run pytest`, never bare `pytest` or `python3 -m pytest` outside the venv: PyYAML and friends live in the uv venv (see `ai-agents-build-and-env`).
 
 Stale doc warning: `.agents/governance/test-location-standards.md` still describes a Pester/`*.Tests.ps1` layout. Zero `*.Tests.ps1` files exist (as of 2026-07-03; ADR-042 Python migration). Trust the table above and pyproject.toml, not that file.
 
@@ -148,7 +148,7 @@ Each row cost real time. Do not re-earn these lessons.
 | Test mutates the real repo | Repo-root conftest.py:315-386 (#2316) | Isolate in `tmp_path`, run git with `cwd=` the tmp repo |
 | Silent default for missing signal | PR #1965 verdict parser defaulted missing to PASS, 3 fix rounds (FM-10) | Test the missing-signal case; assert raise/block |
 | Coverage theater (assertion-free tests, tautologies) | Issue #749 philosophy work | TESTING-ANTI-PATTERNS.md 1: each test answers a stakeholder concern |
-| Trusting the Pester test-location doc | `test-location-standards.md` predates ADR-042; zero `.Tests.ps1` files remain | Use Phase 2 table + pyproject.toml:62 |
+| Trusting the Pester test-location doc | `test-location-standards.md` predates ADR-042; zero `.Tests.ps1` files remain | Use Phase 2 table + pyproject.toml:67 |
 | Skipping QA on a mixed session | ADR-034 allowlist exists precisely to fence this | Split the session; skip evidence only with allowlisted paths staged |
 
 ## Verification
@@ -165,7 +165,7 @@ Before claiming a change meets the evidence bar:
 
 ## Provenance and Maintenance
 
-Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-55,77-81`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-118`, `pyproject.toml:61-74`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-76`, `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:738-800,996`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
+Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-55,77-81`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-118`, `pyproject.toml:66-79`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-76`, `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:738-800,996`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
 
 Re-verify volatile facts:
 
