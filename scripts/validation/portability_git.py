@@ -314,6 +314,9 @@ def committed_blob(repo_root: Path, path: Path) -> tuple[str | None, str | None]
     head = run_git(repo_root, "rev-parse", "--verify", "--quiet", "HEAD")
     if head is None:
         return None, "git could not be run to read the committed baseline"
+    if head.returncode == GIT_TIMEOUT_RETURN_CODE:
+        detail = head.stderr.decode(errors="replace")
+        return None, f"git timed out while reading the committed baseline ({detail})"
     if head.returncode != 0:
         if head.stdout.strip():
             return None, "git could not identify HEAD"

@@ -61,6 +61,54 @@ def test_run_git_bounds_and_reports_timeout(
     assert captured_timeout == [GIT_TIMEOUT_SECONDS]
 
 
+def test_run_git_strips_git_overrides_case_insensitively(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured_env: dict[str, str] = {}
+
+    def capture(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        env = kwargs["env"]
+        assert isinstance(env, dict)
+        captured_env.update(env)
+        return subprocess.CompletedProcess(command, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setenv("git_index_file", "/wrong/index")
+    monkeypatch.setenv("Git_Dir", "/wrong/repo")
+    monkeypatch.setenv("PORTABILITY_TEST_SENTINEL", "kept")
+    monkeypatch.setattr(portability_git.subprocess, "run", capture)
+
+    result = run_git(tmp_path, "status")
+
+    assert result is not None
+    assert "git_index_file" not in captured_env
+    assert "Git_Dir" not in captured_env
+    assert captured_env["PORTABILITY_TEST_SENTINEL"] == "kept"
+
+
+def test_committed_blob_refuses_when_head_probe_times_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def dispatch(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+        assert repo_root == tmp_path
+        if args == ("rev-parse", "--show-toplevel"):
+            return subprocess.CompletedProcess(args, 0, stdout=os.fsencode(tmp_path), stderr=b"")
+        if args == ("rev-parse", "--verify", "--quiet", "HEAD"):
+            return subprocess.CompletedProcess(
+                args,
+                GIT_TIMEOUT_RETURN_CODE,
+                stdout=b"",
+                stderr=b"git command timed out after 30s",
+            )
+        raise AssertionError(f"unexpected git command: {args}")
+
+    monkeypatch.setattr(portability_git, "run_git", dispatch)
+
+    oid, problem = portability_git.committed_blob(tmp_path, tmp_path / REL)
+
+    assert oid is None
+    assert problem is not None and "timed out" in problem
+
+
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", str(root), *args],
