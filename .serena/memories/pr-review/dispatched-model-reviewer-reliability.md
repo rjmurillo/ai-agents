@@ -95,12 +95,32 @@ file an always-on context cost when its frontmatter scopes it to `tests/**`,
 and a third reported `TESTING-RIGOR.md` missing after running `ls` from a
 directory that was not the worktree.
 
+`scripts/update_memory_index_tokens.py` settles the token question and is the
+only correct way to change one of those numbers. Run it after editing any
+memory and let it rewrite the index. It counts real tokens, so a bytes-over-4
+estimate is close enough to look right and wrong enough to matter: on a 10,460
+byte file the estimate gave 2,615 and the script gave 2,465.
+
 The tell is that all three are claims about how this repository works rather
 than about the change under review. So treat any finding of that kind as
 unverified until you check the convention itself, and prefer to state the
 convention in the dispatch prompt when you already know the reviewer will need
 it. Acting on the byte-count finding would have replaced correct token counts
 with byte counts across the index.
+
+Stating the convention works, and the effect is large enough to be worth the
+three sentences it costs. The next dispatch on this same file opened with the
+token convention, the frontmatter-scoping convention, and the worktree path
+written out as plain rules. It returned eight confirmed claims, zero refuted,
+and zero convention-misreads, against three misreads out of seven findings the
+round before. It also declined to guess on three claims it could not check from
+the repository, marking them UNVERIFIED rather than inventing a verdict, which
+is the behavior the anti-fabrication framing is supposed to produce.
+
+Two sentences of prompt bought the difference. Write the conventions the
+reviewer cannot see into every dispatch, and name the worktree path explicitly,
+because a reviewer that runs `ls` in the wrong directory reports real output
+about the wrong tree.
 
 ## Recall is worth more than precision, but only if you pay for verification
 
