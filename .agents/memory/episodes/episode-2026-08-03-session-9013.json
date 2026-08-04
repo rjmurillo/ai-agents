@@ -141,7 +141,7 @@
     }
   ],
   "metrics": {
-    "duration_minutes": 0,
+    "duration_minutes": 81,
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,

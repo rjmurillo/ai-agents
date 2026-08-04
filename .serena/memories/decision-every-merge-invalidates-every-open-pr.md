@@ -132,3 +132,40 @@ It also compounds with the pre-push hook: the red surfaced to me as a blocked
 push with no statement that the failures were pre-existing, so every agent
 pushing during the window paid a full suite run and diagnosed from scratch.
 Filed as issue #4503.
+
+## Confirmed again on 2026-08-04, with the cheapest remedy named
+
+PR #4508 sat at merge-base `a81239d0c` carrying `ruff_count_baseline.txt` = 308
+and measuring 306, so its own ratchet passed and all 102 checks were green.
+`origin/main` had since advanced to `7281a710d` and lowered that baseline to
+126. Merging main into the branch reproduced issue #4538 exactly:
+
+```
+ruff count ratchet: REGRESSION. 140 violations > baseline 126 (+14).
+```
+
+Nothing in the branch caused it. The branch inherited a ceiling it was never
+measured against, which is the same non-monotonicity recorded above, seen from
+the receiving end rather than the causing end.
+
+The remedy is cheaper than it looks, and it is not a baseline edit. Of the 140
+violations, 100 were `RUF100` (unused `noqa` directive). A `noqa` for a rule
+that is not enabled at that location is dead text: ruff itself proves it is
+unreachable, so deleting it cannot change any diagnostic. Removing 18 of them
+across three files took the count to 122:
+
+```bash
+uv run --frozen ruff check --fix <changed test files>
+uv run --frozen python scripts/ci/ruff_count_ratchet.py
+# ruff count ratchet: OK. 122 violations <= baseline 126 (-4 slack).
+```
+
+Check `RUF100` first when an inherited ruff ratchet blocks a push. It is the
+one violation class where the fix is provably behavior-preserving, so it buys
+ratchet headroom without a baseline change and without a new suppression.
+
+Note the second, quieter gate: the changed-files ruff run is zero-tolerance, so
+a dead `noqa` on a line the branch never touched still blocks the push once the
+branch edits anything else in that file. `tests/validation/test_always_on_corpus_claims.py:36`
+carried `# noqa: E402` from PR #4485 on main and failed `python-lint-ratchet`
+for exactly that reason.

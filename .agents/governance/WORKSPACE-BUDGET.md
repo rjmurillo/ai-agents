@@ -15,8 +15,8 @@ run. Each file has a ceiling. Exceeding it blocks the push.
 | `.claude/CLAUDE.md` | 3000 bytes | no | Standard |
 | `.github/copilot-instructions.md` | 6351 bytes | yes | Non-regression ratchet seeded at 6351 bytes (2025-07-30, issue #3991). Target: reduce to 3000 after moving the Gotchas section to `.agents/governance/` (issue #3952). |
 
-**Standard files** (no ratchet) also share a combined pool: `TOTAL_BUDGET_BYTES
-= 6600`. Files with a ratchet are measured only by their individual ceiling.
+**Standard files** (no ratchet) also share a combined pool: `TOTAL_BUDGET_BYTES = 6600`.
+Files with a ratchet are measured only by their individual ceiling.
 
 **To lower a ratchet**: trim the file content, then update `FILE_CEILING_BYTES`
 in `scripts/validate_workspace_budget.py` to the new measured size. Never raise

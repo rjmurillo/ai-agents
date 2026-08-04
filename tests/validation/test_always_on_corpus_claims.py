@@ -33,7 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-import scripts.validation.instruction_budget as ib  # noqa: E402
+import scripts.validation.instruction_budget as ib
 
 MIRROR_DIR = REPO_ROOT / ".github" / "instructions"
 DOCTRINE = (
