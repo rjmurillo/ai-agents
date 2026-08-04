@@ -28,24 +28,150 @@ if TYPE_CHECKING:
 # ============================================================================
 
 # Stop words for topic signature extraction
-_STOP_WORDS = frozenset([
-    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-    "have", "has", "had", "do", "does", "did", "will", "would", "could",
-    "should", "may", "might", "shall", "can", "need", "dare", "ought",
-    "used", "to", "of", "in", "for", "on", "with", "at", "by", "from",
-    "as", "into", "through", "during", "before", "after", "above", "below",
-    "between", "out", "off", "over", "under", "again", "further", "then",
-    "once", "here", "there", "when", "where", "why", "how", "all", "both",
-    "each", "few", "more", "most", "other", "some", "such", "no", "nor",
-    "not", "only", "own", "same", "so", "than", "too", "very", "just",
-    "don", "now", "and", "but", "or", "if", "while", "that", "this",
-    "it", "i", "you", "we", "they", "he", "she", "my", "your", "his",
-    "her", "its", "our", "their", "what", "which", "who", "whom",
-    "okay", "yes", "no", "thanks", "thank", "please", "sorry", "hello",
-    "hi", "hey", "sure", "right", "well", "also", "still", "already",
-    "done", "going", "want", "like", "know", "think", "make", "take",
-    "get", "see", "come", "look", "use", "find", "give", "tell", "work",
-])
+_STOP_WORDS = frozenset(
+    [
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "shall",
+        "can",
+        "need",
+        "dare",
+        "ought",
+        "used",
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "at",
+        "by",
+        "from",
+        "as",
+        "into",
+        "through",
+        "during",
+        "before",
+        "after",
+        "above",
+        "below",
+        "between",
+        "out",
+        "off",
+        "over",
+        "under",
+        "again",
+        "further",
+        "then",
+        "once",
+        "here",
+        "there",
+        "when",
+        "where",
+        "why",
+        "how",
+        "all",
+        "both",
+        "each",
+        "few",
+        "more",
+        "most",
+        "other",
+        "some",
+        "such",
+        "no",
+        "nor",
+        "not",
+        "only",
+        "own",
+        "same",
+        "so",
+        "than",
+        "too",
+        "very",
+        "just",
+        "don",
+        "now",
+        "and",
+        "but",
+        "or",
+        "if",
+        "while",
+        "that",
+        "this",
+        "it",
+        "i",
+        "you",
+        "we",
+        "they",
+        "he",
+        "she",
+        "my",
+        "your",
+        "his",
+        "her",
+        "its",
+        "our",
+        "their",
+        "what",
+        "which",
+        "who",
+        "whom",
+        "okay",
+        "yes",
+        "no",
+        "thanks",
+        "thank",
+        "please",
+        "sorry",
+        "hello",
+        "hi",
+        "hey",
+        "sure",
+        "right",
+        "well",
+        "also",
+        "still",
+        "already",
+        "done",
+        "going",
+        "want",
+        "like",
+        "know",
+        "think",
+        "make",
+        "take",
+        "get",
+        "see",
+        "come",
+        "look",
+        "use",
+        "find",
+        "give",
+        "tell",
+        "work",
+    ]
+)
 
 
 class StuckResult(NamedTuple):
@@ -129,7 +255,9 @@ def _load_history(path: Path) -> list[dict]:
             result = json.loads(path.read_text())
             if isinstance(result, list):
                 return result
-    except (json.JSONDecodeError, OSError):
+    except OSError:
+        pass
+    except json.JSONDecodeError:
         pass
     return []
 
@@ -194,19 +322,23 @@ def check_stuck(text: str, history_path: Path, config: StuckConfig | None = None
 
     # Add current signature to history
     from datetime import datetime
-    history.append({
-        "signature": signature,
-        "timestamp": datetime.now().isoformat(),
-    })
+
+    history.append(
+        {
+            "signature": signature,
+            "timestamp": datetime.now().isoformat(),
+        }
+    )
     _save_history(effective_path, history, config.max_history)
 
     if len(history) < config.stuck_threshold:
         return StuckResult(stuck=False, signature=signature)
 
     # Check recent entries for similarity
-    recent = history[-config.stuck_threshold:]
+    recent = history[-config.stuck_threshold :]
     similar_count = sum(
-        1 for entry in recent
+        1
+        for entry in recent
         if jaccard_similarity(signature, entry["signature"]) > config.similarity_threshold
     )
 
@@ -268,6 +400,8 @@ class StuckDetectionGuard:
         if not text:
             return HookResult(allow=True)
 
+        # __post_init__ guarantees history_path is always set after StuckConfig construction.
+        assert self.config.history_path is not None
         result = check_stuck(text, self.config.history_path, self.config)
 
         if result.stuck and result.nudge:
@@ -331,7 +465,7 @@ class SemanticGuard:
         """
         # Import here to avoid numpy dependency for stuck detection only users
         from semantic_hooks.embedder import compute_trajectory_embedding, semantic_tension
-        
+
         if context.event != HookEvent.PRE_TOOL_USE:
             return HookResult(allow=True)
 
@@ -358,9 +492,7 @@ class SemanticGuard:
             )
 
         # Compute expected trajectory embedding
-        recent_embeddings = [
-            n.embedding for n in recent_nodes if n.embedding is not None
-        ]
+        recent_embeddings = [n.embedding for n in recent_nodes if n.embedding is not None]
         if not recent_embeddings:
             return HookResult(allow=True)
 
@@ -541,8 +673,8 @@ def create_stuck_guard_from_config(config_path: str | None = None) -> StuckDetec
     """
     import yaml
 
-    config_file = Path(config_path) if config_path else (
-        Path.home() / ".semantic-hooks" / "config.yaml"
+    config_file = (
+        Path(config_path) if config_path else (Path.home() / ".semantic-hooks" / "config.yaml")
     )
 
     stuck_config = StuckConfig()

@@ -35,14 +35,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 _original_sys_path = sys.path.copy()
 try:
     sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
-    import generate_hooks  # noqa: E402
+    import generate_hooks
 finally:
     sys.path[:] = _original_sys_path
 
 _original_sys_path = sys.path.copy()
 try:
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
-    from cli_exec import resolve_executable  # noqa: E402
+    from cli_exec import resolve_executable
 finally:
     sys.path[:] = _original_sys_path
 
