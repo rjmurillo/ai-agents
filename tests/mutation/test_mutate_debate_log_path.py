@@ -141,6 +141,12 @@ def _apply_positive_mutant(
     time.sleep(1.1)  # defeat 1-second bytecode mtime granularity
 
     result = _run_tests_in(wt_path)
+
+    # Restore original bytes before asserting so the restore check below
+    # always runs against the unmodified file.
+    wt_target.write_bytes(original)
+    time.sleep(1.1)
+
     _assert_suite_ran(result, label)
 
     assert result.returncode != 0, (
@@ -161,15 +167,26 @@ def scratch_worktree(tmp_path: Path):
         _remove_scratch_worktree(wt)
 
 
-def _active_worktree_clean() -> bool:
-    """Return True when the active worktree has no modified tracked files."""
+def _active_target_unmodified() -> bool:
+    """Return True when the mutation target file is unmodified in the active worktree.
+
+    Checks only the target file, not the entire worktree. Other in-progress
+    changes (baseline updates, session logs) must not produce false failures.
+    """
     result = subprocess.run(
-        ["git", "status", "--short"],
+        ["git", "diff", "--name-only", "HEAD", "--", str(_TARGET_REL)],
         capture_output=True,
         text=True,
         cwd=str(REPO_ROOT),
     )
-    return result.stdout.strip() == ""
+    # Also check the working-tree against the index (unstaged changes).
+    result2 = subprocess.run(
+        ["git", "diff", "--name-only", "--", str(_TARGET_REL)],
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
+    )
+    return result.stdout.strip() == "" and result2.stdout.strip() == ""
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +203,7 @@ def test_m1_directory_name_reverted_is_detected(scratch_worktree: Path) -> None:
         scratch_worktree, original, _M1_ORIGINAL, _M1_MUTANT, "M1-dir-name"
     )
     assert outcome == _OUTCOME_DEAD
-    assert _active_worktree_clean(), "Active worktree is dirty after M1"
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M1"
     # Restore check: suite passes against the unmodified tree.
     result = _run_tests_in(scratch_worktree)
     _assert_suite_ran(result, "M1-restore-check")
@@ -217,7 +234,7 @@ def test_m2_error_message_path_changed_is_detected(scratch_worktree: Path) -> No
         scratch_worktree, original, _M2_ORIGINAL, _M2_MUTANT, "M2-error-msg"
     )
     assert outcome == _OUTCOME_DEAD
-    assert _active_worktree_clean(), "Active worktree is dirty after M2"
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M2"
     result = _run_tests_in(scratch_worktree)
     _assert_suite_ran(result, "M2-restore-check")
     assert result.returncode == 0, (
@@ -250,7 +267,7 @@ def test_m3_missing_debate_log_gate_removed_is_detected(scratch_worktree: Path) 
         scratch_worktree, original, _M3_ORIGINAL, _M3_MUTANT, "M3-gate-removed"
     )
     assert outcome == _OUTCOME_DEAD
-    assert _active_worktree_clean(), "Active worktree is dirty after M3"
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after M3"
     result = _run_tests_in(scratch_worktree)
     _assert_suite_ran(result, "M3-restore-check")
     assert result.returncode == 0, (
@@ -311,7 +328,7 @@ def test_ic_comment_only_change_survives(scratch_worktree: Path) -> None:
         "The harness is over-sensitive or a test matches comments.\n"
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
-    assert _active_worktree_clean(), "Active worktree is dirty after IC"
+    assert _active_target_unmodified(), "Mutation target is dirty in active worktree after IC"
 
 
 # ---------------------------------------------------------------------------
