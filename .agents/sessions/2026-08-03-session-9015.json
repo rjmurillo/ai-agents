@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9015,
+    "date": "2026-08-03",
+    "branch": "fix/gate-aggregator-did-not-run",
+    "startingCommit": "6b79abfbb",
+    "objective": "Alias DID_NOT_RUN in the external signal gate, surface the fallback on the annotation channel, and document the anti-pattern the fix exposed"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable in this Copilot CLI session; used the committed .serena/memories/ fallback that AGENTS.md names."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; read .serena/memories/ directly when checking for existing coverage of this learning."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read-only; no edits (ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/issue/ and .claude/skills/github/scripts/pr/ before invoking new_issue.py and post_issue_comment.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Filed issue 4487 and posted the PR 4471 diagnosis through the github skill scripts rather than raw gh."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS.md and AGENTS.md boundaries via the injected repository instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Searched .serena/memories/ and .claude/rules/ for existing vacuous-test and tautology coverage before writing; found TESTING-ANTI-PATTERNS.md:15 and testing.md SHOULD 9 and extended the latter rather than duplicating."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reports fix/gate-aggregator-did-not-run."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/gate-aggregator-did-not-run, not main or master."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short before staging; four files, all intended."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Starting commit 6b79abfbb recorded in session.startingCommit."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items carry evidence above."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md absent from the staged set."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Learning routed to .claude/rules/testing.md SHOULD 9 and TESTING-ANTI-PATTERNS.md Anti-Pattern 7 rather than a memory, per the knowledge-persistence rule: it must bind every contributor editing tests, so a rule file is the correct surface."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py markdown validation passed over the changed files; taste-lints reported 4 files scanned, no violations."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit ee9d10dfb lands the rule, the governance entry, both generated mirrors, and this log. This follow-up commit records the ending commit so the extracted episode can derive metrics.commits."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py reports RESULT: All validations passed; validate_session_json.py exits 0 on this file."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "reflect skill run over this segment; this branch is one of its outputs."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Aliased DID_NOT_RUN to UNKNOWN in agent_signal and gave the catch-all fallback a diagnostic",
+      "result": "verdict.merge_verdicts and check_critical_failures already understood DID_NOT_RUN; the signal gate did not, so an unrecognized token fell through the fallback silently. Aliased it and made the fallback warn.",
+      "filesChanged": [
+        "scripts/quality_gate/external_signal_gate.py",
+        "tests/quality_gate/test_external_signal_gate.py"
+      ]
+    },
+    {
+      "step": 2,
+      "action": "Moved the fallback warning onto the GitHub annotation channel after an llm-council round",
+      "result": "The council's High finding did not survive verification: it held that softening an unrecognized hard-block token to UNKNOWN made it waivable, but verdict.py:71 puts NEEDS_REVIEW in FAIL_VERDICTS and gate_aggregator.py:169 exits 1 on it. Councillors have no file access and inferred waivability from the token name. Its surviving objection was that printing is not surfacing. Searched first and found the repo already uses ::warning:: in 217 places, so the drift warning now uses that prefix and a dedicated test pins it. Negative control: 42 pass with the prefix, exactly 1 fails without it.",
+      "filesChanged": [
+        "scripts/quality_gate/external_signal_gate.py",
+        "tests/quality_gate/test_external_signal_gate.py"
+      ]
+    },
+    {
+      "step": 3,
+      "action": "Took ownership of the fallback anti-pattern documentation from the sibling branch that could not cite it",
+      "result": "On test/vacuous-assertion-anti-pattern the entry cited agent_signal, the DID_NOT_RUN alias, and test_did_not_run_is_aliased_not_merely_caught_by_the_fallback; git grep returned zero hits for all three there. They resolve here because this branch adds them. Re-ran the negative control on this branch to replace a stale count: deleting the alias gives 1 failed and 41 passed, not the 40 an earlier note recorded before a test was added. Neither the orphan-ref validator nor markdownlint catches a dangling symbol or test name; both check file paths only.",
+      "filesChanged": [
+        ".agents/governance/TESTING-ANTI-PATTERNS.md",
+        ".claude/rules/testing.md",
+        ".github/instructions/testing.instructions.md",
+        "src/copilot-cli/instructions/testing.instructions.md"
+      ]
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Push and open the PR",
+    "Renumber the anti-pattern to 8 if test/vacuous-assertion-anti-pattern merges first"
+  ]
+}
