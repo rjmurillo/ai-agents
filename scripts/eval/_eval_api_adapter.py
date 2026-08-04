@@ -147,8 +147,11 @@ class _OpenAIProviderTransport:
             kwargs["seed"] = self._seed
         text = self._provider.complete(**kwargs)
         fingerprint = getattr(self._provider, "system_fingerprint", None)
-        self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
-
+        if fingerprint is not None and not isinstance(fingerprint, str):
+            raise RuntimeError(
+                f"system_fingerprint must be str or None, got {type(fingerprint).__name__!r}"
+            )
+        self.system_fingerprint = fingerprint
         return text
 
 
@@ -173,8 +176,11 @@ class _AnthropicTransport:
             ),
         )
         fingerprint = metadata.get("system_fingerprint")
-        self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
-
+        if fingerprint is not None and not isinstance(fingerprint, str):
+            raise RuntimeError(
+                f"system_fingerprint must be str or None, got {type(fingerprint).__name__!r}"
+            )
+        self.system_fingerprint = fingerprint
         return text
 
 
