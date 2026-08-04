@@ -145,9 +145,12 @@ debt.
 In regression mode, each changed file is scored twice, once at the merge base of
 `--base` and HEAD through `git show` and once at head, using the same scoring
 code. The merge base, not the tip of `--base`: file selection is
-`git diff base...HEAD`, which git resolves from the merge base, so reading
-content at the tip would score the branch against commits that landed on the
-base branch after the fork. Qualities are compared
+`git diff --name-status -M -z base...HEAD`, which git resolves from the merge
+base. Rename records retain both paths, so the head file is scored against the
+old path's base blob instead of being misclassified as new. A missing path is
+new only when the diff marks it added; a failed tree or blob read is an error.
+Reading content at the tip would score the branch against commits that landed
+on the base branch after the fork. Qualities are compared
 independently and only where both revisions scored them (confidence above 0.0),
 so a file whose scored-quality set changed is never compared against a different
 set. Aggregate averages are never compared. A quality that goes from scored to
