@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,11 +56,7 @@ _REQUIRED_GATES: tuple[tuple[str, re.Pattern[str]], ...] = (
 _MANDATORY_SECTION: re.Pattern[str] = re.compile(
     r"^##\s+Mandatory Exit Gates\b", re.MULTILINE
 )
-_CODE_QUALITY_ARGUMENTS = (
-    "--changed-only",
-    "--base origin/main",
-    "--gate-mode regression",
-)
+_INLINE_CODE = re.compile(r"`([^`\n]+)`")
 
 _BUILD_MD_RELPATH = Path(".claude/commands/build.md")
 
@@ -71,6 +68,30 @@ class GateViolation:
     kind: str  # "skill" or "section"
     name: str
     message: str
+
+
+def _option_value(arguments: list[str], option: str) -> str | None:
+    try:
+        option_index = arguments.index(option)
+    except ValueError:
+        return None
+    value_index = option_index + 1
+    return arguments[value_index] if value_index < len(arguments) else None
+
+
+def _has_regression_arguments(line: str) -> bool:
+    for inline_code in _INLINE_CODE.findall(line):
+        try:
+            arguments = shlex.split(inline_code)
+        except ValueError:
+            continue
+        if (
+            "--changed-only" in arguments
+            and _option_value(arguments, "--base") == "origin/main"
+            and _option_value(arguments, "--gate-mode") == "regression"
+        ):
+            return True
+    return False
 
 
 def collect_violations(repo_root: Path) -> list[GateViolation]:
@@ -129,8 +150,7 @@ def collect_violations(repo_root: Path) -> list[GateViolation]:
         if _REQUIRED_GATES[0][1].search(line)
     ]
     if code_quality_lines and not any(
-        all(argument in line for argument in _CODE_QUALITY_ARGUMENTS)
-        for line in code_quality_lines
+        _has_regression_arguments(line) for line in code_quality_lines
     ):
         violations.append(
             GateViolation(
