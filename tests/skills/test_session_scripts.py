@@ -261,7 +261,9 @@ class TestCompleteSessionLog:
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
         f = tmp_path / f"{today}-session-1.json"
         f.write_text(json.dumps(self._make_session()))
-        result = mod._find_current_session_log(str(tmp_path))
+        # _make_session sets session.branch="main"; mock branch to match.
+        with patch.object(mod, "_get_current_branch", return_value="main"):
+            result = mod._find_current_session_log(str(tmp_path))
         assert result == str(f)
 
     def test_find_current_session_log_none(self, tmp_path):
@@ -271,10 +273,11 @@ class TestCompleteSessionLog:
 
     def test_find_current_session_log_latest_fallback(self, tmp_path):
         mod = self._import()
-        # Create an old file
+        # An old session log with a matching branch is still selected.
         old = tmp_path / "2023-01-01-session-1.json"
         old.write_text(json.dumps(self._make_session()))
-        result = mod._find_current_session_log(str(tmp_path))
+        with patch.object(mod, "_get_current_branch", return_value="main"):
+            result = mod._find_current_session_log(str(tmp_path))
         assert result == str(old)
 
     def test_get_ending_commit_success(self):
@@ -578,7 +581,7 @@ class TestCompleteSessionLogBranchAware:
         )
 
     def test_fallback_to_mtime_when_no_branch_log(self, tmp_path):
-        """Falls back to mtime ordering when no log matches the current branch."""
+        """Returns None when no log matches the current branch (no mtime fallback)."""
         mod = self._import()
         from datetime import UTC, datetime
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
@@ -595,10 +598,10 @@ class TestCompleteSessionLogBranchAware:
         with patch.object(mod, "_get_current_branch", return_value="feature/no-log"):
             result = mod._find_current_session_log(str(tmp_path))
 
-        assert result == str(log_new), "Should return mtime winner when no branch match"
+        assert result is None, "Should return None when no log matches the current branch"
 
     def test_fallback_to_mtime_when_branch_unavailable(self, tmp_path):
-        """Falls back to mtime when _get_current_branch returns None."""
+        """Returns None when _get_current_branch returns None (no mtime fallback)."""
         mod = self._import()
         from datetime import UTC, datetime
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
@@ -609,7 +612,7 @@ class TestCompleteSessionLogBranchAware:
         with patch.object(mod, "_get_current_branch", return_value=None):
             result = mod._find_current_session_log(str(tmp_path))
 
-        assert result == str(log)
+        assert result is None
 
     def test_legacy_top_level_branch_field_is_matched(self, tmp_path):
         """A log with top-level 'branch' (legacy schema) is also matched by branch."""
