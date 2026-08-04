@@ -62,7 +62,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "git status --short before staging; four files, all intended."
+        "Evidence": "git status --short before staging; four content files staged first (governance doc plus the rule and its two generated mirrors), then the session log and episode added, six paths in commit ee9d10dfb."
       },
       "startingCommitNoted": {
         "level": "SHOULD",

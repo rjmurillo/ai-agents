@@ -119,12 +119,12 @@ This differs from Anti-Pattern 1 in how it hides. Coverage theater looks thin. A
 - `assert set(result) == {...}` where the function under test ends in a dict literal with exactly those keys
 - Assertions on the length, type, or field names of a hardcoded return shape
 - An assertion whose truth you can confirm by reading only the function body, never the input
-- The test would still pass if the input file were replaced with unrelated content
+- Once the function returns, no input change can falsify the assertion. A parser that raises on unrecognized input still fails on garbage, so "would it survive unrelated content" is the wrong question; ask what surviving input makes the assertion false
 
 **Correction**:
 - Ask the discriminating question: what input change makes this assertion false? If none exists, the assertion is vacuous.
 - Assert on values derived from the input, not on the shape the function always returns.
-- Blanket range guards such as `all(value > 0 ...)` are a related trap: they also fail when a legitimate zero appears. Guard the specific figure that cannot be zero, not every field.
+- Blanket range guards such as `all(value > 0 ...)` are a related trap: they also fail when a legitimate zero appears, such as `source_delta` if source and mirror totals converge. Guard the specific figure that cannot be zero, not every field.
 
 **Deleting a vacuous test is half the fix.** The vacuous test existed because someone believed that surface needed coverage. Before deleting, measure what the surviving tests actually cover; the vacuous test was masking the gap, not filling it. A parser with five patterns and one fail-closed test leaves four patterns free to fail open.
 
