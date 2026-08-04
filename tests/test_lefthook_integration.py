@@ -6792,7 +6792,10 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
         return next(validator_results)
 
     monkeypatch.setattr(policy, "_run_command", _dispatch)
-    assert policy.validate_branch_sessions(["one.json", "two.json"], tmp_path) == 1
+    assert policy.validate_branch_sessions([
+        ".agents/sessions/2026-01-01-session-1.json",
+        ".agents/sessions/2026-01-02-session-2.json",
+    ], tmp_path) == 1
 
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
     assert policy.sync_observations(["memory-observations.md"], tmp_path) == 0

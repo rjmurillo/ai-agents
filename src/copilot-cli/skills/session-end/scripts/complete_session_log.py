@@ -284,7 +284,16 @@ def _run_markdown_lint() -> tuple[bool, str]:
     return False, "\n".join(errors)
 
 
-def _test_uncommitted_changes() -> bool:
+def _test_uncommitted_changes(exclude_path: str | None = None) -> bool:
+    """Return True if the working tree has uncommitted changes.
+
+    ``exclude_path`` names one file to ignore, typically the session log
+    being completed. The session log is always dirty while this function
+    runs (it was just written), so including it in the check would make
+    ``changesCommitted`` impossible to satisfy. Excluding it makes the
+    field mean "all work OTHER than this log is committed", which is the
+    intended semantics. Fixes #4425.
+    """
     result = subprocess.run(
         ["git", "status", "--porcelain"],
         capture_output=True,
@@ -294,7 +303,20 @@ def _test_uncommitted_changes() -> bool:
     )
     if result.returncode != 0:
         return True
-    return bool(result.stdout.strip())
+    lines = result.stdout.splitlines()
+    if exclude_path:
+        norm = os.path.normpath(exclude_path)
+        filtered = []
+        for ln in lines:
+            # porcelain v1 status prefix is always "XY " (3 chars: two status
+            # chars plus one space). The path starts at index 3.
+            # For renames the path field is "old -> new"; check both sides.
+            path_part = ln[3:] if len(ln) > 3 else ""
+            candidates = [os.path.normpath(p.strip()) for p in path_part.split(" -> ")]
+            if norm not in candidates:
+                filtered.append(ln)
+        lines = filtered
+    return bool(lines)
 
 
 def _validate_path_containment(session_path: str, sessions_dir: str) -> str | None:
@@ -540,7 +562,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # 5. changesCommitted
-    has_uncommitted = _test_uncommitted_changes()
+    has_uncommitted = _test_uncommitted_changes(exclude_path=session_path)
     if "changesCommitted" in session_end:
         check = session_end["changesCommitted"]
         if not has_uncommitted:
