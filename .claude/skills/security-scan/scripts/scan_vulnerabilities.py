@@ -46,14 +46,14 @@ if _SCRIPT_DIR not in sys.path:
     _added_to_path = True
 
 try:
-    from scan_constants import (  # noqa: E402
+    from scan_constants import (
         EXIT_ERROR,
         EXIT_EXTERNAL,
         EXIT_SUCCESS,
         EXIT_VULNERABILITIES,
     )
-    from scan_format import format_console_output  # noqa: E402
-    from scan_patterns import CWE78_PATTERNS  # noqa: E402
+    from scan_format import format_console_output
+    from scan_patterns import CWE78_PATTERNS
 finally:
     if _added_to_path:
         sys.path.remove(_SCRIPT_DIR)

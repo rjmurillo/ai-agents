@@ -831,7 +831,6 @@ class TestMain:
     def test_nonexistent_path_no_ci(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("CI", raising=False)
         exit_code = main(["--path", str(tmp_path / "missing")])
         assert exit_code == 0
 
@@ -842,7 +841,6 @@ class TestMain:
     def test_empty_dir_passes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("CI", raising=False)
         exit_code = main(["--path", str(tmp_path)])
         assert exit_code == 0
 
@@ -904,7 +902,6 @@ class TestMain:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.delenv("CI", raising=False)
         create_memory_structure(tmp_path, {
             "skills-test-index.md": (
                 "| Keywords | File |\n"
@@ -924,7 +921,6 @@ class TestMain:
     def test_console_format(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("CI", raising=False)
         create_memory_structure(tmp_path, {
             "skills-test-index.md": (
                 "| Keywords | File |\n"
@@ -941,7 +937,6 @@ class TestBuildParser:
     """Tests for argument parser construction."""
 
     def test_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.delenv("CI", raising=False)
         parser = build_parser()
         args = parser.parse_args([])
         assert args.path == ".serena/memories"

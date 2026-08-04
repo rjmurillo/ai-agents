@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -196,4 +197,5 @@ def compute_trajectory_embedding(
 
     weighted_sum: NDArray[np.float64] = np.sum(embeddings_np * weights_np, axis=0)
 
-    return weighted_sum.tolist()
+    # .tolist() on NDArray returns Any per numpy stubs; cast to the declared return type.
+    return list(weighted_sum.tolist())

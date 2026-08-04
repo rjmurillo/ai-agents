@@ -45,9 +45,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
-import checks_spec  # noqa: E402
-import pre_pr  # noqa: E402
-import pre_pr_sequence  # noqa: E402
+import checks_spec
+import pre_pr
+import pre_pr_sequence
 
 
 def test_validate_model_pins_passes_in_warn_mode() -> None:
@@ -140,25 +140,33 @@ def test_validate_model_pins_prints_new_violations_past_backlog(
     assert "additional grandfathered pins omitted" in printed
 
 
-def test_check_model_pins_exits_2_on_malformed_baseline(tmp_path: Path) -> None:
+def test_check_model_pins_exits_2_on_malformed_baseline() -> None:
     """Negative/real-subprocess: a malformed baseline is a config error (exit 2).
 
     Proves the exit-2 contract ``validate_model_pins`` relies on, through the
     real script rather than a stubbed return, so the config guard is grounded in
     the script's actual behavior.
+
+    The baseline must be inside the repository so the new symlink/outside-repo
+    guard does not fire before the JSON parse (issue #4249).
     """
-    bad_baseline = tmp_path / "bad_baseline.json"
-    bad_baseline.write_text("{ this is not valid json", encoding="utf-8")
-    script = REPO_ROOT / "scripts" / "validation" / "check_model_pins.py"
-    result = subprocess.run(
-        [sys.executable, str(script), "--mode", "warn", "--baseline", str(bad_baseline)],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        cwd=REPO_ROOT,
-    )
-    assert result.returncode == 2, result.stdout + result.stderr
-    assert "config error" in (result.stdout + result.stderr)
+    import tempfile
+
+    bad_baseline = Path(tempfile.mktemp(suffix="_bad_baseline.json", dir=REPO_ROOT))
+    try:
+        bad_baseline.write_text("{ this is not valid json", encoding="utf-8")
+        script = REPO_ROOT / "scripts" / "validation" / "check_model_pins.py"
+        result = subprocess.run(
+            [sys.executable, str(script), "--mode", "warn", "--baseline", str(bad_baseline)],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=REPO_ROOT,
+        )
+        assert result.returncode == 2, result.stdout + result.stderr
+        assert "config error" in (result.stdout + result.stderr)
+    finally:
+        bad_baseline.unlink(missing_ok=True)
 
 
 def test_validate_model_pins_skips_when_script_absent(tmp_path: Path) -> None:

@@ -31,11 +31,16 @@ The score starts at 100 and the deductions clamp to the 0-100 range. The
 reference does not enumerate the exact trigger words for "compound" and "vague";
 this module fixes a concrete word list
 (``and``, ``also`` for compound; ``generally``, ``sometimes``, ``effective``,
-``effectively``, ``good``, ``better``, ``well`` for vague) so the score is
-deterministic and testable. The list includes ``effective`` because the canonical
-worked example scores "The caching strategy was effective" as vague (lines
-222-226 of the reference). The 70 percent persistence threshold used by the
-SKILL.md Phase 5 contract is the boundary of the "Good" band above.
+``effectively``, ``good``, ``better``, ``well``, ``careful``, ``important``,
+``matters`` for vague) so the score is deterministic and testable. The list
+includes ``effective`` because the canonical worked example scores "The caching
+strategy was effective" as vague (lines 222-226 of the reference). ``careful``,
+``important``, and ``matters`` are added because common platitudes built on
+those words carry no concrete guidance (issue #4306). The no-action deduction
+fires for statements shorter than ``_MIN_ACTIONABLE_WORDS`` words, because
+fewer than four words cannot express a specific, reproducible action. The 70
+percent persistence threshold used by the SKILL.md Phase 5 contract is the
+boundary of the "Good" band above.
 
 Exit codes (ADR-035):
   0: learning scored at or above the 70% persistence threshold
@@ -60,7 +65,10 @@ PERSISTENCE_THRESHOLD = 70
 _COMPOUND_WORDS = ("and", "also")
 # Vague markers cost 20% each (canonical deduction table). "effective" and the
 # other quality-judgment adjectives are included because the canonical worked
-# example treats "The caching strategy was effective" as vague.
+# example treats "The caching strategy was effective" as vague. "careful",
+# "important", and "matters" are added because common platitudes built on them
+# ("Be more careful", "Testing is important", "Communication matters") carry no
+# concrete guidance and should not pass the persistence threshold (issue #4306).
 _VAGUE_WORDS = (
     "generally",
     "sometimes",
@@ -69,6 +77,9 @@ _VAGUE_WORDS = (
     "good",
     "better",
     "well",
+    "careful",
+    "important",
+    "matters",
 )
 # Length above this word count costs 5% per extra word (canonical table).
 _MAX_WORDS = 15
@@ -76,6 +87,10 @@ _MAX_WORDS = 15
 _MISSING_EVIDENCE_PENALTY = 25
 # No actionable guidance costs 30% (canonical table).
 _NO_ACTION_PENALTY = 30
+# Minimum word count for a statement to be considered actionable. This scorer
+# treats shorter statements as too small for specific, reproducible guidance
+# (issue #4306).
+_MIN_ACTIONABLE_WORDS = 4
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,9 +152,15 @@ def _is_actionable(text: str) -> bool:
     A learning is actionable when it does more than describe a past feeling or
     state. Statements shaped like "The caching strategy was effective" describe
     an outcome without telling a future reader what to do, so they fail.
+
+    This scorer treats statements with fewer than ``_MIN_ACTIONABLE_WORDS``
+    words as too small for a specific, reproducible action; single letters and
+    keyboard mash are not actionable by definition (issue #4306).
     """
     stripped = text.strip()
     if not stripped:
+        return False
+    if len(stripped.split()) < _MIN_ACTIONABLE_WORDS:
         return False
     if _ACTIONABLE_COPULA.match(stripped):
         return True

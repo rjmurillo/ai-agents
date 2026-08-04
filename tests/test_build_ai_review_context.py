@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -26,17 +27,20 @@ CommandResult = _mod.CommandResult
 ReviewContext = _mod.ReviewContext
 
 
+def _pulls_payload(number: int, title: str, body: str) -> str:
+    """One REST pulls response, the shape fetch_pr_metadata reads."""
+    return json.dumps({"number": number, "title": title, "body": body})
+
+
 def test_builds_full_pr_context(monkeypatch: pytest.MonkeyPatch):
     """Small PR diffs become full context with title and body."""
 
     def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
         del timeout
-        if arguments[-1] == ".title":
-            return CommandResult('Fix `$bad" title\\\\\n', "", 0)
-        if arguments[-1] == ".number":
-            return CommandResult("7\n", "", 0)
-        if arguments[-1] == ".body":
-            return CommandResult("Body text\n", "", 0)
+        if arguments[:1] == ["api"]:
+            return CommandResult(
+                _pulls_payload(7, 'Fix `$bad" title\\\\', "Body text"), "", 0
+            )
         if arguments[:2] == ["pr", "diff"]:
             return CommandResult("diff --git a/file b/file\n+change\n", "", 0)
         raise AssertionError(f"unexpected gh call: {arguments}")
@@ -59,10 +63,8 @@ def test_marks_pr_number_mismatch_as_infrastructure_failure(
 
     def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
         del timeout
-        if arguments[-1] == ".title":
-            return CommandResult("Mismatch\n", "", 0)
-        if arguments[-1] == ".number":
-            return CommandResult("8\n", "", 0)
+        if arguments[:1] == ["api"]:
+            return CommandResult(_pulls_payload(8, "Mismatch", ""), "", 0)
         raise AssertionError(f"unexpected gh call: {arguments}")
 
     monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
@@ -526,12 +528,8 @@ def test_pr_context_preserves_whitespace_body(monkeypatch: pytest.MonkeyPatch):
 
     def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
         del timeout
-        if arguments[-1] == ".title":
-            return CommandResult("Title\n", "", 0)
-        if arguments[-1] == ".number":
-            return CommandResult("7\n", "", 0)
-        if arguments[-1] == ".body":
-            return CommandResult("   \n", "", 0)
+        if arguments[:1] == ["api"]:
+            return CommandResult(_pulls_payload(7, "Title", "   \n"), "", 0)
         if arguments[:2] == ["pr", "diff"]:
             return CommandResult("diff --git a/file b/file\n+change\n", "", 0)
         raise AssertionError(f"unexpected gh call: {arguments}")
@@ -673,3 +671,128 @@ def test_append_multiline_output_uses_collision_free_delimiter(tmp_path: Path):
     output = output_path.read_text(encoding="utf-8")
     assert "context_built<<EOF_CONTEXT_BUILT_1" in output
     assert output.endswith("\nEOF_CONTEXT_BUILT_1\n")
+
+
+GRAPHQL_QUOTA_ERROR = "GraphQL: API rate limit already exceeded for user ID 6811113."
+
+
+def test_pr_metadata_uses_one_rest_call(monkeypatch: pytest.MonkeyPatch):
+    """Number, title, and body come from a single REST response (issue #4333)."""
+
+    calls: list[list[str]] = []
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        calls.append(arguments)
+        return CommandResult(_pulls_payload(4323, "Title", "Body"), "", 0)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    metadata = _mod.fetch_pr_metadata("4323", "rjmurillo/ai-agents")
+
+    assert metadata == _mod.PrMetadata("4323", "Title", "Body", "")
+    assert calls == [["api", "repos/rjmurillo/ai-agents/pulls/4323"]]
+
+
+def test_pr_metadata_falls_back_to_gh_pr_view_when_rest_fails(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A REST-only outage still yields context through gh pr view."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[:1] == ["api"]:
+            return CommandResult("", "HTTP 503: Service unavailable", 1)
+        return CommandResult(_pulls_payload(7, "Title", "Body"), "", 0)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    assert _mod.fetch_pr_metadata("7", "owner/repo").number == "7"
+
+
+def test_graphql_quota_does_not_break_pr_context(monkeypatch: pytest.MonkeyPatch):
+    """REST serves the context while the GraphQL bucket is drained (issue #4333)."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[:1] == ["api"]:
+            return CommandResult(_pulls_payload(4323, "Title", "Body"), "", 0)
+        if arguments[:2] == ["pr", "diff"]:
+            return CommandResult("diff --git a/f b/f\n+x\n", "", 0)
+        raise AssertionError(f"unexpected GraphQL call: {arguments}")
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("4323", "owner/repo", 100)
+
+    assert context.infrastructure_failure is False
+    assert context.mode == "full"
+
+
+def test_both_transports_failing_still_fails_closed(monkeypatch: pytest.MonkeyPatch):
+    """REQ-008-05: DID_NOT_RUN survives when REST and GraphQL both fail."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        return CommandResult("", GRAPHQL_QUOTA_ERROR, 1)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("4323", "owner/repo", 100)
+
+    assert context.infrastructure_failure is True
+    assert "INFRASTRUCTURE_FAILURE" in context.text
+    assert "API rate limit already exceeded" in context.text
+    assert "first-time contributor" not in context.text
+
+
+def test_permission_failure_still_names_fork_permissions(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The fork hint survives for the failure it actually describes."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        return CommandResult("", "HTTP 404: Not Found", 1)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("4323", "owner/repo", 100)
+
+    assert context.infrastructure_failure is True
+    assert "first-time contributor" in context.text
+
+
+def test_name_only_falls_back_to_rest_file_list(monkeypatch: pytest.MonkeyPatch):
+    """gh pr diff --name-only is GraphQL; REST pagination backs it up."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[:2] == ["pr", "diff"]:
+            return CommandResult("", GRAPHQL_QUOTA_ERROR, 1)
+        if arguments[:1] == ["api"]:
+            if "page=1" in arguments[1]:
+                return CommandResult("src/a.py\nsrc/b.py\n", "", 0)
+            return CommandResult("", "", 0)
+        raise AssertionError(f"unexpected gh call: {arguments}")
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    assert _mod.get_pr_name_only("7", "owner/repo") == "src/a.py\nsrc/b.py"
+
+
+def test_unusable_rest_payload_is_not_treated_as_success(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A 200 with an unparseable body must not become a silent 'Unknown PR'."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        return CommandResult("<html>Unicorn!</html>", "", 0)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    metadata = _mod.fetch_pr_metadata("7", "owner/repo")
+
+    assert metadata.error != ""
+    assert metadata.number == ""

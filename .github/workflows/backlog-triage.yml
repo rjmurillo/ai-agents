@@ -53,17 +53,15 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: '3.14'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
       - name: Discover open issues for AI triage
         id: discover
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: >-
-          python3 scripts/issue_triage.py
+          uv run --frozen python scripts/issue_triage.py
           --limit "$BACKLOG_MAX_ISSUES"
           --ai
           --github-output "$GITHUB_OUTPUT"
@@ -244,10 +242,8 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: '3.14'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
       - name: Apply approved manifest
         env:
@@ -256,7 +252,7 @@ jobs:
           REPO_OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
         run: >-
-          python3 scripts/triage_batch_apply.py
+          uv run --frozen python scripts/triage_batch_apply.py
           --manifest-env APPROVED_MANIFEST_JSON
           --owner "$REPO_OWNER"
           --repo "$REPO_NAME"

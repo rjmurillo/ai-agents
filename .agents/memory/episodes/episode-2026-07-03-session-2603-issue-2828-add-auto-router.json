@@ -11,7 +11,9 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "milestone",
       "content": "Fetched gstack autoplan SKILL.md.tmpl as the reference shape; surveyed internal prior art (steering-matcher, orchestrator, CLAUDE.md static table) and found no existing intent router.",
-      "caused_by": [],
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": []
     },
     {
@@ -19,7 +21,9 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "milestone",
       "content": "Authored .claude/skills/autoplan/SKILL.md: Phase 0 intent+size classification, 16-row routing table with orchestrator fallback, Mechanical/Taste/Sovereignty decision classes mapped to the AGENTS.md Ask First list, final gate, escape hatches.",
-      "caused_by": [],
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": []
     },
     {
@@ -27,7 +31,9 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "milestone",
       "content": "Removed a self-set drift trap: hardcoded skill count in the description (orphan-ref-validator flags stale counts).",
-      "caused_by": [],
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": []
     },
     {
@@ -35,7 +41,9 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "milestone",
       "content": "Generated src/copilot-cli/skills/autoplan twin via build_all.py; bumped project-toolkit claude and copilot manifests to 0.5.256.",
-      "caused_by": [],
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": []
     },
     {
@@ -43,7 +51,9 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "milestone",
       "content": "Filed issue #2828 with the design and buy-vs-build Quick-tier verdict.",
-      "caused_by": [],
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": []
     },
     {
@@ -51,23 +61,35 @@
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "milestone",
       "content": "Verification: validate_skill_format.py --path .claude/skills/autoplan PASSED; dash byte-check clean.",
-      "caused_by": [],
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": []
     },
     {
       "id": "e007",
-      "timestamp": "2026-07-03T00:00:00+00:00",
+      "timestamp": "2026-06-30T17:06:43+00:00",
       "type": "commit",
       "content": "Commit: f13f73f",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e008"
+      ]
     },
     {
       "id": "e008",
       "timestamp": "2026-07-03T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: dca57fa",
-      "caused_by": [],
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": []
     }
   ],

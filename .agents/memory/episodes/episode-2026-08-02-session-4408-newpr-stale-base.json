@@ -1,0 +1,212 @@
+{
+  "id": "episode-2026-08-02-session-4408-newpr-stale-base",
+  "session": "2026-08-02-session-4408-newpr-stale-base",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Stop new_pr.py from failing a PR over a session log the branch never touched, by diffing against the remote-tracking base instead of a stale local one.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "test",
+      "context": "Low 2: added TestSessionEndFailureIsDiagnosable covering the selected log name, the fetch guidance, and the validator stdout/stderr passthrough.",
+      "chosen": "The improved abort message is now asserted, not just written",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "reproduced the failure mode",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "located the root cause",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "split the two roles the base was playing",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "made the failure self-diagnosing",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "proved the tests discriminate",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "test",
+      "content": "Reverted new_pr.py to HEAD and re-ran: all 6 new tests failed. Restored the fix: all 6 passed. A test that passes both ways would have proved nothing.",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "caught a real defect via an existing meta-test",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "regenerated the shipped mirror",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "test",
+      "content": "build/scripts/generate_skills.py regenerated src/copilot-cli/skills/github/scripts/pr/new_pr.py; diff -q confirms it matches the canonical file. Full file: 80 passed.",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "confirmed no manifest version bump applies",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran cross-family adversarial review (code-review agent, gpt-5.6-terra). 0 Critical, 0 High, 2 Medium, 2 Low.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Medium 1: added _tracking_remote() so a repo whose remote is not named 'origin' still resolves a comparison base.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Medium 2: the resolver now probes refs/remotes/<remote>/<base> instead of the <remote>/<base> DWIM shorthand.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Low 1: replaced the order-dependent subprocess side_effect lists in TestMain with a command-aware _fake_git dispatcher.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Low 2: added TestSessionEndFailureIsDiagnosable covering the selected log name, the fetch guidance, and the validator stdout/stderr passthrough.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discriminating check: ran the suite against origin/main (pre-fix) and against HEAD (hard-coded origin shorthand).",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "error",
+      "content": "Discriminating check: ran the suite against origin/main (pre-fix) and against HEAD (hard-coded origin shorthand).    13 failures pre-fix, 9 failures against the shorthand version, 87 pass restored. The DWIM and multi-remote tests each catch a defect the earlier version had",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated the copilot-cli mirror with build/scripts/generate_skills.py and ran ruff.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: fc549e93dafb5c77e6a5a2c9b8ed1bd504e09c8c",
+      "caused_by": [],
+      "leads_to": [
+        "e006",
+        "e009",
+        "e017"
+      ],
+      "_source_session": "2026-08-02-session-4408-newpr-stale-base"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 76,
+    "tool_calls": 0,
+    "errors": 13,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
