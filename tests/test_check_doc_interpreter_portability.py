@@ -893,3 +893,23 @@ def test_validation_refuses_missing_tracked_file(
 
     assert exit_code == 2
     assert "tracked file is missing or not a regular file: missing.md" in capsys.readouterr().err
+
+
+def test_validation_refuses_tracked_symlinked_instruction_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path / "repo", {"tool.py": "import yaml\n", "README.md": "No command.\n"})
+    outside = tmp_path / "outside.md"
+    outside.write_text("Run `python3 tool.py`.\n", encoding="utf-8")
+    link = repo / "linked.md"
+    try:
+        link.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"filesystem does not support symlinks: {exc}")
+    subprocess.run(["git", "add", "linked.md"], cwd=repo, check=True)
+    baseline = write_baseline(repo, {})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 2
+    assert "tracked file is missing or not a regular file: linked.md" in capsys.readouterr().err

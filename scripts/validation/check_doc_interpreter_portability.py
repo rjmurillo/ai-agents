@@ -95,6 +95,7 @@ import ast
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -389,7 +390,11 @@ def _scan_file(
     stats: ScanStats | None,
 ) -> list[str]:
     path = repo_root / rel
-    if not path.is_file():
+    try:
+        mode = path.stat(follow_symlinks=False).st_mode
+    except OSError as exc:
+        raise ScanError(f"tracked file is missing or not a regular file: {rel}") from exc
+    if not stat.S_ISREG(mode):
         raise ScanError(f"tracked file is missing or not a regular file: {rel}")
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
