@@ -39,7 +39,7 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     error_and_exit,
     gh_api_paginated,
