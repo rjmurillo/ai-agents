@@ -934,6 +934,7 @@ class TestBotSkipGuardClassification:
     _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
         {
             "Checkout repository",
+            # Tool setup is throughput-only. It cannot validate repository contents.
             "Setup uv",
             "Setup PowerShell",
             "Validate PR Description vs Diff",
@@ -946,7 +947,6 @@ class TestBotSkipGuardClassification:
             "Enforce Blocking Issues",
         }
     )
-
     def test_adr006_ratchet_is_unconditional(self) -> None:
         """Positive: the ADR-006 gate must run for bot-authored PRs.
 
