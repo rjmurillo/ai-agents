@@ -128,23 +128,29 @@
     {
       "timestamp": "2026-08-04T01:00:00Z",
       "action": "Fixed 4493: extended M3 anchor from single-line to two-line unique pattern (files_by_root dict line + for loop). Fixed 4494: added 5 test_* wrappers (test_m1_bool_check_is_dead, test_m2_diff_attr_guard_is_dead, test_m2b_diff_attr_none_guard_is_dead, test_m3_scan_all_roots_is_dead, test_m4_inverted_control_survives).",
-      "files": ["tests/mutation/test_mutate_baseline_ratchet_integrity.py"],
+      "files": [
+        "tests/mutation/test_mutate_baseline_ratchet_integrity.py"
+      ],
       "result": "5 tests collected, all pass. M3 now DEAD. Script exits 0."
     },
     {
       "timestamp": "2026-08-04T02:00:00Z",
       "action": "Attempted shadow PYTHONPATH isolation for 4457. Discovered editable install MetaPathFinder intercepts import scripts before PYTHONPATH is consulted. Shadow approach failed: M1/M2/M3 all survived. Switched to git worktree isolation.",
-      "files": ["tests/mutation/test_mutate_debate_log_path.py"],
+      "files": [
+        "tests/mutation/test_mutate_debate_log_path.py"
+      ],
       "result": "Shadow approach: M1/M2/M3 survived (wrong). Worktree approach: M1 DEAD, M2 DEAD, M3 DEAD, IC SURVIVED (correct). git status shows no tracked file changes after all 4 mutation tests."
     },
     {
       "timestamp": "2026-08-04T03:00:00Z",
       "action": "Rebased onto current origin/main. Resolved conflict in taste_count_baseline.txt (origin/main had 593, my branch had 596 from a pre-existing drift I incorrectly measured).",
-      "files": ["scripts/ci/taste_count_baseline.txt"],
+      "files": [
+        "scripts/ci/taste_count_baseline.txt"
+      ],
       "result": "Rebase complete. taste_count_ratchet.py exits 0."
     }
   ],
-  "endingCommit": "9af0a558f",
+  "endingCommit": "cc03a0f32",
   "nextSteps": [],
   "retrospective": "## Retrospective\n\nLearnings captured from this session:\n\n1. Shadow PYTHONPATH injection fails when the package uses an editable install with a custom MetaPathFinder. The finder intercepts import scripts before PYTHONPATH is consulted and always redirects to the repo root. Solution: use a git worktree so the editable install in the isolated worktree points to the mutation tree, not the caller's tree.\n\n2. The taste-count baseline must be compared against refs/remotes/origin/HEAD, not just the local baseline file. A branch created from an older origin/main can have a stale baseline that looks correct locally but fails the CI ratchet.\n\n3. Rebase onto origin/main before push to pick up any lowered baselines from concurrent PRs. The push slot script does not automatically rebase.\n\n4. The worktree isolation approach for Issue 4457 eliminates the need for the pre-push marker gate requested in Issue 4346 item 4, because no tracked file is ever modified. Issue 4346 acceptance criteria 1-3 are satisfied by the worktree approach."
 }

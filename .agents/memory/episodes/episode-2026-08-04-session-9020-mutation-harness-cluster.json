@@ -31,39 +31,35 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-04T01:00:00+00:00",
+      "timestamp": "2026-08-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed 4493: extended M3 anchor from single-line to two-line unique pattern (files_by_root dict line + for loop). Fixed 4494: added 5 test_* wrappers (test_m1_bool_check_is_dead, test_m2_diff_attr_guard_is_dead, test_m2b_diff_attr_none_guard_is_dead, test_m3_scan_all_roots_is_dead, test_m4_inverted_control_survives).",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e005"
       ],
       "_source_session": "2026-08-04-session-9020-mutation-harness-cluster"
     },
     {
       "id": "e003",
-      "timestamp": "2026-08-04T02:00:00+00:00",
+      "timestamp": "2026-08-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Attempted shadow PYTHONPATH isolation for 4457. Discovered editable install MetaPathFinder intercepts import scripts before PYTHONPATH is consulted. Shadow approach failed: M1/M2/M3 all survived. Switched to git worktree isolation.",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e005"
       ],
       "_source_session": "2026-08-04-session-9020-mutation-harness-cluster"
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-04T03:00:00+00:00",
+      "timestamp": "2026-08-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Rebased onto current origin/main. Resolved conflict in taste_count_baseline.txt (origin/main had 593, my branch had 596 from a pre-existing drift I incorrectly measured).",
-      "caused_by": [
-        "e003"
+      "caused_by": [],
+      "leads_to": [
+        "e005"
       ],
-      "leads_to": [],
       "_source_session": "2026-08-04-session-9020-mutation-harness-cluster"
     },
     {
@@ -72,11 +68,25 @@
       "type": "commit",
       "content": "Commit: 9af0a558f",
       "caused_by": [
-        "e001"
+        "e001",
+        "e002",
+        "e003",
+        "e004"
       ],
       "leads_to": [
-        "e002"
+        "e006"
       ],
+      "_source_session": "2026-08-04-session-9020-mutation-harness-cluster"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T01:56:38+00:00",
+      "type": "commit",
+      "content": "Commit: cc03a0f32",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
       "_source_session": "2026-08-04-session-9020-mutation-harness-cluster"
     }
   ],
@@ -85,8 +95,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 3
+    "commits": 2,
+    "files_changed": 4
   },
   "lessons": []
 }
