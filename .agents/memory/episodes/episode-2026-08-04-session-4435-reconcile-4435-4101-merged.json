@@ -14,7 +14,7 @@
       "content": "Loaded PR and issue history",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e010"
       ],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     },
@@ -25,7 +25,7 @@
       "content": "Created an isolated worktree",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e010"
       ],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     },
@@ -36,7 +36,7 @@
       "content": "Merged current main without rewriting history",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e010"
       ],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     },
@@ -47,7 +47,7 @@
       "content": "Removed completed issue work",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e010"
       ],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     },
@@ -58,7 +58,7 @@
       "content": "Retained unique safeguards",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e010"
       ],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     },
@@ -69,7 +69,7 @@
       "content": "Validated the reconciled diff",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e010"
       ],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     },
@@ -80,12 +80,34 @@
       "content": "Updated GitHub state",
       "caused_by": [],
       "leads_to": [
-        "e008"
+        "e010"
       ],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     },
     {
       "id": "e008",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Attempted a normal push",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Finalized closeout chronology",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e010",
       "timestamp": "2026-08-04T05:43:14+00:00",
       "type": "commit",
       "content": "Commit: 6dc5a78ec",
@@ -97,33 +119,23 @@
         "e005",
         "e006",
         "e007",
-        "e010"
-      ],
-      "leads_to": [
+        "e008",
         "e009"
       ],
+      "leads_to": [
+        "e011"
+      ],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     },
     {
-      "id": "e009",
-      "timestamp": "2026-08-04T06:06:18+00:00",
+      "id": "e011",
+      "timestamp": "2026-08-04T10:13:38+00:00",
       "type": "commit",
-      "content": "Commit: 7fcf3f8a1",
+      "content": "Commit: 8a9cfd3a7",
       "caused_by": [
-        "e008"
+        "e010"
       ],
       "leads_to": [],
-      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-08-04T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Attempted a normal push",
-      "caused_by": [],
-      "leads_to": [
-        "e008"
-      ],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     }
   ],
@@ -133,7 +145,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 2,
-    "files_changed": 2
+    "files_changed": 389
   },
   "lessons": []
 }
