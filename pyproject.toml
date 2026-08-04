@@ -46,6 +46,11 @@ override-dependencies = [
 [tool.uv.exclude-newer-package]
 anthropic = false
 click = false
+# CVE-2026-69247 affects cryptography 49.0.0 and is fixed in 50.0.0. The
+# 7-day exclude-newer window held the resolver on the vulnerable release, so
+# pip-audit failed the security job. Opt this package out of the window so a
+# security fix is reachable the day it ships.
+cryptography = false
 lefthook = false
 mcp = false
 semgrep = false
@@ -115,6 +120,12 @@ ignore = []
 # Eval scripts contain embedded prompt text that exceeds 100 chars by design
 "scripts/eval/eval-agents.py" = ["E501"]
 "scripts/eval/eval-knowledge-integration.py" = ["E501"]
+# Deliberately vulnerable detection benchmarks. Their `# noqa: S...` comments
+# document which bandit-family finding each sample is meant to trigger for the
+# external scanners that grade them. Those rule families are not in this
+# project's ruff select list, so RUF100 reads every one as dead. Removing them
+# would strip the benchmark's own answer key.
+".agents/security/benchmarks/**/*.py" = ["RUF100"]
 # sys.path manipulation required before imports for plugin-context path resolution
 ".claude/skills/github/scripts/**/*.py" = ["E402"]
 # Validation runners use sys.path.insert() before importing sibling modules

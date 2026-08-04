@@ -24,7 +24,7 @@ _ROOT = str(Path(__file__).resolve().parents[2])
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from scripts.validation import git_hook_policy as policy  # noqa: E402
+from scripts.validation import git_hook_policy as policy
 
 NOSEC = "# " + "nos" + "ec"
 NOSEMGREP = "# " + "nosem" + "grep"
