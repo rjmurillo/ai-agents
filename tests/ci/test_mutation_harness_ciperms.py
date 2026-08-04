@@ -352,6 +352,28 @@ class TestMutationsAreRunnable:
             f"{body.count(mutation.old_bytes)} times in {mutation.target_file.name}"
         )
 
+    def test_m7_anchor_does_not_pin_run_line(self):
+        """M7 must anchor on the step name only, not the run: line (#4505).
+
+        The ADR-006 ratchet threshold (--max N) is designed to decrease over
+        time. If M7 anchors on the run: line, any correct threshold change
+        breaks this test. The fix is to anchor on the immutable step name.
+        """
+        m7 = next(m for m in harness.build_mutations() if m.description.startswith("M7"))
+        assert b"run:" not in m7.old_bytes, (
+            "M7 old_bytes contains 'run:'. Anchor on the step name only "
+            "so a threshold change does not break this test (#4505)."
+        )
+        assert b"--max" not in m7.old_bytes, (
+            "M7 old_bytes contains '--max'. Anchor on the step name only "
+            "so a threshold change does not break this test (#4505)."
+        )
+        # The anchor must contain the step name so a deleted or renamed step
+        # still fails loudly.
+        assert b"- name:" in m7.old_bytes, (
+            "M7 old_bytes must contain '- name:' to anchor on the step name."
+        )
+
     @pytest.mark.parametrize("mutation", harness.build_mutations(), ids=lambda m: m.description[:2])
     def test_patch_changes_the_file(self, mutation):
         assert mutation.old_bytes != mutation.new_bytes
