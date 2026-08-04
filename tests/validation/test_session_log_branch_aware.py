@@ -153,7 +153,7 @@ class TestSessionLogForCurrentBranch:
         def no_branch(r: Path) -> None:
             return None
 
-        import unittest.mock as mock  # noqa: PLC0415
+        import unittest.mock as mock
 
         with mock.patch.object(policy, "_current_branch", no_branch):
             result = policy._session_log_for_current_branch(sessions, repo)
