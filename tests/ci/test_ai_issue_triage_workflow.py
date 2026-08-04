@@ -122,14 +122,51 @@ def test_apply_labels_reports_create_and_add_failures(
         priority="",
     )
 
-    assert result == 0
+    assert result == apply_labels_mod.EXTERNAL_ERROR
     output = capsys.readouterr().out
     assert "Failed to create labels: area-workflows" in output
     assert "Failed to apply labels: area-workflows" in output
 
 
+def test_apply_labels_tolerates_a_duplicate_create_when_the_label_lands(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Edge: `gh label create` rejects an existing label, and that is routine."""
+    fake = FakeGh(failures={("label", "create", "area-workflows")})
+    monkeypatch.setattr(apply_labels_mod, "_run_gh", fake)
+
+    result = apply_labels_mod.apply_labels(
+        issue_number="42",
+        labels_json='["area-workflows"]',
+        priority="",
+    )
+
+    assert result == 0
+
+
+def test_main_exits_nonzero_when_the_issue_never_got_its_labels(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Issue #4068: the CLI reported success while every `gh` call failed."""
+    monkeypatch.setattr(apply_labels_mod, "_run_gh", FakeGh(failures={("issue", "edit", "42")}))
+    monkeypatch.setenv("ISSUE_NUMBER", "42")
+    monkeypatch.setenv("LABELS_JSON", '["area-workflows"]')
+    monkeypatch.setenv("PRIORITY", "P1")
+
+    assert apply_labels_mod.main([]) == apply_labels_mod.EXTERNAL_ERROR
+
+
+def test_main_exits_zero_when_every_label_lands(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(apply_labels_mod, "_run_gh", FakeGh())
+    monkeypatch.setenv("ISSUE_NUMBER", "42")
+    monkeypatch.setenv("LABELS_JSON", '["area-workflows"]')
+    monkeypatch.setenv("PRIORITY", "P1")
+
+    assert apply_labels_mod.main([]) == 0
+
+
 def test_apply_labels_bad_argv_returns_config_error():
-    assert apply_labels_mod.main(["unexpected"]) == 2
+    assert apply_labels_mod.main(["unexpected"]) == apply_labels_mod.CONFIG_ERROR
 
 
 def test_assign_milestone_edits_existing_milestone(monkeypatch: pytest.MonkeyPatch):
@@ -179,8 +216,31 @@ def test_assign_milestone_reports_missing_milestone(
     assert "::notice::Milestone not found: v9 (skipping assignment)" in capsys.readouterr().out
 
 
+def test_main_exits_nonzero_when_the_milestone_edit_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Same swallow as the label script: warn, then report success."""
+    monkeypatch.setattr(
+        assign_milestone_mod, "_run_gh", FakeGh(failures={("issue", "edit", "42")})
+    )
+    monkeypatch.setenv("ISSUE_NUMBER", "42")
+    monkeypatch.setenv("MILESTONE", "v1.1")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+
+    assert assign_milestone_mod.main([]) == assign_milestone_mod.EXTERNAL_ERROR
+
+
+def test_main_exits_zero_when_the_milestone_lands(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(assign_milestone_mod, "_run_gh", FakeGh())
+    monkeypatch.setenv("ISSUE_NUMBER", "42")
+    monkeypatch.setenv("MILESTONE", "v1.1")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+
+    assert assign_milestone_mod.main([]) == 0
+
+
 def test_assign_milestone_bad_argv_returns_config_error():
-    assert assign_milestone_mod.main(["unexpected"]) == 2
+    assert assign_milestone_mod.main(["unexpected"]) == assign_milestone_mod.CONFIG_ERROR
 
 
 def test_build_prd_comment_selects_depths():
