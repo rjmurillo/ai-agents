@@ -20,7 +20,8 @@
         "e008",
         "e009",
         "e010",
-        "e011"
+        "e011",
+        "e012"
       ],
       "leads_to": [
         "e002"
@@ -133,6 +134,17 @@
       "timestamp": "2026-08-03T00:00:00+00:00",
       "type": "milestone",
       "content": "Wrote the retrospective for the sweep",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed two reviewer findings and traced a third to its emitter",
       "caused_by": [],
       "leads_to": [
         "e001"
