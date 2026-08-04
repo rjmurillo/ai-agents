@@ -183,6 +183,50 @@ def read_baseline(path: Path) -> int | None:
         return None
 
 
+MAX_BASELINE_SLACK = 5
+"""How far a baseline may sit above the tree before it must be trued up.
+
+Zero is wrong here, and that is not a style preference. Issue #4057 recorded
+the concurrent-lowering race: two branches each remove one violation and each
+write the same lowered baseline, git merges the identical one-line edits
+without a conflict, and the merged tree has improved twice while the file fell
+once. PR #4214 accepted slack as the resolution, so that "concurrent cleanup
+PRs never conflict on the shared line and the default branch does not go red on
+a change none of them made" (``test_count_ratchet_concurrent_merge``).
+
+Demanding equality re-opens that outage at the test layer: every collision
+reddens the default branch for every contributor until a human notices and
+edits the scalar. The gap is bounded instead, so the accepted slack cannot
+grow into unbounded dead allowance. Five exceeds the largest collision
+observed on this repository (two) with room to spare, and any pull request may
+close the gap by writing the measured count.
+"""
+
+
+def baseline_health(actual: int, baseline: int, max_slack: int = MAX_BASELINE_SLACK) -> str | None:
+    """Why ``baseline`` fails to describe a tree measuring ``actual``, or None.
+
+    Two distinct failures, because they need opposite fixes. A baseline below
+    the tree means the branch regressed and the violations must go. A baseline
+    too far above it means real improvements were never recorded, and the
+    scalar must be trued up before the gap absorbs a future regression.
+    """
+    if actual > baseline:
+        return (
+            f"baseline is {baseline} but the tree measures {actual}: "
+            f"{actual - baseline} violation(s) were added. Remove them rather "
+            f"than raising the baseline."
+        )
+    slack = baseline - actual
+    if slack > max_slack:
+        return (
+            f"baseline is {baseline} but the tree measures {actual}, a gap of "
+            f"{slack} above the permitted {max_slack}. Improvements went "
+            f"unrecorded; write {actual} into the baseline file."
+        )
+    return None
+
+
 def _baseline_rel(repo_root: Path, baseline: Path) -> str:
     """Repo-relative POSIX path of ``baseline``, for addressing it inside a ref."""
     try:
