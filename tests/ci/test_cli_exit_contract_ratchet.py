@@ -357,3 +357,52 @@ def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
         f"tree has {actual} violations. Run "
         f"'python scripts/ci/cli_exit_contract_ratchet.py' for per-file detail."
     )
+
+
+def test_ratchet_registered_with_base_ref_in_checks_ratchet() -> None:
+    """The cli-exit-contract ratchet must be in RATCHETS with uses_base_ref=True.
+
+    Issue #4528 comment: the gate accepted only ``--update`` (decrease) with no
+    one-directional guard. Adding it to the RATCHETS registry with
+    ``uses_base_ref=True`` means the pre-push runner and pre-PR gate both pass
+    ``--base-ref origin/main``, so a raised baseline fails locally before a push
+    rather than only on CI.
+    """
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "validation"))
+    import checks_ratchet
+
+    names = {r.job_name: r for r in checks_ratchet.RATCHETS}
+    assert "cli-exit-contract-ratchet" in names, (
+        "cli-exit-contract-ratchet is missing from RATCHETS in "
+        "scripts/validation/checks_ratchet.py. Add it so the pre-push runner "
+        "and pre-PR gate enforce the one-directional guard."
+    )
+    entry = names["cli-exit-contract-ratchet"]
+    assert entry.uses_base_ref, (
+        "cli-exit-contract-ratchet in RATCHETS has uses_base_ref=False. "
+        "Set it to True so --base-ref is passed and a raised baseline is caught."
+    )
+
+
+def test_ci_invocation_passes_base_ref() -> None:
+    """The CI step must pass --base-ref so a raised baseline fails the gate.
+
+    Issue #4528: pr-validation.yml invoked the ratchet without --base-ref, so
+    a contributor could raise the baseline, satisfy 'count == baseline', and
+    merge. Only the --base-ref comparison can distinguish a genuine decrease
+    from a raised allowance.
+    """
+    workflow = (
+        Path(__file__).resolve().parents[2]
+        / ".github"
+        / "workflows"
+        / "pr-validation.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "--base-ref" in workflow.split("cli_exit_contract_ratchet.py")[1].split("\n")[0], (
+        "The CI step for cli_exit_contract_ratchet.py in pr-validation.yml "
+        "must pass --base-ref so a raised baseline is caught. "
+        "See issue #4528."
+    )
