@@ -35,11 +35,12 @@ eval = [
 ]
 
 [tool.uv]
-# Semgrep 1.170.0 pins vulnerable versions of these optional MCP server
-# dependencies. The scan and MCP command paths both work with the fixed releases.
+# Semgrep pins vulnerable optional MCP server dependencies; both command paths
+# work with the fixed releases and reviewed exact overrides below.
 exclude-newer = "7 days"
 override-dependencies = [
     "click==8.3.3",
+    "cryptography==50.0.0",
     "mcp==1.28.1",
 ]
 
@@ -47,9 +48,8 @@ override-dependencies = [
 anthropic = false
 click = false
 # CVE-2026-69247 affects cryptography 49.0.0 and is fixed in 50.0.0. The
-# 7-day exclude-newer window held the resolver on the vulnerable release, so
-# pip-audit failed the security job. Opt this package out of the window so a
-# security fix is reachable the day it ships.
+# 7-day cooldown held the vulnerable release, so opt this package out to make
+# security fixes reachable immediately.
 cryptography = false
 lefthook = false
 mcp = false
