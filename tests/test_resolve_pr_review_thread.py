@@ -123,7 +123,9 @@ class TestMain:
             rc = main(["--thread-id", "PRRT_abc"])
         assert rc == 0
 
-    def test_single_thread_failure(self):
+    def test_single_thread_failure(self, capsys):
+        # After #3930 gate: an API failure in the pre-mutation state query returns SKIP
+        # (exit 0) to avoid crashing on transient errors; the mutation is not called.
         with patch(
             "resolve_pr_review_thread.assert_gh_authenticated",
         ), patch(
@@ -131,7 +133,10 @@ class TestMain:
             side_effect=RuntimeError("fail"),
         ):
             rc = main(["--thread-id", "PRRT_abc"])
-        assert rc == 1
+        assert rc == 0
+        out = capsys.readouterr().out
+        output = json.loads(out)
+        assert output["action"] == "SKIP"
 
     def test_all_threads_already_resolved(self, capsys):
         with patch(
@@ -331,3 +336,81 @@ class TestGetUnresolvedThreads:
         ):
             result = get_unresolved_threads(42)
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Issue #3930: thread-state gate (pre-mutation requery)
+# ---------------------------------------------------------------------------
+
+_query_thread_state = _mod._query_thread_state
+
+
+class TestQueryThreadState:
+    """Unit tests for the pre-mutation state query."""
+
+    def test_unresolved_thread_returns_act(self):
+        with patch(
+            "resolve_pr_review_thread.gh_graphql",
+            return_value={"node": {"id": "PRRT_abc", "isResolved": False}},
+        ):
+            result = _query_thread_state("PRRT_abc")
+        assert result["action"] == "ACT"
+
+    def test_resolved_thread_returns_skip(self):
+        with patch(
+            "resolve_pr_review_thread.gh_graphql",
+            return_value={"node": {"id": "PRRT_abc", "isResolved": True}},
+        ):
+            result = _query_thread_state("PRRT_abc")
+        assert result["action"] == "SKIP"
+        assert "already resolved" in result["reason"]
+
+    def test_missing_thread_returns_skip(self):
+        with patch(
+            "resolve_pr_review_thread.gh_graphql",
+            return_value={"node": None},
+        ):
+            result = _query_thread_state("PRRT_abc")
+        assert result["action"] == "SKIP"
+
+    def test_api_error_returns_skip(self):
+        with patch(
+            "resolve_pr_review_thread.gh_graphql",
+            side_effect=RuntimeError("API failure"),
+        ):
+            result = _query_thread_state("PRRT_abc")
+        assert result["action"] == "SKIP"
+        assert "failed" in result["reason"]
+
+
+class TestMainThreadStateConcurrency:
+    """Concurrency gate: resolve is skipped when thread was resolved between triage and action."""
+
+    def test_single_thread_resolved_between_triage_and_action(self, capsys):
+        """Actor A sees unresolved at PR-gate, but thread is resolved before mutation.
+        The pre-mutation requery must return SKIP and no mutation must occur."""
+        call_count = {"n": 0}
+
+        def _graphql_side_effect(query, variables):
+            call_count["n"] += 1
+            if "_THREAD_STATE_QUERY" in query or "node(id:" in query:
+                # First call is the state requery - return resolved (actor B resolved it)
+                return {"node": {"id": variables["threadId"], "isResolved": True}}
+            return {"resolveReviewThread": {
+                "thread": {"id": variables["threadId"], "isResolved": True},
+            }}
+
+        with patch(
+            "resolve_pr_review_thread.assert_gh_authenticated",
+        ), patch(
+            "resolve_pr_review_thread.gh_graphql",
+            side_effect=_graphql_side_effect,
+        ):
+            rc = main(["--thread-id", "PRRT_abc"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        output = json.loads(out)
+        assert output["action"] == "SKIP"
+        # Mutation must not have been called (only the state query ran)
+        assert call_count["n"] == 1
