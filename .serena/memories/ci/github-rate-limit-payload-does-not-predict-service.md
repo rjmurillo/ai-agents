@@ -184,3 +184,33 @@ not nine findings.
 So throttle polling when a queue is in flight, prefer one paginated REST call
 over repeated `gh pr checks`, and read a uniform verdict sweep as infrastructure
 before reading it as review feedback.
+
+## Re-running the failed jobs does not clear it
+
+The obvious recovery is `gh run rerun <id> --failed`, and on this workflow it
+cannot work. GitHub replays the jobs that already succeeded instead of running
+them again, and the ten review jobs *did* succeed: the 403 poisoned their
+output, not their exit status. So the aggregate re-reads the same empty
+verdicts and fails identically.
+
+Measured on run `30929337949` (PR #4567, 2026-08-04). Attempt 1 failed with
+nine `NEEDS_REVIEW`. Attempt 2 failed with the same nine. The tell is in
+`started_at`: the review rows still read 16:30 while the aggregate ran at
+17:09, a 39 minute gap that no re-execution would produce.
+
+Re-run the whole workflow instead:
+
+```bash
+gh run rerun <run_id>          # no --failed
+```
+
+Two traps around that command:
+
+- **It prints nothing on success.** An empty response is not a failure. Confirm
+  with `gh api repos/<owner>/<repo>/actions/runs/<id> --jq .run_attempt` and
+  look for the number to increase.
+- **Check the budget first.** Re-running into a drained budget just spends ten
+  more agent jobs to reproduce the same red. Read
+  `.resources.graphql.remaining` and, when it is low,
+  `(.reset - now)` for the seconds to wait, before triggering anything.
+
