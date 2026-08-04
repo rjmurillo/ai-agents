@@ -72,7 +72,9 @@
         "e002",
         "e003",
         "e004",
-        "e005"
+        "e005",
+        "e008",
+        "e009"
       ],
       "leads_to": [
         "e007"
@@ -88,6 +90,28 @@
         "e006"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-03-session-9021"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Remove a duplicate taste-lint suppression from GOTCHAS.md",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-9021"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replace the baseline equality assertion with a bounded health check",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-03-session-9021"
     }
   ],

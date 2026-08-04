@@ -491,3 +491,290 @@ class TestMarkerFilesGrowthGuard:
             allow_marker_grow=False,
         )
         assert result is True
+
+
+# ---------------------------------------------------------------------------
+# #4212: symlink guards in check_skill_md_portability (skills_dirs / extra_scan_dirs)
+# ---------------------------------------------------------------------------
+
+
+class TestSkillsMdPortabilitySymlinkGuard:
+    """skills_dirs() and extra_scan_dirs() refuse symlinks pointing outside repo
+    (issue #4212)."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        import scripts.validation.check_skill_md_portability as cmp
+        self.mod = cmp
+
+    def test_skills_dirs_normal_directory_accepted(self, tmp_path: Path) -> None:
+        """A real (non-symlink) skills dir is returned normally."""
+        repo = tmp_path / "repo"
+        skill_dir = repo / ".claude" / "skills"
+        skill_dir.mkdir(parents=True)
+        result = self.mod.skills_dirs(repo)
+        assert any("skills" in str(r) for r in result)
+
+    def test_skills_dirs_symlink_outside_repo_raises(self, tmp_path: Path) -> None:
+        """A skills dir symlinked outside the repo raises OSError."""
+        repo = tmp_path / "repo"
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (repo / ".claude").mkdir(parents=True)
+        link = repo / ".claude" / "skills"
+        link.symlink_to(outside)
+        with pytest.raises(OSError, match="outside the repository"):
+            self.mod.skills_dirs(repo)
+
+    def test_skills_dirs_symlink_inside_repo_accepted(self, tmp_path: Path) -> None:
+        """A skills dir symlinked to another location inside the repo is allowed."""
+        repo = tmp_path / "repo"
+        real_dir = repo / "_real_skills"
+        real_dir.mkdir(parents=True)
+        (repo / ".claude").mkdir(parents=True)
+        link = repo / ".claude" / "skills"
+        link.symlink_to(real_dir)
+        result = self.mod.skills_dirs(repo)
+        assert any(".claude" in str(r) for r in result)
+
+    def test_extra_scan_dirs_symlink_outside_repo_raises(self, tmp_path: Path) -> None:
+        """An extra scan dir symlinked outside the repo raises OSError."""
+        repo = tmp_path / "repo"
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (repo / ".claude").mkdir(parents=True)
+        link = repo / ".claude" / "commands"
+        link.symlink_to(outside)
+        with pytest.raises(OSError, match="outside the repository"):
+            self.mod.extra_scan_dirs(repo)
+
+    def test_extra_scan_dirs_symlink_inside_repo_accepted(self, tmp_path: Path) -> None:
+        """An extra scan dir symlinked inside the repo is allowed."""
+        repo = tmp_path / "repo"
+        real_dir = repo / "_cmds"
+        real_dir.mkdir(parents=True)
+        (repo / ".claude").mkdir(parents=True)
+        link = repo / ".claude" / "commands"
+        link.symlink_to(real_dir)
+        result = self.mod.extra_scan_dirs(repo)
+        assert any("commands" in str(r) for r in result)
+
+    def test_skills_dirs_absent_root_skipped(self, tmp_path: Path) -> None:
+        """A non-existent skills dir is silently skipped (not an error)."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        result = self.mod.skills_dirs(repo)
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# #4212: symlink guard in check_skill_md_exec_portability.scan_all
+# ---------------------------------------------------------------------------
+
+
+class TestExecPortabilitySymlinkGuard:
+    """scan_all refuses scan roots symlinked outside the repo (issue #4212)."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        import scripts.validation.check_skill_md_exec_portability as cep
+        self.mod = cep
+
+    def test_scan_all_normal_root_accepted(self, tmp_path: Path) -> None:
+        """A real scan root is processed without error."""
+        repo = tmp_path / "repo"
+        skill_dir = repo / ".claude" / "skills"
+        skill_dir.mkdir(parents=True)
+        counts, markers, by_root = self.mod.scan_all(repo)
+        assert isinstance(counts, dict)
+
+    def test_scan_all_symlink_outside_repo_raises(self, tmp_path: Path) -> None:
+        """A SCAN_ROOT symlinked outside the repo raises OSError."""
+        repo = tmp_path / "repo"
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (repo / ".claude").mkdir(parents=True)
+        link = repo / ".claude" / "skills"
+        link.symlink_to(outside)
+        with pytest.raises(OSError, match="outside the repository"):
+            self.mod.scan_all(repo)
+
+    def test_scan_all_symlink_inside_repo_accepted(self, tmp_path: Path) -> None:
+        """A scan root symlinked to inside the repo is allowed."""
+        repo = tmp_path / "repo"
+        real_dir = repo / "_real_skills"
+        real_dir.mkdir(parents=True)
+        (repo / ".claude").mkdir(parents=True)
+        link = repo / ".claude" / "skills"
+        link.symlink_to(real_dir)
+        counts, markers, by_root = self.mod.scan_all(repo)
+        assert isinstance(counts, dict)
+
+
+# ---------------------------------------------------------------------------
+# #4212: symlink guard in check_skill_portability.main
+# ---------------------------------------------------------------------------
+
+
+class TestSkillPortabilitySymlinkGuard:
+    """check_skill_portability.main() returns 2 when .claude/skills symlinks
+    outside the repository (issue #4212)."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        import scripts.validation.check_skill_portability as csp
+        self.mod = csp
+
+    def test_main_returns_2_when_skills_dir_symlinks_outside(
+        self, tmp_path: Path
+    ) -> None:
+        repo = tmp_path / "repo"
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (repo / ".claude").mkdir(parents=True)
+        link = repo / ".claude" / "skills"
+        link.symlink_to(outside)
+        _git(repo, "init", "-q", "-b", "main")
+        rc = self.mod.main(["--repo-root", str(repo)])
+        assert rc == 2
+
+    def test_main_accepts_in_repo_symlink(self, tmp_path: Path) -> None:
+        """An in-repo symlink is not refused by the symlink guard.
+
+        The run may still exit 2 due to a missing baseline; that is not
+        the symlink guard.  We verify by checking the stderr message.
+        """
+        import contextlib
+        import io
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        real_dir = repo / "_real_skills"
+        real_dir.mkdir(parents=True)
+        (repo / ".claude").mkdir(parents=True)
+        link = repo / ".claude" / "skills"
+        link.symlink_to(real_dir)
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            self.mod.main(["--repo-root", str(repo)])
+        # Symlink guard message must NOT appear; a different 2 is acceptable.
+        assert "outside the repository" not in buf.getvalue()
+
+    def test_main_control_no_symlink(self, tmp_path: Path) -> None:
+        """Negative control: a normal skills dir does not trigger the symlink guard."""
+        import contextlib
+        import io
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        skill_dir = repo / ".claude" / "skills"
+        skill_dir.mkdir(parents=True)
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            self.mod.main(["--repo-root", str(repo)])
+        assert "outside the repository" not in buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# #4204: marker growth guard in check_skill_md_exec_portability
+# ---------------------------------------------------------------------------
+
+
+class TestExecMarkerFilesGrowthGuard:
+    """_refuse_marker_files_growth in exec portability refuses silent growth
+    (issue #4204)."""
+
+    @pytest.fixture(autouse=True)
+    def _import(self):
+        from scripts.validation.check_skill_md_exec_portability import (
+            _refuse_marker_files_growth,
+        )
+        self.guard = _refuse_marker_files_growth
+
+    @pytest.fixture
+    def repo_with_committed_baseline(self, tmp_path: Path) -> tuple[Path, Path]:
+        repo = _init_repo(tmp_path)
+        bpath = (
+            repo / "scripts" / "validation" / "skill_md_exec_portability_baseline.json"
+        )
+        bpath.parent.mkdir(parents=True, exist_ok=True)
+        committed = {
+            "_comment": "test",
+            "files": {},
+            "marker_files": {".claude/skills/foo/SKILL.md": 3},
+        }
+        bpath.write_text(json.dumps(committed, indent=2) + "\n")
+        _commit(repo)
+        return repo, bpath
+
+    def test_growth_is_refused(
+        self, repo_with_committed_baseline: tuple[Path, Path]
+    ) -> None:
+        repo, bpath = repo_with_committed_baseline
+        result = self.guard(
+            repo, bpath,
+            {".claude/skills/foo/SKILL.md": 5},
+            allow_marker_grow=False,
+        )
+        assert result is True
+
+    def test_growth_allowed_with_flag(
+        self, repo_with_committed_baseline: tuple[Path, Path]
+    ) -> None:
+        repo, bpath = repo_with_committed_baseline
+        result = self.guard(
+            repo, bpath,
+            {".claude/skills/foo/SKILL.md": 5},
+            allow_marker_grow=True,
+        )
+        assert result is False
+
+    def test_stable_count_is_allowed(
+        self, repo_with_committed_baseline: tuple[Path, Path]
+    ) -> None:
+        repo, bpath = repo_with_committed_baseline
+        result = self.guard(
+            repo, bpath,
+            {".claude/skills/foo/SKILL.md": 3},
+            allow_marker_grow=False,
+        )
+        assert result is False
+
+    def test_decrease_is_allowed(
+        self, repo_with_committed_baseline: tuple[Path, Path]
+    ) -> None:
+        repo, bpath = repo_with_committed_baseline
+        result = self.guard(
+            repo, bpath,
+            {".claude/skills/foo/SKILL.md": 1},
+            allow_marker_grow=False,
+        )
+        assert result is False
+
+    def test_no_baseline_allows_write(self, tmp_path: Path) -> None:
+        repo = _init_repo(tmp_path)
+        bpath = (
+            repo / "scripts" / "validation" / "skill_md_exec_portability_baseline.json"
+        )
+        result = self.guard(
+            repo, bpath,
+            {".claude/skills/foo/SKILL.md": 10},
+            allow_marker_grow=False,
+        )
+        assert result is False
+
+    def test_new_marker_file_grows_total_and_is_refused(
+        self, repo_with_committed_baseline: tuple[Path, Path]
+    ) -> None:
+        repo, bpath = repo_with_committed_baseline
+        result = self.guard(
+            repo, bpath,
+            {
+                ".claude/skills/foo/SKILL.md": 3,
+                ".claude/skills/bar/SKILL.md": 2,
+            },
+            allow_marker_grow=False,
+        )
+        assert result is True

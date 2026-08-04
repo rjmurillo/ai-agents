@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, exec portability checker owns scan, parse, baseline, marker policy.
 """Exec-path vendor-portability ratchet for skill instruction files (issue #2838).
 
 Counts bare ``.claude/skills/...`` executable invocations in skill Markdown.
@@ -30,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.validation.portability_common import (
     build_portability_parser,
+    read_previous_sections,
     refuse_unsafe_baseline_write,
     write_baseline_json,
 )
@@ -197,16 +199,29 @@ def scan_all(repo_root: Path) -> tuple[dict[str, int], dict[str, int], dict[str,
     the coverage decision and the baseline contents come from the same snapshot,
     so a concurrent tree mutation cannot produce a short baseline that passes the
     coverage check.
+
+    Scan roots symlinked outside the repository are refused with OSError (issue
+    #4212). A symlinked root would scan files git does not track; coverage checks
+    based on those files can be satisfied while real shipped content is ignored.
     """
     exec_counts: dict[str, int] = {}
     marker_counts: dict[str, int] = {}
     files_by_root: dict[str, int] = {}
+    repo_resolved = repo_root.resolve()
     for parts in SCAN_ROOTS:
         root_name = "/".join(parts)
         root = repo_root.joinpath(*parts)
         if not root.is_dir():
             files_by_root[root_name] = 0
             continue
+        resolved = root.resolve()
+        if not resolved.is_relative_to(repo_resolved):
+            raise OSError(
+                f"Scan root {root} resolves to {resolved}, "
+                "which is outside the repository. "
+                "A symlinked scan root scans files git does not track. "
+                "Remove the symlink or redirect it inside the repository."
+            )
         files = _iter_skill_files(root)
         files_by_root[root_name] = len(files)
         for path in files:
@@ -325,7 +340,18 @@ def diff_marker_baseline(
 
 def build_parser() -> argparse.ArgumentParser:
     """Delegate to the shared parser; both ratchets take the same flags."""
-    return build_portability_parser(__doc__, _DEFAULT_BASELINE_NAME)
+    parser = build_portability_parser(__doc__, _DEFAULT_BASELINE_NAME)
+    parser.add_argument(
+        "--allow-marker-grow",
+        action="store_true",
+        default=False,
+        help=(
+            "Allow the total marker_files suppressed-invocation count to increase "
+            "during --update-baseline. Required when deliberately adding a new "
+            "vendor-portability-exec marker or expanding an existing one (issue #4204)."
+        ),
+    )
+    return parser
 
 
 def _resolve_root(repo_root: Path | None) -> Path:
@@ -337,6 +363,50 @@ def _resolve_root(repo_root: Path | None) -> Path:
 def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path | None:
     """Locate the baseline, refusing anything out of root or hidden from review."""
     return _resolve_checked_baseline(root, baseline, _DEFAULT_BASELINE_NAME)
+
+
+def _refuse_marker_files_growth(
+    root: Path,
+    baseline_path: Path,
+    marker_current: dict[str, int],
+    *,
+    allow_marker_grow: bool,
+) -> bool:
+    """Refuse when the total marker_files count has grown.
+
+    A vendor-portability-exec marker declares that a file's bare invocations
+    are intentional. Once a file carries the marker every future invocation
+    added to that file inherits the exemption automatically. Treating growth
+    in the total suppressed-invocation count as a ratchet regression makes that
+    growth visible at review time instead of silently absorbed into the next
+    baseline regeneration (issue #4204).
+
+    Pass allow_marker_grow=True (via --allow-marker-grow) to acknowledge a
+    deliberate expansion, for example when adding a new marked file.
+
+    Returns True when the write should be refused.
+    """
+    if allow_marker_grow:
+        return False
+    previous, problem = read_previous_sections(root, baseline_path)
+    if problem or previous is None:
+        return False
+    committed_marker = previous.get("marker_files", {})
+    committed_total = sum(
+        v for v in committed_marker.values() if isinstance(v, int)
+    )
+    current_total = sum(marker_current.values())
+    if current_total > committed_total:
+        print(
+            f"Refusing --update-baseline: marker_files total grew from "
+            f"{committed_total} to {current_total}. "
+            "A vendor-portability-exec marker now suppresses more invocations "
+            "than before. "
+            "If this is deliberate, pass --allow-marker-grow.",
+            file=sys.stderr,
+        )
+        return True
+    return False
 
 
 def _write_baseline(
@@ -471,6 +541,13 @@ def main(argv: list[str] | None = None) -> int:
             {"files": current, "marker_files": marker_current},
             "skill files",
             args.allow_baseline_shrink,
+        ):
+            return 2
+        if _refuse_marker_files_growth(
+            root,
+            baseline_path,
+            marker_current,
+            allow_marker_grow=args.allow_marker_grow,
         ):
             return 2
         return _write_baseline(
