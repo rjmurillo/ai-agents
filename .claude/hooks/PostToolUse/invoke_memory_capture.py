@@ -49,6 +49,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception as exc:
+    except Exception as exc:  # fail-open: never block a tool call
         print(f"[WARNING] {HOOK_NAME} error: {exc}", file=sys.stderr)
         sys.exit(0)

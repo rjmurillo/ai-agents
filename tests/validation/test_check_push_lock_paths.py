@@ -182,7 +182,7 @@ def test_pre_pr_runs_the_push_lock_check() -> None:
     validation_dir = Path(__file__).resolve().parents[2] / "scripts" / "validation"
     if str(validation_dir) not in sys.path:
         sys.path.insert(0, str(validation_dir))
-    import pre_pr_sequence
+    import pre_pr_sequence  # bare-name import, see #2223
 
     recorded: list[str] = []
 
@@ -206,7 +206,7 @@ def test_pre_pr_push_lock_gate_calls_the_real_validator() -> None:
     validation_dir = Path(__file__).resolve().parents[2] / "scripts" / "validation"
     if str(validation_dir) not in sys.path:
         sys.path.insert(0, str(validation_dir))
-    import pre_pr_sequence
+    import pre_pr_sequence  # bare-name import, see #2223
 
     callbacks: dict[str, Callable[[], bool]] = {}
 
