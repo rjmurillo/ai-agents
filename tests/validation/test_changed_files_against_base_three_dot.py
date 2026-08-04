@@ -19,7 +19,7 @@ from pathlib import Path
 _VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 sys.path.insert(0, str(_VALIDATION))
 
-import check_skill_md_portability as cmp  # noqa: E402
+import check_skill_md_portability as cmp
 
 
 def _init_repo(root: Path) -> None:
