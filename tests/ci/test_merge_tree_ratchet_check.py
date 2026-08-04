@@ -365,3 +365,47 @@ class TestMergeTreeRatchetCheck:
         err = capsys.readouterr().err
         assert "shallow-fetch" in err, err
         assert "#4518" in err, err
+
+    def test_shallow_diagnostic_is_not_followed_by_a_generic_oid_message(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """PR #4567 review: one failure must produce exactly one explanation.
+
+        The caller used to append "git merge-tree did not produce a tree OID"
+        after the shallow-fetch diagnosis. Two messages for one failure make the
+        specific one read like a guess and send the reader back to the ratchet.
+        """
+        work = self._behind_base_clone(tmp_path, shallow=True)
+        _run(work, "FETCH_HEAD")
+        err = capsys.readouterr().err
+        assert "shallow-fetch" in err, err
+        assert "did not produce a tree OID" not in err, err
+
+    def test_empty_merge_tree_output_still_explains_itself(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Edge case: git succeeds but prints no OID, so nothing else explains it.
+
+        Moving the message out of the caller must not turn this path silent.
+        A bare EXIT_EXTERNAL with no stderr is the failure mode to avoid.
+        """
+        repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+        empty = subprocess.CompletedProcess(args=["git"], returncode=0, stdout="", stderr="")
+        with patch.object(_m, "_git", return_value=empty):
+            oid, conflicts = _m._merge_tree_oid(repo, "HEAD")
+        assert oid is None
+        assert conflicts is False
+        err = capsys.readouterr().err
+        assert "no tree OID" in err, err
+
+    def test_successful_run_prints_no_failure_diagnostic(self, tmp_path: Path) -> None:
+        """Negative control: the diagnostics must not fire on a clean evaluation.
+
+        Without this the two assertions above would pass against a build that
+        never writes to stderr at all.
+        """
+        work = self._behind_base_clone(tmp_path, shallow=False)
+        with patch.object(_m.sys.stderr, "write") as writes:
+            rc = _run(work, "FETCH_HEAD")
+        assert rc == _m.EXIT_OK
+        assert writes.call_args_list == []
