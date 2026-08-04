@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Fixes committed from fcad92a29 through 7f775cbef, with latest main merged at 150814a0e."
+        "Evidence": "Fixes committed from fcad92a29 through 7f775cbef; final main compatibility merges landed at 5536707ab and 8c57621d7."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "2,153 tests passed, 1 skipped; Ruff, mypy, live GraphQL probes, mutations, build_all --check, and pre_pr 46/46 passed."
+        "Evidence": "2,434 post-merge tests passed, 1 skipped; Ruff, mypy, live GraphQL probes, mutations, build_all --check, and pre_pr 46/46 passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -128,9 +128,9 @@
     },
     {
       "task": "Validate",
-      "result": "Latest main merged. 2,153 tests passed with 1 skip and 1 known warning. Ruff, mypy, five mirror pairs, build_all --check, three killing mutations plus one surviving inverted control, and pre_pr 46/46 passed."
+      "result": "Latest main regression and baseline fixes merged with compatibility helpers. 2,434 tests passed with 1 skip and 1 known warning. Ruff, mypy, six mirror pairs, build_all --check, three killing mutations plus one surviving inverted control, and pre_pr 46/46 passed."
     }
   ],
-  "endingCommit": "150814a0e",
+  "endingCommit": "8c57621d7",
   "nextSteps": []
 }

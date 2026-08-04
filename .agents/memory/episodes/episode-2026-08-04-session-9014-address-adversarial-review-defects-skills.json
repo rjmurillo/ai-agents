@@ -72,7 +72,8 @@
         "e002",
         "e003",
         "e004",
-        "e005"
+        "e005",
+        "e009"
       ],
       "leads_to": [
         "e007"
@@ -100,6 +101,43 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9014-address-adversarial-review-defects-skills"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "test",
+      "content": "Validate       Latest main regression and baseline fixes merged with compatibility helpers. 2,434 tests passed with 1 skip and 1 known warning. Ruff, mypy, six mirror pairs, build_all --check, three killing mutations plus one surviving inverted control, and pre_pr 46/46 passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9014-address-adversarial-review-defects-skills"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T06:08:44+00:00",
+      "type": "commit",
+      "content": "Commit: 5536707ab",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9014-address-adversarial-review-defects-skills"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-04T06:17:17+00:00",
+      "type": "commit",
+      "content": "Commit: 8c57621d7",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9014-address-adversarial-review-defects-skills"
     }
@@ -109,7 +147,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 5,
     "files_changed": 2
   },
   "lessons": []
