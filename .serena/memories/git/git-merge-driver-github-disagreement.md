@@ -133,6 +133,38 @@ and means nothing about drivers. Trust `git diff --stat "origin/$BASE...HEAD"`,
 and note that it clears on a different trigger than stale mergeability does. See
 `docs/autonomous-pr-monitor.md` for both triggers.
 
+**The two-dot form invents deletions, and the count scales with how far behind
+you are.** Note the three dots above. `origin/main..HEAD` compares the current
+tip of main against your head, so every commit that landed on main since you
+branched reads as content your branch removed. `origin/main...HEAD` compares the
+merge base instead, which is what GitHub shows.
+
+Verified 2026-08-02 on branch `docs/testing-discriminating-input`, 7 behind and 2
+ahead, with `origin/main` at `27b591b43`. The rule-text change adds three lines
+and deletes nothing; the branch also adds a 115-line session log, so the honest
+full diff is 118 insertions across 4 files and still zero deletions:
+
+| form | result |
+|---|---|
+| `git diff --shortstat origin/main..HEAD` | 62 files, 207 insertions, **4978 deletions** |
+| `git diff --shortstat origin/main...HEAD` | 4 files, 118 insertions, 0 deletions |
+| `git diff --shortstat $(git merge-base HEAD origin/main) HEAD` | 4 files, 118 insertions, 0 deletions |
+
+Pin the base when you reproduce this. Later commits on `main` change the two-dot
+row and only that row: re-measured at 9 behind it read 91 files, 1294 insertions
+and 6924 deletions, while the three-dot and merge-base rows were unchanged. That
+is the claim, not a caveat on it. The invented deletions grow with the gap.
+
+The failure mode is not a wrong number, it is a wrong decision. Four thousand
+deletions on a three-line change reads as an accidental mass revert, and the
+reflex is to reset or re-branch, which discards real work to fix an artifact of
+the diff command. Check `git rev-list --left-right --count origin/main...HEAD`
+first. A non-zero left count means `origin/main` carries commits absent from
+`HEAD`, so the two-dot endpoint diff may differ from the merge-base one. It
+counts commits, not files or lines, so it warns you the two-dot form will lie
+without telling you by how much: at 9 behind the left count was 9 and the
+invented deletions were 6924.
+
 ## Resolution
 
 Only for the local-clean, server-conflicting direction. Merge `origin/main` into

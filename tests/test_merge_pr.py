@@ -1003,3 +1003,128 @@ class TestMainAdditional:
         assert "Custom subject" in merge_cmd
         assert "--body" in merge_cmd
         assert "Custom body" in merge_cmd
+
+
+# ---------------------------------------------------------------------------
+# Tests: REST retry on BLOCKED (issue #4362)
+# ---------------------------------------------------------------------------
+
+
+class TestRestRetryOnBlocked:
+    """GraphQL BLOCKED failure triggers a REST PUT retry (issue #4362)."""
+
+    _STATE = json.dumps({
+        "state": "OPEN", "mergeable": "MERGEABLE",
+        "mergeStateStatus": "BLOCKED", "headRefName": "feature",
+        "headRefOid": "abc123def456",
+    })
+
+    def _make_side_effect(self, graphql_fail_stderr: str, rest_rc: int, rest_stdout: str = ""):
+        """Return a side_effect callable with call-order tracking."""
+        calls = []
+
+        def _side(cmd, **kwargs):
+            calls.append(cmd)
+            # call 0: gh pr view (state fetch)
+            if len(calls) == 1:
+                return _completed(stdout=self._STATE, rc=0)
+            # call 1: gh pr merge (GraphQL path, BLOCKED)
+            if len(calls) == 2:
+                return _completed(rc=1, stderr=graphql_fail_stderr)
+            # call 2: gh api -X PUT (REST retry)
+            return _completed(rc=rest_rc, stdout=rest_stdout)
+
+        return _side, calls
+
+    def _patch_env(self, side_effect):
+        return (
+            patch("merge_pr.assert_gh_authenticated"),
+            patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED),
+            patch("subprocess.run", side_effect=side_effect),
+        )
+
+    def test_blocked_retries_rest_and_succeeds(self, capsys):
+        rest_body = json.dumps({"merged": True, "sha": "abc123def456"})
+        side, calls = self._make_side_effect(
+            "BLOCKED by branch protection", rest_rc=0, rest_stdout=rest_body,
+        )
+        with patch("merge_pr.assert_gh_authenticated"), \
+             patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")), \
+             patch("merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED), \
+             patch("subprocess.run", side_effect=side):
+            rc = main(["--pull-request", "50", "--strategy", "squash"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Data"]["state"] == "MERGED"
+        assert out["Data"]["action"] == "merged"
+        # Three subprocess calls: state fetch, gh pr merge, gh api REST
+        assert len(calls) == 3
+
+    def test_blocked_rest_also_fails_exits_6(self):
+        side, calls = self._make_side_effect(
+            "BLOCKED by branch protection", rest_rc=1, rest_stdout="",
+        )
+        with patch("merge_pr.assert_gh_authenticated"), \
+             patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")), \
+             patch("merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED), \
+             patch("subprocess.run", side_effect=side):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+        assert exc.value.code == 6
+        assert len(calls) == 3
+
+    def test_blocked_rest_uses_head_sha(self):
+        rest_body = json.dumps({"merged": True, "sha": "abc123def456"})
+        side, calls = self._make_side_effect(
+            "BLOCKED by branch protection", rest_rc=0, rest_stdout=rest_body,
+        )
+        with patch("merge_pr.assert_gh_authenticated"), \
+             patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")), \
+             patch("merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED), \
+             patch("subprocess.run", side_effect=side):
+            main(["--pull-request", "50", "--strategy", "squash"])
+        rest_cmd = calls[2]
+        assert any("abc123def456" in str(part) for part in rest_cmd)
+
+    def test_not_mergeable_does_not_retry(self):
+        """'not mergeable' errors must not trigger a REST retry."""
+        def _side(cmd, **kwargs):
+            if "pr" in cmd and "view" in cmd:
+                return _completed(stdout=self._STATE, rc=0)
+            return _completed(rc=1, stderr="PR is not mergeable")
+
+        calls = []
+
+        def _side_tracked(cmd, **kwargs):
+            calls.append(cmd)
+            return _side(cmd, **kwargs)
+
+        with patch("merge_pr.assert_gh_authenticated"), \
+             patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")), \
+             patch("merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED), \
+             patch("subprocess.run", side_effect=_side_tracked):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+        assert exc.value.code == 6
+        # Only two calls: state fetch and gh pr merge, no REST retry
+        assert len(calls) == 2
+
+    def test_auto_does_not_retry_on_blocked(self):
+        """--auto bypasses BLOCKED handling; no REST retry."""
+        calls = []
+
+        def _side(cmd, **kwargs):
+            calls.append(cmd)
+            if "view" in cmd:
+                return _completed(stdout=self._STATE, rc=0)
+            return _completed(rc=0)
+
+        with patch("merge_pr.assert_gh_authenticated"), \
+             patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")), \
+             patch("merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED), \
+             patch("subprocess.run", side_effect=_side):
+            rc = main(["--pull-request", "50", "--auto"])
+        assert rc == 0
+        # Only two calls: state fetch and gh pr merge; no REST retry
+        assert len(calls) == 2

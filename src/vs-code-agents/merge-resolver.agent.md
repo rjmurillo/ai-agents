@@ -3,6 +3,7 @@ description: Resolve git merge conflicts by analyzing commit history, code inten
 argument-hint: Provide the PR number or branch name with conflicts to resolve
 tools:
   - vscode
+  - execute
   - read
   - edit
   - search

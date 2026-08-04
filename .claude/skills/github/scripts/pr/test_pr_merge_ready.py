@@ -65,7 +65,7 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     count_unresolved_threads,
     error_and_exit,
@@ -879,7 +879,10 @@ def _script_commit() -> str:
             return "unknown"
 
         result = subprocess.run(
-            ["git", "-C", repo_root, "log", "-1", "--format=%h", "--", pathspec],
+            [
+                "git", "-c", "log.showSignature=false",
+                "-C", repo_root, "log", "-1", "--format=%h", "--", pathspec,
+            ],
             capture_output=True,
             encoding="utf-8",
             errors="replace",

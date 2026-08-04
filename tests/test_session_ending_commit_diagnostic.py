@@ -59,7 +59,7 @@ def _repo_with_squash_merged_branch(tmp_path: Path) -> tuple[Path, str]:
     return repo, branch_sha
 
 
-def _errors_for_ending_commit(repo: Path, sha: str, monkeypatch: Any) -> list[str]:  # noqa: ANN401
+def _errors_for_ending_commit(repo: Path, sha: str, monkeypatch: Any) -> list[str]:
     monkeypatch.setattr(vsj, "_PROJECT_ROOT", repo)
     data = {
         "session": {"branch": "feature"},
@@ -75,7 +75,7 @@ def _errors_for_ending_commit(repo: Path, sha: str, monkeypatch: Any) -> list[st
 
 def test_squash_merged_sha_is_reported_without_blaming_an_amend(
     tmp_path: Path,
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     repo, branch_sha = _repo_with_squash_merged_branch(tmp_path)
 
@@ -94,7 +94,7 @@ def test_squash_merged_sha_is_reported_without_blaming_an_amend(
 
 def test_reachable_sha_produces_no_error(
     tmp_path: Path,
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     repo, _ = _repo_with_squash_merged_branch(tmp_path)
     head = _git(repo, "rev-parse", "HEAD~1")
@@ -104,7 +104,7 @@ def test_reachable_sha_produces_no_error(
 
 def test_unknown_sha_still_names_every_candidate_cause(
     tmp_path: Path,
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     repo, _ = _repo_with_squash_merged_branch(tmp_path)
     absent = "0" * 40

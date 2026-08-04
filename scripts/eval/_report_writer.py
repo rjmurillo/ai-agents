@@ -106,7 +106,12 @@ def _build_report_json(
         "total_tokens_in": aggregate.total_tokens_in,
         "total_tokens_out": aggregate.total_tokens_out,
         "wall_clock_seconds": round(wall_clock_seconds, 2),
-        "cost_estimate_usd": round(aggregate.cost_estimate_usd, 4),
+        "cost_estimate_usd": (
+            None
+            if aggregate.cost_estimate_usd is None
+            else round(aggregate.cost_estimate_usd, 4)
+        ),
+        "cost_basis": aggregate.cost_basis,
         "tokens_estimated": aggregate.tokens_estimated,
         "error_count": aggregate.error_count,
         "pricing_rate_as_of": aggregate.pricing_rate_as_of,
@@ -275,6 +280,25 @@ def _render_recommendation_section(recommendation: str | None = None) -> str:
     )
 
 
+def _render_cost_line(aggregate: AggregateResult) -> str:
+    """Return the one cost line, in whichever currency the provider bills.
+
+    A quota-billed provider publishes no per-token rate, so there is no
+    dollar figure to render. Printing `$0.0000` would read as a free run,
+    which is the same failure the aggregator's raise-on-unpriced rule
+    exists to prevent.
+    """
+    if aggregate.cost_estimate_usd is None:
+        return (
+            "- Estimated cost: metered as requests, not billed per token "
+            "(no public per-token rate for this provider)\n"
+        )
+    return (
+        f"- Estimated cost: ${aggregate.cost_estimate_usd:.4f} USD "
+        f"(rate as of {aggregate.pricing_rate_as_of})\n"
+    )
+
+
 def _render_cost_section(
     aggregate: AggregateResult, wall_clock_seconds: float
 ) -> str:
@@ -289,8 +313,7 @@ def _render_cost_section(
         "## Cost and Resource Summary\n\n"
         f"- Total tokens in: {aggregate.total_tokens_in:,}\n"
         f"- Total tokens out: {aggregate.total_tokens_out:,}\n"
-        f"- Estimated cost: ${aggregate.cost_estimate_usd:.4f} USD "
-        f"(rate as of {aggregate.pricing_rate_as_of})\n"
+        f"{_render_cost_line(aggregate)}"
         f"- Wall-clock time: {wall_clock_seconds:.1f}s"
         f"{estimate_caveat}\n"
     )

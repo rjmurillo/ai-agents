@@ -23,7 +23,7 @@ on:
   workflow_dispatch: # Allow manual triggering
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -372,13 +372,15 @@ jobs:
           echo "See the 'python' filter in check-paths job for paths that trigger tests."
           echo "Reference: .github/workflows/pytest.yml"
 
-  # ─── Windows runtime contract tests ───────────────────────────────────────
-  # The PowerShell path-resolution test never runs on Linux because pwsh is
-  # absent. The pytest HEAD guard also depends on Git's Windows trace behavior.
-  # This job executes both contracts on an always-on Windows runner. Neither
-  # contract needs authentication or external credentials.
+  # ─── Windows path-contract tests ────────────────────────────────────────────
+  # Tests marked @pytest.mark.windows_path exercise behavior that differs between
+  # Windows and POSIX: path separators, PowerShell script resolution, Git's
+  # Windows trace behavior, atomic-write durability, and install-tree layout.
+  # The marker is the discovery mechanism: add pytestmark = pytest.mark.windows_path
+  # (or include it in a list) at module level and the file runs here automatically.
+  # Do NOT hardcode test file paths in this job; that was issue #4299.
   test-windows-pwsh:
-    name: Run Python and Lefthook Tests (Windows)
+    name: Run Windows path-contract tests (pytest.mark.windows_path)
     needs: check-paths
     if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: windows-latest
@@ -404,57 +406,8 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Run pwsh hook contract tests
+      - name: Run Windows path-contract tests
         shell: pwsh
         env:
           UV_PYTHON: '3.14'
-        run: uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -v -k "powershell"
-
-      - name: Run pytest HEAD guard contracts
-        shell: pwsh
-        env:
-          UV_PYTHON: '3.14'
-        run: uv run pytest tests/test_pytest_head_guard.py -v
-
-      - name: Run Lefthook integration tests
-        shell: pwsh
-        env:
-          UV_PYTHON: '3.14'
-        run: uv run pytest tests/test_lefthook_integration.py -q
-
-      - name: Run AI review output path contract tests
-        shell: pwsh
-        env:
-          UV_PYTHON: '3.14'
-        run: uv run pytest tests/test_check_ai_review_infra_gate.py -v
-
-      # Issue #3324: the _direct shadow cleanup compares paths with as_posix()
-      # and Path.parents, and the leak it guards was Windows-only. A POSIX-only
-      # leg is why a POSIX-only fix looked complete for nine days. The binary
-      # smoke test in this file skips without `copilot` on PATH; the cleanup
-      # coverage does not need it.
-      - name: Run install cleanup contract tests
-        shell: pwsh
-        env:
-          UV_PYTHON: '3.14'
-        run: uv run pytest tests/integration/test_e2e_install.py -q
-
-      # Issue #3591: the ledger charge is only durable on Windows if the move
-      # asks for MOVEFILE_WRITE_THROUGH, which CPython's os.replace omits. The
-      # ctypes path that adds it cannot run on the POSIX legs, so without this
-      # step it would ship unexercised.
-      - name: Run atomic-write durability contract tests
-        shell: pwsh
-        env:
-          UV_PYTHON: '3.14'
-        run: uv run pytest tests/eval/test_optimize_artifact_durability.py -v
-
-      # Issue #4299: get_skill_files used str() path matching which yields
-      # backslashes on Windows. _SKILL_MD_RE is forward-slash-anchored, so the
-      # regex never matched and the Windows skill-size check was a silent no-op.
-      # This step exercises that path-shape surface on the Windows leg.
-      - name: Run skill-size validation path-shape tests
-        shell: pwsh
-        env:
-          UV_PYTHON: '3.14'
-        run: uv run pytest tests/test_validation_skill_size.py -q -k "WindowsPathNormalization"
+        run: uv run pytest -m windows_path -v

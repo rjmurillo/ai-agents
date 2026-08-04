@@ -102,6 +102,47 @@ class TestScriptCommit:
         ):
             assert _mod._script_commit() == "unknown"
 
+    def test_showsignature_flag_suppressed(self):
+        """The -c log.showSignature=false flag prevents GPG diagnostic contamination."""
+        completed = [
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="/repo\n", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="abc1234\n", stderr=""),
+        ]
+        with (
+            patch.object(
+                _mod, "__file__",
+                "/repo/.claude/skills/github/scripts/pr/test_pr_merge_ready.py",
+            ),
+            patch.object(_mod.subprocess, "run", side_effect=completed),
+        ):
+            result = _mod._script_commit()
+            log_call = _mod.subprocess.run.call_args_list[-1].args[0]
+            # The -c flag must appear so git never invokes GPG at all.
+            assert "-c" in log_call
+            assert "log.showSignature=false" in log_call
+            assert result == "abc1234"
+
+    def test_git_command_includes_showsignature_false_flag(self):
+        """The -c log.showSignature=false flag must appear in the git log call."""
+        completed = [
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="/repo\n", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="deadc0de\n", stderr=""),
+        ]
+        with (
+            patch.object(
+                _mod, "__file__",
+                "/repo/.claude/skills/github/scripts/pr/test_pr_merge_ready.py",
+            ),
+            patch.object(_mod.subprocess, "run", side_effect=completed),
+        ):
+            _mod._script_commit()
+            log_call = _mod.subprocess.run.call_args_list[-1].args[0]
+            assert "-c" in log_call, "-c flag missing from git log call"
+            idx = log_call.index("-c")
+            assert log_call[idx + 1] == "log.showSignature=false"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
