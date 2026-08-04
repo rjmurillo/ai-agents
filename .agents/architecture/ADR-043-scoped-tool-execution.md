@@ -57,7 +57,7 @@ if ($ChangedMd) {
 }
 ```
 
-**Note:** The `--no-globs` flag disables config file glob patterns, ensuring only specified files are processed.
+**Note:** The `--no-globs` flag disables the config file's `globs` key, which prevents the config from adding extra input paths. It does not affect `ignores`. The `ignores` list in `.markdownlint-cli2.yaml` still applies to files passed on the command line, so a file you pass explicitly can still be silently skipped. In this repository the config carries no `globs` key at all, so `--no-globs` is inert. It remains on the command as documentation of intent, not as a scope guarantee. See issue #4401 for the correction history.
 
 ### Scope Definition
 

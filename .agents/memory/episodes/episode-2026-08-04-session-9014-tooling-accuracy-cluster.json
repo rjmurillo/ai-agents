@@ -1,0 +1,55 @@
+{
+  "id": "episode-2026-08-04-session-9014-tooling-accuracy-cluster",
+  "session": "2026-08-04-session-9014-tooling-accuracy-cluster",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issues #2993, #4261, #4364, #4401, #4462, #4490, #4509: ruff baseline, subprocess checker, ADR-043 note, PR body editor, merge_pr explicit strategy skip, pr_description bold line suffix.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "test",
+      "content": "Added audit_closing_claims.py (fleet reader, pagination, mismatch report) and edit_pr_body.py (safe body editor with SHA stale-write guard). Tests in tests/test_github_skill_closing_claims.py: 27 passing.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-04-session-9014-tooling-accuracy-cluster"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T07:02:31+00:00",
+      "type": "commit",
+      "content": "Commit: a31893c557",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-04-session-9014-tooling-accuracy-cluster"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T07:14:14+00:00",
+      "type": "commit",
+      "content": "Commit: 477ac4e8f6",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9014-tooling-accuracy-cluster"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 4
+  },
+  "lessons": []
+}
