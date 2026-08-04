@@ -267,16 +267,6 @@
         0
       ]
     ],
-    "guard-maturity/scripts/run_report.py": [
-      [
-        "proc = subprocess.run(",
-        0
-      ],
-      [
-        "proc = subprocess.run(cmd, capture_output=True, text=True, check=False)",
-        0
-      ]
-    ],
     "memory/memory_core/schema_validation.py": [
       [
         "result = subprocess.run(",
