@@ -24,6 +24,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from shlex import quote
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -82,6 +83,10 @@ def _run_tests(test_filter: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _recovery_checkout_hint(target: Path) -> str:
+    return f"git checkout -- {quote(str(target))}"
+
+
 def apply_mutation(mutation: Mutation) -> Result:
     """Apply mutation, run tests, restore file, return outcome."""
     target = mutation.target_file
@@ -125,17 +130,25 @@ def apply_mutation(mutation: Mutation) -> Result:
         except OSError as exc:
             print(
                 f"ERROR: could not restore {target.name}: {exc}\n"
-                f"Tree is dirty. Run: git checkout -- {target}",
+                f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
                 file=sys.stderr,
             )
             raise SystemExit(2) from exc
 
     # Verify restore: write_bytes returned but bytes differ (external race).
-    restored = target.read_bytes()
+    try:
+        restored = target.read_bytes()
+    except OSError as exc:
+        print(
+            f"ERROR: could not verify restore of {target.name}: {exc}\n"
+            f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
+            file=sys.stderr,
+        )
+        raise SystemExit(2) from exc
     if restored != backup:
         print(
             f"ERROR: restore of {target.name} failed (bytes differ after write)!\n"
-            f"Tree is dirty. Run: git checkout -- {target}",
+            f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
             file=sys.stderr,
         )
         sys.exit(2)

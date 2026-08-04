@@ -262,7 +262,9 @@ class TestRestoreFailureExitCode:
 
     def test_oserror_on_restore_prints_recovery_hint(self, tmp_path, monkeypatch, capsys):
         """The recovery command must appear in stderr."""
-        mutation = self._mutation(tmp_path)
+        target_dir = tmp_path / "path with spaces & shell chars"
+        target_dir.mkdir()
+        mutation = self._mutation(target_dir)
         write_count = [0]
         original_write = mutation.target_file.__class__.write_bytes
 
@@ -280,6 +282,7 @@ class TestRestoreFailureExitCode:
 
         err = capsys.readouterr().err
         assert "git checkout" in err, f"Recovery hint missing from stderr: {err!r}"
+        assert f"'{mutation.target_file}'" in err
 
     def test_survived_mutant_does_not_raise_system_exit(self, tmp_path, monkeypatch):
         """Surviving mutant returns SURVIVED outcome without raising SystemExit.
@@ -310,6 +313,28 @@ class TestRestoreFailureExitCode:
         with pytest.raises(SystemExit) as excinfo:
             harness.apply_mutation(mutation)
         assert excinfo.value.code == 2
+
+    def test_oserror_on_restore_verification_exits_2(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """OSError while checking restored bytes exits 2."""
+        mutation = self._mutation(tmp_path)
+        original_read = mutation.target_file.__class__.read_bytes
+        read_count = [0]
+
+        def patched_read(self_path):
+            read_count[0] += 1
+            if read_count[0] >= 2:
+                raise OSError("simulated read-back failure")
+            return original_read(self_path)
+
+        monkeypatch.setattr(mutation.target_file.__class__, "read_bytes", patched_read)
+        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+
+        with pytest.raises(SystemExit) as excinfo:
+            harness.apply_mutation(mutation)
+        assert excinfo.value.code == 2
+        assert "could not verify restore" in capsys.readouterr().err
 
 class TestMutationsAreRunnable:
     """Regression guards for the two silent-failure classes.
