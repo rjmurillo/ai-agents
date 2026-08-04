@@ -17,7 +17,8 @@
         "e003",
         "e004",
         "e005",
-        "e006"
+        "e006",
+        "e007"
       ],
       "leads_to": [],
       "_source_session": "2026-08-03-session-9013"
@@ -71,6 +72,17 @@
       "timestamp": "2026-08-03T00:00:00+00:00",
       "type": "milestone",
       "content": "Regenerated both instruction mirrors and re-ran the always-on instruction budget",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split Anti-Pattern 8 and testing.md SHOULD 11 off this branch after finding they cite code that does not exist here",
       "caused_by": [],
       "leads_to": [
         "e001"

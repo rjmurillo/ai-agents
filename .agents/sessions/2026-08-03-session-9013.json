@@ -140,6 +140,17 @@
         ".github/instructions/testing.instructions.md",
         "src/copilot-cli/instructions/testing.instructions.md"
       ]
+    },
+    {
+      "step": 4,
+      "action": "Split Anti-Pattern 8 and testing.md SHOULD 11 off this branch after finding they cite code that does not exist here",
+      "result": "git grep on this branch returns zero hits for DID_NOT_RUN in scripts/quality_gate/external_signal_gate.py and zero hits for test_did_not_run_is_aliased_not_merely_caught_by_the_fallback in any test file. Both live only on fix/gate-aggregator-did-not-run. Merged alone this branch would have shipped documentation citing a test that does not exist. Moved both entries to that branch, where the code they describe is in the same change. A dispatched gemini review reached the same conclusion independently. Two of its other three findings did not survive: TESTING-RIGOR.md is tracked at .agents/governance/TESTING-RIGOR.md and the bare-filename reference style matches lines 105 and 108, and the always-on budget premise is wrong because testing.md is path-scoped to tests/**, with instruction_budget.py reporting PASS at 83.8% .md usage.",
+      "filesChanged": [
+        ".agents/governance/TESTING-ANTI-PATTERNS.md",
+        ".claude/rules/testing.md",
+        ".github/instructions/testing.instructions.md",
+        "src/copilot-cli/instructions/testing.instructions.md"
+      ]
     }
   ],
   "endingCommit": "ee9d10dfb",
