@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9014,
+    "date": "2026-08-04",
+    "branch": "fix/skills-docs-p2",
+    "startingCommit": "a1b3f9fbf",
+    "objective": "Address adversarial review defects in skills docs p2"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools were unavailable; repository memory files and prior session evidence remained loaded."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; followed AGENTS.md and .serena/CLAUDE.md fallback guidance."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained loaded and unchanged."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reused loaded context-mode, github, agent-harness-reference, merge-resolver, session-init, and session-end skills."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub operations used the skill scripts and shared github_core helpers."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Path-scoped canonical-source, generated-artifact, Python, testing, and skill instructions remained active."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Prior skill-description and GitHub script memories remained loaded from session 9013."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/skills-docs-p2"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/skills-docs-p2"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Branch verified clean before edits and latest origin/main merged three times without unresolved conflicts."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a1b3f9fbf"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session fields contain evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No duplicate memory added; code, tests, and canonical skill documentation carry the durable contracts."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit and pre_pr Markdown checks passed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fixes committed from fcad92a29 through 7f775cbef, with latest main merged at 150814a0e."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "2,153 tests passed, 1 skipped; Ruff, mypy, live GraphQL probes, mutations, build_all --check, and pre_pr 46/46 passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SQL todos fix-skills-docs-p2 and fix-skills-docs-p2-validation marked done."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Fix reviewer actor IDs",
+      "result": "Replaced gh pr view identity fixtures with paginated GraphQL author, request, and review actors. Live probes returned coding-agent ID 198982749 and reviewer ID 175728472."
+    },
+    {
+      "task": "Restore review aliases API",
+      "result": "Preserved aliases and added author_id and author_observed additively. Shared normalization now retains the existing github-actions alias contract."
+    },
+    {
+      "task": "Make quality regression rename-aware",
+      "result": "Parsed git diff --name-status -M -z, retained old and new paths, read the old base blob, and separated absent blobs from git failures. Commit 054888b4 reproduced as R095."
+    },
+    {
+      "task": "Validate",
+      "result": "Latest main merged. 2,153 tests passed with 1 skip and 1 known warning. Ruff, mypy, five mirror pairs, build_all --check, three killing mutations plus one surviving inverted control, and pre_pr 46/46 passed."
+    }
+  ],
+  "endingCommit": "150814a0e",
+  "nextSteps": []
+}

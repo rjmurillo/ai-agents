@@ -1,0 +1,116 @@
+{
+  "id": "episode-2026-08-04-session-9014-address-adversarial-review-defects-skills",
+  "session": "2026-08-04-session-9014-address-adversarial-review-defects-skills",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Address adversarial review defects in skills docs p2",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix reviewer actor IDs",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9014-address-adversarial-review-defects-skills"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restore review aliases API",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9014-address-adversarial-review-defects-skills"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Make quality regression rename-aware",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9014-address-adversarial-review-defects-skills"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9014-address-adversarial-review-defects-skills"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "test",
+      "content": "Validate       Latest main merged. 2,153 tests passed with 1 skip and 1 known warning. Ruff, mypy, five mirror pairs, build_all --check, three killing mutations plus one surviving inverted control, and pre_pr 46/46 passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9014-address-adversarial-review-defects-skills"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T05:17:14+00:00",
+      "type": "commit",
+      "content": "Commit: fcad92a29",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9014-address-adversarial-review-defects-skills"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T05:37:10+00:00",
+      "type": "commit",
+      "content": "Commit: 7f775cbef",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9014-address-adversarial-review-defects-skills"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T05:46:28+00:00",
+      "type": "commit",
+      "content": "Commit: 150814a0e",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9014-address-adversarial-review-defects-skills"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 2
+  },
+  "lessons": []
+}
