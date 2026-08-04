@@ -235,6 +235,21 @@ jobs:
       - name: Checkout repository for workflow validation
         if: steps.should-run.outputs.skip == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Issue #4518 follow-up: this checkout must match the `fetch-depth: 0`
+          # on the primary checkout above. It is the only checkout a bot PR ever
+          # gets, and the `Run merge-tree ratchet` step later in this same job
+          # needs a merge base. A default checkout writes .git/shallow, and a
+          # plain `git fetch origin "$BASE_REF"` does not remove it, so
+          # merge-tree aborts with "refusing to merge unrelated histories"
+          # (rc 128) on every Renovate and Dependabot PR.
+          #
+          # Measured 2026-08-04 on #4552 (run 30944714371) and #4569
+          # (run 30939418867), both after the full-depth fetch landed: the
+          # fetch line was already `git fetch origin "$BASE_REF"` and both
+          # still failed rc 128. Human PRs take the fetch-depth: 0 checkout
+          # above and pass, which is why the failure looked bot-specific.
+          fetch-depth: 0
 
       - name: Setup uv for workflow validation
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0

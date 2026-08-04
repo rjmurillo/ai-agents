@@ -1039,3 +1039,70 @@ def test_merge_tree_ratchet_fetches_base_at_full_depth() -> None:
                 f"step {step.get('name')!r} fetches the base shallowly ({line!r}); "
                 "merge-tree needs a merge base. See issue #4518."
             )
+
+
+def _merge_tree_job() -> dict:
+    """Return the job that runs the merge-tree ratchet step."""
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    for job in data.get("jobs", {}).values():
+        for step in job.get("steps", []) or []:
+            if "merge_tree_ratchet_check.py" in (step.get("run") or ""):
+                return job
+    raise AssertionError(
+        "no job in pr-validation.yml runs merge_tree_ratchet_check.py"
+    )
+
+
+def _checkout_steps(job: dict) -> list[dict]:
+    return [
+        s
+        for s in (job.get("steps", []) or [])
+        if "actions/checkout" in (s.get("uses") or "")
+    ]
+
+
+def test_every_checkout_in_the_merge_tree_job_is_unshallow() -> None:
+    """Issue #4518 follow-up: the bot-skip checkout was shallow.
+
+    The job carries two checkouts. The first sets ``fetch-depth: 0``. The second
+    is guarded by ``if: steps.should-run.outputs.skip == 'true'`` and fires only
+    when the bot-skip guard suppressed the first one, which is exactly what
+    happens on a Renovate or Dependabot PR. It originally carried no ``with:``
+    block at all, so a bot PR got a depth-1 checkout.
+
+    A shallow *checkout* is not repaired by a full *fetch*. ``.git/shallow``
+    survives ``git fetch origin <base>``, so merge-tree still aborts rc 128.
+    Measured on #4552 (run 30944714371) and #4569 (run 30939418867): both ran
+    the already-fixed full-depth fetch line and both still failed.
+
+    Asserting on the fetch line alone cannot catch this, which is why the
+    sibling test above passed while bot PRs stayed red.
+    """
+    job = _merge_tree_job()
+    checkouts = _checkout_steps(job)
+    assert checkouts, "the merge-tree job must check out the repository"
+    for step in checkouts:
+        depth = (step.get("with") or {}).get("fetch-depth")
+        assert depth == 0, (
+            f"checkout step {step.get('name') or '<unnamed>'!r} in the merge-tree "
+            f"job has fetch-depth={depth!r}; merge-tree needs full history on "
+            "every path into this job, including the bot-skip path. "
+            "See issue #4518."
+        )
+
+
+def test_the_merge_tree_job_has_a_conditional_second_checkout() -> None:
+    """Negative control for the guard above.
+
+    If the bot-skip checkout is ever deleted, the assertion above starts passing
+    vacuously: one checkout, already correct, nothing to catch. This test fails
+    in that case so the deletion is a deliberate decision rather than a silent
+    weakening of the guard.
+    """
+    job = _merge_tree_job()
+    conditional = [s for s in _checkout_steps(job) if s.get("if")]
+    assert conditional, (
+        "the merge-tree job no longer has a conditional checkout. If the "
+        "bot-skip path was removed on purpose, delete this test and "
+        "test_every_checkout_in_the_merge_tree_job_is_unshallow together."
+    )
