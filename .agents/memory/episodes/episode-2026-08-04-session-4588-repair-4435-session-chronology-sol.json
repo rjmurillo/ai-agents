@@ -20,7 +20,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-04T00:00:00+00:00",
+      "timestamp": "2026-08-04T22:16:12+00:00",
       "type": "milestone",
       "content": "Filed the extractor defect",
       "caused_by": [],
@@ -42,13 +42,13 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-04T00:00:00+00:00",
+      "timestamp": "2026-08-04T22:31:03+00:00",
       "type": "milestone",
       "content": "Committed the chronology repair",
-      "caused_by": [],
-      "leads_to": [
+      "caused_by": [
         "e005"
       ],
+      "leads_to": [],
       "_source_session": "2026-08-04-session-4588-repair-4435-session-chronology-sol"
     },
     {
@@ -59,10 +59,11 @@
       "caused_by": [
         "e001",
         "e002",
-        "e003",
+        "e003"
+      ],
+      "leads_to": [
         "e004"
       ],
-      "leads_to": [],
       "_source_session": "2026-08-04-session-4588-repair-4435-session-chronology-sol"
     }
   ],
