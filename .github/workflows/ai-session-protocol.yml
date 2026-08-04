@@ -87,6 +87,9 @@ jobs:
           # Issue #215: Session End checklist requirement introduced 2025-12-21
           # Historical sessions before this date are exempt from validation
           CUTOFF_DATE: "2025-12-21"
+          # Use the per-run token here. The shared bot token can hit secondary
+          # rate limits across the fleet before this read-only lookup starts.
+          GH_TOKEN: ${{ github.token }}
         run: python3 scripts/ci/detect_session_logs.py
 
 # Validate each session file in parallel using matrix strategy
