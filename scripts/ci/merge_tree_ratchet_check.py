@@ -68,6 +68,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.ci import ruff_count_ratchet as _ruff
 from scripts.ci import taste_count_ratchet as _taste
 from scripts.ci import type_ignore_count_ratchet as _type_ignore
+from scripts.ci.count_ratchet import read_baseline
 
 EXIT_OK = 0
 EXIT_REGRESSION = 1
@@ -222,10 +223,7 @@ def _read_baseline_in_tree(tree_root: Path, rel_path: str) -> int | None:
     Reading it from the extracted snapshot (rather than from either input ref)
     is what makes the ceiling reflect the post-merge repository.
     """
-    try:
-        return int((tree_root / rel_path).read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
-        return None
+    return read_baseline(tree_root / rel_path)
 
 
 def _effective_baseline(base_value: int | None, merged_value: int | None) -> int | None:

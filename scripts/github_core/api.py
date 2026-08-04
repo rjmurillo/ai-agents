@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, facade keeps the legacy import surface stable.
 """GitHub API helpers: auth, pagination, GraphQL, issue comments, rate limits.
 
 Cohesive sub-concerns live in sibling modules and are re-exported here so the

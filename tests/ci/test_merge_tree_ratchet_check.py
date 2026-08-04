@@ -441,7 +441,6 @@ class TestEffectiveBaseline:
         assert _m._effective_baseline(None, None) is None
 
 
-@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 class TestReadBaselineInTree:
     """The merged-tree reader must not fall back to the checked-out repo."""
 
