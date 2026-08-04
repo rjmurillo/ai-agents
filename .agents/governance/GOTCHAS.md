@@ -491,3 +491,42 @@ Notes:
 
 Issue #4283 documents the measured 28-waiter convoy produced by the global lock
 and the first-principles analysis of why the race is per-ref.
+
+## The CLI e2e pre-push jobs need a Copilot token, and fail fast without one
+
+`plugin-load-e2e` and `hook-anchoring-e2e` shell out to the real `copilot`
+binary. They fire only when the diff touches their globs, so a branch that edits
+`.claude/skills/**`, `.claude/commands/**`, `.claude/.claude-plugin/plugin.json`,
+`.claude/hooks/**`, `src/copilot-cli/hooks/**`, or
+`build/scripts/generate_hooks.py` runs them and other branches never see them.
+
+The CLI reads its credential from `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, or
+`GITHUB_TOKEN`. A `gh auth login` alone does not set any of them. With none set,
+each invocation exits 1 with an authentication message and the job finishes in
+roughly 13 to 17 seconds. A run that actually reaches the CLI takes about 28
+seconds or more for two tests.
+
+The cost is that both jobs sit behind `python-tests`, which takes about 18
+minutes. The push runs the full suite, passes it, then fails on the two e2e jobs
+and rejects the ref. Provision the token on the push instead:
+
+```bash
+COPILOT_GITHUB_TOKEN="$(gh auth token)" git push origin HEAD:"$(git branch --show-current)"
+```
+
+Two traps around diagnosing it:
+
+- A fast finish looks like a flake or a concurrency problem. It is neither. Read
+  the assertion message, which names the missing variable outright. Serializing
+  pushes to fix it is the wrong remedy and contradicts the per-branch lock
+  section above.
+- Running the two test files directly does not reproduce the failure. The suites
+  gate on `RUN_CLI_E2E=1`, which `scripts/validation/git_hook_policy.py` sets for
+  the hook. Without it the CLI cases skip and pytest reports the file as passing,
+  which proves nothing. Set both variables to reproduce.
+
+Measured: a push of a branch touching `.claude/skills/**` failed
+`plugin-load-e2e` at 13.03 seconds and `hook-anchoring-e2e` at 16.73 seconds
+after `python-tests` passed in 1071.94 seconds. The same two tests passed in
+27.92 seconds under `RUN_CLI_E2E=1` with `COPILOT_GITHUB_TOKEN` set, and skipped
+silently with the token set but `RUN_CLI_E2E` unset.
