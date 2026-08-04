@@ -368,9 +368,9 @@ def main(argv: list[str] | None = None) -> int:
     pr = args.pull_request
     repo_flag = f"{owner}/{repo}"
 
-    repo_settings = get_allowed_merge_methods(repo_flag)
-
     if args.strategy is None:
+        # No explicit strategy: consult repo settings to pick a default.
+        repo_settings = get_allowed_merge_methods(repo_flag)
         chosen = resolve_default_strategy(repo_settings)
         if chosen is None:
             _emit_error(
@@ -381,8 +381,12 @@ def main(argv: list[str] | None = None) -> int:
                 pr,
             )
         args.strategy = chosen
-
-    validate_strategy(args.strategy, repo_settings, repo_flag, output_format)
+        validate_strategy(args.strategy, repo_settings, repo_flag, output_format)
+    # else: caller supplied an explicit strategy; skip the REST settings
+    # preflight. GitHub's merge endpoint returns 405 when the method is
+    # disallowed, which _graphql_merge/_rest_merge handles below. This
+    # avoids burning REST quota on a settings read when the quota is
+    # already exhausted (issue #4490).
 
     pr_data = _fetch_pr_state(pr, repo_flag, output_format)
 

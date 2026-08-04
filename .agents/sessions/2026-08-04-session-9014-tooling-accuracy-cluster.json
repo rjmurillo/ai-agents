@@ -148,6 +148,15 @@
     }
   ],
   "endingCommit": "477ac4e8f6",
+  "retrospective": {
+    "learningsCaptured": true,
+    "patterns": [
+      "copilot-mirror files (src/copilot-cli/) must be staged together with .claude/ changes in the same commit",
+      "Session logs require retrospective evidence to clear the push gate; add a retrospective section to every non-trivial session",
+      "ADR edits require both a debate log in .agents/critique/ AND adr-review text in the session log",
+      "ruff_count_baseline tracks git-tracked files only; the actual count on this branch was 306, not 627 as the original issue claimed"
+    ]
+  },
   "nextSteps": [
     "Open #4364 remains: implement --gate-mode regression in assess.py in a dedicated branch."
   ]
