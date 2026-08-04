@@ -14,7 +14,7 @@
       "content": "Detected that PR #4323 merged from its old head during review remediation",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -25,7 +25,7 @@
       "content": "Applied and completed all unresolved review fixes",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -36,7 +36,7 @@
       "content": "Restored cross-harness session command portability",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -47,7 +47,7 @@
       "content": "Ran targeted, full-suite, and independent review gates",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -58,7 +58,7 @@
       "content": "Filed process and codebase defects found during recovery",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -69,7 +69,7 @@
       "content": "Completed the local review superset",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -80,7 +80,7 @@
       "content": "Recovered the failed pre-push type check",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -91,7 +91,7 @@
       "content": "Resolved the final reliability review finding",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -102,7 +102,7 @@
       "content": "Resolved the final code-quality review finding",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -113,7 +113,7 @@
       "content": "Merged the final current main after PRs #4466 and #4481 landed",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -124,7 +124,7 @@
       "content": "Retired stale script-mode exemptions introduced by current main",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -135,7 +135,7 @@
       "content": "Closed the final security and reliability review findings",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -146,7 +146,7 @@
       "content": "Merged current main and repaired the remaining branch-owned type failure",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -157,7 +157,7 @@
       "content": "Re-ran repository gates against current main",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -168,7 +168,7 @@
       "content": "Read the full blocker discourse and updated the matching issue",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -179,7 +179,7 @@
       "content": "Detected a regression in generated episode file metrics",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -190,7 +190,7 @@
       "content": "Repaired final portability review regressions",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -201,7 +201,7 @@
       "content": "Re-ran validation and the local review superset",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -212,7 +212,7 @@
       "content": "Grounded the code-qualities gate against the exact base revision",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -223,7 +223,7 @@
       "content": "Reproduced generated episode merge-range inflation",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -234,7 +234,7 @@
       "content": "Recovered from the repository push commit-count policy",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -245,7 +245,7 @@
       "content": "Split the rebuilt change into seven atomic commits",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -256,7 +256,7 @@
       "content": "Closed the final QA High finding",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
@@ -267,12 +267,34 @@
       "content": "Revalidated the rebuilt branch and repeated all review axes",
       "caused_by": [],
       "leads_to": [
-        "e025"
+        "e027"
       ],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
     },
     {
       "id": "e025",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Published the rebuilt follow-up branch and opened PR #4568",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed first-round PR evidence feedback",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e027",
       "timestamp": "2026-08-04T15:23:25+00:00",
       "type": "commit",
       "content": "Commit: 22152e3f3",
@@ -300,7 +322,9 @@
         "e021",
         "e022",
         "e023",
-        "e024"
+        "e024",
+        "e025",
+        "e026"
       ],
       "leads_to": [],
       "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
@@ -312,7 +336,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 24
+    "files_changed": 25
   },
   "lessons": []
 }
