@@ -579,7 +579,7 @@ def scanned_markdown_by_root(root: Path) -> dict[str, int]:
 
 
 def scan_marker_suppressions(root: Path) -> dict[str, int]:
-    """Return marker-suppressed reference counts across every plugin root."""
+    """Return marker-suppressed reference counts across plugin roots and extra scan dirs."""
     _, marker_counts, _ = scan_all(root)
     return marker_counts
 

@@ -717,6 +717,22 @@ class TestPluginRootScan:
         with pytest.raises(OSError, match="Broken .md symlink"):
             cmp.scan_marker_suppressions(tmp_path)
 
+    def test_marker_scan_contract_names_extra_scan_dirs(self) -> None:
+        """The public wrapper docstring must match its scan surface."""
+        assert "extra scan dirs" in (cmp.scan_marker_suppressions.__doc__ or "")
+
+    def test_marker_scan_includes_extra_scan_dirs(self, tmp_path: Path) -> None:
+        """Markers in command docs feed the same exact-count marker baseline."""
+        self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
+        command = tmp_path / ".claude" / "commands" / "ship.md"
+        command.parent.mkdir(parents=True)
+        command.write_text(
+            "<!-- vendor-portability: declared -->\nWrites .agents/state.\n",
+            encoding="utf-8",
+        )
+
+        assert cmp.scan_marker_suppressions(tmp_path) == {".claude/commands/ship.md": 1}
+
     def test_same_named_skills_in_two_roots_do_not_collide(self, tmp_path: Path) -> None:
         """Keys are repository relative because both roots hold ``skills/spec``.
 
