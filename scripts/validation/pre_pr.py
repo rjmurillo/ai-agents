@@ -328,7 +328,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print("RESULT: All validations passed")
     print()
-    print("Ready to create pull request!")
+    print("Pre-PR checks passed. Verify the push landed before opening a PR:")
+    print("  git ls-remote origin $(git rev-parse --abbrev-ref HEAD)")
     print()
     return 0
 

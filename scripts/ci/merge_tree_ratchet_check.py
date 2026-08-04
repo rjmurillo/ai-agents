@@ -58,6 +58,7 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.ci import cli_exit_contract_ratchet as _cli_exit  # noqa: E402
 from scripts.ci import ruff_count_ratchet as _ruff  # noqa: E402
 from scripts.ci import taste_count_ratchet as _taste  # noqa: E402
 from scripts.ci import type_ignore_count_ratchet as _type_ignore  # noqa: E402
@@ -244,6 +245,7 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
         "ruff count ratchet": f"{_ci_rel}/ruff_count_baseline.txt",
         "taste count ratchet": f"{_ci_rel}/taste_count_baseline.txt",
         "type-ignore count ratchet": f"{_ci_rel}/type_ignore_count_baseline.txt",
+        "cli-exit-contract ratchet": f"{_ci_rel}/cli_exit_contract_baseline.txt",
     }
 
     scratch_root = Path(tempfile.mkdtemp(prefix="merge-tree-ratchet-"))
@@ -261,6 +263,7 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
             "ruff count ratchet": _ruff.current_count(scratch_root),
             "taste count ratchet": _taste.current_count(scratch_root),
             "type-ignore count ratchet": _type_ignore.current_count(scratch_root),
+            "cli-exit-contract ratchet": _cli_exit.current_count(scratch_root),
         }
     finally:
         shutil.rmtree(scratch_root, ignore_errors=True)

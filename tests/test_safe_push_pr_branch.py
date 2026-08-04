@@ -936,3 +936,61 @@ def test_run_pytest_stops_on_the_first_failing_command(
 
     assert git_hook_policy.run_pytest(tmp_path) == 3
     assert len(seen) == 1
+
+
+def test_run_pytest_budget_exhaustion_emits_clear_message(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Second command gets a tiny remaining slice and times out: report as budget exhaustion."""
+    budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+    clock = {"now": 1_000.0}
+    call_count = {"n": 0}
+
+    def fake_monotonic() -> float:
+        return clock["now"]
+
+    def fake_run_command(
+        args: Any,
+        repo_root: Any,
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            # First command succeeds after consuming almost all the budget.
+            clock["now"] += budget - 5.0
+            return subprocess.CompletedProcess(list(args), 0, "", "")
+        # Second command gets ~5s remaining and times out (returncode 3).
+        return subprocess.CompletedProcess(list(args), 3, "", "")
+
+    monkeypatch.setattr(time, "monotonic", fake_monotonic)
+    monkeypatch.setattr(git_hook_policy, "_run_command", fake_run_command)
+    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda result: None)
+
+    rc = git_hook_policy.run_pytest(tmp_path)
+
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "exhausted" in err
+    assert "budget exhaustion" in err
+    assert str(budget) in err
+
+
+def test_run_pytest_first_command_timeout_is_not_budget_exhaustion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """First command times out with full budget: not budget exhaustion, propagate rc."""
+    seen = _record_pytest_timeouts(
+        monkeypatch,
+        elapsed_per_command=1.0,
+        returncode=3,
+    )
+
+    rc = git_hook_policy.run_pytest(tmp_path)
+
+    assert rc == 3
+    assert "exhausted" not in capsys.readouterr().err
+    assert len(seen) == 1

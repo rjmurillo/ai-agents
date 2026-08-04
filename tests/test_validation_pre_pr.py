@@ -220,3 +220,52 @@ class TestMain:
         # All external tools pass
         result = main(["--quick", "--skip-tests"])
         assert result == 0
+
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_success_output_does_not_claim_push_success(
+        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]  # noqa: ANN401
+    ) -> None:
+        """Issue #4506: success banner must not say 'Ready to create pull request!'."""
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = ""
+        mock_which.return_value = "/usr/bin/tool"
+
+        result = main(["--quick", "--skip-tests"])
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Ready to create pull request" not in out
+
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_success_output_prompts_push_verification(
+        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]  # noqa: ANN401
+    ) -> None:
+        """Issue #4506: success output must prompt the user to verify the push landed."""
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = ""
+        mock_which.return_value = "/usr/bin/tool"
+
+        result = main(["--quick", "--skip-tests"])
+        assert result == 0
+        out = capsys.readouterr().out
+        assert "Verify" in out or "verify" in out
+        assert "ls-remote" in out or "git" in out
+
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_failure_output_does_not_say_ready(
+        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]  # noqa: ANN401
+    ) -> None:
+        """Edge case: a failed run must also not claim readiness."""
+        mock_run.return_value.returncode = 1
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = "error"
+        mock_which.return_value = "/usr/bin/tool"
+
+        result = main(["--quick", "--skip-tests"])
+        out = capsys.readouterr().out
+        assert "Ready to create pull request" not in out
+        assert result != 0 or "RESULT" in out

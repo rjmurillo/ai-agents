@@ -5815,6 +5815,15 @@ def run_pytest(repo_root: Path) -> int:
             timeout_seconds=remaining,
         )
         _print_process_output(result)
+        if result.returncode == 3 and remaining < TEST_SUITE_TIMEOUT_SECONDS:
+            print(
+                f"ERROR: pytest suite exhausted its {TEST_SUITE_TIMEOUT_SECONDS}s "
+                f"budget. {_timeout_subject(command)} was started with only "
+                f"{remaining:.1f}s remaining and timed out. "
+                "This is budget exhaustion, not a hung test.",
+                file=sys.stderr,
+            )
+            return 1
         if result.returncode != 0:
             return result.returncode
     return 0
