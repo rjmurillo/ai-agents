@@ -1,0 +1,42 @@
+{
+  "id": "episode-2026-08-04-session-8407-ci-fleet-pr-merge",
+  "session": "2026-08-04-session-8407-ci-fleet-pr-merge",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Merge PR fleet by repairing Validate PR failures, syncing main, and recording gate evidence.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:40:00+00:00",
+      "type": "milestone",
+      "content": "Resolved merge conflicts from origin/main and reran targeted validation.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-04-session-8407-ci-fleet-pr-merge"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T01:05:00+00:00",
+      "type": "milestone",
+      "content": "Recorded retrospective evidence and updated the taste count baseline to match the tracked tree.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-8407-ci-fleet-pr-merge"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
