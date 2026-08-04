@@ -45,6 +45,7 @@ from typing import Any, cast
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _anthropic_api import call_api, load_api_key_for_selected_provider
+from _eval_common import MalformedProviderMetadataError
 
 DEFAULT_MODEL = "claude-sonnet-4-5"  # Released model id; 4.6 is a newer variant.
 DEFAULT_TRIALS = 5
@@ -570,6 +571,8 @@ def main() -> int:
 
     try:
         result = run_eval(api_key, fixtures, args.trials, args.model, args.base_ref)
+    except MalformedProviderMetadataError:
+        raise
     except RuntimeError as exc:
         print(f"ERROR during eval: {exc}", file=sys.stderr)
         return 3

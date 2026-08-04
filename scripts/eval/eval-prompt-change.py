@@ -74,7 +74,7 @@ from _anthropic_api import (
     load_api_key_for_selected_provider,
     verify_model_available,
 )
-from _eval_common import EST_TOKENS_PER_CALL
+from _eval_common import EST_TOKENS_PER_CALL, MalformedProviderMetadataError
 from _providers import is_default_anthropic
 
 RATE_LIMIT_SLEEP_SEC = 1.0
@@ -796,6 +796,8 @@ def main() -> None:
 
     try:
         _run_and_report(api_key, before_text, after_text, scenarios, args, source)
+    except MalformedProviderMetadataError:
+        raise
     except RuntimeError as e:
         if _is_provider_outage(e):
             # Infrastructure outage, not a quality regression. Skip neutrally so

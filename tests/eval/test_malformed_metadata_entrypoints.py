@@ -6,7 +6,7 @@ import importlib.util
 import subprocess
 import sys
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -153,3 +153,125 @@ def test_agent_harness_emits_dedicated_child_marker_after_one_call(
     assert code == module.EXIT_EXTERNAL
     assert calls == 1
     assert "MalformedProviderMetadataError" in capsys.readouterr().err
+
+
+def test_agent_assessment_entrypoint_stops_after_one_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load("agent_assessment_metadata_stop", EVAL_DIR / "eval-agents.py")
+    calls = 0
+
+    def fail(*args: object, **kwargs: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        _raise_metadata_error(module.MalformedProviderMetadataError)
+
+    monkeypatch.setattr(sys, "argv", ["eval-agents.py", "--dry-run"])
+    monkeypatch.setattr(module, "list_agents", lambda: ["qa"])
+    monkeypatch.setattr(module, "PROMPTS", {"qa": [{"prompt": "q"}]})
+    monkeypatch.setattr(module, "run_assessment", fail)
+
+    with pytest.raises(module.MalformedProviderMetadataError):
+        module.main()
+
+    assert calls == 1
+
+
+def test_knowledge_eval_entrypoint_stops_after_one_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load(
+        "knowledge_eval_metadata_stop",
+        EVAL_DIR / "eval-knowledge-integration.py",
+    )
+    calls = 0
+
+    def fail(*args: object, **kwargs: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        _raise_metadata_error(module.MalformedProviderMetadataError)
+
+    monkeypatch.setattr(sys, "argv", ["eval-knowledge-integration.py", "--dry-run"])
+    monkeypatch.setattr(module, "SKILLS", ["skill"])
+    monkeypatch.setattr(module, "PROMPTS", {"skill": [{"prompt": "q"}]})
+    monkeypatch.setattr(module, "run_assessment", fail)
+
+    with pytest.raises(module.MalformedProviderMetadataError):
+        module.main()
+
+    assert calls == 1
+
+
+def test_prompt_change_entrypoint_stops_after_one_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load(
+        "prompt_change_metadata_stop",
+        EVAL_DIR / "eval-prompt-change.py",
+    )
+    calls = 0
+    args = SimpleNamespace(
+        provider=None,
+        scenarios="scenarios.json",
+        runs=1,
+        security_critical=False,
+        model="model",
+        dry_run=False,
+    )
+
+    def fail(*values: object) -> None:
+        nonlocal calls
+        calls += 1
+        _raise_metadata_error(module.MalformedProviderMetadataError)
+
+    monkeypatch.setattr(module, "_parse_args", lambda: args)
+    monkeypatch.setattr(module, "load_scenarios", lambda path: [{}])
+    monkeypatch.setattr(module, "_load_prompts", lambda parsed: ("before", "after", "test"))
+    monkeypatch.setattr(module, "load_api_key_for_selected_provider", lambda provider: "")
+    monkeypatch.setattr(module, "verify_model_available", lambda key, model: None)
+    monkeypatch.setattr(module, "_run_and_report", fail)
+
+    with pytest.raises(module.MalformedProviderMetadataError):
+        module.main()
+
+    assert calls == 1
+
+
+def test_reviewer_asymmetry_entrypoint_stops_after_one_call(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    module = _load(
+        "reviewer_asymmetry_metadata_stop",
+        EVAL_DIR / "eval-reviewer-asymmetry.py",
+    )
+    calls = 0
+    args = SimpleNamespace(
+        fixtures=str(tmp_path),
+        trials=1,
+        model="model",
+        base_ref="base",
+        output=None,
+        dry_run=False,
+    )
+
+    def fail(*values: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        _raise_metadata_error(module.MalformedProviderMetadataError)
+
+    monkeypatch.setattr(module, "parse_args", lambda: args)
+    monkeypatch.setattr(module, "load_fixtures", lambda path: [{"agent": "qa"}])
+    monkeypatch.setattr(module, "TEMPLATES", {"qa": "qa.md"})
+    monkeypatch.setattr(
+        module,
+        "load_template",
+        lambda path, ref: "control" if ref else "treatment",
+    )
+    monkeypatch.setattr(module, "load_api_key_for_selected_provider", lambda: "")
+    monkeypatch.setattr(module, "run_eval", fail)
+
+    with pytest.raises(module.MalformedProviderMetadataError):
+        module.main()
+
+    assert calls == 1

@@ -41,7 +41,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # ---------------------------------------------------------------------------
 # API utilities (shared module)
@@ -49,7 +49,11 @@ from typing import Any
 from _anthropic_api import DEFAULT_MODEL, load_custom_prompts, verify_model_available
 from _anthropic_api import call_api as _call_api
 from _anthropic_api import load_api_key_for_selected_provider as _load_api_key_for_selected_provider
-from _eval_common import EST_TOKENS_PER_CALL, aggregate_multi_run_scores
+from _eval_common import (
+    EST_TOKENS_PER_CALL,
+    MalformedProviderMetadataError,
+    aggregate_multi_run_scores,
+)
 
 # ---------------------------------------------------------------------------
 # Agent context loading
@@ -727,7 +731,11 @@ def decide_dry_run_exit(output: dict[str, Any]) -> tuple[int, str]:
         name
         for name, data in results.items()
         if isinstance(data, dict)
-        and (data.get("overall") if data.get("overall") is not None else 0) < 3.5
+        and cast(
+            "float",
+            data.get("overall") if data.get("overall") is not None else 0,
+        )
+        < 3.5
     ]
     if weak:
         return (
@@ -932,6 +940,8 @@ def main() -> None:
         results = run_assessment(
             api_key, agents, prompts, model=args.model, dry_run=args.dry_run, runs=args.runs
         )
+    except MalformedProviderMetadataError:
+        raise
     except RuntimeError as exc:
         print(f"Error: assessment failed: {exc}", file=sys.stderr)
         sys.exit(1)
