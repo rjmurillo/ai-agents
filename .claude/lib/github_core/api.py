@@ -2,7 +2,7 @@
 """GitHub API helpers: auth, pagination, GraphQL, issue comments, rate limits.
 
 Cohesive sub-concerns live in sibling modules and are re-exported here so the
-public import surface ``from .api import ...`` stays stable
+public import surface ``from scripts.github_core.api import ...`` stays stable
 (Issue #1910):
 
 - ``log_safety``: ``safe_log_str`` (CWE-117 log-forging defense).
@@ -27,15 +27,15 @@ from datetime import datetime
 from typing import TYPE_CHECKING, NoReturn
 
 if TYPE_CHECKING:
-    from .protocol import GitHubClient
+    from scripts.github_core.protocol import GitHubClient
 
-from .log_safety import safe_log_str
-from .rate_limit import (  # noqa: F401
+from scripts.github_core.log_safety import safe_log_str
+from scripts.github_core.rate_limit import (  # noqa: F401
     DEFAULT_RATE_THRESHOLDS,
     RateLimitResult,
     check_workflow_rate_limit,
 )
-from .review_threads import (  # noqa: F401
+from scripts.github_core.review_threads import (  # noqa: F401
     _REVIEW_THREADS_MAX_PAGES,
     _REVIEW_THREADS_QUERY,
     FetchStatus,
@@ -47,7 +47,7 @@ from .review_threads import (  # noqa: F401
     get_unresolved_review_threads,
     transform_review_thread,
 )
-from .validation import is_github_name_valid
+from scripts.github_core.validation import is_github_name_valid
 
 logger = logging.getLogger(__name__)
 
