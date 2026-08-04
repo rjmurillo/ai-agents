@@ -287,6 +287,9 @@ _DEFAULT_BOT_ALIASES: dict[str, list[str]] = {
         # way must land on the coding agent rather than fall through unmapped.
         "app/copilot-swe-agent",
     ],
+    "github-actions[bot]": [
+        "github-actions",
+    ],
 }
 
 _DEFAULT_BOT_ACCOUNT_IDS: dict[int, str] = {

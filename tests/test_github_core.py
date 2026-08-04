@@ -1172,6 +1172,9 @@ class TestCanonicalizeLogin:
     def test_unknown_account_id_falls_back_to_the_login_alias(self):
         assert bot_config.canonicalize_login("Copilot", 1) == "github-copilot[bot]"
 
+    def test_github_actions_alias_keeps_its_existing_canonical_login(self):
+        assert bot_config.canonicalize_login("github-actions") == "github-actions[bot]"
+
     def test_canonical_login_is_a_fixed_point(self):
         assert bot_config.canonicalize_login("github-copilot[bot]") == "github-copilot[bot]"
 

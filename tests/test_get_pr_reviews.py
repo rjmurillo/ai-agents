@@ -133,6 +133,11 @@ class TestNormalize:
         assert out["author_id"] == 175728472
         assert out["author_observed"] == "copilot-pull-request-reviewer"
 
+    def test_github_actions_alias_api_is_unchanged(self):
+        out = _normalize(_api_review(login="github-actions"))
+        assert out["author"] == "github-actions[bot]"
+        assert out["aliases"] == ["github-actions"]
+
     def test_account_id_separates_two_authors_reported_as_copilot(self):
         reviewer = _normalize(_api_review(login="Copilot", author_id=175728472))
         coding_agent = _normalize(_api_review(login="Copilot", author_id=198982749))
