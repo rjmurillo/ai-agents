@@ -65,10 +65,12 @@ gh auth token
 Measured 2026-08-04 during a heavy PR sweep. `gh auth status` printed:
 
 ```
-X Failed to log in to github.com account rjmurillo
-- The token in /home/richard/.config/gh/hosts.yml is invalid.
+X Failed to log in to github.com account <user>
+- The token in $HOME/.config/gh/hosts.yml is invalid.
 - To re-authenticate, run: gh auth refresh -h github.com
 ```
+
+The account name and home directory above are redacted from the verbatim output.
 
 The token was fine. `gh auth status` validates by calling `/user`, and `/user`
 was returning `403 API rate limit exceeded for user ID <id>`. The error handling
@@ -90,8 +92,14 @@ Three facts make the misread expensive:
 
 ```bash
 gh api /user --jq .login          # 403 with "rate limit exceeded" => not an auth problem
-gh api rate_limit --jq '.resources.graphql'   # rate_limit itself is exempt and always answers
+gh api rate_limit --jq '.resources.graphql'   # does not consume quota, see caveat below
 ```
+
+`rate_limit` is exempt from primary rate limiting, so it keeps answering after a
+bucket empties, which is what makes it usable as the discriminator here. That is
+the only guarantee it carries. It still fails on network errors and on a genuinely
+bad credential, and it does not report secondary limits at all, so a healthy
+reading from it never proves the request you care about will succeed.
 
 If `/user` returns a rate-limit 403, back off and retry. Do not touch the credential.
 A concurrent `git push` over HTTPS plus its hooks is usually what drained the bucket.
