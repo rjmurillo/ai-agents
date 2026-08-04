@@ -1,0 +1,114 @@
+{
+  "id": "episode-2026-08-01-session-4470-auth-failure-misclassification",
+  "session": "2026-08-01-session-4470-auth-failure-misclassification",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Triage and fix issues #4470 #4480 #4483 #4504 #3275: auth-adjacent failures misclassified as bad credentials",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "success",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-01-session-4470-auth-failure-misclassification"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "success",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-01-session-4470-auth-failure-misclassification"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "test",
+      "content": "scripts/github_core/api.py and .claude/lib/github_core/api.py: added _QUOTA_EXHAUSTED_PATTERNS body check returning True on rate-limited responses; added 2-attempt retry loop; added _gh_is_installed() helper; rewrote assert_gh_authenticated to exit-4 only when gh not installed, exit-3 otherwise. Tests: TestAssertGhAuthenticated updated, 254 passing.",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-01-session-4470-auth-failure-misclassification"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "success",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-01-session-4470-auth-failure-misclassification"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "test",
+      "content": "tests/e2e/copilot_hook_probe.py: added COPILOT_RATE_LIMIT_MARKERS, copilot_rate_limited(), copilot_run_blocked(), _head_tail_excerpt(); removed 'failed to fetch pat user login' from COPILOT_AUTH_REJECTED_MARKERS; updated copilot_auth_failure_headline to head+tail excerpt. Tests: 33 passing.",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-01-session-4470-auth-failure-misclassification"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "success",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-01-session-4470-auth-failure-misclassification"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "success",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-01-session-4470-auth-failure-misclassification"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T06:57:07+00:00",
+      "type": "commit",
+      "content": "Commit: 8c1f16335",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4470-auth-failure-misclassification"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}

@@ -256,7 +256,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
             f"copilot --plugin-dir probe exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
         )
     if copilot_auth_failed(fired):
-        pytest.fail(copilot_auth_failure_headline(fired))
+        pytest.skip(copilot_auth_failure_headline(fired))
     assert fired.returncode == 0, (
         f"copilot --plugin-dir probe run failed (rc={fired.returncode}). "
         f"stdout={fired.stdout[-600:]!r} stderr={fired.stderr[-600:]!r}"
@@ -285,7 +285,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
         pytest.skip(f"copilot skill list exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
 
     if copilot_auth_failed(run):
-        pytest.fail(copilot_auth_failure_headline(run))
+        pytest.skip(copilot_auth_failure_headline(run))
     assert run.returncode == 0, (
         f"copilot skill list failed (rc={run.returncode}). "
         f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"

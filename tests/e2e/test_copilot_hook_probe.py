@@ -20,10 +20,13 @@ _original_sys_path = sys.path.copy()
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
     from copilot_hook_probe import (  # noqa: E402
+        _head_tail_excerpt,
         copilot_auth_absent,
         copilot_auth_failed,
         copilot_auth_failure_headline,
         copilot_auth_rejected,
+        copilot_rate_limited,
+        copilot_run_blocked,
     )
 finally:
     sys.path[:] = _original_sys_path
@@ -111,9 +114,14 @@ def test_auth_rejected_detects_bad_credentials() -> None:
 
 
 def test_auth_rejected_matches_the_pat_lookup_failure_alone() -> None:
-    """Either rejection marker suffices; neither depends on the other."""
+    """``failed to fetch pat user login`` alone is NOT enough: it fires on network errors too.
+
+    Only ``github returned: bad credentials`` identifies a definite credential
+    rejection. A PAT-fetch failure without the bad-credentials line may be a
+    rate limit, a 5xx, or a network error (issue #4504).
+    """
     result = _completed(stderr="failed to fetch pat user login (401)", returncode=1)
-    assert copilot_auth_rejected(result) is True
+    assert copilot_auth_rejected(result) is False
 
 
 def test_auth_rejected_matches_stdout_and_is_case_insensitive() -> None:
@@ -195,3 +203,151 @@ def test_auth_rejected_ignores_a_bare_bad_credentials_mention() -> None:
     )
     assert copilot_auth_rejected(noisy) is False
     assert copilot_auth_failed(noisy) is False
+
+
+# ---------------------------------------------------------------------------
+# Rate-limit detection (issue #4504)
+# ---------------------------------------------------------------------------
+
+_RATE_LIMIT_STDERR = (
+    "API rate limit exceeded for user ID 6811113. If you reach out to GitHub Support for help, "
+    "please include the request ID 8DA0:35BFF7:1D6A8A3:2456E21:6A70F1A2 and timestamp "
+    "2026-08-03 20:31:01 UTC. For more on scraping GitHub, see https://docs.github.com/en/site-policy/"
+    "github-terms/github-acceptable-use-policies\n"
+    "\nYour token may still be valid. Check your network connection and try again.\n"
+    "\nTo authenticate, you can use any of the following methods:\n"
+    "  * Start 'copilot' and run the '/login' command\n"
+)
+
+_SECONDARY_RATE_LIMIT_STDERR = (
+    "secondary rate limit triggered for this request\n"
+    "Your token may still be valid. Check your network connection and try again.\n"
+)
+
+
+def test_rate_limited_detects_api_rate_limit_exceeded() -> None:
+    """The primary rate-limit phrase is recognized (issue #4504)."""
+    result = _completed(stderr=_RATE_LIMIT_STDERR, returncode=1)
+    assert copilot_rate_limited(result) is True
+
+
+def test_rate_limited_detects_secondary_rate_limit() -> None:
+    result = _completed(stderr=_SECONDARY_RATE_LIMIT_STDERR, returncode=1)
+    assert copilot_rate_limited(result) is True
+
+
+def test_rate_limited_detects_vendor_hedge_sentence() -> None:
+    """The vendor's 'token may still be valid' line is itself a rate-limit signal."""
+    result = _completed(
+        stderr="Your token may still be valid. Check your network connection and try again.",
+        returncode=1,
+    )
+    assert copilot_rate_limited(result) is True
+
+
+def test_rate_limited_false_on_healthy_run() -> None:
+    result = _completed(stdout="ok", returncode=0)
+    assert copilot_rate_limited(result) is False
+
+
+def test_rate_limited_false_for_absent_token() -> None:
+    result = _completed(stderr="No authentication information found.", returncode=1)
+    assert copilot_rate_limited(result) is False
+
+
+def test_rate_limited_takes_precedence_over_auth_rejected() -> None:
+    """A rate-limit response must not be reported as a rejected credential."""
+    result = _completed(stderr=_RATE_LIMIT_STDERR, returncode=1)
+    assert copilot_rate_limited(result) is True
+    assert copilot_auth_rejected(result) is False
+    assert copilot_auth_absent(result) is False
+    assert copilot_auth_failed(result) is False
+
+
+def test_rate_limited_takes_precedence_over_auth_absent_when_list_appears() -> None:
+    """The CLI prints the auth-method list after a rate limit too.
+
+    Without the rate-limit check, the COPILOT_GITHUB_TOKEN mention in the list
+    would match COPILOT_AUTH_ABSENT_MARKERS (issue #4504).
+    """
+    result = _completed(
+        stderr=(
+            "API rate limit exceeded for user ID 123.\n"
+            "To authenticate, you can use any of the following methods:\n"
+            "  Set the COPILOT_GITHUB_TOKEN environment variable\n"
+        ),
+        returncode=1,
+    )
+    assert copilot_rate_limited(result) is True
+    assert copilot_auth_absent(result) is False
+    assert copilot_run_blocked(result) is True
+
+
+def test_run_blocked_covers_rate_limit_absent_and_rejected() -> None:
+    assert copilot_run_blocked(_completed(stderr=_RATE_LIMIT_STDERR, returncode=1)) is True
+    assert (
+        copilot_run_blocked(_completed(stderr="No authentication information found.", returncode=1))
+        is True
+    )
+    assert copilot_run_blocked(_completed(stderr=_REJECTED_STDERR, returncode=1)) is True
+    assert copilot_run_blocked(_completed(stdout="ok", returncode=0)) is False
+
+
+def test_run_blocked_false_for_unrelated_failure() -> None:
+    result = _completed(stderr="segmentation fault", returncode=1)
+    assert copilot_run_blocked(result) is False
+
+
+# ---------------------------------------------------------------------------
+# Head+tail excerpt (issue #4504)
+# ---------------------------------------------------------------------------
+
+
+def test_head_tail_excerpt_short_string_returns_repr() -> None:
+    """Strings shorter than head+tail are returned as repr without drop message."""
+    s = "hello world"
+    result = _head_tail_excerpt(s, head=300, tail=300)
+    assert result == repr(s)
+    assert "dropped" not in result
+
+
+def test_head_tail_excerpt_long_string_shows_drop_count() -> None:
+    """Long strings show how many chars were dropped in the middle."""
+    s = "A" * 100 + "B" * 100 + "C" * 100
+    result = _head_tail_excerpt(s, head=50, tail=50)
+    assert "dropped" in result
+    assert "200 chars dropped" in result
+    assert repr("A" * 50) in result
+    assert repr("C" * 50) in result
+
+
+def test_head_tail_excerpt_none_is_empty_repr() -> None:
+    assert _head_tail_excerpt(None) == repr("")
+
+
+def test_headline_excerpt_uses_head_tail_not_tail_only() -> None:
+    """Headline includes the leading diagnostic sentence, not just the boilerplate tail.
+
+    This is the regression for issue #4504: the old tail-only slice kept the
+    GitHub request-ID boilerplate and cut the 'API rate limit exceeded' sentence.
+    """
+    # Even when copilot_auth_absent fires (no rate-limit marker here in simplified form),
+    # the headline must include the beginning of stderr.
+    absent_result = _completed(
+        stderr="No authentication information found. " + "X" * 1000,
+        returncode=1,
+    )
+    headline = copilot_auth_failure_headline(absent_result)
+    assert "No authentication information found" in headline
+
+
+def test_headline_preserves_leading_cause_sentence() -> None:
+    """The first 300 chars of stderr appear in the headline (issue #4504)."""
+    leading = "API rate limit exceeded for user ID 999. "
+    filler = "X" * 1000
+    rejected_result = _completed(
+        stderr="GitHub returned: Bad credentials\n" + leading + filler,
+        returncode=1,
+    )
+    headline = copilot_auth_failure_headline(rejected_result)
+    assert "GitHub returned: Bad credentials" in headline

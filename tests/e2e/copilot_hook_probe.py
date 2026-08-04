@@ -134,15 +134,57 @@ COPILOT_AUTH_ABSENT_MARKERS = (
 # "you can use any of the following methods" list naming COPILOT_GITHUB_TOKEN.
 # That list matches COPILOT_AUTH_ABSENT_MARKERS, so a rejected token reads as an
 # empty one and the headline sends the reader to provision a secret that is
-# already provisioned. These markers only appear when a credential was actually
-# presented, so they take precedence over the absent markers. Both are anchored
-# to the CLI's own auth-gate phrasing: a bare "401" or a bare "bad credentials"
-# is too loose for a stream that carries arbitrary model output, which can quote
-# either while auth is fine.
-COPILOT_AUTH_REJECTED_MARKERS = (
-    "github returned: bad credentials",
-    "failed to fetch pat user login",
+# already provisioned. Only ``github returned: bad credentials`` is anchored to
+# the CLI's own auth-gate 401 path. ``failed to fetch pat user login`` without
+# ``bad credentials`` fires on network errors, 5xx, and rate limits too and is
+# therefore not reliable as a standalone rejection marker (issue #4504).
+COPILOT_AUTH_REJECTED_MARKERS = ("github returned: bad credentials",)
+
+# Rate-limit detection (issue #4504). A 403 refusal from GitHub's rate limiter
+# carries its own boilerplate that overlaps with both the absent and rejected
+# markers. The CLI may also print "Your token may still be valid. Check your
+# network connection and try again." A rate-limited run has healthy auth; the
+# correct advice is to retry after the reset window, not to rotate the token.
+# This predicate takes precedence over both auth predicates.
+COPILOT_RATE_LIMIT_MARKERS = (
+    "api rate limit exceeded",
+    "secondary rate limit",
+    "your token may still be valid",
+    "check your network connection and try again",
 )
+
+
+def _copilot_haystack(result: subprocess.CompletedProcess[str]) -> str:
+    """Lowercased concatenation of stderr and stdout for marker search."""
+    return f"{result.stderr or ''}\n{result.stdout or ''}".lower()
+
+
+def _head_tail_excerpt(text: str | None, head: int = 300, tail: int = 300) -> str:
+    """Return a head+tail excerpt of ``text`` with a drop count in the middle.
+
+    Captures both the leading diagnostic sentence (where GitHub puts the cause)
+    and the trailing boilerplate. Replaces the tail-only slice that hid the
+    cause while keeping the useless boilerplate (issue #4504).
+    """
+    s = text or ""
+    total = len(s)
+    if total <= head + tail:
+        return repr(s)
+    dropped = total - head - tail
+    return repr(s[:head]) + f" ... [{dropped} chars dropped] ... " + repr(s[-tail:])
+
+
+def copilot_rate_limited(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when the Copilot CLI was refused for rate limiting, not bad auth.
+
+    A rate-limited run is blocked but its auth is fine. The token must not be
+    rotated; the caller should retry after the ``X-Ratelimit-Reset`` window.
+    Takes precedence over both auth predicates (issue #4504).
+    """
+    if result.returncode == 0:
+        return False
+    haystack = _copilot_haystack(result)
+    return any(marker in haystack for marker in COPILOT_RATE_LIMIT_MARKERS)
 
 
 def copilot_auth_rejected(result: subprocess.CompletedProcess[str]) -> bool:
@@ -152,10 +194,15 @@ def copilot_auth_rejected(result: subprocess.CompletedProcess[str]) -> bool:
     run before any plugin loads, so both gate the same failure, but they need
     different remediation: rotate the secret versus create it. Same rc and
     stream handling as :func:`copilot_auth_absent`.
+
+    Rate-limited runs are excluded: the CLI may print the same auth-method list
+    after a 403 refusal, so rate-limit detection takes precedence (issue #4504).
     """
     if result.returncode == 0:
         return False
-    haystack = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
+    if copilot_rate_limited(result):
+        return False
+    haystack = _copilot_haystack(result)
     return any(marker in haystack for marker in COPILOT_AUTH_REJECTED_MARKERS)
 
 
@@ -177,17 +224,38 @@ def copilot_auth_absent(result: subprocess.CompletedProcess[str]) -> bool:
     absent markers match a token that plainly exists. Returning True there would
     make this predicate's own name false and would silently depend on every
     caller checking :func:`copilot_auth_rejected` first.
+
+    Rate-limited runs are also excluded: they share auth-boilerplate wording but
+    have healthy credentials (issue #4504).
     """
     if result.returncode == 0:
         return False
+    if copilot_rate_limited(result):
+        return False
     if copilot_auth_rejected(result):
         return False
-    haystack = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
+    haystack = _copilot_haystack(result)
     return any(marker in haystack for marker in COPILOT_AUTH_ABSENT_MARKERS)
 
 
+def copilot_run_blocked(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when the run was blocked for any reason (auth or rate limit).
+
+    Use this as the gate in smoke tests that must not proceed when the CLI
+    cannot complete a real run, regardless of cause. The specific cause
+    can be diagnosed via the individual predicates.
+    """
+    return (
+        copilot_rate_limited(result) or copilot_auth_rejected(result) or copilot_auth_absent(result)
+    )
+
+
 def copilot_auth_failed(result: subprocess.CompletedProcess[str]) -> bool:
-    """True when the run died at the auth gate, whether absent or rejected."""
+    """True when the run died at the auth gate, whether absent or rejected.
+
+    Does not include rate-limited runs: those have healthy auth and should
+    not trigger a credential-rotation or provision headline.
+    """
     return copilot_auth_rejected(result) or copilot_auth_absent(result)
 
 
@@ -198,9 +266,8 @@ def copilot_auth_failure_headline(result: subprocess.CompletedProcess[str]) -> s
     (missing hook marker / rc=1), so the dogfood failure is actionable at a
     glance. Names which of the two auth failures happened, because "provision
     the secret" is wrong advice for a secret that exists and has expired.
-    Surfaces rc and both streams because the detectors scan stdout too
-    (stream-swap resilience), so a stdout-only auth failure stays actionable.
-    See issue #3275.
+    Uses a head+tail excerpt so the leading diagnostic sentence (where GitHub
+    puts the cause) is preserved alongside the trailing boilerplate (issue #4504).
     """
     cause = (
         "Copilot auth token was rejected (expired or revoked); rotate "
@@ -211,8 +278,8 @@ def copilot_auth_failure_headline(result: subprocess.CompletedProcess[str]) -> s
     return (
         f"{cause}. The shipped-base dogfood never ran (issue #3275). "
         f"rc={result.returncode} "
-        f"stderr={(result.stderr or '')[-400:]!r} "
-        f"stdout={(result.stdout or '')[-400:]!r}"
+        f"stderr={_head_tail_excerpt(result.stderr)} "
+        f"stdout={_head_tail_excerpt(result.stdout)}"
     )
 
 
