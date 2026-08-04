@@ -9,23 +9,21 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-08-04T00:40:00+00:00",
+      "timestamp": "2026-08-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Resolved merge conflicts from origin/main and reran targeted validation.",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e003"
       ],
       "_source_session": "2026-08-04-session-8408-gotchas-rate-limit"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-04T01:05:00+00:00",
+      "timestamp": "2026-08-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Recorded retrospective evidence and updated the taste count baseline to match the tracked tree.",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e003"
       ],
@@ -37,7 +35,21 @@
       "type": "commit",
       "content": "Commit: 6cd1c892c9fc8967b72dae8fb1c1398b17b4a4e1",
       "caused_by": [
+        "e001",
         "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-8408-gotchas-rate-limit"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T12:58:00+00:00",
+      "type": "commit",
+      "content": "Commit: 2fae696240ee823ebdd5b10b734729102bb2938b",
+      "caused_by": [
+        "e003"
       ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-8408-gotchas-rate-limit"
@@ -48,7 +60,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 3
   },
   "lessons": []

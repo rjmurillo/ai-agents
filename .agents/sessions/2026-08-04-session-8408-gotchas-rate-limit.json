@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merge and conflict resolution committed as 6cd1c892c. The GOTCHAS commit SHA is recorded in the follow-up commit per issue #3618."
+        "Evidence": "Committed as 2fae69624."
       },
       "validationPassed": {
         "level": "MUST",
@@ -142,5 +142,5 @@
   "nextSteps": [
     "Push branch, verify remote SHA, wait for checks, then merge when checks are green."
   ],
-  "endingCommit": "6cd1c892c9fc8967b72dae8fb1c1398b17b4a4e1"
+  "endingCommit": "2fae696240ee823ebdd5b10b734729102bb2938b"
 }
