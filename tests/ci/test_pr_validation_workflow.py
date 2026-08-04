@@ -951,6 +951,7 @@ class TestBotSkipGuardClassification:
             "Enforce Blocking Issues",
         }
     )
+
     def test_adr006_ratchet_is_unconditional(self) -> None:
         """Positive: the ADR-006 gate must run for bot-authored PRs.
 
