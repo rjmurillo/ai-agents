@@ -325,8 +325,13 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # CI-only: see taste-lint ratchet step above for the --depth=1 caveat.
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the taste-lint ratchet step above. This step needs
+          # only a single file at the base ref, but it shares a working directory
+          # with `Run merge-tree ratchet` below, and a depth-limited fetch here
+          # writes .git/shallow for the rest of the job. The later step's plain
+          # fetch does not repair that graft, so merge-base returns nothing and
+          # merge-tree aborts with "refusing to merge unrelated histories".
+          git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/memory_index_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4398: the three count ratchets measure the branch head, not the
       # merged result. A branch cut before main lowered a baseline can pass its
