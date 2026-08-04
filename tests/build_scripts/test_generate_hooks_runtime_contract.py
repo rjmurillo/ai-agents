@@ -233,12 +233,25 @@ def _resolve_bash() -> str | None:
     return next((c for c in candidates if _probes_ok(c)), None)
 
 
-_BASH = _resolve_bash()
+_RESOLVED_BASH = _resolve_bash()
+_BASH_AVAILABLE = _RESOLVED_BASH is not None
+
+# Call sites need a plain ``str``; a ``str | None`` fails mypy at every
+# subprocess list. When no bash resolves, this literal is never executed
+# because every test that uses it carries ``_requires_bash``.
+_BASH: str = _RESOLVED_BASH or "bash"
 
 _requires_bash = pytest.mark.skipif(
-    _BASH is None,
+    not _BASH_AVAILABLE,
     reason="no working bash (Windows 'bash' on PATH is the WSL launcher stub)",
 )
+
+# Read at import, not in a test body. ``tests/conftest.py`` installs an autouse
+# ``_clear_ci_env`` fixture (issue #4380) that deletes ``CI`` from every test's
+# environment, so ``os.environ.get("CI")`` inside a test is always ``None`` and
+# any branch on it is dead code. Module scope and ``skipif`` both evaluate at
+# collection time, before that fixture runs.
+_ON_CI = bool(os.environ.get("CI"))
 
 
 def _bash_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
@@ -644,7 +657,7 @@ class TestBashProbe:
 
     def test_a_real_bash_probes_ok(self) -> None:
         """Positive: the probe accepts the interpreter the suite actually uses."""
-        if _BASH is None:
+        if not _BASH_AVAILABLE:
             pytest.skip("no working bash on this platform")
         assert _probes_ok(_BASH)
 
@@ -663,6 +676,16 @@ class TestBashProbe:
         stub = self._fake(tmp_path, "import sys\nsys.exit(0)\n")
         assert not _probes_ok(stub)
 
+    def test_ok_on_stdout_with_a_nonzero_exit_is_rejected(self, tmp_path: Path) -> None:
+        """Negative: stdout is half the contract, the exit code is the other half.
+
+        Adversarial review found that dropping ``proc.returncode == 0`` from the
+        probe survives every other test in this class. A launcher can echo the
+        probe text and still have failed.
+        """
+        stub = self._fake(tmp_path, "import sys\nsys.stdout.write('ok')\nsys.exit(1)\n")
+        assert not _probes_ok(stub)
+
     def test_a_missing_binary_is_rejected(self, tmp_path: Path) -> None:
         """Edge: a candidate path that does not exist must not raise."""
         assert not _probes_ok(str(tmp_path / "no-such-bash"))
@@ -675,8 +698,36 @@ class TestBashProbe:
         drop the limb and leave a control that passes without a shell.
         """
         source = Path(__file__).read_text(encoding="utf-8")
-        marker = "no shell diagnostic on stderr"
-        assert marker in source, (
+        # Built from fragments on purpose. Spelled whole, this line would be a
+        # second occurrence in the file, so the assertion below would survive
+        # deletion of the limb it exists to protect.
+        marker = "no shell diagnostic" + " on stderr"
+        assert source.count(marker) == 1, (
+            "expected exactly one occurrence of the stderr limb, found "
+            f"{source.count(marker)}. Zero means "
             "test_negative_control_bare_relative_path_fails lost its positive "
-            "limb; it now passes under any launcher that exits non-zero"
+            "limb and now passes under any launcher that exits non-zero. More "
+            "than one means this guard can no longer tell the difference."
         )
+
+
+@pytest.mark.skipif(not _ON_CI, reason="local run; the skip-everything failure only matters on CI")
+def test_supported_ci_runs_the_contract_rather_than_skipping_it() -> None:
+    """Unskipped on CI: a skip-based guard must not be able to silence the suite.
+
+    Every bash-dependent test here carries ``_requires_bash``. If
+    ``_resolve_bash`` regressed, by dropping a Windows candidate or tightening
+    the probe past what a real shell emits, all nine of those cases would skip
+    and the job would report green without ever exercising the contract. That
+    is the failure the guard itself introduces, so it needs an assertion that
+    cannot skip on the platforms the project supports.
+
+    Locally this skips: a developer without bash is not a regression. On CI it
+    does not, because every runner image the workflows use ships one, Git Bash
+    included on ``windows-latest``.
+    """
+    assert _BASH_AVAILABLE, (
+        "no working bash resolved on CI, so every bash-dependent test in this "
+        "file would silently skip. Check _resolve_bash's candidate list and "
+        "the probe in _probes_ok before assuming the runner lost bash."
+    )
