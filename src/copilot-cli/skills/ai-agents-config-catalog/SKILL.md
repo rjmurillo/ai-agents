@@ -159,7 +159,7 @@ repository-controlled code, so command-name matching is not a safe approval boun
 - [ ] The flag you plan to use still exists: run its Provenance one-liner and get a non-empty hit in the defining file (not only in docs).
 - [ ] You used the narrowest applicable escape (per-check env var, line directive over file directive).
 - [ ] The bypass is visible in output (WARN/SKIP line, bypass job summary, or validator notice), not silent.
-- [ ] If you added a flag: tests cover honored/absent/bad-value, this catalog has the new row, and the plugin version is bumped if the flag lives in a packaged tree.
+- [ ] If you added a flag: tests cover honored/absent/bad-value, and this catalog has the new row. No manifest bump even when the flag lives in a packaged tree: the manifests carry no version (ADR-092).
 
 ## Provenance and Maintenance
 
@@ -173,7 +173,7 @@ Audited 2026-07-03 against the working tree. Sources: files and line numbers cit
 | orphan-ref directives + 50-line window | `grep -n "IGNORE_DIRECTIVE_RE" .claude/skills/orphan-ref-validator/scripts/patterns.py && grep -n "splitlines()\[:50\]" .claude/skills/orphan-ref-validator/scripts/scan.py` |
 | investigation allowlist | `grep -n "agents/" scripts/modules/investigation_allowlist.py` |
 | docs-only verdict | `grep -n "SKIPPED: docs-only" .agents/SESSION-PROTOCOL.md` |
-| plugin bump validator | `uv run python build/scripts/validate_plugin_version_bump.py --help` |
+| plugin version-field validator | `uv run python build/scripts/validate_plugin_version_bump.py --help` |
 | no version in any manifest or marketplace entry | `uv run python build/scripts/validate_plugin_version_bump.py` |
 | GIT_CONFIG_COUNT injection | `grep -n "GIT_CONFIG_COUNT" tests/conftest.py` |
 | pytest markers | `grep -n -A 5 "^markers" pyproject.toml` |
