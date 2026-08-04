@@ -1967,7 +1967,7 @@ class TestSameRunSiblingAggregation:
         assert result[0]["IsFailing"] is True
         assert sum(1 for c in result if c["IsFailing"]) == 1
 
-    def test_rerun_success_still_supersedes_stale_failure_across_runs(self):
+    def test_later_rerun_success_still_supersedes_stale_failure_across_runs(self):
         """Issue #2208 must not regress: a newer run's SUCCESS still wins."""
         checks = [
             _check("Validate PR", failing=True, conclusion="FAILURE",
@@ -1978,6 +1978,18 @@ class TestSameRunSiblingAggregation:
         result = dedupe_checks(checks)
         assert len(result) == 1
         assert result[0]["IsPassing"] is True
+
+    def test_later_run_failure_beats_older_success_across_runs(self):
+        checks = [
+            _check("Validate PR", passing=True, conclusion="SUCCESS",
+                   details=_RUN_B),
+            _check("Validate PR", failing=True, conclusion="FAILURE",
+                   details=_RUN_A),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsFailing"] is True
+        assert result[0]["Conclusion"] == "FAILURE"
 
     def test_all_passing_siblings_in_one_run_stay_passing(self):
         checks = [

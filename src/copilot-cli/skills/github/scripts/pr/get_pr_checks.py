@@ -46,6 +46,7 @@ from github_core.api import (
 )
 from github_core.checks_rollup import (
     extract_required_check_lists,
+    extract_workflow_run_number,
     group_checks_by_name,
     partition_rows_by_run,
 )
@@ -208,11 +209,9 @@ def normalize_check(ctx: dict) -> dict | None:
 #
 # This script leaves OverallState as GitHub's rollup value. Deduplication only
 # affects the per-check rows and derived counts, such as FailedCount. The
-# precedence follows test_pr_merge_ready.py verdict ordering: OK > FAIL >
-# PENDING. A passing entry from a re-run supersedes a prior failure ("OK if any
-# SUCCESS exists" per the PR #1887 retrospective). A failure still wins over a
-# pending retry when no passing run exists, so pending work does not hide the
-# last concrete failure. Any pending signal is still retained for wait polling,
+# When each duplicate exposes a workflow run id, the latest run decides. Unknown
+# provenance keeps the previous precedence behavior: passing beats failing,
+# failing beats pending. Any pending signal is still retained for wait polling,
 # including when a same-name passing run is present.
 #
 # Stricter/looser/different than canonical: test_pr_merge_ready.py treats a
@@ -220,8 +219,8 @@ def normalize_check(ctx: dict) -> dict | None:
 # passed. Here, normalize_check already maps CANCELLED into IsFailing (it is in
 # _FAILING_CONCLUSIONS), so a CANCELLED-only group surfaces as a failing check.
 # That preserves this script's long-standing CANCELLED semantics; the dedupe
-# only collapses duplicate names and prefers a passing run when one exists for
-# the same name.
+# only collapses duplicate names and uses workflow run ids when every duplicate
+# exposes one.
 
 # Precedence key: lower sorts first, so the winning entry is the minimum.
 _PASSING_RANK = 0
@@ -247,13 +246,32 @@ def _dedupe_rank(check: dict) -> tuple[int, int]:
     return (_TYPE_RANK.get(check.get("Type"), 2), _check_rank(check))
 
 
+def _check_workflow_run_number(check: dict) -> int | None:
+    """Return a CheckRun workflow run id when the details URL exposes one."""
+    if check.get("Type") != "CheckRun":
+        return None
+    return extract_workflow_run_number(check.get("DetailsUrl"))
+
+
+def _select_cross_run_winner(candidates: list[dict[Any, Any]]) -> dict[Any, Any]:
+    """Pick the latest workflow run when all candidates have run provenance."""
+    run_numbers = [_check_workflow_run_number(check) for check in candidates]
+    if candidates and all(run_number is not None for run_number in run_numbers):
+        latest_run = max(run_numbers)
+        latest_candidates = [
+            check for check, run_number in zip(candidates, run_numbers, strict=True)
+            if run_number == latest_run
+        ]
+        return sorted(latest_candidates, key=_dedupe_rank)[0]
+    return sorted(candidates, key=_dedupe_rank)[0]
+
+
 def _collapse_same_run_siblings(rows: list[dict[Any, Any]]) -> list[dict[Any, Any]]:
     """Reduce each workflow run's same-named rows to one representative row.
 
     Within one run, two rows sharing a check name are concurrent siblings, not
     a supersession, so a failing sibling must win over a passing one. Across
-    runs the caller still prefers the passing entry, which preserves the
-    re-run supersession behavior of issue #2208.
+    runs the caller uses workflow run recency when every candidate exposes it.
 
     Refs issue #4499.
     """
@@ -271,12 +289,11 @@ def _collapse_same_run_siblings(rows: list[dict[Any, Any]]) -> list[dict[Any, An
 def dedupe_checks(checks: list[dict]) -> list[dict]:
     """Collapse multiple runs of one check name to the winning entry.
 
-    Groups by ``Name`` and keeps the entry with the best precedence
-    (passing over failing over pending), so a re-run SUCCESS supersedes a
-    stale FAILURE on the same commit. The first-seen order of surviving
-    names is preserved. CheckRun rows win over StatusContext rows with the
-    same name. Required-check status is retained when any duplicate row for a
-    name is required.
+    Groups by ``Name`` and keeps the latest workflow-run entry when all
+    CheckRun candidates expose run ids. Unknown provenance keeps the previous
+    precedence behavior. The first-seen order of surviving names is preserved.
+    Required-check status is retained when any duplicate row for a name is
+    required.
 
     Two rows of the SAME workflow run are collapsed first, pessimistically: a
     failing sibling beats a passing one because both jobs really ran and one
@@ -303,7 +320,7 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
     deduped = []
     for name in order:
         candidates = _collapse_same_run_siblings(rows_by_name[name])
-        best = sorted(candidates, key=_dedupe_rank)[0]
+        best = _select_cross_run_winner(candidates)
         winner = {
             **best,
             "IsRequired": required_by_name[name],
