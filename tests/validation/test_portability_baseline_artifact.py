@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.validation.portability_baseline import (
     read_previous_sections,
     refuse_dropped_entries,
+    refuse_oversized_baseline,
     refuse_symlinked_baseline,
     write_baseline_json,
 )
@@ -226,6 +227,28 @@ class TestReductionsAreRefused:
         assert "marker_files" in capsys.readouterr().err
 
 
+class TestBaselineSizeCeiling:
+    """A padded baseline must remain visible in code review."""
+
+    def test_a_missing_baseline_is_left_to_the_loader(self, tmp_path: Path) -> None:
+        assert not refuse_oversized_baseline(tmp_path / "missing.json")
+
+    def test_a_baseline_at_the_ceiling_is_permitted(self, tmp_path: Path) -> None:
+        path = tmp_path / "baseline.json"
+        path.write_bytes(b"x" * 200_000)
+
+        assert not refuse_oversized_baseline(path)
+
+    def test_a_baseline_above_the_ceiling_is_refused(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        path = tmp_path / "baseline.json"
+        path.write_bytes(b"x" * 200_001)
+
+        assert refuse_oversized_baseline(path)
+        assert "exceeds the reviewability ceiling" in capsys.readouterr().err
+
+
 class TestTheWriteItself:
     """The write must not follow a symlink, tear, or lose a concurrent update."""
 
@@ -245,6 +268,36 @@ class TestTheWriteItself:
         path = root / "scripts" / "validation" / "b.json"
         assert write_baseline_json(root, path, NESTED, SECTIONS, UNIT, False) == 0
         assert json.loads(path.read_text(encoding="utf-8"))["files"] == {"a.md": 2, "b.md": 3}
+
+    def test_replace_error_survives_cleanup_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        root = _repo(tmp_path)
+        path = _baseline(root, NESTED)
+        original = path.read_text(encoding="utf-8")
+        real_unlink = Path.unlink
+
+        def fail_replace(source: Path, destination: Path) -> Path:
+            if destination == path:
+                raise OSError("replace failed")
+            return source
+
+        def fail_cleanup(temporary_path: Path, *, missing_ok: bool = False) -> None:
+            if temporary_path.suffix == ".tmp":
+                raise OSError("cleanup failed")
+            real_unlink(temporary_path, missing_ok=missing_ok)
+
+        monkeypatch.setattr(Path, "replace", fail_replace)
+        monkeypatch.setattr(Path, "unlink", fail_cleanup)
+
+        assert write_baseline_json(root, path, NESTED, SECTIONS, UNIT, False) == 2
+        assert path.read_text(encoding="utf-8") == original
+        error = capsys.readouterr().err
+        assert "replace failed" in error
+        assert "cleanup failed" not in error
 
     def test_a_precreated_temporary_symlink_cannot_redirect_the_write(
         self, tmp_path: Path
