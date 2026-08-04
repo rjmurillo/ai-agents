@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pre_pr completed 46 checks with 0 failures after the final origin/main merge."
+        "Evidence": "Session validation passes. pre_pr passed 46 checks before main advanced, then current main 7281a710d introduced a repository-wide Ruff ratchet failure tracked by issue #4538."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -141,11 +141,15 @@
     {
       "action": "Updated GitHub state",
       "detail": "PR #4435 now has one linkage line, Refs #3988, and no closing claim. Filed GitHub skill defects #4536 and #4537 after searches found no matching issues."
+    },
+    {
+      "action": "Attempted a normal push",
+      "detail": "Pre-push hooks blocked on a repository-wide Ruff count regression inherited from origin/main 7281a710d: 140 violations against baseline 126. Confirmed the same failure on a detached main worktree and filed P0 issue #4538. No hook bypass or force push was used."
     }
   ],
   "endingCommit": "7fcf3f8a1",
   "nextSteps": [
-    "Push fix/eval-judge-failures with normal hooks.",
+    "Repair or merge the origin/main Ruff ratchet fix tracked by issue #4538, then merge current main and retry the normal push.",
     "Observe CI and review threads. Do not merge PR #4435 in this session."
   ]
 }
