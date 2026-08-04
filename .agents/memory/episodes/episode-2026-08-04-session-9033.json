@@ -97,7 +97,8 @@
         "e005",
         "e006",
         "e007",
-        "e009"
+        "e009",
+        "e010"
       ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9033"
@@ -107,6 +108,17 @@
       "timestamp": "2026-08-04T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 7281a710d",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9033"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discriminated an inherited red from a branch-authored one before touching a baseline",
       "caused_by": [],
       "leads_to": [
         "e008"

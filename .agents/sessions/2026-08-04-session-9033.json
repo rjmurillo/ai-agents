@@ -141,11 +141,16 @@
     {
       "action": "Measured the outdated subprocess-encoding thread rather than arguing it",
       "detail": "scripts/validation/check_subprocess_encoding.py states the house rule in its first docstring line and its fix message. The repository has 581 call sites using errors=replace and 0 using errors=backslashreplace, so the suggestion would create the only divergent site. The consumer, assert_red, tests an ASCII substring and a return code, neither of which a replacement character can affect."
+    },
+    {
+      "action": "Discriminated an inherited red from a branch-authored one before touching a baseline",
+      "detail": "The pre-push python-tests job failed one test out of 22952: test_the_shipped_baseline_matches_the_tracked_tree, taste baseline 587 against a tree of 586. A detached worktree at pristine origin/main 7281a710d with zero branch content reproduced the identical failure and the identical numbers, so the red is main's, not this branch's. Lowered scripts/ci/taste_count_baseline.txt to 586, which is the direction the ratchet permits and the equality the test demands. scripts/ci/ruff_count_baseline.txt stays at 126."
     }
   ],
   "endingCommit": "a450a51a9",
   "nextSteps": [
     "Issue #4538 acceptance criterion 4 is still open: add a gate that blocks lowering a ratchet baseline below the count measured on the post-merge main tree. This branch meets criteria 1 through 3 only, so the PR body cites Refs #4538 rather than Fixes.",
-    "Watch whether other open PRs behind a81239d0c hit the same inherited ruff ceiling; the RUF100 remedy recorded in the decision memory applies to them unchanged."
+    "Watch whether other open PRs behind a81239d0c hit the same inherited ruff ceiling; the RUF100 remedy recorded in the decision memory applies to them unchanged.",
+    "Issue #4500 remains the tracking issue for taste-ratchet drift on main. The 587 to 586 lowering in this branch closes the dead allowance that pristine main was carrying, but nothing yet prevents the next PR from lowering a count without lowering the baseline."
   ]
 }
