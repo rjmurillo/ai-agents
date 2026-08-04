@@ -427,16 +427,20 @@ _NUMBER_WORDS = {
     "twelve": 12,
 }
 
-_AUDIT_CORPUS = re.compile(r"(?P<word>[A-Za-z]+) rules is the corpus")
-_AUDIT_DELTA = re.compile(r"total (?P<n>[\d,]+) bytes less than the")
-_AUDIT_APPLYTO_FORM = re.compile(r"`applyTo:\s*'\*\*'`\s*\((?P<word>[a-z]+) rules?\)")
+_AUDIT_CORPUS = re.compile(r"(?P<word>[A-Za-z]+)\s+rules\s+is\s+the\s+corpus")
+_AUDIT_DELTA = re.compile(r"total\s+(?P<n>[\d,]+)\s+bytes\s+less\s+than\s+the")
+_AUDIT_APPLYTO_FORM = re.compile(r"`applyTo:\s*'\*\*'`\s*\((?P<word>[a-z]+)\s+rules?\)")
 _AUDIT_ALWAYSAPPLY_FORM = re.compile(r"`alwaysApply: true`\s*\((?P<word>[a-z]+),")
 _AUDIT_PATHS_FORM = re.compile(r"`paths:`\s*carrying\s*`\*\*`\s*\((?P<word>[a-z]+),")
 _AUDIT_RULE_SIZE = re.compile(r"`(?P<rule>[a-z0-9-]+)\.md`\s*\((?P<n>[\d,]+) bytes\)")
+_AUDIT_PRIORITY_DELTA = re.compile(r"carry\s+it,\s+worth\s+(?P<n>[\d,]+)\s+bytes")
+_AUDIT_REWRITE_DELTA = re.compile(r"worth\s+the\s+remaining\s+(?P<n>[\d,]+)\s+bytes")
 
 _AUDIT_FIGURES = (
     (_AUDIT_CORPUS, "corpus size"),
     (_AUDIT_DELTA, "mirror byte delta"),
+    (_AUDIT_PRIORITY_DELTA, "priority strip"),
+    (_AUDIT_REWRITE_DELTA, "alwaysApply rewrite"),
     (_AUDIT_APPLYTO_FORM, "applyTo form count"),
     (_AUDIT_ALWAYSAPPLY_FORM, "alwaysApply form count"),
     (_AUDIT_PATHS_FORM, "paths form count"),
@@ -479,6 +483,25 @@ def parse_audit_rule_sizes(text: str) -> dict[str, int]:
     return sizes
 
 
+def _declared_forms(front: dict[str, object]) -> list[str]:
+    """Return every always-on convention a single rule's frontmatter declares.
+
+    Returns a list rather than a first match so a rule carrying two conventions
+    is visible. `measured_source_forms` sums these, and the corpus-sum
+    assertion only detects a non-disjoint form if that rule is counted twice.
+    """
+    forms: list[str] = []
+    applyto = front.get("applyTo")
+    paths = front.get("paths")
+    if isinstance(applyto, str) and applyto.strip() == "**":
+        forms.append("applyTo form count")
+    if front.get("alwaysApply") is True:
+        forms.append("alwaysApply form count")
+    if isinstance(paths, list) and any(str(p).strip() == "**" for p in paths):
+        forms.append("paths form count")
+    return forms
+
+
 def measured_source_forms() -> dict[str, int]:
     """Return how many source rules declare always-on scope by each convention.
 
@@ -489,15 +512,39 @@ def measured_source_forms() -> dict[str, int]:
     counts = {"applyTo form count": 0, "alwaysApply form count": 0, "paths form count": 0}
     for path in sorted(RULES_DIR.glob("*.md")):
         front = _frontmatter(path.read_text(encoding="utf-8"))
-        applyto = front.get("applyTo")
-        paths = front.get("paths")
-        if isinstance(applyto, str) and applyto.strip() == "**":
-            counts["applyTo form count"] += 1
-        elif front.get("alwaysApply") is True:
-            counts["alwaysApply form count"] += 1
-        elif isinstance(paths, list) and any(str(p).strip() == "**" for p in paths):
-            counts["paths form count"] += 1
+        for form in _declared_forms(front):
+            counts[form] += 1
     return counts
+
+
+def measured_multi_form_rules() -> dict[str, list[str]]:
+    """Return rules declaring always-on scope more than one way, by rule id."""
+    offenders: dict[str, list[str]] = {}
+    for path in sorted(RULES_DIR.glob("*.md")):
+        forms = _declared_forms(_frontmatter(path.read_text(encoding="utf-8")))
+        if len(forms) > 1:
+            offenders[path.stem] = forms
+    return offenders
+
+
+def measured_delta_split() -> dict[str, int]:
+    """Return the mirror byte delta split by which frontmatter rewrite caused it.
+
+    `generate_rules.py` performs two distinct transformations. Attributing the
+    whole delta to either one is the error this split exists to keep out of the
+    procedure's prose.
+    """
+    split = {"priority strip": 0, "alwaysApply rewrite": 0}
+    for rule_id in measured_always_on():
+        source = RULES_DIR / f"{rule_id}.md"
+        mirror = MIRROR_DIR / f"{rule_id}.instructions.md"
+        delta = source.stat().st_size - mirror.stat().st_size
+        if not delta:
+            continue
+        front = _frontmatter(source.read_text(encoding="utf-8"))
+        key = "priority strip" if "priority" in front else "alwaysApply rewrite"
+        split[key] += delta
+    return split
 
 
 def measured_mirror_delta() -> int:
@@ -550,12 +597,19 @@ def test_audit_procedure_mirror_delta_matches_measurement() -> None:
     )
 
 
+_EXPECTED_QUOTED_RULES = frozenset({"code-quality", "voice", "pragmatic-programmer"})
+
+
 def test_audit_procedure_rule_sizes_match_the_files() -> None:
     sizes = parse_audit_rule_sizes(AUDIT_PROCEDURE.read_text(encoding="utf-8"))
+    assert set(sizes) == _EXPECTED_QUOTED_RULES, (
+        f"audit procedure quotes byte figures for {sorted(sizes)}; expected "
+        f"{sorted(_EXPECTED_QUOTED_RULES)}. A dropped or misspelled rule name would "
+        "otherwise leave its figure unchecked"
+    )
     for rule_id, claimed in sizes.items():
         source = RULES_DIR / f"{rule_id}.md"
-        if not source.exists():
-            continue
+        assert source.exists(), f"audit procedure quotes {rule_id}.md, which does not exist"
         assert claimed == source.stat().st_size, (
             f"audit procedure quotes {rule_id}.md at {claimed} bytes; "
             f"the file is {source.stat().st_size}"
@@ -594,3 +648,44 @@ def test_number_word_parser_handles_both_forms() -> None:
     assert _to_int("Eight") == 8
     with pytest.raises(ValueError, match="unrecognized number"):
         _to_int("several")
+
+
+def test_no_source_rule_declares_always_on_scope_more_than_once() -> None:
+    """A rule using two conventions makes the form counts sum past the corpus.
+
+    The sum assertion above catches that, but reports it as a phantom fourth
+    convention. This names the actual rule so the next reader is not sent
+    looking for a form that does not exist.
+    """
+    offenders = measured_multi_form_rules()
+    assert not offenders, (
+        "these rules declare always-on scope more than one way, which double counts "
+        f"them in the form survey: {offenders}"
+    )
+
+
+def test_multi_form_detector_sees_a_rule_using_two_conventions() -> None:
+    """Negative control: the detector returned empty, so prove it can be non-empty."""
+    both = _declared_forms({"applyTo": "**", "alwaysApply": True})
+    assert both == ["applyTo form count", "alwaysApply form count"]
+    assert _declared_forms({"applyTo": "src/**"}) == []
+    assert _declared_forms({"paths": ["**"]}) == ["paths form count"]
+
+
+def test_audit_procedure_delta_split_matches_the_two_rewrites() -> None:
+    """The doc attributed the whole delta to one rewrite; there are two."""
+    claimed = parse_audit_figures(AUDIT_PROCEDURE.read_text(encoding="utf-8"))
+    measured = measured_delta_split()
+    for label, count in measured.items():
+        assert claimed[label] == count, (
+            f"audit procedure attributes {claimed[label]} bytes to the {label}; measured {count}"
+        )
+
+
+def test_audit_procedure_delta_split_accounts_for_the_whole_delta() -> None:
+    """Two parts that do not sum to the total mean a third rewrite went unnoticed."""
+    measured = measured_delta_split()
+    assert sum(measured.values()) == measured_mirror_delta(), (
+        f"the two named rewrites account for {sum(measured.values())} bytes but the "
+        f"mirrors are {measured_mirror_delta()} bytes smaller; a third transformation exists"
+    )
