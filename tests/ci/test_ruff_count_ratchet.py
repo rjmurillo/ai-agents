@@ -251,5 +251,26 @@ def test_baseline_outside_the_repo_root_is_rejected(tmp_path):
     assert ratchet.baseline_at_ref(root, "origin/main", outside) is None
 
 
+def test_the_shipped_ruff_baseline_matches_the_tracked_tree():
+    """The ruff baseline must describe this repository, not a stale snapshot.
+
+    A baseline above the real count is dead allowance: violations could be
+    added up to the gap without the gate noticing. A baseline below it means
+    main is already red.
+
+    Run ``python scripts/ci/ruff_count_ratchet.py`` to see the current count.
+    Issue #2993.
+    """
+    repo_root = Path(__file__).resolve().parents[2]
+    baseline_path = repo_root / "scripts" / "ci" / "ruff_count_baseline.txt"
+    baseline = int(baseline_path.read_text(encoding="utf-8").strip())
+    actual = ratchet.current_count(repo_root)
+    assert actual == baseline, (
+        f"ruff count ratchet: baseline is {baseline} but current tree has "
+        f"{actual} violations. "
+        f"Run 'python scripts/ci/ruff_count_ratchet.py' to see per-file detail."
+    )
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))

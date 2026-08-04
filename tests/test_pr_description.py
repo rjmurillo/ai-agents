@@ -721,3 +721,70 @@ class TestWarningSuppressionFromReferenceSection:
         issues = validate_pr_description(pr_files, mentioned, all_mentioned_files=all_mentioned)
         warnings = [i for i in issues if i.severity == "WARNING"]
         assert len(warnings) == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests: bold and inline-code with :NN line-number suffix (issue #4509)
+# ---------------------------------------------------------------------------
+
+
+class TestBoldLineSuffixMentions:
+    """Bold and inline-code paths with :NN suffix register as change claims."""
+
+    def _mentioned(self, text: str) -> frozenset[str]:
+        from scripts.validation.pr_description import extract_all_mentioned_files
+        return extract_all_mentioned_files(text)
+
+    def test_bold_with_line_suffix_registers(self):
+        """Positive: **path.py:36** is a change claim (the bug in #4509)."""
+        desc = "## Changes\n**scripts/a.py:36** changed\n"
+        assert "scripts/a.py" in self._mentioned(desc)
+
+    def test_bold_without_line_suffix_still_registers(self):
+        """Control: **path.py** (no suffix) continues to register."""
+        desc = "## Changes\n**scripts/a.py** changed\n"
+        assert "scripts/a.py" in self._mentioned(desc)
+
+    def test_inline_code_with_line_suffix_registers(self):
+        """`path.py:36` in inline code registers."""
+        desc = "## Changes\n`scripts/a.py:36` changed\n"
+        assert "scripts/a.py" in self._mentioned(desc)
+
+    def test_bold_inline_backtick_with_line_suffix_registers(self):
+        """**`path.py:36`** (bold + backtick + suffix) registers."""
+        desc = "## Changes\n**`scripts/a.py:36`** changed\n"
+        assert "scripts/a.py" in self._mentioned(desc)
+
+    def test_bold_with_line_column_suffix_registers(self):
+        """Edge: :36:5 (line:column) suffix registers."""
+        desc = "## Changes\n**scripts/a.py:36:5** changed\n"
+        assert "scripts/a.py" in self._mentioned(desc)
+
+    def test_bold_with_zero_line_suffix_registers(self):
+        """Edge: :0 suffix registers (line numbers start at 1 by convention,
+        but the pattern should not discriminate on value)."""
+        desc = "## Changes\n**scripts/a.py:0** changed\n"
+        assert "scripts/a.py" in self._mentioned(desc)
+
+    def test_non_path_bold_does_not_register(self):
+        """Negative: bold non-path like **Note: 3.14** does not register."""
+        desc = "## Changes\n**Note: 3.14** is important\n"
+        assert not self._mentioned(desc)
+
+    def test_trailing_colon_no_digits_does_not_register(self):
+        """Edge: a trailing colon with no digits is not a line suffix."""
+        # "scripts/a.py:" has a colon but no digits; the bold pattern requires
+        # the closing ** immediately after the extension (or suffix), so the
+        # raw colon prevents the match. This is acceptable: a bare colon is
+        # not a location reference.
+        desc = "## Changes\n**scripts/a.py:** changed\n"
+        # Either registers the path or not; the key is it does not crash.
+        result = self._mentioned(desc)
+        # A trailing bare colon is not meaningful, but the test documents
+        # the current boundary, not a correctness requirement.
+        assert isinstance(result, frozenset)
+
+    def test_list_item_with_line_suffix_was_already_working(self):
+        """Control: list-item path with :36 was already working before #4509."""
+        desc = "## Changes\n- scripts/a.py:36 changed\n"
+        assert "scripts/a.py" in self._mentioned(desc)

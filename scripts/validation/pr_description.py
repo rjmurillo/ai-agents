@@ -67,6 +67,14 @@ _EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
 # the greedy body group (`tsconfig.spec.json` -> `tsconfig.spec.json`).
 _EXT_BOUNDARY = r"(?![A-Za-z0-9_/\\]|\.[A-Za-z0-9_])"
 
+# Optional line-number suffix that engineers append to a path: `:36` or
+# `:36:5` (line:column). Present in bold and inline-code patterns so that
+# `**scripts/a.py:36**` and `` `scripts/a.py:36` `` register as change
+# claims. The list-item pattern already tolerates `:` via _EXT_BOUNDARY
+# (which does not reject `:`), so only the delimiter-anchored patterns need
+# this addition. Issue #4509.
+_LINE_SUFFIX = r"(?::\d+(?::\d+)?)?"
+
 # Default label name that bypasses CRITICAL description-validation failures.
 # Mirrors the existing 'commit-limit-bypass' pattern in pr-validation.yml.
 DEFAULT_BYPASS_LABEL = "description-validation-bypass"
@@ -155,8 +163,8 @@ _REFERENCE_SECTION_PREFIXES: tuple[str, ...] = (
 # Every pattern appends `_EXT_BOUNDARY` after the captured extension so the
 # match cannot terminate inside a longer real extension (issue #1874).
 FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(rf"`([^`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}`"),  # inline code
-    re.compile(rf"\*\*([^*]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\*\*"),  # bold
+    re.compile(rf"`([^`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}{_LINE_SUFFIX}`"),  # inline code
+    re.compile(rf"\*\*([^*]+\.({_EXT_GROUP})){_EXT_BOUNDARY}{_LINE_SUFFIX}\*\*"),  # bold
     re.compile(
         rf"^\s*[-*+]\s+`?([^\s`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}`?",
         re.MULTILINE,
@@ -330,6 +338,8 @@ def normalize_path(path: str) -> str:
     """Normalize a file path for comparison.
 
     Strips whitespace, markdown bold markers, and normalizes slashes.
+    Also strips a trailing line-number suffix (`:36` or `:36:5`) that
+    engineers append to a path in bold or inline-code contexts (issue #4509).
     """
     path = path.strip()
     # Strip markdown formatting that may be captured by list item pattern
@@ -338,6 +348,8 @@ def normalize_path(path: str) -> str:
     path = path.replace("\\", "/")
     if path.startswith("./"):
         path = path[2:]
+    # Strip trailing line-number suffix: `:36` or `:36:5`
+    path = re.sub(r":\d+(?::\d+)?$", "", path)
     return path
 
 
