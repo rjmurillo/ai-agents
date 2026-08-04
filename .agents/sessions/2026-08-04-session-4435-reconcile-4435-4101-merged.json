@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Authored code commit 6dc5a78ec and final current-main merge 8a9cfd3a7 are complete. This chronology correction is the metadata follow-up."
+        "Evidence": "Authored code commit 6dc5a78ec and final current-main merge 02d2f0da2 are complete. This chronology correction is the metadata follow-up."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "After blocker fixes landed through PR #4508 and main 49338f940 was merged, eval tests, Ruff, mypy, and pre_pr all passed."
+        "Evidence": "After blocker fixes landed through PR #4508 and current main 5cc4a4f52 was merged, eval tests, Ruff, mypy, and pre_pr all passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -147,12 +147,12 @@
       "detail": "Pre-push hooks blocked on a repository-wide Ruff count regression inherited from origin/main 7281a710d: 140 violations against baseline 126. Confirmed the same failure on a detached main worktree and filed P0 issue #4538. No hook bypass or force push was used."
     },
     {
-      "timestamp": "2026-08-04T10:20:50+00:00",
+      "timestamp": "2026-08-04T10:26:49+00:00",
       "action": "Finalized closeout chronology",
-      "detail": "Main fixes for #4516, #4535, and #4538 landed through PR #4508. Merged main as 8a9cfd3a7, reran eval tests, Ruff, mypy, and pre_pr, and updated the live PR body to mark the local reconciliation pending push."
+      "detail": "Main fixes for #4516, #4535, and #4538 landed through PR #4508. Merged current main as 02d2f0da2, reran eval tests, Ruff, mypy, and pre_pr, and kept the live PR body marked pending push."
     }
   ],
-  "endingCommit": "8a9cfd3a7",
+  "endingCommit": "02d2f0da2",
   "nextSteps": [
     "Commit this chronology correction and regenerated episode, then push with normal hooks.",
     "After the push succeeds, update PR #4435 from pending local state to live remote state. Do not merge it."
