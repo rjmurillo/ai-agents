@@ -26,7 +26,7 @@ import sys
 
 sys.path.insert(0, str(_VALIDATION))
 
-import check_skill_md_portability as cmp  # noqa: E402
+import check_skill_md_portability as cmp
 
 
 class TestChangedFilesAgainstBase:
@@ -36,7 +36,7 @@ class TestChangedFilesAgainstBase:
         """A file reported by git diff --name-only is included."""
         calls: list[list[str]] = []
 
-        def fake_run(cmd, **kwargs):  # noqa: ARG001
+        def fake_run(cmd, **kwargs):
             calls.append(list(cmd))
             if "ls-files" in cmd:
                 proc = subprocess.CompletedProcess(cmd, 0, "", "")
@@ -56,7 +56,7 @@ class TestChangedFilesAgainstBase:
         """An untracked file (not staged) appears via git ls-files --others."""
         calls: list[list[str]] = []
 
-        def fake_run(cmd, **kwargs):  # noqa: ARG001
+        def fake_run(cmd, **kwargs):
             calls.append(list(cmd))
             if "ls-files" in cmd:
                 proc = subprocess.CompletedProcess(cmd, 0, "", "")
@@ -76,7 +76,7 @@ class TestChangedFilesAgainstBase:
     def test_union_of_tracked_and_untracked(self, tmp_path: Path) -> None:
         """Both tracked and untracked files appear in the result."""
 
-        def fake_run(cmd, **kwargs):  # noqa: ARG001
+        def fake_run(cmd, **kwargs):
             if "ls-files" in cmd:
                 proc = subprocess.CompletedProcess(cmd, 0, "", "")
                 proc.stdout = "new-baseline.json\n"
@@ -95,7 +95,7 @@ class TestChangedFilesAgainstBase:
     def test_no_duplicates_when_file_appears_in_both(self, tmp_path: Path) -> None:
         """A file staged and untracked simultaneously is listed once."""
 
-        def fake_run(cmd, **kwargs):  # noqa: ARG001
+        def fake_run(cmd, **kwargs):
             if "ls-files" in cmd:
                 proc = subprocess.CompletedProcess(cmd, 0, "", "")
                 proc.stdout = "shared.py\n"
@@ -113,7 +113,7 @@ class TestChangedFilesAgainstBase:
     def test_returns_none_when_git_diff_fails(self, tmp_path: Path) -> None:
         """Returns None when git diff exits non-zero (fail-closed behaviour)."""
 
-        def fake_run(cmd, **kwargs):  # noqa: ARG001
+        def fake_run(cmd, **kwargs):
             if "ls-files" in cmd:
                 proc = subprocess.CompletedProcess(cmd, 0, "", "")
                 proc.stdout = ""
@@ -132,7 +132,7 @@ class TestChangedFilesAgainstBase:
     ) -> None:
         """Returns [] when the tree is clean and nothing is untracked."""
 
-        def fake_run(cmd, **kwargs):  # noqa: ARG001
+        def fake_run(cmd, **kwargs):
             proc = subprocess.CompletedProcess(cmd, 0, "", "")
             proc.stdout = ""
             return proc
@@ -145,7 +145,7 @@ class TestChangedFilesAgainstBase:
     def test_ls_files_failure_is_tolerated(self, tmp_path: Path) -> None:
         """If git ls-files fails, tracked changes are still returned."""
 
-        def fake_run(cmd, **kwargs):  # noqa: ARG001
+        def fake_run(cmd, **kwargs):
             if "ls-files" in cmd:
                 raise OSError("git ls-files not available")
             proc = subprocess.CompletedProcess(cmd, 0, "", "")
