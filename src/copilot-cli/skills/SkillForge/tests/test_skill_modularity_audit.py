@@ -184,7 +184,11 @@ class TestAuditSkill:
         skill_dir = tmp_path / "small-skill"
         skill_dir.mkdir()
         skill_file = skill_dir / "SKILL.md"
-        skill_file.write_text("---\nname: small-skill\n---\n## Process\nDo the thing.\n")
+        # Write a SKILL.md with exactly IDEAL_MIN_LINES (100) lines so the
+        # file sits at the lower band boundary and scores 100.
+        header = "---\nname: small-skill\n---\n## Process\nDo the thing.\n"
+        padding = "<!-- pad -->\n" * (100 - len(header.splitlines()))
+        skill_file.write_text(header + padding)
         result = audit_skill(skill_dir)
         assert result is not None
         assert result.rating == "good"
