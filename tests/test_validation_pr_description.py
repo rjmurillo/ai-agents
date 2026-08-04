@@ -2262,3 +2262,308 @@ class TestBypassLabelExcludesDashViolations:
             }
             result = pr_main(["--pr-number", "1", "--ci"])
             assert result == 1, "dash violation must block even when label set"
+
+
+# ---------------------------------------------------------------------------
+# validate_closing_links (Issue #3827)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateClosingLinks:
+    """Tests for validate_closing_links: closing keyword location checks."""
+
+    def _fn(self, body: str, base_ref: str = "main", default_branch: str = "main"):
+        from scripts.validation.pr_description import validate_closing_links
+
+        return validate_closing_links(body, base_ref, default_branch)
+
+    # ------------------------------------------------------------------
+    # Positive: clean body, no issues
+    # ------------------------------------------------------------------
+
+    def test_bare_fixes_on_own_line_returns_no_issues(self) -> None:
+        issues = self._fn("Fixes #123\n")
+        assert issues == []
+
+    def test_closes_on_own_line_returns_no_issues(self) -> None:
+        issues = self._fn("Closes #42\n")
+        assert issues == []
+
+    def test_resolves_returns_no_issues(self) -> None:
+        issues = self._fn("Resolves #7\n")
+        assert issues == []
+
+    def test_fixes_in_list_item_returns_no_issues(self) -> None:
+        issues = self._fn("- Fixes #99\n")
+        assert issues == []
+
+    def test_refs_keyword_does_not_trigger(self) -> None:
+        # Refs does not auto-close; should never produce a closing-link issue
+        issues = self._fn("`Refs #10`\n")
+        assert issues == []
+
+    def test_cross_repo_ref_in_code_span_keeps_owner_repo_qualifier(self) -> None:
+        # Backticks suppress the closing link whatever repository the
+        # reference names, so the finding stands. The message must echo the
+        # qualifier back: a bare "#5" would name this repository's own issue 5,
+        # which is a different issue from other-org/other-repo#5.
+        issues = self._fn("`Fixes other-org/other-repo#5`\n")
+
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert "other-org/other-repo#5" in issues[0].message
+        assert "issue #5" not in issues[0].message
+
+    def test_cross_repo_ref_in_fenced_block_keeps_owner_repo_qualifier(self) -> None:
+        issues = self._fn("```\nFixes other-org/other-repo#5\n```\n")
+
+        assert len(issues) == 1
+        assert issues[0].issue_type == "Closing keyword in fenced code block"
+        assert "other-org/other-repo#5" in issues[0].message
+        assert "issue #5" not in issues[0].message
+
+    def test_same_repo_ref_message_has_no_stray_slash(self) -> None:
+        # The optional repo group must contribute nothing when it did not match.
+        issues = self._fn("`Fixes #3710`\n")
+
+        assert len(issues) == 1
+        assert "issue #3710" in issues[0].message
+        assert "/#3710" not in issues[0].message
+
+    def test_no_keywords_returns_no_issues(self) -> None:
+        issues = self._fn("Changes something.\n")
+        assert issues == []
+
+    def test_cross_repo_ref_bare_returns_no_issues(self) -> None:
+        # Fixes owner/repo#N is valid but GitHub only auto-closes for same-repo
+        # The static check does not validate cross-repo; that is out of scope.
+        issues = self._fn("Fixes other-org/other-repo#5\n")
+        assert issues == []
+
+    def test_multiple_bare_keywords_returns_no_issues(self) -> None:
+        body = "Fixes #1\nFixes #2\nFixes #3\n"
+        issues = self._fn(body)
+        assert issues == []
+
+    # ------------------------------------------------------------------
+    # Code-span (inline backtick) CRITICAL
+    # ------------------------------------------------------------------
+
+    def test_fixes_in_inline_code_span_is_critical(self) -> None:
+        issues = self._fn("`Fixes #3710`\n")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert issues[0].issue_type == "Closing keyword in inline code span"
+        assert "3710" in issues[0].message
+
+    def test_closes_in_inline_code_span_is_critical(self) -> None:
+        issues = self._fn("`Closes #42`\n")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+
+    def test_resolves_in_inline_code_span_is_critical(self) -> None:
+        issues = self._fn("`Resolves #7`\n")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+
+    def test_inline_code_span_with_surrounding_text_is_critical(self) -> None:
+        body = "The markdown gate returned PASS. `Fixes #3710`.\n"
+        issues = self._fn(body)
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert "3710" in issues[0].message
+
+    def test_multiple_code_span_keywords_produces_multiple_criticals(self) -> None:
+        body = "`Fixes #1`\n`Closes #2`\n"
+        issues = self._fn(body)
+        assert len(issues) == 2
+        assert all(i.severity == "CRITICAL" for i in issues)
+
+    def test_code_span_keyword_references_issue_number(self) -> None:
+        issues = self._fn("`Fixes #9999`\n")
+        assert "9999" in issues[0].message
+
+    def test_code_span_critical_message_suggests_plaintext_fix(self) -> None:
+        issues = self._fn("`Fixes #1`\n")
+        assert "backtick" in issues[0].message.lower() or "code span" in issues[0].message.lower()
+
+    # ------------------------------------------------------------------
+    # Fenced code block CRITICAL
+    # ------------------------------------------------------------------
+
+    def test_fixes_in_fenced_block_is_critical(self) -> None:
+        body = "```\nFixes #100\n```\n"
+        issues = self._fn(body)
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert issues[0].issue_type == "Closing keyword in fenced code block"
+        assert "100" in issues[0].message
+
+    def test_fixes_in_fenced_block_with_language_tag_is_critical(self) -> None:
+        body = "```text\nFixes #200\n```\n"
+        issues = self._fn(body)
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+
+    def test_bare_keyword_before_fenced_block_is_clean(self) -> None:
+        body = "Fixes #1\n\n```\nsome code\n```\n"
+        issues = self._fn(body)
+        assert issues == []
+
+    # ------------------------------------------------------------------
+    # Non-default base WARNING
+    # ------------------------------------------------------------------
+
+    def test_non_default_base_with_valid_keyword_is_warning(self) -> None:
+        issues = self._fn("Fixes #50\n", base_ref="feat/stacked", default_branch="main")
+        assert len(issues) == 1
+        assert issues[0].severity == "WARNING"
+        assert issues[0].issue_type == "Closing keyword on non-default base branch"
+        assert "feat/stacked" in issues[0].message
+
+    def test_non_default_base_multiple_keywords_produces_one_warning(self) -> None:
+        body = "Fixes #1\nFixes #2\n"
+        issues = self._fn(body, base_ref="feat/stacked", default_branch="main")
+        assert len(issues) == 1
+        assert issues[0].severity == "WARNING"
+
+    def test_same_base_and_default_returns_no_issues(self) -> None:
+        issues = self._fn("Fixes #5\n", base_ref="main", default_branch="main")
+        assert issues == []
+
+    def test_empty_base_ref_skips_non_default_check(self) -> None:
+        issues = self._fn("Fixes #5\n", base_ref="", default_branch="main")
+        assert issues == []
+
+    def test_empty_default_branch_skips_non_default_check(self) -> None:
+        issues = self._fn("Fixes #5\n", base_ref="main", default_branch="")
+        assert issues == []
+
+    # ------------------------------------------------------------------
+    # Code-span keyword on non-default base: CRITICAL and WARNING
+    # ------------------------------------------------------------------
+
+    def test_code_span_on_non_default_base_is_critical_and_warning(self) -> None:
+        issues = self._fn(
+            "`Fixes #7`\n",
+            base_ref="feat/stacked",
+            default_branch="main",
+        )
+        assert len(issues) == 2
+        assert {issue.severity for issue in issues} == {"CRITICAL", "WARNING"}
+
+    # ------------------------------------------------------------------
+    # Integration with main() via fetch_pr_data mock
+    # ------------------------------------------------------------------
+
+    def test_main_emits_critical_for_code_span_in_ci_mode(self) -> None:
+        from unittest.mock import patch
+
+        from scripts.validation.pr_description import main as pr_main
+
+        with (
+            patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch,
+            patch("scripts.validation.pr_description.get_repo_info") as mock_repo,
+        ):
+            from scripts.github_core.api import RepoInfo
+
+            mock_repo.return_value = RepoInfo(owner="o", repo="r")
+            mock_fetch.return_value = {
+                "title": "fix: something",
+                "body": "`Fixes #100`\n",
+                "files": [],
+                "labels": [],
+                "base_ref": "main",
+                "default_branch": "main",
+            }
+            rc = pr_main(["--pr-number", "1", "--ci"])
+        assert rc == 1
+
+    def test_main_emits_warning_for_non_default_base(self) -> None:
+        from unittest.mock import patch
+
+        from scripts.validation.pr_description import main as pr_main
+
+        with (
+            patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch,
+            patch("scripts.validation.pr_description.get_repo_info") as mock_repo,
+        ):
+            from scripts.github_core.api import RepoInfo
+
+            mock_repo.return_value = RepoInfo(owner="o", repo="r")
+            mock_fetch.return_value = {
+                "title": "fix: something",
+                "body": "Fixes #50\n",
+                "files": [],
+                "labels": [],
+                "base_ref": "feat/stacked",
+                "default_branch": "main",
+            }
+            rc = pr_main(["--pr-number", "1", "--ci"])
+        # Warnings don't cause CI failure by default
+        assert rc == 0
+
+    def test_fetch_pr_data_includes_base_ref_and_default_branch(self) -> None:
+        """fetch_pr_data must return base_ref and default_branch fields."""
+        from unittest.mock import MagicMock, patch
+
+        pr_response = json.dumps({
+            "title": "fix: test",
+            "body": "Fixes #1",
+            "base": {
+                "ref": "feat/branch",
+                "repo": {"default_branch": "main"},
+            },
+        })
+        files_response = json.dumps([])
+        labels_response = json.dumps([])
+
+        def _run_side_effect(argv, **_kwargs):
+            m = MagicMock()
+            m.returncode = 0
+            if "pulls" in argv[-1] and "/files" not in argv[-1]:
+                m.stdout = pr_response
+            elif "/files" in argv[-1]:
+                m.stdout = files_response
+            else:
+                m.stdout = labels_response
+            m.stderr = ""
+            return m
+
+        with patch("scripts.validation.pr_description.subprocess.run") as mock_run:
+            mock_run.side_effect = _run_side_effect
+            from scripts.validation.pr_description import fetch_pr_data
+
+            result = fetch_pr_data(1, "o", "r")
+
+        assert result["base_ref"] == "feat/branch"
+        assert result["default_branch"] == "main"
+
+    def test_fetch_pr_data_base_ref_missing_returns_empty_string(self) -> None:
+        """Missing base field gracefully returns empty strings."""
+        from unittest.mock import MagicMock, patch
+
+        pr_response = json.dumps({"title": "fix: test", "body": "x"})
+        files_response = json.dumps([])
+        labels_response = json.dumps([])
+
+        def _run_side_effect(argv, **_kwargs):
+            m = MagicMock()
+            m.returncode = 0
+            if "pulls" in argv[-1] and "/files" not in argv[-1]:
+                m.stdout = pr_response
+            elif "/files" in argv[-1]:
+                m.stdout = files_response
+            else:
+                m.stdout = labels_response
+            m.stderr = ""
+            return m
+
+        with patch("scripts.validation.pr_description.subprocess.run") as mock_run:
+            mock_run.side_effect = _run_side_effect
+            from scripts.validation.pr_description import fetch_pr_data
+
+            result = fetch_pr_data(1, "o", "r")
+
+        assert result["base_ref"] == ""
+        assert result["default_branch"] == ""

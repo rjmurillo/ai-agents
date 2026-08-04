@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, this suite exercises one CLI contract end to end.
 """Tests for ``.github/scripts/safe_push_pr_branch.py`` (issue #3412)."""
 
 from __future__ import annotations
 
 import builtins
 import importlib.util
+import shlex
 import subprocess
 import sys
 import threading
@@ -245,7 +247,9 @@ def test_push_uses_resolved_sha_when_head_moves_before_transport(
     mutated = False
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    def fake_run_git(
+        args: list[str], repo_root: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         nonlocal interloper_sha, mutated, push_args
         if args == ["rev-parse", "--verify", "HEAD"] and not mutated:
             interloper_sha = _commit_file(Path(repo_root), "interloper.txt", "interloper\n")
@@ -334,7 +338,9 @@ def test_push_fails_when_transport_names_a_different_ref(
     local_sha = _git(repo, "rev-parse", "HEAD")
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    def fake_run_git(
+        args: list[str], repo_root: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         if args and args[0] == "push":
             return subprocess.CompletedProcess(
                 args=["git", *args],
@@ -368,7 +374,9 @@ def test_push_checks_git_returncode_before_porcelain_verification(
 
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    def fake_run_git(
+        args: list[str], repo_root: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         if args and args[0] == "push":
             return subprocess.CompletedProcess(
                 args=["git", *args],
@@ -402,7 +410,9 @@ def test_push_fails_when_ls_remote_mismatches_local_after_successful_porcelain(
 
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    def fake_run_git(
+        args: list[str], repo_root: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         if args and args[0] == "push":
             return subprocess.CompletedProcess(
                 args=["git", *args],
@@ -664,7 +674,9 @@ def test_safe_push_rejects_invalid_expected_remote_sha_before_transport(
     calls: list[list[str]] = []
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    def fake_run_git(
+        args: list[str], repo_root: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         calls.append(args)
         return real_run_git(args, repo_root)
 
@@ -710,7 +722,9 @@ def test_main_failure_emits_populated_audit(
     _git(repo, "remote", "add", "origin", str(bare))
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    def fake_run_git(
+        args: list[str], repo_root: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         if args and args[0] == "push":
             return subprocess.CompletedProcess(
                 args=["git", *args],

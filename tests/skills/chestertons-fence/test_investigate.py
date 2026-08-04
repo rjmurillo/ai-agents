@@ -18,8 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_DIR = REPO_ROOT / ".claude" / "skills" / "chestertons-fence" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-import investigate  # noqa: E402
-
+import investigate
 
 # Allowlist enforcement -----------------------------------------------------
 

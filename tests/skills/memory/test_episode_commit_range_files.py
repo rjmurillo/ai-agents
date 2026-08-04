@@ -22,7 +22,7 @@ import pytest
 _SCRIPTS = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
 
-import extract_session_episode as ese  # noqa: E402
+import extract_session_episode as ese
 
 _SHA_A = "a" * 40
 _SHA_B = "b" * 40

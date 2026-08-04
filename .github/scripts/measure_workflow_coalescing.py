@@ -29,7 +29,12 @@ workspace = os.environ.get(
 )
 sys.path.insert(0, workspace)
 
-from scripts.github_core.api import RepoInfo, resolve_repo_params  # noqa: E402
+from scripts.github_core.api import (  # noqa: E402
+    GhAuthStatus,
+    RepoInfo,
+    check_gh_auth,
+    resolve_repo_params,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -149,14 +154,22 @@ def test_prerequisites() -> None:
     except subprocess.CalledProcessError as exc:
         raise RuntimeError("GitHub CLI (gh) is not installed or not in PATH") from exc
 
-    result = subprocess.run(
-        ["gh", "auth", "status"],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    if result.returncode != 0:
+    # `gh auth status` exits nonzero for a 5xx, a quota refusal, and a dead
+    # network as well as for a bad token, so its return code alone cannot name
+    # the remedy. Sending an operator to `gh auth login` for a GitHub outage is
+    # issue #3139; classify before accusing the token.
+    auth = check_gh_auth()
+    if auth.status is GhAuthStatus.MISSING_GH:
+        raise RuntimeError("GitHub CLI (gh) is not installed or not in PATH")
+    if auth.status is GhAuthStatus.INVALID_CREDENTIALS:
         raise RuntimeError("GitHub CLI is not authenticated. Run: gh auth login")
+    if not auth.is_authenticated:
+        detail = f" ({auth.detail})" if auth.detail else ""
+        raise RuntimeError(
+            "GitHub API is not serving requests right now "
+            f"({auth.status.value}); this is not an authentication failure. "
+            f"Retry shortly.{detail}"
+        )
 
     logger.debug("Prerequisites validated: gh CLI available and authenticated")
 

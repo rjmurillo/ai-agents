@@ -202,7 +202,7 @@ def _run_one(shim_path: Path, name: str, raw_stdin: bytes, event: str) -> _ShimO
             return ALLOW_EXIT
         except SystemExit as exc:
             return _exit_code(exc)
-        except Exception as exc:  # noqa: BLE001 - fail-closed is mandatory
+        except Exception as exc:
             print(
                 f"claude-hook-dispatch: shim {name} raised "
                 f"{type(exc).__name__}: {exc}; treating as blocking failure",

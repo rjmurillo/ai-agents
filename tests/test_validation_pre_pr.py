@@ -196,7 +196,7 @@ class TestMain:
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_quick_mode_skips_slow_checks(
-        self, mock_which: Any, mock_run: Any  # noqa: ANN401
+        self, mock_which: Any, mock_run: Any
     ) -> None:
         mock_run.return_value.returncode = 0
         mock_run.return_value.stdout = ""
@@ -210,7 +210,7 @@ class TestMain:
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_all_pass_returns_zero(
-        self, mock_which: Any, mock_run: Any  # noqa: ANN401
+        self, mock_which: Any, mock_run: Any
     ) -> None:
         mock_run.return_value.returncode = 0
         mock_run.return_value.stdout = ""

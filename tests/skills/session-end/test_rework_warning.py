@@ -20,8 +20,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_DIR = REPO_ROOT / ".claude" / "skills" / "session-end" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-import complete_session_log as csl  # noqa: E402
-import rework_warning as rw  # noqa: E402
+import complete_session_log as csl
+import rework_warning as rw
 
 
 def _stub_completed(stdout: str, returncode: int = 0) -> Any:
