@@ -255,11 +255,17 @@ def _check_workflow_run_number(check: dict) -> int | None:
 
 def _select_cross_run_winner(candidates: list[dict[Any, Any]]) -> dict[Any, Any]:
     """Pick the latest workflow run when all candidates have run provenance."""
-    run_numbers = [_check_workflow_run_number(check) for check in candidates]
-    if candidates and all(run_number is not None for run_number in run_numbers):
-        latest_run = max(run_numbers)
+    check_run_pairs = [
+        (check, _check_workflow_run_number(check))
+        for check in candidates
+        if check.get("Type") == "CheckRun"
+    ]
+    if check_run_pairs and all(
+        run_number is not None for _, run_number in check_run_pairs
+    ):
+        latest_run = max(run_number for _, run_number in check_run_pairs)
         latest_candidates = [
-            check for check, run_number in zip(candidates, run_numbers, strict=True)
+            check for check, run_number in check_run_pairs
             if run_number == latest_run
         ]
         return sorted(latest_candidates, key=_dedupe_rank)[0]

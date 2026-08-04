@@ -1991,6 +1991,25 @@ class TestSameRunSiblingAggregation:
         assert result[0]["IsFailing"] is True
         assert result[0]["Conclusion"] == "FAILURE"
 
+    def test_status_context_does_not_disable_check_run_recency(self):
+        checks = [
+            {
+                "Name": "Validate PR", "Type": "StatusContext",
+                "State": "SUCCESS", "Conclusion": "SUCCESS",
+                "DetailsUrl": "", "IsRequired": True,
+                "IsPending": False, "IsPassing": True, "IsFailing": False,
+            },
+            _check("Validate PR", passing=True, conclusion="SUCCESS",
+                   details=_RUN_B),
+            _check("Validate PR", failing=True, conclusion="FAILURE",
+                   details=_RUN_A),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["Type"] == "CheckRun"
+        assert result[0]["IsFailing"] is True
+        assert result[0]["Conclusion"] == "FAILURE"
+
     def test_all_passing_siblings_in_one_run_stay_passing(self):
         checks = [
             _check("Run Python Tests", passing=True, conclusion="SUCCESS",
