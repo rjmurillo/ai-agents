@@ -47,7 +47,7 @@
       "memoriesLoaded": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Searched .serena/memories/ and .claude/rules/ for existing vacuous-test and tautology coverage before writing; found TESTING-ANTI-PATTERNS.md:15 and testing.md SHOULD 9 and extended the latter rather than duplicating."
+        "Evidence": "Searched .serena/memories/ and .claude/rules/ for existing vacuous-test and tautology coverage before writing; found TESTING-ANTI-PATTERNS.md:15 and testing.md SHOULD 9 and extended it; the merge with main later extracted that content into its own rule, SHOULD 14."
       },
       "branchVerified": {
         "level": "MUST",
@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Learning routed to .claude/rules/testing.md SHOULD 9 and TESTING-ANTI-PATTERNS.md Anti-Pattern 7 rather than a memory, per the knowledge-persistence rule: it must bind every contributor editing tests, so a rule file is the correct surface."
+        "Evidence": "Learning routed to .claude/rules/testing.md, now SHOULD 14 after the merge extraction, and TESTING-ANTI-PATTERNS.md Anti-Pattern 7 rather than a memory, per the knowledge-persistence rule: it must bind every contributor editing tests, so a rule file is the correct surface."
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -143,7 +143,7 @@
     },
     {
       "step": 4,
-      "action": "Split Anti-Pattern 8 and testing.md SHOULD 11 off this branch after finding they cite code that does not exist here",
+      "action": "Split Anti-Pattern 8 and its companion testing.md SHOULD rule off this branch after finding they cite code that does not exist here",
       "result": "git grep on this branch returns zero hits for DID_NOT_RUN in scripts/quality_gate/external_signal_gate.py and zero hits for test_did_not_run_is_aliased_not_merely_caught_by_the_fallback in any test file. Both live only on fix/gate-aggregator-did-not-run. Merged alone this branch would have shipped documentation citing a test that does not exist. Moved both entries to that branch, where the code they describe is in the same change. A dispatched gemini review reached the same conclusion independently. Two of its other three findings did not survive: TESTING-RIGOR.md is tracked at .agents/governance/TESTING-RIGOR.md and the bare-filename reference style matches lines 105 and 108, and the always-on budget premise is wrong because testing.md is path-scoped to tests/**, with instruction_budget.py reporting PASS at 83.8% .md usage.",
       "filesChanged": [
         ".agents/governance/TESTING-ANTI-PATTERNS.md",
@@ -158,7 +158,7 @@
       {
         "pattern": "A test that asserts the shape of its own construction proves nothing about the code under test.",
         "context": "PR #4485 shipped assertions that restated their fixtures and passed regardless of the behavior they named.",
-        "application": "Anti-Pattern 7 in TESTING-ANTI-PATTERNS.md and the SHOULD 10 extension in testing.md."
+        "application": "Anti-Pattern 7 in TESTING-ANTI-PATTERNS.md and SHOULD 14 in testing.md."
       }
     ],
     "avoidances": [

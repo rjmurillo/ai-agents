@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-08-03-session-9013",
-  "session": "2026-08-03-session-9013",
+  "id": "episode-2026-08-03-session-9013-vacuous-assertion",
+  "session": "2026-08-03-session-9013-vacuous-assertion",
   "timestamp": "2026-08-03T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
@@ -21,7 +21,7 @@
         "e007"
       ],
       "leads_to": [],
-      "_source_session": "2026-08-03-session-9013"
+      "_source_session": "2026-08-03-session-9013-vacuous-assertion"
     },
     {
       "id": "e002",
@@ -32,7 +32,7 @@
       "leads_to": [
         "e001"
       ],
-      "_source_session": "2026-08-03-session-9013"
+      "_source_session": "2026-08-03-session-9013-vacuous-assertion"
     },
     {
       "id": "e003",
@@ -43,7 +43,7 @@
       "leads_to": [
         "e001"
       ],
-      "_source_session": "2026-08-03-session-9013"
+      "_source_session": "2026-08-03-session-9013-vacuous-assertion"
     },
     {
       "id": "e004",
@@ -54,7 +54,7 @@
       "leads_to": [
         "e001"
       ],
-      "_source_session": "2026-08-03-session-9013"
+      "_source_session": "2026-08-03-session-9013-vacuous-assertion"
     },
     {
       "id": "e005",
@@ -65,7 +65,7 @@
       "leads_to": [
         "e001"
       ],
-      "_source_session": "2026-08-03-session-9013"
+      "_source_session": "2026-08-03-session-9013-vacuous-assertion"
     },
     {
       "id": "e006",
@@ -76,18 +76,18 @@
       "leads_to": [
         "e001"
       ],
-      "_source_session": "2026-08-03-session-9013"
+      "_source_session": "2026-08-03-session-9013-vacuous-assertion"
     },
     {
       "id": "e007",
       "timestamp": "2026-08-03T00:00:00+00:00",
       "type": "milestone",
-      "content": "Split Anti-Pattern 8 and testing.md SHOULD 11 off this branch after finding they cite code that does not exist here",
+      "content": "Split Anti-Pattern 8 and its companion testing.md SHOULD rule off this branch after finding they cite code that does not exist here",
       "caused_by": [],
       "leads_to": [
         "e001"
       ],
-      "_source_session": "2026-08-03-session-9013"
+      "_source_session": "2026-08-03-session-9013-vacuous-assertion"
     }
   ],
   "metrics": {
@@ -99,7 +99,7 @@
     "files_changed": 6
   },
   "lessons": [
-    "A test that asserts the shape of its own construction proves nothing about the code under test.. Anti-Pattern 7 in TESTING-ANTI-PATTERNS.md and the SHOULD 10 extension in testing.md.",
+    "A test that asserts the shape of its own construction proves nothing about the code under test.. Anti-Pattern 7 in TESTING-ANTI-PATTERNS.md and SHOULD 14 in testing.md.",
     "Avoid: Documenting a defect on a branch that does not carry the code the prose cites.. Ran git grep for every cited symbol on this branch, found a test name and a constant that lived only on fix/gate-aggregator-did-not-run, and moved that half of the documentation to the branch owning the code."
   ]
 }
