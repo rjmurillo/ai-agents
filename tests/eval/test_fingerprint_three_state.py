@@ -2,13 +2,12 @@
 
 Three states:
 - present-and-valid: str -> recorded verbatim
-- present-but-malformed: non-str, non-None -> recorded as "<malformed:TYPENAME>"
+- present-but-malformed: non-str, non-None -> RuntimeError raised (fail-fast)
 - absent: None -> recorded as None
 
-Each test class tests normalize_fingerprint directly so the upstream invariants
-in the real transports cannot make the malformed branch unreachable. The
-integration tests further verify the sentinel flows through the actual transport
-stubs used in production.
+The normalize_fingerprint utility still uses a sentinel for diagnostic display
+but the transports now raise on malformed input rather than silently recording
+it as absent or as a sentinel string.
 """
 
 from __future__ import annotations
@@ -17,6 +16,8 @@ import sys
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
+
+import pytest
 
 _EVAL_DIR = Path(__file__).parent.parent.parent / "scripts" / "eval"
 sys.path.insert(0, str(_EVAL_DIR))
@@ -86,7 +87,7 @@ class TestNormalizeFingerprintDistinguishesStates:
 
 
 class TestOpenAITransportFingerprintIntegration:
-    """_OpenAIProviderTransport records the sentinel when the provider returns non-str."""
+    """_OpenAIProviderTransport raises on malformed fingerprint."""
 
     def _make_transport(self, fingerprint: Any) -> Any:
         import _eval_api_adapter as adapter
@@ -113,27 +114,27 @@ class TestOpenAITransportFingerprintIntegration:
         t("prompt", "model", "system")
         assert t.system_fingerprint is None
 
-    def test_int_fingerprint_recorded_as_sentinel(self) -> None:
+    def test_int_fingerprint_raises(self) -> None:
         t = self._make_transport(42)
-        t("prompt", "model", "system")
-        assert t.system_fingerprint == "<malformed:int>"
+        with pytest.raises(RuntimeError, match="system_fingerprint must be str or None"):
+            t("prompt", "model", "system")
 
-    def test_list_fingerprint_recorded_as_sentinel(self) -> None:
+    def test_list_fingerprint_raises(self) -> None:
         t = self._make_transport(["fp"])
-        t("prompt", "model", "system")
-        assert t.system_fingerprint == "<malformed:list>"
+        with pytest.raises(RuntimeError, match="system_fingerprint must be str or None"):
+            t("prompt", "model", "system")
 
-    # Inverted control: valid string must NOT become a sentinel
-    def test_valid_string_not_sentinel(self) -> None:
+    # Inverted control: valid string must NOT raise
+    def test_valid_string_does_not_raise(self) -> None:
         t = self._make_transport("fp-real")
         t("prompt", "model", "system")
-        assert not t.system_fingerprint.startswith("<malformed:")
+        assert t.system_fingerprint == "fp-real"
 
 
 class TestAnthropicTransportFingerprintIntegration:
-    """_AnthropicTransport records the sentinel when metadata holds non-str."""
+    """_AnthropicTransport raises on malformed fingerprint in metadata."""
 
-    def test_int_fingerprint_recorded_as_sentinel(self) -> None:
+    def test_int_fingerprint_raises(self) -> None:
         import _eval_api_adapter as adapter
 
         def _fake_call_api(**kwargs: Any) -> str:
@@ -147,8 +148,8 @@ class TestAnthropicTransportFingerprintIntegration:
             t._api_key = "key"
             t._seed = None
             t.system_fingerprint = None
-            t("prompt", "model", "system")
-            assert t.system_fingerprint == "<malformed:int>"
+            with pytest.raises(RuntimeError, match="system_fingerprint must be str or None"):
+                t("prompt", "model", "system")
 
     def test_none_fingerprint_recorded_as_none(self) -> None:
         import _eval_api_adapter as adapter
