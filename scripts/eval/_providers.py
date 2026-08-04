@@ -48,6 +48,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 # one copy would not reach the other.
 import _eval_api_adapter_constants as _constants
 from _copilot_cli import _CopilotCLIProvider
+from _eval_common import safe_http_error_message
 
 # GitHub Models inference endpoint (OpenAI-compatible). Verified 2026-06:
 # https://models.github.ai/inference with a GitHub PAT as the bearer token.
@@ -93,8 +94,7 @@ def _read_env_key(names: list[str]) -> str:
     raw = Path(__file__)
     if raw.is_symlink():
         raise RuntimeError(
-            "API key load aborted: refusing to resolve symlinked module path "
-            "(CWE-22 defense)."
+            "API key load aborted: refusing to resolve symlinked module path (CWE-22 defense)."
         )
     env_path = raw.resolve(strict=True).parents[2] / ".env"
     if env_path.is_file() and not env_path.is_symlink():
@@ -105,9 +105,14 @@ def _read_env_key(names: list[str]) -> str:
             key, _, val = stripped.partition("=")
             if key.strip() in names:
                 resolved = val.strip()
-                if len(resolved) >= 2 and resolved[0] == resolved[-1] and resolved[0] in (
-                    '"',
-                    "'",
+                if (
+                    len(resolved) >= 2
+                    and resolved[0] == resolved[-1]
+                    and resolved[0]
+                    in (
+                        '"',
+                        "'",
+                    )
                 ):
                     resolved = resolved[1:-1]
                 if resolved:
@@ -138,22 +143,16 @@ def _normalize_and_raise(provider_label: str, exc: Exception) -> None:
     """Re-raise an SDK exception as a RuntimeError matching the message shapes
     `_eval_api_adapter._categorize_error` already understands."""
     name = type(exc).__name__.lower()
-    if "timeout" in name or "timed out" in str(exc).lower():
+    if "timeout" in name:
         raise RuntimeError(
-            f"{provider_label} API request timed out. The service may be slow "
-            "or unreachable."
-        ) from exc
+            f"{provider_label} API request timed out. The service may be slow or unreachable."
+        ) from None
     code = _http_code_from_exc(exc)
     if code is not None:
-        # CWE-200: keep only a short ascii excerpt; never echo the full body.
-        excerpt = "".join(ch for ch in str(exc) if 32 <= ord(ch) < 127)[:200]
-        raise RuntimeError(
-            f"{provider_label} API returned HTTP {code}: {excerpt}"
-        ) from exc
+        raise RuntimeError(safe_http_error_message(f"{provider_label} API", code)) from None
     raise RuntimeError(
-        f"{provider_label} API network error: {type(exc).__name__}. "
-        "Check connectivity, credentials, and the configured base URL."
-    ) from exc
+        f"{provider_label} API network error: error=network_failure; provider details redacted"
+    ) from None
 
 
 # OpenAI reasoning models (o1/o3/o4 series, gpt-5 family) reject `max_tokens`
@@ -207,7 +206,8 @@ class _OpenAICompatibleProvider:
         # would be nested retries. 120s matches the urllib path.
         kwargs["timeout"] = 120.0
         kwargs["max_retries"] = 0
-        return OpenAI(**kwargs)
+        client_factory = cast("Callable[..., OpenAI]", OpenAI)
+        return client_factory(**kwargs)
 
     def complete(
         self,
@@ -236,15 +236,14 @@ class _OpenAICompatibleProvider:
         if seed is not None:
             create_kwargs["seed"] = seed
         try:
-            resp = client.chat.completions.create(**create_kwargs)
+            create_completion = cast("Callable[..., Any]", client.chat.completions.create)
+            resp = create_completion(**create_kwargs)
         except Exception as exc:  # noqa: BLE001 - normalize then re-raise
             _normalize_and_raise(self._provider_label, exc)
             raise  # unreachable; _normalize_and_raise always raises
         choices = getattr(resp, "choices", None) or []
         if not choices:
-            raise RuntimeError(
-                f"{self._provider_label} API returned no choices for model {model}."
-            )
+            raise RuntimeError(f"{self._provider_label} API returned no choices for model {model}.")
         content = choices[0].message.content
         if not isinstance(content, str):
             raise RuntimeError(
@@ -391,7 +390,6 @@ def resolve_provider(name: str | None = None) -> EvalProvider:
     factory = _REGISTRY.get(selected)
     if factory is None:
         raise RuntimeError(
-            f"Unknown EVAL_PROVIDER '{selected}'. Valid: "
-            + ", ".join(known_provider_names())
+            f"Unknown EVAL_PROVIDER '{selected}'. Valid: " + ", ".join(known_provider_names())
         )
     return factory()

@@ -63,6 +63,26 @@ QUOTA_BILLED_PROVIDERS: frozenset[str] = frozenset(
 )
 
 
+def safe_http_error_message(provider_surface: str, status_code: int) -> str:
+    """Return a fixed HTTP error that contains no provider-controlled body."""
+    if status_code in (401, 403):
+        category = "auth"
+    elif status_code == 408:
+        category = "timeout"
+    elif status_code == 429:
+        category = "rate_limit"
+    elif 500 <= status_code < 600:
+        category = "server_error"
+    elif 400 <= status_code < 500:
+        category = "client_error"
+    else:
+        category = "http_error"
+    return (
+        f"{provider_surface} returned HTTP {status_code}: error={category}; "
+        "provider response redacted"
+    )
+
+
 def cost_basis(provider: str | None) -> str:
     """Return how *provider* bills: ``"usd"`` per token or ``"requests"``.
 
