@@ -69,8 +69,14 @@ _PYTEST_VERDICT = {
 }
 
 # Agent verdict tokens normalized to preserve the authoritative gate semantics.
+# DID_NOT_RUN maps to UNKNOWN to match the two modules that already understand
+# it: verdict.merge_verdicts collapses DID_NOT_RUN into UNKNOWN, and
+# check_critical_failures.BLOCKING_VERDICTS lists the two together. In
+# gate_aggregator an UNKNOWN resolves to NEEDS_REVIEW, so an agent that never
+# ran blocks rather than passing silently.
 _AGENT_VERDICT_ALIAS = {
     "COMPLIANT": "PASS",
+    "DID_NOT_RUN": "UNKNOWN",
     "NEEDS_REVIEW": "FAIL",
     "NON_COMPLIANT": "FAIL",
     "PARTIAL": "WARN",
@@ -86,10 +92,51 @@ def pytest_signal(pytest_status: str) -> str:
 
 
 def agent_signal(agent: str, verdict: str) -> str:
-    """Return an ``llm:<agent>=VERDICT`` spec, aliasing unknown tokens."""
+    """Return an ``llm:<agent>=VERDICT`` spec, aliasing the repo vocabulary.
+
+    The alias table serves two purposes. Most of its entries cover repo verdict
+    tokens gate_aggregator does not accept. One does not: ``NEEDS_REVIEW`` is
+    already in ``KNOWN_VERDICTS``, where gate_aggregator files it under
+    ``_WARNING``, and the table deliberately remaps it to ``FAIL`` anyway. The
+    repo treats NEEDS_REVIEW as blocking (REQ-008-05, #1934/#2818), so passing
+    it through unaliased would quietly downgrade a blocking verdict to a
+    warning. Aliasing an accepted token is therefore load-bearing, not
+    redundant, and the table is not simply the set-difference it resembles.
+
+    Anything still outside gate_aggregator's vocabulary falls back to UNKNOWN
+    rather than being passed through, because a token gate_aggregator rejects
+    makes it exit 2 with no verdict at all. A gate that cannot name a result is
+    worse than one that blocks: UNKNOWN resolves to NEEDS_REVIEW, which still
+    refuses to pass. This mirrors merge_verdicts in
+    scripts/ai_review_common/verdict.py, which coerces unrecognized tokens to
+    UNKNOWN for the same reason.
+
+    The fallback warns, and it warns in GitHub's annotation format. Silently
+    absorbing an unrecognized token would hide the exact drift that made this
+    function crash on DID_NOT_RUN: a producer grew a verdict the adapter never
+    learned, and nothing surfaced it. An aliased token is a decided mapping and
+    stays quiet; an unaliased one is a gap in the table and says so.
+
+    The ``::warning::`` prefix is load-bearing, not cosmetic. A bare line on
+    stderr is a dead channel: CI logs are read after a failure, and this path
+    does not fail, it degrades. The annotation form surfaces in the run summary
+    and on the diff without anyone opening the log. The repo already relies on
+    this convention in 217 places, so this is the established surface rather
+    than a new one.
+    """
 
     normalized = verdict.strip().upper()
-    normalized = _AGENT_VERDICT_ALIAS.get(normalized, normalized)
+    aliased = _AGENT_VERDICT_ALIAS.get(normalized)
+    if aliased is not None:
+        return f"llm:{agent}={aliased}"
+    if normalized not in gate_aggregator.KNOWN_VERDICTS:
+        print(
+            f"::warning::unrecognized verdict {normalized!r} for agent"
+            f" {agent!r}; treating as UNKNOWN."
+            " Add it to _AGENT_VERDICT_ALIAS.",
+            file=sys.stderr,
+        )
+        normalized = "UNKNOWN"
     return f"llm:{agent}={normalized}"
 
 
