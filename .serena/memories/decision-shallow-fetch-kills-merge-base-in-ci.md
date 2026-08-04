@@ -53,6 +53,24 @@ that does need one belongs to the mypy path and is not reached by that command.
 The gpt-5.6-sol adversarial review caught this; it had been asserted from a
 grep hit rather than from reading the call chain.
 
+The real second consumer is `count_ratchet.py`, and it is the interesting one
+because it **fails open**. `changed_files` diffs `base_ref...HEAD` (line 150)
+to sort branch-touched files ahead of historical debt in the regression
+diagnostic, and its docstring says an unusable probe "degrades to the previous
+emission order rather than blocking". So a graft never reddens that check; it
+just puts the one line you needed back into the bulk. On issue #3902's own PR
+the single added violation sat at index 596 of 601 and a 40-line cap hid it,
+which is the exact burying the ordering exists to prevent. The substring
+`count_ratchet.py` covers `ruff_`, `taste_` and `type_ignore_` alike, since all
+three import `run` from `count_ratchet` and reach the same leg.
+
+Two severity classes, then, and the quiet one is the one worth a test: a
+fail-closed consumer reports itself with a red check, a fail-open consumer
+reports nothing at all. The gemini-3.1-pro review supplied this; running two
+model families independently was what produced it, since sol and gemini
+converged on the two blocking findings but only gemini pushed past "nothing
+here fails" to "nothing here fails *loudly*".
+
 ## Evidence
 
 Measured against real git, not reasoned about. Build an upstream whose main

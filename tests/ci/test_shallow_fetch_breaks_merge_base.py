@@ -5,12 +5,16 @@ bandwidth saving. On a runner it is not a saving at all when the checkout
 already has the history, and it writes `.git/shallow`, grafting the fetched
 tip parentless. `git merge-base` then returns nothing for the rest of the job.
 
-One consumer in this repository depends on a merge base and broke on it:
-`scripts/ci/merge_tree_ratchet_check.py` runs `git merge-tree`, which exits
-128 with "refusing to merge unrelated histories". That step is unconditional
-(issue #4151), so it runs on every leg of `validate-pr`, including the
-bot-actor leg whose checkout took the depth-1 default. Renovate PR #4552 is
-the recorded failure.
+Two consumers depend on a merge base, in two severity classes. The one that
+broke is `scripts/ci/merge_tree_ratchet_check.py`: it runs `git merge-tree`,
+which exits 128 with "refusing to merge unrelated histories", so the step
+fails closed. That step is unconditional (issue #4151), so it runs on every
+leg of `validate-pr`, including the bot-actor leg whose checkout took the
+depth-1 default. Renovate PR #4552 is the recorded failure. The quieter one is
+`scripts/ci/count_ratchet.py`, whose `changed_files` diffs `base_ref...HEAD`
+to sort branch-touched files first; that leg fails open, so a graft silently
+degrades the regression diagnostic rather than reddening the check. Both are
+guarded, because a silent degradation is what buries a real violation.
 
 Two independent ways to arrive at the graft, which is why the guard checks
 both. A `git fetch --depth=<n>` inside a `run:` body writes one. So does an
@@ -40,10 +44,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 
 # Substrings that mark a step as needing a merge base. Keep in sync with the
-# consumers named in the module docstring. `security-suppressions-diff` is
-# deliberately absent: it diffs a two-dot range (`git_hook_policy.py`,
-# `check_suppression_diff`), which compares two endpoints and needs no base.
-MERGE_BASE_CONSUMERS = ("merge_tree_ratchet_check.py",)
+# consumers named in the module docstring. Two severity classes, both guarded:
+# `merge_tree_ratchet_check.py` fails closed on a graft (exit 3, red check),
+# while `count_ratchet.py` fails open, degrading the regression diagnostic's
+# ordering because `changed_files` diffs `base_ref...HEAD`. The substring also
+# covers the `ruff_`, `taste_` and `type_ignore_` variants, which all import
+# `run` from `count_ratchet` and so reach the same three-dot leg.
+# `security-suppressions-diff` is deliberately absent: it diffs a two-dot range
+# (`git_hook_policy.py`, `check_suppression_diff`), which compares two
+# endpoints and needs no base.
+MERGE_BASE_CONSUMERS = ("merge_tree_ratchet_check.py", "count_ratchet.py")
 
 
 def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -130,9 +140,12 @@ def test_every_job_needing_a_merge_base_keeps_complete_history():
     assert not offenders, (
         "grafted history reaches a merge-base consumer: "
         f"{sorted(set(offenders))}. git merge-base returns nothing under a "
-        "graft, so the step dies with 'refusing to merge unrelated "
-        "histories'. Pin fetch-depth: 0 on the checkout and drop --depth "
-        "from the fetches. A later plain fetch does not repair it."
+        "graft. Where that reaches merge_tree_ratchet_check.py the step dies "
+        "with 'refusing to merge unrelated histories'; where it reaches "
+        "count_ratchet.py the three-dot leg fails open and silently degrades "
+        "the regression diagnostic's ordering. Pin fetch-depth: 0 on the "
+        "checkout and drop --depth from the fetches. A later plain fetch does "
+        "not repair it."
     )
 
 
@@ -203,7 +216,9 @@ def test_a_job_without_a_merge_base_consumer_is_out_of_scope():
     """A shallow checkout is only a defect where a merge base is needed.
 
     Guards against the matcher widening into every workflow in the repo,
-    which would turn an unrelated depth choice into a failure here.
+    which would turn an unrelated depth choice into a failure here. The job
+    below is deliberately at its worst on both routes, a default-depth
+    checkout and a depth-limited fetch, and must still be ignored.
     """
     data = yaml.safe_load(
         "jobs:\n"
@@ -211,11 +226,40 @@ def test_a_job_without_a_merge_base_consumer_is_out_of_scope():
         "    steps:\n"
         "      - uses: actions/checkout@v7\n"
         '      - run: git fetch --depth=1 origin "$BASE_REF"\n'
-        "      - run: python scripts/ci/ruff_count_ratchet.py\n"
+        "      - run: uv run --frozen ruff check .\n"
     )
     offenders, checked = _shallow_history_offenders("lint.yml", data)
     assert checked == []
     assert offenders == []
+
+
+def test_a_count_ratchet_variant_is_in_scope():
+    """The `count_ratchet.py` substring has to reach the prefixed variants.
+
+    `ruff_`, `taste_` and `type_ignore_` each import `run` from
+    `count_ratchet`, so each reaches the three-dot `changed_files` leg. That
+    leg fails open, so a graft degrades the regression diagnostic silently
+    instead of reddening the check, which is precisely why a test has to hold
+    it: nothing else would report the loss.
+    """
+    for script in (
+        "ruff_count_ratchet.py",
+        "taste_count_ratchet.py",
+        "type_ignore_count_ratchet.py",
+    ):
+        data = yaml.safe_load(
+            "jobs:\n"
+            "  ratchet:\n"
+            "    steps:\n"
+            "      - uses: actions/checkout@v7\n"
+            '      - run: git fetch --depth=1 origin "$BASE_REF"\n'
+            f"      - run: python scripts/ci/{script} --base-ref FETCH_HEAD\n"
+        )
+        offenders, checked = _shallow_history_offenders("ratchet.yml", data)
+        assert checked == ["ratchet.yml:ratchet"], script
+        assert len(offenders) == 2, f"{script}: {offenders}"
+        assert any("depth-limited fetch" in o for o in offenders), script
+        assert any("fetch-depth" in o for o in offenders), script
 
 
 @pytest.fixture
