@@ -1,0 +1,94 @@
+{
+  "id": "episode-2026-08-04-session-9015-github-issue-4516-fix-eight",
+  "session": "2026-08-04-session-9015-github-issue-4516-fix-eight",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Own GitHub issue 4516 and fix eight Windows WSL stub failures end to end",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T09:35:00+00:00",
+      "type": "milestone",
+      "content": "Created an isolated worktree and collision-safe fix-main-4516 branch, read all governing instructions, checked for competing work, and claimed issue #4516.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-04-session-9015-github-issue-4516-fix-eight"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T10:20:00+00:00",
+      "type": "milestone",
+      "content": "Read the full issue, comments, linked history, and complete failing logs, then reproduced the historical behavior with a UTF-16LE WSL launcher stub.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-04-session-9015-github-issue-4516-fix-eight"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T10:35:00+00:00",
+      "type": "milestone",
+      "content": "Assessed priority and implementation merit after concurrent PR #4508 merged a provisional guard.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9015-github-issue-4516-fix-eight"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T11:07:00+00:00",
+      "type": "milestone",
+      "content": "Implemented fail-closed Bash resolution, explicit WSL-stub diagnostics, complete Git Bash candidate ordering, timeout fallback, and cross-platform probe tests.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9015-github-issue-4516-fix-eight"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T11:18:00+00:00",
+      "type": "milestone",
+      "content": "Completed final QA, independent re-review, full repository pre-PR validation, and critic readiness review.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9015-github-issue-4516-fix-eight"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T11:31:17+00:00",
+      "type": "commit",
+      "content": "Commit: 8365f99a258a77515c4062836d49e227e57e49ac",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9015-github-issue-4516-fix-eight"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
