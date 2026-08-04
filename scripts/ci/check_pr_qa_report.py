@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 CONFIG_ERROR = 2
+EXTERNAL_ERROR = 3
 CODE_EXTENSIONS = {".ps1", ".cs", ".ts", ".js", ".py", ".yml", ".yaml", ".json"}
 
 
@@ -22,7 +23,17 @@ def _append_output(name: str, value: str) -> int:
     return 0
 
 
-def _changed_files(repository: str, pr_number: str) -> list[str]:
+def _changed_files(repository: str, pr_number: str) -> list[str] | None:
+    """PR filenames from the GitHub API, or None when the call failed.
+
+    Issue #4068: this ran with ``check=False`` and never read the return code,
+    so a `gh` failure produced empty stdout, ``_has_code_changes([])`` was
+    False, and the step wrote ``has_code_changes=False`` and exited 0. A PR full
+    of code then graded as "no code changes, QA report not required". Returning
+    None rather than an empty list keeps "the API broke" distinguishable from
+    "the PR genuinely touches nothing", which is the distinction the caller
+    needs to fail loudly.
+    """
     result = subprocess.run(
         [
             "gh",
@@ -38,6 +49,8 @@ def _changed_files(repository: str, pr_number: str) -> list[str]:
         encoding="utf-8",
         errors="replace",
     )
+    if result.returncode != 0:
+        return None
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
@@ -62,7 +75,14 @@ def main(argv: list[str] | None = None) -> int:
     repository = os.environ.get("GITHUB_REPOSITORY", "")
     pr_number = os.environ.get("PR_NUMBER", "")
     print("Checking for QA report...")
-    has_code_changes = _has_code_changes(_changed_files(repository, pr_number))
+    changed_files = _changed_files(repository, pr_number)
+    if changed_files is None:
+        print(
+            f"::error::gh api failed for repos/{repository}/pulls/{pr_number}/files",
+            file=sys.stderr,
+        )
+        return EXTERNAL_ERROR
+    has_code_changes = _has_code_changes(changed_files)
     output_result = _append_output("has_code_changes", str(has_code_changes))
     if output_result != 0:
         return output_result

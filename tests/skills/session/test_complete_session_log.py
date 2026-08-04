@@ -52,12 +52,38 @@ class TestFindCurrentSessionLog:
         assert complete_session_log._find_current_session_log(str(tmp_path)) is None
 
     def test_finds_most_recent(self, tmp_path):
-        f1 = tmp_path / "2026-01-01-session-1.json"
-        f2 = tmp_path / "2026-01-02-session-2.json"
-        f1.write_text("{}")
-        f2.write_text("{}")
-        result = complete_session_log._find_current_session_log(str(tmp_path))
-        assert result is not None
+        import json
+        import os
+
+        today = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
+        f1 = tmp_path / f"{today}-session-1.json"
+        f2 = tmp_path / f"{today}-session-2.json"
+        branch = "feature/test"
+        f1.write_text(json.dumps({"session": {"branch": branch}}))
+        f2.write_text(json.dumps({"session": {"branch": branch}}))
+        # Make the ordering deterministic: f2 is the newest branch match.
+        os.utime(f1, (1000, 1000))
+        os.utime(f2, (2000, 2000))
+        with patch("complete_session_log._get_current_branch", return_value=branch):
+            result = complete_session_log._find_current_session_log(str(tmp_path))
+        assert result == str(f2)
+
+    def test_finds_most_recent_ignores_older_mtime_match(self, tmp_path):
+        """The newest branch match wins even when the older file sorts first by name."""
+        import json
+        import os
+
+        today = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
+        f1 = tmp_path / f"{today}-session-1.json"
+        f2 = tmp_path / f"{today}-session-2.json"
+        branch = "feature/test"
+        f1.write_text(json.dumps({"session": {"branch": branch}}))
+        f2.write_text(json.dumps({"session": {"branch": branch}}))
+        os.utime(f1, (2000, 2000))
+        os.utime(f2, (1000, 1000))
+        with patch("complete_session_log._get_current_branch", return_value=branch):
+            result = complete_session_log._find_current_session_log(str(tmp_path))
+        assert result == str(f1)
 
 
 class TestGetEndingCommit:
