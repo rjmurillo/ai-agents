@@ -5830,6 +5830,14 @@ def run_pytest(repo_root: Path) -> int:
             timeout_seconds=remaining,
         )
         _print_process_output(result)
+        if result.returncode == 3 and remaining < TEST_SUITE_TIMEOUT_SECONDS:
+            print(
+                "ERROR: pytest suite timed out after "
+                f"{remaining:g}s remaining of the "
+                f"{TEST_SUITE_TIMEOUT_SECONDS}s budget "
+                f"(budget exhausted by earlier commands in the suite)",
+                file=sys.stderr,
+            )
         if result.returncode != 0:
             return result.returncode
     return 0
@@ -5954,7 +5962,52 @@ def additions_advisory(repo_root: Path) -> int:
     return 0
 
 
-def run_cli_e2e(test_file: str, repo_root: Path) -> int:
+def _branch_delta_files(repo_root: Path, base: str = "origin/main") -> set[str] | None:
+    """Return files changed in the true branch delta (``base...HEAD``).
+
+    Returns ``None`` when the base ref is unresolvable so callers can fall back
+    to running unconditionally rather than silently skipping.
+    """
+    result = _run_git(repo_root, ["diff", "--name-only", f"{base}...HEAD"])
+    if result.returncode != 0:
+        return None
+    return {line for line in result.stdout.splitlines() if line.strip()}
+
+
+def _push_files_are_genuine(
+    push_files: Sequence[str],
+    repo_root: Path,
+) -> bool:
+    """Return True when at least one push file exists in the branch delta.
+
+    When ``@{push}`` is unresolvable (new branch), lefthook may include files
+    from upstream commits in ``{push_files}``.  This function confirms that at
+    least one of those files is actually in ``origin/main...HEAD`` so the
+    caller can skip the expensive gate when none are.
+
+    Falls back to ``True`` (run unconditionally) when the delta cannot be
+    computed, so the gate is never weaker than before this guard.
+    """
+    if not push_files:
+        return False
+    delta = _branch_delta_files(repo_root)
+    if delta is None:
+        return True
+    return bool(delta.intersection(push_files))
+
+
+def run_cli_e2e(
+    test_file: str,
+    repo_root: Path,
+    push_files: Sequence[str] | None = None,
+) -> int:
+    if push_files is not None and not _push_files_are_genuine(push_files, repo_root):
+        print(
+            "CLI E2E skipped: none of the glob-matched push files exist in the "
+            "true branch delta (origin/main...HEAD); the file list is contaminated "
+            "by upstream commits the branch is behind"
+        )
+        return 0
     if os.environ.get("SKIP_CLI_E2E") == "true":
         print("CLI E2E skipped (SKIP_CLI_E2E=true)")
         return 0
@@ -6220,11 +6273,13 @@ def _handle_additions(args: argparse.Namespace) -> int:
 
 
 def _handle_cli_hook_e2e(args: argparse.Namespace) -> int:
-    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", _repo_root(args))
+    push_files = getattr(args, "files", None)
+    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", _repo_root(args), push_files)
 
 
 def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
-    return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", _repo_root(args))
+    push_files = getattr(args, "files", None)
+    return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", _repo_root(args), push_files)
 
 
 def _handle_sessions(args: argparse.Namespace) -> int:
@@ -6315,8 +6370,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("pytest", _handle_pytest),
         ("placeholder-identity", _handle_placeholder_identity),
         ("additions", _handle_additions),
-        ("cli-hook-e2e", _handle_cli_hook_e2e),
-        ("cli-plugin-e2e", _handle_cli_plugin_e2e),
         ("bot-cascade", _handle_bot_cascade),
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
@@ -6330,6 +6383,18 @@ def build_parser() -> argparse.ArgumentParser:
         _add_path_command(subparsers, name, handler)
     for name, handler in simple_commands:
         _add_simple_command(subparsers, name, handler)
+    for name, handler in (
+        ("cli-hook-e2e", _handle_cli_hook_e2e),
+        ("cli-plugin-e2e", _handle_cli_plugin_e2e),
+    ):
+        e2e_cmd = subparsers.add_parser(name)
+        e2e_cmd.add_argument(
+            "--files",
+            nargs="*",
+            default=None,
+            help="Files passed by lefthook {push_files}; used to detect contaminated file sets",
+        )
+        e2e_cmd.set_defaults(handler=handler)
     message = subparsers.add_parser("commit-message")
     message.add_argument("message_path")
     message.set_defaults(handler=_handle_commit_message)

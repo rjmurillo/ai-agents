@@ -513,7 +513,7 @@ pre-push:
 
           - name: hook-anchoring-e2e
             timeout: 20m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py cli-hook-e2e
+            run: uv run --frozen python scripts/validation/git_hook_policy.py cli-hook-e2e --files {push_files}
             glob:
               - "build/scripts/generate_hooks.py"
               - "src/copilot-cli/hooks/**"
@@ -525,7 +525,7 @@ pre-push:
 
           - name: plugin-load-e2e
             timeout: 20m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py cli-plugin-e2e
+            run: uv run --frozen python scripts/validation/git_hook_policy.py cli-plugin-e2e --files {push_files}
             glob:
               - ".claude/.claude-plugin/plugin.json"
               - ".claude/commands/**"
