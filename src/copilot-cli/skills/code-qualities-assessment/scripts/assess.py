@@ -450,27 +450,85 @@ def load_config(config_path: str) -> dict[str, Any]:
         }
 
 
-def get_files_to_assess(target: str, changed_only: bool, base: str | None = None) -> list[Path]:
-    """Get files to assess, using the PR base when one is supplied."""
+@dataclass(frozen=True)
+class ChangedFile:
+    """One path change between the comparison base and head."""
+
+    status: str
+    base_path: Path | None
+    head_path: Path | None
+
+
+def _parse_changed_files(raw: bytes) -> list[ChangedFile]:
+    """Parse ``git diff --name-status -z`` output."""
+    import os
+
+    tokens = raw.split(b"\0")
+    if tokens and not tokens[-1]:
+        tokens.pop()
+    changes: list[ChangedFile] = []
+    index = 0
+    while index < len(tokens):
+        status = tokens[index].decode("ascii")
+        index += 1
+        base_path: Path | None
+        head_path: Path | None
+        if status.startswith(("R", "C")):
+            if index + 1 >= len(tokens):
+                raise ValueError("Malformed git rename record")
+            base_path = Path(os.fsdecode(tokens[index]))
+            head_path = Path(os.fsdecode(tokens[index + 1]))
+            index += 2
+        else:
+            if index >= len(tokens):
+                raise ValueError("Malformed git path record")
+            path = Path(os.fsdecode(tokens[index]))
+            index += 1
+            base_path = None if status == "A" else path
+            head_path = None if status == "D" else path
+        changes.append(ChangedFile(status, base_path, head_path))
+    return changes
+
+
+def get_changed_files(
+    base: str | None,
+    head: str = "HEAD",
+) -> list[ChangedFile]:
+    """Return rename-aware changed paths between *base* and *head*."""
     import subprocess
+
+    if base is not None:
+        _reject_option_like_revision(base)
+    _reject_option_like_revision(head)
+    revision_range = f"{base}...{head}" if base else head
+    result = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--name-status",
+            "-M",
+            "-z",
+            "--end-of-options",
+            revision_range,
+        ],
+        capture_output=True,
+        check=True,
+    )
+    return _parse_changed_files(result.stdout)
+
+
+def get_files_to_assess(
+    target: str,
+    changed_only: bool,
+    base: str | None = None,
+    changed_files: list[ChangedFile] | None = None,
+) -> list[Path]:
+    """Get files to assess, using the PR base when one is supplied."""
     from glob import glob
 
     if changed_only:
-        # CWE-88: a --base beginning with "-" would be parsed by git as an
-        # option rather than a revision (for example --output=FILE makes
-        # git diff write to FILE). Reject option-like bases and pass
-        # --end-of-options so git always treats the range as a revision.
-        if base is not None and base.startswith("-"):
-            raise ValueError(f"--base must be a git revision, not an option: {base!r}")
-        revision_range = f"{base}...HEAD" if base else "HEAD"
-        result = subprocess.run(
-            ["git", "diff", "--name-only", "--end-of-options", revision_range],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=True,
-        )
-        files = [Path(f) for f in result.stdout.splitlines() if f]
+        changes = changed_files if changed_files is not None else get_changed_files(base)
+        files = [change.head_path for change in changes if change.head_path is not None]
     else:
         target_path = Path(target)
         if target_path.is_file():
@@ -515,7 +573,7 @@ def resolve_revision(revision: str) -> str:
 def resolve_comparison_base(base: str) -> str:
     """Return the commit the head is compared against: the merge base with HEAD.
 
-    ``get_files_to_assess`` selects with ``base...HEAD``, which git resolves from
+    ``get_changed_files`` selects with ``base...HEAD``, which git resolves from
     the merge base. Reading content at the tip of *base* instead charges the
     branch for every change that landed on the base branch after the fork, which
     is the inherited-debt failure this gate exists to prevent (issue #4364).
@@ -552,13 +610,25 @@ def get_file_at_revision(file_path: Path, revision: str) -> bytes | None:
     import subprocess
 
     _reject_option_like_revision(revision)
+    entry = subprocess.run(
+        ["git", "ls-tree", "-z", revision, "--", file_path.as_posix()],
+        capture_output=True,
+        check=False,
+    )
+    if entry.returncode != 0:
+        error = entry.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"git ls-tree failed for {revision}:{file_path}: {error}")
+    if not entry.stdout:
+        return None
+
     result = subprocess.run(
         ["git", "show", "--end-of-options", f"{revision}:{file_path.as_posix()}"],
         capture_output=True,
         check=False,
     )
     if result.returncode != 0:
-        return None
+        error = result.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"git show failed for {revision}:{file_path}: {error}")
     return result.stdout
 
 
@@ -599,6 +669,8 @@ class FileComparison:
     deltas: list[QualityDelta]
     regressions: list[str]
     evidence_loss: list[str]
+    base_file_path: str | None = None
+    change_status: str = "M"
 
 
 def _delta_for(quality: str, base: QualityScore, head: QualityScore) -> QualityDelta:
@@ -624,6 +696,8 @@ def compare_assessments(
     base: FileAssessment | None,
     head: FileAssessment,
     tolerance: float = 0.0,
+    base_file_path: str | None = None,
+    change_status: str = "M",
 ) -> FileComparison:
     """Compare *head* against *base* quality by quality.
 
@@ -633,7 +707,15 @@ def compare_assessments(
     for the same reason.
     """
     if base is None:
-        return FileComparison(head.file_path, True, [], [], [])
+        return FileComparison(
+            head.file_path,
+            True,
+            [],
+            [],
+            [],
+            base_file_path,
+            change_status,
+        )
 
     deltas: list[QualityDelta] = []
     regressions: list[str] = []
@@ -645,13 +727,22 @@ def compare_assessments(
             regressions.append(field)
         elif delta.status == "evidence_lost" and head.category != "generated":
             evidence_loss.append(field)
-    return FileComparison(head.file_path, False, deltas, regressions, evidence_loss)
+    return FileComparison(
+        head.file_path,
+        False,
+        deltas,
+        regressions,
+        evidence_loss,
+        base_file_path,
+        change_status,
+    )
 
 
 def build_comparisons(
     assessments: list[FileAssessment],
     base: str,
     tolerance: float = 0.0,
+    changed_files: list[ChangedFile] | None = None,
 ) -> tuple[list[FileComparison], list[FileAssessment]]:
     """Score each head assessment against its base revision.
 
@@ -660,16 +751,48 @@ def build_comparisons(
     handed to the absolute gate instead.
     """
     revision = resolve_comparison_base(base)
+    explicit_changes = changed_files is not None
+    change_by_head = {
+        change.head_path: change
+        for change in (changed_files or [])
+        if change.head_path is not None
+    }
     comparisons: list[FileComparison] = []
     new_files: list[FileAssessment] = []
     for head in assessments:
         path = Path(head.file_path)
-        raw = get_file_at_revision(path, revision)
-        if raw is None:
-            comparisons.append(compare_assessments(None, head, tolerance))
+        change = change_by_head.get(path, ChangedFile("M", path, path))
+        base_path = change.base_path
+        if base_path is None:
+            comparisons.append(
+                compare_assessments(
+                    None,
+                    head,
+                    tolerance,
+                    None,
+                    change.status,
+                )
+            )
             new_files.append(head)
             continue
-        comparisons.append(compare_assessments(_assess_base_bytes(path, raw), head, tolerance))
+        raw = get_file_at_revision(base_path, revision)
+        if raw is None:
+            if explicit_changes and change.status != "A":
+                raise ValueError(f"Base blob is absent for {base_path} at {revision}")
+            comparisons.append(
+                compare_assessments(None, head, tolerance, None, "A")
+            )
+            new_files.append(head)
+            continue
+        comparisons.append(
+            compare_assessments(
+                _assess_base_bytes(base_path, raw),
+                head,
+                tolerance,
+                base_path.as_posix(),
+                change.status,
+            )
+        )
     return comparisons, new_files
 
 
@@ -1057,6 +1180,14 @@ def generate_regression_section(comparisons: list[FileComparison]) -> str:
         if comparison.is_new_file:
             lines.append("New file at head; no base score exists. Gated absolutely.\n")
             continue
+        if (
+            comparison.base_file_path is not None
+            and comparison.base_file_path != comparison.file_path
+        ):
+            lines.append(
+                f"Renamed from `{comparison.base_file_path}` "
+                f"({comparison.change_status}).\n"
+            )
         lines.append("| Quality | Base | Head | Delta | Status |")
         lines.append("| --- | --- | --- | --- | --- |")
         for delta in comparison.deltas:
@@ -1207,13 +1338,14 @@ def _build_regression_inputs(
     gate_mode: str,
     base: str | None,
     tolerance: float,
+    changed_files: list[ChangedFile] | None,
 ) -> tuple[list[FileComparison], list[FileAssessment]]:
     """Build comparisons only when regression mode is active."""
     if gate_mode != "regression":
         return [], []
     if base is None:
         raise ValueError("--gate-mode regression requires --base")
-    return build_comparisons(assessments, base, tolerance)
+    return build_comparisons(assessments, base, tolerance, changed_files)
 
 
 def _render_report(
@@ -1264,8 +1396,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         gate_mode = resolve_gate_mode(args.gate_mode, args.changed_only, args.base)
         target_path = _resolve_target_path(args.target)
-        files = get_files_to_assess(target_path, args.changed_only, args.base)
-    except ValueError as e:
+        changed_files = get_changed_files(args.base) if args.changed_only else None
+        files = get_files_to_assess(
+            target_path,
+            args.changed_only,
+            args.base,
+            changed_files,
+        )
+    except (RuntimeError, ValueError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
     except Exception as e:
@@ -1283,8 +1421,9 @@ def main(argv: list[str] | None = None) -> int:
             gate_mode,
             args.base,
             args.regression_tolerance,
+            changed_files,
         )
-    except ValueError as e:
+    except (RuntimeError, ValueError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
 

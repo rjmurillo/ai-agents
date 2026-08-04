@@ -22,6 +22,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -35,9 +36,11 @@ _spec.loader.exec_module(_mod)
 assess_content = _mod.assess_content
 assess_file = _mod.assess_file
 build_comparisons = _mod.build_comparisons
+ChangedFile = _mod.ChangedFile
 check_regression = _mod.check_regression
 check_thresholds = _mod.check_thresholds
 compare_assessments = _mod.compare_assessments
+get_changed_files = _mod.get_changed_files
 get_file_at_revision = _mod.get_file_at_revision
 main = _mod.main
 resolve_gate_mode = _mod.resolve_gate_mode
@@ -48,6 +51,7 @@ classify_file_category = _mod.classify_file_category
 generate_json_report = _mod.generate_json_report
 generate_markdown_report = _mod.generate_markdown_report
 load_config = _mod.load_config
+_parse_changed_files = _mod._parse_changed_files
 
 
 def _write(tmp_path: Path, name: str, body: str) -> Path:
@@ -438,6 +442,38 @@ def test_directory_scan_includes_all_supported_suffixes(tmp_path: Path) -> None:
     assert {"a.go", "b.tsx", "c.jsx", "d.mjs", "e.cjs", "f.py"} <= found
 
 
+def test_parse_changed_files_retains_old_and_new_paths() -> None:
+    raw = (
+        b"M\0same.py\0"
+        b"A\0new.py\0"
+        b"D\0gone.py\0"
+        b"R095\0old.py\0renamed.py\0"
+    )
+
+    assert _parse_changed_files(raw) == [
+        ChangedFile("M", Path("same.py"), Path("same.py")),
+        ChangedFile("A", None, Path("new.py")),
+        ChangedFile("D", Path("gone.py"), None),
+        ChangedFile("R095", Path("old.py"), Path("renamed.py")),
+    ]
+
+
+@pytest.mark.parametrize("raw", [b"M\0", b"R095\0old.py\0"])
+def test_parse_changed_files_rejects_truncated_records(raw: bytes) -> None:
+    with pytest.raises(ValueError, match="Malformed git"):
+        _parse_changed_files(raw)
+
+
+def test_commit_054888b4_is_reported_as_a_rename() -> None:
+    changes = get_changed_files("054888b4^", "054888b4")
+
+    assert ChangedFile(
+        "R095",
+        Path("tests/validation/test_git_hook_policy_push_scope.py"),
+        Path("tests/validation/test_git_hook_policy_causal_restore.py"),
+    ) in changes
+
+
 def test_changed_only_uses_base_for_clean_committed_branch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -471,7 +507,7 @@ def test_changed_only_passes_end_of_options_guard(
     captured: dict[str, list[str]] = {}
 
     class _Result:
-        stdout = ""
+        stdout = b""
 
     def _fake_run(cmd: list[str], **_kwargs: Any) -> _Result:
         captured["cmd"] = cmd
@@ -480,6 +516,7 @@ def test_changed_only_passes_end_of_options_guard(
     monkeypatch.setattr(subprocess, "run", _fake_run)
     get_files_to_assess(".", True, "origin/main")
     cmd = captured["cmd"]
+    assert ["--name-status", "-M", "-z"] == cmd[2:5]
     assert "--end-of-options" in cmd
     assert cmd.index("--end-of-options") < cmd.index("origin/main...HEAD")
 
@@ -1001,6 +1038,37 @@ def test_regression_mode_passes_a_new_file_that_meets_thresholds(
     assert main(_regression_argv()) == 0
 
 
+def test_regression_mode_reads_a_renamed_files_old_base_blob(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "legacy.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _run_git(tmp_path, "mv", "legacy.py", "renamed.py")
+    _run_git(tmp_path, "commit", "-m", "rename")
+    monkeypatch.chdir(tmp_path)
+
+    changes = get_changed_files("main")
+    files = get_files_to_assess(".", True, "main", changes)
+    assessment = assess_file(files[0], "production", False)
+    comparisons, new_files = build_comparisons(
+        [assessment],
+        "main",
+        changed_files=changes,
+    )
+
+    assert files == [Path("renamed.py")]
+    assert new_files == []
+    assert comparisons[0].is_new_file is False
+    assert comparisons[0].base_file_path == "legacy.py"
+    assert comparisons[0].change_status.startswith("R")
+    payload = json.loads(
+        generate_json_report([assessment], comparisons, "regression")
+    )
+    assert payload["comparisons"][0]["base_file_path"] == "legacy.py"
+    assert payload["comparisons"][0]["file_path"] == "renamed.py"
+
+
 def test_json_report_carries_base_head_and_delta(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1052,6 +1120,22 @@ def test_unresolvable_base_is_an_error_not_a_pass(
         resolve_revision("no-such-ref")
 
 
+def test_regression_mode_returns_1_when_base_blob_read_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _SPRAWLING)
+
+    with patch.object(
+        _mod,
+        "get_file_at_revision",
+        side_effect=RuntimeError("blob read failed"),
+    ):
+        assert main(_regression_argv()) == 1
+    assert "blob read failed" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize(
     ("gate_mode", "changed_only", "base", "expected"),
     [
@@ -1089,6 +1173,36 @@ def test_get_file_at_revision_returns_none_for_an_absent_path(
 
     assert get_file_at_revision(Path("seed.py"), "main") == _FOCUSED.encode("utf-8")
     assert get_file_at_revision(Path("never_existed.py"), "main") is None
+
+
+def test_get_file_at_revision_raises_when_tree_lookup_fails() -> None:
+    failure = subprocess.CompletedProcess(
+        args=[],
+        returncode=128,
+        stdout=b"",
+        stderr=b"tree failure",
+    )
+    with patch("subprocess.run", return_value=failure):
+        with pytest.raises(RuntimeError, match="git ls-tree failed"):
+            get_file_at_revision(Path("seed.py"), "main")
+
+
+def test_get_file_at_revision_raises_when_blob_read_fails() -> None:
+    present = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout=b"entry",
+        stderr=b"",
+    )
+    failure = subprocess.CompletedProcess(
+        args=[],
+        returncode=128,
+        stdout=b"",
+        stderr=b"show failure",
+    )
+    with patch("subprocess.run", side_effect=[present, failure]):
+        with pytest.raises(RuntimeError, match="git show failed"):
+            get_file_at_revision(Path("seed.py"), "main")
 
 
 def test_build_comparisons_separates_new_files(
