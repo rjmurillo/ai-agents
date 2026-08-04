@@ -156,7 +156,7 @@ class TestMain:
             assert result == 0
 
     def test_ci_returns_one_on_fail(self) -> None:
-        def fail_check(tracker):  # noqa: ANN001
+        def fail_check(tracker):
             tracker.add("CLI", "fails", False, "forced failure")
 
         with (
