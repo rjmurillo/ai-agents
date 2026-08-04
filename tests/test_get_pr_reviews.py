@@ -102,6 +102,7 @@ class TestNormalize:
             "aliases": [],
             "author_id": 101,
             "author_observed": "alice",
+            "author_canonical": "alice",
             "state": "APPROVED",
             "body": "ship it",
             "submittedAt": "2026-08-01T00:00:00Z",
@@ -112,14 +113,15 @@ class TestNormalize:
     def test_empty_body_normalized(self):
         assert _normalize(_api_review(body=None))["body"] == ""
 
-    def test_missing_user_yields_none_identity(self):
+    def test_missing_user_preserves_empty_legacy_author(self):
         item = _api_review()
         item["user"] = None
         out = _normalize(item)
-        assert out["author"] is None
+        assert out["author"] == ""
         assert out["aliases"] == []
         assert out["author_id"] is None
         assert out["author_observed"] is None
+        assert out["author_canonical"] is None
 
     def test_aliases_api_is_preserved_with_additive_identity_fields(self):
         out = _normalize(
@@ -128,10 +130,11 @@ class TestNormalize:
                 author_id=175728472,
             )
         )
-        assert out["author"] == "github-copilot[bot]"
+        assert out["author"] == "Copilot"
         assert out["aliases"] == ["copilot-pull-request-reviewer"]
         assert out["author_id"] == 175728472
         assert out["author_observed"] == "copilot-pull-request-reviewer"
+        assert out["author_canonical"] == "github-copilot[bot]"
 
     def test_github_actions_alias_api_is_unchanged(self):
         out = _normalize(_api_review(login="github-actions"))
@@ -141,9 +144,10 @@ class TestNormalize:
     def test_account_id_separates_two_authors_reported_as_copilot(self):
         reviewer = _normalize(_api_review(login="Copilot", author_id=175728472))
         coding_agent = _normalize(_api_review(login="Copilot", author_id=198982749))
-        assert reviewer["author"] == "github-copilot[bot]"
-        assert coding_agent["author"] == "copilot-swe-agent[bot]"
-        assert reviewer["aliases"] == coding_agent["aliases"] == ["Copilot"]
+        assert reviewer["author"] == coding_agent["author"] == "Copilot"
+        assert reviewer["aliases"] == coding_agent["aliases"] == []
+        assert reviewer["author_canonical"] == "github-copilot[bot]"
+        assert coding_agent["author_canonical"] == "copilot-swe-agent[bot]"
         assert reviewer["author_observed"] == coding_agent["author_observed"] == "Copilot"
 
 

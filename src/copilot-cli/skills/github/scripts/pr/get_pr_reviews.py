@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Fetch submitted reviews for a GitHub Pull Request.
 
-Returns each review's `id`, `node_id`, `author`, `aliases`, `author_id`,
-`author_observed`, verdict state, body, submitted timestamp, URL, and commit
-ID. Paginates via REST so large review histories do not truncate.
+Returns each review's `id`, `node_id`, legacy `author`, `aliases`, additive
+canonical identity fields, verdict state, body, submitted timestamp, URL, and
+commit ID. Paginates via REST so large review histories do not truncate.
 
 Issue #4378: ``get_pr_reviewers.py`` discards review state and body, so an
-agent cannot read APPROVED or CHANGES_REQUESTED verdicts through the skill
-surface. This script fills that gap.
+agent cannot read APPROVED/REQUEST_CHANGES verdicts or their accompanying
+text through the skill surface. This script fills that gap.
 
 Exit codes follow ADR-035:
     0 - Success
@@ -27,8 +27,7 @@ import sys
 from typing import Any
 
 # Two rungs, both portable. The plugin-root variables win when the host exports
-# them; otherwise walk up from this file, which lands on the lib directory of
-# whichever plugin root ships this copy.
+# them; otherwise walk up from this file to the bundled library.
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
@@ -56,6 +55,15 @@ from github_core.output import (
 
 _SCRIPT = "get_pr_reviews.py"
 _VALID_STATES = ("APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING")
+
+# Canonical alias map for known bot identities.
+# Maps each observed alias to the canonical name kept in output.
+# The raw alias is preserved in the ``aliases`` list for audit.
+_BOT_ALIASES: dict[str, str] = {
+    "copilot-pull-request-reviewer": "Copilot",
+    "github-actions": "github-actions[bot]",
+}
+
 _AUTH_ERROR_MARKERS = (
     "credential",
     "not logged in",
@@ -98,10 +106,7 @@ def _exit_code_for(message: str, *, not_found: bool) -> tuple[int, str]:
 
 
 def _fetch_reviews(
-    owner: str,
-    repo: str,
-    pr: int,
-    fmt: str,
+    owner: str, repo: str, pr: int, fmt: str,
 ) -> list[dict[str, object]]:
     """Page through the PR's reviews via REST. Raises SystemExit on error."""
     result = subprocess.run(
@@ -142,24 +147,40 @@ def _fetch_reviews(
             extra={"pull_request": pr},
         )
         raise SystemExit(3) from exc
-
+    # --slurp wraps each page array in an outer list; flatten one level.
     pages = payload if isinstance(payload, list) else [payload]
     reviews: list[dict[str, object]] = []
     for page in pages:
         items = page if isinstance(page, list) else [page]
-        reviews.extend(item for item in items if isinstance(item, dict))
+        for item in items:
+            if isinstance(item, dict):
+                reviews.append(item)
     return reviews
 
 
+def _canonicalize_login(login: str) -> tuple[str, list[str]]:
+    """Return (canonical_login, aliases) for a reviewer login.
+
+    Known bot aliases are normalized to a single canonical name to prevent
+    the same actor appearing as multiple distinct reviewers (issue #4378).
+    The raw alias is preserved in the returned list for audit.
+    """
+    canonical = _BOT_ALIASES.get(login, login)
+    aliases = [login] if canonical != login else []
+    return canonical, aliases
+
+
 def _normalize(item: dict[str, Any]) -> dict[str, Any]:
-    """Reshape one REST review object into stable field names."""
+    """Preserve legacy author fields and add canonical identity metadata."""
     user = item.get("user")
     observed = user.get("login") if isinstance(user, dict) else None
     author_id = user.get("id") if isinstance(user, dict) else None
     if not isinstance(author_id, int):
         author_id = None
-    author = canonicalize_login(observed, author_id) if observed else None
-    aliases = [observed] if observed and author != observed else []
+    author, aliases = _canonicalize_login(observed or "")
+    author_canonical = (
+        canonicalize_login(observed, author_id) if observed else None
+    )
     return {
         "id": item.get("id"),
         "node_id": item.get("node_id"),
@@ -167,6 +188,7 @@ def _normalize(item: dict[str, Any]) -> dict[str, Any]:
         "aliases": aliases,
         "author_id": author_id,
         "author_observed": observed,
+        "author_canonical": author_canonical,
         "state": item.get("state"),
         "body": item.get("body") or "",
         "submittedAt": item.get("submitted_at"),
