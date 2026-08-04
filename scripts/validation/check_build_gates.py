@@ -55,6 +55,11 @@ _REQUIRED_GATES: tuple[tuple[str, re.Pattern[str]], ...] = (
 _MANDATORY_SECTION: re.Pattern[str] = re.compile(
     r"^##\s+Mandatory Exit Gates\b", re.MULTILINE
 )
+_CODE_QUALITY_ARGUMENTS = (
+    "--changed-only",
+    "--base origin/main",
+    "--gate-mode regression",
+)
 
 _BUILD_MD_RELPATH = Path(".claude/commands/build.md")
 
@@ -117,6 +122,27 @@ def collect_violations(repo_root: Path) -> list[GateViolation]:
                     ),
                 )
             )
+
+    code_quality_lines = [
+        line
+        for line in text.splitlines()
+        if _REQUIRED_GATES[0][1].search(line)
+    ]
+    if code_quality_lines and not any(
+        all(argument in line for argument in _CODE_QUALITY_ARGUMENTS)
+        for line in code_quality_lines
+    ):
+        violations.append(
+            GateViolation(
+                kind="arguments",
+                name="code-qualities-assessment",
+                message=(
+                    "code-qualities-assessment must use "
+                    "'--changed-only --base origin/main --gate-mode regression' "
+                    "so inherited debt does not fail the build."
+                ),
+            )
+        )
 
     return violations
 

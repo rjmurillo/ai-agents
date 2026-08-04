@@ -42,7 +42,12 @@ cbg = _load_module()
 
 # --- Fixtures --------------------------------------------------------------
 
-_VALID_BUILD_MD = """\
+_QUALITY_GATE = (
+    'Skill(skill="code-qualities-assessment") with '
+    "`--changed-only --base origin/main --gate-mode regression`."
+)
+
+_VALID_BUILD_MD = f"""\
 ---
 description: Build incrementally.
 ---
@@ -67,7 +72,7 @@ Some text.
 
 Run, in order:
 
-1. Skill(skill="code-qualities-assessment") with `--changed-only`.
+1. {_QUALITY_GATE}
 2. Skill(skill="taste-lints") against the changed files.
 3. Skill(skill="doc-accuracy") with `--diff-base main`.
 
@@ -148,13 +153,39 @@ def test_missing_section_heading_flagged(fake_repo: Path) -> None:
 def test_missing_code_qualities_assessment_flagged(fake_repo: Path) -> None:
     """Dropping code-qualities-assessment is a violation."""
     bad = _VALID_BUILD_MD.replace(
-        'Skill(skill="code-qualities-assessment") with `--changed-only`.',
+        (
+            'Skill(skill="code-qualities-assessment") with '
+            '`--changed-only --base origin/main --gate-mode regression`.'
+        ),
         "(skipped).",
     )
     _write_build_md(fake_repo, bad)
     violations = cbg.collect_violations(fake_repo)
     skill_names = {v.name for v in violations if v.kind == "skill"}
     assert "code-qualities-assessment" in skill_names
+
+
+@pytest.mark.parametrize(
+    "bad_invocation",
+    [
+        '--changed-only --gate-mode regression',
+        '--changed-only --base origin/main',
+        '--base origin/main --gate-mode regression',
+    ],
+)
+def test_incomplete_code_quality_regression_args_flagged(
+    fake_repo: Path,
+    bad_invocation: str,
+) -> None:
+    bad = _VALID_BUILD_MD.replace(
+        "--changed-only --base origin/main --gate-mode regression",
+        bad_invocation,
+    )
+    _write_build_md(fake_repo, bad)
+
+    violations = cbg.collect_violations(fake_repo)
+
+    assert any(v.kind == "arguments" for v in violations)
 
 
 def test_missing_taste_lints_flagged(fake_repo: Path) -> None:
@@ -189,7 +220,10 @@ def test_skill_mention_in_prose_does_not_satisfy(fake_repo: Path) -> None:
     satisfy the contract.
     """
     bad = _VALID_BUILD_MD.replace(
-        'Skill(skill="code-qualities-assessment") with `--changed-only`.',
+        (
+            'Skill(skill="code-qualities-assessment") with '
+            '`--changed-only --base origin/main --gate-mode regression`.'
+        ),
         "We previously ran code-qualities-assessment manually.",
     )
     _write_build_md(fake_repo, bad)
