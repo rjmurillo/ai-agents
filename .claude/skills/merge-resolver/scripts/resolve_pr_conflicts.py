@@ -169,11 +169,13 @@ def is_auto_resolvable(file_path: str) -> bool:
     return False
 
 
-# Packaged plugin manifests carry a shared version counter that every
-# plugin-source PR must bump (build/scripts/validate_plugin_version_bump.py),
-# so concurrent PRs collide on the version line. Accepting main's copy would
-# make head == merge-base and re-trip the gate's not-bumped check; the correct
-# resolution is one patch bump above the higher side (issue #2543).
+# Packaged plugin manifests carried a shared version counter that every
+# plugin-source PR had to bump, so concurrent PRs collided on the version line
+# (issue #2543). ADR-092 deleted the field and inverted the gate
+# (build/scripts/validate_plugin_version_bump.py): it now fails when a manifest
+# carries the field at all. Accept-theirs is still wrong here, because the two
+# sides can differ in whether the field is present at all; the resolver below
+# handles that shape and the legacy both-sides-semver shape.
 _PLUGIN_MANIFEST_SUFFIX = "/.claude-plugin/plugin.json"
 
 _PLAIN_SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")

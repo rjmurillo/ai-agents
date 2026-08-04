@@ -29,7 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_DIR = REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-import wait_for_unresolved_zero as wfz  # noqa: E402
+import wait_for_unresolved_zero as wfz
 
 
 def _make_runner(payloads: list[dict], exit_codes: list[int] | None = None):

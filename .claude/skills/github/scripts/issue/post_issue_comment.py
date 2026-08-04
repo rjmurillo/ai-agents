@@ -40,13 +40,13 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     error_and_exit,
     resolve_repo_params,
     update_issue_comment,
 )
-from github_core.output import (  # noqa: E402
+from github_core.output import (
     add_output_format_arg,
     get_output_format,
     write_skill_output,
@@ -168,7 +168,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of PS1 logic
+def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
 
