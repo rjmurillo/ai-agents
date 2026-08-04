@@ -89,7 +89,12 @@
         "e009",
         "e010",
         "e011",
-        "e012"
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016",
+        "e017"
       ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
@@ -148,6 +153,61 @@
         "e007"
       ],
       "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran an adversarial review of the GOTCHAS section on grok-4.5, a different model family than the author.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified High 1 and High 2 against lefthook.yml rather than trusting the review.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Tested the hypothesis that the merge of origin/main, not the branch's own diff, armed both e2e jobs.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the GOTCHAS section around the verified mechanism and applied the two Medium findings to session-logs.md.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed why both in-flight pushes were rejected despite passing the full suite.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
     }
   ],
   "metrics": {
@@ -156,7 +216,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 5
+    "files_changed": 6
   },
   "lessons": []
 }

@@ -495,10 +495,15 @@ and the first-principles analysis of why the race is per-ref.
 ## The CLI e2e pre-push jobs need a Copilot token, and fail fast without one
 
 `plugin-load-e2e` and `hook-anchoring-e2e` shell out to the real `copilot`
-binary. They fire only when the diff touches their globs, so a branch that edits
-`.claude/skills/**`, `.claude/commands/**`, `.claude/.claude-plugin/plugin.json`,
-`.claude/hooks/**`, `src/copilot-cli/hooks/**`, or
-`build/scripts/generate_hooks.py` runs them and other branches never see them.
+binary. Each has its own `glob:` list in `lefthook.yml`, and the two lists are
+different: `hook-anchoring-e2e` watches the hook surface (`.claude/hooks/**`,
+`src/copilot-cli/hooks/**`, `.claude/settings.json`, `generate_hooks.py`, and
+its own e2e files), while `plugin-load-e2e` watches the plugin surface
+(`.claude/skills/**`, `.claude/commands/**`, both `plugin.json` manifests,
+`src/copilot-cli/skills/**`, `generate_commands.py`, `generate_skills.py`,
+`templates/platforms/copilot-cli.yaml`). Read `lefthook.yml` for the current
+lists rather than trusting a union of them; touching one surface arms one job,
+not both.
 
 The CLI reads its credential from `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, or
 `GITHUB_TOKEN`. A `gh auth login` alone does not set any of them. With none set,
@@ -506,27 +511,45 @@ each invocation exits 1 with an authentication message and the job finishes in
 roughly 13 to 17 seconds. A run that actually reaches the CLI takes about 28
 seconds or more for two tests.
 
-The cost is that both jobs sit behind `python-tests`, which takes about 18
-minutes. The push runs the full suite, passes it, then fails on the two e2e jobs
-and rejects the ref. Provision the token on the push instead:
+Both jobs are siblings of `python-tests` inside one `parallel: true` group, so
+they race it rather than follow it. That does not make the failure cheap: the
+group only returns when its slowest member does, and `python-tests` takes about
+18 minutes. A 13-second auth failure still costs the full suite's wall time
+before the ref is rejected. Provision the token on the push instead:
 
 ```bash
 COPILOT_GITHUB_TOKEN="$(gh auth token)" git push origin HEAD:"$(git branch --show-current)"
 ```
 
+### Merging main arms both jobs even when your branch touches neither surface
+
+This is the part that reads as a contradiction. A branch can arm both e2e jobs
+while `git diff origin/main...HEAD` shows nothing in either glob list. The globs
+are not matched against the branch's diff versus main. Lefthook expands
+`{push_files}` over the **push range**, from the remote tip of the branch to the
+new `HEAD`. Merging `origin/main` into a branch puts every one of main's commits
+inside that range.
+
+Measured: pushing `test/vacuous-assertion-anti-pattern` right after merging main
+covered 367 files across `6eeeb8cac..35d87fd6b`, which hit both glob sets. The
+branch's own diff against main touched seven files, none of them gated. So the
+rule is: if you merged main, assume every glob-gated job is armed, whatever your
+branch changed.
+
 Two traps around diagnosing it:
 
 - A fast finish looks like a flake or a concurrency problem. It is neither. Read
-  the assertion message, which names the missing variable outright. Serializing
-  pushes to fix it is the wrong remedy and contradicts the per-branch lock
-  section above.
+  the assertion message, which names `COPILOT_GITHUB_TOKEN` outright.
+  Serializing pushes to fix it is the wrong remedy and contradicts the
+  per-branch lock section above.
 - Running the two test files directly does not reproduce the failure. The suites
   gate on `RUN_CLI_E2E=1`, which `scripts/validation/git_hook_policy.py` sets for
   the hook. Without it the CLI cases skip and pytest reports the file as passing,
   which proves nothing. Set both variables to reproduce.
 
-Measured: a push of a branch touching `.claude/skills/**` failed
-`plugin-load-e2e` at 13.03 seconds and `hook-anchoring-e2e` at 16.73 seconds
-after `python-tests` passed in 1071.94 seconds. The same two tests passed in
-27.92 seconds under `RUN_CLI_E2E=1` with `COPILOT_GITHUB_TOKEN` set, and skipped
-silently with the token set but `RUN_CLI_E2E` unset.
+Measured on that same push: `plugin-load-e2e` failed at 13.03 seconds and
+`hook-anchoring-e2e` at 16.73 seconds, while `python-tests` passed in 1071.94
+seconds. The same two tests passed in 27.92 seconds under `RUN_CLI_E2E=1` with
+`COPILOT_GITHUB_TOKEN` set, and skipped silently with the token set but
+`RUN_CLI_E2E` unset. Those four durations are author-reported from the push
+console; no log artifact is committed.

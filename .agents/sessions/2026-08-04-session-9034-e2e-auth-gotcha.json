@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "One commit containing GOTCHAS.md and this log."
+        "Evidence": "Four commits on docs/e2e-auth-gotcha: the GOTCHAS section plus this log, the session-logs.md rule 2 correction plus both regenerated mirrors, a merge of origin/main to pick up the lowered taste baseline, and the adversarial-review fixes to GOTCHAS.md and session-logs.md."
       },
       "validationPassed": {
         "level": "MUST",
@@ -109,7 +109,7 @@
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Not warranted for a single documentation section. The wasted push that motivated it is the subject of the entry itself."
+        "Evidence": "Now warranted and queued, not skipped. The adversarial review (grok-4.5) found three High-severity factual errors in the GOTCHAS section as first written: it claimed the two e2e jobs run after python-tests when all three are siblings in one parallel group, it published a union of two distinct per-job glob lists as if it were one list, and it attributed the trigger to the branch's own diff. Three wrong published claims in one section clears the larger-mistake bar."
       }
     }
   },
@@ -157,6 +157,31 @@
     {
       "action": "Regenerated both rule mirrors",
       "detail": "build/scripts/generate_rules.py wrote 54 files; .github/instructions/session-logs.instructions.md and src/copilot-cli/instructions/session-logs.instructions.md updated. No plugin manifest bump: validate_plugin_version_bump.py requires the version field to be absent."
+    },
+    {
+      "timestamp": "2026-08-04T14:05:00Z",
+      "action": "Ran an adversarial review of the GOTCHAS section on grok-4.5, a different model family than the author.",
+      "outcome": "Three High, three Medium, one Low, each with file:line evidence and an explicit passed-checks table. Every High held up under independent verification."
+    },
+    {
+      "timestamp": "2026-08-04T14:20:00Z",
+      "action": "Verified High 1 and High 2 against lefthook.yml rather than trusting the review.",
+      "outcome": "Confirmed both. lefthook.yml opens a parallel group at :390 and python-tests, hook-anchoring-e2e, and plugin-load-e2e are all siblings in it, so the sequential story was false. The two e2e jobs carry separate glob lists; the section had published a partial union of them."
+    },
+    {
+      "timestamp": "2026-08-04T14:35:00Z",
+      "action": "Tested the hypothesis that the merge of origin/main, not the branch's own diff, armed both e2e jobs.",
+      "outcome": "Confirmed and measured. The push range 6eeeb8cac..35d87fd6b covers 367 files and hits both glob sets, while the branch's own diff against main touched seven files and no gated path. Lefthook expands {push_files} over the push range, so merging main arms every glob-gated job."
+    },
+    {
+      "timestamp": "2026-08-04T14:50:00Z",
+      "action": "Rewrote the GOTCHAS section around the verified mechanism and applied the two Medium findings to session-logs.md.",
+      "outcome": "The section now describes the parallel group, points at lefthook.yml for the per-job globs instead of reproducing a wrong union, and adds the merge-arms-globs rule with the 367-file measurement. The rule now gives the full three-source order _collect_shas reads and frames the cost as the python-tests pre-push job rather than a remote one."
+    },
+    {
+      "timestamp": "2026-08-04T15:05:00Z",
+      "action": "Diagnosed why both in-flight pushes were rejected despite passing the full suite.",
+      "outcome": "Same cause on both branches: the taste-count-ratchet baseline was stale at 586 while origin/main had lowered it to 584. merge-tree-ratchet had already pre-computed that the merged tree passes at 584, which is the signal that a merge is the fix. Merged origin/main into both worktrees cleanly."
     }
   ],
   "endingCommit": "8494a1600",
