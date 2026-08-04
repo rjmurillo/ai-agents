@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4041,
+    "date": "2026-07-31",
+    "branch": "fix/ci-exit-contracts-and-suppression-backstop",
+    "startingCommit": "7b315de86",
+    "objective": "Ship the CI exit-contract ratchet, the security-suppression CI backstop, and the ADR-006 exact ratchet for issues 4061, 4068, and 2967"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions returned the manual. activate_project is not exposed as a callable tool in this subagent harness, so the documented fallback was used: .serena/memories/ read directly from the worktree (158 entries)."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions called and read before any edit."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and left unmodified. It is read-only per ADR-014 and points session context at .agents/sessions/ and Serena."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, created by .claude/skills/session-init/scripts/new_session_log.py."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "96 scripts under .claude/skills/*/scripts/*.py enumerated. Used session-init/scripts/new_session_log.py, session-end/scripts/complete_session_log.py, and github/scripts/pr/create_pr.py rather than raw gh."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md Gates, Boundaries, and Skill-First sections read. Pre-PR gate run as documented: uv run python scripts/validation/pre_pr.py."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read for the retrieval-led reasoning and language constraints before touching any file."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Triage verdicts for issues 4061, 4068, and 2967 loaded and used as the completeness contract. .serena/memories/ listed from disk; no MCP read was needed because the verdict artifacts carried the file-level evidence."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/ci-exit-contracts-and-suppression-backstop"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree at .claude/worktrees/wf_bf35d506-d78-3 on fix/ci-exit-contracts-and-suppression-backstop, 13 commits ahead of main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean tree before the plugin bump. git log main..HEAD listed 12 fix commits at session start."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "7b315de86"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff clean on all 13 changed Python files. 971 passed, 3 skipped across the six changed test files. Zero em dashes and zero en dashes in added diff lines, byte-checked. Every commit touches five files or fewer and carries the Co-Authored-By trailer."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged in this branch."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The durable convention from this work is the proven-nonzero-CLI-exit requirement, and it belongs in a cross-harness rule rather than a Serena memory per .claude/rules/knowledge-persistence.md. It landed as MUST 10 in .claude/rules/ci-scripts.md with both generated mirrors regenerated and both plugin manifests bumped to 0.6.5476."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Lefthook markdown hooks passed on every commit in this branch, including the plugin-manifest commit at 7b315de86."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "13 commits on fix/ci-exit-contracts-and-suppression-backstop, tree clean."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python scripts/validation/pre_pr.py reported no BLOCKING findings before push."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Orchestrator task list tracks this branch under the Track A PR-opening item."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred to the orchestrator's batch retro after the PR merge order completes."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Make the ADR-006 run-block gate an exact ratchet",
+      "outcome": "scripts/ci/adr006_run_block_scanner.py gained --exact, pr-validation.yml moved from --max 58 to the measured count, and a drift-guard test recomputes the count from the scanner so a stale pin fails instead of leaving slack.",
+      "evidence": "commit 31d0e9cd6; tests/ci/test_adr006_run_block_scanner.py, tests/ci/test_pr_validation_workflow.py"
+    },
+    {
+      "task": "Add a CI backstop for the no-net-new suppression policy",
+      "outcome": "scripts/validation/git_hook_policy.py gained a range-based suppression check that shares the pre-push implementation, wired into pr-validation.yml so a push that skips Lefthook still fails.",
+      "evidence": "commit 9ea322b20; tests/test_lefthook_integration.py"
+    },
+    {
+      "task": "Gate extracted CI scripts on a proven nonzero CLI exit",
+      "outcome": "New scripts/ci/cli_exit_contract_ratchet.py plus cli_exit_contract_coverage.py count scripts/ci modules whose CLI is never proven to exit nonzero, held as an equality ratchet against scripts/ci/cli_exit_contract_baseline.txt.",
+      "evidence": "commits 4e19b5c69, b3c352efe, 4e882098e, dcde6720d; tests/ci/test_cli_exit_contract_ratchet.py"
+    },
+    {
+      "task": "Fix the live exit-contract instances on main",
+      "outcome": "check_pr_qa_report.py now fails loudly when it cannot list PR files, and the issue-triage steps fail when labels or the milestone never land.",
+      "evidence": "commits b4d223f29, faa254a6f; tests/ci/test_ai_issue_triage_workflow.py"
+    },
+    {
+      "task": "Record the convention",
+      "outcome": "MUST 10 added to .claude/rules/ci-scripts.md, both instruction mirrors regenerated, both plugin manifests set to 0.6.5476.",
+      "evidence": "commits 4047a91f5, 31e380578, 7b315de86"
+    }
+  ],
+  "endingCommit": "7b315de8611d284f34315f9229c57a8d0ed53546",
+  "nextSteps": [
+    "Open the PR with Fixes lines for 4061, 4068, and 2967.",
+    "Lower the --exact pin in pr-validation.yml as each open ADR-006 child issue lands.",
+    "Burn the cli_exit_contract baseline down from 10 as the remaining scripts/ci modules gain CLI-exit tests."
+  ]
+}
