@@ -158,6 +158,16 @@ def test_agents_md_context_budget_is_not_8kb() -> None:
         "timeout was reached",
         "net/http: TLS handshake timeout",
         "unexpected EOF",
+        # A quota refusal clears on its own. Treating it as fatal red-blocked a
+        # clean PR during a quota window; the old substring list excluded 403 by
+        # design, so nothing here could see it (issue #4326 defect 1).
+        "gh: API rate limit exceeded for user ID 6811113 (HTTP 403)",
+        "failed to get commits: HTTP 403: API rate limit exceeded for user ID 6811113",
+        "You have exceeded a secondary rate limit and have been temporarily blocked "
+        "from content creation. Please retry your request again later.",
+        # gh's own connectivity wording, captured from gh 2.97.0.
+        "error connecting to api.github.com\ncheck your internet connection",
+        "dial tcp: lookup api.github.com: no such host",
     ],
 )
 def test_is_transient_error_true(stderr: str) -> None:

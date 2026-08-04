@@ -1,0 +1,431 @@
+"""Transport and quota classification for the gh auth preflight.
+
+Covers issues #3139 (a REST 5xx read as invalid credentials), #4344 (an
+exhausted GraphQL quota read as missing gh), and #4326 (a 403 quota refusal
+classified permanent and a pre-flight gate blind to it).
+
+Every rate-limit fixture below is a body captured from GitHub and quoted in the
+issue threads, not a synthesized one, so the tests cannot encode the same
+assumption the code had.
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+from contextlib import nullcontext
+from unittest.mock import patch
+
+import pytest
+
+from scripts.github_core.api import (
+    _GRAPHQL_BACKOFF_BASE_SECONDS,
+    REFUSAL_BACKOFF_SECONDS,
+    GhAuthStatus,
+    _is_transient_graphql_error,
+    assert_gh_authenticated,
+    check_gh_auth,
+    classify_gh_failure_text,
+    gh_graphql,
+    is_gh_authenticated,
+)
+from scripts.github_core.rate_limit import check_workflow_rate_limit
+
+# Captured refusal bodies (issue #4326 Observations A, B, and the third
+# observation; issue #4335 workflow log).
+REST_403_QUOTA = "gh: API rate limit exceeded for user ID 6811113 (HTTP 403)"
+RUN_LIST_403_QUOTA = (
+    "failed to get runs: HTTP 403: API rate limit exceeded for user ID 6811113"
+)
+REST_BODY_QUOTA = (
+    '{"message": "API rate limit exceeded for user ID 6811113", '
+    '"documentation_url": "https://docs.github.com/rest/overview/'
+    'resources-in-the-rest-api#rate-limiting"}'
+)
+GRAPHQL_QUOTA = "GraphQL: API rate limit already exceeded for user ID 6811113."
+SECONDARY_LIMIT = (
+    "You have exceeded a secondary rate limit and have been temporarily blocked "
+    "from content creation. Please retry your request again later."
+)
+
+# Captured from issue #3139: authenticated REST returned the GitHub Unicorn page.
+REST_503 = "HTTP 503: Service unavailable (https://api.github.com/user)"
+
+# Captured from the binary, not invented: `gh api --hostname
+# invalid.example.test --method POST ... --verbose` on gh 2.97.0 emits exactly
+# these three lines when it cannot reach the host. None of them carries an HTTP
+# status, so before this fix they classified as INVALID_CREDENTIALS and the
+# preflight told the operator to run `gh auth login` for a dead network, which
+# is the #3139 symptom in its most common form.
+GH_DIAL_FAILURE = (
+    "dial tcp: lookup invalid.example.test on 127.0.0.53:53: no such host"
+)
+GH_CONNECT_FAILURE = (
+    "error connecting to invalid.example.test\n"
+    "check your internet connection or https://githubstatus.com"
+)
+GH_DNS_FAILURE = "dial tcp: lookup api.github.com: no such host"
+# A genuine permission denial. Also 403, and must stay permanent.
+PERMISSION_DENIED = "HTTP 403: Resource not accessible by integration"
+BAD_CREDENTIALS = "HTTP 401: Bad credentials (https://api.github.com/user)"
+
+
+def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
+    return subprocess.CompletedProcess(
+        args=["gh"], returncode=rc, stdout=stdout, stderr=stderr
+    )
+
+
+class TestClassifyGhFailureText:
+    @pytest.mark.parametrize(
+        "body",
+        [REST_403_QUOTA, RUN_LIST_403_QUOTA, REST_BODY_QUOTA, GRAPHQL_QUOTA],
+    )
+    def test_primary_quota_refusal_is_rate_limited(self, body):
+        assert classify_gh_failure_text(body) is GhAuthStatus.RATE_LIMITED
+
+    def test_secondary_limit_is_its_own_status(self):
+        assert (
+            classify_gh_failure_text(SECONDARY_LIMIT)
+            is GhAuthStatus.SECONDARY_RATE_LIMITED
+        )
+
+    def test_rest_5xx_is_transient(self):
+        assert classify_gh_failure_text(REST_503) is GhAuthStatus.TRANSIENT_ERROR
+
+    @pytest.mark.parametrize(
+        "body", [GH_DIAL_FAILURE, GH_CONNECT_FAILURE, GH_DNS_FAILURE]
+    )
+    def test_gh_connectivity_wording_is_transient(self, body):
+        """gh's own transport text carries no HTTP status and no curl wording."""
+        assert classify_gh_failure_text(body) is GhAuthStatus.TRANSIENT_ERROR
+
+    def test_bad_credentials_is_invalid(self):
+        assert classify_gh_failure_text(BAD_CREDENTIALS) is GhAuthStatus.INVALID_CREDENTIALS
+
+    def test_permission_denial_is_not_a_quota_refusal(self):
+        assert (
+            classify_gh_failure_text(PERMISSION_DENIED)
+            is GhAuthStatus.INVALID_CREDENTIALS
+        )
+
+    def test_empty_text_is_invalid(self):
+        assert classify_gh_failure_text("") is GhAuthStatus.INVALID_CREDENTIALS
+
+
+class TestIsTransientGraphqlError:
+    @pytest.mark.parametrize(
+        "body", [REST_403_QUOTA, RUN_LIST_403_QUOTA, GRAPHQL_QUOTA, SECONDARY_LIMIT]
+    )
+    def test_quota_refusal_is_retried(self, body):
+        assert _is_transient_graphql_error(body) is True
+
+    @pytest.mark.parametrize("body", ["gh: something (HTTP 429)", "HTTP 503 upstream"])
+    def test_existing_transient_statuses_still_retry(self, body):
+        assert _is_transient_graphql_error(body) is True
+
+    @pytest.mark.parametrize("body", [PERMISSION_DENIED, BAD_CREDENTIALS, "HTTP 404"])
+    def test_permanent_failures_are_not_retried(self, body):
+        assert _is_transient_graphql_error(body) is False
+
+
+class TestGraphqlRetryEnvelope:
+    """The retry has to outlast the condition it matches, or it only burns calls.
+
+    Issue #4326 measured the refusal clearing "about a minute" later. The
+    original ladder capped the whole retry at 3s and averaged 1.5s, so all three
+    attempts landed inside the same refusal window: two extra requests, same
+    outcome. These tests measure the envelope, which no classifier assertion can.
+    """
+
+    def _run_with_recorded_sleeps(self, bodies, drained, pin_jitter=False):
+        calls = [_completed(stderr=body, rc=1) for body in bodies]
+        sleeps: list[float] = []
+        jitter = patch(
+            "random.uniform", side_effect=lambda low, high: high
+        ) if pin_jitter else nullcontext()
+        with patch("subprocess.run", side_effect=calls), patch(
+            "scripts.github_core.api.drained_rate_limit_buckets", return_value=drained
+        ), patch("time.sleep", side_effect=sleeps.append), jitter:
+            with pytest.raises(RuntimeError) as exc:
+                gh_graphql("query { viewer { login } }")
+        return sleeps, str(exc.value)
+
+    def test_quota_retry_budget_reaches_the_measured_recovery(self):
+        # Pin the jitter to its ceiling so the assertion reads the ladder the
+        # code selected. An upper-bound assertion cannot do that: every value
+        # the short 1s/2s exponential ladder produces also satisfies
+        # `<= 15.0` and `<= 30.0`, so reverting the refusal branch of
+        # `_graphql_retry_ceiling` left this test green while the worst-case
+        # budget fell from 45s to 3s, back inside the refusal window issue
+        # #4326 measured at about a minute.
+        sleeps, _ = self._run_with_recorded_sleeps(
+            [GRAPHQL_QUOTA] * 3, drained=[], pin_jitter=True
+        )
+
+        assert len(sleeps) == 2
+        assert sleeps == [REFUSAL_BACKOFF_SECONDS[0], REFUSAL_BACKOFF_SECONDS[1]]
+        assert sum(sleeps) >= 45.0
+
+    def test_transient_5xx_keeps_the_short_ladder(self):
+        """The long ladder is for refusals only; a 5xx must not wait 45s."""
+        sleeps, _ = self._run_with_recorded_sleeps(
+            ["HTTP 503 upstream"] * 3, drained=[], pin_jitter=True
+        )
+
+        assert len(sleeps) == 2
+        assert sum(sleeps) < sum(REFUSAL_BACKOFF_SECONDS)
+
+    def test_drained_bucket_fails_fast_instead_of_burning_attempts(self):
+        """Genuine exhaustion resets on the hour; no bounded retry reaches it."""
+        sleeps, message = self._run_with_recorded_sleeps(
+            [GRAPHQL_QUOTA] * 3, drained=["graphql"]
+        )
+
+        assert sleeps == []
+        assert "bucket exhausted: graphql" in message
+
+    def test_5xx_keeps_the_short_ladder(self):
+        """An upstream wobble clears in seconds; do not sleep a minute on it."""
+        sleeps, _ = self._run_with_recorded_sleeps([REST_503] * 3, drained=[])
+
+        assert len(sleeps) == 2
+        assert max(sleeps) <= _GRAPHQL_BACKOFF_BASE_SECONDS
+
+
+class TestCheckGhAuth:
+    def test_authenticated_when_auth_status_succeeds(self):
+        with patch("subprocess.run", return_value=_completed(rc=0)):
+            assert check_gh_auth().status is GhAuthStatus.AUTHENTICATED
+
+    def test_rest_503_with_working_graphql_is_authenticated(self):
+        # Issue #3139: gh auth status fails on a REST 503 while the same token
+        # still authenticates GraphQL.
+        calls = [
+            _completed(stderr=REST_503, rc=1),
+            _completed(stdout='{"data":{"viewer":{"login":"rjmurillo"}}}', rc=0),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert check_gh_auth().status is GhAuthStatus.AUTHENTICATED
+
+    def test_rest_503_with_failing_graphql_is_transient(self):
+        calls = [
+            _completed(stderr=REST_503, rc=1),
+            _completed(stderr=REST_503, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert check_gh_auth().status is GhAuthStatus.TRANSIENT_ERROR
+
+    def test_exhausted_graphql_quota_is_rate_limited(self):
+        # Issue #4344: both gate scripts reported missing gh in this state.
+        calls = [
+            _completed(stderr=REST_403_QUOTA, rc=1),
+            _completed(stderr=GRAPHQL_QUOTA, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert check_gh_auth().status is GhAuthStatus.RATE_LIMITED
+
+    def test_secondary_throttle_keeps_its_own_status(self):
+        calls = [
+            _completed(stderr=SECONDARY_LIMIT, rc=1),
+            _completed(stderr=SECONDARY_LIMIT, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert check_gh_auth().status is GhAuthStatus.SECONDARY_RATE_LIMITED
+
+    def test_missing_gh_binary(self):
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert check_gh_auth().status is GhAuthStatus.MISSING_GH
+
+    def test_confirmed_bad_credentials(self):
+        calls = [
+            _completed(stderr=BAD_CREDENTIALS, rc=1),
+            _completed(stderr=BAD_CREDENTIALS, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert check_gh_auth().status is GhAuthStatus.INVALID_CREDENTIALS
+
+    def test_detail_redacts_a_token(self):
+        leaked = "bad credentials for ghp_" + "A" * 36
+        calls = [_completed(stderr=leaked, rc=1), _completed(stderr=leaked, rc=1)]
+        with patch("subprocess.run", side_effect=calls):
+            detail = check_gh_auth().detail
+        assert "ghp_" not in detail
+        assert "[REDACTED]" in detail
+
+    def test_is_gh_authenticated_wrapper_tracks_the_classification(self):
+        calls = [
+            _completed(stderr=REST_503, rc=1),
+            _completed(stdout='{"data":{"viewer":{"login":"x"}}}', rc=0),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert is_gh_authenticated() is True
+
+
+class TestAssertGhAuthenticatedExitCodes:
+    def test_success_does_not_exit(self):
+        with patch("subprocess.run", return_value=_completed(rc=0)):
+            assert assert_gh_authenticated() is None
+
+    @pytest.mark.parametrize("body", [REST_503, REST_403_QUOTA, SECONDARY_LIMIT])
+    def test_upstream_conditions_exit_3(self, body, capsys):
+        # Three gh calls: auth status, graphql probe, and the best-effort
+        # rate_limit lookup that enriches a quota diagnostic.
+        calls = [
+            _completed(stderr=body, rc=1),
+            _completed(stderr=body, rc=1),
+            _completed(stdout="{}", rc=0),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            with pytest.raises(SystemExit) as exc:
+                assert_gh_authenticated()
+        assert exc.value.code == 3
+        assert "gh auth login" not in capsys.readouterr().err
+
+    def test_quota_message_names_the_bucket_and_reset(self, capsys):
+        payload = json.dumps(
+            {
+                "resources": {
+                    "core": {"remaining": 4834, "limit": 5000, "reset": 1750000000},
+                    "graphql": {"remaining": 0, "limit": 5000, "reset": 1750000000},
+                }
+            }
+        )
+        calls = [
+            _completed(stderr=REST_403_QUOTA, rc=1),
+            _completed(stderr=GRAPHQL_QUOTA, rc=1),
+            _completed(stdout=payload, rc=0),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            with pytest.raises(SystemExit):
+                assert_gh_authenticated()
+        err = capsys.readouterr().err
+        assert "graphql 0/5000" in err
+        assert "2025-06-15" in err
+
+    def test_missing_gh_exits_4(self, capsys):
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            with pytest.raises(SystemExit) as exc:
+                assert_gh_authenticated()
+        assert exc.value.code == 4
+        assert "gh auth login" in capsys.readouterr().err
+
+    def test_bad_credentials_exits_4(self, capsys):
+        calls = [
+            _completed(stderr=BAD_CREDENTIALS, rc=1),
+            _completed(stderr=BAD_CREDENTIALS, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            with pytest.raises(SystemExit) as exc:
+                assert_gh_authenticated()
+        assert exc.value.code == 4
+        assert "gh auth login" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        "body", [GH_DIAL_FAILURE, GH_CONNECT_FAILURE, GH_DNS_FAILURE]
+    )
+    def test_lost_connectivity_exits_3_and_never_says_gh_auth_login(
+        self, body, capsys
+    ):
+        calls = [_completed(stderr=body, rc=1), _completed(stderr=body, rc=1)]
+        with patch("subprocess.run", side_effect=calls):
+            with pytest.raises(SystemExit) as exc:
+                assert_gh_authenticated()
+        assert exc.value.code == 3
+        assert "gh auth login" not in capsys.readouterr().err
+
+
+_HEALTHY_PAYLOAD = json.dumps(
+    {
+        "resources": {
+            "core": {"remaining": 4984, "limit": 5000, "reset": 1750000000},
+            "graphql": {"remaining": 1694, "limit": 5000, "reset": 1750000000},
+        }
+    }
+)
+
+
+class TestRateLimitGateProbe:
+    """Issue #4326 defect 2: healthy quota numbers during a live refusal."""
+
+    def test_healthy_payload_and_served_probes_pass(self):
+        # rate_limit payload, REST probe, GraphQL probe.
+        calls = [
+            _completed(stdout=_HEALTHY_PAYLOAD, rc=0),
+            _completed(rc=0),
+            _completed(rc=0),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_workflow_rate_limit({"core": 100, "graphql": 50})
+        assert result.success is True
+        assert result.probe_error == ""
+
+    def test_graphql_only_refusal_closes_the_gate(self):
+        """REST and GraphQL refuse independently (issue #4326 defect 2).
+
+        A core-only probe reports the API healthy right through the
+        GraphQL-only window that issues #4344, #4333, and #4335 were all filed
+        from, because `gh api meta` keeps answering.
+        """
+        calls = [
+            _completed(stdout=_HEALTHY_PAYLOAD, rc=0),
+            _completed(rc=0),
+            _completed(stderr=GRAPHQL_QUOTA, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_workflow_rate_limit({"core": 100, "graphql": 50})
+
+        assert result.success is False
+        assert "GraphQL" in result.probe_error
+        assert "REFUSED" in result.summary_markdown
+
+    def test_a_rest_only_caller_does_not_pay_for_a_graphql_probe(self):
+        calls = [_completed(stdout=_HEALTHY_PAYLOAD, rc=0), _completed(rc=0)]
+        with patch("subprocess.run", side_effect=calls) as run:
+            result = check_workflow_rate_limit({"core": 100})
+
+        assert result.success is True
+        assert run.call_count == 2
+
+    def test_healthy_payload_with_refused_probe_fails(self):
+        calls = [
+            _completed(stdout=_HEALTHY_PAYLOAD, rc=0),
+            _completed(stderr=RUN_LIST_403_QUOTA, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_workflow_rate_limit({"core": 100, "graphql": 50})
+        assert result.success is False
+        assert "API rate limit exceeded" in result.probe_error
+        assert "REFUSED" in result.summary_markdown
+
+    def test_exhausted_threshold_still_fails_when_probe_is_served(self):
+        drained = json.dumps(
+            {
+                "resources": {
+                    "core": {"remaining": 4950, "limit": 5000, "reset": 1750000000},
+                    "graphql": {"remaining": 0, "limit": 5000, "reset": 1750000000},
+                }
+            }
+        )
+        calls = [_completed(stdout=drained, rc=0), _completed(rc=0), _completed(rc=0)]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_workflow_rate_limit({"core": 100, "graphql": 50})
+        assert result.success is False
+        assert result.probe_error == ""
+
+    @pytest.mark.parametrize("body", [REST_503, GH_CONNECT_FAILURE])
+    def test_a_transport_wobble_does_not_close_the_gate(self, body):
+        """The probe catches refusals, not outages.
+
+        Failing on every nonzero probe would abort work the payload-only gate
+        used to allow, which is the "transient 5xx read as fatal" shape issue
+        #3139 exists to remove. The evidence is still reported.
+        """
+        calls = [_completed(stdout=_HEALTHY_PAYLOAD, rc=0), _completed(stderr=body, rc=1)]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_workflow_rate_limit({"core": 100, "graphql": 50})
+
+        assert result.success is True
+        assert result.probe_error != ""
+        assert "REFUSED" not in result.summary_markdown
+        assert "did not complete" in result.summary_markdown

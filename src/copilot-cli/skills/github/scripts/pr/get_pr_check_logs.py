@@ -23,6 +23,7 @@ import os
 import re
 import subprocess
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -40,11 +41,11 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     resolve_repo_params,
 )
-from github_core.output import (  # noqa: E402
+from github_core.output import (
     add_output_format_arg,
     get_output_format,
     write_skill_error,
@@ -155,7 +156,7 @@ def _unwrap_checks_payload(checks_data: dict[str, object]) -> dict[str, object] 
     return payload if isinstance(payload, dict) else None
 
 
-def _coerce_checks_list(payload: dict[str, object]) -> list[dict] | None:
+def _coerce_checks_list(payload: dict[str, object]) -> list[dict[str, Any]] | None:
     """Return a checked list of check objects, or None when malformed."""
     checks_value = payload.get("Checks")
     if checks_value is None:
@@ -204,6 +205,43 @@ def _write_merge_ref_error(payload: dict[str, object], fmt: str) -> None:
     )
 
 
+def _failing_checks_from_payload(
+    payload: dict[str, object],
+    fmt: str,
+) -> tuple[list[dict[str, Any]] | None, bool, str | None, int]:
+    """Return failing checks, merge-ref state, warning text, and exit code."""
+    merge_ref_unusable = _merge_ref_unusable(payload)
+    if merge_ref_unusable:
+        _write_merge_ref_warning(payload, fmt)
+
+    checks_list = _coerce_checks_list(payload)
+    if checks_list is None:
+        if merge_ref_unusable:
+            _write_merge_ref_error(payload, fmt)
+            return None, merge_ref_unusable, None, 1
+        write_skill_error(
+            "Checks response contains malformed Checks payload",
+            1,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="get_pr_check_logs.py",
+        )
+        return None, merge_ref_unusable, None, 1
+
+    failing_checks = [c for c in checks_list if _is_failing(c)]
+    if not merge_ref_unusable:
+        return failing_checks, merge_ref_unusable, None, 0
+
+    if not any(c.get("DetailsUrl") for c in failing_checks):
+        _write_merge_ref_error(payload, fmt)
+        return None, merge_ref_unusable, None, 1
+
+    merge_ref_warning = (
+        str(payload.get("MergeStateWarning") or "")
+        or "PR merge ref unusable; logs may be incomplete"
+    )
+    return failing_checks, merge_ref_unusable, merge_ref_warning, 0
+
 
 def _rank_matches(log_lines: list[str]) -> list[int]:
     """Return failure-matching line indices, most authoritative first.
@@ -211,9 +249,7 @@ def _rank_matches(log_lines: list[str]) -> list[int]:
     Authoritative markers rank before weak word matches; within a tier the
     later line wins, so a tail verdict beats echoed setup source (#3113).
     """
-    matches = [
-        i for i, line in enumerate(log_lines) if _COMBINED_PATTERN.search(line)
-    ]
+    matches = [i for i, line in enumerate(log_lines) if _COMBINED_PATTERN.search(line)]
     return sorted(
         matches,
         key=lambda i: (0 if _AUTHORITATIVE_PATTERN.search(log_lines[i]) else 1, -i),
@@ -221,7 +257,10 @@ def _rank_matches(log_lines: list[str]) -> list[int]:
 
 
 def _claim_lines(
-    ranked: list[int], line_count: int, context_lines: int, max_lines: int,
+    ranked: list[int],
+    line_count: int,
+    context_lines: int,
+    max_lines: int,
 ) -> set[int]:
     """Claim context windows around ranked matches until the budget fills."""
     claimed: set[int] = set()
@@ -254,19 +293,13 @@ def _group_runs(sorted_lines: list[int]) -> list[tuple[int, int]]:
 
 def _run_has_authoritative(run: tuple[int, int], log_lines: list[str]) -> bool:
     start, end = run
-    return any(
-        _AUTHORITATIVE_PATTERN.search(log_lines[n]) for n in range(start, end + 1)
-    )
+    return any(_AUTHORITATIVE_PATTERN.search(log_lines[n]) for n in range(start, end + 1))
 
 
 def _run_to_snippet(start: int, end: int, log_lines: list[str]) -> dict[str, object]:
     """Build a snippet dict for a claimed run, keyed on its best match line."""
-    matches = [
-        n for n in range(start, end + 1) if _COMBINED_PATTERN.search(log_lines[n])
-    ]
-    authoritative = [
-        n for n in matches if _AUTHORITATIVE_PATTERN.search(log_lines[n])
-    ]
+    matches = [n for n in range(start, end + 1) if _COMBINED_PATTERN.search(log_lines[n])]
+    authoritative = [n for n in matches if _AUTHORITATIVE_PATTERN.search(log_lines[n])]
     rep = authoritative[0] if authoritative else (matches[0] if matches else start)
     return {
         "LineNumber": rep + 1,
@@ -278,7 +311,9 @@ def _run_to_snippet(start: int, end: int, log_lines: list[str]) -> dict[str, obj
 
 
 def get_failure_snippets(
-    log_lines: list[str], context_lines: int, max_lines: int,
+    log_lines: list[str],
+    context_lines: int,
+    max_lines: int,
 ) -> list[dict[str, object]]:
     """Extract failure snippets, prioritizing authoritative verdicts.
 
@@ -300,8 +335,11 @@ def get_failure_snippets(
 
 
 def fetch_workflow_run_logs(
-    owner: str, repo: str, run_id: str, job_id: str | None,
-) -> dict:
+    owner: str,
+    repo: str,
+    run_id: str,
+    job_id: str | None,
+) -> dict[str, object]:
     """Fetch logs for a GitHub Actions workflow run."""
     # Try job-specific logs first
     if job_id:
@@ -344,15 +382,15 @@ def fetch_workflow_run_logs(
 def get_check_logs(
     owner: str,
     repo: str,
-    failing_checks: list[dict],
+    failing_checks: list[dict[str, Any]],
     max_lines: int,
     context_lines: int,
-) -> list[dict]:
+) -> list[dict[str, object]]:
     """Fetch logs for all failing checks."""
-    results: list[dict] = []
+    results: list[dict[str, object]] = []
 
     for check in failing_checks:
-        check_result: dict = {
+        check_result: dict[str, object] = {
             "Name": check.get("Name", ""),
             "DetailsUrl": check.get("DetailsUrl", ""),
             "State": check.get("State", ""),
@@ -394,7 +432,7 @@ def get_check_logs(
         check_result["LogSource"] = log_result["Source"]
 
         content = log_result["Content"]
-        log_lines = content.splitlines() if isinstance(content, str) else content
+        log_lines = content.splitlines() if isinstance(content, str) else []
 
         snippets = get_failure_snippets(log_lines, context_lines, max_lines)
         check_result["Snippets"] = snippets
@@ -403,6 +441,114 @@ def get_check_logs(
         results.append(check_result)
 
     return results
+
+
+def _payload_from_checks_input(
+    checks_input: str,
+    pr_number: int,
+    fmt: str,
+) -> tuple[dict[str, object] | None, int, int]:
+    """Parse pipeline input into a normalized checks payload."""
+    try:
+        checks_data = json.loads(checks_input)
+    except json.JSONDecodeError as exc:
+        write_skill_error(
+            f"Failed to parse checks input: {exc}",
+            1,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="get_pr_check_logs.py",
+        )
+        return None, pr_number, 1
+
+    if not checks_data.get("Success"):
+        write_skill_error(
+            f"Input checks data indicates failure: {checks_data.get('Error', '')}",
+            1,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="get_pr_check_logs.py",
+        )
+        return None, pr_number, 1
+
+    payload = _unwrap_checks_payload(checks_data)
+    if payload is None:
+        write_skill_error(
+            "Checks response contains malformed Data payload",
+            1,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="get_pr_check_logs.py",
+        )
+        return None, pr_number, 1
+
+    payload_number = payload.get("Number")
+    if isinstance(payload_number, int) and pr_number == 0:
+        pr_number = payload_number
+    elif isinstance(payload_number, str) and payload_number.isdigit() and pr_number == 0:
+        pr_number = int(payload_number)
+    return payload, pr_number, 0
+
+
+def _payload_from_pull_request(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    fmt: str,
+) -> tuple[dict[str, object] | None, int]:
+    """Fetch checks for standalone mode and return a normalized payload."""
+    checks_script = os.path.join(os.path.dirname(__file__), "get_pr_checks.py")
+    result = subprocess.run(
+        [
+            sys.executable,
+            checks_script,
+            "--owner",
+            owner,
+            "--repo",
+            repo,
+            "--pull-request",
+            str(pr_number),
+            "--output-format",
+            "json",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
+
+    if result.returncode in (2, 3, 7):
+        print(result.stdout)
+        return None, result.returncode
+
+    try:
+        checks_data = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        write_skill_error(
+            f"Failed to parse checks response: {exc}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_pr_check_logs.py",
+        )
+        return None, 3
+
+    if not checks_data.get("Success"):
+        print(result.stdout)
+        return None, 2
+
+    payload = _unwrap_checks_payload(checks_data)
+    if payload is None:
+        write_skill_error(
+            "Checks response contains malformed Data payload",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_pr_check_logs.py",
+        )
+        return None, 3
+    return payload, 0
 
 
 # ---------------------------------------------------------------------------
@@ -417,23 +563,72 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, default=0,
+        "--pull-request",
+        type=int,
+        default=0,
         help="PR number (standalone mode)",
     )
     parser.add_argument(
-        "--checks-input", default="",
+        "--checks-input",
+        default="",
         help="JSON string from get_pr_checks.py output (pipeline mode). Use '-' for stdin.",
     )
     parser.add_argument(
-        "--max-lines", type=int, default=160,
+        "--max-lines",
+        type=int,
+        default=160,
         help="Maximum lines to extract per failure snippet (default: 160)",
     )
     parser.add_argument(
-        "--context-lines", type=int, default=30,
+        "--context-lines",
+        type=int,
+        default=30,
         help="Lines of context before/after failure markers (default: 30)",
     )
     add_output_format_arg(parser)
     return parser
+
+
+def _write_no_failing_output(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    merge_ref_unusable: bool,
+    merge_ref_payload: dict[str, object],
+    fmt: str,
+) -> int:
+    if merge_ref_unusable:
+        _write_merge_ref_error(merge_ref_payload, fmt)
+        return 1
+
+    output = {
+        "Owner": owner,
+        "Repo": repo,
+        "PullRequest": pr_number,
+        "FailingChecks": 0,
+        "Message": "No failing checks found",
+        "CheckLogs": [],
+    }
+    write_skill_output(
+        output,
+        output_format=fmt,
+        human_summary="No failing checks to analyze",
+        status="PASS",
+        script_name="get_pr_check_logs.py",
+    )
+    return 0
+
+
+def _check_log_summary(failing_count: int, logs_found: int, external: int) -> str:
+    if external > 0:
+        return (
+            f"Analyzed {failing_count} failing check(s): "
+            f"{logs_found} with logs, {external} external (logs not accessible)"
+        )
+    return (
+        f"Analyzed {failing_count} failing check(s) "
+        f"with {logs_found} containing failure snippets"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -446,145 +641,16 @@ def main(argv: list[str] | None = None) -> int:
 
     fmt = get_output_format(args.output_format)
     pr_number = args.pull_request
-    failing_checks: list[dict] = []
-    _merge_ref_was_unusable = False
-    _merge_ref_payload: dict[str, object] = {}
+    payload: dict[str, object] | None = None
 
     checks_input = args.checks_input
     if checks_input == "-":
         checks_input = sys.stdin.read()
 
     if checks_input:
-        # Pipeline mode
-        try:
-            checks_data = json.loads(checks_input)
-        except json.JSONDecodeError as exc:
-            write_skill_error(
-                f"Failed to parse checks input: {exc}",
-                1,
-                error_type="InvalidParams",
-                output_format=fmt,
-                script_name="get_pr_check_logs.py",
-            )
-            return 1
-
-        if not checks_data.get("Success"):
-            write_skill_error(
-                f"Input checks data indicates failure: {checks_data.get('Error', '')}",
-                1,
-                error_type="InvalidParams",
-                output_format=fmt,
-                script_name="get_pr_check_logs.py",
-            )
-            return 1
-
-        # get_pr_checks.py wraps its payload in a standard skill envelope:
-        # {"Success": true, "Data": {"Number": ..., "Checks": [...]}, ...}
-        # Tolerate both the enveloped form (new) and bare form (legacy / tests)
-        # by falling back to the top-level object when "Data" is absent.
-        payload = _unwrap_checks_payload(checks_data)
-        if payload is None:
-            write_skill_error(
-                "Checks response contains malformed Data payload",
-                1,
-                error_type="InvalidParams",
-                output_format=fmt,
-                script_name="get_pr_check_logs.py",
-            )
-            return 1
-
-        if payload.get("Number") and pr_number == 0:
-            pr_number = payload["Number"]
-
-        if _merge_ref_unusable(payload):
-            _write_merge_ref_warning(payload, fmt)
-            _merge_ref_was_unusable = True
-            _merge_ref_payload = payload
-
-        checks_list = _coerce_checks_list(payload)
-        if checks_list is None:
-            write_skill_error(
-                "Checks response contains malformed Checks payload",
-                1,
-                error_type="InvalidParams",
-                output_format=fmt,
-                script_name="get_pr_check_logs.py",
-            )
-            return 1
-
-        failing_checks = [
-            c for c in checks_list
-            if _is_failing(c)
-        ]
-
+        payload, pr_number, exit_code = _payload_from_checks_input(checks_input, pr_number, fmt)
     elif pr_number > 0:
-        # Standalone mode - fetch checks first
-        checks_script = os.path.join(os.path.dirname(__file__), "get_pr_checks.py")
-        result = subprocess.run(
-            [
-                sys.executable, checks_script,
-                "--owner", owner, "--repo", repo,
-                "--pull-request", str(pr_number),
-                "--output-format", "json",
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=60,
-        )
-
-        # Exit codes 2, 3, 7 are actual errors
-        if result.returncode in (2, 3, 7):
-            print(result.stdout)
-            return result.returncode
-
-        try:
-            checks_data = json.loads(result.stdout)
-        except json.JSONDecodeError as exc:
-            write_skill_error(
-                f"Failed to parse checks response: {exc}",
-                3,
-                error_type="ApiError",
-                output_format=fmt,
-                script_name="get_pr_check_logs.py",
-            )
-            return 3
-
-        if not checks_data.get("Success"):
-            print(result.stdout)
-            return 2
-
-        # Same envelope-tolerant unwrap as pipeline mode above
-        payload = _unwrap_checks_payload(checks_data)
-        if payload is None:
-            write_skill_error(
-                "Checks response contains malformed Data payload",
-                3,
-                error_type="ApiError",
-                output_format=fmt,
-                script_name="get_pr_check_logs.py",
-            )
-            return 3
-        if _merge_ref_unusable(payload):
-            _write_merge_ref_warning(payload, fmt)
-            _merge_ref_was_unusable = True
-            _merge_ref_payload = payload
-        checks_list = _coerce_checks_list(payload)
-        if checks_list is None:
-            write_skill_error(
-                "Checks response contains malformed Checks payload",
-                1,
-                error_type="InvalidParams",
-                output_format=fmt,
-                script_name="get_pr_check_logs.py",
-            )
-            return 1
-
-        failing_checks = [
-            c for c in checks_list
-            if _is_failing(c)
-        ]
+        payload, exit_code = _payload_from_pull_request(owner, repo, pr_number, fmt)
     else:
         write_skill_error(
             "Either --pull-request or --checks-input is required",
@@ -595,33 +661,30 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
+    if exit_code:
+        return exit_code
+    if payload is None:
+        return 1
+
+    failing_checks, merge_ref_unusable, merge_ref_warning, exit_code = (
+        _failing_checks_from_payload(payload, fmt)
+    )
+    if exit_code:
+        return exit_code
+    if failing_checks is None:
+        return 1
+
     # No failing checks
     if not failing_checks:
-        if _merge_ref_was_unusable:
-            # Merge ref is unusable AND no failing checks visible: the check set
-            # is incomplete. Return non-zero so callers know logs are unavailable.
-            _write_merge_ref_error(_merge_ref_payload, fmt)
-            return 1
-        output = {
-            "Owner": owner,
-            "Repo": repo,
-            "PullRequest": pr_number,
-            "FailingChecks": 0,
-            "Message": "No failing checks found",
-            "CheckLogs": [],
-        }
-        write_skill_output(
-            output,
-            output_format=fmt,
-            human_summary="No failing checks to analyze",
-            status="PASS",
-            script_name="get_pr_check_logs.py",
-        )
-        return 0
+        return _write_no_failing_output(owner, repo, pr_number, merge_ref_unusable, payload, fmt)
 
     # Fetch logs
     check_logs = get_check_logs(
-        owner, repo, failing_checks, args.max_lines, args.context_lines,
+        owner,
+        repo,
+        failing_checks,
+        args.max_lines,
+        args.context_lines,
     )
 
     output = {
@@ -631,20 +694,13 @@ def main(argv: list[str] | None = None) -> int:
         "FailingChecks": len(failing_checks),
         "CheckLogs": check_logs,
     }
+    if merge_ref_warning:
+        output["MergeRefWarning"] = merge_ref_warning
 
     logs_found = sum(1 for cl in check_logs if cl.get("Snippets"))
     external = sum(1 for cl in check_logs if cl.get("LogSource") == "external")
 
-    if external > 0:
-        summary = (
-            f"Analyzed {len(failing_checks)} failing check(s): "
-            f"{logs_found} with logs, {external} external (logs not accessible)"
-        )
-    else:
-        summary = (
-            f"Analyzed {len(failing_checks)} failing check(s) "
-            f"with {logs_found} containing failure snippets"
-        )
+    summary = _check_log_summary(len(failing_checks), logs_found, external)
 
     write_skill_output(
         output,

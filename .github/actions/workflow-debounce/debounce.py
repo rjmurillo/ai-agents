@@ -35,7 +35,7 @@ def iso_utc(epoch_seconds: float) -> str:
     # timezone.utc (not datetime.UTC) keeps this importable on the runner's
     # system python3, which can predate 3.11 on older or self-hosted images.
     # UP017 would rewrite this to datetime.UTC, so it is suppressed here.
-    return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).strftime(  # noqa: UP017
+    return datetime.fromtimestamp(epoch_seconds, tz=timezone.utc).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
 

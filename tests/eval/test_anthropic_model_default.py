@@ -20,13 +20,13 @@ _EVAL_DIR = _REPO_ROOT / "scripts" / "eval"
 _ORIGINAL_SYS_PATH = sys.path.copy()
 sys.path.insert(0, str(_EVAL_DIR))
 try:
-    import _anthropic_api  # noqa: E402
-    import _eval_common  # noqa: E402
+    import _anthropic_api
+    import _eval_common
 
     # verify_model_available lazily does `from _providers import ...` at
     # runtime. Import it here so it is cached in sys.modules and resolves
     # even after sys.path is restored below (mirrors test_providers.py).
-    import _providers  # noqa: E402,F401
+    import _providers  # noqa: F401
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
 
@@ -35,8 +35,8 @@ class _Resp(io.BytesIO):
     def __enter__(self) -> _Resp:
         return self
 
-    def __exit__(self, *_: object) -> bool:
-        return False
+    def __exit__(self, *_: object) -> None:
+        return None
 
 
 def _models_payload(ids: list[str]) -> bytes:
