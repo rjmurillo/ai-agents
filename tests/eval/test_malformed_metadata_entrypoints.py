@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import NoReturn
 
 import pytest
 
@@ -28,7 +30,7 @@ def _load(name: str, path: Path) -> ModuleType:
     return module
 
 
-def _raise_metadata_error(error_type: type[RuntimeError]) -> None:
+def _raise_metadata_error(error_type: type[RuntimeError]) -> NoReturn:
     raise error_type("malformed provider metadata")
 
 
@@ -119,13 +121,41 @@ def test_model_panel_recovers_typed_failure_from_child_marker(
         args=["child"],
         returncode=module.EXIT_EXTERNAL,
         stdout="",
-        stderr="event=MalformedProviderMetadataError\n",
+        stderr=json.dumps(
+            {
+                "level": "error",
+                "event": "MalformedProviderMetadataError",
+            }
+        )
+        + "\n",
     )
     monkeypatch.setattr(module.subprocess, "run", lambda *args, **kwargs: completed)
     tier = module.default_panel().tiers[0]
 
     with pytest.raises(module.MalformedProviderMetadataError):
         module._default_runner("qa", tier, 1, "fixtures")
+
+
+def test_model_panel_does_not_accept_metadata_event_substrings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load(
+        "model_panel_child_metadata_substring",
+        EVAL_DIR / "eval-model-panel.py",
+    )
+    completed = subprocess.CompletedProcess(
+        args=["child"],
+        returncode=module.EXIT_EXTERNAL,
+        stdout="",
+        stderr="log mentions event=MalformedProviderMetadataError but is not JSON\n",
+    )
+    monkeypatch.setattr(module.subprocess, "run", lambda *args, **kwargs: completed)
+    tier = module.default_panel().tiers[0]
+
+    with pytest.raises(RuntimeError) as exc_info:
+        module._default_runner("qa", tier, 1, "fixtures")
+
+    assert not isinstance(exc_info.value, module.MalformedProviderMetadataError)
 
 
 def test_agent_harness_emits_dedicated_child_marker_after_one_call(

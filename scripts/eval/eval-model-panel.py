@@ -76,6 +76,21 @@ def _child_report_path(unit: str, run_id: str) -> Path:
     )
 
 
+def _has_malformed_metadata_event(stderr: str) -> bool:
+    expected = {
+        "level": "error",
+        "event": MalformedProviderMetadataError.__name__,
+    }
+    for raw_line in stderr.splitlines():
+        try:
+            payload = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if payload == expected:
+            return True
+    return False
+
+
 def _default_runner(unit: str, tier: PanelTier, n_runs: int, fixtures: str) -> dict[str, object]:
     """Run the harness for one (unit, tier) and return its parsed report.json.
 
@@ -107,7 +122,7 @@ def _default_runner(unit: str, tier: PanelTier, n_runs: int, fixtures: str) -> d
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError(f"harness invocation failed: {exc}") from exc
     if completed.returncode != 0:
-        if MalformedProviderMetadataError.__name__ in completed.stderr:
+        if _has_malformed_metadata_event(completed.stderr):
             raise MalformedProviderMetadataError(
                 "child harness refused malformed provider metadata"
             )
