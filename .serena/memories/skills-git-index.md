@@ -1,6 +1,7 @@
 | Keywords | File |
 |----------|------|
 | merge conflict resolve theirs ours accept reject resolution-strategy | [git/git-conflict-resolution-workflow](git/git-conflict-resolution-workflow.md) |
+| checkout drift stale steering system prompt behind main detached superseded rule | [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) |
 | stale branch delete prune cleanup obsolete local-only tracking | [git/git-branch-cleanup-pattern](git/git-branch-cleanup-pattern.md) |
 | merge pre-flight deletion upstream conflict detect | [git/git-merge-preflight](git/git-merge-preflight.md) |
 | worktree parallel isolation PR cross-contamination | [git/git-worktree-parallel](git/git-worktree-parallel.md) |
