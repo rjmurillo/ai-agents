@@ -224,7 +224,7 @@ class TestMain:
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_success_output_does_not_claim_push_success(
-        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]  # noqa: ANN401
+        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Issue #4506: success banner must not say 'Ready to create pull request!'."""
         mock_run.return_value.returncode = 0
@@ -240,7 +240,7 @@ class TestMain:
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_success_output_prompts_push_verification(
-        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]  # noqa: ANN401
+        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Issue #4506: success output must prompt the user to verify the push landed."""
         mock_run.return_value.returncode = 0
@@ -257,7 +257,7 @@ class TestMain:
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_failure_output_does_not_say_ready(
-        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]  # noqa: ANN401
+        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """Edge case: a failed run must also not claim readiness."""
         mock_run.return_value.returncode = 1

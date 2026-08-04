@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
-import shlex
 import subprocess
 import sys
 import threading

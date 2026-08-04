@@ -58,10 +58,10 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.ci import cli_exit_contract_ratchet as _cli_exit  # noqa: E402
-from scripts.ci import ruff_count_ratchet as _ruff  # noqa: E402
-from scripts.ci import taste_count_ratchet as _taste  # noqa: E402
-from scripts.ci import type_ignore_count_ratchet as _type_ignore  # noqa: E402
+from scripts.ci import cli_exit_contract_ratchet as _cli_exit
+from scripts.ci import ruff_count_ratchet as _ruff
+from scripts.ci import taste_count_ratchet as _taste
+from scripts.ci import type_ignore_count_ratchet as _type_ignore
 
 EXIT_OK = 0
 EXIT_REGRESSION = 1
