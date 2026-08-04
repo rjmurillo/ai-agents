@@ -11,6 +11,8 @@ Coverage:
 - git failure: merge-tree exits 2 -> EXIT_EXTERNAL
 - counter returns None: -> EXIT_EXTERNAL
 - baseline unreadable at base ref: -> EXIT_CONFIG
+- baseline diagnostics identify whether the base or merged tree is unreadable
+- baseline is read from the merged tree, not HEAD or the working tree
 - scratch dir cleanup: always cleaned up, even on failure
 - negative control: a cosmetic comment change to the script does NOT break
   the regression test (proves the test is not asserting on line number)
@@ -518,6 +520,38 @@ class TestMergeTreeInstalledBaseline:
 
         assert rc == _m.EXIT_CONFIG
 
+    def test_baseline_is_read_from_merged_tree_not_head_or_worktree(
+        self, tmp_path: Path
+    ) -> None:
+        """A base-side baseline change must be read from the synthetic merge.
+
+        The branch is cut while the baseline is 3. Main then raises it to 5,
+        while the branch only changes code. The merged tree records 5, but
+        both HEAD and the checked-out worktree still record 3. A count of 4
+        therefore passes only when the reader uses the extracted merged tree.
+        """
+        repo = _make_repo_with_baselines(tmp_path, ruff=3, taste=10, ignore=10)
+
+        _git(repo, "checkout", "-b", "pr-branch")
+        (repo / "pr_change.py").write_text("# branch-only change\n", encoding="utf-8")
+        _commit_all(repo, "branch code change")
+
+        _git(repo, "checkout", "main")
+        (repo / "scripts" / "ci" / "ruff_count_baseline.txt").write_text(
+            "5\n", encoding="utf-8"
+        )
+        _commit_all(repo, "raise ruff baseline on main")
+        _git(repo, "checkout", "pr-branch")
+
+        with (
+            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=4),
+            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+        ):
+            rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
+
+        assert rc == _m.EXIT_OK
+
 
 class TestEffectiveBaseline:
     """Unit coverage for the ceiling rule itself (issue #4538)."""
@@ -539,6 +573,31 @@ class TestEffectiveBaseline:
 
     def test_both_unreadable_propagates_none(self) -> None:
         assert _m._effective_baseline(None, None) is None
+
+
+class TestCheckOne:
+    """Configuration failures identify the unreadable baseline source."""
+
+    def test_unreadable_base_reports_merged_value(self) -> None:
+        code, message = _m._check_one("ruff", 0, None, 126)
+        assert code == _m.EXIT_CONFIG
+        assert message.endswith(
+            "baseline unreadable at the base ref (merged tree records 126)"
+        )
+
+    def test_unreadable_merged_tree_reports_base_value(self) -> None:
+        code, message = _m._check_one("ruff", 0, 308, None)
+        assert code == _m.EXIT_CONFIG
+        assert message.endswith(
+            "baseline unreadable in the merged tree (base ref records 308)"
+        )
+
+    def test_both_unreadable_reports_both_sources(self) -> None:
+        code, message = _m._check_one("ruff", 0, None, None)
+        assert code == _m.EXIT_CONFIG
+        assert message.endswith(
+            "baseline unreadable at the base ref and in the merged tree"
+        )
 
 
 class TestReadBaselineInTree:

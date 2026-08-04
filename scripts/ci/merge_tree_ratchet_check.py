@@ -274,16 +274,28 @@ def _effective_baseline(base_value: int | None, merged_value: int | None) -> int
 def _check_one(
     label: str,
     count: int | None,
-    baseline: int | None,
+    base_baseline: int | None,
+    merged_baseline: int | None,
 ) -> tuple[int, str]:
     """Return (exit code, message)."""
     if count is None:
         return EXIT_EXTERNAL, f"{label}: EXTERNAL ERROR - counter returned None"
+
+    baseline = _effective_baseline(base_baseline, merged_baseline)
     if baseline is None:
+        if base_baseline is None and merged_baseline is None:
+            unreadable = "at the base ref and in the merged tree"
+        elif base_baseline is None:
+            unreadable = (
+                f"at the base ref (merged tree records {merged_baseline})"
+            )
+        else:
+            unreadable = (
+                f"in the merged tree (base ref records {base_baseline})"
+            )
         return (
             EXIT_CONFIG,
-            f"{label}: CONFIG ERROR - baseline unreadable at the base ref "
-            "or in the merged tree",
+            f"{label}: CONFIG ERROR - baseline unreadable {unreadable}",
         )
     if count > baseline:
         return (
@@ -321,8 +333,8 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
         if not _init_scratch_repo(scratch_root):
             return EXIT_EXTERNAL
 
-        baselines = {
-            label: _effective_baseline(
+        baseline_values = {
+            label: (
                 _read_baseline_at_ref(repo_root, base_ref, rel),
                 _read_baseline_in_tree(scratch_root, rel),
             )
@@ -338,7 +350,8 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
 
     exit_code = EXIT_OK
     for label, count in counts.items():
-        code, msg = _check_one(label, count, baselines[label])
+        base_baseline, merged_baseline = baseline_values[label]
+        code, msg = _check_one(label, count, base_baseline, merged_baseline)
         exit_code = max(exit_code, code)
         if code != EXIT_OK:
             print(f"merge-tree-ratchet: {msg}", file=sys.stderr)
