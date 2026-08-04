@@ -1,8 +1,8 @@
-# Always on steering renders from the live checkout
+# Always-on steering renders from the live checkout
 
 ## Question
 
-The always on rules in an agent's system prompt look authoritative. Are they the
+The always-on rules in an agent's system prompt look authoritative. Are they the
 rules CI enforces?
 
 No. They are a snapshot of whatever sat on disk in the working checkout when the
@@ -14,7 +14,7 @@ on superseded steering and nothing reports it.
 Observed, not inferred. The imported instruction block names its own source path:
 
 ```text
-<imported_custom_instruction source="/home/richard/src/GitHub/rjmurillo/ai-agents/AGENTS.md">
+<imported_custom_instruction source="~/src/GitHub/rjmurillo/ai-agents/AGENTS.md">
 ```
 
 Measured in that checkout:
@@ -60,7 +60,7 @@ state, so it earns the same distrust as a compaction note.
 
 ## What to do
 
-Before acting on an always on rule that would change a gated artifact, check the
+Before acting on an always-on rule that would change a gated artifact, check the
 loaded text against `origin/main` instead of trusting it:
 
 ```bash
