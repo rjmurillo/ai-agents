@@ -39,14 +39,38 @@ Then structure the PR body to match all sections.
 
 ## Fixing Existing PRs
 
-If a PR was created without the template, fix it using REST API:
+Write the body to a file and apply it with `--body-file`:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{number} --method PATCH -f body="$(cat .github/PULL_REQUEST_TEMPLATE.md)"
-# Then manually fill in sections
+gh pr edit <N> --body-file <path>
 ```
 
-**Evidence**: PR 354 body updated via REST API to use proper template format.
+`--body-file` sends the file byte for byte. The older
+`gh api ... -f body="$(cat file)"` form in this memory's history worked, but command
+substitution strips every trailing newline, so a body ending in a fenced block loses
+its final blank line:
+
+```bash
+$ printf 'a\n\n```\ncode\n```\n\n' > b.md; wc -c < b.md          # 24
+$ v="$(cat b.md)"; printf '%s' "$v" | wc -c                     # 22
+```
+
+Two bytes is cosmetic on its own. It matters because it makes a round trip lossy: read
+the body, edit it, write it back, and the file shrinks each pass. Use `--body-file`.
+
+Note for the record: command substitution does **not** re-expand backticks or `$` in
+the file's contents. A quoted `"$(cat f)"` passes them through literally. An earlier
+version of this memory claimed otherwise and was wrong.
+
+## These sections are advisory, not blocking
+
+Missing sections here produce `TEMPLATE_STATUS=WARN`, which
+`scripts/ci/build_pr_validation_report.py` appends to `warnings` and never
+promotes to `status`. A template WARN does not red the `Validate PR` check.
+
+Use the template because it makes PRs readable, not because CI forces it. When the
+check is actually red, the cause is a different signal. See
+[ci-validate-pr-is-many-gates-only-some-read-the-body](../ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md).
 
 ## Related
 
