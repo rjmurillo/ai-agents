@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The staged timestamp correction is this commit. endingCommit will be recorded in a follow-up commit per issue #3618."
+        "Evidence": "Commit 369a4138cbac0cb55681ec568686043ec577a5a2 preserves the explicit review timestamps and records this session."
       },
       "validationPassed": {
         "level": "MUST",
@@ -121,11 +121,14 @@
     {
       "action": "Preserved explicit timestamps",
       "detail": "Restored 2026-08-04T22:16:12+00:00 for issue #4588 creation and 2026-08-04T22:31:03+00:00 for commit 202e72e2e."
+    },
+    {
+      "action": "Committed the final timestamp repair",
+      "detail": "Commit 369a4138cbac0cb55681ec568686043ec577a5a2 passed normal pre-commit and commit-message hooks."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "369a4138cbac0cb55681ec568686043ec577a5a2",
   "nextSteps": [
-    "Record this correction commit SHA in a follow-up commit.",
     "Push normally, rerun the artifact-only Sol review, and merge the follow-up PR after all gates pass."
   ]
 }
