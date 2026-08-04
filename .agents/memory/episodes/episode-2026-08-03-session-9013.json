@@ -98,5 +98,8 @@
     "commits": 1,
     "files_changed": 6
   },
-  "lessons": []
+  "lessons": [
+    "A test that asserts the shape of its own construction proves nothing about the code under test.. Anti-Pattern 7 in TESTING-ANTI-PATTERNS.md and the SHOULD 10 extension in testing.md.",
+    "Avoid: Documenting a defect on a branch that does not carry the code the prose cites.. Ran git grep for every cited symbol on this branch, found a test name and a constant that lived only on fix/gate-aggregator-did-not-run, and moved that half of the documentation to the branch owning the code."
+  ]
 }

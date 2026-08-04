@@ -109,7 +109,7 @@
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "reflect skill run over this segment; this branch is one of its outputs."
+        "Evidence": "Learnings captured in the learnings object of this log."
       }
     }
   },
@@ -153,6 +153,22 @@
       ]
     }
   ],
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "A test that asserts the shape of its own construction proves nothing about the code under test.",
+        "context": "PR #4485 shipped assertions that restated their fixtures and passed regardless of the behavior they named.",
+        "application": "Anti-Pattern 7 in TESTING-ANTI-PATTERNS.md and the SHOULD 10 extension in testing.md."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Documenting a defect on a branch that does not carry the code the prose cites.",
+        "consequence": "The citation resolves in the author worktree and dangles for every reader of the merged branch. No gate in this repository reports it, because orphan-ref-validator matches file paths and markdownlint ignores .agents entirely.",
+        "correction": "Ran git grep for every cited symbol on this branch, found a test name and a constant that lived only on fix/gate-aggregator-did-not-run, and moved that half of the documentation to the branch owning the code."
+      }
+    ]
+  },
   "endingCommit": "ee9d10dfb",
   "nextSteps": []
 }
