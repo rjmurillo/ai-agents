@@ -10,14 +10,12 @@ Performs comprehensive merge readiness check:
 By default, only REQUIRED checks block merge. Non-required failing checks
 are reported but do not affect CanMerge unless --include-non-required is set.
 
-Multiple rows for the same check name (supersession: a CANCELLED or FAILURE
-run plus a later SUCCESS run) are deduplicated by name. The verdict per
-name is OK if any conclusion is SUCCESS / NEUTRAL / SKIPPED (superseding
-prior failures from re-runs); FAIL if any conclusion is a real failure and
-no passing row exists; PENDING if any status is IN_PROGRESS / PENDING.
-A name whose only conclusion is CANCELLED carries no opinion and does not
-block. The PR #1887 retrospective records four false-FAIL reports caused
-by counting CANCELLED debounce rows as failed required checks.
+Multiple rows for the same check name are deduplicated by name. When each
+row exposes a workflow run id, the latest run decides. Unknown provenance
+keeps the previous precedence: OK beats FAIL, FAIL beats PENDING, and
+CANCELLED carries no opinion. The PR #1887 retrospective records four
+false-FAIL reports caused by counting CANCELLED debounce rows as failed
+required checks.
 
 The output JSON includes a ``fetched_pages_complete`` field that is true
 only when both ``reviewThreads`` and ``statusCheckRollup.contexts`` were
@@ -76,6 +74,7 @@ from github_core.api import (
     safe_log_str,
 )
 from github_core.checks_rollup import (
+    extract_workflow_run_number,
     partition_rows_by_run,
 )
 
@@ -206,35 +205,41 @@ _PASSING_STATUS_STATES = frozenset({"SUCCESS", "EXPECTED"})
 def _check_run_verdict(rows: list[dict]) -> str:
     """Reduce multiple CheckRun rows for one name to a single verdict.
 
-    Verdict precedence:
-      1. OK    - any row has a passing conclusion (SUCCESS/NEUTRAL/SKIPPED).
-                 A re-run SUCCESS supersedes a stale FAILURE from an earlier
-                 run, closing the same false-FAIL class as the CANCELLED fix.
-      2. FAIL  - any row has a real failure conclusion (not in the passing
-                 or no-opinion sets, e.g. FAILURE, TIMED_OUT, ACTION_REQUIRED).
-      3. PENDING - any row has status != COMPLETED (and no passing row).
-      4. SKIP  - all rows are CANCELLED (no real opinion); not blocking.
-
-    Aligns with the brief in the PR #1887 retrospective: "OK if any SUCCESS
-    exists." A passing conclusion from a re-run supersedes a prior failure.
-
-    "Any SUCCESS" applies ACROSS runs, never within one. Two jobs of one
-    workflow run may publish the same check name deliberately; those are
-    concurrent siblings, so a failing sibling makes the whole run FAIL and a
-    passing sibling cannot mask it. Refs issue #4499.
+    Known workflow runs use the latest run id as the deciding signal. That
+    keeps a later rerun SUCCESS from being masked by a stale FAILURE, while a
+    later FAILURE can no longer be masked by an older SUCCESS. Unknown
+    provenance keeps the previous verdict precedence.
     """
-    verdicts = [
-        _single_run_check_verdict(group)
-        for group in partition_rows_by_run(rows, "detailsUrl")
-    ]
+    verdicts = []
+    for group in partition_rows_by_run(rows, "detailsUrl"):
+        run_number = _workflow_run_number(group, "detailsUrl")
+        verdicts.append((run_number, _single_run_check_verdict(group)))
 
-    if "OK" in verdicts:
+    if verdicts and all(run_number is not None for run_number, _ in verdicts):
+        return max(verdicts, key=lambda item: item[0])[1]
+
+    verdict_values = [verdict for _, verdict in verdicts]
+    if "OK" in verdict_values:
         return "OK"
-    if "FAIL" in verdicts:
+    if "FAIL" in verdict_values:
         return "FAIL"
-    if "PENDING" in verdicts:
+    if "PENDING" in verdict_values:
         return "PENDING"
     return "SKIP"
+
+
+def _workflow_run_number(rows: list[dict[Any, Any]], url_key: str) -> int | None:
+    """Return a run id only when every row shares known provenance."""
+    if not rows:
+        return None
+
+    run_numbers = {
+        extract_workflow_run_number(row.get(url_key))
+        for row in rows
+    }
+    if len(run_numbers) != 1:
+        return None
+    return next(iter(run_numbers))
 
 
 def _single_run_check_verdict(rows: list[dict[Any, Any]]) -> str:

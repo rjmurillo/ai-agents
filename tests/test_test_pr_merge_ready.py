@@ -1009,10 +1009,14 @@ class TestCheckRunVerdictSameRunSiblings:
         ]
         assert _mod._check_run_verdict(rows) == "FAIL"
 
-    def test_rerun_success_supersedes_stale_failure_across_runs(self):
+    def test_later_rerun_success_supersedes_stale_failure_across_runs(self):
         """Issue #2208 must not regress."""
         rows = [_run_row("FAILURE", _R_B), _run_row("SUCCESS", _R_A)]
         assert _mod._check_run_verdict(rows) == "OK"
+
+    def test_later_run_failure_beats_older_success_across_runs(self):
+        rows = [_run_row("SUCCESS", _R_B), _run_row("FAILURE", _R_A)]
+        assert _mod._check_run_verdict(rows) == "FAIL"
 
     def test_all_passing_siblings_in_one_run_is_ok(self):
         rows = [_run_row("SUCCESS", _R_A), _run_row("SKIPPED", _R_A2)]
@@ -1054,5 +1058,5 @@ class TestQuerySelectsDetailsUrl:
     """
 
     def test_both_check_run_selections_request_details_url(self):
-        queries = _mod._CONTEXTS_PAGE_QUERY + _mod._MERGE_READY_QUERY
-        assert queries.count("detailsUrl") == 2
+        assert "detailsUrl" in _mod._CONTEXTS_PAGE_QUERY
+        assert "detailsUrl" in _mod._MERGE_READY_QUERY

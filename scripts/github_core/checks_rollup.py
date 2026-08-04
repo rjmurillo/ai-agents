@@ -34,6 +34,12 @@ def extract_workflow_run_id(details_url: str | None) -> str | None:
     return match.group(1) if match else None
 
 
+def extract_workflow_run_number(details_url: str | None) -> int | None:
+    """Return the numeric Actions workflow run id from a details URL."""
+    run_id = extract_workflow_run_id(details_url)
+    return int(run_id) if run_id is not None else None
+
+
 def partition_rows_by_run(
     rows: list[dict],
     url_key: str,
