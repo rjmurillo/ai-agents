@@ -22,8 +22,8 @@ Reproduces (config files shipped alongside):
 import argparse
 import json
 import threading
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 import evalkit
 

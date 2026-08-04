@@ -22,7 +22,7 @@ from pathlib import Path
 try:
     import tiktoken
     _ENC = tiktoken.get_encoding("o200k_base")
-except Exception:  # noqa: BLE001 - tiktoken optional for non-cost runs
+except Exception:
     _ENC = None
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -166,6 +166,6 @@ def run_cell(transport: str, model: str, effort: str, rel: str, msg_prefix: str 
             if scores is not None and (usage.get("out_total") or 0) > 50:
                 return {"scores": scores, **usage, "in_clean": in_clean, "ms": dur}
             last = {"error": "parse_or_empty", "out_total": usage.get("out_total"), "ms": dur}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             last = {"error": str(exc)[:160], "ms": int((time.monotonic() - t) * 1000)}
     return {**(last or {"error": "unknown"}), "in_clean": in_clean}

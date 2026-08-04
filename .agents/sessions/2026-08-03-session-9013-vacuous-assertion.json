@@ -1,0 +1,174 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9013,
+    "date": "2026-08-03",
+    "branch": "test/vacuous-assertion-anti-pattern",
+    "startingCommit": "22fe2b8e1",
+    "objective": "Name the self-shape assertion anti-pattern and the delete-and-measure procedure an adversarial review surfaced on PR 4485"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable in this Copilot CLI session; used the committed .serena/memories/ fallback that AGENTS.md names."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; read .serena/memories/ directly when checking for existing coverage of this learning."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read-only; no edits (ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/issue/ and .claude/skills/github/scripts/pr/ before invoking new_issue.py and post_issue_comment.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Filed issue 4487 and posted the PR 4471 diagnosis through the github skill scripts rather than raw gh."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS.md and AGENTS.md boundaries via the injected repository instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Searched .serena/memories/ and .claude/rules/ for existing vacuous-test and tautology coverage before writing; found TESTING-ANTI-PATTERNS.md:15 and testing.md SHOULD 9 and extended the latter rather than duplicating."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "test/vacuous-assertion-anti-pattern"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On test/vacuous-assertion-anti-pattern"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short before staging; four content files staged first (governance doc plus the rule and its two generated mirrors), then the session log and episode added, six paths in commit ee9d10dfb."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "22fe2b8e1"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items carry evidence above."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md absent from the staged set."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Learning routed to .claude/rules/testing.md SHOULD 9 and TESTING-ANTI-PATTERNS.md Anti-Pattern 7 rather than a memory, per the knowledge-persistence rule: it must bind every contributor editing tests, so a rule file is the correct surface."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py markdown validation passed over the changed files; taste-lints reported 4 files scanned, no violations."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit ee9d10dfb lands the rule, the governance entry, both generated mirrors, and this log. This follow-up commit records the ending commit so the extracted episode can derive metrics.commits."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py reports RESULT: All validations passed; validate_session_json.py exits 0 on this file."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Learnings captured in the learnings object of this log."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Named the self-shape assertion as Anti-Pattern 7 after a key-set assertion survived every mutation of the parser it claimed to cover",
+      "result": "A fail-open mutation of the five-pattern parser failed exactly five parametrized cases; the single-case test it replaced caught one and the deleted key-set assertion caught none.",
+      "files": [
+        ".agents/governance/TESTING-ANTI-PATTERNS.md",
+        ".claude/rules/testing.md"
+      ]
+    },
+    {
+      "step": 2,
+      "action": "Named the totalizing fallback as Anti-Pattern 8 after adding a table entry whose value equalled the fallback's",
+      "result": "Verified on agent_signal in scripts/quality_gate/external_signal_gate.py (#4487): with both paths silent, deleting the DID_NOT_RUN alias left all tests green. After splitting them so the alias returns quietly and the fallback warns to stderr, deleting the entry fails exactly one test, test_did_not_run_is_aliased_not_merely_caught_by_the_fallback, at 1 failed 40 passed.",
+      "files": [
+        ".agents/governance/TESTING-ANTI-PATTERNS.md",
+        ".claude/rules/testing.md"
+      ]
+    },
+    {
+      "step": 3,
+      "action": "Regenerated both instruction mirrors and re-ran the always-on instruction budget",
+      "result": "generate_rules.py wrote 52 files. Budget PASS on all four extensions; testing.md is path-scoped so the always-on corpus is unchanged at 8 files and 70,375 bytes.",
+      "files": [
+        ".github/instructions/testing.instructions.md",
+        "src/copilot-cli/instructions/testing.instructions.md"
+      ]
+    },
+    {
+      "step": 4,
+      "action": "Split Anti-Pattern 8 and testing.md SHOULD 11 off this branch after finding they cite code that does not exist here",
+      "result": "git grep on this branch returns zero hits for DID_NOT_RUN in scripts/quality_gate/external_signal_gate.py and zero hits for test_did_not_run_is_aliased_not_merely_caught_by_the_fallback in any test file. Both live only on fix/gate-aggregator-did-not-run. Merged alone this branch would have shipped documentation citing a test that does not exist. Moved both entries to that branch, where the code they describe is in the same change. A dispatched gemini review reached the same conclusion independently. Two of its other three findings did not survive: TESTING-RIGOR.md is tracked at .agents/governance/TESTING-RIGOR.md and the bare-filename reference style matches lines 105 and 108, and the always-on budget premise is wrong because testing.md is path-scoped to tests/**, with instruction_budget.py reporting PASS at 83.8% .md usage.",
+      "filesChanged": [
+        ".agents/governance/TESTING-ANTI-PATTERNS.md",
+        ".claude/rules/testing.md",
+        ".github/instructions/testing.instructions.md",
+        "src/copilot-cli/instructions/testing.instructions.md"
+      ]
+    }
+  ],
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "A test that asserts the shape of its own construction proves nothing about the code under test.",
+        "context": "PR #4485 shipped assertions that restated their fixtures and passed regardless of the behavior they named.",
+        "application": "Anti-Pattern 7 in TESTING-ANTI-PATTERNS.md and the SHOULD 10 extension in testing.md."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Documenting a defect on a branch that does not carry the code the prose cites.",
+        "consequence": "The citation resolves in the author worktree and dangles for every reader of the merged branch. No gate in this repository reports it, because orphan-ref-validator matches file paths and markdownlint ignores .agents entirely.",
+        "correction": "Ran git grep for every cited symbol on this branch, found a test name and a constant that lived only on fix/gate-aggregator-did-not-run, and moved that half of the documentation to the branch owning the code."
+      }
+    ]
+  },
+  "endingCommit": "ee9d10dfb",
+  "nextSteps": []
+}

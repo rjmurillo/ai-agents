@@ -13,7 +13,7 @@ import pytest
 
 # Import the module under test
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".github" / "scripts"))
-import parse_pr_standards  # noqa: E402
+import parse_pr_standards
 
 
 @pytest.fixture

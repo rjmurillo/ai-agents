@@ -1,0 +1,105 @@
+{
+  "id": "episode-2026-08-03-session-9013",
+  "session": "2026-08-03-session-9013",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Name the self-shape assertion anti-pattern and the delete-and-measure procedure an adversarial review surfaced on PR 4485",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T19:43:11+00:00",
+      "type": "commit",
+      "content": "Commit: ee9d10dfb",
+      "caused_by": [
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Named the self-shape assertion as Anti-Pattern 7 after a key-set assertion survived every mutation of the parser it claimed to cover",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Named the totalizing fallback as Anti-Pattern 8 after adding a table entry whose value equalled the fallback's",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "test",
+      "content": "Named the totalizing fallback as Anti-Pattern 8 after adding a table entry whose value equalled the fallback's   2   Verified on agent_signal in scripts/quality_gate/external_signal_gate.py (#4487): with both paths silent, deleting the DID_NOT_RUN alias left all tests green. After splitting them so the alias returns quietly and the fallback warns to stderr, deleting the entry fails exactly one test, test_did_not_run_is_aliased_not_merely_caught_by_the_fallback, at 1 failed 40 passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "error",
+      "content": "Named the totalizing fallback as Anti-Pattern 8 after adding a table entry whose value equalled the fallback's   2   Verified on agent_signal in scripts/quality_gate/external_signal_gate.py (#4487): with both paths silent, deleting the DID_NOT_RUN alias left all tests green. After splitting them so the alias returns quietly and the fallback warns to stderr, deleting the entry fails exactly one test, test_did_not_run_is_aliased_not_merely_caught_by_the_fallback, at 1 failed 40 passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated both instruction mirrors and re-ran the always-on instruction budget",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split Anti-Pattern 8 and testing.md SHOULD 11 off this branch after finding they cite code that does not exist here",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": [
+    "A test that asserts the shape of its own construction proves nothing about the code under test.. Anti-Pattern 7 in TESTING-ANTI-PATTERNS.md and the SHOULD 10 extension in testing.md.",
+    "Avoid: Documenting a defect on a branch that does not carry the code the prose cites.. Ran git grep for every cited symbol on this branch, found a test name and a constant that lived only on fix/gate-aggregator-did-not-run, and moved that half of the documentation to the branch owning the code."
+  ]
+}

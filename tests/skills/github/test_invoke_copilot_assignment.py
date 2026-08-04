@@ -1,7 +1,6 @@
 """Tests for invoke_copilot_assignment.py."""
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -17,9 +16,8 @@ for _p in (str(_lib_dir), str(_scripts_dir / "issue")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from github_core.api import RepoInfo  # noqa: E402
-
-from test_helpers import make_completed_process  # noqa: E402
+from github_core.api import RepoInfo
+from test_helpers import make_completed_process
 
 
 @pytest.fixture
@@ -228,7 +226,10 @@ class TestInvokeCopilotAssignment:
         }
         with (
             patch("invoke_copilot_assignment.assert_gh_authenticated"),
-            patch("invoke_copilot_assignment.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch(
+                "invoke_copilot_assignment.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
             patch("invoke_copilot_assignment._load_synthesis_config", return_value=config),
             patch(
                 "subprocess.run",
