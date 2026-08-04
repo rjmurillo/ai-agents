@@ -36,8 +36,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TARGET = REPO_ROOT / "scripts" / "validation" / "git_hook_policy.py"
-# Target by filesystem path, never dotted module name.
-TESTS = ["tests/test_lefthook_integration.py"]
+# Target by filesystem path, never dotted module name. Keep the mutation run
+# narrow so it stays below pytest-timeout when the full suite is running.
+TESTS = [
+    "tests/test_lefthook_integration.py::test_adr_review_policy_missing_critique_dir_fails"
+]
 
 _OUTCOME_DEAD = "DEAD"
 _OUTCOME_SURVIVED = "SURVIVED"

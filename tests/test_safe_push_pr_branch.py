@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, this suite exercises one CLI contract end to end.
 """Tests for ``.github/scripts/safe_push_pr_branch.py`` (issue #3412)."""
 
 from __future__ import annotations

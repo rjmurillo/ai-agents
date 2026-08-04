@@ -1,5 +1,7 @@
 # Autonomous PR Monitoring Prompt
 
+<!-- # taste-lint: ignore file-size, prompt is a single copyable operating bundle. -->
+
 Use this prompt to start an autonomous monitoring session that continuously monitors PRs and proactively fixes issues.
 
 ## Prompt
