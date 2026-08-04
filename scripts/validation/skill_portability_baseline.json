@@ -77,7 +77,7 @@
     "skills/quality-grades/scripts/grade_domains.py": 5,
     "skills/retrospective/scripts/extract_evidence.py": 3,
     "skills/retrospective/scripts/run_retrospective.py": 3,
-    "skills/session-end/scripts/complete_session_log.py": 2,
+    "skills/session-end/scripts/complete_session_log.py": 1,
     "skills/session-end/scripts/rework_warning.py": 2,
     "skills/session-end/tests/test_complete_session_log.py": 2,
     "skills/session-init/scripts/new_session_log.py": 2,

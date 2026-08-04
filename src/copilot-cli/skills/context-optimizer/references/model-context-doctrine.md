@@ -210,6 +210,8 @@ always-on file.
 | `unified-software-engineering.md` | 8,242 | code files only | 3 positive, 1 negative | yes |
 
 That leaves 14,152 always-on bytes of book-derived rule, 20.1% of the
+That leaves 14,152 always-on bytes of book-derived rule, 20.1% of the
+70,510-byte always-on corpus measured at source. `code-quality` and
 70,510-byte always-on corpus measured at source. `code-quality` and
 `pragmatic-programmer` had no scenario file at all until PR #4017 added one to
 each on 2026-08-03, which is how they grew unchallenged for four months.
@@ -249,11 +251,12 @@ Name the tree with the number, because the two mirror trees disagree.
 `keepInternalGlobsFor`, so the internal-glob filter is disabled there and the
 internal-only fallback cannot fire. It fires only for the plugin tree. At
 `0c75045d6` that leaves `.github/instructions` at 8 rules and 70,375 bytes while
-`src/copilot-cli/instructions` carries 11 rules and 77,907 bytes: `governance`,
-`secret-redaction`, and `session-logs` are narrowly scoped here and always-on in
-the shipped plugin. Every figure in this document is the `.github/instructions`
-number. A vendor install pays 7,532 bytes a turn that this repository never
-measures, on three rules whose globs point at `.agents/` paths the installing
+`src/copilot-cli/instructions` carries 12 rules and 82,299 bytes: `governance`,
+`push-lock`, `secret-redaction`, and `session-logs` are narrowly scoped here and
+always-on in the shipped plugin. Every figure in this document is the
+`.github/instructions` number. A vendor install pays 11,924 bytes a turn that
+this repository never measures, on four rules whose globs point at `.agents/`
+paths the installing
 repository does not have.
 
 They are fenced. The `software-engineering-library` skill contains an explicit
