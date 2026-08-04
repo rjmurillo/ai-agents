@@ -94,6 +94,7 @@ of joining `.git` yourself, and the worktree, submodule, and
 family: the stash stack also lives in the common directory, so a concurrent
 agent's `stash push` and your `stash pop` share one stack.
 
-`.serena/memories/decision-shallow-fetch-kills-merge-base-in-ci.md` covers the
-CI-side consequence: a graft makes `git merge-base` return nothing for the rest
-of the job, which fails one ratchet closed and another open.
+A graft has a CI-side consequence too: it makes `git merge-base` return nothing
+for the rest of the job, which fails one ratchet closed and another open. That
+is documented in `decision-shallow-fetch-kills-merge-base-in-ci.md`, which ships
+with PR #4572 and is not on `main` until that lands.

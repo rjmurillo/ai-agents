@@ -57,9 +57,10 @@ carries a placeholder count until it runs.
 
 ## What it cost
 
-Commit `478d3a906` shipped `decision-shallow-fetch-kills-merge-base-in-ci.md`
-with no index row. Every validator was green. It was caught by reading the diff,
-not by any gate, and needed a follow-up commit.
+Commit `478d3a906` shipped a memory file with no index row. Every validator was
+green. It was caught by reading the diff, not by any gate, and needed a
+follow-up commit. (That file, `decision-shallow-fetch-kills-merge-base-in-ci.md`,
+ships with PR #4572 and is not on `main` until that lands.)
 
 ## Related
 

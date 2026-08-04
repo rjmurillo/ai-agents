@@ -7251,19 +7251,26 @@ def test_graft_check_fails_closed_on_git_and_read_errors(
 
 def _git_fake(
     shallow_path: str,
-    shallow: str = "true\n",
+    shallow: subprocess.CompletedProcess[str] | None = None,
 ) -> Callable[..., subprocess.CompletedProcess[str]]:
     """An arg-aware `_run_git` stand-in.
 
     The arg-blind `lambda *_args: _completed(0, "true\\n")` these tests used
     is what let issue #4576 through: it answered every query with the shallow
-    verdict, so a second query could not be observed to be wrong.
+    verdict, so a second query could not be observed to be wrong. Worse, it
+    fed that verdict to the path lookup as well, so `_shallow_file` resolved
+    `repo_root / "true"` and the tests passed only because `is_file()`
+    tolerates a path that does not exist.
+
+    `shallow_path` answers `rev-parse --git-path shallow`; `shallow` answers
+    `rev-parse --is-shallow-repository` and defaults to a shallow verdict.
     """
+    verdict = _completed(0, "true\n") if shallow is None else shallow
 
     def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
         if "shallow" in args:
             return _completed(0, f"{shallow_path}\n")
-        return _completed(0, shallow)
+        return verdict
 
     return fake
 
@@ -7283,7 +7290,7 @@ def test_history_integrity_rejects_shallow_or_unknown_state(
     result: subprocess.CompletedProcess[str],
     expected: int,
 ) -> None:
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: result)
+    monkeypatch.setattr(policy, "_run_git", _git_fake(".git/shallow", shallow=result))
     monkeypatch.setattr(policy, "_check_no_grafts", lambda _root: 0)
 
     assert policy._check_history_integrity(tmp_path) == expected
@@ -7295,11 +7302,7 @@ def test_history_integrity_shallow_message_names_remedy(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Shallow clone error must name the fix command (issue #4086)."""
-    monkeypatch.setattr(
-        policy,
-        "_run_git",
-        lambda *_args: _completed(0, "true\n"),
-    )
+    monkeypatch.setattr(policy, "_run_git", _git_fake(".git/shallow"))
 
     assert policy._check_history_integrity(tmp_path) == 2
 
