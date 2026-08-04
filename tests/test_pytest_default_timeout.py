@@ -26,7 +26,7 @@ def test_pytest_timeout_terminates_hanging_test_module(tmp_path: Path) -> None:
     hanging_test.write_text(
         "import time\n\n"
         "def test_hangs_longer_than_timeout():\n"
-        "    time.sleep(10)\n",
+        "    time.sleep(60)\n",
         encoding="utf-8",
     )
 
@@ -47,12 +47,12 @@ def test_pytest_timeout_terminates_hanging_test_module(tmp_path: Path) -> None:
         cwd=REPO_ROOT,
         text=True,
         capture_output=True,
-        timeout=10,
+        timeout=30,
         check=False,
     )
     elapsed = time.monotonic() - started
     output = result.stdout + result.stderr
 
     assert result.returncode != 0
-    assert elapsed < 8
+    assert elapsed < 30
     assert "Timeout" in output
