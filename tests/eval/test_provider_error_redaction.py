@@ -15,8 +15,8 @@ EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 ORIGINAL_SYS_PATH = sys.path.copy()
 sys.path.insert(0, str(EVAL_DIR))
 try:
-    import _anthropic_api  # noqa: E402
-    import _providers  # noqa: E402
+    import _anthropic_api
+    import _providers
 finally:
     sys.path[:] = ORIGINAL_SYS_PATH
 

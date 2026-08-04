@@ -14,7 +14,7 @@ EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 ORIGINAL_SYS_PATH = sys.path.copy()
 sys.path.insert(0, str(EVAL_DIR))
 try:
-    from _copilot_cli_acp import run_acp_completion  # noqa: E402
+    from _copilot_cli_acp import run_acp_completion
 finally:
     sys.path[:] = ORIGINAL_SYS_PATH
 

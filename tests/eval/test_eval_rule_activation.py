@@ -35,7 +35,7 @@ _path_added = str(EVAL_DIR) not in sys.path
 if _path_added:
     sys.path.insert(0, str(EVAL_DIR))
 try:
-    import _copilot_cli as copilot_mod  # noqa: E402
+    import _copilot_cli as copilot_mod
 
     _spec = importlib.util.spec_from_file_location(
         "eval_rule_activation", EVAL_DIR / "eval-rule-activation.py"
