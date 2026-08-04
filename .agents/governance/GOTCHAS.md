@@ -598,3 +598,32 @@ Notes:
 
 Issue #4283 documents the measured 28-waiter convoy produced by the global lock
 and the first-principles analysis of why the race is per-ref.
+
+## Deleting code turns main red on the taste-count baseline
+
+The taste ratchet script passes on `count <= baseline`, so removing a violation
+looks free. A separate test does not:
+`tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree`
+asserts `count == baseline` exactly, because a baseline above the real count is
+dead allowance that lets violations creep back in unnoticed.
+
+The consequence is counter-intuitive and it has already landed on main twice.
+Anyone who deletes code, or adds a `taste-lint: ignore` directive, lowers the
+count and must lower `scripts/ci/taste_count_baseline.txt` in the same commit.
+Nobody expects a deletion to require a lint-baseline edit, and the pre-push
+ratchet stays green while it happens, so the failure surfaces only in the full
+suite after the merge.
+
+Measured on this repository:
+
+| Commit | Count | Baseline | Exact-match test |
+|---|---|---|---|
+| `a355a9e27^` | 594 | 595 | red |
+| `a355a9e27` (#4428, added an ignore and lowered the baseline) | 593 | 593 | green |
+| `ad61b51c4` (#4101, deleted a recovery path) | 592 | 593 | red |
+
+Check before you push with
+`uv run --frozen python scripts/ci/taste_count_ratchet.py`. It prints
+`OK (count == baseline N)` when the two agree and `OK. N violations <= baseline M`
+when they do not, and only the first form passes the test. Raising a baseline to
+clear a blocked push is still prohibited; this is the opposite direction.

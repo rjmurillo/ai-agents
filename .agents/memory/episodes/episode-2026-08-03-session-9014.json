@@ -21,7 +21,8 @@
         "e008",
         "e009",
         "e010",
-        "e011"
+        "e011",
+        "e012"
       ],
       "leads_to": [
         "e002"
@@ -132,6 +133,17 @@
       "timestamp": "2026-08-03T00:00:00+00:00",
       "type": "milestone",
       "content": "Investigated an unattributed strip of the GOTCHAS.md taste-lint ignore",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main after verifying the real remote tip, then found and fixed a tenth failure on main",
       "caused_by": [],
       "leads_to": [
         "e001"

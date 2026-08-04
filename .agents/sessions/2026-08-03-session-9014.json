@@ -161,6 +161,15 @@
         ".agents/governance/GOTCHAS.md",
         ".serena/memories/ci/ci-count-ratchet-never-names-the-offending-file.md"
       ]
+    },
+    {
+      "step": 7,
+      "action": "Merged origin/main after verifying the real remote tip, then found and fixed a tenth failure on main",
+      "result": "Two worktrees disagreed on how far origin/main had advanced, so settled it with git ls-remote rather than a stale tracking ref: four commits, not two. Main had independently fixed three of the nine targets. Resolved four conflicts on the merits and dropped two of my commits as redundant. The merged full suite then failed test_the_shipped_baseline_matches_the_tracked_tree at 592 == 593. Reproduced it on pristine ad61b51c4 before touching anything: main is red here too. Traced it across three commits (a355a9e27^ 594/595 red, a355a9e27 593/593 green, ad61b51c4 592/593 red). PR #4101 deleted a recovery path and left the baseline one above the tree. Lowered it to 592, which is tightening, and logged the trap in GOTCHAS.md.",
+      "filesChanged": [
+        "scripts/ci/taste_count_baseline.txt",
+        ".agents/governance/GOTCHAS.md"
+      ]
     }
   ],
   "endingCommit": "3d3660f23",
