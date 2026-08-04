@@ -35,7 +35,7 @@ from scripts.validation.portability_floor import (
     Sections,
     read_previous_sections,
 )
-from scripts.validation.portability_git import run_git
+from scripts.validation.portability_git import GIT_TIMEOUT_RETURN_CODE, run_git
 
 
 def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
@@ -253,6 +253,14 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
     all, runs inside a checkout where this resolves and the guard is live.
     """
     toplevel = run_git(repo_root, "rev-parse", "--show-toplevel")
+    if toplevel is not None and toplevel.returncode == GIT_TIMEOUT_RETURN_CODE:
+        print(
+            f"Refusing to trust the baseline {baseline_path}: "
+            f"{toplevel.stderr.decode(errors='replace')}. "
+            "The guard cannot confirm that the baseline is diffable.",
+            file=sys.stderr,
+        )
+        return True
     if toplevel is None or toplevel.returncode != 0:
         # Two distinct states collapse into a non-zero exit from run_git:
         #

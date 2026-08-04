@@ -23,15 +23,42 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.validation import portability_floor
+from scripts.validation import portability_floor, portability_git
 from scripts.validation.portability_floor import read_previous_sections
-from scripts.validation.portability_git import tree_entries, was_recorded
+from scripts.validation.portability_git import (
+    GIT_TIMEOUT_RETURN_CODE,
+    GIT_TIMEOUT_SECONDS,
+    run_git,
+    tree_entries,
+    was_recorded,
+)
 
 pytestmark = pytest.mark.unit
 
 HIGH = {"files": {"victim": 5}}
 LOW = {"files": {"victim": 0}}
 REL = Path("scripts/validation/baseline.json")
+
+
+def test_run_git_bounds_and_reports_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured_timeout: list[float] = []
+
+    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        timeout = kwargs["timeout"]
+        assert isinstance(timeout, float)
+        captured_timeout.append(timeout)
+        raise subprocess.TimeoutExpired(args[0], timeout)
+
+    monkeypatch.setattr(portability_git.subprocess, "run", time_out)
+
+    result = run_git(tmp_path, "status")
+
+    assert result is not None
+    assert result.returncode == GIT_TIMEOUT_RETURN_CODE
+    assert result.stderr == b"git command timed out after 30s"
+    assert captured_timeout == [GIT_TIMEOUT_SECONDS]
 
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:

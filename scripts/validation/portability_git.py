@@ -31,6 +31,9 @@ than the JSON the checker wrote. Reading the floor from one file and the
 replacement from another is the whole failure this module exists to prevent.
 """
 
+GIT_TIMEOUT_SECONDS = 30.0
+GIT_TIMEOUT_RETURN_CODE = 124
+
 
 def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
     """Run one git command with every local override stripped out.
@@ -51,7 +54,12 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] |
             capture_output=True,
             env=env,
             check=False,
+            timeout=GIT_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, bytes) else b""
+        stderr = f"git command timed out after {GIT_TIMEOUT_SECONDS:g}s".encode()
+        return subprocess.CompletedProcess(exc.cmd, GIT_TIMEOUT_RETURN_CODE, stdout, stderr)
     except OSError:
         return None
 

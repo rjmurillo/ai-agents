@@ -434,6 +434,25 @@ class TestEnvironmentOnlyWorktreeIsNotVacuouslyAllowed:
             "absence must be proven by the tool answering, not by the tool being silenced."
         )
 
+    def test_guard_refuses_when_repository_probe_times_out(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}\n')
+        timed_out = subprocess.CompletedProcess(
+            ["git", "rev-parse"],
+            portability_baseline.GIT_TIMEOUT_RETURN_CODE,
+            b"",
+            b"git command timed out after 30s",
+        )
+        monkeypatch.setattr(portability_baseline, "run_git", lambda *_args: timed_out)
+
+        assert refuse_undiffable_baseline(tmp_path, baseline) is True
+        assert "git command timed out after 30s" in capsys.readouterr().err
+
     def test_guard_allows_when_no_git_pointer_vars_are_set_and_no_repo_exists(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
