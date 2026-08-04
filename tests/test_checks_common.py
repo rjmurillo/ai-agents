@@ -14,6 +14,7 @@ from typing import Any
 from unittest.mock import patch
 
 from scripts.validation.checks_common import (
+    _gh_base_ref,
     _refresh_remote_base,
     _resolve_branch_base_ref,
     _run_build_script_gate,
@@ -791,90 +792,139 @@ class TestResolveBranchBaseRefSelfTracking:
 
 
 # ---------------------------------------------------------------------------
-# _gh_base_ref  (issue #4382: retry with --head when local name differs)
+# _gh_base_ref -- local-branch-name differs from PR head (#4382)
 # ---------------------------------------------------------------------------
 
 
+class TestGhBaseRefLocalBranchDiffersFromPrHead:
+    """_gh_base_ref resolves the base even when local branch name != PR head.
 
-
-# ---------------------------------------------------------------------------
-# _gh_base_ref  (issue #4382: retry with --head when local name differs)
-# ---------------------------------------------------------------------------
-
-
-class TestGhBaseRef:
-    """Tests for the PR base-ref lookup with upstream fallback (issue #4382).
-
-    _gh_base_ref calls _run_subprocess, not subprocess.run directly, so we
-    patch the wrapper at its definition site.
+    Issue #4382: inside a worktree where the local branch is ``pr-4294``
+    but the PR head is ``fix/gc-report-time-budget``, ``gh pr view`` (no
+    --head arg) fails because the local name is not the PR name.  The fix
+    retries via the upstream tracking ref stripped of the ``origin/`` prefix.
     """
 
-    def _make_run(self, calls: list[tuple[int, str]]):  # noqa: ANN201
-        """Return a _run_subprocess stand-in that pops responses from the queue."""
-        responses = iter(calls)
+    def _make_run_subprocess(
+        self, responses: dict[tuple[str, ...], tuple[int, str, str]]
+    ):
+        """Return a mock _run_subprocess that replays canned responses."""
 
-        def fake(args, timeout=5, cwd=None, env=None):  # noqa: ANN001,ANN201
-            rc, stdout = next(responses)
-            return rc, stdout, ""
+        def _run(cmd, **kwargs):  # noqa: ARG001
+            key = tuple(cmd)
+            for pattern, result in responses.items():
+                if all(p in key for p in pattern):
+                    return result
+            return (1, "", "not found")
 
-        return fake
+        return _run
 
-    def _call(self, calls: list[tuple[int, str]]) -> str | None:
-        from scripts.validation.checks_common import _gh_base_ref
-
-        fake = self._make_run(calls)
+    def test_succeeds_on_first_attempt_when_branch_matches_pr(
+        self, tmp_path: Path
+    ) -> None:
+        """Happy path: local branch name matches the PR, first gh call succeeds."""
+        responses: dict[tuple[str, ...], tuple[int, str, str]] = {
+            ("gh", "pr", "view", "--json", "baseRefName"): (0, "main\n", ""),
+        }
         with (
-            patch("shutil.which", return_value="/usr/bin/gh"),
-            patch("scripts.validation.checks_common._run_subprocess", side_effect=fake),
+            patch("scripts.validation.checks_common.shutil.which", return_value="/usr/bin/gh"),
+            patch(
+                "scripts.validation.checks_common._run_subprocess",
+                side_effect=self._make_run_subprocess(responses),
+            ),
         ):
-            return _gh_base_ref(Path("/repo"))
+            result = _gh_base_ref(tmp_path)
+        assert result == "origin/main"
 
-    def test_direct_lookup_succeeds(self) -> None:
-        """Local branch matches PR head: first gh call returns base."""
-        assert self._call([(0, "main\n")]) == "origin/main"
+    def test_falls_back_to_upstream_when_first_gh_call_fails(
+        self, tmp_path: Path
+    ) -> None:
+        """When gh pr view fails, retries with the upstream head branch."""
+        calls: list[list[str]] = []
 
-    def test_direct_lookup_fails_then_upstream_fallback_succeeds(self) -> None:
-        """Local branch is pr-4294, PR head is fix/gc-report-time-budget.
-        gh pr view fails, git rev-parse returns the upstream branch name,
-        gh pr view --head resolves the base. Fixes issue #4382.
-        """
-        assert self._call([
-            (1, ""),                   # gh pr view (local name) -> fail
-            (0, "origin/fix/foo\n"),  # git rev-parse @{u} -> upstream
-            (0, "main\n"),            # gh pr view --head fix/foo -> base
-        ]) == "origin/main"
+        def _run(cmd, **kwargs):  # noqa: ARG001
+            calls.append(list(cmd))
+            if cmd[:3] == ["gh", "pr", "view"] and len(cmd) == 7:
+                return (1, "", "no PR for current branch")
+            if "rev-parse" in cmd:
+                return (0, "pr-4294\n", "")
+            if "config" in cmd:
+                return (0, "refs/heads/fix/some-feature\n", "")
+            if cmd[:4] == ["gh", "pr", "view", "fix/some-feature"]:
+                return (0, "main\n", "")
+            return (1, "", "unexpected")
 
-    def test_gh_not_on_path_returns_none(self) -> None:
-        from scripts.validation.checks_common import _gh_base_ref
+        with (
+            patch("scripts.validation.checks_common.shutil.which", return_value="/usr/bin/gh"),
+            patch("scripts.validation.checks_common._run_subprocess", side_effect=_run),
+        ):
+            result = _gh_base_ref(tmp_path)
+        assert result == "origin/main"
+        assert result == "origin/main"
+        head_calls = [c for c in calls if c[:4] == ["gh", "pr", "view", "fix/some-feature"]]
+        assert head_calls, "expected a fallback positional head call"
 
-        with patch("shutil.which", return_value=None):
-            assert _gh_base_ref(Path("/repo")) is None
+    def test_returns_none_when_both_gh_calls_fail(self, tmp_path: Path) -> None:
+        """Returns None when neither gh attempt finds a PR."""
 
-    def test_upstream_lookup_also_fails_returns_none(self) -> None:
-        assert self._call([
-            (1, ""),  # gh pr view -> fail
-            (1, ""),  # git rev-parse @{u} -> fail
-        ]) is None
+        def _run(cmd, **kwargs):  # noqa: ARG001
+            if "rev-parse" in cmd and "@{u}" in cmd:
+                return (0, "origin/fix/some-feature\n", "")
+            return (1, "", "no PR found")
 
-    def test_upstream_lookup_succeeds_but_head_retry_fails(self) -> None:
-        assert self._call([
-            (1, ""),                   # gh pr view -> fail
-            (0, "origin/fix/foo\n"),  # git rev-parse @{u} -> success
-            (1, ""),                  # gh pr view --head -> fail
-        ]) is None
+        with (
+            patch("scripts.validation.checks_common.shutil.which", return_value="/usr/bin/gh"),
+            patch("scripts.validation.checks_common._run_subprocess", side_effect=_run),
+        ):
+            result = _gh_base_ref(tmp_path)
 
-    def test_empty_stdout_from_direct_lookup_tries_fallback(self) -> None:
-        """gh returns exit 0 but empty stdout: fall through to upstream retry."""
-        assert self._call([
-            (0, ""),                  # gh pr view -> empty
-            (0, "origin/fix/bar\n"), # git rev-parse @{u}
-            (0, "main\n"),           # gh pr view --head fix/bar
-        ]) == "origin/main"
+        assert result is None
 
-    def test_cosmetic_upstream_without_origin_prefix(self) -> None:
-        """Cosmetic: upstream not prefixed with origin/ is passed as-is to --head."""
-        assert self._call([
-            (1, ""),           # gh pr view -> fail
-            (0, "fix/bar\n"), # git rev-parse @{u} (no origin/ prefix)
-            (0, "main\n"),    # gh pr view --head fix/bar
-        ]) == "origin/main"
+    def test_returns_none_when_no_upstream_configured(self, tmp_path: Path) -> None:
+        """Returns None when there is no upstream and both gh calls fail."""
+
+        def _run(cmd, **kwargs):  # noqa: ARG001
+            if "rev-parse" in cmd:
+                return (1, "", "no upstream")
+            return (1, "", "no PR found")
+
+        with (
+            patch("scripts.validation.checks_common.shutil.which", return_value="/usr/bin/gh"),
+            patch("scripts.validation.checks_common._run_subprocess", side_effect=_run),
+        ):
+            result = _gh_base_ref(tmp_path)
+
+        assert result is None
+
+    def test_returns_none_when_gh_not_on_path(self, tmp_path: Path) -> None:
+        with patch("scripts.validation.checks_common.shutil.which", return_value=None):
+            result = _gh_base_ref(tmp_path)
+        assert result is None
+
+    def test_strips_origin_prefix_from_upstream_correctly(
+        self, tmp_path: Path
+    ) -> None:
+        """Ensures the tracked ref becomes a positional head selector."""
+        head_arg_seen: list[str] = []
+
+        def _run(cmd, **kwargs):  # noqa: ARG001
+            if cmd[:3] == ["gh", "pr", "view"] and len(cmd) == 7:
+                return (1, "", "fail")
+            if "rev-parse" in cmd:
+                return (0, "pr-4294\n", "")
+            if "config" in cmd:
+                return (0, "refs/heads/fix/has/slashes\n", "")
+            if cmd[:4] == ["gh", "pr", "view", "fix/has/slashes"]:
+                head_arg_seen.append(cmd[3])
+                return (0, "develop\n", "")
+            return (1, "", "unexpected")
+
+        with (
+            patch("scripts.validation.checks_common.shutil.which", return_value="/usr/bin/gh"),
+            patch("scripts.validation.checks_common._run_subprocess", side_effect=_run),
+        ):
+            result = _gh_base_ref(tmp_path)
+
+        assert result == "origin/develop"
+        assert head_arg_seen == ["fix/has/slashes"]
+
