@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-04-session-9034",
+  "session": "2026-08-04-session-9034",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Persist the truncated-window retrospective and its two Serena learnings",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 10
+  },
+  "lessons": []
+}

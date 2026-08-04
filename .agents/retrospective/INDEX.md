@@ -15,3 +15,4 @@
 | 2026-07-25 | [2026-07-25-adr057-normalization.md](2026-07-25-adr057-normalization.md) | Auto-generated session retro |
 | 2026-07-26 | [2026-07-26-auto-retro.md](2026-07-26-auto-retro.md) | Auto-generated session retro |
 | 2026-08-04 | [2026-08-04-twenty-nine-green-prs-merged-into-a-red-main.md](2026-08-04-twenty-nine-green-prs-merged-into-a-red-main.md) | Batch merge of 29 individually green PRs left three required jobs red on main; per-PR green does not compose |
+| 2026-08-04 | [2026-08-04-truncated-window-reductions.md](2026-08-04-truncated-window-reductions.md) | Three instrument failures shared one shape: a reduction over an incomplete window that answered plausibly and announced no loss |
