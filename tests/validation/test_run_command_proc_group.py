@@ -23,7 +23,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from scripts.validation import git_hook_policy as policy  # noqa: E402
+from scripts.validation import git_hook_policy as policy
 
 # ---------------------------------------------------------------------------
 # Positive: normal command executes and returns output
