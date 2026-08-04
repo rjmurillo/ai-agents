@@ -1,0 +1,92 @@
+{
+  "id": "episode-2026-08-01-session-4041-bound-orchestrator-concurrency-waves-across",
+  "session": "2026-08-01-session-4041-bound-orchestrator-concurrency-waves-across",
+  "timestamp": "2026-08-01T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Bound orchestrator concurrency waves across all six agent surfaces and close the Copilot-side absence of any delegation budget introduced by PR 1715",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Locate the orchestrator wave-width gap",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-bound-orchestrator-concurrency-waves-across"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Identify the correct edit target",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-bound-orchestrator-concurrency-waves-across"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measure the pre-existing divergence",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-bound-orchestrator-concurrency-waves-across"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Apply the change across all six surfaces",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-bound-orchestrator-concurrency-waves-across"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-bound-orchestrator-concurrency-waves-across"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Guard against a false defect report",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-bound-orchestrator-concurrency-waves-across"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Act on adversarial review of PR #4136",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-bound-orchestrator-concurrency-waves-across"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct the memory store that made the wrong-tree edit likely",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-01-session-4041-bound-orchestrator-concurrency-waves-across"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 12,
+    "files_changed": 7
+  },
+  "lessons": []
+}

@@ -52,6 +52,7 @@ from check_doc_interpreter_portability import (  # noqa: E402, F401
     validate_doc_interpreter_portability,
 )
 from check_nested_tests import validate_no_nested_tests
+from check_subprocess_encoding import validate_subprocess_encoding  # noqa: F401
 from check_test_tree_writes import validate_test_tree_writes
 from check_unreachable_code import validate_unreachable_code
 from checks_common import (  # noqa: E402, F401

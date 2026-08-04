@@ -198,6 +198,147 @@ def test_generators_exit_zero_and_leave_the_mirrors_matching_their_sources() -> 
     assert SKILL_MIRROR_PATH.read_bytes() == SKILL_PATH.read_bytes()
 
 
+import json  # noqa: E402 -- placed here to group with the AC3/4/5 block it serves
+
+# ---------------------------------------------------------------------------
+# AC 3/4/5 -- hook-redirect vs. manifest contract (Issue #4229)
+# ---------------------------------------------------------------------------
+# The context-mode plugin installs a PreToolUse hook that intercepts WebFetch
+# and names replacement tools in its denial reason.  If those tools are absent
+# from the command's allowed-tools the agent lands in a dead end.
+#
+# These tests exercise that contract without requiring the plugin to be
+# installed at test time: they parse the hooks.json manifest the plugin
+# installs and compare the tool names it would inject against the research
+# command's allowed-tools line.  When the plugin is absent (e.g. on CI
+# runners) the tests skip gracefully.
+# ---------------------------------------------------------------------------
+
+_CONTEXT_MODE_HOOKS_ROOT = (
+    Path.home()
+    / ".claude"
+    / "plugins"
+    / "cache"
+    / "context-mode"
+    / "context-mode"
+)
+
+# Hard-coded tool base names the context-mode hook names when it denies
+# WebFetch.  Derived from routing.mjs line 879 ("ctx_fetch_and_index",
+# "ctx_execute").  Both harness-specific prefixes are checked:
+#   Claude Code:   mcp__plugin_context-mode_context-mode__<base>
+#   Copilot CLI:   context-mode_<base>
+_CTX_MODE_TOOL_BASES = ("ctx_fetch_and_index", "ctx_execute", "ctx_search")
+
+
+def _context_mode_tool_patterns() -> list[str]:
+    """Return harness-agnostic glob patterns that match context-mode tools.
+
+    These are the tool name patterns an allowed-tools line would need in order
+    to permit the context-mode replacements.  They are intentionally NOT in
+    the research command's allowed-tools -- the command explicitly forbids
+    calling tools named in a denial reason that the agent does not already
+    hold.
+    """
+    return [
+        "mcp__plugin_context-mode_context-mode__*",  # Claude Code prefix
+        "context-mode_*",  # Copilot CLI prefix
+    ]
+
+
+def _plugin_installed() -> bool:
+    return _context_mode_hooks_json() is not None
+
+
+def _context_mode_hooks_json() -> Path | None:
+    manifests = sorted(_CONTEXT_MODE_HOOKS_ROOT.glob("*/hooks/hooks.json"), reverse=True)
+    return manifests[0] if manifests else None
+
+
+def test_context_mode_plugin_hooks_json_contains_webfetch_matcher() -> None:
+    """AC3: the hook manifest registers a PreToolUse handler for WebFetch.
+
+    Skips when the plugin is absent so CI stays green without the local
+    install.
+    """
+    if not _plugin_installed():
+        pytest.skip("context-mode plugin not installed")
+
+    hooks_path = _context_mode_hooks_json()
+    assert hooks_path is not None
+    hooks = json.loads(hooks_path.read_text(encoding="utf-8"))
+    matchers = [
+        h.get("matcher", "")
+        for h in hooks.get("hooks", {}).get("PreToolUse", [])
+    ]
+    assert any("WebFetch" in m for m in matchers), (
+        "hooks.json has no PreToolUse entry matching WebFetch; "
+        "the hook that triggers the reroute defect was removed or renamed"
+    )
+
+
+def test_context_mode_redirect_targets_absent_from_research_allowed_tools(
+    research_text: str,
+) -> None:
+    """AC4: redirect targets the hook names are NOT in the research allowed-tools.
+
+    The command text already guards against calling tools named in a denial
+    ('Never call a tool the denial names unless it is already in this
+    command's allowed-tools').  This test makes that invariant machine-
+    checkable: if a future edit accidentally adds a context-mode pattern to
+    allowed-tools, this test will catch the contradiction and force an explicit
+    decision.
+
+    The test also fails if the allowed-tools line disappears entirely, because
+    the guard only works when an explicit tool list is present.
+    """
+    allowed = _allowed_tools_line(research_text)
+    for pattern in _context_mode_tool_patterns():
+        assert pattern not in allowed, (
+            f"context-mode tool pattern {pattern!r} found in allowed-tools; "
+            "the command would now permit calling hook-injected replacements "
+            "directly, contradicting the 'never call a denial-named tool' guard. "
+            "Either remove the pattern or remove the guard -- not both."
+        )
+
+
+def test_research_command_has_recovery_path_when_webfetch_denied(
+    research_text: str,
+) -> None:
+    """AC5: command text names a recovery path when WebFetch is denied.
+
+    Verifies that the instruction text explicitly:
+    - acknowledges the denial is a capability signal, not an injection
+    - names a fallback for github.com URLs (github scripts)
+    - names a fallback for other URLs (WebSearch)
+    - forbids calling tools named by the denial that are not in allowed-tools
+    """
+    guard = "Never call a tool the denial names unless it is already in this command"
+    assert guard in research_text, (
+        "recovery guard missing: 'Never call a tool the denial names unless it is already "
+        "in this command's allowed-tools'"
+    )
+    assert "switch to the github script path above for github.com URLs" in research_text, (
+        "recovery path missing: github script fallback for github.com URLs"
+    )
+    assert "WebSearch" in research_text, "recovery path missing: WebSearch for non-github URLs"
+
+
+def test_synthetic_manifest_without_recovery_fails_ac5_guard() -> None:
+    """Negative control: a manifest that lacks the recovery guard fails AC5.
+
+    Constructs the minimal bad case (allowed-tools present but no recovery
+    instruction) and verifies the AC5 assertion catches it.
+    """
+    guard = "Never call a tool the denial names unless it is already in this command"
+    bad_text = "allowed-tools: WebSearch, WebFetch, Read\n\nSome other text."
+    with pytest.raises(AssertionError, match="recovery guard missing"):
+        assert guard in bad_text, (
+            "recovery guard missing: 'Never call a tool the denial names unless it is already "
+            "in this command's allowed-tools'"
+        )
+
+
 def test_a_bad_config_path_makes_the_generator_exit_nonzero() -> None:
     """Negative control: the exit-code assertion above can actually fail."""
     result = subprocess.run(
