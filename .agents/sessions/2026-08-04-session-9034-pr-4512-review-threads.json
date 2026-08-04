@@ -129,7 +129,7 @@
       "detail": "uv run --frozen pytest tests/ci/test_mutation_harness_ciperms.py -x passed with 49 tests. uv run --frozen ruff check scripts/ci/mutation_harness_ciperms.py tests/ci/test_mutation_harness_ciperms.py passed after import sorting."
     }
   ],
-  "endingCommit": "c23f462e3",
+  "endingCommit": "32bd25765",
   "nextSteps": [
     "Run the ruff ratchet pre-flight against origin/main before push.",
     "Push asynchronously, then verify origin branch SHA equals local HEAD.",
