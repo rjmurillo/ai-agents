@@ -1,7 +1,11 @@
 # Retrospective Index
 
-> Auto-maintained by the auto-retrospective Stop hook (Issue #1703).
-> Manual entries are welcome; the hook only appends new rows.
+> Maintained by hand. The auto-retrospective Stop hook that once appended rows
+> (Issue #1703) was deleted in #3349, so nothing writes here automatically.
+>
+> This index is a curated subset, not a census: it lists 11 of the 140 files in
+> this directory. Do not read an absent retrospective as an absent incident. To
+> search the whole corpus, use `grep -rli "<term>" .agents/retrospective/`.
 
 | Date | File | Summary |
 |------|------|---------|
