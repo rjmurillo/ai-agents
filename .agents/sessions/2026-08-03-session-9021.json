@@ -3,9 +3,9 @@
   "session": {
     "number": 9021,
     "date": "2026-08-03",
-    "branch": "docs/eureka-merge-main-and-generator-order",
-    "startingCommit": "175bacf7dd",
-    "objective": "Record three measured gate behaviors in GOTCHAS.md: a count ratchet script can report OK on a tree its own test rejects, merging main clears an inherited red, and a squash-merged commit's file count is not evidence about the local commit gate."
+    "branch": "fix/red-main-ratchet-and-encoding",
+    "startingCommit": "b2729ee54",
+    "objective": "Repair red main: the taste count ratchet regression from a scalar-baseline merge race, and a subprocess encoding violation that blocks pre_pr on every branch"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -17,7 +17,7 @@
       "serenaInstructions": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena MCP unavailable; read the repository instruction blocks and .claude/rules/ directly."
+        "Evidence": "Serena MCP unavailable; read the committed memory files directly."
       },
       "handoffRead": {
         "level": "MUST",
@@ -32,49 +32,39 @@
       "skillScriptsListed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Listed .claude/skills/ before invoking the reflect skill for this capture."
+        "Evidence": "Read .claude/skills/taste-lints/scripts/taste_lints.py before relying on the suppression syntax rather than copying an example."
       },
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Used build/scripts/generate_rules.py for the instruction mirrors rather than hand-editing generated trees."
+        "Evidence": "Read lefthook.yml lines 405 to 430 for the authoritative ratchet invocation instead of guessing a CLI flag."
       },
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read .github/instructions/ci-scripts.instructions.md MUST NOT 4 before writing the baseline guidance, and .agents/governance/GOTCHAS.md existing ratchet sections before adding a new one."
+        "Evidence": "Read PROJECT-CONSTRAINTS.md and AGENTS.md boundaries via the injected repository instructions; confirmed ci-scripts.instructions.md MUST NOT 4 forbids raising a ratchet baseline."
       },
       "memoriesLoaded": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read the existing GOTCHAS ratchet entries at lines 246 and 256 so the new section corrects the documented check rather than duplicating it."
+        "Evidence": "Loaded the count-ratchet and red-main memories that record the earlier PR 4272 outage of the same class."
       },
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "docs/eureka-merge-main-and-generator-order"
+        "Evidence": "fix/red-main-ratchet-and-encoding"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On docs/eureka-merge-main-and-generator-order"
-      },
-      "gitStatusVerified": {
-        "level": "SHOULD",
-        "Complete": true,
-        "Evidence": "git status inspected before each commit; no git add -A used."
-      },
-      "startingCommitNoted": {
-        "level": "SHOULD",
-        "Complete": true,
-        "Evidence": "175bacf7ddf0cf1d57959762dec3943ee7f68691"
+        "Evidence": "On fix/red-main-ratchet-and-encoding, branched from origin/main at b2729ee54."
       }
     },
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All sessionStart and sessionEnd MUST items carry evidence above."
+        "Evidence": "All sessionStart and sessionEnd MUST items carry evidence."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -82,24 +72,24 @@
         "Evidence": "HANDOFF.md absent from git diff origin/main --name-only."
       },
       "serenaMemoryUpdated": {
-        "level": "MUST",
-        "Complete": true,
-        "Evidence": "Serena MCP unavailable this session. The three findings are durable and always-applicable when touching ratchets or debugging a pre-push failure, so they are recorded in .agents/governance/GOTCHAS.md and .claude/rules/generated-artifacts.md rather than as individually recalled memories."
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "The scalar-baseline merge race is being recorded separately; this branch is scoped to unblocking main."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "markdownlint-cli2 run over the branch's changed .md files via the lefthook markdown-autofix job on commit: 0 issues."
+        "Evidence": "markdown-check and markdown-autofix both passed in the commit hook run over the changed .md file."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Generator-order rule and both instruction mirrors committed as 175bacf7dd; this commit lands the GOTCHAS sections and the session log."
+        "Evidence": "GOTCHAS.md suppression, mutation_test_proc_group.py encoding fix, and this session log land in one commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py exits 0 on this file."
+        "Evidence": "validate_session_json.py exits 0 on this file; taste ratchet exits 0 at count 595; check_subprocess_encoding.py exits 0."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -108,28 +98,36 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": true,
-        "Evidence": "reflect skill invoked; these three entries are its output."
+        "Complete": false,
+        "Evidence": ""
       }
     }
   },
   "workLog": [
     {
-      "task": "Correct the existing pre-push ratchet advice in GOTCHAS.md",
-      "outcome": "The documented check ran the four ratchet scripts. Measured on a pristine origin/main worktree: taste_count_ratchet.py prints OK at 594 <= 595 and exits 0, while tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree fails on the same tree with assert 594 == 595. Added a section naming the script/test divergence, quoting the test docstring's dead-allowance rationale, and replacing the recommended check with the 3-second pytest invocation."
+      "task": "Reproduce the red main claim in issue 4500 independently",
+      "outcome": "Confirmed from an unrelated in-flight push log: taste count ratchet REGRESSION 596 over baseline 595, and check_subprocess_encoding failing on scripts/mutation_test_proc_group.py:36. Both symptoms reproduced before any fix was written."
     },
     {
-      "task": "Record that merging main clears an inherited red",
-      "outcome": "Measured on a branch whose diff was four files and no Python: 7 pre-push failures before git merge origin/main, 113 passed after, with the diff unchanged. Added the three-case discrimination table covering main's bug, a stale base, and your own bug."
+      "task": "Establish the taste-lint suppression contract from source",
+      "outcome": "has_suppression scans lines[:10] against #\\s*taste-lint:\\s*ignore\\s+([\\w-]+); .md is in SCANNABLE_EXTENSIONS. An HTML comment carrying that text therefore suppresses in markdown."
     },
     {
-      "task": "Record that a merged commit's file count is not evidence about the local commit gate",
-      "outcome": "Repository merge config is allow_merge_commit false, allow_rebase_merge false, allow_squash_merge true, and every commit on main is single-parent. GitHub builds squash commits server-side, so MAX_AUTHORED_FILES_PER_COMMIT never inspected them. This refuted a defect report drafted earlier in the session that cited 43-file and 71-file commits on main as evidence the gate was unsatisfiable."
+      "task": "Correct a wrong CLI assumption",
+      "outcome": "scripts/ci/taste_count_ratchet.py rejects --check. The authoritative invocation is --base-ref origin/main, from lefthook.yml line 424."
+    },
+    {
+      "task": "Negative control both fixes on the real subject",
+      "outcome": "Suppression removed: ratchet exits 1 with REGRESSION 596 over 595. Restored: exits 0 at 595. errors=replace removed: checker exits 1 naming mutation_test_proc_group.py:36. Restored: exits 0. tests/ci/test_count_ratchet_against_real_git.py passes 12/12."
+    },
+    {
+      "task": "Root cause the ratchet race more precisely than the issue states",
+      "outcome": "PR 4476 lowered the baseline to 595 in 795523e339 at 12:45:43. PR 4414 grew GOTCHAS.md past 500 lines in d3bc128517 at 12:47:06, 83 seconds later. The second PR merged on checks measured against the pre-4476 baseline, so this is a stale-base merge race on a scalar, not merely two independently green PRs."
     }
   ],
   "endingCommit": "",
   "nextSteps": [
-    "Push the branch and open the pull request referencing #3755 for the ratchet race context.",
-    "Check whether the ruff and type-ignore ratchets ship the same exact-equality test, which would make two more scalars equally fragile."
+    "Determine whether the required status check policy demands an up-to-date base; if it does not, that is the mechanism that let the 83 second race land and is the durable fix.",
+    "Consider a post-merge re-measure of the count ratchets against the merged tree, since merge_tree_ratchet_check.py measures a PR against its own base and cannot see a baseline moved after its last run."
   ]
 }
