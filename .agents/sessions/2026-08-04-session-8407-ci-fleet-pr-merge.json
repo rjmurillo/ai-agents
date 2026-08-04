@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This log is staged in the evidence commit created by the current hook run."
+        "Evidence": "Committed as 439122d32."
       },
       "validationPassed": {
         "level": "MUST",
@@ -139,7 +139,7 @@
       "result": "The shipped taste baseline test passed."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "439122d320f4363b3d420a6c36235e79a6f25597",
   "nextSteps": [
     "Push branch, verify remote SHA, wait for checks, then merge when checks are green."
   ]
