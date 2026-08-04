@@ -137,9 +137,29 @@
     {
       "action": "Appended the entry to GOTCHAS.md",
       "detail": "One section naming the two jobs, their globs, the three credential variables, the two diagnosis traps, and the measured durations on both sides of the control."
+    },
+    {
+      "action": "Push rejected a second time, on a real test failure this time",
+      "detail": "tests/skills/memory/test_extract_session_episode.py::TestValidateModeRejectsUnusableEventIds::test_the_committed_episode_store_is_clean failed: metrics violations grew to 22 (cap 21). Reproduced locally in 0.31s."
+    },
+    {
+      "action": "Traced the ratchet trip to this branch's own episode",
+      "detail": "The episode carried metrics.commits=0 with files_changed=3. json_metrics derives commits from _collect_shas(data), which reads endingCommit; the log had endingCommit empty, so the count was zero."
+    },
+    {
+      "action": "Set endingCommit to 8494a1600 and regenerated the episode",
+      "detail": "extract_session_episode.py <log> --preserve. metrics.commits went 0 -> 1. Full file now passes: 278 passed in 7.77s."
+    },
+    {
+      "action": "Corrected .claude/rules/session-logs.md rule 2",
+      "detail": "The rule called an empty endingCommit 'only a warning'. It is a warning to the session validator but silently produces commits=0, which trips the episode-store ratchet inside python-tests and rejects the push after ~18 minutes. Named the consequence and the regeneration step."
+    },
+    {
+      "action": "Regenerated both rule mirrors",
+      "detail": "build/scripts/generate_rules.py wrote 54 files; .github/instructions/session-logs.instructions.md and src/copilot-cli/instructions/session-logs.instructions.md updated. No plugin manifest bump: validate_plugin_version_bump.py requires the version field to be absent."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "8494a1600",
   "nextSteps": [
     "If the token requirement should also gate CI rather than only local pushes, issue #3275 is the open thread for provisioning COPILOT_GITHUB_TOKEN to the smoke job.",
     "Consider whether git_hook_policy.py should fail with a named remediation when no credential variable is set, instead of letting the suite report an assertion failure that reads like a flake."

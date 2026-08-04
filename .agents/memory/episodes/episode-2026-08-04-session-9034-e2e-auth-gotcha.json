@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Traced a rejected push to its real cause instead of the suspected one",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Confirmed no credential was exported",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Discarded a first probe that proved nothing",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
     },
     {
@@ -40,7 +46,9 @@
       "type": "milestone",
       "content": "Ran the discriminating pair",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
     },
     {
@@ -49,7 +57,9 @@
       "type": "milestone",
       "content": "Checked for an existing entry before adding one",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
     },
     {
@@ -58,7 +68,85 @@
       "type": "milestone",
       "content": "Appended the entry to GOTCHAS.md",
       "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T11:08:32+00:00",
+      "type": "commit",
+      "content": "Commit: 8494a1600",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Push rejected a second time, on a real test failure this time",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced the ratchet trip to this branch's own episode",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Set endingCommit to 8494a1600 and regenerated the episode",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected .claude/rules/session-logs.md rule 2",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated both rule mirrors",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
     }
   ],
@@ -67,8 +155,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 3
+    "commits": 1,
+    "files_changed": 5
   },
   "lessons": []
 }

@@ -33,10 +33,21 @@ universal; that is issue #4317, not a property of this rule.
 2. **Record `endingCommit` in a follow-up commit, never by amending.** Amending
    replaces the commit whose SHA the log names, so `validate_session_json.py`
    then reports the recorded SHA as unreachable (issue #3618). Commit the work
-   with `endingCommit` empty, which is only a warning, then commit the SHA in a
-   second commit. The reachability check returns no finding in a shallow clone
+   with `endingCommit` empty, then commit the SHA in a second commit. The
+   reachability check returns no finding in a shallow clone
    (`session_scope.py` short-circuits when `--is-shallow-repository` is true), so
    a green CI run on a shallow checkout is not evidence the SHA is reachable.
+
+   **Do not leave `endingCommit` empty past that second commit.** The session
+   validator only warns, but the episode extractor derives `metrics.commits`
+   from `endingCommit` (`json_metrics` calls `_collect_shas`), so an empty value
+   yields an episode with `commits: 0` and `files_changed > 0`. That shape trips
+   the episode-store ratchet in
+   `tests/skills/memory/test_extract_session_episode.py::TestValidateModeRejectsUnusableEventIds::test_the_committed_episode_store_is_clean`,
+   which runs inside `python-tests` and rejects the push after the full suite
+   has already burned ~18 minutes. The warning is local and cheap; the ratchet
+   is remote and expensive. After setting the SHA, regenerate the episode with
+   `extract_session_episode.py <log> --preserve` and commit both.
 
 3. **Re-point `endingCommit` after any rebase of a branch that carries a session
    log.** Rebasing rewrites every commit on the branch, so it orphans a recorded
