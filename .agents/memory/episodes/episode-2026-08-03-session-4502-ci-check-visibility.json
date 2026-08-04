@@ -112,6 +112,19 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-4502-ci-check-visibility"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T18:44:29+00:00",
+      "type": "commit",
+      "content": "Commit: 5cc9c72dd3",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-03-session-4502-ci-check-visibility"
     }
@@ -121,7 +134,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 5
   },
   "lessons": []
