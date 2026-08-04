@@ -27,7 +27,7 @@ SCRIPT_DIR = REPO_ROOT / ".claude" / "skills" / "curating-memories" / "scripts"
 _orig_sys_path = list(sys.path)
 sys.path.insert(0, str(SCRIPT_DIR))
 try:
-    import supersession_sweep as sweep_mod  # noqa: E402
+    import supersession_sweep as sweep_mod
 finally:
     sys.path[:] = _orig_sys_path
 

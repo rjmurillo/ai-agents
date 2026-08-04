@@ -86,7 +86,31 @@ Write to that floor: avoid syntax newer than 3.10, such as PEP 695 generics
   `data.get(key) or default`, which also overrides valid falsy values such as
   `0`, `False`, and `""`.
 
-## References
+## Version Compatibility Reviews
+
+Before reporting a version-sensitive finding in a review, read `project.requires-python`
+from `pyproject.toml`. Do not flag syntax or stdlib APIs that are universally available
+at the repository's declared floor.
+
+Concrete known-valid patterns at the current floor (`>=3.14`):
+
+- `isinstance(value, A | B)` and `issubclass(cls, A | B)` use PEP 604 union syntax
+  and are valid runtime arguments since Python 3.10. Do not flag them.
+- `X | None` and `X | Y` type annotations are valid in function signatures since 3.10.
+- `match`/`case` structural pattern matching is valid since 3.10.
+- PEP 695 generic syntax (`def f[T]()`) is 3.12+; the repo syntax-floor gate
+  (`scripts/validation/validate_python_syntax.py`) rejects it.
+
+Invalid-at-any-floor runtime uses still warrant a finding:
+
+- `isinstance(value, list[int])` fails at runtime even in 3.14 because parameterized
+  generics are not valid `isinstance` arguments.
+- `isinstance(value, int | None)` where `None` is not a class (`type(None)` is
+  required: `isinstance(value, int | type(None))`).
+
+Compatibility findings must cite the detected Python floor from `pyproject.toml`,
+for example: `requires-python = ">=3.14" detected; PEP 604 isinstance unions are
+valid at this floor.`
 
 - Python language reference: <https://docs.python.org/3/reference/>
 - Typing: <https://docs.python.org/3/library/typing.html>
