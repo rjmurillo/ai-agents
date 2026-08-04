@@ -1,0 +1,58 @@
+{
+  "rule_path": ".claude/rules/push-lock.md",
+  "rule_id": "push-lock",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Push recipe proposes a second lock path in /tmp",
+      "input": "I am adding a push recipe to a runbook. To serialize pushes I plan to use `flock /tmp/aiagents-push.lock git push origin \"$BR\"`. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "one path",
+        "flock",
+        "exclude",
+        "scratch",
+        "branch"
+      ],
+      "expected_gate": "require-canonical-push-lock-path",
+      "rationale": "flock excludes only processes opening the same path, so a second path is a second scheme that excludes nothing. The rule mandates $HOME/src/scratch/locks/push-lock-<slug>.lock and forbids /tmp, which was wiped mid-session and split the lock across two inodes under one filename."
+    },
+    {
+      "id": "S2",
+      "desc": "Lock keyed on something other than the branch",
+      "input": "To cut contention I want to hash the branch name into four lock slots so pushes share a small pool of lock files. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "branch",
+        "collide",
+        "serialize",
+        "slug",
+        "waste"
+      ],
+      "expected_gate": "require-per-branch-lock-key",
+      "rationale": "git takes its own lock per ref, so unrelated branches serializing behind a 10 to 16 minute pre-push hook is pure waste. The measured hashed four-slot scheme collided two different branches about 25 percent of the time."
+    },
+    {
+      "id": "S3",
+      "desc": "Recording a historical census of the old schemes",
+      "input": "I am writing a retrospective that quotes the old `flock /tmp/aiagents-push.lock` command as evidence of what the previous scheme looked like. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "evidence",
+        "historical",
+        "marker",
+        "not a recipe"
+      ],
+      "expected_gate": "historical-evidence-record",
+      "rationale": "A census or retrospective records what the old schemes looked like and is evidence, not a prescription. The rule exempts such a fenced block when it carries the push-lock-historical token, and the checker already skips the retrospective, audit, and archive trees."
+    },
+    {
+      "id": "S4",
+      "desc": "Adding an unrelated shell command to a runbook (negative)",
+      "input": "I want to document `git log --oneline -5` in a runbook so contributors can check recent commits. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "log",
+        "document"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The command opens no lock and serializes nothing, so the push-lock discipline does not apply."
+    }
+  ]
+}

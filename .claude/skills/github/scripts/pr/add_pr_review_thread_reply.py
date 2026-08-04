@@ -21,6 +21,7 @@ import os
 import sys
 import warnings
 from pathlib import Path
+from typing import Any, cast
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -34,30 +35,17 @@ else:
     )
 if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
+    sys.exit(2)
 
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     error_and_exit,
     gh_graphql,
 )
 from github_core.validation import inline_body_error
-
-_THREAD_STATE_QUERY = """\
-query($threadId: ID!) {
-    node(id: $threadId) {
-        ... on PullRequestReviewThread {
-            id
-            isResolved
-            pullRequest {
-                number
-            }
-        }
-    }
-}"""
 
 _REPLY_MUTATION = """\
 mutation($threadId: ID!, $body: String!) {
@@ -80,6 +68,19 @@ mutation($threadId: ID!) {
         thread {
             id
             isResolved
+        }
+    }
+}"""
+
+_THREAD_QUERY = """\
+query($threadId: ID!) {
+    node(id: $threadId) {
+        ... on PullRequestReviewThread {
+            id
+            isResolved
+            pullRequest {
+                number
+            }
         }
     }
 }"""
@@ -113,34 +114,25 @@ def _resolve_body(args: argparse.Namespace) -> str:
     return str(args.body)
 
 
-def _query_thread_state(thread_id: str) -> dict[str, object]:
-    """Requery a thread's live state immediately before mutation.
-
-    Returns a dict with keys ``action`` (``ACT`` or ``SKIP``),
-    ``reason`` (human-readable), and ``is_resolved`` (bool or None).
-    ``SKIP`` means the mutation must not proceed.
-    """
-    try:
-        data = gh_graphql(_THREAD_STATE_QUERY, {"threadId": thread_id})
-    except RuntimeError as exc:
-        return {
-            "action": "SKIP",
-            "reason": f"thread state query failed: {exc}",
-            "is_resolved": None,
-        }
-
+def query_thread_state(thread_id: str) -> dict[str, Any] | None:
+    data = gh_graphql(_THREAD_QUERY, {"threadId": thread_id})
     node = data.get("node")
-    if not node or not node.get("id"):
-        return {
-            "action": "SKIP",
-            "reason": "thread not found or not a review thread",
-            "is_resolved": None,
-        }
+    return node if isinstance(node, dict) else None
 
-    if node.get("isResolved"):
-        return {"action": "SKIP", "reason": "thread already resolved", "is_resolved": True}
 
-    return {"action": "ACT", "reason": "thread is unresolved", "is_resolved": False}
+def _thread_is_actionable(thread_id: str) -> bool:
+    try:
+        thread = query_thread_state(thread_id)
+    except RuntimeError as exc:
+        print(json.dumps({"action": "SKIP", "reason": f"thread_state_query_failed: {exc}"}, indent=2))
+        return False
+    if thread is None:
+        print(json.dumps({"action": "SKIP", "reason": "not_found"}, indent=2))
+        return False
+    if thread.get("isResolved"):
+        print(json.dumps({"action": "SKIP", "reason": "thread_resolved"}, indent=2))
+        return False
+    return True
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -156,13 +148,7 @@ def main(argv: list[str] | None = None) -> int:
 
     assert_gh_authenticated()
 
-    state = _query_thread_state(args.thread_id)
-    if state["action"] == "SKIP":
-        print(json.dumps({
-            "action": "SKIP",
-            "reason": state["reason"],
-            "thread_id": args.thread_id,
-        }))
+    if not _thread_is_actionable(args.thread_id):
         return 0
 
     try:
@@ -176,9 +162,10 @@ def main(argv: list[str] | None = None) -> int:
             error_and_exit(f"Thread {args.thread_id} not found", 2)
         error_and_exit(f"Failed to post thread reply: {msg}", 3)
 
-    comment = (reply_data.get("addPullRequestReviewThreadReply") or {}).get("comment")
-    if not comment:
+    comment_value = (reply_data.get("addPullRequestReviewThreadReply") or {}).get("comment")
+    if not isinstance(comment_value, dict):
         error_and_exit("Reply may not have been posted successfully", 3)
+    comment = cast(dict[str, Any], comment_value)
 
     thread_resolved = False
     if args.resolve:
@@ -201,6 +188,7 @@ def main(argv: list[str] | None = None) -> int:
 
     author = comment.get("author")
     output = {
+        "action": "ACT",
         "success": True,
         "thread_id": args.thread_id,
         "comment_id": comment.get("databaseId"),

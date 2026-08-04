@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -33,19 +34,15 @@ else:
     )
 if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
+    sys.exit(2)
 
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     gh_graphql,
 )
-
-# ---------------------------------------------------------------------------
-# GraphQL operations
-# ---------------------------------------------------------------------------
 
 _RESOLVE_MUTATION = """\
 mutation($threadId: ID!) {
@@ -77,36 +74,18 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
     }
 }"""
 
-_THREAD_STATE_QUERY = """\
+_THREAD_QUERY = """\
 query($threadId: ID!) {
     node(id: $threadId) {
         ... on PullRequestReviewThread {
             id
             isResolved
+            pullRequest {
+                number
+            }
         }
     }
 }"""
-
-
-def _query_thread_state(thread_id: str) -> dict[str, object]:
-    """Requery a thread's live state immediately before mutation.
-
-    Returns a dict with ``action`` (``ACT`` or ``SKIP``) and ``reason``.
-    ``SKIP`` means the mutation must not proceed.
-    """
-    try:
-        data = gh_graphql(_THREAD_STATE_QUERY, {"threadId": thread_id})
-    except RuntimeError as exc:
-        return {"action": "SKIP", "reason": f"thread state query failed: {exc}"}
-
-    node = data.get("node")
-    if not node or not node.get("id"):
-        return {"action": "SKIP", "reason": "thread not found or not a review thread"}
-
-    if node.get("isResolved"):
-        return {"action": "SKIP", "reason": "thread already resolved"}
-
-    return {"action": "ACT", "reason": "thread is unresolved"}
 
 
 def resolve_review_thread(thread_id: str) -> bool:
@@ -117,9 +96,7 @@ def resolve_review_thread(thread_id: str) -> bool:
         print(f"WARNING: Failed to resolve thread {thread_id}: {exc}", file=sys.stderr)
         return False
 
-    thread = (
-        data.get("resolveReviewThread", {}).get("thread", {})
-    )
+    thread = data.get("resolveReviewThread", {}).get("thread", {})
     if thread and thread.get("isResolved"):
         print(f"Resolved thread: {thread_id}")
         return True
@@ -128,7 +105,7 @@ def resolve_review_thread(thread_id: str) -> bool:
     return False
 
 
-def get_unresolved_threads(pr_number: int) -> list[dict]:
+def get_unresolved_threads(pr_number: int) -> list[dict[str, Any]]:
     """Fetch unresolved review threads for a PR."""
     result = subprocess.run(
         ["gh", "repo", "view", "--json", "owner,name"],
@@ -157,9 +134,25 @@ def get_unresolved_threads(pr_number: int) -> list[dict]:
     return [t for t in threads if not t.get("isResolved", True)]
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+def query_thread_state(thread_id: str) -> dict[str, Any] | None:
+    data = gh_graphql(_THREAD_QUERY, {"threadId": thread_id})
+    node = data.get("node")
+    return node if isinstance(node, dict) else None
+
+
+def _single_thread_skip_code(thread_id: str) -> int | None:
+    try:
+        thread = query_thread_state(thread_id)
+    except RuntimeError as exc:
+        print(json.dumps({"action": "SKIP", "reason": f"thread_state_query_failed: {exc}"}, indent=2))
+        return 0
+    if thread is None:
+        print(json.dumps({"action": "SKIP", "reason": "not_found"}, indent=2))
+        return 0
+    if thread.get("isResolved"):
+        print(json.dumps({"action": "SKIP", "reason": "already_resolved"}, indent=2))
+        return 0
+    return None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -189,74 +182,77 @@ def main(argv: list[str] | None = None) -> int:
     assert_gh_authenticated()
 
     if args.thread_id:
-        state = _query_thread_state(args.thread_id)
-        if state["action"] == "SKIP":
-            print(json.dumps({
-                "action": "SKIP",
-                "reason": state["reason"],
-                "thread_id": args.thread_id,
-            }))
-            return 0
+        skip_code = _single_thread_skip_code(args.thread_id)
+        if skip_code is not None:
+            return skip_code
         success = resolve_review_thread(args.thread_id)
-        return 0 if success else 1
+        if not success:
+            print(
+                json.dumps(
+                    {"action": "SKIP", "reason": "resolve_failed", "thread_id": args.thread_id},
+                    indent=2,
+                )
+            )
+            return 0
+        print(
+            json.dumps(
+                {"action": "ACT", "success": success, "thread_id": args.thread_id},
+                indent=2,
+            )
+        )
+        return 0
 
-    # Resolve all unresolved threads
     try:
         unresolved = get_unresolved_threads(args.pull_request)
     except RuntimeError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 3
 
-    if not unresolved:
-        print(f"All threads on PR #{args.pull_request} are already resolved")
-        result = {
-            "TotalUnresolved": 0,
-            "Resolved": 0,
-            "Failed": 0,
-            "Success": True,
-        }
-        print(json.dumps(result, indent=2))
+    total = len(unresolved)
+    if total == 0:
+        print("No unresolved review threads found.")
+        print(
+            json.dumps(
+                {
+                    "Success": True,
+                    "Resolved": 0,
+                    "Failed": 0,
+                    "TotalUnresolved": 0,
+                },
+                indent=2,
+            )
+        )
         return 0
-
-    print(
-        f"Found {len(unresolved)} unresolved thread(s) on PR #{args.pull_request}"
-    )
 
     resolved = 0
     failed = 0
 
     for thread in unresolved:
-        author = "<unknown>"
-        comment_id = "<unknown>"
+        thread_id = thread.get("id", "")
         comments = thread.get("comments", {}).get("nodes", [])
-        if comments and comments[0]:
-            first = comments[0]
-            if first.get("author", {}).get("login"):
-                author = first["author"]["login"]
-            if first.get("databaseId"):
-                comment_id = first["databaseId"]
+        first_comment = comments[0] if comments else {}
+        db_id = first_comment.get("databaseId", "unknown")
+        author = first_comment.get("author", {}).get("login", "unknown")
+        print(f"Resolving thread {thread_id} (comment {db_id}, author {author})...")
 
-        print(
-            f"  Resolving thread {thread['id']} "
-            f"(comment {comment_id} by @{author})..."
-        )
-
-        if resolve_review_thread(thread["id"]):
+        if resolve_review_thread(thread_id):
             resolved += 1
         else:
             failed += 1
 
-    print()
-    print(f"Summary: {resolved} resolved, {failed} failed")
-
-    result = {
-        "TotalUnresolved": len(unresolved),
-        "Resolved": resolved,
-        "Failed": failed,
-        "Success": failed == 0,
-    }
-    print(json.dumps(result, indent=2))
-    return 0 if failed == 0 else 1
+    success = failed == 0
+    print(
+        json.dumps(
+            {
+                "Success": success,
+                "Resolved": resolved,
+                "Failed": failed,
+                "TotalUnresolved": total,
+            },
+            indent=2,
+        )
+    )
+    return 0 if success else 1
 
 
 if __name__ == "__main__":

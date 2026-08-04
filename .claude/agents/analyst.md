@@ -91,7 +91,7 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 
 **Read/Grep/Glob**: code analysis (read-only)
 **WebSearch/WebFetch**: research best practices, docs, patterns (non-GitHub URLs only)
-**Bash**: git commands, `gh issue`, `gh api` (via github skill scripts)
+**Bash**: git commands, repository inspection, `gh issue`, `gh api` (via github skill scripts)
 **github skill** (`.claude/skills/github/`): unified GitHub operations
 **github-url-intercept skill** (`.claude/skills/github-url-intercept/`): GitHub URL routing
 **mcp__context7__***: library documentation lookup

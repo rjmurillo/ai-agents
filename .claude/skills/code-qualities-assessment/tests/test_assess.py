@@ -892,186 +892,76 @@ def test_assess_non_utf8_file_does_not_crash(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 check_regressions = _mod.check_regressions
-_assess_base_content = _mod._assess_base_content
-_score_regressed = _mod._score_regressed
-
-
-class TestScoreRegressed:
-    """Unit tests for the regression detection predicate."""
-
-    def _score(self, value: float, confidence: float = 1.0):
-        return _mod.QualityScore(value=value, confidence=confidence, reasons=[])
-
-    def test_lower_head_is_regression(self):
-        assert _score_regressed(self._score(5.0), self._score(7.0)) is True
-
-    def test_equal_head_is_not_regression(self):
-        assert _score_regressed(self._score(7.0), self._score(7.0)) is False
-
-    def test_higher_head_is_not_regression(self):
-        assert _score_regressed(self._score(8.0), self._score(7.0)) is False
-
-    def test_unscored_head_is_not_regression(self):
-        assert _score_regressed(self._score(5.0, confidence=0.0), self._score(7.0)) is False
-
-    def test_unscored_base_is_not_regression(self):
-        assert _score_regressed(self._score(5.0), self._score(7.0, confidence=0.0)) is False
+assess_file_content = _mod.assess_file_content
 
 
 class TestCheckRegressions:
-    """Integration tests for the regression gate using a real git repo."""
+    """Tests for the regression gate (issue #4364).
 
-    def _init_repo(self, repo: Path) -> None:
-        for cmd in (
-            ("init",),
-            ("checkout", "-b", "main"),
-            ("config", "user.email", "test@test.com"),
-            ("config", "user.name", "Test"),
-        ):
-            _run_git(repo, *cmd)
+    The decisive assertion: a changed file that carries pre-existing absolute
+    debt but adds none must pass (exit 0). A file that regresses must fail
+    (exit 10). A new file has no base assessment and is never gated.
+    """
 
-    def test_no_regression_when_scores_unchanged(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A changed file that carries pre-existing absolute debt but adds none
-        must pass regression mode (exit 0). This is the decisive test for #4364."""
-        self._init_repo(tmp_path)
-        monkeypatch.chdir(tmp_path)
+    def _make_assessment(self, file_path: Path, content: str) -> _mod.FileAssessment:
+        return assess_file_content(file_path, content, "production")
 
-        legacy_body = "def a():\n    return 1\n"
-        _write(tmp_path, "legacy.py", legacy_body)
-        _run_git(tmp_path, "add", "legacy.py")
-        _run_git(tmp_path, "commit", "-m", "base")
+    def test_no_regression_passes(self, tmp_path: Path) -> None:
+        """Pre-existing debt that is unchanged must exit 0 (decisive test for #4364)."""
+        f = tmp_path / "legacy.py"
+        body = "def a():\n    return 1\n"
+        head_assessment = assess_file(f, "production", False)
+        # Identical base: same score, no regression.
+        base_assessments = {str(f): self._make_assessment(f, body)}
+        assert check_regressions([head_assessment], base_assessments) == 0
 
-        # Add a comment only (no code change - same scores).
-        _write(tmp_path, "legacy.py", legacy_body + "# a comment\n")
-        _run_git(tmp_path, "add", "legacy.py")
-        _run_git(tmp_path, "commit", "-m", "head")
-
-        assessments = [assess_file(tmp_path / "legacy.py", "production", False)]
-        rc = check_regressions(assessments, "HEAD~1", "production", False)
-        assert rc == 0, "pre-existing debt must not trigger regression exit"
-
-    def test_regression_detected_when_score_drops(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A changed file that adds coupling must fail regression mode (exit 10)."""
-        self._init_repo(tmp_path)
-        monkeypatch.chdir(tmp_path)
-
-        focused_body = "def a():\n    return 1\n"
-        _write(tmp_path, "mod.py", focused_body)
-        _run_git(tmp_path, "add", "mod.py")
-        _run_git(tmp_path, "commit", "-m", "base")
-
-        # Add many imports to drop the coupling score.
-        bloated_body = (
+    def test_regression_detected(self, tmp_path: Path) -> None:
+        """A quality that drops by more than 0.05 must exit 10."""
+        f = tmp_path / "mod.py"
+        # Base: clean, small file.
+        base_body = "def a():\n    return 1\n"
+        # Head: many imports added; coupling score will drop sharply.
+        head_body = (
             "import os\nimport sys\nimport re\nimport json\nimport pathlib\n"
             "import collections\nimport itertools\nimport functools\nimport typing\n"
             "import hashlib\nimport logging\nimport datetime\nimport uuid\n"
             "def a():\n    return 1\n"
         )
-        _write(tmp_path, "mod.py", bloated_body)
-        _run_git(tmp_path, "add", "mod.py")
-        _run_git(tmp_path, "commit", "-m", "head")
+        f.write_text(head_body, encoding="utf-8")
+        head_assessment = assess_file(f, "production", False)
+        base_assessments = {str(f): self._make_assessment(f, base_body)}
+        assert check_regressions([head_assessment], base_assessments) == 10
 
-        assessments = [assess_file(tmp_path / "mod.py", "production", False)]
-        rc = check_regressions(assessments, "HEAD~1", "production", False)
-        assert rc == 10, "adding many imports must drop coupling score and trigger regression"
+    def test_new_file_skipped(self, tmp_path: Path) -> None:
+        """A file absent from base_assessments is not flagged as a regression."""
+        f = tmp_path / "new.py"
+        f.write_text("def new():\n    return 1\n", encoding="utf-8")
+        head_assessment = assess_file(f, "production", False)
+        assert check_regressions([head_assessment], {}) == 0
 
-    def test_new_file_has_no_regression(
+    def test_regression_gate_via_main(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A file that did not exist at base must be skipped (exit 0)."""
-        self._init_repo(tmp_path)
-        monkeypatch.chdir(tmp_path)
-
-        _write(tmp_path, "placeholder.py", "# placeholder\n")
-        _run_git(tmp_path, "add", "placeholder.py")
-        _run_git(tmp_path, "commit", "-m", "base")
-
-        new_file = _write(tmp_path, "new.py", "def new():\n    return 1\n")
-        _run_git(tmp_path, "add", "new.py")
-        _run_git(tmp_path, "commit", "-m", "head")
-
-        assessments = [assess_file(new_file, "production", False)]
-        rc = check_regressions(assessments, "HEAD~1", "production", False)
-        assert rc == 0, "new file (not in base) must not be flagged as regression"
-
-
-class TestGateModeWiring:
-    """Test that --gate-mode is wired correctly in main()."""
-
-    main = staticmethod(_mod.main)
-
-    def _make_git_repo(self, tmp_path: Path) -> None:
+        """main() uses regression gate when --changed-only and --base are both given."""
         for cmd in (
-            ("init",),
-            ("checkout", "-b", "main"),
-            ("config", "user.email", "t@t.com"),
-            ("config", "user.name", "T"),
+            ("init",), ("checkout", "-b", "main"),
+            ("config", "user.email", "t@t.com"), ("config", "user.name", "T"),
         ):
             _run_git(tmp_path, *cmd)
-
-    def test_regression_mode_default_when_changed_only_and_base(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Default gate mode is regression when --changed-only and --base are both given."""
-        self._make_git_repo(tmp_path)
         monkeypatch.chdir(tmp_path)
 
         body = "def f():\n    return 1\n"
         _write(tmp_path, "f.py", body)
         _run_git(tmp_path, "add", "f.py")
         _run_git(tmp_path, "commit", "-m", "base")
-
         _write(tmp_path, "f.py", body + "# comment\n")
         _run_git(tmp_path, "add", "f.py")
         _run_git(tmp_path, "commit", "-m", "head")
 
-        rc = self.main(["--target", ".", "--changed-only", "--base", "HEAD~1", "--format", "json"])
-        assert rc == 0, "no regression means exit 0 in default regression mode"
-
-    def test_absolute_mode_explicit_still_gates_on_threshold(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Explicit --gate-mode absolute uses threshold check."""
-        self._make_git_repo(tmp_path)
-        monkeypatch.chdir(tmp_path)
-
-        # Create a file that will fail absolute threshold.
-        # 15 imports in a small file drives coupling down.
-        bloated = (
-            "import os\nimport sys\nimport re\nimport json\nimport pathlib\n"
-            "import collections\nimport itertools\nimport functools\nimport typing\n"
-            "import hashlib\nimport logging\nimport datetime\nimport uuid\n"
-            "import xml.etree.ElementTree\nimport html.parser\n"
-            "def f():\n    return 1\n"
+        import sys
+        monkeypatch.setattr(
+            sys, "argv",
+            ["assess.py", "--target", ".", "--changed-only", "--base", "HEAD~1", "--format", "json"],
         )
-        _write(tmp_path, "bloated.py", bloated)
-        _run_git(tmp_path, "add", "bloated.py")
-        _run_git(tmp_path, "commit", "-m", "base")
-
-        _write(tmp_path, "bloated.py", bloated + "# comment\n")
-        _run_git(tmp_path, "add", "bloated.py")
-        _run_git(tmp_path, "commit", "-m", "head")
-
-        rc = self.main([
-            "--target", ".", "--changed-only", "--base", "HEAD~1",
-            "--gate-mode", "absolute", "--format", "json",
-        ])
-        assert rc == 11, "absolute mode must fail on threshold violation regardless of base"
-
-    def test_regression_mode_requires_base(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """--gate-mode regression without --base returns exit 1 (config error)."""
-        self._make_git_repo(tmp_path)
-        monkeypatch.chdir(tmp_path)
-
-        _write(tmp_path, "f.py", "def f():\n    return 1\n")
-        _run_git(tmp_path, "add", "f.py")
-        _run_git(tmp_path, "commit", "-m", "base")
-
-        rc = self.main(["--target", "f.py", "--gate-mode", "regression", "--format", "json"])
-        assert rc == 1, "regression mode without --base must error"
+        rc = _mod.main()
+        assert rc == 0, "cosmetic change must not be flagged as regression"

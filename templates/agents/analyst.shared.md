@@ -4,13 +4,11 @@ description: Research and investigation specialist who digs deep into root cause
 argument-hint: Describe the topic, issue, or feature to research
 tools_vscode:
   - $toolset:executor
-  - $toolset:editor
   - $toolset:github-research
   - $toolset:research
   - $toolset:knowledge
 tools_copilot:
   - $toolset:executor
-  - $toolset:editor
   - $toolset:github-research
   - $toolset:research
   - $toolset:knowledge

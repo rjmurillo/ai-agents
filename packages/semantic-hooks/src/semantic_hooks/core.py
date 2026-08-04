@@ -1,10 +1,10 @@
 """Core data structures for semantic tension tracking."""
 
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
-import uuid
 
 
 class HookEvent(Enum):
@@ -132,7 +132,7 @@ class SemanticNode:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SemanticNode":
+    def from_dict(cls, data: dict[str, Any]) -> SemanticNode:
         """Deserialize from dictionary."""
         return cls(
             id=data["id"],
@@ -164,7 +164,7 @@ class HookContext:
     timestamp: datetime = field(default_factory=datetime.now)
 
     @classmethod
-    def from_stdin_json(cls, data: dict[str, Any], event: HookEvent) -> "HookContext":
+    def from_stdin_json(cls, data: dict[str, Any], event: HookEvent) -> HookContext:
         """Create context from Claude's stdin JSON."""
         return cls(
             event=event,

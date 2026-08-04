@@ -15,8 +15,7 @@ import pytest
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -35,6 +34,7 @@ main = _mod.main
 build_parser = _mod.build_parser
 resolve_review_thread = _mod.resolve_review_thread
 get_unresolved_threads = _mod.get_unresolved_threads
+query_thread_state = _mod.query_thread_state
 
 
 # ---------------------------------------------------------------------------
@@ -114,23 +114,37 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_single_thread_success(self):
-        with patch(
-            "resolve_pr_review_thread.assert_gh_authenticated",
-        ), patch(
-            "resolve_pr_review_thread.gh_graphql",
-            return_value={"resolveReviewThread": {"thread": {"id": "t1", "isResolved": True}}},
+        unresolved_state = {"id": "PRRT_abc", "isResolved": False}
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.query_thread_state",
+                return_value=unresolved_state,
+            ),
+            patch(
+                "resolve_pr_review_thread.resolve_review_thread",
+                return_value=True,
+            ),
         ):
             rc = main(["--thread-id", "PRRT_abc"])
         assert rc == 0
 
     def test_single_thread_failure(self, capsys):
-        # After #3930 gate: an API failure in the pre-mutation state query returns SKIP
-        # (exit 0) to avoid crashing on transient errors; the mutation is not called.
-        with patch(
-            "resolve_pr_review_thread.assert_gh_authenticated",
-        ), patch(
-            "resolve_pr_review_thread.gh_graphql",
-            side_effect=RuntimeError("fail"),
+        unresolved_state = {"id": "PRRT_abc", "isResolved": False}
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.query_thread_state",
+                return_value=unresolved_state,
+            ),
+            patch(
+                "resolve_pr_review_thread.resolve_review_thread",
+                return_value=False,
+            ),
         ):
             rc = main(["--thread-id", "PRRT_abc"])
         assert rc == 0
@@ -139,11 +153,14 @@ class TestMain:
         assert output["action"] == "SKIP"
 
     def test_all_threads_already_resolved(self, capsys):
-        with patch(
-            "resolve_pr_review_thread.assert_gh_authenticated",
-        ), patch(
-            "resolve_pr_review_thread.get_unresolved_threads",
-            return_value=[],
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.get_unresolved_threads",
+                return_value=[],
+            ),
         ):
             rc = main(["--pull-request", "10"])
         assert rc == 0
@@ -155,11 +172,14 @@ class TestMain:
         assert output["TotalUnresolved"] == 0
 
     def test_all_threads_api_error(self):
-        with patch(
-            "resolve_pr_review_thread.assert_gh_authenticated",
-        ), patch(
-            "resolve_pr_review_thread.get_unresolved_threads",
-            side_effect=RuntimeError("API fail"),
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.get_unresolved_threads",
+                side_effect=RuntimeError("API fail"),
+            ),
         ):
             rc = main(["--pull-request", "10"])
         assert rc == 3
@@ -169,26 +189,34 @@ class TestMain:
             {
                 "id": "PRRT_1",
                 "isResolved": False,
-                "comments": {"nodes": [
-                    {"databaseId": 100, "author": {"login": "user1"}},
-                ]},
+                "comments": {
+                    "nodes": [
+                        {"databaseId": 100, "author": {"login": "user1"}},
+                    ]
+                },
             },
             {
                 "id": "PRRT_2",
                 "isResolved": False,
-                "comments": {"nodes": [
-                    {"databaseId": 200, "author": {"login": "user2"}},
-                ]},
+                "comments": {
+                    "nodes": [
+                        {"databaseId": 200, "author": {"login": "user2"}},
+                    ]
+                },
             },
         ]
-        with patch(
-            "resolve_pr_review_thread.assert_gh_authenticated",
-        ), patch(
-            "resolve_pr_review_thread.get_unresolved_threads",
-            return_value=threads,
-        ), patch(
-            "resolve_pr_review_thread.resolve_review_thread",
-            return_value=True,
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.get_unresolved_threads",
+                return_value=threads,
+            ),
+            patch(
+                "resolve_pr_review_thread.resolve_review_thread",
+                return_value=True,
+            ),
         ):
             rc = main(["--pull-request", "10"])
         assert rc == 0
@@ -204,9 +232,11 @@ class TestMain:
             {
                 "id": "PRRT_1",
                 "isResolved": False,
-                "comments": {"nodes": [
-                    {"databaseId": 100, "author": {"login": "user1"}},
-                ]},
+                "comments": {
+                    "nodes": [
+                        {"databaseId": 100, "author": {"login": "user1"}},
+                    ]
+                },
             },
             {
                 "id": "PRRT_2",
@@ -214,14 +244,18 @@ class TestMain:
                 "comments": {"nodes": []},
             },
         ]
-        with patch(
-            "resolve_pr_review_thread.assert_gh_authenticated",
-        ), patch(
-            "resolve_pr_review_thread.get_unresolved_threads",
-            return_value=threads,
-        ), patch(
-            "resolve_pr_review_thread.resolve_review_thread",
-            side_effect=[True, False],
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.get_unresolved_threads",
+                return_value=threads,
+            ),
+            patch(
+                "resolve_pr_review_thread.resolve_review_thread",
+                side_effect=[True, False],
+            ),
         ):
             rc = main(["--pull-request", "10"])
         assert rc == 1
@@ -240,14 +274,18 @@ class TestMain:
                 "comments": {"nodes": []},
             },
         ]
-        with patch(
-            "resolve_pr_review_thread.assert_gh_authenticated",
-        ), patch(
-            "resolve_pr_review_thread.get_unresolved_threads",
-            return_value=threads,
-        ), patch(
-            "resolve_pr_review_thread.resolve_review_thread",
-            return_value=True,
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.get_unresolved_threads",
+                return_value=threads,
+            ),
+            patch(
+                "resolve_pr_review_thread.resolve_review_thread",
+                return_value=True,
+            ),
         ):
             rc = main(["--pull-request", "10"])
         assert rc == 0
@@ -274,12 +312,15 @@ class TestGetUnresolvedThreads:
                 },
             },
         }
-        with patch(
-            "subprocess.run",
-            return_value=_completed(stdout=repo_json, rc=0),
-        ), patch(
-            "resolve_pr_review_thread.gh_graphql",
-            return_value=graphql_data,
+        with (
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=repo_json, rc=0),
+            ),
+            patch(
+                "resolve_pr_review_thread.gh_graphql",
+                return_value=graphql_data,
+            ),
         ):
             result = get_unresolved_threads(42)
         assert len(result) == 2
@@ -304,12 +345,15 @@ class TestGetUnresolvedThreads:
                 },
             },
         }
-        with patch(
-            "subprocess.run",
-            return_value=_completed(stdout=repo_json, rc=0),
-        ), patch(
-            "resolve_pr_review_thread.gh_graphql",
-            return_value=graphql_data,
+        with (
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=repo_json, rc=0),
+            ),
+            patch(
+                "resolve_pr_review_thread.gh_graphql",
+                return_value=graphql_data,
+            ),
         ):
             result = get_unresolved_threads(42)
         assert result == []
@@ -327,90 +371,132 @@ class TestGetUnresolvedThreads:
                 },
             },
         }
-        with patch(
-            "subprocess.run",
-            return_value=_completed(stdout=repo_json, rc=0),
-        ), patch(
-            "resolve_pr_review_thread.gh_graphql",
-            return_value=graphql_data,
+        with (
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=repo_json, rc=0),
+            ),
+            patch(
+                "resolve_pr_review_thread.gh_graphql",
+                return_value=graphql_data,
+            ),
         ):
             result = get_unresolved_threads(42)
         assert result == []
 
 
 # ---------------------------------------------------------------------------
-# Issue #3930: thread-state gate (pre-mutation requery)
+# Tests: query_thread_state
 # ---------------------------------------------------------------------------
-
-_query_thread_state = _mod._query_thread_state
 
 
 class TestQueryThreadState:
-    """Unit tests for the pre-mutation state query."""
-
-    def test_unresolved_thread_returns_act(self):
+    def test_returns_thread_dict_when_found(self):
+        node = {"id": "PRRT_abc", "isResolved": False, "pullRequest": {"number": 1}}
         with patch(
             "resolve_pr_review_thread.gh_graphql",
-            return_value={"node": {"id": "PRRT_abc", "isResolved": False}},
+            return_value={"node": node},
         ):
-            result = _query_thread_state("PRRT_abc")
-        assert result["action"] == "ACT"
+            result = query_thread_state("PRRT_abc")
+        assert result == node
 
-    def test_resolved_thread_returns_skip(self):
-        with patch(
-            "resolve_pr_review_thread.gh_graphql",
-            return_value={"node": {"id": "PRRT_abc", "isResolved": True}},
-        ):
-            result = _query_thread_state("PRRT_abc")
-        assert result["action"] == "SKIP"
-        assert "already resolved" in result["reason"]
-
-    def test_missing_thread_returns_skip(self):
+    def test_returns_none_when_not_found(self):
         with patch(
             "resolve_pr_review_thread.gh_graphql",
             return_value={"node": None},
         ):
-            result = _query_thread_state("PRRT_abc")
-        assert result["action"] == "SKIP"
+            result = query_thread_state("PRRT_missing")
+        assert result is None
 
-    def test_api_error_returns_skip(self):
+    def test_propagates_api_error(self):
         with patch(
             "resolve_pr_review_thread.gh_graphql",
-            side_effect=RuntimeError("API failure"),
+            side_effect=RuntimeError("network error"),
         ):
-            result = _query_thread_state("PRRT_abc")
-        assert result["action"] == "SKIP"
-        assert "failed" in result["reason"]
+            with pytest.raises(RuntimeError, match="network error"):
+                query_thread_state("PRRT_abc")
 
 
-class TestMainThreadStateConcurrency:
-    """Concurrency gate: resolve is skipped when thread was resolved between triage and action."""
+# ---------------------------------------------------------------------------
+# Tests: thread state pre-check in main (single-thread path)
+# ---------------------------------------------------------------------------
 
-    def test_single_thread_resolved_between_triage_and_action(self, capsys):
-        """Actor A sees unresolved at PR-gate, but thread is resolved before mutation.
-        The pre-mutation requery must return SKIP and no mutation must occur."""
-        call_count = {"n": 0}
 
-        def _graphql_side_effect(query, variables):
-            call_count["n"] += 1
-            if "_THREAD_STATE_QUERY" in query or "node(id:" in query:
-                # First call is the state requery - return resolved (actor B resolved it)
-                return {"node": {"id": variables["threadId"], "isResolved": True}}
-            return {"resolveReviewThread": {
-                "thread": {"id": variables["threadId"], "isResolved": True},
-            }}
-
-        with patch(
-            "resolve_pr_review_thread.assert_gh_authenticated",
-        ), patch(
-            "resolve_pr_review_thread.gh_graphql",
-            side_effect=_graphql_side_effect,
+class TestThreadStatePrecheck:
+    def test_not_found_returns_skip_exit_0(self, capsys):
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.query_thread_state",
+                return_value=None,
+            ),
+            patch(
+                "resolve_pr_review_thread.resolve_review_thread",
+            ) as mock_resolve,
         ):
             rc = main(["--thread-id", "PRRT_abc"])
-
         assert rc == 0
-        out = capsys.readouterr().out
-        output = json.loads(out)
-        assert output["action"] == "SKIP"
-        # Mutation must not have been called (only the state query ran)
-        assert call_count["n"] == 1
+        mock_resolve.assert_not_called()
+        out = json.loads(capsys.readouterr().out)
+        assert out["action"] == "SKIP"
+        assert out["reason"] == "not_found"
+
+    def test_already_resolved_returns_skip_exit_0(self, capsys):
+        resolved_state = {"id": "PRRT_abc", "isResolved": True}
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.query_thread_state",
+                return_value=resolved_state,
+            ),
+            patch(
+                "resolve_pr_review_thread.resolve_review_thread",
+            ) as mock_resolve,
+        ):
+            rc = main(["--thread-id", "PRRT_abc"])
+        assert rc == 0
+        mock_resolve.assert_not_called()
+        out = json.loads(capsys.readouterr().out)
+        assert out["action"] == "SKIP"
+        assert out["reason"] == "already_resolved"
+
+    def test_unresolved_thread_proceeds_to_act(self, capsys):
+        unresolved_state = {"id": "PRRT_abc", "isResolved": False}
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.query_thread_state",
+                return_value=unresolved_state,
+            ),
+            patch(
+                "resolve_pr_review_thread.resolve_review_thread",
+                return_value=True,
+            ) as mock_resolve,
+        ):
+            rc = main(["--thread-id", "PRRT_abc"])
+        assert rc == 0
+        mock_resolve.assert_called_once_with("PRRT_abc")
+        out = json.loads(capsys.readouterr().out)
+        assert out["action"] == "ACT"
+        assert out["success"] is True
+
+    def test_precheck_api_error_returns_skip_exit_0(self, capsys):
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.query_thread_state",
+                side_effect=RuntimeError("API unavailable"),
+            ),
+        ):
+            rc = main(["--thread-id", "PRRT_abc"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["action"] == "SKIP"

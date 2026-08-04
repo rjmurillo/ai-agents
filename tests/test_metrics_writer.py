@@ -17,8 +17,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-import metrics_writer  # noqa: E402
-from metrics_writer import (  # noqa: E402
+import metrics_writer
+from metrics_writer import (
     MetricsWriteError,
     safe_append_tally,
 )
