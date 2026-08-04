@@ -18,7 +18,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.validation.portability_baseline import (  # noqa: E402
+from scripts.validation.portability_baseline import (
     read_previous_sections,
     refuse_dropped_entries,
     refuse_symlinked_baseline,
