@@ -58,7 +58,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.validation import check_skill_portability as csp  # noqa: E402
+from scripts.validation import check_skill_portability as csp
 
 SYMLINK_REFUSAL = "Refusing a baseline reached through a symlink"
 SHRINK_REFUSAL = "Refusing to write a baseline that reduces"

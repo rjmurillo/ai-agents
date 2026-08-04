@@ -21,7 +21,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "validation"))
 
-import run_plugin_version_bump_ci as runner  # noqa: E402
+import run_plugin_version_bump_ci as runner
 
 
 def _stub_happy_path(monkeypatch) -> list[str]:
