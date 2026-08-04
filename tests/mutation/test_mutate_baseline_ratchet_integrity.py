@@ -1,16 +1,18 @@
-"""Mutation harness for baseline/ratchet integrity fixes.
+"""Mutation harness for baseline/ratchet integrity fixes (Issues #4493, #4494).
 
 Covers three mutants in the changed source:
   M1 -- portability_common.load_baseline: mutate isinstance check to exclude bool
          (makes bool counts slip through as valid integers)
   M2 -- portability_baseline.refuse_diff_suppressed_baseline: mutate "unset" to "set"
          (makes the guard trigger on "set" instead of "unset")
+  M2b -- portability_baseline: flip None check to fail-open
   M3 -- check_skill_md_exec_portability.scan_all: mutate SCAN_ROOTS reference
-         (breaks single-traversal guarantee)
+         (breaks single-traversal guarantee; anchored on the two-line block unique
+          to scan_all to avoid the ambiguity that caused DID-NOT-APPLY in #4493)
 
 Each mutant is:
   - counted in the source before patching (DID-NOT-APPLY detection)
-  - applied, suite run, result classified
+  - applied in a pytest fixture teardown, suite run, result classified
   - restored and verified with cmp -s against a backup
 
 One inverted control asserts rc == 0 (suite SURVIVES a benign mutation).
@@ -21,8 +23,9 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPTS = REPO_ROOT / "scripts" / "validation"
@@ -57,6 +60,36 @@ def _count_occurrences(path: Path, pattern: str) -> int:
     return path.read_text().count(pattern)
 
 
+@pytest.fixture()
+def _backup(tmp_path: Path):
+    """Context manager that saves/restores a file around a mutation.
+
+    Usage::
+
+        with _backup(target_path, tmp_path) as bak:
+            target_path.write_text(mutated_text)
+            ...
+    """
+    # Yielded as a factory so each test can call it with the path it needs.
+    saved: list[tuple[Path, Path]] = []
+
+    class _Guard:
+        def __init__(self, path: Path) -> None:
+            self._path = path
+            bak = tmp_path / (path.name + ".bak")
+            shutil.copy2(path, bak)
+            saved.append((path, bak))
+
+        def __enter__(self) -> _Guard:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            path, bak = saved[-1]
+            shutil.copy2(bak, path)
+
+    yield _Guard
+
+
 def _apply_mutation(path: Path, old: str, new: str, backup: Path) -> bool:
     """Apply a mutation. Returns False when the pattern is absent (DID-NOT-APPLY)."""
     text = path.read_text()
@@ -73,93 +106,132 @@ def _restore(path: Path, backup: Path) -> None:
     backup.unlink()
 
 
-def mutant_m1_bool_check(tmp_path: Path) -> str:
+# ---------------------------------------------------------------------------
+# Test functions (one per mutant)
+# ---------------------------------------------------------------------------
+
+
+def test_m1_bool_check_is_dead(tmp_path: Path) -> None:
     """M1: weaken bool rejection so bool values slip through as integers."""
     target = SCRIPTS / "portability_common.py"
     pattern = "not isinstance(value, int) or isinstance(value, bool)"
     count = _count_occurrences(target, pattern)
-    if count == 0:
-        return "DID-NOT-APPLY: pattern absent"
-    if count > 1:
-        return f"DID-NOT-APPLY: ambiguous, {count} occurrences"
+    assert count > 0, f"M1-bool-check DID-NOT-APPLY: pattern absent in {target}"
+    assert count == 1, f"M1-bool-check PATTERN-AMBIGUOUS: {count} occurrences"
 
     backup = tmp_path / "portability_common.py.bak"
     applied = _apply_mutation(target, pattern, "not isinstance(value, int)", backup)
-    if not applied:
-        return "DID-NOT-APPLY: replace had no effect"
+    assert applied, "M1-bool-check: replace had no effect"
 
-    proc = _run_suite()
-    result = _classify(proc)
-    _restore(target, backup)
-    return result
+    try:
+        proc = _run_suite()
+        result = _classify(proc)
+    finally:
+        _restore(target, backup)
+
+    assert result not in ("HARNESS-ERROR: pytest exit 4", "HARNESS-ERROR: no tests ran"), (
+        f"M1: harness error: {result}\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+    )
+    assert result == "DEAD", (
+        f"M1-bool-check SURVIVED (expected DEAD).\n"
+        f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
 
 
-def mutant_m2_diff_attr_guard(tmp_path: Path) -> str:
+def test_m2_diff_attr_guard_is_dead(tmp_path: Path) -> None:
     """M2: swap 'unset' for 'set' in the diff-attribute guard."""
     target = SCRIPTS / "portability_baseline.py"
     pattern = 'if attr != "unset":'
     count = _count_occurrences(target, pattern)
-    if count == 0:
-        return "DID-NOT-APPLY: pattern absent"
-    if count > 1:
-        return f"DID-NOT-APPLY: ambiguous, {count} occurrences"
+    assert count > 0, f"M2-diff-attr-guard DID-NOT-APPLY: pattern absent in {target}"
+    assert count == 1, f"M2-diff-attr-guard PATTERN-AMBIGUOUS: {count} occurrences"
 
     backup = tmp_path / "portability_baseline.py.bak"
-    applied = _apply_mutation(
-        target, pattern, 'if attr != "set":', backup
+    applied = _apply_mutation(target, pattern, 'if attr != "set":', backup)
+    assert applied, "M2-diff-attr-guard: replace had no effect"
+
+    try:
+        proc = _run_suite()
+        result = _classify(proc)
+    finally:
+        _restore(target, backup)
+
+    assert result not in ("HARNESS-ERROR: pytest exit 4", "HARNESS-ERROR: no tests ran"), (
+        f"M2: harness error: {result}\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
     )
-    if not applied:
-        return "DID-NOT-APPLY: replace had no effect"
-
-    proc = _run_suite()
-    result = _classify(proc)
-    _restore(target, backup)
-    return result
+    assert result == "DEAD", (
+        f"M2-diff-attr-guard SURVIVED (expected DEAD).\n"
+        f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
 
 
-def mutant_m2b_diff_attr_none_guard(tmp_path: Path) -> str:
+def test_m2b_diff_attr_none_guard_is_dead(tmp_path: Path) -> None:
     """M2b: flip None check to fail-open (contradicts fail-closed spec)."""
     target = SCRIPTS / "portability_baseline.py"
     pattern = "    if attr is None:\n"
     count = _count_occurrences(target, pattern)
-    if count == 0:
-        return "DID-NOT-APPLY: pattern absent"
-    if count > 1:
-        return f"DID-NOT-APPLY: ambiguous, {count} occurrences"
+    assert count > 0, f"M2b DID-NOT-APPLY: pattern absent in {target}"
+    assert count == 1, f"M2b PATTERN-AMBIGUOUS: {count} occurrences"
 
     backup = tmp_path / "portability_baseline_none.py.bak"
     applied = _apply_mutation(target, pattern, "    if attr is not None:\n", backup)
-    if not applied:
-        return "DID-NOT-APPLY: replace had no effect"
+    assert applied, "M2b: replace had no effect"
 
-    proc = _run_suite()
-    result = _classify(proc)
-    _restore(target, backup)
-    return result
+    try:
+        proc = _run_suite()
+        result = _classify(proc)
+    finally:
+        _restore(target, backup)
+
+    assert result not in ("HARNESS-ERROR: pytest exit 4", "HARNESS-ERROR: no tests ran"), (
+        f"M2b: harness error: {result}\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+    )
+    assert result == "DEAD", (
+        f"M2b SURVIVED (expected DEAD).\n"
+        f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
 
 
-def mutant_m3_scan_all_roots(tmp_path: Path) -> str:
-    """M3: drop the SCAN_ROOTS loop in scan_all (empty all result dicts)."""
+def test_m3_scan_all_roots_is_dead(tmp_path: Path) -> None:
+    """M3: drop the SCAN_ROOTS loop in scan_all (empty all result dicts).
+
+    The anchor is a two-line block unique to scan_all, avoiding the ambiguity
+    that caused DID-NOT-APPLY when the single-line anchor matched twice (#4493).
+    """
     target = SCRIPTS / "check_skill_md_exec_portability.py"
-    pattern = "    for parts in SCAN_ROOTS:"
-    count = _count_occurrences(target, pattern)
-    if count == 0:
-        return "DID-NOT-APPLY: pattern absent"
-    if count > 1:
-        return f"DID-NOT-APPLY: ambiguous, {count} occurrences"
+    # The two-line anchor exists only in scan_all, not in scan_dangling_skill_relative_scripts.
+    old = (
+        "    for parts in SCAN_ROOTS:\n"
+        '        root_name = "/".join(parts)\n'
+    )
+    new = (
+        "    for parts in []:\n"
+        '        root_name = "/".join(parts)\n'
+    )
+    count = _count_occurrences(target, old)
+    assert count > 0, f"M3-scan-all-roots DID-NOT-APPLY: two-line anchor absent in {target}"
+    assert count == 1, f"M3-scan-all-roots PATTERN-AMBIGUOUS: {count} occurrences"
 
     backup = tmp_path / "check_skill_md_exec.py.bak"
-    applied = _apply_mutation(target, pattern, "    for parts in []:", backup)
-    if not applied:
-        return "DID-NOT-APPLY: replace had no effect"
+    applied = _apply_mutation(target, old, new, backup)
+    assert applied, "M3-scan-all-roots: replace had no effect"
 
-    proc = _run_suite()
-    result = _classify(proc)
-    _restore(target, backup)
-    return result
+    try:
+        proc = _run_suite()
+        result = _classify(proc)
+    finally:
+        _restore(target, backup)
+
+    assert result not in ("HARNESS-ERROR: pytest exit 4", "HARNESS-ERROR: no tests ran"), (
+        f"M3: harness error: {result}\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+    )
+    assert result == "DEAD", (
+        f"M3-scan-all-roots SURVIVED (expected DEAD).\n"
+        f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
 
 
-def mutant_m4_inverted_control_benign(tmp_path: Path) -> str:
+def test_m4_inverted_control_survives(tmp_path: Path) -> None:
     """Inverted control: a benign change must SURVIVE (harness sanity check).
 
     Changes an unrelated comment in portability_common.py. The suite must
@@ -169,10 +241,8 @@ def mutant_m4_inverted_control_benign(tmp_path: Path) -> str:
     target = SCRIPTS / "portability_common.py"
     pattern = '"""Read and validate a portability ratchet baseline."""'
     count = _count_occurrences(target, pattern)
-    if count == 0:
-        return "DID-NOT-APPLY: pattern absent"
-    if count > 1:
-        return f"DID-NOT-APPLY: ambiguous, {count} occurrences"
+    assert count > 0, f"M4-inverted-ctrl DID-NOT-APPLY: pattern absent in {target}"
+    assert count == 1, f"M4-inverted-ctrl PATTERN-AMBIGUOUS: {count} occurrences"
 
     backup = tmp_path / "portability_common_ctrl.py.bak"
     applied = _apply_mutation(
@@ -181,47 +251,19 @@ def mutant_m4_inverted_control_benign(tmp_path: Path) -> str:
         '"""Read and validate a portability ratchet baseline. (benign)"""',
         backup,
     )
-    if not applied:
-        return "DID-NOT-APPLY: replace had no effect"
+    assert applied, "M4-inverted-ctrl: replace had no effect"
 
-    proc = _run_suite()
-    result = _classify(proc)
-    _restore(target, backup)
+    try:
+        proc = _run_suite()
+        result = _classify(proc)
+    finally:
+        _restore(target, backup)
 
-    # Inverted control: must SURVIVE.
-    if result != "SURVIVED":
-        return f"INVERTED-CONTROL-FAILED: expected SURVIVED, got {result}"
-    return "SURVIVED"
-
-
-def main() -> int:
-    import tempfile
-
-    results: dict[str, str] = {}
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        results["M1-bool-check"] = mutant_m1_bool_check(tmp_path)
-        results["M2-diff-attr-guard"] = mutant_m2_diff_attr_guard(tmp_path)
-        results["M2b-diff-attr-none-guard"] = mutant_m2b_diff_attr_none_guard(tmp_path)
-        results["M3-scan-all-roots"] = mutant_m3_scan_all_roots(tmp_path)
-        results["M4-inverted-ctrl"] = mutant_m4_inverted_control_benign(tmp_path)
-
-    print("\n=== Mutation Results ===")
-    all_ok = True
-    for name, result in results.items():
-        expected = "SURVIVED" if "inverted" in name.lower() else "DEAD"
-        ok = result == expected
-        status = "PASS" if ok else "FAIL"
-        print(f"  [{status}] {name}: {result}")
-        if not ok:
-            all_ok = False
-
-    if not all_ok:
-        print("\nFAILURE: one or more mutants survived or inverted control failed")
-        return 1
-    print("\nAll mutants killed; inverted control survived.")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    assert result not in ("HARNESS-ERROR: pytest exit 4", "HARNESS-ERROR: no tests ran"), (
+        f"M4: harness error: {result}\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+    )
+    assert result == "SURVIVED", (
+        f"M4-inverted-ctrl FAILED (expected SURVIVED, got {result}).\n"
+        f"The harness or tests are broken.\n"
+        f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
