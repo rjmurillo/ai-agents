@@ -39,7 +39,6 @@ def run_tests(test_file: Path, label: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         encoding="utf-8",
         errors="replace",
-        errors="replace",
     )
 
 
