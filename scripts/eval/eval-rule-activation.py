@@ -867,7 +867,7 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
     return False
 
 
-def _failed_judge(reason: str, raw_judge_response: str = "") -> dict[str, Any]:
+def _failed_judge(reason: str, *, raw_judge_response: str = "") -> dict[str, Any]:
     result: dict[str, Any] = {
         "activation_score": 0,
         "citation_score": 0,
