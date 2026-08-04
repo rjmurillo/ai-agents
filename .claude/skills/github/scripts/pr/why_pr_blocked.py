@@ -41,23 +41,23 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-import argparse  # noqa: E402
-import subprocess  # noqa: E402
-from typing import Any  # noqa: E402
+import argparse
+import subprocess
+from typing import Any
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     gh_graphql,
     resolve_repo_params,
 )
-from github_core.checks_rollup import group_checks_by_name  # noqa: E402
-from github_core.output import (  # noqa: E402
+from github_core.checks_rollup import group_checks_by_name
+from github_core.output import (
     add_output_format_arg,
     get_output_format,
     write_skill_error,
     write_skill_output,
 )
-from github_core.review_threads import count_unresolved_threads  # noqa: E402
+from github_core.review_threads import count_unresolved_threads
 
 _SCRIPT_NAME = "why_pr_blocked.py"
 
@@ -118,7 +118,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _fetch_ruleset_contexts(owner: str, repo: str, base_branch: str) -> list[str]:
     """Return required context names from the branch ruleset. Empty on error."""
-    import json as _json  # noqa: PLC0415
+    import json as _json
 
     result = subprocess.run(
         [
@@ -142,7 +142,7 @@ def _fetch_ruleset_contexts(owner: str, repo: str, base_branch: str) -> list[str
     try:
         raw = result.stdout.strip()
         return list(_json.loads(raw)) if raw else []
-    except Exception:  # noqa: BLE001
+    except Exception:
         return []
 
 
