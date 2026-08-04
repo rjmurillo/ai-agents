@@ -53,7 +53,7 @@ def _make_run(
     event: str = "pull_request",
     head_branch: str = "feature-branch",
     pull_requests: list[dict] | None = None,
-) -> Any:  # noqa: ANN401
+) -> Any:
     if pull_requests is None:
         pull_requests = [{"number": 123}]
     return WorkflowRun(

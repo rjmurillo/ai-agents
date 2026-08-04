@@ -19,7 +19,7 @@
 3. **Pre-commit re-applies `ruff --fix` on staged files.** You cannot stage a file "unfixed" to dodge its gate stack, and you cannot revert a ruff change by committing the old content (the hook re-applies the fix, producing an empty commit). To exclude a file, never stage it; rebuild the branch without it (`git reset --hard main`, then re-apply `--fix` to only the safe set).
 
 4. **Cascade on `.claude` / `.agents` / sync-source edits:**
-   - `.claude/**` source edit -> lockstep plugin bump (`.claude` + `src/copilot-cli` `plugin.json` to identical version) AND `build/scripts/build_all.py` mirror regen, both committed.
+   - `.claude/**` source edit -> `build/scripts/build_all.py` mirror regen, committed. No plugin bump: ADR-092 removed the `version` field from every manifest, and re-adding one fails `build/scripts/validate_plugin_version_bump.py`.
    - `.agents/**` edit -> a staged session log is required (session-protocol pre-commit gate).
    - sync-source files (`ai_review_common`, `github_core`, `hook_utilities`) -> the sync workflow, not a direct edit.
 
@@ -30,7 +30,7 @@
 1. `ruff check <candidates> --fix`.
 2. Keep only files that are 0-violation under bare `uv run ruff check <file>` (project config).
 3. Confirm the batch mypy command in gate 2 is clean for the whole committed set.
-4. If `.claude` sources are touched: bump both `plugin.json` to the same new version, run `build_all.py`, commit the regenerated `src/copilot-cli` mirrors.
+4. If `.claude` sources are touched: run `build_all.py` and commit the regenerated `src/copilot-cli` mirrors. Leave `plugin.json` alone; the manifests carry no version.
 5. Split into <=5-file commits; push detached (pre-push ~9-10 min).
 
 ## Fix, do not suppress
