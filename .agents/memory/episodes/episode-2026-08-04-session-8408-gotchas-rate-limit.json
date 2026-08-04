@@ -1,0 +1,55 @@
+{
+  "id": "episode-2026-08-04-session-8408-gotchas-rate-limit",
+  "session": "2026-08-04-session-8408-gotchas-rate-limit",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record two measured push-time traps in GOTCHAS.md: a push that fails only on plugin-load-e2e is the shared GitHub GraphQL budget running out rather than an auth problem, and a bare ruff check . is not the tracked-file-scoped ruff count ratchet.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:40:00+00:00",
+      "type": "milestone",
+      "content": "Resolved merge conflicts from origin/main and reran targeted validation.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-04-session-8408-gotchas-rate-limit"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T01:05:00+00:00",
+      "type": "milestone",
+      "content": "Recorded retrospective evidence and updated the taste count baseline to match the tracked tree.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-04-session-8408-gotchas-rate-limit"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T11:03:07+00:00",
+      "type": "commit",
+      "content": "Commit: 6cd1c892c9fc8967b72dae8fb1c1398b17b4a4e1",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-8408-gotchas-rate-limit"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

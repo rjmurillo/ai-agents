@@ -128,6 +128,38 @@ endingCommit '<sha>' names a commit that is not an ancestor of HEAD
 
 Refs #3618.
 
+## A session log cannot name the commit that carries it
+
+The follow-up-commit remedy above has a missing first step, and without it the
+first commit of a session is unreachable.
+
+`session-policy` runs the **full** `validate_session_json.py` at pre-commit, not
+a presence check. `sessionEnd.changesCommitted` is a MUST, so it must be
+Complete. Complete requires `endingCommit` to be a non-empty ancestor of `HEAD`
+that differs from `startingCommit`. A log staged in the commit it describes
+cannot satisfy that, because the SHA does not exist until the commit succeeds.
+Every escape is separately blocked:
+
+```text
+endingCommit = <the new commit>   impossible, the SHA does not exist yet
+endingCommit = HEAD               "startingCommit and endingCommit are the same"
+endingCommit = ""                 "changesCommitted is complete but endingCommit is empty"
+changesCommitted.Complete = false "Incomplete MUST: sessionEnd.changesCommitted"
+```
+
+Point the log at commits that already exist. Set `endingCommit` to the session's
+most recent existing commit and `startingCommit` to that commit's parent, then
+advance `endingCommit` in the follow-up commit:
+
+```bash
+git rev-parse HEAD^   # -> startingCommit
+git rev-parse HEAD    # -> endingCommit
+```
+
+Corollary: a session whose **first** commit touches `.agents/` has no existing
+commit to name. Land one commit outside `.agents/` first, or the gate cannot be
+satisfied at all.
+
 ## The same `endingCommit` error also fires when you never amended anything
 
 The tell is that the log it validated is not yours. Do not rely on the
@@ -491,3 +523,59 @@ Notes:
 
 Issue #4283 documents the measured 28-waiter convoy produced by the global lock
 and the first-principles analysis of why the race is per-ref.
+
+## A push that fails only on `plugin-load-e2e` is the GitHub rate limit
+
+`plugin-load-e2e` probes Copilot auth. When the shared GitHub GraphQL budget is
+exhausted, the probe reports the refusal as an empty or rejected auth token
+rather than as a rate limit, so the push fails on a message that names the wrong
+cause. Every other gate stays green.
+
+The discriminator is the skip guard. The test **skips** when no token
+environment variable is set and **fails** when a token path exists but the probe
+call errors. So a hard failure means the token was found and the call was
+refused, not that the token is missing.
+
+Confirm before re-diagnosing anything:
+
+```bash
+grep -aoE "🥊 [a-z0-9-]+ \([0-9.]+ seconds\)" push.log | sort -u
+gh api rate_limit --jq '.resources.graphql.remaining'
+```
+
+One failed gate named `plugin-load-e2e` plus a remaining count near zero is the
+rate limit. Wait for the reset and retry the identical push; do not change the
+branch, the base, or the gate.
+
+This bites hardest with several agents or worktrees running at once, because
+they share one user-scoped budget. N concurrent workers exhaust it and then
+**all** of them fail this one gate, so the failure rate rises with the very
+parallelism it blocks. Before a batch of GitHub calls, check the remaining
+budget and do local work while it is under 500. Prefer one batched
+`gh issue list --json` or `gh pr list --json` over per-item `gh issue view`
+calls: fourteen sequential views triggered the secondary limit where a single
+batched list did not. Refs #4504.
+
+## Run the gate itself, never an approximation of it
+
+`ruff check .` walks untracked scratch files and any nested worktree under the
+repo root. `ruff_count_ratchet.py` scopes to git-**tracked** files. The two
+numbers differ, and the ratchet's own docstring records a local `.` run
+inflating to 767 against a real 361.
+
+Symptom: a count that does not match what the gate prints, leading you to
+diagnose a regression that the gate does not see, or to miss one it does. A
+measured instance: the approximation said 142 while the gate said 140.
+
+Run the gate's own entry point and read its number. This applies to every count
+ratchet, not only ruff.
+
+Two related traps:
+
+- `ruff check --select RUF100 --fix` deletes every `noqa` in the repository.
+  `--select` replaces the project rule set, so every other rule becomes
+  non-enabled and every suppression for it reads as unused. Use `--fixable
+  RUF100` instead, which keeps the configured select list intact.
+- RUF100 distinguishes `unused:` from `non-enabled:`. A wall of `non-enabled:`
+  means the `noqa` names a rule absent from the select list, which points at a
+  configuration or version change rather than at new code.
