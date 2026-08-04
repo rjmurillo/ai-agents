@@ -536,22 +536,19 @@ class TestValidateStrategy:
         assert envelope["Metadata"]["Script"] == "merge_pr.py"
 
     def test_strategy_rejected_in_main(self):
+        # With an explicit strategy, main skips the REST settings preflight
+        # (issue #4490). get_allowed_merge_methods is not called.
+        # Strategy validation moves to the merge endpoint response.
+        # This test verifies the pre-#4490 unit path: calling validate_strategy
+        # directly still rejects a disallowed method.
         settings = {
             "allow_merge_commit": False,
             "allow_squash_merge": True,
             "allow_rebase_merge": False,
         }
-        with patch(
-            "merge_pr.assert_gh_authenticated",
-        ), patch(
-            "merge_pr.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "merge_pr.get_allowed_merge_methods", return_value=settings,
-        ):
-            with pytest.raises(SystemExit) as exc:
-                main(["--pull-request", "50", "--strategy", "merge"])
-            assert exc.value.code == 1
+        with pytest.raises(SystemExit) as exc:
+            validate_strategy("merge", settings, "o/r", "auto")
+        assert exc.value.code == 1
 
     def test_rebase_strategy_rejected(self):
         settings = {
@@ -688,25 +685,22 @@ class TestDefaultStrategyIntegration:
         merge_cmd = merge_calls[-1]
         assert "--squash" in merge_cmd
 
-    def test_explicit_disallowed_strategy_emits_envelope(self, capsys):
-        """Explicit --strategy merge on squash-only repo → JSON envelope."""
+    def test_explicit_disallowed_strategy_validated_directly(self, capsys):
+        """validate_strategy still rejects a disallowed strategy when called.
+
+        With explicit --strategy, main skips the REST preflight (issue #4490),
+        so strategy validation happens via the merge endpoint's 405 response,
+        not via this pre-merge check. This test documents that validate_strategy
+        itself still raises correctly when invoked directly.
+        """
         squash_only = {
             "allow_merge_commit": False,
             "allow_squash_merge": True,
             "allow_rebase_merge": False,
         }
-        with patch(
-            "merge_pr.assert_gh_authenticated",
-        ), patch(
-            "merge_pr.resolve_repo_params",
-            return_value=RepoInfo(owner="rjmurillo", repo="ai-agents"),
-        ), patch(
-            "merge_pr.get_allowed_merge_methods", return_value=squash_only,
-        ):
-            with pytest.raises(SystemExit) as exc:
-                main(["--pull-request", "2444", "--strategy", "merge",
-                      "--output-format", "json"])
-            assert exc.value.code == 1
+        with pytest.raises(SystemExit) as exc:
+            validate_strategy("merge", squash_only, "rjmurillo/ai-agents", "json")
+        assert exc.value.code == 1
         envelope = json.loads(capsys.readouterr().out)
         assert envelope["Success"] is False
         assert envelope["Error"]["Code"] == 1
@@ -1128,3 +1122,65 @@ class TestRestRetryOnBlocked:
         assert rc == 0
         # Only two calls: state fetch and gh pr merge; no REST retry
         assert len(calls) == 2
+
+
+# ---------------------------------------------------------------------------
+# Tests: explicit strategy skips REST settings preflight (issue #4490)
+# ---------------------------------------------------------------------------
+
+
+class TestExplicitStrategySkipsSettingsPreflight:
+    """Explicit --strategy must not call get_allowed_merge_methods (issue #4490).
+
+    When REST quota is exhausted, a settings preflight raises before the
+    merge is attempted. An explicit strategy already encodes the caller's
+    intent, so there is no reason to query repo settings.
+    """
+
+    _STATE = json.dumps({
+        "state": "OPEN", "mergeable": "MERGEABLE",
+        "mergeStateStatus": "CLEAN", "headRefName": "feature",
+        "headRefOid": "abc123def456",
+    })
+
+    def test_explicit_strategy_does_not_call_get_allowed_merge_methods(self):
+        """Positive: explicit --strategy skips the settings REST call."""
+        with patch("merge_pr.assert_gh_authenticated"), \
+             patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")), \
+             patch("merge_pr.get_allowed_merge_methods") as mock_settings, \
+             patch("subprocess.run", side_effect=lambda cmd, **kw: (
+                 _completed(stdout=self._STATE, rc=0)
+                 if "view" in cmd else _completed(rc=0)
+             )):
+            main(["--pull-request", "42", "--strategy", "squash"])
+        mock_settings.assert_not_called()
+
+    def test_omitted_strategy_still_calls_get_allowed_merge_methods(self):
+        """Negative: omitting --strategy still calls the settings endpoint."""
+        with patch("merge_pr.assert_gh_authenticated"), \
+             patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")), \
+             patch(
+                 "merge_pr.get_allowed_merge_methods",
+                 return_value=_ALL_METHODS_ALLOWED,
+             ) as mock_settings, \
+             patch("subprocess.run", side_effect=lambda cmd, **kw: (
+                 _completed(stdout=self._STATE, rc=0)
+                 if "view" in cmd else _completed(rc=0)
+             )):
+            main(["--pull-request", "42"])
+        mock_settings.assert_called_once()
+
+    def test_explicit_strategy_merges_without_rest_quota(self):
+        """Edge: if settings endpoint were called it would raise; explicit strategy avoids this."""
+        def _raise_if_settings(cmd, **kw):
+            if "api" in cmd and "repos/" in " ".join(str(c) for c in cmd):
+                raise RuntimeError("REST quota exhausted")
+            if "view" in cmd:
+                return _completed(stdout=self._STATE, rc=0)
+            return _completed(rc=0)
+
+        with patch("merge_pr.assert_gh_authenticated"), \
+             patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")), \
+             patch("subprocess.run", side_effect=_raise_if_settings):
+            rc = main(["--pull-request", "42", "--strategy", "squash"])
+        assert rc == 0
