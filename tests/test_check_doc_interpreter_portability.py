@@ -13,6 +13,7 @@ from unittest.mock import Mock
 
 import pytest
 
+import scripts.validation.check_doc_interpreter_portability as portability_checker
 from scripts.validation.check_doc_interpreter_portability import (
     INVOCATION_PATTERN,
     ScanError,
@@ -437,6 +438,11 @@ def test_generated_mirrors_are_out_of_scope(path: str) -> None:
     assert not is_in_scope(path)
 
 
+def test_hand_maintained_github_prompt_is_in_scope() -> None:
+    """Only generated PR quality prompts are excluded under `.github/prompts`."""
+    assert is_in_scope(".github/prompts/drift-alert-issue.md")
+
+
 @pytest.mark.parametrize(
     "path",
     ["src/claude/AGENTS.md", "src/claude/architect.md"],
@@ -641,6 +647,54 @@ def test_update_baseline_refuses_symlinked_parent(
     assert "through a symlink" in capsys.readouterr().err
 
 
+def test_update_baseline_rechecks_symlinked_parent_inside_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = make_repo(
+        tmp_path / "repo",
+        {
+            "README.md": "No command.\n",
+            "linked/baseline.json": '{"files": {"stale.md": 1}}\n',
+        },
+    )
+    external = tmp_path / "external"
+    external.mkdir()
+    external_baseline = external / "baseline.json"
+    external_baseline.write_text('{"files": {"stale.md": 1}}\n', encoding="utf-8")
+    linked = repo / "linked"
+    parked = repo / "parked"
+    original_guard = portability_checker._baseline_path_is_unsafe
+    calls = 0
+
+    def swap_parent_after_check(repo_root: Path, baseline_path: Path) -> bool:
+        nonlocal calls
+        unsafe = original_guard(repo_root, baseline_path)
+        calls += 1
+        if calls == 1:
+            linked.rename(parked)
+            linked.symlink_to(external, target_is_directory=True)
+        return unsafe
+
+    monkeypatch.setattr(portability_checker, "_baseline_path_is_unsafe", swap_parent_after_check)
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(repo),
+            "--baseline",
+            str(linked / "baseline.json"),
+            "--update-baseline",
+        ]
+    )
+
+    assert exit_code == 2
+    assert calls == 2
+    assert sorted(path.name for path in external.iterdir()) == ["baseline.json"]
+    assert external_baseline.read_text(encoding="utf-8") == '{"files": {"stale.md": 1}}\n'
+    assert (parked / "baseline.json").read_text(encoding="utf-8") == '{"files": {"stale.md": 1}}\n'
+
+
 def test_update_baseline_refuses_hidden_diff(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -695,7 +749,7 @@ def test_update_baseline_uses_shared_write_lock(
     )
 
     assert exit_code == 0
-    assert acquired == [repo / ".baseline.json.write-lock"]
+    assert acquired == [repo / ".check-doc-interpreter-portability.write-lock"]
 
 
 def test_update_baseline_refuses_count_increase(
