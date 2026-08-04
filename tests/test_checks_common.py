@@ -67,7 +67,7 @@ class TestRefreshRemoteBase:
         assert _refresh_remote_base("origin/foo/bar/baz", tmp_path) is None
 
     def test_returns_none_when_ci_env_true(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         """Should skip fetch when CI=true (CI already fetched)."""
         monkeypatch.setenv("CI", "true")
@@ -77,7 +77,7 @@ class TestRefreshRemoteBase:
             mock_run.assert_not_called()
 
     def test_returns_none_when_ci_env_one(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         """Should skip fetch when CI=1."""
         monkeypatch.setenv("CI", "1")
@@ -87,7 +87,7 @@ class TestRefreshRemoteBase:
             mock_run.assert_not_called()
 
     def test_returns_none_when_github_actions_true(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         """Should skip fetch when GITHUB_ACTIONS=true."""
         monkeypatch.setenv("GITHUB_ACTIONS", "true")
@@ -97,7 +97,7 @@ class TestRefreshRemoteBase:
             mock_run.assert_not_called()
 
     def test_returns_none_when_github_actions_one(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         """Should skip fetch when GITHUB_ACTIONS=1."""
         monkeypatch.setenv("GITHUB_ACTIONS", "1")
@@ -107,7 +107,7 @@ class TestRefreshRemoteBase:
             mock_run.assert_not_called()
 
     def test_returns_empty_string_on_successful_fetch(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         """Should return empty string on successful git fetch."""
         monkeypatch.delenv("CI", raising=False)
@@ -138,7 +138,7 @@ class TestRefreshRemoteBase:
             assert "GIT_INDEX_FILE" not in clean_env
 
     def test_returns_error_string_on_failed_fetch(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         """Should return error string on failed git fetch."""
         monkeypatch.delenv("CI", raising=False)
@@ -152,7 +152,7 @@ class TestRefreshRemoteBase:
             mock_run.assert_called_once()
 
     def test_returns_exit_code_message_when_stderr_empty(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         """Should return exit code message when stderr is empty."""
         monkeypatch.delenv("CI", raising=False)
@@ -174,7 +174,7 @@ class TestRunBuildScriptGate:
     """Tests for _run_build_script_gate with remote refresh."""
 
     def test_fetches_origin_branch_before_validation(
-        self, tmp_path: Path, monkeypatch: Any, capsys: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any, capsys: Any
     ) -> None:
         """Should call _refresh_remote_base before invoking the validator."""
         monkeypatch.delenv("CI", raising=False)
@@ -202,7 +202,7 @@ class TestRunBuildScriptGate:
             mock_refresh.assert_called_once_with("origin/main", tmp_path)
 
     def test_warns_on_fetch_failure_and_proceeds(
-        self, tmp_path: Path, monkeypatch: Any, capsys: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any, capsys: Any
     ) -> None:
         """Should emit warning on fetch failure but proceed with validation."""
         monkeypatch.delenv("CI", raising=False)
@@ -232,7 +232,7 @@ class TestRunBuildScriptGate:
             assert "timeout after 15s" in captured.err
 
     def test_does_not_fetch_for_non_origin_ref(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         """Should not fetch when base_ref is not origin/<branch>."""
         monkeypatch.delenv("CI", raising=False)
@@ -269,7 +269,7 @@ class TestStaleOriginMainRegression:
     """End-to-end regression test for issue #2453."""
 
     def test_stale_origin_main_no_longer_false_passes(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         """Issue #2453: stale local origin/main refreshed before validator.
 
@@ -810,7 +810,7 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
     ):
         """Return a mock _run_subprocess that replays canned responses."""
 
-        def _run(cmd, **kwargs):  # noqa: ARG001
+        def _run(cmd, **kwargs):
             key = tuple(cmd)
             for pattern, result in responses.items():
                 if all(p in key for p in pattern):
@@ -842,7 +842,7 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
         """When gh pr view fails, retries with the upstream head branch."""
         calls: list[list[str]] = []
 
-        def _run(cmd, **kwargs):  # noqa: ARG001
+        def _run(cmd, **kwargs):
             calls.append(list(cmd))
             if cmd[:3] == ["gh", "pr", "view"] and len(cmd) == 7:
                 return (1, "", "no PR for current branch")
@@ -867,7 +867,7 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
     def test_returns_none_when_both_gh_calls_fail(self, tmp_path: Path) -> None:
         """Returns None when neither gh attempt finds a PR."""
 
-        def _run(cmd, **kwargs):  # noqa: ARG001
+        def _run(cmd, **kwargs):
             if "rev-parse" in cmd and "@{u}" in cmd:
                 return (0, "origin/fix/some-feature\n", "")
             return (1, "", "no PR found")
@@ -883,7 +883,7 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
     def test_returns_none_when_no_upstream_configured(self, tmp_path: Path) -> None:
         """Returns None when there is no upstream and both gh calls fail."""
 
-        def _run(cmd, **kwargs):  # noqa: ARG001
+        def _run(cmd, **kwargs):
             if "rev-parse" in cmd:
                 return (1, "", "no upstream")
             return (1, "", "no PR found")
@@ -907,7 +907,7 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
         """Ensures the tracked ref becomes a positional head selector."""
         head_arg_seen: list[str] = []
 
-        def _run(cmd, **kwargs):  # noqa: ARG001
+        def _run(cmd, **kwargs):
             if cmd[:3] == ["gh", "pr", "view"] and len(cmd) == 7:
                 return (1, "", "fail")
             if "rev-parse" in cmd:
