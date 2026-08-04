@@ -96,7 +96,7 @@ def run_prompt(api_key: str, prompt_text: str, feature: dict, runs: int) -> dict
         try:
             raw = call_api(api_key, [{"role": "user", "content": user}],
                            system=prompt_text, model=MODEL, max_tokens=800)
-        except Exception as exc:  # noqa: BLE001 - record and continue
+        except Exception as exc:
             details.append({"ok": False, "err": str(exc)[:120]})
             continue
         block = extract_frontmatter_block(raw)

@@ -54,7 +54,7 @@ def main():
                 dur = int((time.monotonic() - t) * 1000)
                 scores = evalkit.parse_scores(text)
                 rec = {"scores": scores, "ms": dur} if scores else {"error": "unparseable", "ms": dur}
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 rec = {"error": str(exc)[:160], "ms": int((time.monotonic() - t) * 1000)}
             report["files"][rel][model] = rec
             ov = rec.get("scores", {}).get("overall") if "scores" in rec else "ERR"

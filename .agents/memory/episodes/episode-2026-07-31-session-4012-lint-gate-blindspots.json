@@ -1,0 +1,155 @@
+{
+  "id": "episode-2026-07-31-session-4012-lint-gate-blindspots",
+  "session": "2026-07-31-session-4012-lint-gate-blindspots",
+  "timestamp": "2026-07-31T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix four lint-gate blind spots: #3792 RUF100 not enabled, #3874 no unreachable-code gate, #3941 dead noqa tags in eval-model-sweep.py, #4060 F811 blind to underscore-prefixed names",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-measure all four issue premises",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "#3874 real bug: rescue 4 misplaced test methods",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "#3941: remove dead S404/S603 noqa from eval-model-sweep.py",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "#3792: enable RUF100, bulk auto-fix, update baseline 331->58",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "#3874 gate: check_unreachable_after_terminator.py (33 tests)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "#4060 gate: test_no_duplicate_module_level_defs.py (11 tests)",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix mypy errors in embedder.py, guards.py, test_context_loader.py",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation harness: 8/8 mutants killed",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b3dc8ad9482fbbb69748d6cd7b7cc661b691c4be",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 994b5e5b1e03f4682061a0fe208c2d13e36d7635",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f3786221e378064fbcf55ea11a14c9fbf55df49f",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 5edf79f911911ca2e37a0c67d0dfc638f5edbcd5",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 77e65eb566dcde46857ff0f501e3b0c24ce9cb9d",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8aee949e95fad4b74527f6a452193191e0acafb1",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 705ca34d9417143b44d8e3f9061d55962fb23dd2",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-07-31-session-4012-lint-gate-blindspots"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 7,
+    "files_changed": 6
+  },
+  "lessons": []
+}

@@ -181,7 +181,7 @@ paragraph would go stale on the next always-on edit while the numbers stayed
 correct, which is the harder error to notice. Two numbers, and they are not
 interchangeable. The
 **always-on corpus is 8 rules, 71,246 bytes**: the ones that load regardless
-of what you touch. The **effective context on a `.py` edit is 95,740 bytes
+of what you touch. The **effective context on a `.py` edit is 96,997 bytes
 across 11 files**, which is the always-on corpus plus the path-scoped rules
 that a Python file activates. Use the first when arguing about what every
 session pays. Use the second when arguing about what a specific edit pays.
@@ -205,7 +205,7 @@ disagrees by more, the document is stale and the command wins.
 One book rule loads on every file. `pragmatic-programmer.md` was narrowed to
 code files in PR #4424, which recovered 11,225 always-on bytes, the largest
 single reduction this corpus has taken. What remains always-on is not the
-largest rule either: `voice.md` at 19,624 bytes is the single biggest
+largest rule either: `voice.md` at 17,527 bytes is the single biggest
 always-on file.
 
 | Rule | Bytes | Loading | Scenario file | Scored result |
@@ -279,7 +279,7 @@ It was real. Commit `77edc827` (PR #1022, 2026-01-31) adopted the Vercel
 strategy and wrote "Total passive context: ~4.5KB (well under Vercel's 8KB
 threshold)".
 
-The always-on corpus is 8.7x that threshold and a Python edit sees 11.7x,
+The always-on corpus is 8.7x that threshold and a Python edit sees 11.9x,
 measured at source. The enforced budget ceiling in
 `scripts/validation/instruction_budget_constants.py` ratcheted upward to track
 measured size instead of holding at the goal, which made every increase look
