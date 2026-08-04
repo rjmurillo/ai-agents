@@ -18,6 +18,7 @@ def _load(name: str, path: Path) -> ModuleType:
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
     original_sys_path = sys.path.copy()
     sys.path.insert(0, str(EVAL_DIR))
     try:
@@ -268,6 +269,99 @@ def test_reviewer_asymmetry_entrypoint_stops_after_one_call(
         "load_template",
         lambda path, ref: "control" if ref else "treatment",
     )
+    monkeypatch.setattr(module, "load_api_key_for_selected_provider", lambda: "")
+    monkeypatch.setattr(module, "run_eval", fail)
+
+    with pytest.raises(module.MalformedProviderMetadataError):
+        module.main()
+
+    assert calls == 1
+
+
+def test_skill_overlap_entrypoint_stops_after_one_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load(
+        "skill_overlap_metadata_stop",
+        EVAL_DIR / "eval-skill-overlap.py",
+    )
+    calls = 0
+    config = module.PairsConfig(
+        pairs=[("a", "b")],
+        prompts={"a": [], "b": []},
+    )
+    args = SimpleNamespace(
+        pairs="pairs.json",
+        run_id=None,
+        model=module.DEFAULT_MODEL,
+        dry_run=False,
+    )
+
+    def fail(*values: object, **kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        _raise_metadata_error(module.MalformedProviderMetadataError)
+
+    monkeypatch.setattr(module, "load_pairs_file", lambda path: config)
+    monkeypatch.setattr(module, "_validate_pair_skill_dirs", lambda pairs, root: None)
+    monkeypatch.setattr(module, "_load_api_key_for_selected_provider", lambda: "")
+    monkeypatch.setattr(module, "make_response_fn", lambda key, model: fail)
+    monkeypatch.setattr(module, "make_judge_fn", lambda key, model: fail)
+    monkeypatch.setattr(module, "evaluate_pair", fail)
+
+    with pytest.raises(module.MalformedProviderMetadataError):
+        module.run(args)
+
+    assert calls == 1
+
+
+def test_skill_router_call_boundary_preserves_typed_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load(
+        "skill_router_call_metadata_stop",
+        EVAL_DIR / "eval_skill_router.py",
+    )
+    calls = 0
+
+    def fail(*values: object, **kwargs: object) -> str:
+        nonlocal calls
+        calls += 1
+        _raise_metadata_error(module.MalformedProviderMetadataError)
+
+    monkeypatch.setattr(module, "call_api", fail)
+
+    with pytest.raises(module.MalformedProviderMetadataError):
+        module.call_router("key", "prompt")
+
+    assert calls == 1
+
+
+def test_skill_router_entrypoint_stops_after_one_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load(
+        "skill_router_metadata_stop",
+        EVAL_DIR / "eval_skill_router.py",
+    )
+    calls = 0
+    args = SimpleNamespace(
+        fixtures="fixtures.json",
+        repo_root=".",
+        limit=None,
+        dry_run=False,
+    )
+    plan = [{"fixture": {"candidates": ["a"]}}]
+
+    def fail(*values: object, **kwargs: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        _raise_metadata_error(module.MalformedProviderMetadataError)
+
+    monkeypatch.setattr(module, "_parse_args", lambda: args)
+    monkeypatch.setattr(module, "load_fixtures", lambda path: [{"id": "f"}])
+    monkeypatch.setattr(module, "build_plan", lambda fixtures, root: plan)
+    monkeypatch.setattr(module, "check_identical_arms", lambda items: [])
     monkeypatch.setattr(module, "load_api_key_for_selected_provider", lambda: "")
     monkeypatch.setattr(module, "run_eval", fail)
 
