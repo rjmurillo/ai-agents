@@ -1,0 +1,342 @@
+{
+  "id": "episode-2026-08-02-session-4319-ship-unresolved-review-fixes-4323",
+  "session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Ship unresolved review fixes after PR #4323 merged from the old head",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Detected that PR #4323 merged from its old head during review remediation",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Applied and completed all unresolved review fixes",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored cross-harness session command portability",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted, full-suite, and independent review gates",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed process and codebase defects found during recovery",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed the local review superset",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recovered the failed pre-push type check",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved the final reliability review finding",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved the final code-quality review finding",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged the final current main after PRs #4466 and #4481 landed",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retired stale script-mode exemptions introduced by current main",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the final security and reliability review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main and repaired the remaining branch-owned type failure",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran repository gates against current main",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the full blocker discourse and updated the matching issue",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Detected a regression in generated episode file metrics",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired final portability review regressions",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran validation and the local review superset",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Grounded the code-qualities gate against the exact base revision",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced generated episode merge-range inflation",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recovered from the repository push commit-count policy",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split the rebuilt change into seven atomic commits",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the final QA High finding",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Revalidated the rebuilt branch and repeated all review axes",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Published the rebuilt follow-up branch and opened PR #4568",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed first-round PR evidence feedback",
+      "caused_by": [],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-04T15:23:25+00:00",
+      "type": "commit",
+      "content": "Commit: 22152e3f3",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016",
+        "e017",
+        "e018",
+        "e019",
+        "e020",
+        "e021",
+        "e022",
+        "e023",
+        "e024",
+        "e025",
+        "e026"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4319-ship-unresolved-review-fixes-4323"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 25
+  },
+  "lessons": []
+}
