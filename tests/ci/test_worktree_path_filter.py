@@ -18,7 +18,7 @@ from unittest.mock import patch
 
 def _import_module() -> types.ModuleType:
     """Return the test_validation_scripts_are_reachable module."""
-    import tests.ci.test_validation_scripts_are_reachable as mod  # noqa: PLC0415
+    import tests.ci.test_validation_scripts_are_reachable as mod
 
     return mod
 
