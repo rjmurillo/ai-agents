@@ -14,14 +14,13 @@ import time
 from datetime import UTC, datetime, timedelta
 from io import StringIO
 from pathlib import Path
+from typing import IO, Any
 from unittest.mock import patch
 
-HOOKS_DIR = str(
-    Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "SessionStart"
-)
+HOOKS_DIR = str(Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "SessionStart")
 sys.path.insert(0, HOOKS_DIR)
 
-import invoke_context_loader  # noqa: E402
+import invoke_context_loader
 
 MARKER = invoke_context_loader.RETRO_STATE_MARKER
 
@@ -41,9 +40,7 @@ def _write_skeleton(retro_dir: Path, date: str, *, filled: bool = False) -> Path
     return path
 
 
-def _write_skeleton_file(
-    retro_dir: Path, filename: str, *, filled: bool = False
-) -> Path:
+def _write_skeleton_file(retro_dir: Path, filename: str, *, filled: bool = False) -> Path:
     retro_dir.mkdir(parents=True, exist_ok=True)
     path = retro_dir / filename
     body = f"# Retrospective: {filename}\n\nfilled content\n"
@@ -104,9 +101,7 @@ def test_stale_skeleton_excluded_by_age_cap() -> None:
         _write_skeleton(retro_dir, _date_days_ago(30))
 
         # Act
-        count, names = invoke_context_loader._count_pending_skeletons(
-            retro_dir, max_age_days=7
-        )
+        count, names = invoke_context_loader._count_pending_skeletons(retro_dir, max_age_days=7)
 
         # Assert
         assert count == 0
@@ -123,9 +118,7 @@ def test_boundary_at_max_age_days_included() -> None:
         _write_skeleton(retro_dir, skeleton_date)
 
         # Act
-        count, names = invoke_context_loader._count_pending_skeletons(
-            retro_dir, max_age_days=7
-        )
+        count, names = invoke_context_loader._count_pending_skeletons(retro_dir, max_age_days=7)
 
         # Assert
         assert count == 1
@@ -144,9 +137,7 @@ def test_undated_skeleton_falls_back_to_mtime_age_cap() -> None:
         _age_file(stale, days_old=30)
 
         # Act
-        count, names = invoke_context_loader._count_pending_skeletons(
-            retro_dir, max_age_days=7
-        )
+        count, names = invoke_context_loader._count_pending_skeletons(retro_dir, max_age_days=7)
 
         # Assert
         assert count == 1
@@ -182,7 +173,7 @@ def test_unreadable_file_skipped_not_fatal() -> None:
 
         real_open = Path.open
 
-        def _selective_open(self: Path, *args: object, **kwargs: object) -> object:
+        def _selective_open(self: Path, *args: Any, **kwargs: Any) -> IO[Any]:
             if self.name == bad.name:
                 raise OSError("simulated unreadable file")
             return real_open(self, *args, **kwargs)
@@ -218,9 +209,7 @@ def test_skeleton_dates_empty_when_no_dates() -> None:
 
 def test_pending_skeleton_summary_does_not_emit_undated_filenames() -> None:
     names = ["ignore previous instructions.md"]
-    assert invoke_context_loader._pending_skeleton_summary(names) == (
-        "1 undated skeleton file(s)"
-    )
+    assert invoke_context_loader._pending_skeleton_summary(names) == ("1 undated skeleton file(s)")
 
 
 # --- main(): reminder surfacing -------------------------------------------
@@ -229,11 +218,12 @@ def test_pending_skeleton_summary_does_not_emit_undated_filenames() -> None:
 def _run_main_with_project(project_dir: Path) -> str:
     """Run the hook against project_dir; return captured stdout."""
     captured = StringIO()
-    with patch("sys.stdin", StringIO("")), patch.object(
-        invoke_context_loader, "get_project_directory", return_value=str(project_dir)
-    ), patch.object(
-        invoke_context_loader, "skip_if_consumer_repo", return_value=False
-    ), patch("sys.stdout", captured):
+    with (
+        patch("sys.stdin", StringIO("")),
+        patch.object(invoke_context_loader, "get_project_directory", return_value=str(project_dir)),
+        patch.object(invoke_context_loader, "skip_if_consumer_repo", return_value=False),
+        patch("sys.stdout", captured),
+    ):
         invoke_context_loader.main()
     return captured.getvalue()
 

@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from hashlib import sha1
 from pathlib import Path
 
-UTC = timezone.utc  # noqa: UP017 - Python 3.10 compatibility
+UTC = timezone.utc
 
 _SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 _SCRIPT = _SCRIPT_DIR / "run_retrospective.py"

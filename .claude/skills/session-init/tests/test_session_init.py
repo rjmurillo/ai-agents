@@ -642,7 +642,7 @@ class TestNewSessionLogJson:
             # scopes the umask to this child fork. PLW1509 flags preexec_fn as
             # thread-unsafe; this test is single-threaded, so the documented
             # fork+threads race cannot occur. Suppression is the least-bad option.
-            preexec_fn=lambda: os.umask(0o002),  # noqa: PLW1509
+            preexec_fn=lambda: os.umask(0o002),
         )
 
         assert proc.returncode == 0, proc.stderr

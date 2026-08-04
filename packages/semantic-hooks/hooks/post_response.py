@@ -7,7 +7,7 @@ Checks agent responses for repetitive topic loops and injects nudges.
 import json
 import sys
 
-from semantic_hooks.guards import StuckDetectionGuard, create_stuck_guard_from_config
+from semantic_hooks.guards import create_stuck_guard_from_config
 
 
 def log(message: str) -> None:
