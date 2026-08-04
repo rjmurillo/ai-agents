@@ -199,7 +199,7 @@ is a future duplicate proposal.
 | 2. Spike | Probe script + decision memory with version/date | Negative control passed; claim falsifiable | Self-serve, peers via memory |
 | 3. Baseline | Buy-vs-build Quick verdict + written prediction + eval numbers | Go verdict; baseline exists (13wk prune clock starts) | `buy-vs-build-framework` output; user for spend |
 | 4. ADR | `ADR-*.md` + debate log | `adr-review` consensus (max 10 rounds) + human approval | 6-agent debate + user |
-| 5. Ship | Gate/skill + calibration table + tests | `ai-agents-change-control` ladder (pre_pr.py, CI, plugin bump if plugin tree) | CI gates + review |
+| 5. Ship | Gate/skill + calibration table + tests | `ai-agents-change-control` ladder (pre_pr.py, CI, plugin version-field gate if plugin tree) | CI gates + review |
 | 6. Monitor | `EVENT=` telemetry, `guard-maturity` tier | Tier not Inert/Harmful | Periodic guard-maturity report |
 | 7. Adopt/retire | Retro or rejection record | n/a (terminal) | Documented either way |
 
