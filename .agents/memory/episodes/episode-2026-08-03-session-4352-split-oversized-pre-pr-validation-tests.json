@@ -1,0 +1,63 @@
+{
+  "id": "episode-2026-08-03-session-4352-split-oversized-pre-pr-validation-tests",
+  "session": "2026-08-03-session-4352-split-oversized-pre-pr-validation-tests",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Split oversized pre-PR validation tests for issue 4352",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read kanban task t_4e0b0cc0, repo status, test file structure, and related validation code.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split tests/test_validation_pre_pr.py into focused modules under tests/validation_pre_pr while preserving 93 collected tests.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran each split test module independently, combined 93-test suite, ruff, taste-lints, full pytest tests/ -x, and pre_pr --quick --skip-tests.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Handled pre-push security suppression policy by removing copied noqa comments from new files; added retrospective evidence after pre-push policy required it.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

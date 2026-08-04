@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size, append-only trap index; split entries lose search locality. -->
 # Gotchas
 
 Non-obvious repository behavior that cost real time to learn and cannot be
@@ -30,7 +31,7 @@ for executable invocations of exactly that tree. All four live in
 |---|---|---|
 | `scripts/validation/check_vendor_portability.py` | skill scripts | code that reads an upstream-only path |
 | `scripts/validation/check_skill_portability.py` | skill scripts | drift against the script baseline |
-| `scripts/validation/check_skill_md_portability.py` | skill `.md` | an upstream path cited in **prose** |
+| `scripts/validation/check_skill_md_portability.py` | skill `.md`, `.claude/commands/`, `templates/agents/` | an upstream path cited in **prose** |
 | `scripts/validation/check_skill_md_exec_portability.py` | skill `.md` | a bare `.claude/skills/...` script **invocation** |
 
 Symptom: the first two pass, you commit, and the push is rejected by
@@ -98,6 +99,73 @@ protocol literally (create and stage at start) cannot pass both gates.
 
 Symptom: a commit is rejected by one of the two policies no matter which order
 you try. Refs #3904.
+
+## Never record `endingCommit` and then amend
+
+`endingCommit` must name a commit that is still reachable:
+`scripts/validation/session_scope.py` runs `git merge-base --is-ancestor <sha>
+HEAD`. Amending the commit that carried the log rewrites it, so the SHA you
+just recorded no longer exists on the branch and the check fails.
+
+Record the SHA of the commit carrying the work, then commit that edit as a
+**follow-up commit**. A commit is its own ancestor, so naming current `HEAD`
+and committing the change on top passes.
+
+Two traps make this expensive rather than merely annoying:
+
+- A `[PASS]` from `scripts/validate_session_json.py` does not survive an amend.
+  The validator reads the SHA against the `HEAD` of the moment. Re-run it after
+  any amend, not just after the first write.
+- The check runs inside the push hook **after** the Python suite, which
+  measured 1116 seconds on one run. A one-line metadata error therefore costs
+  roughly twenty minutes to surface.
+
+Symptom, from the push hook rather than from the standalone validator:
+
+```text
+endingCommit '<sha>' names a commit that is not an ancestor of HEAD
+```
+
+Refs #3618.
+
+## The same `endingCommit` error also fires when you never amended anything
+
+The tell is that the log it validated is not yours. Do not rely on the
+push-hook summary to name the SHA. It may only show the broad Session End
+failure line below.
+
+`new_pr.py --base` defaults to the **local** `main` ref, not `origin/main`, and
+uses it for both the PR target and the changed-file set. A stale local `main`
+makes `git diff main...HEAD` report every session log merged upstream since you
+last updated it. The Session End gate then sorts that set by date and session
+number and validates only the highest, which is a stranger's log, against your
+branch. Its `endingCommit` is legitimately not an ancestor of your HEAD, so the
+gate fails your PR for someone else's file, and prints one line with no path:
+
+```text
+Session End validation failed
+```
+
+Measured 2026-08-02 with local `main` 44 commits behind. The gate selected
+`2026-08-02-session-4231-episode-corpus-migration.json` out of 19 candidates;
+the branch's own log passed standalone in the same worktree.
+
+Check staleness first, before reading any session log:
+
+```bash
+git rev-list --left-right --count main...origin/main   # non-zero right = stale
+git fetch origin main:main                             # fast-forward the ref
+```
+
+The fetch is refused when `main` is checked out in a worktree. It usually is
+not: the primary clone here sits on a detached HEAD, and `git worktree list`
+tells you in one line.
+
+Two reasons this is expensive. The message names neither the file it validated
+nor the base it used, so the natural next move is to re-validate your own log,
+which passes and sends you looking for a gate bug. And the same stale ref makes
+`git diff main..HEAD` report thousands of phantom deletions, so the two symptoms
+show up together and look like one catastrophic branch problem.
 
 ## Run validation with `uv run python`, never bare `python3`
 
@@ -186,6 +254,59 @@ eight will fail the push with all nine printed.
 Symptom: a wall of errors on lines you did not touch. Count them against the
 merge base before assuming the change is yours.
 
+## A branch behind main fails the count ratchets on a number it never touched
+
+The count ratchets (`ruff_count_ratchet.py`, `taste_count_ratchet.py`,
+`type_ignore_count_ratchet.py`) compare this tree's recorded baseline against
+the baseline at `origin/main`, and the baseline may only fall. A branch that is
+behind carries the older, higher value, so the gate blocks even when the branch
+added nothing. The message says so itself, and cannot tell you which case you
+are in, by design (issue #4066):
+
+```text
+ruff count ratchet: BASELINE ABOVE BASE. This tree records 311, origin/main
+records 309 (+2). The measured count is 309, which origin/main already allows,
+so nothing in this tree added a violation. The baseline may only fall. If this
+branch did not edit the baseline, it is behind origin/main: merge or rebase to
+pick up the lowered value. If it did raise the baseline, restore 309 and fix
+the violations instead of widening the allowance.
+```
+
+Line-wrapped here; the real output is one line. The second sentence appears in
+that form only when the measured count is at or below the base, which is
+exactly the behind-but-innocent case.
+
+This is a different mechanism from the per-file case above. That one is about
+errors you added to one file; this one is about a repo-wide number your branch
+never touched.
+
+The cost is the wait, not the ordering. These ratchets sit in the same
+`parallel: true` pre-push group as `python-tests` (`lefthook.yml`), so they do
+not run after the suite, but `git push` does not return until every job in the
+group finishes. A measured run put `python-tests` at 946 seconds against 2.6
+seconds for `taste-count-ratchet`, so you wait out the suite to be told your
+branch is behind.
+
+Rebase before you push, or run the four gates yourself first. They take about
+2 seconds:
+
+```bash
+for s in taste_count_ratchet type_ignore_count_ratchet; do
+  uv run --frozen python scripts/ci/$s.py --base-ref origin/main
+done
+uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py \
+  --base-ref origin/main
+RUFF_RATCHET_BASE_REF=origin/main \
+  uv run --frozen --extra dev python scripts/ci/ruff_ratchet.py
+```
+
+A rebase can also orphan the `endingCommit` recorded in your session log.
+`session_scope.py` accepts any SHA that `git merge-base --is-ancestor <sha>
+HEAD` accepts, so the record breaks only when history rewrites that specific
+commit. Amending `HEAD` is safe whenever the recorded commit stays reachable,
+which includes `HEAD~1` and anything older. It is unsafe only when the commit
+you are rewriting *is* the recorded one; there, add a follow-up commit instead.
+
 ## Eval harness
 
 These matter only when running `scripts/eval/`. Full detail lives in
@@ -255,6 +376,61 @@ at byte level before editing.
 The validator takes `--pr-number` and fetches the **live** body, so push and
 update the PR before running it locally.
 
+## Spec coverage blocks when the PR body has no checked acceptance boxes
+
+`Validate Spec Coverage` fails with this, and the reason names a rule rather
+than a missing file, so it reads like an infrastructure fault. Its wrapper
+`scripts/quality_gate/spec_external_signal_gate.py` always passes `--json` to
+the aggregator, so grep the quoted keys, not a prose line. (Running
+`gate_aggregator.py` by hand without `--json` does print prose, which is why
+the prose form looks plausible and never appears in CI.)
+
+```text
+  "verdict": "NEEDS_REVIEW",
+  "reason": "closed-loop:external-signal-inconclusive",
+```
+
+The cause is a missing section in **the PR body**, not the issue.
+`scripts/external_signals/gate_aggregator.py` requires at least one signal of
+kind `external` whose verdict is passing or warning. The only external signal
+is `acceptance-criteria`, which
+`scripts/quality_gate/spec_external_signal_gate.py` parses out of
+`PR_BODY_FILE`. All boxes checked gives PASS, any box unchecked gives FAIL, and
+**no section at all gives UNKNOWN**, which empties the external list and
+blocks. The other two signals come from the model, and two readings from one
+model are one measurement, so the gate is right to refuse them alone.
+
+Two parsing constraints, both in `scripts/external_signals/acceptance_criteria.py`:
+
+- The heading must match `^#{1,6}\s*acceptance(\s+criteria)?\s*$`.
+- Items must be `- [x]` task-list checkboxes. **A numbered list does not
+  parse**, so copying an issue's `1.` through `5.` criteria verbatim still
+  yields UNKNOWN.
+
+Reproduce and fix offline rather than pushing to find out. This runs the real
+gate and replaces a CI cycle with one second:
+
+```bash
+gh pr view "$PR" --json body --jq .body > body.md
+PR_BODY_FILE=body.md TRACE_VERDICT=PASS COMPLETENESS_VERDICT=PARTIAL \
+  uv run --frozen python scripts/quality_gate/spec_external_signal_gate.py
+```
+
+Exit 0 means PASS or WARN. Editing the body re-triggers the gate, so no new
+commit is needed.
+
+**Do not read the PR comment to find out whether this passed.** The
+`AI-SPEC-VALIDATION` comment is posted once and never updated, so it keeps
+showing the first run's verdict. A red check can display `Final Verdict: PASS`
+indefinitely. Read the job log instead, and note that `gh run view
+--log-failed` returns only cleanup noise for this job:
+
+```bash
+gh run view --job "$JOB_ID" --log | sed 's/\x1b\[[0-9;]*m//g' | grep -P 'VERDICT|"verdict"|"reason"'
+```
+
+Refs #4369 for the stale comment defect.
+
 ## Never put a literal pipe inside a Markdown table cell
 
 Escape it as `\|` or reword. A bare `|` breaks rendering and trips bot
@@ -272,45 +448,10 @@ The field does not exist on that command and the error does not suggest the
 alternative. Use `gh api graphql` with a `reviewThreads` query on the pull
 request instead.
 
-## Workspace Budget Gotchas
+## Workspace byte-gate
 
-Non-obvious facts about the workspace byte-gate that save debugging time.
-
-## Byte-gate ceilings (always-on files)
-
-These files are measured by `scripts/validate_workspace_budget.py` on every CI
-run. Each file has a ceiling. Exceeding it blocks the push.
-
-| File | Ceiling | Ratchet? | Notes |
-|---|---|---|---|
-| `AGENTS.md` | 3000 bytes | no | Standard; 2999 bytes as of 2025-07-30 (one byte of headroom) |
-| `CLAUDE.md` | 3000 bytes | no | Standard |
-| `.claude/CLAUDE.md` | 3000 bytes | no | Standard |
-| `.github/copilot-instructions.md` | 6351 bytes | yes | Non-regression ratchet seeded at 6351 bytes (2025-07-30, issue #3991). Target: reduce to 3000 after moving the Gotchas section to `.agents/governance/` (issue #3952). |
-
-**Standard files** (no ratchet) also share a combined pool: `TOTAL_BUDGET_BYTES
-= 6600`. Files with a ratchet are measured only by their individual ceiling.
-
-**To lower a ratchet**: trim the file content, then update `FILE_CEILING_BYTES`
-in `scripts/validate_workspace_budget.py` to the new measured size. Never raise
-a ceiling without recording the reason in the same change.
-
-## The shared total only covers standard files
-
-`TOTAL_BUDGET_BYTES = 6600` applies to `AGENTS.md + CLAUDE.md + .claude/CLAUDE.md`
-only. Adding a ratchet file to that sum would yield a meaningless constraint
-because the ratchet file already has its own ceiling.
-
-## An empty WORKSPACE_FILES disables the gate silently
-
-`test_workspace_files_nonempty` guards this. If you see that test failing, the
-constant was emptied somewhere and every per-file assertion is vacuously true.
-
-## Gate location
-
-`tests/test_workspace_limits.py` runs via the standard `pytest` suite. It imports
-constants from `scripts/validate_workspace_budget.py` directly, so the test and
-the enforcer always agree (fixed by issue #3951).
+Moved to `.agents/governance/WORKSPACE-BUDGET.md`: per-file ceilings, the
+shared total, the silent-disable failure, and where the gate lives.
 
 ## Concurrent pushes: use a per-branch lock, not a global one
 
@@ -318,26 +459,32 @@ The race a push lock exists to prevent is a lost ref update: two writers push
 to the same remote ref and one overwrites the other. Git takes its lock per ref.
 Two pushes to two different branches cannot race for the same lock on the server.
 
-A global `flock /tmp/aiagents-push.lock` wrapping `git push` serializes the
-entire fleet including the 7 to 15 minute pre-push hook. Five concurrent pushes
-to five distinct branches costs 5 x 15 = 75 minutes instead of 15.
+A single global lock wrapping `git push` serializes the entire fleet including
+the 7 to 15 minute pre-push hook. Five concurrent pushes to five distinct
+branches costs 5 x 15 = 75 minutes instead of 15.
 
-Use a per-branch lock keyed on the exact branch name:
+Use the canonical per-branch lock, keyed on the exact branch name. The path is
+fixed by `.claude/rules/push-lock.md` and `scripts/validation/check_push_lock_paths.py`
+blocks any other spelling:
 
 ```bash
 BR=$(git branch --show-current)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/home/richard/src/GitHub/rjmurillo/ai-agents-pushpol2-push-${SLUG}.lock" \
-  git push --force-with-lease origin HEAD:"$BR"
+mkdir -p "$HOME/src/scratch/locks"
+flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" \
+  git push origin HEAD:"$BR"
 ```
 
 Notes:
 - `tr '/' '-'` is required: a branch like `fix/foo` would otherwise create a
   lock file with a `/` in its name, which the shell reads as a directory path.
-- Use an absolute path for the lock file and keep it outside `/tmp` (not durable
-  on this machine).
-- `--force-with-lease` already fails safely on a lost update. The lock prevents
-  the git-object-packing overhead of a concurrent same-branch push, not data loss.
+- `mkdir -p` first. `flock` fails when the parent directory is missing, and a
+  failed `flock` in a detached push says nothing.
+- Keep the lock outside `/tmp`. A wipe there splits one filename across two
+  inodes, and the two holders stop excluding each other (issue #4366).
+- The lock prevents the git-object-packing overhead of a concurrent same-branch
+  push. It is not a substitute for the pre-push non-fast-forward guard, and a
+  force push stays forbidden on a shared branch (issue #4293).
 - Two distinct branches never contend for the same lock file, so their pre-push
   hooks run in parallel. Measured throughput: four concurrent pushes to four
   distinct branches finish in approximately one hook duration, not four.

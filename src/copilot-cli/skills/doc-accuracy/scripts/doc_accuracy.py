@@ -161,6 +161,35 @@ EXCLUDE_DIRS = {
 }
 
 
+def _iter_git_files(repo_root: Path):
+    """Yield ``Path`` objects for every file tracked by git in ``repo_root``.
+
+    Uses ``git ls-files --cached --others --exclude-standard`` so that paths
+    listed in ``.gitignore`` (generated files, caches, vendored trees) are
+    excluded automatically. Falls back to ``repo_root.rglob("*")`` when the
+    directory is not inside a git repository.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "git", "-C", str(repo_root),
+                "ls-files", "--cached", "--others", "--exclude-standard",
+            ],
+            capture_output=True,
+            check=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        for rel in result.stdout.splitlines():
+            if rel:
+                yield repo_root / rel
+        return
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    yield from repo_root.rglob("*")
+
+
 def _should_exclude(path: Path, repo_root: Path | None = None) -> bool:
     """Check if path is in an excluded directory.
 
@@ -362,7 +391,7 @@ def run_assessment(
     source_symbols: list[SourceSymbol] = []
     symbol_names: set[str] = set()
 
-    for p in repo_root.rglob("*"):
+    for p in _iter_git_files(repo_root):
         if not p.is_file() or _should_exclude(p, repo_root):
             continue
 
@@ -420,16 +449,14 @@ def run_assessment(
 
     # Find benchmark files
     benchmark_files = []
-    for p in repo_root.rglob("*benchmark*"):
-        if p.is_file() and not _should_exclude(p, repo_root):
-            benchmark_files.append(str(p.relative_to(repo_root)))
-    for p in repo_root.rglob("*bench*"):
-        if (
-            p.is_file()
-            and p.suffix in (".json", ".csv", ".md")
-            and not _should_exclude(p, repo_root)
-        ):
-            rel = str(p.relative_to(repo_root))
+    for p in _iter_git_files(repo_root):
+        if not p.is_file() or _should_exclude(p, repo_root):
+            continue
+        name = p.name.lower()
+        rel = str(p.relative_to(repo_root))
+        if "benchmark" in name:
+            benchmark_files.append(rel)
+        elif "bench" in name and p.suffix in (".json", ".csv", ".md"):
             if rel not in benchmark_files:
                 benchmark_files.append(rel)
 
@@ -684,7 +711,9 @@ def run_compilability_check(
                         content,
                     )
                     for param in named_params:
-                        if not re.search(rf"\b{re.escape(param)}\b", actual.signature):  # nosemgrep: skill-ldap-injection
+                        pattern = rf"\b{re.escape(param)}\b"
+                        # nosemgrep: skill-ldap-injection
+                        if not re.search(pattern, actual.signature):
                             finding_counter += 1
                             findings.append(Finding(
                                 id=f"compile-{finding_counter:04d}",

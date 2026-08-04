@@ -147,11 +147,8 @@ class _OpenAIProviderTransport:
             kwargs["seed"] = self._seed
         text = self._provider.complete(**kwargs)
         fingerprint = getattr(self._provider, "system_fingerprint", None)
-        if fingerprint is not None and not isinstance(fingerprint, str):
-            raise RuntimeError(
-                f"system_fingerprint must be str or None, got {type(fingerprint).__name__!r}"
-            )
-        self.system_fingerprint = fingerprint
+        self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
+
         return text
 
 
@@ -176,11 +173,8 @@ class _AnthropicTransport:
             ),
         )
         fingerprint = metadata.get("system_fingerprint")
-        if fingerprint is not None and not isinstance(fingerprint, str):
-            raise RuntimeError(
-                f"system_fingerprint must be str or None, got {type(fingerprint).__name__!r}"
-            )
-        self.system_fingerprint = fingerprint
+        self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
+
         return text
 
 
@@ -264,7 +258,7 @@ class AnthropicAPIAdapter:
         resolve_start = self._clock()
         try:
             transport = self._resolve_transport()
-        except Exception as exc:  # noqa: BLE001 - categorize-then-decide
+        except Exception as exc:
             latency_ms = (self._clock() - resolve_start) * 1000.0
             # Best-effort categorization: today the only resolve-time
             # raise is `load_api_key()` raising RuntimeError when no key

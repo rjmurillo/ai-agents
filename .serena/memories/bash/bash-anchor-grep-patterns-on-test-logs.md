@@ -132,9 +132,10 @@ Better than detecting the race is preventing it. Serialize pushes through a
 lockfile, keyed on the branch:
 
 ```bash
-BR=<branch>
+BR=$(git rev-parse --abbrev-ref HEAD)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/tmp/push-lock-$SLUG.lock" git push -u origin "$BR"
+mkdir -p "$HOME/src/scratch/locks"
+flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push -u origin "$BR"
 ```
 
 `flock` waits for the lock rather than failing, so a queued push runs when the
@@ -151,7 +152,17 @@ Every agent must name the lock identically or it excludes nothing. Measured
 `/tmp/aiagents-push-$SLOT.lock` hashed into four slots, and the per branch
 path above), and one branch had two concurrent pushes running under two
 different lock names. `flock` only excludes processes that agree on the path,
-so the extra schemes bought nothing and hid the race.
+so the extra schemes bought nothing and hid the race. The path above is now the
+only sanctioned one: `.claude/rules/push-lock.md` states it and
+`scripts/validation/check_push_lock_paths.py` fails a tracked prescription that
+names anything else (issue #4366).
+
+The lock file currently lives under `/tmp`. The requirement is that every agent
+names it identically, since `flock` excludes only processes that agree on the
+path; `/tmp` is just the one absolute path every agent here can already name.
+The push *log* must not go there: use `~/src/scratch`. See
+`git-lock-pushes-per-branch-not-globally` for the `/tmp`-wipe hazard this
+carries and how to detect it.
 
 ## Evidence
 
@@ -164,3 +175,24 @@ log it returned three lines, the `remote rejected` line, the `error:` line, and
 `REAL_EXIT=1`, which turned out to be the concurrent-push race above. A
 `git rev-parse HEAD origin/<branch>` then showed the two SHAs equal: the work
 had landed and only the duplicate push had failed.
+
+## The SHA in a push log is not necessarily the SHA that landed
+
+`git push origin <branch>` resolves the ref at transfer time, not at invocation
+time. The pre-push hook runs first and is slow here: a full run is roughly 11
+minutes, and one measured `python-tests` step alone took 1030 seconds. Any
+commit made to that branch while the hook is running is included in the transfer
+that follows.
+
+So a background push whose log reads `de60979fb..4ef4bfb80` can leave the remote
+at a third SHA entirely, with no error and no second push. That was observed on
+2026-08-02 and recorded as unexplained at the time. It is not a race and not a
+bug; it is the ordering of hook execution against ref resolution.
+
+Two consequences:
+
+- Do not verify a push by reading the SHA range in its log. Verify with
+  `git ls-remote origin <branch>` and compare against `git rev-parse HEAD`.
+- A push launched during active work on the same branch is not a snapshot of
+  what you had when you launched it. If you need a specific commit pushed and
+  nothing after it, stop committing until the transfer completes.

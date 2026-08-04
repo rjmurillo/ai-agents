@@ -33,18 +33,35 @@ jobs:
   assign-reviewer:
     name: Add Bot Reviewer
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 2
+    # Worst case: checkout, plus three 30s gh calls, plus the 15s and 30s
+    # backoff rungs, is 135s of script before checkout. The old 2 minute cap
+    # would kill the retry this job now depends on. Issue #4335.
+    timeout-minutes: 6
 
     # Skip if the PR author is the bot itself (avoid self-review)
     if: github.event.pull_request.user.login != 'rjmurillo-bot'
 
     steps:
+      # pull_request_target checks out the base ref, never fork code.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Losing a race against a rate limit is not a reason to red a build, and
+      # this job is not one of the required checks on main. That tolerance is
+      # scoped to exit 3 by --tolerate-external rather than granted to the whole
+      # step: `continue-on-error: true` would also swallow exit 4, so an expired
+      # or revoked BOT_PAT would read as a green job forever with a missing bot
+      # review as the only symptom. Issue #4335.
       - name: Add rjmurillo-bot as reviewer
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
+          TARGET_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          gh pr edit ${{ github.event.pull_request.number }} \
-            --repo ${{ github.repository }} \
-            --add-reviewer rjmurillo-bot
-
-          echo "Added rjmurillo-bot as reviewer for PR #${{ github.event.pull_request.number }}"
+          python3 .github/scripts/assign_bot_reviewer.py \
+            --repo "$TARGET_REPO" \
+            --pull-request "$PR_NUMBER" \
+            --reviewer rjmurillo-bot \
+            --tolerate-external

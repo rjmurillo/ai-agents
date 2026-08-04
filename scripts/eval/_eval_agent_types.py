@@ -181,7 +181,7 @@ class Report:
     total_tokens_in: int
     total_tokens_out: int
     wall_clock_seconds: float
-    cost_estimate_usd: float
+    cost_estimate_usd: float | None
     error_count: int
     pricing_rate_as_of: str
     flaky_fixtures_detected: list[str] = field(default_factory=list)
@@ -192,6 +192,10 @@ class Report:
     seed: int | None = None
     recommendation: RecommendationLiteral | None = None
     recommendation_default: str | None = None
+    # "usd" when the provider publishes a per-token rate, "requests" when it
+    # meters an allowance instead. On the "requests" basis `cost_estimate_usd`
+    # is None and the report carries the call count as the spend figure.
+    cost_basis: str = "usd"
     schema_version: int = REPORT_SCHEMA_VERSION
 
 
@@ -206,6 +210,13 @@ class ExecutionPlan:
     planned_calls: int
     estimated_tokens_in: int
     estimated_tokens_out: int
-    estimated_cost_usd: float
+    # None for quota-billed providers (GitHub Models, Copilot CLI) where no
+    # public per-token price exists. ``"usd"`` vs ``"requests"`` in cost_basis
+    # tells callers which display path to take.
+    estimated_cost_usd: float | None
     pricing_rate_as_of: str
+    # "usd" when the provider publishes a per-token rate, "requests" when it
+    # meters an allowance instead. On the "requests" basis `estimated_cost_usd`
+    # is None and `planned_calls` is the spend figure.
+    cost_basis: str = "usd"
     schema_version: int = SCHEMA_VERSION

@@ -25,10 +25,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 _orig_path = sys.path[:]
 sys.path.insert(0, str(REPO_ROOT))
 try:
-    from scripts.validation import (  # noqa: E402
+    from scripts.validation import (
         check_skill_contract_tests as contract_guard,
     )
-    from scripts.validation import (  # noqa: E402
+    from scripts.validation import (
         check_skill_resolver_anchoring as resolver_guard,
     )
 finally:
