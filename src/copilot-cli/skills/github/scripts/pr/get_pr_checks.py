@@ -201,7 +201,7 @@ def fetch_ruleset_required_contexts(owner: str, repo: str, base_branch: str) -> 
         if not raw:
             return []
         return list(json.loads(raw))
-    except Exception:  # noqa: BLE001
+    except Exception:
         return []
 
 
