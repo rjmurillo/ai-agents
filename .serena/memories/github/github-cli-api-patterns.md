@@ -112,6 +112,43 @@ gh pr list --json number,title,labels \
 gh pr view 123 --json title --jq '.title'
 ```
 
+## Job Logs Refuse To Print Without An Explicit Flag
+
+`gh api repos/OWNER/REPO/actions/jobs/<id>/logs` exits non-zero and prints
+only `the response contains terminal escape sequences; pass
+--allow-escape-sequences to output it anyway`. Actions logs always carry ANSI
+colour, so this fires on every job. It reads like an API or permission
+failure and is neither.
+
+```bash
+gh api repos/OWNER/REPO/actions/jobs/<id>/logs --allow-escape-sequences > job.log
+sed 's/\x1b\[[0-9;]*m//g' job.log      # strip colour for grepping
+```
+
+## GraphQL And REST Are Separate Buckets, And Zero Is A Window Not A State
+
+`remaining: 0` on `graphql` does not mean the token is broken and does not
+mean waiting is open ended. The window is hourly and refills to the full
+5000. Read the reset directly rather than guessing:
+
+```bash
+gh api rate_limit --jq '.resources.graphql | "remaining=\(.remaining) in \(.reset - now | floor)s"'
+```
+
+`core` and `search` are independent buckets and keep working while `graphql`
+is exhausted, so a duplicate-issue search can still run over REST:
+
+```bash
+gh api "search/issues?q=repo:OWNER/REPO+is:issue+<terms>&per_page=8" \
+  --jq '.total_count, (.items[]? | "#\(.number) [\(.state)] \(.title)")'
+```
+
+This matters because most of this repo's skill scripts use GraphQL. When one
+returns an empty result set under load, confirm it was not a rate-limit
+error before concluding the thing you searched for does not exist. A
+rate-limited search that reads as "no duplicates" is how duplicate issues get
+filed.
+
 ## Related
 
 - [github-cli-001-bidirectional-issue-linking](github-cli-001-bidirectional-issue-linking.md)
