@@ -18,7 +18,6 @@ import os
 import re
 import subprocess
 import sys
-from datetime import UTC
 from pathlib import Path
 from types import ModuleType
 
@@ -133,20 +132,18 @@ def _match_log_for_branch(
 
 
 def _find_current_session_log(sessions_dir: str) -> str | None:
-    """Find the session log for the current branch, falling back to newest by mtime.
+    """Find the session log for the current branch, or None.
 
-    Scans recent session logs and returns the first whose ``session.branch``
-    (or legacy top-level ``branch``) field matches the current git branch.
-    Falls back to mtime ordering (preferring today over older dates) so callers
-    fail open rather than hard-blocking when no branch-specific log exists yet.
+    Scans session logs and returns the newest whose ``session.branch`` (or
+    legacy top-level ``branch``) field matches the current git branch.
+    Returns ``None`` when the branch cannot be determined (detached HEAD) or
+    when no log carries a matching branch field.
 
-    This replaces the previous purely-mtime-based selection that would silently
-    pick another agent's session log on a different branch (issue #4161).
+    Returning ``None`` rather than the mtime winner prevents session-end from
+    writing into a different session's log when concurrent agents on other
+    branches own a newer mtime (issue #4161). The caller detects ``None`` and
+    asks the operator to supply ``--session-path`` explicitly.
     """
-    from datetime import datetime
-
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-
     if not os.path.isdir(sessions_dir):
         return None
 
@@ -160,18 +157,10 @@ def _find_current_session_log(sessions_dir: str) -> str | None:
         return None
 
     branch = _get_current_branch()
-    if branch is not None:
-        matched = _match_log_for_branch(candidates, branch)
-        if matched is not None:
-            return matched
+    if branch is None:
+        return None
 
-    candidates.sort(key=lambda x: x[0], reverse=True)
-
-    for _, full, name in candidates:
-        if name.startswith(today):
-            return full
-
-    return candidates[0][1]
+    return _match_log_for_branch(candidates, branch)
 
 
 def _get_ending_commit() -> str | None:
@@ -361,7 +350,7 @@ def _ensure_rework_loaded() -> None:
         _rework_cache["REWORK_THRESHOLD"] = _mod.REWORK_THRESHOLD
         _rework_cache["compute_rework_warning"] = _mod.compute_rework_warning
         _rework_cache["emit_rework_warning_lines"] = _mod.emit_rework_warning_lines
-    except Exception:  # noqa: BLE001 - informational; must never block
+    except Exception:
         _rework_cache["REWORK_THRESHOLD"] = 6
         _rework_cache["compute_rework_warning"] = None
         _rework_cache["emit_rework_warning_lines"] = None
@@ -416,7 +405,7 @@ def _run_rework_warning_step() -> tuple[str, list[str]]:
         lines = list(_emit(rework_items))
         for line in lines:
             print(line)
-    except Exception as exc:  # noqa: BLE001 - informational; must never block
+    except Exception as exc:
         notice = f"rework-warning: skipped (runtime error: {type(exc).__name__})"
         print(notice)
         return "Rework warning: skipped (runtime error)", [notice]
@@ -438,7 +427,13 @@ def main(argv: list[str] | None = None) -> int:
     if not session_path:
         session_path = _find_current_session_log(sessions_dir)
         if not session_path:
-            print("[FAIL] No session log found in .agents/sessions/", file=sys.stderr)
+            branch = _get_current_branch()
+            where = f"branch '{branch}'" if branch else "detached HEAD (no current branch)"
+            print(
+                f"[FAIL] No session log found for {where} in {sessions_dir}. "
+                "Use --session-path to specify the log explicitly.",
+                file=sys.stderr,
+            )
             return 1
         print(f"Auto-detected session log: {session_path}", file=sys.stderr)
     else:

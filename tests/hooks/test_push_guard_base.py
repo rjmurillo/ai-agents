@@ -22,8 +22,8 @@ import pytest
 HOOK_DIR = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
 sys.path.insert(0, str(HOOK_DIR))
 
-import push_guard_base  # noqa: E402
-from push_guard_base import (  # noqa: E402
+import push_guard_base
+from push_guard_base import (
     _filter_by_globs,
     _match_glob,
     run_guard,

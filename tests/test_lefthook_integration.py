@@ -321,11 +321,13 @@ def _write_today_session(repo: Path, content: str) -> Path:
 def test_adr_review_policy_blocks_stale_debate_reference(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A debate log exists in the correct dir (.agents/critique/) but references
     # a DIFFERENT ADR (ADR-042), not the staged ADR (ADR-062). This exercises
     # the stale-reference branch, not the missing-log branch.
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     _write_lf(critique / "adr-042-debate.md", "ADR-042 review")
@@ -339,8 +341,12 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     assert "ADR-062" in capsys.readouterr().err
 
 
-def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(tmp_path: Path) -> None:
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     _write_lf(critique / "adr-062-debate.md", "ADR-062 review")
@@ -392,9 +398,11 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
 def test_adr_review_policy_missing_critique_dir_fails(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No .agents/critique/ directory at all means no debate logs: gate fails."""
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     # Only the old wrong dir exists; critique dir is absent.
     wrong = tmp_path / ".agents" / "analysis"
     wrong.mkdir(parents=True)
@@ -430,8 +438,10 @@ def test_retrospective_policy_blocks_missing_evidence(
 
 def test_retrospective_policy_allows_session_evidence_and_documentation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _write_today_session(tmp_path, '{"notes": "Learnings captured"}')
+    session = _write_today_session(tmp_path, '{"notes": "Learnings captured"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
 
     assert (
         policy.check_retrospective_evidence(
@@ -521,7 +531,9 @@ def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
     sessions = tmp_path / ".agents" / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
-    _write_lf(sessions / "2026-03-14-session-1.json", '{"notes": "Learnings captured"}')
+    session = sessions / "2026-03-14-session-1.json"
+    _write_lf(session, '{"notes": "Learnings captured"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
 
     # No retrospective file: the only passing path is the yesterday session log.
     assert (
@@ -5052,7 +5064,9 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
 ) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
-    # Use real commits so the non-fast-forward check can resolve the objects.
+    # Real objects, and remote an ancestor of head: the non-fast-forward guard
+    # added for issue #4293 blocks a remote tip the clone cannot resolve, so a
+    # synthetic SHA here would fail for a reason this test is not about.
     remote = _commit_file(repo, "tracked", "base\n")
     head = _commit_file(repo, "tracked", "head\n")
     destinations: list[str | None] = []
@@ -9919,6 +9933,141 @@ def test_the_tracked_scan_reports_a_git_failure_as_a_config_error(
     assert policy.check_tracked_conflict_markers(not_a_repo) == 2
 
 
+class TestRangeSuppressionBackstop:
+    """CI backstop for the no-net-new suppression contract (issue #4061).
+
+    The policy shipped wired to lefthook only, so a clone without
+    `lefthook install`, a `--no-verify` push, a server-side "Update branch"
+    merge, or a bot push landed a fresh suppression with nothing failing.
+    These drive `check_range_suppressions`, the range-based entry point
+    pr-validation.yml calls, over the same scan functions the pre-push hook
+    uses.
+    """
+
+    NOSEC = "# no" + "sec"
+
+    def _repo(self, tmp_path: Path) -> Path:
+        repo = tmp_path / "repo"
+        _init_repo(repo)
+        return repo
+
+    def test_a_net_new_suppression_fails_and_names_path_and_line(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+        head = _commit_file(repo, "source.py", f"value = 1  {self.NOSEC}\n")
+
+        assert policy.check_range_suppressions(base, head, repo) == 1
+        assert f"{head[:12]}:source.py:1" in capsys.readouterr().err
+
+    def test_a_suppression_moved_within_one_file_passes(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", f"value = 1  {self.NOSEC}\nother = 2\n")
+        head = _commit_file(repo, "source.py", f"other = 2\nvalue = 1  {self.NOSEC}\n")
+
+        assert policy.check_range_suppressions(base, head, repo) == 0
+
+    def test_cross_file_removal_does_not_credit_another_file(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        _commit_file(repo, "clean.py", "value = 2\n")
+        base = _commit_file(repo, "donor.py", f"value = 1  {self.NOSEC}\n")
+        _write_file(repo, "donor.py", "value = 1\n")
+        _write_file(repo, "clean.py", f"value = 2  {self.NOSEC}\n")
+        _git(repo, "add", "--", "donor.py", "clean.py")
+        _git(repo, "commit", "-qm", "test: move suppression across files")
+        head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+        assert policy.check_range_suppressions(base, head, repo) == 1
+
+    def test_one_removal_cannot_pay_for_two_additions(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", f"a = 1  {self.NOSEC}\n")
+        head = _commit_file(
+            repo, "source.py", f"b = 2  {self.NOSEC}\nc = 3  {self.NOSEC}\n"
+        )
+
+        assert policy.check_range_suppressions(base, head, repo) == 1
+
+    def test_a_pure_rename_carrying_a_suppression_passes(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "old.py", f"value = 1  {self.NOSEC}\n")
+        _git(repo, "mv", "old.py", "new.py")
+        _git(repo, "commit", "-qm", "test: rename carrying a suppression")
+        head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+        assert policy.check_range_suppressions(base, head, repo) == 0
+
+    def test_an_unscanned_suffix_is_ignored(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "README.md", "docs\n")
+        head = _commit_file(repo, "README.md", f"docs\nUse {self.NOSEC} sparingly.\n")
+
+        assert policy.check_range_suppressions(base, head, repo) == 0
+
+    def test_an_unresolvable_base_is_a_config_error(self, tmp_path: Path, capsys) -> None:
+        repo = self._repo(tmp_path)
+        head = _commit_file(repo, "source.py", "value = 1\n")
+
+        assert policy.check_range_suppressions("no-such-ref", head, repo) == 2
+        assert "ERROR: could not resolve base revision" in capsys.readouterr().err
+
+    def test_an_unresolvable_head_is_a_config_error(self, tmp_path: Path, capsys) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+
+        assert policy.check_range_suppressions(base, "no-such-ref", repo) == 2
+        assert "ERROR: could not resolve head revision" in capsys.readouterr().err
+
+    def test_a_symbolic_head_is_labelled_with_the_commit_it_resolves_to(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        """`HEAD` in the label would name nothing a reader can check out."""
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+        head = _commit_file(repo, "source.py", f"value = 1  {self.NOSEC}\n")
+
+        assert policy.check_range_suppressions(base, "HEAD", repo) == 1
+        error = capsys.readouterr().err
+        assert f"{head[:12]}:source.py:1" in error
+        assert "HEAD:source.py" not in error
+
+    def test_the_cli_reports_both_verdicts(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        clean_base = _commit_file(repo, "source.py", "value = 1\n")
+        clean_head = _commit_file(repo, "source.py", "value = 2\n")
+        argv = ["--repo-root", str(repo), "security-suppressions-range"]
+
+        assert policy.main([*argv, "--base", clean_base, "--head", clean_head]) == 0
+
+        dirty_head = _commit_file(repo, "source.py", f"value = 2  {self.NOSEC}\n")
+        assert policy.main([*argv, "--base", clean_head, "--head", dirty_head]) == 1
+
+    def test_the_cli_defaults_head_to_the_working_head(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+        _commit_file(repo, "source.py", f"value = 1  {self.NOSEC}\n")
+
+        argv = ["--repo-root", str(repo), "security-suppressions-range", "--base", base]
+        assert policy.main(argv) == 1
+
+    def test_a_git_failure_is_a_config_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Mocked I/O: a broken `git diff` must not read as a clean range."""
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+        head = _commit_file(repo, "source.py", "value = 2\n")
+        real_run_git = policy._run_git
+
+        def failing_git(root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args and args[0] == "diff":
+                return _completed(1)
+            return real_run_git(root, args)
+
+        monkeypatch.setattr(policy, "_run_git", failing_git)
+
+        assert policy.check_range_suppressions(base, head, repo) == 2
 # ---------------------------------------------------------------------------
 # _semgrep_command excludes python36/37 compatibility families (#4217 unblock)
 # ---------------------------------------------------------------------------
