@@ -20,7 +20,7 @@ Two independent ways to arrive at the graft, which is why the guard checks
 both. A `git fetch --depth=<n>` inside a `run:` body writes one. So does an
 `actions/checkout` that omits `fetch-depth: 0`. Fixing only the fetch leaves
 the checkout path broken, because a plain undepthed fetch does not clear an
-existing graft; only `--unshallow` does. `test_a_plain_fetch_does_not_repair_a_graft`
+existing graft; only `--unshallow` does. `test_a_later_undepthed_fetch_does_not_repair_the_graft`
 below measures that.
 
 The failure fires only when the checkout predates the fetched tip, so it reads
