@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size
+#
+# file-size suppression rationale: this module is a registration sequence, not
+# logic. It holds one function whose body is ordered ``run_validation`` calls,
+# so its line count tracks how many gates the project has, not how hard the
+# module is to read. The rule's own remediation (extract helpers) does not
+# apply: the docstring below records that this file was itself extracted from
+# ``pre_pr.py`` for the same ceiling. The real fix is a table-driven registry
+# (issue #4285), which is out of scope for the change that crossed the line.
 """Ordered pre-PR validation sequence (extracted from ``pre_pr.py``, Issue #3073).
 
 Holds ``run_all_validations``: the ordered list of gates that ``pre_pr.main()``
@@ -25,7 +33,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -37,6 +45,7 @@ from check_doc_interpreter_portability import (  # noqa: E402
 )
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_nested_tests import validate_no_nested_tests
+from check_push_lock_paths import validate_push_lock_paths
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
 from check_unreachable_code import validate_unreachable_code
@@ -132,10 +141,21 @@ class _Gate:
 
 
 def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
-    """Adapt a ``validate_x(repo_root)`` validator to the uniform gate signature."""
+    """Adapt a ``validate_x(repo_root)`` validator to the uniform gate signature.
+
+    The validator is resolved by name at call time, not captured at import.
+    ``_SEQUENCE`` is built once at module import, so capturing the function
+    object would freeze it and a wiring test that rebinds the module attribute
+    could never observe the call. Per-consumer wiring tests are required here
+    (``testing.md`` SHOULD 6), so the indirection is what keeps them able to
+    fail.
+    """
+
+    name = validator.__name__
 
     def _run(repo_root: Path, _args: argparse.Namespace) -> bool:
-        return validator(repo_root)
+        current = cast("Callable[[Path], bool]", globals().get(name, validator))
+        return current(repo_root)
 
     return _run
 
@@ -186,6 +206,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Unreachable Code Detection", _root_only(validate_unreachable_code)),
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
+    _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),
     _Gate("Session End Validation", _root_only(validate_session_end)),
     _Gate(
         "Pester Unit Tests",
