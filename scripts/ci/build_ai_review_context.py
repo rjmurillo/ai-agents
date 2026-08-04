@@ -262,6 +262,33 @@ def _pr_fetch_failure_context(pr_number: str, detail: str) -> ReviewContext:
     )
 
 
+def _build_pr_diff_body(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
+    """Fetch the diff, falling back to pagination or a summary. Raises on failure."""
+    diff = run_gh(["pr", "diff", pr_number, "--repo", repository])
+    if DIFF_TOO_LARGE.search(diff.stderr):
+        warning = "::warning::PR diff unavailable via gh pr diff (>300 files)."
+        print(f"{warning} Falling back to API pagination...")
+        return build_large_pr_context(pr_number, repository)
+
+    line_count = count_lines(diff.stdout)
+    print(f"PR diff has {line_count} lines")
+    if line_count == 0:
+        message = f"Failed to fetch PR diff for #{pr_number} from {repository}"
+        if diff.stderr:
+            message = f"{message}: {diff.stderr.strip()}"
+        raise ExternalGhError(message)
+
+    if line_count > max_diff_lines:
+        summary = get_pr_name_only(pr_number, repository)
+        if not summary:
+            raise ExternalGhError(f"Failed to fetch PR diff summary for #{pr_number}")
+        return ReviewContext(
+            f"[Large PR - {line_count} lines, showing summary only]\n{summary}",
+            "summary",
+        )
+    return ReviewContext(diff.stdout, "full")
+
+
 def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
     metadata = fetch_pr_metadata(pr_number, repository)
     if metadata.error:
@@ -276,32 +303,13 @@ def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) 
     print(f"Building context for PR #{pr_number}: {title}")
     print(f"Fetching diff for PR #{pr_number} from repository {repository}")
 
-    diff = run_gh(["pr", "diff", pr_number, "--repo", repository])
-    if DIFF_TOO_LARGE.search(diff.stderr):
-        print(
-            "::warning::PR diff unavailable via gh pr diff (>300 files). "
-            "Falling back to API pagination..."
-        )
-        built = build_large_pr_context(pr_number, repository)
-    else:
-        line_count = count_lines(diff.stdout)
-        print(f"PR diff has {line_count} lines")
-        if line_count == 0:
-            message = f"Failed to fetch PR diff for #{pr_number} from {repository}"
-            if diff.stderr:
-                message = f"{message}: {diff.stderr.strip()}"
-            raise ExternalGhError(message)
-
-        if line_count > max_diff_lines:
-            summary = get_pr_name_only(pr_number, repository)
-            if not summary:
-                raise ExternalGhError(f"Failed to fetch PR diff summary for #{pr_number}")
-            built = ReviewContext(
-                f"[Large PR - {line_count} lines, showing summary only]\n{summary}",
-                "summary",
-            )
-        else:
-            built = ReviewContext(diff.stdout, "full")
+    try:
+        built = _build_pr_diff_body(pr_number, repository, max_diff_lines)
+    except ExternalGhError as exc:
+        # Issue #4547: a 403 from the shared token empties the diff. Raising exits 3,
+        # which skips the infra gate that writes DID_NOT_RUN, so the aggregate
+        # defaults to NEEDS_REVIEW with INFRA_FAILURE false and blocks the PR.
+        return _pr_fetch_failure_context(pr_number, str(exc))
 
     body = metadata.body
     if body:

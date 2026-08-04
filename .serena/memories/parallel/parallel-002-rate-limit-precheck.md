@@ -22,9 +22,11 @@ Applies before:
 ### Pre-flight Check
 
 ```bash
-# Get current rate limit status
-remaining=$(gh api rate_limit --jq '.rate.remaining')
-reset_time=$(gh api rate_limit --jq '.rate.reset')
+# Gate on GraphQL, not REST. REST is almost never the binding constraint.
+# Measured during a live outage: REST core 4938 remaining while GraphQL was 0.
+# A gate reading .rate.remaining reports "healthy" throughout that outage.
+remaining=$(gh api rate_limit --jq '.resources.graphql.remaining')
+reset_time=$(gh api rate_limit --jq '.resources.graphql.reset')
 
 # Estimate required calls
 num_agents=4
@@ -64,6 +66,36 @@ gh api rate_limit --jq '{
 ```
 
 GraphQL has separate limit (5000/hour) - relevant for review thread resolution.
+
+## CI authenticates as the same user, so your polling reds unrelated PRs
+
+In this repo the AI review gate and an interactive agent session are the **same
+identity** (`user ID 6811113`, `rjmurillo`). They draw on one GraphQL budget.
+
+One full AI gate run costs roughly **2250 GraphQL points**, so the 5000/hour
+ceiling supports about **two gate runs per hour**, shared with everything else
+on that identity. An agent fleet polling `gh pr list`, `gh pr view`, and
+`gh api graphql` across a large PR queue therefore drains the budget the gate
+needs, and the review jobs of **PRs you are not touching** 403 on their diff
+fetch. Ten agents per run each fetch a diff, so the failure is broad.
+
+The signature is distinctive: every individual review job reports success, all
+ten agent verdicts come back `NEEDS_REVIEW` with 0-byte findings, and only the
+required `Aggregate Results` row goes red. Identical verdicts across independent
+agents are an infrastructure signature, not findings.
+
+Recovery, in order:
+
+1. Read `.resources.graphql.remaining` **before** re-running. Below ~2250 means
+   wait `(.reset - now)` seconds. Re-running into a drained budget guarantees
+   another red.
+2. Re-run the **whole workflow** (`gh run rerun <id>`). `--failed` cannot clear
+   it: the review jobs succeeded, so only the aggregate re-runs and it re-reads
+   the same empty verdicts.
+3. Confirm the re-run fired by watching `.run_attempt` increment. `gh run rerun`
+   prints nothing on success.
+
+Tracked by issue #4547.
 
 ## Warning Signs
 
