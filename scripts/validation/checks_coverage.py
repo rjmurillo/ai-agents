@@ -40,6 +40,17 @@ def _as_advisory(line: str) -> str:
     return indent + _WARN_TOKEN + stripped[len(_FAIL_TOKEN) :]
 
 
+def _print_output(output: str, rewrite_fail_to_warn: bool = False) -> None:
+    """Print up to 20 lines of subprocess output, optionally downgrading [FAIL].
+
+    Printing happens on the exit path that knows the verdict, never before it.
+    An earlier unconditional print forwarded the token before the severity was
+    decided, and every branch below printed the same lines a second time.
+    """
+    for line in output.strip().splitlines()[:20]:
+        print(_as_advisory(line) if rewrite_fail_to_warn else line)
+
+
 def validate_review_marker(repo_root: Path) -> bool:
     """Advisory check for a SHA-bound ``Reviewed-By: /review@...`` marker on HEAD.
 
@@ -67,20 +78,24 @@ def validate_review_marker(repo_root: Path) -> bool:
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )
     output = (stdout or "") + (stderr or "")
-    if output.strip():
-        # Decide the severity before forwarding, not after. Under
-        # REVIEW_MARKER_ENFORCED the wrapped script's [FAIL] is accurate and
-        # travels verbatim; otherwise this call returns True and the token
-        # would describe a failure that is not one.
-        for line in output.strip().splitlines()[:20]:
-            print(line if enforced else _as_advisory(line))
 
     if exit_code == 0:
+        if output.strip():
+            _print_output(output)
         return True
 
     if enforced:
         # exit 1 (no/stale marker) and exit 2 (config) both block in enforced mode.
+        # Pass the script's output verbatim: [FAIL] is accurate here.
+        if output.strip():
+            _print_output(output)
         return False
+
+    # Advisory path: the check did not pass, but the caller will still return
+    # True. Printing [FAIL] here is misleading because the overall run succeeds.
+    # Rewrite [FAIL] tokens to [WARN] so the severity label matches the outcome.
+    if output.strip():
+        _print_output(output, rewrite_fail_to_warn=True)
     print(
         "  Note: advisory only (default). /ship blocks on this; pre_pr does not. "
         "Set REVIEW_MARKER_ENFORCED=1 to make it BLOCKING here. See Issue #1938."
