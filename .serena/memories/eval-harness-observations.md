@@ -88,6 +88,23 @@
 - Keep `MalformedProviderMetadataError` in `_eval_errors.py`. Script-style
   tests reload `_eval_common`; defining the class there split exception
   identity between cached normalizers and freshly loaded retry adapters.
+- Validate mechanism-response metadata immediately after `_call_api`, before
+  sleeping or starting any judge sample. A malformed response must consume
+  zero judge calls.
+- Resolve one absolute Copilot session-state root before process launch.
+  Precedence is `COPILOT_SESSION_STATE_DIR`, then
+  `COPILOT_HOME/session-state`, then `~/.copilot/session-state`. Pass that root
+  to both the child environment and transcript reader.
+- ACP JSON-RPC error messages are inspected only to select a fixed category.
+  Authentication maps to `authentication failed`, which the adapter treats as
+  non-transient. Join both stdout and stderr reader threads after the process
+  exits and before constructing a classified failure.
+- Anthropic 404 and model-preflight errors must not include the requested model
+  id or any id returned by the provider. Direct model-list queries may return
+  ids to their explicit caller; durable error text may not.
+- Model-panel child propagation parses each stderr line as JSON and accepts
+  only the exact `{"level":"error","event":"MalformedProviderMetadataError"}`
+  object. A prose substring is not a typed event.
 
 ## Notes for Review (LOW confidence)
 
