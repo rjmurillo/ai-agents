@@ -417,11 +417,6 @@ class TestQueryThreadState:
                 query_thread_state("PRRT_abc")
 
 
-# ---------------------------------------------------------------------------
-# Tests: thread state pre-check in main (single-thread path)
-# ---------------------------------------------------------------------------
-
-
 class TestThreadStatePrecheck:
     def test_not_found_returns_skip_exit_0(self, capsys):
         with (
