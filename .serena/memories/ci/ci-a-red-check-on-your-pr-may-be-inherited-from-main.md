@@ -184,8 +184,16 @@ tree was red, rather than the six PRs each being at fault.
 
 `main` runs confirmed it independently: `Python Tests` was `failure` at
 `9933b7dbbb` and `77e305c6ed`, and `success` at `15f8756f08` immediately
-before. After #4290 merged as `c02f61ddd2`, both checks went green with no
-change to any of the six PRs.
+before. After #4290 merged as `c02f61ddd2`, both checks went green **on
+`main`**, with no change to any of the six PRs.
+
+That green is a measurement of `main`, not of the six PRs. Their own checks
+did not turn green at that moment: each kept running against its cached
+pre-fix `refs/pull/N/merge` until a push fired `synchronize`. Measured the
+same day, #4284 pushed a merge commit 51 seconds after the fix landed and got
+a fresh ref, while #4271, #4274, and #4102 had not pushed since before the fix
+and were still stale over fifteen minutes later. See "Fixing `main` does not
+fix your PR until the merge ref moves" below.
 
 ## Fixing `main` does not fix your PR until the merge ref moves
 

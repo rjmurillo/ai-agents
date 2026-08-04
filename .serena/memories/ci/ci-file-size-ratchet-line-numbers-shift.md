@@ -27,12 +27,14 @@ rule, dropping the line number**:
 # in each checkout
 uv run --frozen python - <<'PY' > ~/src/scratch/taste-<ref>.txt
 import json,subprocess,sys,pathlib
-files=[f for f in subprocess.run(["git","ls-files"],capture_output=True,text=True,encoding="utf-8").stdout.split()
+files=[f for f in subprocess.run(["git","ls-files"],capture_output=True,text=True,
+                                 encoding="utf-8",errors="replace").stdout.split()
        if pathlib.Path(f).exists()]
 out=set()
 for i in range(0,len(files),400):
     p=subprocess.run([sys.executable,".claude/skills/taste-lints/scripts/taste_lints.py",
-                      "--format","json","--",*files[i:i+400]],capture_output=True,text=True,encoding="utf-8")
+                      "--format","json","--",*files[i:i+400]],
+                     capture_output=True,text=True,encoding="utf-8",errors="replace")
     if p.returncode not in (0,10):
         continue
     for v in json.loads(p.stdout).get("violations",[]):
@@ -51,6 +53,15 @@ order` and then silently returns wrong rows.
 
 The taste linter exits **10** when it finds violations, not 1, so a `check=True`
 subprocess call throws on a normal run. Accept `{0, 10}`.
+
+Both `subprocess.run` calls pair `encoding="utf-8"` with `errors="replace"`.
+That pairing is the house pattern enforced by
+`scripts/validation/check_subprocess_encoding.py`, whose docstring requires a
+call setting `encoding="utf-8"` plus text mode to "also pass
+`errors="replace"`". Without it, a child that emits a byte invalid for UTF-8
+raises `UnicodeDecodeError` on the calling side, hiding the real failure.
+`git ls-files` can emit such bytes in a path. Keep the argument when you copy
+this recipe; a copy pasted under `scripts/` without it fails that gate.
 
 Expect the key count to be **lower** than the ratchet count: dropping the line
 number collapses several violations of the same rule in the same file into one
