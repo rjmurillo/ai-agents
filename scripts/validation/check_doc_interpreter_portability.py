@@ -95,7 +95,6 @@ import ast
 import json
 import os
 import re
-import stat
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -111,6 +110,7 @@ from scripts.validation.doc_interpreter_subprocess import (  # noqa: E402
 )
 from scripts.validation.portability_baseline import (  # noqa: E402
     baseline_write_lock,
+    find_symlinked_component,
     refuse_oversized_baseline,
     refuse_symlinked_baseline,
     refuse_undiffable_baseline,
@@ -317,6 +317,18 @@ def is_uv_run_prefixed(prefix: str) -> bool:
     return False
 
 
+def _tracked_regular_file(repo_root: Path, rel_path: str) -> Path:
+    path = repo_root / rel_path
+    linked = find_symlinked_component(path, repo_root)
+    if linked is not None:
+        raise ScanError(
+            f"tracked file is reached through a symlink ({linked}): {rel_path}"
+        )
+    if not path.is_file():
+        raise ScanError(f"tracked file is missing or not a regular file: {rel_path}")
+    return path
+
+
 def third_party_imports(
     rel_path: str,
     repo_root: Path,
@@ -329,7 +341,8 @@ def third_party_imports(
         return set()
     seen.add(rel_path)
     try:
-        tree = ast.parse((repo_root / rel_path).read_text(encoding="utf-8"))
+        source = _tracked_regular_file(repo_root, rel_path).read_text(encoding="utf-8")
+        tree = ast.parse(source)
     except (OSError, UnicodeDecodeError, SyntaxError, ValueError) as exc:
         raise ScanError(f"could not analyze {rel_path}: {exc}") from exc
 
@@ -389,13 +402,7 @@ def _scan_file(
     details: dict[str, list[str]] | None,
     stats: ScanStats | None,
 ) -> list[str]:
-    path = repo_root / rel
-    try:
-        mode = path.stat(follow_symlinks=False).st_mode
-    except OSError as exc:
-        raise ScanError(f"tracked file is missing or not a regular file: {rel}") from exc
-    if not stat.S_ISREG(mode):
-        raise ScanError(f"tracked file is missing or not a regular file: {rel}")
+    path = _tracked_regular_file(repo_root, rel)
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError) as exc:

@@ -46,6 +46,7 @@ __all__ = [
     "COUNTED_SECTIONS",
     "Sections",
     "baseline_write_lock",
+    "find_symlinked_component",
     "read_previous_sections",
     "replace_baseline_atomically",
     "refuse_dropped_entries",
@@ -143,15 +144,15 @@ def _resolved(path: Path) -> Path | None:
         return None
 
 
-def _linked_component(baseline_path: Path, repo_root: Path) -> Path | None:
-    """Return the first symlink between the repository root and the baseline.
+def find_symlinked_component(path: Path, repo_root: Path) -> Path | None:
+    """Return the first symlink between the repository root and ``path``.
 
     Checking only the leaf misses the cheaper attack. A symlinked *directory*
     anywhere on the way down redirects the write just as effectively, and it
     leaves the leaf looking like an ordinary file.
     """
     root = _resolved(repo_root)
-    current = baseline_path
+    current = path
     for _ in range(64):
         if current.is_symlink():
             return current
@@ -200,7 +201,7 @@ def refuse_symlinked_baseline(repo_root: Path, baseline_path: Path) -> bool:
     lets the vetted name and the consumed file be two different files. The
     wording below stays neutral because both callers reach it.
     """
-    linked = _linked_component(baseline_path, repo_root)
+    linked = find_symlinked_component(baseline_path, repo_root)
     if linked is not None:
         print(
             f"Refusing a baseline reached through a symlink: {linked}. "

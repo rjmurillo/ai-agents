@@ -15,6 +15,7 @@ import pytest
 
 from scripts.validation.check_doc_interpreter_portability import (
     INVOCATION_PATTERN,
+    ScanError,
     find_offenses,
     is_in_scope,
     main,
@@ -895,21 +896,79 @@ def test_validation_refuses_missing_tracked_file(
     assert "tracked file is missing or not a regular file: missing.md" in capsys.readouterr().err
 
 
-def test_validation_refuses_tracked_symlinked_instruction_file(
+@pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
+def test_validation_refuses_tracked_symlinked_file(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    repo = make_repo(tmp_path / "repo", {"tool.py": "import yaml\n", "README.md": "No command.\n"})
-    outside = tmp_path / "outside.md"
-    outside.write_text("Run `python3 tool.py`.\n", encoding="utf-8")
-    link = repo / "linked.md"
-    try:
-        link.symlink_to(outside)
-    except OSError as exc:
-        pytest.skip(f"filesystem does not support symlinks: {exc}")
+    repo = make_repo(tmp_path / "repo", {"README.md": "No command.\n"})
+    external = tmp_path / "external.md"
+    external.write_text("Run `python3 tool.py`.\n", encoding="utf-8")
+    (repo / "linked.md").symlink_to(external)
     subprocess.run(["git", "add", "linked.md"], cwd=repo, check=True)
     baseline = write_baseline(repo, {})
 
     exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
 
     assert exit_code == 2
-    assert "tracked file is missing or not a regular file: linked.md" in capsys.readouterr().err
+    assert "tracked file is reached through a symlink" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
+def test_third_party_imports_refuses_symlinked_script(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path / "repo", {"README.md": "No command.\n"})
+    external = tmp_path / "external.py"
+    external.write_text("import yaml\n", encoding="utf-8")
+    (repo / "tool.py").symlink_to(external)
+    subprocess.run(["git", "add", "tool.py"], cwd=repo, check=True)
+
+    with pytest.raises(ScanError, match="tracked file is reached through a symlink"):
+        third_party_imports("tool.py", repo, {"tool.py"})
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
+def test_validation_refuses_symlinked_parent_directory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path / "repo", {"docs/guide.md": "No command.\n"})
+    external = tmp_path / "external"
+    external.mkdir()
+    (external / "guide.md").write_text("Run `python3 tool.py`.\n", encoding="utf-8")
+    (repo / "docs").rename(repo / "docs-original")
+    (repo / "docs").symlink_to(external, target_is_directory=True)
+    baseline = write_baseline(repo, {})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 2
+    assert "tracked file is reached through a symlink" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
+def test_validation_refuses_parent_symlink_resolving_to_repo_root(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path / "repo", {"docs/guide.md": "No command.\n"})
+    (repo / "docs").rename(repo / "docs-original")
+    (repo / "guide.md").write_text("Run `python3 tool.py`.\n", encoding="utf-8")
+    (repo / "docs").symlink_to(repo, target_is_directory=True)
+    baseline = write_baseline(repo, {})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 2
+    assert "tracked file is reached through a symlink" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
+def test_validation_refuses_dangling_tracked_symlink(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path / "repo", {"README.md": "No command.\n"})
+    (repo / "dangling.md").symlink_to(repo / "missing.md")
+    subprocess.run(["git", "add", "dangling.md"], cwd=repo, check=True)
+    baseline = write_baseline(repo, {})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 2
+    assert "tracked file is reached through a symlink" in capsys.readouterr().err
