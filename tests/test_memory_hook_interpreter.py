@@ -8,6 +8,7 @@ changing the registration.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from memory_enhancement.interpreter import (
     dependency_available,
     find_venv_interpreter,
     reexec_under_project_venv,
+    running_under_venv,
 )
 
 
@@ -25,6 +27,19 @@ def _make_venv(project_dir: Path, name: str = "bin/python3") -> Path:
     interpreter = project_dir / ".venv" / name
     interpreter.parent.mkdir(parents=True, exist_ok=True)
     interpreter.write_text("#!/bin/sh\n", encoding="utf-8")
+    return interpreter
+
+
+def _make_symlinked_venv(project_dir: Path) -> Path:
+    """A fixture interpreter shaped like a real one: a symlink, not a file.
+
+    Every virtualenv built by ``python -m venv`` or ``uv`` on POSIX links
+    ``bin/python3`` back to the interpreter it was created from. Reproducing
+    that is what makes the issue #4468 regression test meaningful.
+    """
+    interpreter = project_dir / ".venv" / "bin" / "python3"
+    interpreter.parent.mkdir(parents=True, exist_ok=True)
+    interpreter.symlink_to(sys.executable)
     return interpreter
 
 
@@ -110,8 +125,6 @@ class TestReexecUnderProjectVenv:
 
         reexec_under_project_venv(tmp_path, ["hook.py"])
 
-        import os
-
         assert os.environ[REENTRY_GUARD] == "1"
 
     @pytest.mark.unit
@@ -153,18 +166,99 @@ class TestReexecUnderProjectVenv:
         assert calls == []
 
     @pytest.mark.unit
-    def test_does_nothing_when_the_venv_interpreter_is_already_running(
+    def test_does_nothing_when_already_running_under_that_venv(
         self, tmp_path, monkeypatch
     ):
-        interpreter = tmp_path / ".venv" / "bin" / "python3"
-        interpreter.parent.mkdir(parents=True)
-        interpreter.symlink_to(sys.executable)
+        """The intended skip: this process belongs to the virtualenv found.
+
+        Establishing that means setting ``sys.prefix``, which is what actually
+        changes when a virtualenv is active. An earlier version of this test
+        symlinked the fixture interpreter at ``sys.executable`` instead, which
+        proves only that two paths resolve alike and is true of every
+        virtualenv on the machine whether or not it is active (issue #4468).
+        """
+        _make_venv(tmp_path)
         monkeypatch.setenv(REENTRY_GUARD, "0")
         monkeypatch.setattr(
             "memory_enhancement.interpreter.dependency_available", lambda: False
+        )
+        monkeypatch.setattr(
+            "memory_enhancement.interpreter.sys.prefix", str(tmp_path / ".venv")
         )
         calls = self._record_execv(monkeypatch)
 
         reexec_under_project_venv(tmp_path, ["hook.py"])
 
         assert calls == []
+
+    @pytest.mark.unit
+    def test_execs_when_the_venv_interpreter_symlinks_to_the_running_one(
+        self, tmp_path, monkeypatch
+    ):
+        """Regression for issue #4468: the shape every real virtualenv has.
+
+        ``bin/python3`` is a symlink to the interpreter the virtualenv was
+        built from, so it resolves to the same file as any other interpreter
+        from that base install, including the system ``python3`` the hooks run
+        under. The old guard compared resolved paths and skipped the re-exec
+        here, which disabled the feature everywhere it was needed.
+        """
+        interpreter = _make_symlinked_venv(tmp_path)
+        monkeypatch.setenv(REENTRY_GUARD, "0")
+        monkeypatch.setattr(
+            "memory_enhancement.interpreter.dependency_available", lambda: False
+        )
+        monkeypatch.setattr(
+            "memory_enhancement.interpreter.sys.prefix", str(tmp_path / "elsewhere")
+        )
+        calls = self._record_execv(monkeypatch)
+
+        reexec_under_project_venv(tmp_path, ["hook.py"])
+
+        assert calls == [(str(interpreter), [str(interpreter), "-u", "hook.py"])]
+
+    @pytest.mark.unit
+    def test_the_symlinked_fixture_really_does_collide_under_realpath(self, tmp_path):
+        """Negative control for the regression above.
+
+        If the symlink stopped resolving to the running interpreter, that test
+        would pass without exercising the condition it exists to cover. This
+        asserts the fixture still reproduces the collision the old guard saw.
+        """
+        interpreter = _make_symlinked_venv(tmp_path)
+
+        assert os.path.realpath(interpreter) == os.path.realpath(sys.executable)
+
+
+class TestRunningUnderVenv:
+    """sys.prefix is the discriminator; resolved interpreter paths are not."""
+
+    @pytest.mark.unit
+    def test_true_when_the_prefix_is_the_venv(self, tmp_path, monkeypatch):
+        venv_dir = tmp_path / ".venv"
+        venv_dir.mkdir()
+        monkeypatch.setattr(
+            "memory_enhancement.interpreter.sys.prefix", str(venv_dir)
+        )
+
+        assert running_under_venv(venv_dir) is True
+
+    @pytest.mark.unit
+    def test_false_when_the_prefix_is_the_base_installation(
+        self, tmp_path, monkeypatch
+    ):
+        venv_dir = tmp_path / ".venv"
+        venv_dir.mkdir()
+        monkeypatch.setattr(
+            "memory_enhancement.interpreter.sys.prefix", str(tmp_path / "usr")
+        )
+
+        assert running_under_venv(venv_dir) is False
+
+    @pytest.mark.unit
+    def test_false_for_a_venv_that_does_not_exist(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "memory_enhancement.interpreter.sys.prefix", str(tmp_path / "usr")
+        )
+
+        assert running_under_venv(tmp_path / "absent" / ".venv") is False

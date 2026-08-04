@@ -126,6 +126,14 @@ class _SemgrepExecutableError(RuntimeError):
     """
 
 
+# Canonical remediation for a missing or mismatched semgrep. pyproject.toml
+# pins semgrep in [project.optional-dependencies].dev and mirrors that pin in
+# [dependency-groups].dev; uv installs exactly those pins from uv.lock.
+# scripts/install_semgrep.py runs `pip install semgrep` with no version, so it
+# can install a build this resolver rejects; it is deliberately not offered.
+_INSTALL_HINT = "uv sync --frozen --extra dev"
+
+
 def _semgrep_pinned_version(repo_root: Path) -> str:
     """Read the semgrep version pin from pyproject.toml.
 
@@ -181,34 +189,55 @@ def _probe_semgrep_version(executable: str) -> str:
     return version
 
 
+def _verify_pinned_version(executable: str, repo_root: Path) -> str:
+    """Return ``executable`` once it reports the pyproject.toml pin.
+
+    Raises ``_SemgrepExecutableError`` on any mismatch: a scanner running an
+    unpinned build reports findings from a different ruleset than CI does.
+    """
+    version = _probe_semgrep_version(executable)
+    pinned = _semgrep_pinned_version(repo_root)
+    if version != pinned:
+        raise _SemgrepExecutableError(
+            f"semgrep version mismatch: pyproject.toml pins {pinned!r}, "
+            f"but {executable} reports {version!r}. "
+            f"Reinstall the pin with: {_INSTALL_HINT}"
+        )
+    return executable
+
+
 def _resolve_semgrep_executable(repo_root: Path) -> str:
     """Return the path to a pinned semgrep binary.
 
-    Preference order:
+    Preference order, both verified against the pyproject.toml pin:
     1. A ``semgrep`` sibling of the current interpreter (inside the venv).
-    2. The first ``semgrep`` on PATH, verified against the pyproject.toml pin.
+    2. The first ``semgrep`` on PATH.
 
     Raises ``_SemgrepExecutableError`` if no matching binary is found, and
     ``FileNotFoundError`` if semgrep is not on PATH at all.  Both map to a
     loud failure rather than a silent fallback.
+
+    Stricter/looser/different than canonical: the sibling branch of
+    ``scripts/validation/git_hook_policy.py::_resolve_semgrep_executable``
+    returns the venv sibling with no version probe (its
+    ``test_semgrep_uses_sibling_binary_without_version_probe`` in
+    ``tests/test_lefthook_integration.py`` asserts ``args[1] != "--version"``).
+    This resolver is stricter: it probes the sibling too, because a venv built
+    by anything other than ``uv sync`` (a manual ``pip install semgrep``, or a
+    venv left over from an older pin) puts an unpinned binary in that exact
+    slot and the scan then passes against the wrong ruleset. The extra probe
+    costs one ``semgrep --version`` call per resolution.
     """
     sibling_name = "semgrep.exe" if os.name == "nt" else "semgrep"
     sibling = Path(sys.executable).parent / sibling_name
     if sibling.is_file() and os.access(sibling, os.X_OK):
-        return str(sibling)
+        return _verify_pinned_version(str(sibling), repo_root)
 
     resolved = shutil.which("semgrep")
     if resolved is None:
         raise FileNotFoundError("semgrep not found on PATH")
 
-    version = _probe_semgrep_version(resolved)
-    pinned = _semgrep_pinned_version(repo_root)
-    if version != pinned:
-        raise _SemgrepExecutableError(
-            f"semgrep version mismatch: pyproject.toml pins {pinned!r}, "
-            f"but {resolved} reports {version!r}"
-        )
-    return resolved
+    return _verify_pinned_version(resolved, repo_root)
 
 
 class SemgrepScanner:
@@ -268,10 +297,8 @@ class SemgrepScanner:
         except FileNotFoundError:
             logger.error("ERROR: semgrep not found on PATH")
             logger.error("")
-            logger.error("Install with:")
-            logger.error("  pip install semgrep")
-            logger.error("  OR")
-            logger.error("  python3 scripts/Install-Semgrep.py")
+            logger.error("Install the pinned version with:")
+            logger.error("  %s", _INSTALL_HINT)
             return False
         except _SemgrepExecutableError as exc:
             logger.error("ERROR: semgrep resolution failed: %s", exc)
@@ -428,7 +455,14 @@ class SemgrepScanner:
             raise SemgrepScanError(
                 f"Semgrep timed out after {self.SCAN_TIMEOUT_SECONDS}s"
             ) from e
-        except subprocess.SubprocessError as e:
+        except (subprocess.SubprocessError, OSError) as e:
+            # OSError is a sibling of subprocess.SubprocessError, not a
+            # subclass, and it is what subprocess.run raises when the exec
+            # itself faults: the binary was deleted after the resolver's
+            # version probe (TOCTOU), lost its exec bit, or the kernel refused
+            # the spawn. Dropping it lets the exception escape to run(), which
+            # handles only SemgrepScanError, so the gate would die on a
+            # traceback instead of the blocking finding below.
             logger.error("Semgrep scan failed: %s", e)
             message = _semgrep_output_snippet(str(e), fallback=type(e).__name__)
             return [_scan_failure_finding(f"Semgrep scan failed: {message}")]

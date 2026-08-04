@@ -440,3 +440,38 @@ def write_baseline_json(
         print(f"Could not write baseline {baseline_path}: {exc}", file=sys.stderr)
         return 2
     return 0
+
+
+# 10x the largest current baseline (skill_md_portability_baseline.json at ~18 KB).
+# Stated as a constant so the ceiling is re-derivable from the population it guards.
+_BASELINE_SIZE_CEILING = 200_000  # bytes
+
+
+def refuse_oversized_baseline(baseline_path: Path) -> bool:
+    """Refuse when the baseline file exceeds the reviewability ceiling.
+
+    Padding a baseline past the forge's diff-rendering limit hides a lowered
+    count as effectively as marking it -diff. The ceiling is 10x the largest
+    current baseline in the population this module guards. A legitimate machine-
+    generated baseline has no reason to approach that size; only padding does.
+
+    Unlike the diff-attribute guard, this check does not need a git repository:
+    the file size is measurable from disk and the protection is useful in every
+    context.
+
+    Returns True when the baseline is too large and the caller must refuse.
+    """
+    try:
+        size = baseline_path.stat().st_size
+    except OSError:
+        return False  # missing file is handled by downstream loader
+    if size > _BASELINE_SIZE_CEILING:
+        print(
+            f"Refusing baseline {baseline_path}: file is {size} bytes, "
+            f"which exceeds the reviewability ceiling of {_BASELINE_SIZE_CEILING} bytes. "
+            "A legitimate baseline should not approach this size. "
+            "Remove padding or regenerate from scratch.",
+            file=sys.stderr,
+        )
+        return True
+    return False
