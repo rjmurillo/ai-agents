@@ -82,7 +82,7 @@ class _FakeGh:
         self.by_branch = by_branch
         self.calls: list[list[str]] = []
 
-    def __call__(self, args, timeout=300, cwd=None, env=None):  # noqa: ANN001, ANN204
+    def __call__(self, args, timeout=300, cwd=None, env=None):
         if tuple(args[:3]) != _GH_VIEW_PREFIX:
             return _run_subprocess(args, timeout=timeout, cwd=cwd, env=env)
         self.calls.append(list(args))
@@ -92,7 +92,7 @@ class _FakeGh:
         answer = self.by_branch if selector else self.bare
         return (0, answer, "") if answer else (1, "", "no pull requests found")
 
-    def _selector(self, args) -> str | None:  # noqa: ANN001
+    def _selector(self, args) -> str | None:
         """Return the positional selector, or None when gh would reject the argv."""
         rest = list(args[3:])
         selector = ""

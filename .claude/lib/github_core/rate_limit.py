@@ -236,3 +236,25 @@ def check_workflow_rate_limit(
         ),
         probe_error=probe_error,
     )
+
+def probe_api_reachability(owner: str, repo: str) -> bool:
+    """Make a cheap real REST call to detect burst-limiter 403 refusals.
+
+    ``check_workflow_rate_limit`` includes its own live probe. This helper is
+    retained for callers that need an explicit repository reachability check.
+
+    Returns:
+        True when the API is reachable, False on any failure.
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{owner}/{repo}", "--jq", ".full_name"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return result.returncode == 0

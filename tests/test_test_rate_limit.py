@@ -111,3 +111,55 @@ class TestMain:
         mock_check.assert_called_once_with(
             resource_thresholds={"core": 100, "graphql": 50},
         )
+
+
+# ---------------------------------------------------------------------------
+# Tests for probe_api_reachability (issue #4326)
+# ---------------------------------------------------------------------------
+
+
+from scripts.github_core.rate_limit import probe_api_reachability  # noqa: E402
+
+
+class TestProbeApiReachability:
+    """probe_api_reachability detects burst-limiter 403s that rate_limit misses."""
+
+    @patch("subprocess.run")
+    def test_returns_true_on_success(self, mock_run: MagicMock) -> None:
+        """A 200 response from repos/{owner}/{repo} returns True."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="owner/repo")
+        assert probe_api_reachability("owner", "repo") is True
+
+    @patch("subprocess.run")
+    def test_returns_false_on_403(self, mock_run: MagicMock) -> None:
+        """A 403 burst refusal returns False while primary quota is healthy (issue #4326)."""
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout="", stderr="API rate limit exceeded (HTTP 403)"
+        )
+        assert probe_api_reachability("owner", "repo") is False
+
+    @patch("subprocess.run")
+    def test_returns_false_on_timeout(self, mock_run: MagicMock) -> None:
+        """A timeout from the probe returns False without raising."""
+        import subprocess
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=15)
+        assert probe_api_reachability("owner", "repo") is False
+
+    @patch("subprocess.run")
+    def test_returns_false_on_os_error(self, mock_run: MagicMock) -> None:
+        """If gh is not installed, OSError returns False without raising."""
+        mock_run.side_effect = OSError("gh not found")
+        assert probe_api_reachability("owner", "repo") is False
+
+    @patch("subprocess.run")
+    def test_probe_calls_repos_endpoint_not_rate_limit(self, mock_run: MagicMock) -> None:
+        """Probe makes a real repos/{owner}/{repo} call, not just rate_limit (issue #4326).
+
+        rate_limit does NOT expose the burst limiter; only a real probe does.
+        """
+        mock_run.return_value = MagicMock(returncode=0, stdout="rjmurillo/ai-agents")
+        probe_api_reachability("rjmurillo", "ai-agents")
+        called = mock_run.call_args
+        cmd = called[0][0] if called[0] else called.kwargs.get("args", [])
+        assert "repos/rjmurillo/ai-agents" in " ".join(cmd)
+        assert "rate_limit" not in " ".join(cmd)

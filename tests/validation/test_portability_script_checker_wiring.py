@@ -37,10 +37,12 @@ message. Exit code 2 alone is not evidence, because `main()` returns 2 from
 several branches, so every control also asserts the refusing guard's own stderr
 text and that the bytes it protects did not move.
 
-The symlink refusal on the write path is not dropped, only tested where it can
-be seen: `test_portability_baseline_destination.py::TestSymlinkedBaseline::
-test_a_symlinked_parent_does_not_get_written_through` calls `write_baseline_json`
-directly and asserts the victim still reads `DO NOT OVERWRITE`.
+The write-path symlink refusal remains covered directly by
+`test_portability_baseline_destination.py::
+TestTheWriteCannotBeRedirectedOffThePathGitTracks::
+test_a_symlinked_parent_does_not_get_written_through`, which calls
+`write_baseline_json` and verifies that the victim still reads
+`DO NOT OVERWRITE`.
 
 Exemplar for SHOULD-6 in `.claude/rules/testing.md`.
 """
@@ -58,7 +60,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.validation import check_skill_portability as csp  # noqa: E402
+from scripts.validation import check_skill_portability as csp
 
 SYMLINK_REFUSAL = "Refusing a baseline reached through a symlink"
 SHRINK_REFUSAL = "Refusing to write a baseline that reduces"
