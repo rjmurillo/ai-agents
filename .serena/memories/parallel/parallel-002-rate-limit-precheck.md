@@ -23,8 +23,8 @@ Applies before:
 
 ```bash
 # Gate on GraphQL, not REST. REST is almost never the binding constraint.
-# Measured during a live outage: REST core 4938 remaining while GraphQL was 0.
-# A gate reading .rate.remaining reports "healthy" throughout that outage.
+# During the issue #4547 outage REST core read 4938 while GraphQL was drained,
+# so a gate reading .rate.remaining reports "healthy" throughout it.
 remaining=$(gh api rate_limit --jq '.resources.graphql.remaining')
 reset_time=$(gh api rate_limit --jq '.resources.graphql.reset')
 
@@ -96,6 +96,24 @@ Recovery, in order:
    prints nothing on success.
 
 Tracked by issue #4547.
+
+### A 403 can fire while both counters read healthy
+
+The budget gate above is necessary, not sufficient. On 2026-08-04 a REST call
+returned `API rate limit exceeded for user ID 6811113` while `rate_limit`
+reported core 4992/5000 and graphql 1249/5000, with neither window due to reset
+for another 30 minutes. The identical call succeeded 2 minutes later, counters
+essentially unchanged and no reset in between.
+
+That is the **secondary** limiter (burst rate and concurrency). No field of
+`rate_limit` exposes it, so no pre-flight check can predict it.
+
+Two consequences:
+
+1. Treat a 403 as authoritative even when the budget looks fine. Back off 1 to 3
+   minutes and retry once before drawing any conclusion about budget.
+2. Do not read a healthy counter as proof the next call will succeed. It only
+   rules out one of the two ways to get a 403.
 
 ## Warning Signs
 
