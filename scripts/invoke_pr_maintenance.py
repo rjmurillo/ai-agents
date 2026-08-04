@@ -437,7 +437,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         if not rate_result.success:
             if not args.output_json:
-                print("Exiting: API rate limit too low", file=sys.stderr)
+                # The gate fails on a threshold or on a live-probe refusal, and
+                # "too low" misreported the second as the first (issue #4326).
+                reason = rate_result.probe_error or "thresholds not met"
+                print(f"Exiting: rate limit gate failed ({reason})", file=sys.stderr)
             return 0
     except (RuntimeError, subprocess.SubprocessError, OSError, KeyError):
         if not args.output_json:
