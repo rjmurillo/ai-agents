@@ -1,0 +1,90 @@
+{
+  "id": "episode-2026-08-04-session-9015-resolve-final-ruf100-baseline-unscored",
+  "session": "2026-08-04-session-9015-resolve-final-ruf100-baseline-unscored",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve final RUF100 baseline and unscored rename review defects",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge latest lint changes",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9015-resolve-final-ruf100-baseline-unscored"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Tighten baselines",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9015-resolve-final-ruf100-baseline-unscored"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix unscored rename policy",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9015-resolve-final-ruf100-baseline-unscored"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9015-resolve-final-ruf100-baseline-unscored"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "test",
+      "content": "Validate       2,662 tests passed with 2 skips and 1 known warning. Live IDs and aliases passed. Four killing mutations plus one surviving inverted control, mirror parity, build_all --check, Ruff, mypy, and pre_pr 46/46 passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9015-resolve-final-ruf100-baseline-unscored"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T11:08:37+00:00",
+      "type": "commit",
+      "content": "Commit: d1c74f3dd",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9015-resolve-final-ruf100-baseline-unscored"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
