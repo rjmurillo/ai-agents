@@ -220,3 +220,72 @@ def test_cli_subprocess_exit_code_for_vague_learning():
     # Assert
     assert result.returncode == 1
     assert "Rejected" in result.stdout
+
+
+# --- Issue #4306: scorer was boolean in disguise; now rejects degenerate input ---
+
+
+def test_single_letter_fails_persistence_threshold():
+    """A one-character string cannot encode actionable guidance (issue #4306)."""
+    # Arrange / Act
+    result = score_learning("x")
+
+    # Assert
+    assert result.score < PERSISTENCE_THRESHOLD, (
+        f"single letter scored {result.score}; expected < {PERSISTENCE_THRESHOLD}"
+    )
+
+
+def test_keyboard_mash_fails_persistence_threshold():
+    """Three nonsense words should not pass the persistence gate (issue #4306)."""
+    # Arrange / Act
+    result = score_learning("asdf qwer zxcv")
+
+    # Assert
+    assert result.score < PERSISTENCE_THRESHOLD, (
+        f"keyboard mash scored {result.score}; expected < {PERSISTENCE_THRESHOLD}"
+    )
+
+
+def test_platitude_without_listed_vague_words_fails():
+    """Platitudes below the minimum word threshold fail even without trigger words."""
+    # Arrange / Act: "Purple monkey dishwasher" - no vague trigger, but only 3 words
+    result = score_learning("Purple monkey dishwasher")
+
+    # Assert
+    assert result.score < PERSISTENCE_THRESHOLD, (
+        f"3-word platitude scored {result.score}; expected < {PERSISTENCE_THRESHOLD}"
+    )
+
+
+def test_careful_platitude_fails_persistence_threshold():
+    """'Be more careful' names a new vague trigger word (issue #4306)."""
+    # Arrange / Act
+    result = score_learning("Be more careful")
+
+    # Assert
+    assert result.score < PERSISTENCE_THRESHOLD, (
+        f"'Be more careful' scored {result.score}; expected < {PERSISTENCE_THRESHOLD}"
+    )
+
+
+def test_important_platitude_fails_persistence_threshold():
+    """'Testing is important' names another new vague trigger word (issue #4306)."""
+    # Arrange / Act
+    result = score_learning("Testing is important")
+
+    # Assert
+    assert result.score < PERSISTENCE_THRESHOLD, (
+        f"'Testing is important' scored {result.score}; expected < {PERSISTENCE_THRESHOLD}"
+    )
+
+
+def test_matters_platitude_fails_persistence_threshold():
+    """'Communication matters' names the third new vague trigger word (issue #4306)."""
+    # Arrange / Act
+    result = score_learning("Communication matters")
+
+    # Assert
+    assert result.score < PERSISTENCE_THRESHOLD, (
+        f"'Communication matters' scored {result.score}; expected < {PERSISTENCE_THRESHOLD}"
+    )
