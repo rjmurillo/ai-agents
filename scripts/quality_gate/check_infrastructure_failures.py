@@ -258,6 +258,13 @@ def main(argv: list[str] | None = None) -> int:
     if not pr_number or not repository:
         print("::warning::PR_NUMBER or GITHUB_REPOSITORY is missing, cannot add label")
         return 0
+    if not pr_number.isdecimal():
+        print(f"::warning::PR_NUMBER {pr_number!r} is not a decimal integer, cannot add label")
+        return 0
+    import re as _re
+    if not _re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        print(f"::warning::GITHUB_REPOSITORY {repository!r} does not match owner/repo, cannot add label")
+        return 0
 
     _add_label(pr_number, repository, args.gh_timeout)
     return 0
