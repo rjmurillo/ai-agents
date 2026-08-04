@@ -182,13 +182,32 @@ showed `Validate PR` failing. The same check PASSED on #4290, the branch
 carrying the ratchet fix. That contrast proved the gate was working and the
 tree was red, rather than the six PRs each being at fault.
 
-`main` runs confirmed it independently: `Python Tests` was `failure` at
-`9933b7dbbb` and `77e305c6ed`, and `success` at `15f8756f08` immediately
-before. After #4290 merged as `c02f61ddd2`, both checks went green **on
-`main`**, with no change to any of the six PRs.
+`main` runs confirmed it independently, but for one of the two checks only.
+`Python Tests` is the one that runs on `main`: `.github/workflows/pytest.yml`
+declares `on: push:` with no branch filter. It was `failure` at `9933b7dbbb`
+and `77e305c6ed`, and `success` at `15f8756f08` immediately before. After
+#4290 merged as `c02f61ddd2`, `Python Tests` went green **on `main`**, with no
+change to any of the six PRs.
 
-That green is a measurement of `main`, not of the six PRs. Their own checks
-did not turn green at that moment: each kept running against its cached
+`Validate PR` has no `main` result to go green, so do not attribute its
+recovery to `main`. Its workflow declares only:
+
+```yaml
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+```
+
+That `branches: [main]` filters the PR's base branch; it is not a push filter,
+and `.github/workflows/pr-validation.yml` carries no `push:` trigger at all.
+The job therefore never runs on `main`. Every `Validate PR` observation above
+is a `pull_request` run: red on the six, and PASSED on #4290 against a merge
+ref that already contained the fix. The six recovered only when their own
+merge ref was recomputed, which is the next paragraph.
+
+That green on `main` is a measurement of `main`, not of the six PRs. Their own
+checks did not turn green at that moment: each kept running against its cached
 pre-fix `refs/pull/N/merge` until a push fired `synchronize`. Measured the
 same day, #4284 pushed a merge commit 51 seconds after the fix landed and got
 a fresh ref, while #4271, #4274, and #4102 had not pushed since before the fix
