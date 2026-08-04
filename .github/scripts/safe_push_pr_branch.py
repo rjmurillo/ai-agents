@@ -29,6 +29,11 @@ EXIT_TRANSPORT = 3
 _OK_FLAGS = frozenset({" ", "+", "*", "="})
 _REJECT_FLAGS = frozenset({"!"})
 
+# Kept in sync by name with FORCE_PUSH_ESCAPE_ENV in
+# scripts/validation/git_hook_policy.py, which reads it as
+# `os.environ.get(FORCE_PUSH_ESCAPE_ENV) == "1"`.
+FORCE_PUSH_ESCAPE_ENV = "FORCE_PUSH_OK"
+
 
 def _load_object_id_validator(
     module_path: Path | None = None,
@@ -125,7 +130,9 @@ class PushAudit:
     parsed_refs: list[dict[str, str | None]] = field(default_factory=list)
 
 
-def _run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+def _run_git(
+    args: list[str], repo_root: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     """Run a git command in ``repo_root`` capturing text output."""
 
     return subprocess.run(
@@ -135,7 +142,26 @@ def _run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str
         encoding="utf-8",
         errors="replace",
         check=False,
+        env=env,
     )
+
+
+def _force_push_env() -> dict[str, str]:
+    """Return the child environment that lets the pre-push guard pass a lease.
+
+    `_check_non_fast_forward` in `scripts/validation/git_hook_policy.py` blocks
+    any update whose remote tip is not reachable from the local tip. It cannot
+    see argv, so a `--force-with-lease` pinned to an observed remote SHA looks
+    identical to a blind `--force` and gets rejected with exit 1. The lease is
+    the stronger check of the two: it refuses at the remote if the tip moved
+    off the SHA we observed, which is exactly the loss the guard exists to
+    prevent. `FORCE_PUSH_OK=1` is the escape `.claude/rules/universal.md`
+    MUST NOT 1 sanctions for that case; every other pre-push job still runs.
+    """
+
+    env = os.environ.copy()
+    env[FORCE_PUSH_ESCAPE_ENV] = "1"
+    return env
 
 
 def _git_stdout(args: list[str], repo_root: str, message: str) -> str:
@@ -297,7 +323,8 @@ def safe_push(
             raise SafePushError(audit.error, EXIT_USAGE, audit)
         push_args.insert(2, f"--force-with-lease={dest_ref}:{expected_remote_sha}")
 
-    result = _run_git(push_args, repo_root)
+    push_env = _force_push_env() if force_with_lease else None
+    result = _run_git(push_args, repo_root, push_env)
     audit.returncode = result.returncode
     audit.stderr = result.stderr
     audit.transport_text = result.stdout + result.stderr

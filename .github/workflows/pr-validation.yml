@@ -246,9 +246,9 @@ jobs:
         run: uv run --frozen python3 scripts/validation/check_python3_entrypoints.py
 
       # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
-      # The burn-down count started at 93 at audit time. This freezes the
-      # current ratchet ceiling at 58: the scanner exits 1 when the count
-      # exceeds --max. Lower --max after each extraction.
+      # The burn-down count started at 93 at audit time and reached zero. The
+      # ratchet ceiling is now fixed at 0: the scanner exits 1 when the count
+      # exceeds --max, so any new run block fails the gate.
       #
       # Unconditional (Issue #4151): Renovate and Dependabot open workflow-only
       # PRs (action SHA bumps), which are exactly the PRs that could smuggle a
@@ -348,6 +348,12 @@ jobs:
       # is clean today, so this is a ratchet at zero with no allowlist.
       - name: Check for conflict markers
         run: uv run --frozen python3 scripts/validation/git_hook_policy.py tracked-conflict-markers
+
+      # Issue #4068: scripts with a `main` entrypoint need tests that prove the
+      # CLI returns nonzero on failure. Helper-only assertions miss silent-pass
+      # regressions after shell logic moves into Python.
+      - name: Run CLI exit contract ratchet
+        run: uv run --frozen python3 scripts/ci/cli_exit_contract_ratchet.py
 
       # Issue #2840: ADR-080 requires an unjustified `model:` pin to fail CI.
       # `check_model_pins.py --mode enforce` exits 1 on a new or changed pin

@@ -29,7 +29,7 @@ def _fake_scan(
     ``tracked`` accordingly.
     """
 
-    def _run(cmd, **kwargs):  # noqa: ANN001, ANN003
+    def _run(cmd, **kwargs):
         if cmd[0] == "git" and "show" in cmd:
             rc = 0 if base_baseline is not None else 128
             return subprocess.CompletedProcess(cmd, rc, stdout=(base_baseline or ""), stderr="")
@@ -184,7 +184,7 @@ def test_scan_scope_includes_every_extension_ruff_lints(tmp_path, monkeypatch):
     # scope rather than the count.
     seen: list[list[str]] = []
 
-    def _run(cmd, **kwargs):  # noqa: ANN001, ANN003
+    def _run(cmd, **kwargs):
         seen.append(list(cmd))
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 

@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size
 name: PR Maintenance
 
 on:
@@ -75,6 +76,15 @@ jobs:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
           SUMMARY_JSON: ${{ steps.discover.outputs.summary }}
         run: python3 scripts/ci/write_pr_discovery_summary.py
+
+      # Issue #4316: a commit pushed after its PR merged is dropped silently.
+      # Warn, never block: exit 1 means findings, and a finding is for a human
+      # to judge, not a reason to fail the sweep.
+      - name: Detect orphan commits on merged PR branches
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: python3 scripts/maintenance/detect_orphan_commits.py --limit 50
 
   # Job 2: Process PRs in parallel (matrix strategy)
   process-prs:
