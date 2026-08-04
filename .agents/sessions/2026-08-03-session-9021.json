@@ -123,6 +123,14 @@
     {
       "task": "Root cause the ratchet race more precisely than the issue states",
       "outcome": "PR 4476 lowered the baseline to 595 in 795523e339 at 12:45:43. PR 4414 grew GOTCHAS.md past 500 lines in d3bc128517 at 12:47:06, 83 seconds later. The second PR merged on checks measured against the pre-4476 baseline, so this is a stale-base merge race on a scalar, not merely two independently green PRs."
+    },
+    {
+      "task": "Remove a duplicate taste-lint suppression from GOTCHAS.md",
+      "outcome": "Line 1 of GOTCHAS.md already carried a file-size suppression from main. This branch had added a second one, which the scanner ignores because has_suppression stops at the first exact rule match in the first ten lines. Removed the duplicate; the file's violation status is unchanged."
+    },
+    {
+      "task": "Replace the baseline equality assertion with a bounded health check",
+      "outcome": "Dated the conflict: the equality test landed 2026-07-30 in PR #3824, the slack-tolerance policy landed 2026-08-03 in PR #4214 for issue #4057, and the older test silently overrode the newer policy. Added count_ratchet.baseline_health with MAX_BASELINE_SLACK of 5, seven unit tests covering equality, slack inside the bound, slack exactly at the bound, slack one past it, a regression above the baseline, distinct remedies for the two failures, and a configurable bound. Mutation run killed 3 of 3 real mutants with a docstring-only control surviving."
     }
   ],
   "endingCommit": "",
