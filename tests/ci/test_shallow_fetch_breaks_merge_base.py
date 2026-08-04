@@ -118,6 +118,33 @@ def _shallow_history_offenders(label: str, data: Any) -> tuple[list[str], list[s
     return offenders, checked
 
 
+def _workflow_files(directory: Path) -> list[Path]:
+    """Every workflow file in ``directory``.
+
+    GitHub Actions accepts both ``.yml`` and ``.yaml``. Globbing only ``.yml``
+    would let a ``.yaml`` workflow carry a depth-limited fetch past this guard
+    while the test below still reports that it scanned every workflow.
+    """
+    return sorted(
+        p for p in directory.iterdir() if p.suffix in {".yml", ".yaml"} and p.is_file()
+    )
+
+
+def test_the_workflow_scan_covers_both_yaml_extensions(tmp_path):
+    """The enumeration must not miss a ``.yaml`` workflow.
+
+    Negative control: a ``.yml`` sibling proves the helper is not simply
+    returning everything, and a ``.yml.disabled`` file proves suffix matching
+    is exact rather than a substring test.
+    """
+    (tmp_path / "a.yml").write_text("on: push\n", encoding="utf-8")
+    (tmp_path / "b.yaml").write_text("on: push\n", encoding="utf-8")
+    (tmp_path / "c.txt").write_text("not a workflow\n", encoding="utf-8")
+    (tmp_path / "d.yml.disabled").write_text("on: push\n", encoding="utf-8")
+
+    assert [p.name for p in _workflow_files(tmp_path)] == ["a.yml", "b.yaml"]
+
+
 def test_every_job_needing_a_merge_base_keeps_complete_history():
     """No workflow job may reach a merge-base consumer with grafted history.
 
@@ -126,7 +153,7 @@ def test_every_job_needing_a_merge_base_keeps_complete_history():
     """
     offenders: list[str] = []
     checked: list[str] = []
-    for workflow in sorted(WORKFLOW_DIR.glob("*.yml")):
+    for workflow in _workflow_files(WORKFLOW_DIR):
         data = yaml.safe_load(workflow.read_text(encoding="utf-8"))
         found, seen = _shallow_history_offenders(workflow.name, data)
         offenders.extend(found)
