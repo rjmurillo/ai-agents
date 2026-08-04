@@ -349,6 +349,12 @@ jobs:
       - name: Check for conflict markers
         run: uv run --frozen python3 scripts/validation/git_hook_policy.py tracked-conflict-markers
 
+      # Issue #4068: scripts with a `main` entrypoint need tests that prove the
+      # CLI returns nonzero on failure. Helper-only assertions miss silent-pass
+      # regressions after shell logic moves into Python.
+      - name: Run CLI exit contract ratchet
+        run: uv run --frozen python3 scripts/ci/cli_exit_contract_ratchet.py
+
       # Issue #2840: ADR-080 requires an unjustified `model:` pin to fail CI.
       # `check_model_pins.py --mode enforce` exits 1 on a new or changed pin
       # that lacks a model-rationale field, and `checks_spec.validate_model_pins`

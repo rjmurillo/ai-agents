@@ -839,20 +839,18 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
     def test_falls_back_to_upstream_when_first_gh_call_fails(
         self, tmp_path: Path
     ) -> None:
-        """When gh pr view (no head) fails, retries with --head from @{u}."""
-        # Sequence of subprocess calls:
-        # 1. gh pr view --json baseRefName  -> fails (local name != PR name)
-        # 2. git rev-parse --abbrev-ref ... @{u}  -> "origin/fix/some-feature"
-        # 3. gh pr view --head fix/some-feature ...  -> "main"
+        """When gh pr view fails, retries with the upstream head branch."""
         calls: list[list[str]] = []
 
         def _run(cmd, **kwargs):  # noqa: ARG001
             calls.append(list(cmd))
-            if "gh" in cmd and "--head" not in cmd:
+            if cmd[:3] == ["gh", "pr", "view"] and len(cmd) == 7:
                 return (1, "", "no PR for current branch")
-            if "rev-parse" in cmd and "@{u}" in cmd:
-                return (0, "origin/fix/some-feature\n", "")
-            if "gh" in cmd and "--head" in cmd:
+            if "rev-parse" in cmd:
+                return (0, "pr-4294\n", "")
+            if "config" in cmd:
+                return (0, "refs/heads/fix/some-feature\n", "")
+            if cmd[:4] == ["gh", "pr", "view", "fix/some-feature"]:
                 return (0, "main\n", "")
             return (1, "", "unexpected")
 
@@ -861,11 +859,10 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
             patch("scripts.validation.checks_common._run_subprocess", side_effect=_run),
         ):
             result = _gh_base_ref(tmp_path)
-
         assert result == "origin/main"
-        head_calls = [c for c in calls if "gh" in c and "--head" in c]
-        assert head_calls, "expected a fallback --head call"
-        assert "fix/some-feature" in head_calls[0]
+        assert result == "origin/main"
+        head_calls = [c for c in calls if c[:4] == ["gh", "pr", "view", "fix/some-feature"]]
+        assert head_calls, "expected a fallback positional head call"
 
     def test_returns_none_when_both_gh_calls_fail(self, tmp_path: Path) -> None:
         """Returns None when neither gh attempt finds a PR."""
@@ -907,17 +904,18 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
     def test_strips_origin_prefix_from_upstream_correctly(
         self, tmp_path: Path
     ) -> None:
-        """Ensures 'origin/fix/has/slashes' -> '--head fix/has/slashes'."""
+        """Ensures the tracked ref becomes a positional head selector."""
         head_arg_seen: list[str] = []
 
         def _run(cmd, **kwargs):  # noqa: ARG001
-            if "gh" in cmd and "--head" not in cmd:
+            if cmd[:3] == ["gh", "pr", "view"] and len(cmd) == 7:
                 return (1, "", "fail")
-            if "rev-parse" in cmd and "@{u}" in cmd:
-                return (0, "origin/fix/has/slashes\n", "")
-            if "gh" in cmd and "--head" in cmd:
-                idx = list(cmd).index("--head")
-                head_arg_seen.append(cmd[idx + 1])
+            if "rev-parse" in cmd:
+                return (0, "pr-4294\n", "")
+            if "config" in cmd:
+                return (0, "refs/heads/fix/has/slashes\n", "")
+            if cmd[:4] == ["gh", "pr", "view", "fix/has/slashes"]:
+                head_arg_seen.append(cmd[3])
                 return (0, "develop\n", "")
             return (1, "", "unexpected")
 

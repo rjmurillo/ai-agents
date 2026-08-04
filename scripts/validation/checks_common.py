@@ -69,6 +69,62 @@ def _git_subprocess_env() -> dict[str, str]:
     return clean_env
 
 
+def _upstream_head_ref_name(repo_root: Path) -> str | None:
+    """Return the remote branch name the current branch is configured to track.
+
+    Reads ``branch.<current>.merge``, which holds the full remote ref
+    (``refs/heads/fix/gc-report-time-budget``) regardless of what the local
+    branch is called. An isolated worktree checked out as ``pr-4294`` tracking
+    a differently named PR head is the case this exists for (issue #4382).
+
+    Returns None on a detached HEAD, an unconfigured upstream, or a value that
+    is not a branch ref.
+    """
+    clean_env = _git_subprocess_env()
+    branch_rc, branch_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
+        env=clean_env,
+        timeout=10,
+    )
+    branch = branch_out.strip()
+    if branch_rc != 0 or not branch or branch == "HEAD":
+        return None
+    merge_rc, merge_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "config", "--get", f"branch.{branch}.merge"],
+        env=clean_env,
+        timeout=10,
+    )
+    if merge_rc != 0:
+        return None
+    ref = merge_out.strip()
+    prefix = "refs/heads/"
+    if not ref.startswith(prefix):
+        return None
+    return ref[len(prefix) :] or None
+
+
+def _gh_pr_base_ref_name(repo_root: Path, selector: list[str]) -> str | None:
+    """Return the open PR's ``baseRefName``, or None on any gh failure.
+
+    ``selector`` is the positional PR selector documented by
+    ``gh pr view --help``: ``gh pr view [<number> | <url> | <branch>] [flags]``.
+    Pass ``[]`` to let gh infer the PR from the checked-out branch, or
+    ``[branch]`` to name the head branch. There is no ``--head`` flag on this
+    subcommand; passing one makes gh exit 1 with ``unknown flag: --head``
+    before it reaches the API, which is how the first attempt at issue #4382
+    shipped a retry that could never resolve anything. The positional form is
+    the shape ``scripts/validation/check_pr_bypass_label.py`` already uses.
+    """
+    exit_code, stdout, _ = _run_subprocess(
+        ["gh", "pr", "view", *selector, "--json", "baseRefName", "-q", ".baseRefName"],
+        timeout=5,
+        cwd=repo_root,
+    )
+    if exit_code != 0:
+        return None
+    return stdout.strip() or None
+
+
 def _gh_base_ref(repo_root: Path) -> str | None:
     """Return ``origin/<baseRefName>`` for the open PR, or None.
 
@@ -77,72 +133,44 @@ def _gh_base_ref(repo_root: Path) -> str | None:
 
     Behavior:
     - If gh is not on PATH, return None.
-    - If gh succeeds but no PR exists for the current branch (empty
-      output), return None.
+    - If the bare lookup finds no PR, retry naming the upstream head branch
+      positionally. ``gh pr view`` infers the PR from the local branch name, so
+      a worktree checked out as ``pr-<number>`` while tracking a differently
+      named PR head resolved nothing and the caller fell back to the stale head
+      upstream (issue #4382).
     - If gh exits non-zero (auth, network, unknown error), return None.
 
-    A related helper (``_gh_base_ref``) lives in
+    A same-named helper lives in
     ``.claude/hooks/PreToolUse/push_guard_base.py`` for use inside the
-    pre-push framework. Find it via
-    ``grep -n '^def _gh_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``.
-    The two functions evolved separately and intentionally cover
-    different runtime contexts (CI vs developer machine). Test coverage
-    in this codebase locks in the public contract above; the canonical
-    file does the same in its own test suite.
+    pre-push framework, with a copy generated from it at
+    ``src/copilot-cli/hooks/PreToolUse/push_guard_base.py``. Find them via
+    ``grep -rn '^def _gh_base_ref' .claude/hooks src/copilot-cli/hooks``.
+    The two functions evolved separately and cover different runtime contexts
+    (CI vs developer machine). That helper does **not** carry this fallback:
+    it still issues the bare ``gh pr view --json baseRefName`` and returns None
+    in exactly the worktree shape issue #4382 describes, so the pre-push guard
+    falls through to the next signal in its chain. Fixing it needs a change to
+    ``.claude/hooks/``, which this branch's tooling could not write. Do not
+    read this paragraph as parity. Test coverage in this codebase locks in the
+    public contract above; the hook file has its own suite covering its own
+    contract.
     """
     if not shutil.which("gh"):
         return None
-    exit_code, stdout, _ = _run_subprocess(
-        ["gh", "pr", "view", "--json", "baseRefName", "-q", ".baseRefName"],
-        timeout=5,
-        cwd=repo_root,
-    )
-    if exit_code != 0 or not stdout.strip():
-        # The local branch name may differ from the PR head branch (for
-        # example, a reviewer checks out the PR as ``pr-4294`` while the
-        # actual PR head is ``fix/some-feature``). Try the upstream
-        # tracking ref as an explicit --head argument so gh can find the
-        # right PR even when the current branch name does not match.
-        clean_env = _git_subprocess_env()
-        up_rc, up_out, _ = _run_subprocess(
-            [
-                "git",
-                "-C",
-                str(repo_root),
-                "rev-parse",
-                "--abbrev-ref",
-                "--symbolic-full-name",
-                "@{u}",
-            ],
-            env=clean_env,
-            timeout=10,
-        )
-        if up_rc == 0 and up_out.strip() and "@{" not in up_out:
-            upstream = up_out.strip()
-            # upstream is typically "<remote>/<branch>"; strip any remote prefix.
-            head_branch = upstream.split("/", 1)[1] if "/" in upstream else upstream
-            exit_code, stdout, _ = _run_subprocess(
-                [
-                    "gh",
-                    "pr",
-                    "view",
-                    "--head",
-                    head_branch,
-                    "--json",
-                    "baseRefName",
-                    "-q",
-                    ".baseRefName",
-                ],
-                timeout=5,
-                cwd=repo_root,
-            )
-            if exit_code != 0 or not stdout.strip():
-                return None
-        else:
-            return None
-    base = stdout.strip()
+    base = _gh_pr_base_ref_name(repo_root, [])
+    if base:
+        return f"origin/{base}"
+    head = _upstream_head_ref_name(repo_root)
+    if not head:
+        return None
+    base = _gh_pr_base_ref_name(repo_root, [head])
     if not base:
         return None
+    print(
+        f"[base-ref] selected origin/{base}: PR resolved by upstream head "
+        f"'{head}' after the local branch name matched no PR",
+        file=sys.stderr,
+    )
     return f"origin/{base}"
 
 
@@ -229,6 +257,7 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
             timeout=10,
         )
         if exit_code == 0:
+            print(f"[base-ref] selected {pr_base}: open PR base branch", file=sys.stderr)
             return pr_base
 
     # ``@{u}`` is the right base for derivative branches that track a parent
@@ -245,6 +274,11 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
             timeout=10,
         )
         if exit_code == 0:
+            print(
+                f"[base-ref] selected {ref}: no PR base resolved, first "
+                "candidate ref that exists locally",
+                file=sys.stderr,
+            )
             return ref
     return None
 
