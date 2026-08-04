@@ -1,4 +1,5 @@
 # Gotchas
+<!-- # taste-lint: ignore file-size (governance reference; no cohesion boundary to split on) -->
 
 Non-obvious repository behavior that cost real time to learn and cannot be
 inferred from reading the code. Each entry states the trap, the symptom you
