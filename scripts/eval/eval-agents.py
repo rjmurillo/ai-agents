@@ -872,6 +872,31 @@ def run_assessment(
 # ---------------------------------------------------------------------------
 
 
+def _run_assessment_or_exit(
+    api_key: str,
+    agents: list[str],
+    prompts: dict[str, list[dict[str, Any]]],
+    *,
+    model: str,
+    dry_run: bool,
+    runs: int,
+) -> dict[str, dict[str, Any]]:
+    try:
+        return run_assessment(
+            api_key,
+            agents,
+            prompts,
+            model=model,
+            dry_run=dry_run,
+            runs=runs,
+        )
+    except MalformedProviderMetadataError:
+        raise
+    except RuntimeError as exc:
+        print(f"Error: assessment failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Assess agent definition quality")
     parser.add_argument("--agent", type=str, help="Assess a single agent instead of all")
@@ -936,15 +961,14 @@ def main() -> None:
     if not args.dry_run:
         print(f"Starting assessment (est. {api_calls * 3}s with rate limiting)...", file=sys.stderr)
 
-    try:
-        results = run_assessment(
-            api_key, agents, prompts, model=args.model, dry_run=args.dry_run, runs=args.runs
-        )
-    except MalformedProviderMetadataError:
-        raise
-    except RuntimeError as exc:
-        print(f"Error: assessment failed: {exc}", file=sys.stderr)
-        sys.exit(1)
+    results = _run_assessment_or_exit(
+        api_key,
+        agents,
+        prompts,
+        model=args.model,
+        dry_run=args.dry_run,
+        runs=args.runs,
+    )
 
     # Build output
     output: dict[str, Any] = {
