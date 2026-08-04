@@ -400,3 +400,55 @@ if __name__ == "__main__":
     import pytest
 
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+class TestExactRatchetSemantics:
+    """`--exact` fails in both directions; `--max` only fails upward.
+
+    Issue #2967: the workflow pinned `--max 58` against a real count of 45, so
+    13 new violations could land green and nothing forced the pin down after an
+    extraction batch. Equality removes the slack, matching the policy
+    `ruff_count_ratchet.py` and `taste_count_ratchet.py` already use.
+    """
+
+    @staticmethod
+    def _tree(tmp_path: Path, blocks: int) -> Path:
+        workflows = tmp_path / ".github" / "workflows"
+        workflows.mkdir(parents=True)
+        for index in range(blocks):
+            (workflows / f"w{index}.yml").write_text(_big_logic_run(), encoding="utf-8")
+        return tmp_path
+
+    def test_matching_count_passes(self, tmp_path: Path) -> None:
+        root = self._tree(tmp_path, 2)
+        assert scanner.main(["--root", str(root), "--exact", "2"]) == scanner.EXIT_OK
+
+    def test_a_regression_fails_and_names_the_direction(self, tmp_path, capsys) -> None:
+        root = self._tree(tmp_path, 2)
+        assert scanner.main(["--root", str(root), "--exact", "1"]) == scanner.EXIT_OVER_MAX
+        assert "exceeds --exact 1" in capsys.readouterr().err
+
+    def test_an_unrecorded_improvement_fails_and_says_to_lower_the_pin(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        root = self._tree(tmp_path, 2)
+        assert scanner.main(["--root", str(root), "--exact", "3"]) == scanner.EXIT_OVER_MAX
+        error = capsys.readouterr().err
+        assert "is below --exact 3" in error
+        assert "pr-validation.yml" in error
+
+    def test_max_accepts_the_same_improvement_exact_rejects(self, tmp_path: Path) -> None:
+        """Pins the semantic difference that motivated the change."""
+        root = self._tree(tmp_path, 2)
+        assert scanner.main(["--root", str(root), "--max", "3"]) == scanner.EXIT_OK
+        assert scanner.main(["--root", str(root), "--exact", "3"]) == scanner.EXIT_OVER_MAX
+
+    def test_zero_violations_against_exact_zero_passes(self, tmp_path: Path) -> None:
+        root = self._tree(tmp_path, 0)
+        assert scanner.main(["--root", str(root), "--exact", "0"]) == scanner.EXIT_OK
+
+    def test_both_gates_together_is_a_config_error(self, tmp_path: Path, capsys) -> None:
+        root = self._tree(tmp_path, 1)
+        code = scanner.main(["--root", str(root), "--exact", "1", "--max", "1"])
+        assert code == scanner.EXIT_CONFIG
+        assert "mutually exclusive" in capsys.readouterr().err
