@@ -22,7 +22,7 @@ MERGED_HEAD = "fdfb4ba1e9fbe38cc91603999b2e8ddd3db592af"
 POST_MERGE_TIP = "145b44b948e689eee0924812c1d2931a96c62f2e"
 
 
-def _pr(number=4274, branch="fix/debate-log-canonical-path", head=MERGED_HEAD):  # noqa: ANN001, ANN202
+def _pr(number=4274, branch="fix/debate-log-canonical-path", head=MERGED_HEAD):
     return {
         "number": number,
         "headRefName": branch,
@@ -157,7 +157,7 @@ def test_main_exits_0_when_nothing_moved(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_main_exits_2_when_the_remote_cannot_be_read(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    def _boom(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
+    def _boom(*_args, **_kwargs):
         raise RuntimeError("git ls-remote failed: network down")
 
     monkeypatch.setattr(detector, "fetch_merged_prs", lambda *_a, **_k: [_pr()])

@@ -18,7 +18,7 @@ import pytest
 _VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 sys.path.insert(0, str(_VALIDATION))
 
-import check_skill_portability as csp  # noqa: E402
+import check_skill_portability as csp
 
 
 class TestCountUpstreamRefs:
