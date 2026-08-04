@@ -1,0 +1,115 @@
+{
+  "id": "episode-2026-08-03-session-4483-3275-4345-smoke-auth-budget",
+  "session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Drive issues #4483, #3275, #4345 to terminal state: fix pre-push auth failures, confirm nightly smoke blocker is owner-side token, close #4345 as fully fixed by merged PRs.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triage #4483",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triage #3275",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triage #4345",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implement _skip_on_auth_failure helper in test_cli_hook_e2e.py and test_plugin_load_smoke.py",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Update taste_count_baseline.txt from 595 to 593",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Close #4345",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T00:22:38+00:00",
+      "type": "commit",
+      "content": "Commit: 5067f238c",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T01:56:04+00:00",
+      "type": "commit",
+      "content": "Commit: 83ae7a2fb",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 5
+  },
+  "lessons": []
+}
