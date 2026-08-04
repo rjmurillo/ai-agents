@@ -182,7 +182,7 @@ class TestMainWithFailures:
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         calls: list[list[str]] = []
 
-        def fake_run(cmd, **kwargs):  # noqa: ANN001, ANN003
+        def fake_run(cmd, **kwargs):
             calls.append(cmd)
             return subprocess.CompletedProcess(
                 cmd, 1, stdout="", stderr="HTTP 403: Resource not accessible by integration"
