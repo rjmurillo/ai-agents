@@ -96,7 +96,9 @@
         "e016",
         "e017"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e018"
+      ],
       "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
     },
     {
@@ -208,6 +210,17 @@
         "e007"
       ],
       "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-04T12:20:52+00:00",
+      "type": "commit",
+      "content": "Commit: c6c61fbf5",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
     }
   ],
   "metrics": {
@@ -215,8 +228,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 6
+    "commits": 2,
+    "files_changed": 60
   },
   "lessons": []
 }

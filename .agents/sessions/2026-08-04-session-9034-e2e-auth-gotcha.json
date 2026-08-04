@@ -184,7 +184,7 @@
       "outcome": "Same cause on both branches: the taste-count-ratchet baseline was stale at 586 while origin/main had lowered it to 584. merge-tree-ratchet had already pre-computed that the merged tree passes at 584, which is the signal that a merge is the fix. Merged origin/main into both worktrees cleanly."
     }
   ],
-  "endingCommit": "8494a1600",
+  "endingCommit": "c6c61fbf5",
   "nextSteps": [
     "If the token requirement should also gate CI rather than only local pushes, issue #3275 is the open thread for provisioning COPILOT_GITHUB_TOKEN to the smoke job.",
     "Consider whether git_hook_policy.py should fail with a named remediation when no credential variable is set, instead of letting the suite report an assertion failure that reads like a flake."
