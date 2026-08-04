@@ -61,7 +61,7 @@ Resolve merge conflicts systematically by analyzing commit intent and code histo
 
 ## Phase 0: Execution Capability Precondition (BLOCKING)
 
-Run this self-check FIRST, before any context gathering, analysis, or plan. Resolving conflicts requires shell execution: worktree creation, `git merge`, staging, commit, and `git push`. Without those tools you can only describe steps, never resolve anything.
+Run this self-check FIRST, before any context gathering, analysis, or plan. Resolving conflicts requires shell execution: worktree creation, `git merge`, staging, commit, and `git push`. If those tools are unavailable, you cannot resolve anything; you can only describe steps.
 
 Self-check: can you run shell/Bash commands (`git`, worktree creation, `git push`) in THIS run?
 

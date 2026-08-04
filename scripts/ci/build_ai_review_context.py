@@ -34,6 +34,20 @@ class ReviewContext:
     infrastructure_failure: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class PrMetadata:
+    """Number, title, and body from one PR fetch.
+
+    ``error`` is empty on success and otherwise carries the observed failure so
+    the caller can report it instead of guessing a cause (issue #4333).
+    """
+
+    number: str
+    title: str
+    body: str
+    error: str = ""
+
+
 class ConfigError(RuntimeError):
     """Configuration prevents context output generation."""
 
@@ -85,43 +99,73 @@ def read_utf8_file(path: Path, description: str) -> str:
         raise ConfigError(f"{description} file must be UTF-8: {path}") from exc
 
 
-@dataclass(frozen=True, slots=True)
-class PrInfo:
-    title: str
-    body: str
-    number: str
-    fetch_error: str = ""
-
-
-def get_pr_info(pr_number: str, repository: str) -> PrInfo:
-    """Fetch PR title, body, and number in one REST call.
-
-    Uses ``gh api repos/{repository}/pulls/{pr_number}`` (REST) rather than
-    ``gh pr view`` (GraphQL) so the call draws from the separate REST quota
-    and does not fail when the GraphQL budget is exhausted.
-    """
-    result = run_gh(["api", f"repos/{repository}/pulls/{pr_number}"])
-    if result.returncode != 0:
-        error = result.stderr.strip() or f"gh api exited {result.returncode}"
-        return PrInfo("Unknown PR", "", "0", fetch_error=error)
+def _parse_pr_payload(raw: str) -> PrMetadata | None:
+    """Turn a pulls payload into metadata, or None when it is unusable."""
     try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        return PrInfo("Unknown PR", "", "0", fetch_error=str(exc))
-    return PrInfo(
-        title=sanitize_title(data.get("title", "") or ""),
-        body=(data.get("body", "") or "").rstrip("\n"),
-        number=str(data.get("number", 0)),
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict) or "number" not in parsed:
+        return None
+    body = parsed.get("body")
+    return PrMetadata(
+        number=str(parsed["number"]),
+        title=sanitize_title(str(parsed.get("title") or "")),
+        body=("" if body is None else str(body)).rstrip("\n"),
+    )
+
+
+def fetch_pr_metadata(pr_number: str, repository: str) -> PrMetadata:
+    """Fetch PR number, title, and body in one call, REST first.
+
+    Before issue #4333 this was three separate ``gh pr view`` round-trips, all
+    of which go through GraphQL, and each collapsed to a sentinel ("0", "",
+    "Unknown PR") on any failure. With the shared GraphQL quota exhausted and
+    REST quota still available, all ten review jobs recorded DID_NOT_RUN and
+    the aggregate blocked the PR.
+
+    REST carries all three fields in one response. ``gh pr view`` stays as a
+    fallback for the reverse outage. When both fail the error text is carried
+    out so the caller reports what actually happened.
+    """
+    rest = run_gh(["api", f"repos/{repository}/pulls/{pr_number}"])
+    if rest.returncode == 0:
+        metadata = _parse_pr_payload(rest.stdout)
+        if metadata is not None:
+            return metadata
+    rest_error = (rest.stderr or rest.stdout).strip() or "REST response was unusable"
+
+    graphql = run_gh(
+        ["pr", "view", pr_number, "--repo", repository, "--json", "number,title,body"]
+    )
+    if graphql.returncode == 0:
+        metadata = _parse_pr_payload(graphql.stdout)
+        if metadata is not None:
+            return metadata
+    graphql_error = (
+        graphql.stderr or graphql.stdout
+    ).strip() or "gh pr view response was unusable"
+
+    return PrMetadata(
+        number="",
+        title="Unknown PR",
+        body="",
+        error=f"REST: {rest_error} | gh pr view: {graphql_error}",
     )
 
 
 def get_pr_name_only(pr_number: str, repository: str) -> str:
+    """Return the changed-file list, falling back from GraphQL to REST.
+
+    ``gh pr diff`` goes through GraphQL and fails in the same quota window that
+    breaks :func:`fetch_pr_metadata` (issue #4333), so the REST files endpoint
+    backs it up.
+    """
     result = run_gh(["pr", "diff", pr_number, "--repo", repository, "--name-only"])
-    if result.stdout:
+    if result.stdout.strip():
         return result.stdout.strip()
-    if result.returncode != 0:
-        return ""
-    return ""
+    file_list, _truncated, _api_failed = get_paginated_file_list(pr_number, repository)
+    return file_list
 
 
 def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool, bool]:
@@ -191,23 +235,46 @@ def build_large_pr_context(pr_number: str, repository: str) -> ReviewContext:
     )
 
 
+FORK_PERMISSION_SIGNAL = re.compile(
+    r"HTTP 40[34]|not accessible|must have admin rights|Could not resolve to a PullRequest",
+    re.IGNORECASE,
+)
+
+
+def _pr_fetch_failure_context(pr_number: str, detail: str) -> ReviewContext:
+    """Fail closed, naming the observed error rather than a guessed cause.
+
+    REQ-008-05 (issue #2818) keeps the DID_NOT_RUN behavior. Issue #4333 is why
+    the fork-permission hint is now conditional: an exhausted GraphQL quota was
+    reported as a token permission problem, and chasing that cost real time on
+    PR #4273.
+    """
+    hint = (
+        " The GH_TOKEN may lack permissions for first-time contributor PRs from forks."
+        if FORK_PERMISSION_SIGNAL.search(detail)
+        else ""
+    )
+    print(f"::warning::Could not fetch PR #{pr_number}: {detail}{hint}")
+    return ReviewContext(
+        f"INFRASTRUCTURE_FAILURE: Could not fetch PR #{pr_number}: {detail}{hint}",
+        "error",
+        True,
+    )
+
+
 def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
-    pr_info = get_pr_info(pr_number, repository)
-    title = pr_info.title
+    metadata = fetch_pr_metadata(pr_number, repository)
+    if metadata.error:
+        return _pr_fetch_failure_context(pr_number, metadata.error)
+    if metadata.number != pr_number:
+        return _pr_fetch_failure_context(
+            pr_number,
+            f"PR number mismatch: requested {pr_number}, got {metadata.number}",
+        )
+
+    title = metadata.title
     print(f"Building context for PR #{pr_number}: {title}")
     print(f"Fetching diff for PR #{pr_number} from repository {repository}")
-
-    if pr_info.number != pr_number:
-        if pr_info.fetch_error:
-            warning_detail = pr_info.fetch_error
-        else:
-            warning_detail = f"requested {pr_number}, got {pr_info.number}"
-        print(f"::warning::PR fetch failed: {warning_detail}")
-        return ReviewContext(
-            f"INFRASTRUCTURE_FAILURE: Could not fetch PR #{pr_number}: {warning_detail}",
-            "error",
-            True,
-        )
 
     diff = run_gh(["pr", "diff", pr_number, "--repo", repository])
     if DIFF_TOO_LARGE.search(diff.stderr):
@@ -236,7 +303,7 @@ def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) 
         else:
             built = ReviewContext(diff.stdout, "full")
 
-    body = pr_info.body
+    body = metadata.body
     if body:
         text = (
             f"## PR #{pr_number}: {title}\n\n"
