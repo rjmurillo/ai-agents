@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4435,
+    "date": "2026-08-04",
+    "branch": "fix/eval-judge-failures",
+    "startingCommit": "d367e9c87",
+    "objective": "Reconcile PR 4435 after PR 4101 merged"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP tools are not exposed in this Copilot CLI session. Read committed Serena memories directly."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Serena MCP tools are unavailable. Repository instructions and memory-index.md supplied the fallback."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md. No issue handoff matched #3988 or PR #4435."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded the GitHub skill and its PR, issue, review-thread, and validation script inventory."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and .agents/governance/GOTCHAS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index.md plus merge invalidation, GitHub rate limits, count ratchets, and mutation false-green memories."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/eval-judge-failures"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/eval-judge-failures"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Created a clean isolated worktree at .claude/worktrees/reconcile-pr-4435."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "d367e9c87"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PR history, reconciliation, tests, static analysis, mutation controls, pre_pr, PR body update, and conflict checks completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read and remains unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new Serena memory needed. Existing rate-limit memory covered the finding; durable GitHub skill defects were filed as issues #4536 and #4537."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr reported Markdown Linting PASS with no Markdown files in the branch diff."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Merge commits and authored code commit 6dc5a78ec are complete. This session log is the remaining closeout artifact."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr completed 46 checks with 0 failures after the final origin/main merge."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SQL todo reconcile-pr-4435 and its phase todos were updated throughout the session."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No retrospective needed for this bounded PR reconciliation."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Loaded PR and issue history",
+      "detail": "Read PR #4435, issue #3988, merged PR #4101, review threads, and linked-item references through GitHub skill scripts and indexed GitHub pages."
+    },
+    {
+      "action": "Created an isolated worktree",
+      "detail": "Checked out fix/eval-judge-failures at d367e9c87 under .claude/worktrees/reconcile-pr-4435."
+    },
+    {
+      "action": "Merged current main without rewriting history",
+      "detail": "Merged origin/main repeatedly as the high-velocity main branch advanced. Resolved the only conflict in scripts/eval/eval-rule-activation.py and verified no conflict markers remain."
+    },
+    {
+      "action": "Removed completed issue work",
+      "detail": "Removed parser deletion and raw-payload hunks already shipped through PR #4101, plus counter implementation already shipped through PR #4017. Restored main tests deleted by the stale branch."
+    },
+    {
+      "action": "Retained unique safeguards",
+      "detail": "Kept the keyword-only raw_judge_response helper boundary and a parameterized test for independent failed-cell and failed-sample counts."
+    },
+    {
+      "action": "Validated the reconciled diff",
+      "detail": "Full eval file: 254 passed, 1 skipped. Ruff and mypy passed. Two counter mutations died, one inverted control survived, and pre_pr passed 46 checks with 0 failures."
+    },
+    {
+      "action": "Updated GitHub state",
+      "detail": "PR #4435 now has one linkage line, Refs #3988, and no closing claim. Filed GitHub skill defects #4536 and #4537 after searches found no matching issues."
+    }
+  ],
+  "endingCommit": "7fcf3f8a1",
+  "nextSteps": [
+    "Push fix/eval-judge-failures with normal hooks.",
+    "Observe CI and review threads. Do not merge PR #4435 in this session."
+  ]
+}
