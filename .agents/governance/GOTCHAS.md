@@ -1,4 +1,4 @@
-<!-- # taste-lint: ignore file-size -->
+<!-- # taste-lint: ignore file-size, append-only trap index; split entries lose search locality. -->
 # Gotchas
 
 Non-obvious repository behavior that cost real time to learn and cannot be

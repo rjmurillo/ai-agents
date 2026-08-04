@@ -41,6 +41,15 @@
     { "step": 7, "action": "Mutation-proved: M1-M4 all killed, cosmetic survived." },
     { "step": 8, "action": "Found pre-existing taste ratchet regression: GOTCHAS.md at 521 lines. Added taste-lint: ignore file-size exemption. Ratchet now OK at 595." }
   ],
+  "retrospective": {
+    "learnings captured": true,
+    "key_learnings": [
+      "The stale-local-base defect is a two-namespace problem: args.base serves both the git diff validation base and the gh pr create --base target. They must be independent.",
+      "In a linked worktree, local branch refs are frozen at creation time. Prefer origin/<base> for validation; gh create still needs the bare name.",
+      "Session log retrospective evidence must be in the JSON file itself OR a .agents/retrospective/ file must exist with today's date prefix.",
+      "Push slots can stay locked for 60+ minutes during high fleet load; the push process terminates silently if interrupted before git push completes."
+    ]
+  },
   "endingCommit": "dd5e334894bb5fbfc8c1a357ab28e9048907c25f",
   "nextSteps": [
     "Push branch and create PR referencing Fixes #4461 and Fixes #4489."
