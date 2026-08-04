@@ -44,19 +44,18 @@ class TestUncommittedChangesExcludesSessionLog:
         assert self._run(" M some/other/file.py") is True
 
     def test_session_log_only_returns_false_when_excluded(self) -> None:
-        porcelain = " M .agents/sessions/2026-08-03-session-9999.json\n"
-        assert self._run(porcelain, exclude_path=".agents/sessions/2026-08-03-session-9999.json") is False
+        path = ".agents/sessions/2026-08-03-session-9999.json"
+        porcelain = f" M {path}\n"
+        assert self._run(porcelain, exclude_path=path) is False
 
     def test_session_log_without_exclude_returns_true(self) -> None:
         porcelain = " M .agents/sessions/2026-08-03-session-9999.json\n"
         assert self._run(porcelain, exclude_path=None) is True
 
     def test_session_log_plus_other_dirty_file_returns_true(self) -> None:
-        porcelain = (
-            " M .agents/sessions/2026-08-03-session-9999.json\n"
-            " M scripts/some_script.py\n"
-        )
-        assert self._run(porcelain, exclude_path=".agents/sessions/2026-08-03-session-9999.json") is True
+        path = ".agents/sessions/2026-08-03-session-9999.json"
+        porcelain = f" M {path}\n M scripts/some_script.py\n"
+        assert self._run(porcelain, exclude_path=path) is True
 
     def test_git_failure_returns_true(self) -> None:
         mod = _import_target()

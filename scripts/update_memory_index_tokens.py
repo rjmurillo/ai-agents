@@ -14,6 +14,7 @@ Exit codes per ADR-035:
   2 - Configuration error (tiktoken not installed, counts skipped)
 """
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -143,9 +144,7 @@ def update_memory_index(index_path: Path, memories_dir: Path) -> bool:
     return False
 
 
-def _build_parser() -> "argparse.ArgumentParser":
-    import argparse
-
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Update or check token counts in memory-index.md."
     )
