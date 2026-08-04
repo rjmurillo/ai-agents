@@ -19,7 +19,7 @@ from pathlib import Path
 _original_sys_path = sys.path.copy()
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
-    from copilot_hook_probe import (  # noqa: E402
+    from copilot_hook_probe import (
         _head_tail_excerpt,
         copilot_auth_absent,
         copilot_auth_failed,
