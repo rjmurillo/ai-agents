@@ -433,6 +433,7 @@ class TestIsGhAuthenticated:
             assert is_gh_authenticated() is True
 
     def test_false_when_not_authenticated(self):
+        # Both auth-status and rate_limit (×2 retries) return non-zero.
         with patch("subprocess.run", return_value=_completed(rc=1)):
             assert is_gh_authenticated() is False
 
@@ -454,11 +455,29 @@ class TestAssertGhAuthenticated:
         with patch("subprocess.run", return_value=_completed(rc=0)):
             assert_gh_authenticated()
 
-    def test_exits_4_when_not_authenticated(self):
-        with patch("subprocess.run", return_value=_completed(rc=1)):
+    def test_exits_4_when_gh_not_installed(self):
+        """gh binary absent: exit 4, install message, no 'gh auth login'."""
+        with (
+            patch("subprocess.run", side_effect=FileNotFoundError),
+            patch("scripts.github_core.api._gh_is_installed", return_value=False),
+        ):
             with pytest.raises(SystemExit) as exc:
                 assert_gh_authenticated()
             assert exc.value.code == 4
+
+    def test_exits_3_not_4_when_both_probes_fail_but_gh_installed(self):
+        """When gh is present but both probes fail, exit 3 (retry), not 4 (auth).
+
+        A wrong exit-4 destroys a working credential. A wrong exit-3 costs one
+        retry. The safer reading is exit-3 (issue #4470).
+        """
+        with (
+            patch("subprocess.run", return_value=_completed(rc=1)),
+            patch("scripts.github_core.api._gh_is_installed", return_value=True),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                assert_gh_authenticated()
+            assert exc.value.code == 3
 
 
 class TestIsGhAuthenticatedQuotaFallback:
@@ -468,17 +487,23 @@ class TestIsGhAuthenticatedQuotaFallback:
         # First call: gh auth status -> rc=1; second: gh api rate_limit -> rc=0
         calls = iter([
             _completed(rc=1),  # gh auth status
-            _completed(rc=0),  # gh api rate_limit (REST)
+            _completed(rc=0),  # gh api rate_limit (REST, attempt 1 succeeds)
+        ])
+        with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
+            assert is_gh_authenticated() is True
+
+    def test_true_when_rest_probe_returns_rate_limit_body(self):
+        """A rate-limited REST probe proves the token is valid (issue #4470)."""
+        calls = iter([
+            _completed(rc=1),  # gh auth status
+            _completed(rc=1, stderr="API rate limit exceeded for user ID 123"),  # rate_limit
         ])
         with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
             assert is_gh_authenticated() is True
 
     def test_false_when_both_auth_status_and_rest_fail(self):
-        calls = iter([
-            _completed(rc=1),  # gh auth status
-            _completed(rc=1),  # gh api rate_limit
-        ])
-        with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
+        # All calls return non-zero with no rate-limit body.
+        with patch("subprocess.run", return_value=_completed(rc=1)):
             assert is_gh_authenticated() is False
 
 
@@ -492,31 +517,33 @@ class TestAssertGhAuthenticatedQuotaDiagnosis:
 
     def test_exits_3_when_auth_status_fails_rest_fails_but_second_rest_succeeds_graphql_zero(self):
         # is_gh_authenticated: auth_status fails, _is_rest_reachable fails -> returns False.
-        # assert_gh_authenticated: _is_rest_reachable ok, _graphql_remaining=0 -> exit 3.
+        # assert_gh_authenticated: _gh_is_installed=True, _is_rest_reachable ok -> exit 3.
         payload = self._rate_limit_payload(0)
         calls = iter([
             _completed(rc=1),                  # gh auth status (is_gh_authenticated)
-            _completed(rc=1),                  # _is_rest_reachable in is_gh_authenticated: fails
-            _completed(rc=0, stdout=payload),  # _is_rest_reachable in assert_gh_authenticated: ok
+            _completed(rc=1),                  # _is_rest_reachable attempt 1 in is_gh_authenticated
+            _completed(rc=1),                  # _is_rest_reachable attempt 2 (retry)
+            _completed(rc=0, stdout=payload),  # _is_rest_reachable in assert_gh_authenticated
             _completed(rc=0, stdout=payload),  # _graphql_remaining
         ])
-        with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
+        with (
+            patch("subprocess.run", side_effect=lambda *a, **k: next(calls)),
+            patch("scripts.github_core.api._gh_is_installed", return_value=True),
+        ):
             with pytest.raises(SystemExit) as exc:
                 assert_gh_authenticated()
         # quota exhaustion -> exit 3, not 4
         assert exc.value.code == 3
 
-    def test_exits_4_when_both_checks_fail(self):
-        calls = iter([
-            _completed(rc=1),  # gh auth status
-            _completed(rc=1),  # gh api rate_limit (fallback fails too)
-            _completed(rc=1),  # gh auth status (second check)
-            _completed(rc=1),  # gh api rate_limit
-        ])
-        with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
+    def test_exits_3_when_both_checks_fail_and_gh_installed(self):
+        """When gh is present but all probes fail, exit 3 not 4 (issue #4470)."""
+        with (
+            patch("subprocess.run", return_value=_completed(rc=1)),
+            patch("scripts.github_core.api._gh_is_installed", return_value=True),
+        ):
             with pytest.raises(SystemExit) as exc:
                 assert_gh_authenticated()
-        assert exc.value.code == 4
+        assert exc.value.code == 3
 
 
 class TestIsRestReachable:
@@ -524,9 +551,36 @@ class TestIsRestReachable:
         with patch("subprocess.run", return_value=_completed(rc=0)):
             assert _is_rest_reachable() is True
 
-    def test_false_on_failed_rate_limit(self):
-        with patch("subprocess.run", return_value=_completed(rc=1)):
+    def test_true_when_rate_limit_body_present(self):
+        """A rate-limited response proves the token is valid (issue #4470)."""
+        result = _completed(rc=1, stderr="API rate limit exceeded for user ID 123")
+        with patch("subprocess.run", return_value=result):
+            assert _is_rest_reachable() is True
+
+    def test_true_when_secondary_rate_limit_body(self):
+        result = _completed(rc=1, stdout="secondary rate limit triggered")
+        with patch("subprocess.run", return_value=result):
+            assert _is_rest_reachable() is True
+
+    def test_false_on_failed_rate_limit_no_quota_body(self):
+        # Both attempts fail with a non-quota error.
+        with patch("subprocess.run", return_value=_completed(rc=1, stderr="bad credentials")):
             assert _is_rest_reachable() is False
+
+    def test_true_on_second_attempt_after_timeout(self):
+        """A transient timeout on attempt 1 is retried; success on attempt 2."""
+        timeout_exc = subprocess.TimeoutExpired(cmd="gh", timeout=15)
+        success = _completed(rc=0)
+        calls = iter([timeout_exc, success])
+
+        def side_effect(*a, **k):
+            val = next(calls)
+            if isinstance(val, Exception):
+                raise val
+            return val
+
+        with patch("subprocess.run", side_effect=side_effect):
+            assert _is_rest_reachable() is True
 
     def test_false_on_gh_not_found(self):
         with patch("subprocess.run", side_effect=FileNotFoundError):
