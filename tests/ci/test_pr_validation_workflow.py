@@ -934,7 +934,7 @@ class TestBotSkipGuardClassification:
     _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
         {
             "Checkout repository",
-            # Tool bootstrap only. If skip path fires, no uv-backed gate runs.
+            # Tool setup is throughput-only. It cannot validate repository contents.
             "Setup uv",
             "Setup PowerShell",
             "Validate PR Description vs Diff",
