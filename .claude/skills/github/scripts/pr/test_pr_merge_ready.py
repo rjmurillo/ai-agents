@@ -75,7 +75,7 @@ from github_core.api import (
     resolve_repo_params,
     safe_log_str,
 )
-from github_core.checks_rollup import (  # noqa: E402
+from github_core.checks_rollup import (
     partition_rows_by_run,
 )
 
