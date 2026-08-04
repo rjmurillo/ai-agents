@@ -194,7 +194,7 @@ class TestWindowsPathViaSeam:
 
         # Patch time so the deadline expires on the very first check,
         # avoiding a real 10-second spin in the test suite.
-        with mock.patch("scripts.validation.portability_baseline.time") as t:
+        with mock.patch("scripts.validation.portability_baseline_write.time") as t:
             start = 0.0
             t.monotonic.side_effect = [
                 start,       # initial: deadline = start + 10
