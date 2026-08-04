@@ -141,12 +141,9 @@ def mutant_m2b_diff_attr_none_guard(tmp_path: Path) -> str:
 def mutant_m3_scan_all_roots(tmp_path: Path) -> str:
     """M3: drop the SCAN_ROOTS loop in scan_all (empty all result dicts)."""
     target = SCRIPTS / "check_skill_md_exec_portability.py"
-    # Use a two-line anchor that is unique to scan_all.  The single-line
-    # "    for parts in SCAN_ROOTS:" also appears in
-    # scan_dangling_skill_relative_scripts, so the ambiguity guard would fire.
-    # The preceding dict initialisation line is only in scan_all, making
-    # the combined anchor unique.  Issue #4493.
-    pattern = "    files_by_root: dict[str, int] = {}\n    for parts in SCAN_ROOTS:"
+    # Use the two-line context unique to scan_all (scan_dangling_skill_relative_scripts
+    # also loops over SCAN_ROOTS, so a single-line anchor is ambiguous).
+    pattern = "    repo_resolved = repo_root.resolve()\n    for parts in SCAN_ROOTS:"
     count = _count_occurrences(target, pattern)
     if count == 0:
         return "DID-NOT-APPLY: pattern absent"
@@ -154,8 +151,12 @@ def mutant_m3_scan_all_roots(tmp_path: Path) -> str:
         return f"DID-NOT-APPLY: ambiguous, {count} occurrences"
 
     backup = tmp_path / "check_skill_md_exec.py.bak"
-    replacement = "    files_by_root: dict[str, int] = {}\n    for parts in []:"
-    applied = _apply_mutation(target, pattern, replacement, backup)
+    applied = _apply_mutation(
+        target,
+        pattern,
+        "    repo_resolved = repo_root.resolve()\n    for parts in []:",
+        backup,
+    )
     if not applied:
         return "DID-NOT-APPLY: replace had no effect"
 
@@ -200,41 +201,6 @@ def mutant_m4_inverted_control_benign(tmp_path: Path) -> str:
     return "SURVIVED"
 
 
-# ---------------------------------------------------------------------------
-# pytest-collected test wrappers (fixes #4494: zero collected tests)
-# ---------------------------------------------------------------------------
-
-
-def test_m1_bool_check_is_dead(tmp_path: Path) -> None:
-    """M1: weakened bool rejection must be caught by the suite."""
-    result = mutant_m1_bool_check(tmp_path)
-    assert result == "DEAD", f"M1-bool-check: expected DEAD, got {result}"
-
-
-def test_m2_diff_attr_guard_is_dead(tmp_path: Path) -> None:
-    """M2: swapped 'unset'/'set' guard must be caught by the suite."""
-    result = mutant_m2_diff_attr_guard(tmp_path)
-    assert result == "DEAD", f"M2-diff-attr-guard: expected DEAD, got {result}"
-
-
-def test_m2b_diff_attr_none_guard_is_dead(tmp_path: Path) -> None:
-    """M2b: inverted None guard must be caught by the suite."""
-    result = mutant_m2b_diff_attr_none_guard(tmp_path)
-    assert result == "DEAD", f"M2b-diff-attr-none-guard: expected DEAD, got {result}"
-
-
-def test_m3_scan_all_roots_is_dead(tmp_path: Path) -> None:
-    """M3: emptied SCAN_ROOTS loop in scan_all must be caught by the suite."""
-    result = mutant_m3_scan_all_roots(tmp_path)
-    assert result == "DEAD", f"M3-scan-all-roots: expected DEAD, got {result}"
-
-
-def test_m4_inverted_control_survives(tmp_path: Path) -> None:
-    """IC: benign comment-only mutation must NOT be caught (survives)."""
-    result = mutant_m4_inverted_control_benign(tmp_path)
-    assert result == "SURVIVED", f"M4-inverted-ctrl: expected SURVIVED, got {result}"
-
-
 def main() -> int:
     import tempfile
 
@@ -266,3 +232,32 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+# pytest-discoverable wrappers (issue #4494: file had no test_* functions,
+# so pytest collected 0 items and reported exit 5 as success).
+
+
+def test_m1_bool_check_is_dead(tmp_path: Path) -> None:
+    """M1 must be killed by the suite."""
+    assert mutant_m1_bool_check(tmp_path) == "DEAD"
+
+
+def test_m2_diff_attr_guard_is_dead(tmp_path: Path) -> None:
+    """M2 must be killed by the suite."""
+    assert mutant_m2_diff_attr_guard(tmp_path) == "DEAD"
+
+
+def test_m2b_diff_attr_none_guard_is_dead(tmp_path: Path) -> None:
+    """M2b must be killed by the suite."""
+    assert mutant_m2b_diff_attr_none_guard(tmp_path) == "DEAD"
+
+
+def test_m3_scan_all_roots_is_dead(tmp_path: Path) -> None:
+    """M3 must be killed by the suite."""
+    assert mutant_m3_scan_all_roots(tmp_path) == "DEAD"
+
+
+def test_m4_inverted_control_survives(tmp_path: Path) -> None:
+    """The cosmetic control must survive (exit 0); any kill here means false kills."""
+    assert mutant_m4_inverted_control_benign(tmp_path) == "SURVIVED"
