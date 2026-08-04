@@ -64,6 +64,13 @@ class TestMemoryTierGateEnforcement:
             f"baseline without --base-ref: {run!r}"
         )
 
+    def test_merge_tree_ratchet_watches_memory_index_baseline(self) -> None:
+        job = self._find_job("merge-tree-ratchet")
+        glob = job.get("glob", [])
+        assert "scripts/ci/memory_index_count_baseline.txt" in glob, (
+            "merge-tree-ratchet does not run when the memory-index baseline changes"
+        )
+
     def test_memory_index_job_has_ci_flag(self) -> None:
         job = self._find_job("memory-index")
         run = job.get("run", "")
