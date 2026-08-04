@@ -20,7 +20,7 @@ _VALIDATION_DIR = str(REPO_ROOT / "scripts" / "validation")
 if _VALIDATION_DIR not in sys.path:
     sys.path.insert(0, _VALIDATION_DIR)
 
-import run_workflow_local_test as w  # noqa: E402
+import run_workflow_local_test as w
 
 WF = ".github/workflows/x.yml"
 
