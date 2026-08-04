@@ -526,45 +526,10 @@ The field does not exist on that command and the error does not suggest the
 alternative. Use `gh api graphql` with a `reviewThreads` query on the pull
 request instead.
 
-## Workspace Budget Gotchas
+## Workspace byte-gate
 
-Non-obvious facts about the workspace byte-gate that save debugging time.
-
-## Byte-gate ceilings (always-on files)
-
-These files are measured by `scripts/validate_workspace_budget.py` on every CI
-run. Each file has a ceiling. Exceeding it blocks the push.
-
-| File | Ceiling | Ratchet? | Notes |
-|---|---|---|---|
-| `AGENTS.md` | 3000 bytes | no | Standard; 2999 bytes as of 2025-07-30 (one byte of headroom) |
-| `CLAUDE.md` | 3000 bytes | no | Standard |
-| `.claude/CLAUDE.md` | 3000 bytes | no | Standard |
-| `.github/copilot-instructions.md` | 6351 bytes | yes | Non-regression ratchet seeded at 6351 bytes (2025-07-30, issue #3991). Target: reduce to 3000 after moving the Gotchas section to `.agents/governance/` (issue #3952). |
-
-**Standard files** (no ratchet) also share a combined pool: `TOTAL_BUDGET_BYTES
-= 6600`. Files with a ratchet are measured only by their individual ceiling.
-
-**To lower a ratchet**: trim the file content, then update `FILE_CEILING_BYTES`
-in `scripts/validate_workspace_budget.py` to the new measured size. Never raise
-a ceiling without recording the reason in the same change.
-
-## The shared total only covers standard files
-
-`TOTAL_BUDGET_BYTES = 6600` applies to `AGENTS.md + CLAUDE.md + .claude/CLAUDE.md`
-only. Adding a ratchet file to that sum would yield a meaningless constraint
-because the ratchet file already has its own ceiling.
-
-## An empty WORKSPACE_FILES disables the gate silently
-
-`test_workspace_files_nonempty` guards this. If you see that test failing, the
-constant was emptied somewhere and every per-file assertion is vacuously true.
-
-## Gate location
-
-`tests/test_workspace_limits.py` runs via the standard `pytest` suite. It imports
-constants from `scripts/validate_workspace_budget.py` directly, so the test and
-the enforcer always agree (fixed by issue #3951).
+Moved to `.agents/governance/WORKSPACE-BUDGET.md`: per-file ceilings, the
+shared total, the silent-disable failure, and where the gate lives.
 
 ## Concurrent pushes: use a per-branch lock, not a global one
 
@@ -572,26 +537,32 @@ The race a push lock exists to prevent is a lost ref update: two writers push
 to the same remote ref and one overwrites the other. Git takes its lock per ref.
 Two pushes to two different branches cannot race for the same lock on the server.
 
-A global `flock /tmp/aiagents-push.lock` wrapping `git push` serializes the
-entire fleet including the 7 to 15 minute pre-push hook. Five concurrent pushes
-to five distinct branches costs 5 x 15 = 75 minutes instead of 15.
+A single global lock wrapping `git push` serializes the entire fleet including
+the 7 to 15 minute pre-push hook. Five concurrent pushes to five distinct
+branches costs 5 x 15 = 75 minutes instead of 15.
 
-Use a per-branch lock keyed on the exact branch name:
+Use the canonical per-branch lock, keyed on the exact branch name. The path is
+fixed by `.claude/rules/push-lock.md` and `scripts/validation/check_push_lock_paths.py`
+blocks any other spelling:
 
 ```bash
 BR=$(git branch --show-current)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/home/richard/src/GitHub/rjmurillo/ai-agents-pushpol2-push-${SLUG}.lock" \
-  git push --force-with-lease origin HEAD:"$BR"
+mkdir -p "$HOME/src/scratch/locks"
+flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" \
+  git push origin HEAD:"$BR"
 ```
 
 Notes:
 - `tr '/' '-'` is required: a branch like `fix/foo` would otherwise create a
   lock file with a `/` in its name, which the shell reads as a directory path.
-- Use an absolute path for the lock file and keep it outside `/tmp` (not durable
-  on this machine).
-- `--force-with-lease` already fails safely on a lost update. The lock prevents
-  the git-object-packing overhead of a concurrent same-branch push, not data loss.
+- `mkdir -p` first. `flock` fails when the parent directory is missing, and a
+  failed `flock` in a detached push says nothing.
+- Keep the lock outside `/tmp`. A wipe there splits one filename across two
+  inodes, and the two holders stop excluding each other (issue #4366).
+- The lock prevents the git-object-packing overhead of a concurrent same-branch
+  push. It is not a substitute for the pre-push non-fast-forward guard, and a
+  force push stays forbidden on a shared branch (issue #4293).
 - Two distinct branches never contend for the same lock file, so their pre-push
   hooks run in parallel. Measured throughput: four concurrent pushes to four
   distinct branches finish in approximately one hook duration, not four.

@@ -5,14 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from scripts.validate_quality_gate_output import validate_output
 
 
-def _valid_output(**overrides: object) -> dict:
+def _valid_output(**overrides: object) -> dict[str, object]:
     """Return a minimal valid quality gate output dict."""
-    base = {
+    base: dict[str, object] = {
         "verdict": "PASS",
         "message": "No issues found",
         "agent": "security",

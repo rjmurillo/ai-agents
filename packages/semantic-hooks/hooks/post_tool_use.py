@@ -5,8 +5,8 @@ import json
 import sys
 
 from semantic_hooks.core import HookContext, HookEvent
-from semantic_hooks.recorder import create_recorder_from_config
 from semantic_hooks.logging import log
+from semantic_hooks.recorder import create_recorder_from_config
 
 
 def main() -> int:
