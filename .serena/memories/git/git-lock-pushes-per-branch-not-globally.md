@@ -8,6 +8,7 @@ reference already exists`, usually after the work already landed. The obvious
 guard is a single lock file:
 
 ```bash
+# push-lock-historical: the superseded global scheme, kept as evidence
 flock /tmp/aiagents-push.lock git push origin "$BR"
 ```
 
@@ -19,6 +20,7 @@ different ref, and pushes to different refs never contended in the first place.
 Measured on 2026-08-02 with five queued pushes to five distinct branches:
 
 ```
+push-lock-historical: ps output from the superseded global scheme
 1183836  48:45  flock /tmp/aiagents-push.lock git push ... rjmurillo/eureka-ratchet-grep
 1556659  40:35  flock /tmp/aiagents-push.lock git push ... chore/measurement-validity-rule
 1710429  37:25  flock /tmp/aiagents-push.lock git push ... fix/script-entrypoints-and-pins
@@ -37,8 +39,15 @@ happens and blocks nothing else.
 ```bash
 BR=$(git rev-parse --abbrev-ref HEAD)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/tmp/push-lock-$SLUG.lock" git push origin "$BR"
+mkdir -p "$HOME/src/scratch/locks"
+flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push origin "$BR"
 ```
+
+The path is canonical and `.claude/rules/push-lock.md` owns it. It moved off
+`/tmp` because a wipe there splits one filename across two inodes and the
+holders stop excluding each other; three schemes were live at once on
+2026-08-02 (issue #4366). Do not spell it any other way: `flock` excludes only
+processes that open the same path, so a second name is not a second lock.
 
 ## Evidence that it is safe
 
@@ -77,6 +86,7 @@ Observed live on 2026-08-02, not reasoned. Two processes were pushing the same
 branch at the same time under two lock paths that cannot see each other:
 
 ```
+push-lock-historical: a ps census of the schemes that were live, not a recipe
 PID 761266  cwd ai-agents3-rebase-wt/pr4095
             flock /tmp/aiagents-push-2.lock
             git push --force-with-lease origin HEAD:fix/escaped-pipes-claude-skills

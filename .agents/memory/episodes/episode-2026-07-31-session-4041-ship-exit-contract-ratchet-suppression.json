@@ -1,0 +1,192 @@
+{
+  "id": "episode-2026-07-31-session-4041-ship-exit-contract-ratchet-suppression",
+  "session": "2026-07-31-session-4041-ship-exit-contract-ratchet-suppression",
+  "timestamp": "2026-07-31T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Ship the CI exit-contract ratchet, the security-suppression CI backstop, and the ADR-006 exact ratchet for issues 4061, 4068, and 2967",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Make the ADR-006 run-block gate an exact ratchet",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add a CI backstop for the no-net-new suppression policy",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Gate extracted CI scripts on a proven nonzero CLI exit",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix the live exit-contract instances on main",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-31T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Record the convention",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ]
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-31T04:00:54+00:00",
+      "type": "commit",
+      "content": "Commit: 31d0e9cd6",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ]
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-31T04:04:03+00:00",
+      "type": "commit",
+      "content": "Commit: 9ea322b20",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ]
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-31T04:09:45+00:00",
+      "type": "commit",
+      "content": "Commit: b4d223f29",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ]
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-31T04:11:45+00:00",
+      "type": "commit",
+      "content": "Commit: 4e19b5c69",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ]
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-31T04:12:26+00:00",
+      "type": "commit",
+      "content": "Commit: 4047a91f5",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ]
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-31T04:55:32+00:00",
+      "type": "commit",
+      "content": "Commit: b3c352efe",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ]
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-31T04:59:52+00:00",
+      "type": "commit",
+      "content": "Commit: 4e882098e",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ]
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-31T05:00:07+00:00",
+      "type": "commit",
+      "content": "Commit: faa254a6f",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ]
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-31T05:04:06+00:00",
+      "type": "commit",
+      "content": "Commit: 31e380578",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ]
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-31T05:15:36+00:00",
+      "type": "commit",
+      "content": "Commit: dcde6720d",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 10,
+    "files_changed": 2
+  },
+  "lessons": []
+}
