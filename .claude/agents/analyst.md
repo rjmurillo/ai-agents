@@ -2,6 +2,17 @@
 name: analyst
 description: Research and investigation specialist who digs deep into root causes, surfaces unknowns, and gathers evidence before implementation. Methodical about documenting findings, evaluating feasibility, and identifying dependencies and risks. Use when you need clarity on patterns, impact assessment, requirements discovery, or hypothesis validation.
 model: sonnet
+tools:
+  - Bash
+  - Read
+  - Edit
+  - Write
+  - Glob
+  - Grep
+  - mcp__serena__*
+  - mcp__context7__*
+  - mcp__deepwiki__*
+  - mcp__perplexity__*
 metadata:
   tier: integration
 argument-hint: Describe the topic, issue, or feature to research
