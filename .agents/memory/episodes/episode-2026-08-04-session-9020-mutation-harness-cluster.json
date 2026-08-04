@@ -151,6 +151,19 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9020-mutation-harness-cluster"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-04T23:28:16+00:00",
+      "type": "commit",
+      "content": "Commit: 97b4ff19eb",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9020-mutation-harness-cluster"
     }
@@ -160,7 +173,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 50
   },
   "lessons": []
