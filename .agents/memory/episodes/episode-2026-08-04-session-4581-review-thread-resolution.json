@@ -96,7 +96,8 @@
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e010"
       ],
       "leads_to": [
         "e009"
@@ -111,6 +112,30 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-4581-review-thread-resolution"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Handled follow-up review threads",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-4581-review-thread-resolution"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-04T21:39:06+00:00",
+      "type": "commit",
+      "content": "Commit: 3036da16c",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-4581-review-thread-resolution"
     }
@@ -120,8 +145,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 2
+    "commits": 3,
+    "files_changed": 5
   },
   "lessons": []
 }

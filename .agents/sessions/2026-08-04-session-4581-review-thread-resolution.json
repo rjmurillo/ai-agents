@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen --extra dev python3 -m pytest tests/test_test_pr_merge_ready.py tests/test_get_pr_checks.py -q passed with 162 tests. Ruff passed on changed Python files."
+        "Evidence": "uv run --frozen --extra dev python3 -m pytest tests/test_test_pr_merge_ready.py tests/test_get_pr_checks.py -q passed with 163 tests. Ruff passed on changed Python files."
       }
     }
   },
@@ -131,12 +131,16 @@
     {
       "action": "Validated changes",
       "detail": "Targeted pytest passed with 162 tests and Ruff passed on changed Python files."
+    },
+    {
+      "action": "Handled follow-up review threads",
+      "detail": "Copilot opened two new threads for a latest CANCELLED-only run masking an older failure in _check_run_verdict. Added a failing regression, fixed SKIP as no opinion, regenerated the mirror, and reran targeted validation."
     }
   ],
-  "endingCommit": "874431538",
+  "endingCommit": "3036da16c",
   "nextSteps": [
-    "Push the branch once and wait for the pre-push suite.",
+    "Push the follow-up commit once and wait for the pre-push suite.",
     "Verify remote SHA equals local HEAD after the push.",
-    "Reply to and resolve the five review threads."
+    "Reply to and resolve all unresolved review threads."
   ]
 }

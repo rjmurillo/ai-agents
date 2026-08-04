@@ -1034,6 +1034,10 @@ class TestCheckRunVerdictSameRunSiblings:
         rows = [_run_row("CANCELLED", _R_A), _run_row("CANCELLED", _R_A2)]
         assert _mod._check_run_verdict(rows) == "SKIP"
 
+    def test_later_cancelled_run_does_not_mask_older_failure(self):
+        rows = [_run_row("FAILURE", _R_B), _run_row("CANCELLED", _R_A)]
+        assert _mod._check_run_verdict(rows) == "FAIL"
+
     def test_pending_sibling_does_not_hide_same_run_failure(self):
         rows = [
             _run_row("FAILURE", _R_A),

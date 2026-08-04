@@ -216,7 +216,7 @@ def _check_run_verdict(rows: list[dict]) -> str:
         verdicts.append((run_number, _single_run_check_verdict(group)))
 
     if verdicts and all(run_number is not None for run_number, _ in verdicts):
-        return max(verdicts, key=lambda item: item[0])[1]
+        return _known_run_verdict(verdicts)
 
     verdict_values = [verdict for _, verdict in verdicts]
     if "OK" in verdict_values:
@@ -226,6 +226,26 @@ def _check_run_verdict(rows: list[dict]) -> str:
     if "PENDING" in verdict_values:
         return "PENDING"
     return "SKIP"
+
+
+def _known_run_verdict(verdicts: list[tuple[int | None, str]]) -> str:
+    """Reduce known-run verdicts, treating SKIP as no opinion."""
+    opinionated = [
+        (run_number, verdict)
+        for run_number, verdict in verdicts
+        if verdict != "SKIP"
+    ]
+    if not opinionated:
+        return "SKIP"
+
+    latest_verdict = max(opinionated, key=lambda item: item[0])[1]
+    if latest_verdict == "OK":
+        return "OK"
+
+    verdict_values = [verdict for _, verdict in opinionated]
+    if "FAIL" in verdict_values:
+        return "FAIL"
+    return "PENDING"
 
 
 def _workflow_run_number(rows: list[dict[Any, Any]], url_key: str) -> int | None:
