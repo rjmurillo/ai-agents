@@ -155,8 +155,8 @@ _REFERENCE_SECTION_PREFIXES: tuple[str, ...] = (
 # Every pattern appends `_EXT_BOUNDARY` after the captured extension so the
 # match cannot terminate inside a longer real extension (issue #1874).
 FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(rf"`([^`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}`"),  # inline code
-    re.compile(rf"\*\*([^*]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\*\*"),  # bold
+    re.compile(rf"`([^`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}(:\d+)?`"),  # inline code
+    re.compile(rf"\*\*([^*]+\.({_EXT_GROUP})){_EXT_BOUNDARY}(:\d+)?\*\*"),  # bold
     re.compile(
         rf"^\s*[-*+]\s+`?([^\s`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}`?",
         re.MULTILINE,

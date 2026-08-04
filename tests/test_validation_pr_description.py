@@ -126,6 +126,24 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(desc)
         assert "config.yml" in result
 
+    def test_bold_with_line_suffix(self) -> None:
+        """Bold path with ':NN' line suffix must be extracted (issue #4509)."""
+        desc = "Modified **scripts/validation/pr_description.py:36**"
+        result = extract_mentioned_files(desc)
+        assert "scripts/validation/pr_description.py" in result
+
+    def test_inline_code_with_line_suffix(self) -> None:
+        """`path.py:NN` in backticks under Changes must be extracted (issue #4509)."""
+        desc = "## Changes\nSee `scripts/validation/pr_description.py:36` for details"
+        result = extract_mentioned_files(desc)
+        assert "scripts/validation/pr_description.py" in result
+
+    def test_bold_without_line_suffix_not_broken(self) -> None:
+        """Regression: existing bold-path matching must survive the :NN change."""
+        desc = "Modified **scripts/ci/taste_count_ratchet.py**"
+        result = extract_mentioned_files(desc)
+        assert "scripts/ci/taste_count_ratchet.py" in result
+
     def test_list_items(self) -> None:
         desc = "- scripts/foo.ps1\n* src/bar.cs\n+ lib/baz.js"
         result = extract_mentioned_files(desc)
