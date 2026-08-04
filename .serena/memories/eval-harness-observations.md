@@ -52,6 +52,43 @@
   caused two end-to-end tests to fail; coercing malformed values to `None`
   caused 20 fingerprint tests to fail.
 
+## Text-only Copilot boundary (2026-08-04)
+
+- Repository fixtures and model-authored text are untrusted input. Copilot
+  text evals use ACP JSON-RPC over stdin, not `--prompt` argv. A fixed JSON
+  envelope retains the system and message role labels while marking every
+  content field `untrusted_repository_text`.
+- Copilot CLI 1.0.78 reports that `--available-tools` disables every other
+  tool. The transport passes `--available-tools=`, disables built-in MCPs,
+  remote control, remote export, Bash environment loading, and automatic temp
+  access. It no longer passes `--allow-all-tools` or `--no-ask-user`.
+- The Copilot child receives an allowlist of runtime and authentication
+  variables. It does not inherit arbitrary repository or user secrets. The
+  runtime-contract negative control proves the old allow-all plus inherited-env
+  shape can write a marker and read a credential-shaped canary, while the
+  production shape does neither.
+- A real Copilot CLI 1.0.78 ACP call confirmed three properties in one run:
+  the fixture fragment was absent from `/proc/<pid>/cmdline`, a requested file
+  marker was not created, and the canary value was absent from the answer.
+- Suppress `TimeoutExpired` as an exception cause. Even after moving prompt
+  text off argv, a future launcher regression must not place a prompt-bearing
+  command in a persisted traceback.
+
+## Provider error and harness stop policy (2026-08-04)
+
+- Provider HTTP and SDK response bodies never enter exceptions. Preserve only
+  the HTTP status and a fixed category such as `auth`, `rate_limit`,
+  `client_error`, or `server_error`; suppress the provider exception cause.
+  Tests serialize both judge reasoning and error fields and scan the full
+  traceback for a credential shape and a fixture fragment.
+- Every eval entrypoint that recovers ordinary provider failures must re-raise
+  `MalformedProviderMetadataError` first. The model panel recovers the typed
+  stop from its child through a fixed class-name event and stops the matrix.
+  The consolidated wiring suite asserts one call for 11 entrypoint boundaries.
+- Keep `MalformedProviderMetadataError` in `_eval_errors.py`. Script-style
+  tests reload `_eval_common`; defining the class there split exception
+  identity between cached normalizers and freshly loaded retry adapters.
+
 ## Notes for Review (LOW confidence)
 
 - The verdict-vocabulary confound (harness forces IDENTIFY|OK|ESCALATE) is the single biggest measurement-noise source; fixture-design workaround (score behavioural regex, not verdict token) is documented in agent-prompt-optimization-observations.md.

@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9015,
+    "date": "2026-08-04",
+    "branch": "fix/eval-harness-p2",
+    "startingCommit": "4885df667",
+    "objective": "Fix fourth-cycle eval harness correctness and security defects"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is unavailable in this API harness; used the committed .serena/memories fallback named by AGENTS.md"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index.md and task-relevant eval/security memories through the file fallback"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read read-only .agents/HANDOFF.md and the latest 4123 per-issue handoff before edits"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts and used its PR and issue scripts for every GitHub operation"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md before GitHub operations"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, root and .agents Claude instructions, project constraints, testing rigor, generator rules, matching Python/test/script instructions, and binding eval/security ADRs"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index.md, usage-mandatory.md, eval-harness-observations.md, and eval-harness-surface-enumeration.md"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/eval-harness-p2"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/eval-harness-p2"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Started clean on fix/eval-harness-p2 at 4885df667, 34 ahead and 38 behind origin/main"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "4885df667"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation and blocker handoff checklists completed; unresolved gate is recorded as #4538"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remains unchanged; only the writable 4123 per-issue handoff was refreshed"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated eval-harness-observations.md with ACP, error-redaction, and one-call stop contracts"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-PR Markdown validation passed; .agents Markdown is excluded by repository configuration"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All code changes committed through 6bd4a22dc; documentation commit follows this log"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All task-scoped checks pass; pre_pr.py executed and returned only inherited #4538 Count Ratchets failure (origin/main 140 vs baseline 126; branch 137)"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "UPDATE set fix-eval-harness-p2 to blocked; exactly one row affected and verified"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Merged fresh origin/main twice and resolved eval conflicts",
+      "outcome": "Preserved main's strict judge parser, raw judge payload, RUF100 policy, and all typed one-call branch fixes in merges cbda17c20 and 8b5f82e7c"
+    },
+    {
+      "action": "Removed the Copilot prompt-injection execution surface",
+      "outcome": "ACP stdin carries the prompt, available-tools is empty, MCP and remote surfaces are disabled, and the child receives an environment allowlist"
+    },
+    {
+      "action": "Ran the real Copilot CLI 1.0.78 runtime probe",
+      "outcome": "Prompt fragment absent from process argv, requested marker absent, credential canary absent from the answer"
+    },
+    {
+      "action": "Redacted provider HTTP and SDK failures",
+      "outcome": "Exceptions and persisted JSON contain fixed categories only; response bodies, prompt fragments, credentials, and provider causes are absent"
+    },
+    {
+      "action": "Closed generic recovery paths across eval entrypoints",
+      "outcome": "Eleven recovering boundaries stop after one malformed metadata call; model-panel child propagation uses a fixed typed event"
+    },
+    {
+      "action": "Corrected issue closure evidence",
+      "outcome": "PR #4451 body says Refs and partial, while squash fa57eb5 says Fixes; reopened #4123 and verified OPEN"
+    },
+    {
+      "action": "Ran tests, mutations, lint, typing, generation, and security checks",
+      "outcome": "Full eval suites: 2273 passed, 4 skipped; exact probes: 20 passed; Ruff and mypy clean on authored files; sync/build clean; security scan found zero findings in 17 files; all key inversions died"
+    },
+    {
+      "action": "Ran pre-PR and investigated its sole failure",
+      "outcome": "Pre-PR passed 49 of 50 validations except Count Ratchets; #4538 already tracks main at 140 findings against baseline 126, and this branch improves the count to 137"
+    }
+  ],
+  "endingCommit": "6bd4a22dc",
+  "nextSteps": [
+    "Merge the #4538 red-main repair, merge fresh origin/main, and rerun pre_pr.py",
+    "Route process, environment, provider, and untrusted-input changes to security PIV",
+    "Keep #4123 open until this typed refusal implementation lands",
+    "Push or create a pull request only after explicit user approval"
+  ]
+}
