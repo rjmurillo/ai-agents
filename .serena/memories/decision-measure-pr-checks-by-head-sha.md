@@ -60,6 +60,113 @@ gh api "repos/rjmurillo/ai-agents/commits/$SHA/check-runs?per_page=100" --pagina
 Empty output means nothing is failing on the commit under consideration. Check for
 `.status=="in_progress"` separately; a run that has not finished is not a pass.
 
+That snippet is a first approximation. It selects a failure anywhere on the
+commit, which over-reports once a context has been re-run. See the 2026-08-04
+amendment at the end of this file for the correct reduction.
+
 This applies to any automation that gates on CI state, and to every manual triage
 of a red pull request. Treat a `gh pr checks` failure as a hypothesis to confirm
 against the head SHA, never as a finding.
+
+## Amendment 2026-08-04: reduce to the latest run per name, and count skipped as passing
+
+Measured on PR #4539 (head `8aed3408f`), which carried 153 check runs on one
+commit. Three further traps sit on top of the head-SHA rule. Each produced a
+wrong answer here before it was measured.
+
+**1. `per_page=100` without `--paginate` truncates silently.** The un-paginated
+query returned 100 of 153 runs. It dropped a successful `Validate Plugin Version
+Bump` and made a green required check look unsatisfied, which cost an
+investigation into that workflow's path filter for a job that had already
+passed. Confirm the population before trusting the reduction:
+
+```bash
+gh api "repos/rjmurillo/ai-agents/commits/$SHA/check-runs?per_page=1" --jq .total_count
+```
+
+**2. GitHub decides a required context by the latest run bearing that name, not
+by any run.** Both obvious reductions are wrong, in opposite directions:
+
+- Selecting `.conclusion=="failure"` anywhere on the commit, which is what the
+  Decision snippet above does, reports a failure that a later successful re-run
+  has already replaced.
+- Reducing to a `{name: conclusion}` dict discards a real success when two
+  workflows emit the same context name. PR #4124 carried two `Aggregate Results`
+  rows, one success and one failure.
+
+Reduce by `(started_at, id)` per name and read only the winner. On #4539 the
+"any success" reduction reported zero unsatisfied required checks while the
+newest `Aggregate Results` run was red, and that run was the actual reason the
+PR would not merge.
+
+**3. `skipped` and `neutral` satisfy a required context.** A required check whose
+job is gated by a path filter reports `skipped`, and GitHub counts that as
+passing. Treating "not success" as red disagreed with the server's own `clean`
+on PR #4542. The passing set is `{success, skipped, neutral}`.
+
+**The server stays the authority.** When a local reduction disagrees with
+`mergeable_state`, the reduction is wrong. A `blocked` state with every required
+check green means the cause is outside check runs: an unresolved review thread,
+a required context that never reported at all, or a legacy commit status, which
+lives at `/commits/{sha}/status` and is a separate surface from `/check-runs`.
+
+## Amendment 2026-08-04b: do not reduce at all, ask the server for the aggregate
+
+The amendment above prescribes a local reduction. Measured on PR #4515, that
+reduction returns the wrong answer, so the runnable form below is the one to
+copy.
+
+**4. Two concurrent runs under different triggers share one required name, and
+neither supersedes the other.** `.github/workflows/pytest.yml` runs on both
+`push` and `pull_request`. One head SHA therefore produces two rows named `Run
+Python Tests`, a required context, from two runs that started seconds apart for
+two different events. Latest per name picks exactly one of them. GitHub does
+not: it ORs every row bearing a required name, so one red row blocks the merge
+while the local reduction reports green.
+
+Measured on head `09506b4cc`:
+
+| job | trigger | step 9 |
+|---|---|---|
+| 91970285221 | `pull_request` | success |
+| 91969707666 | `push` | failure |
+
+Latest per name reported green. `mergeStateStatus` reported `BLOCKED`. The
+server was right.
+
+The rule that survives every case measured so far is that the aggregate is not
+reconstructable from the rows, because the required-context set is not visible
+in them. Ask the server for the aggregate it already computed:
+
+```bash
+gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){
+  repository(owner:$o,name:$r){pullRequest(number:$n){
+    headRefOid mergeable mergeStateStatus
+    commits(last:1){nodes{commit{statusCheckRollup{state}}}}}}}' \
+  -F o=rjmurillo -F r=ai-agents -F n="$PR" \
+  --jq '.data.repository.pullRequest
+        | "head=\(.headRefOid[0:9]) rollup=\(.commits.nodes[0].commit.statusCheckRollup.state) state=\(.mergeStateStatus)"'
+```
+
+`rollup` is the aggregate over every row on the head commit. `mergeStateStatus`
+folds in review threads and branch protection on top of it. Read them together:
+
+| rollup | mergeStateStatus | meaning |
+|---|---|---|
+| `SUCCESS` | `CLEAN` | mergeable now |
+| `SUCCESS` | `BLOCKED` | checks are green, the block is threads or a missing required context |
+| `FAILURE` | `BLOCKED` | a real red row, list the rows to find it |
+| `PENDING` | `BLOCKED` | still running, not a failure |
+
+Only after `rollup` says `FAILURE` is it worth listing rows, and then the
+question is which row, not whether:
+
+```bash
+gh pr view "$PR" --json statusCheckRollup --jq '
+  .statusCheckRollup[]
+  | select((.conclusion // .state) == "FAILURE" or (.conclusion // .state) == "failure")
+  | "\(.name // .context)  \(.detailsUrl // "")"'
+```
+
+A row whose `conclusion` is null is still running. It is neither a pass nor a
+failure, and filtering on "not success" misfiles it as red.
