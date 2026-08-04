@@ -1,0 +1,119 @@
+{
+  "id": "episode-2026-08-03-session-9015",
+  "session": "2026-08-03-session-9015",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Alias DID_NOT_RUN in the external signal gate, surface the fallback on the annotation channel, and document the anti-pattern the fix exposed",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Aliased DID_NOT_RUN to UNKNOWN in agent_signal and gave the catch-all fallback a diagnostic",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-9015"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Moved the fallback warning onto the GitHub annotation channel after an llm-council round",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-9015"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Took ownership of the fallback anti-pattern documentation from the sibling branch that could not cite it",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-9015"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "test",
+      "content": "Took ownership of the fallback anti-pattern documentation from the sibling branch that could not cite it   3   On test/vacuous-assertion-anti-pattern the entry cited agent_signal, the DID_NOT_RUN alias, and test_did_not_run_is_aliased_not_merely_caught_by_the_fallback; git grep returned zero hits for all three there. They resolve here because this branch adds them. Re-ran the negative control on this branch to replace a stale count: deleting the alias gives 1 failed and 41 passed, not the 40 an earlier note recorded before a test was added. Neither the orphan-ref validator nor markdownlint catches a dangling symbol or test name; both check file paths only.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-9015"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "error",
+      "content": "Took ownership of the fallback anti-pattern documentation from the sibling branch that could not cite it   3   On test/vacuous-assertion-anti-pattern the entry cited agent_signal, the DID_NOT_RUN alias, and test_did_not_run_is_aliased_not_merely_caught_by_the_fallback; git grep returned zero hits for all three there. They resolve here because this branch adds them. Re-ran the negative control on this branch to replace a stale count: deleting the alias gives 1 failed and 41 passed, not the 40 an earlier note recorded before a test was added. Neither the orphan-ref validator nor markdownlint catches a dangling symbol or test name; both check file paths only.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-9015"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T19:43:11+00:00",
+      "type": "commit",
+      "content": "Commit: ee9d10dfb",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-03-session-9015"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T02:54:53+00:00",
+      "type": "commit",
+      "content": "Commit: de1e2a982",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-03-session-9015"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T03:28:19+00:00",
+      "type": "commit",
+      "content": "Commit: 2c9956c2a",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9015"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 6
+  },
+  "lessons": [
+    "A fallback that maps every unrecognized state into one bucket hides the states it cannot name.. Added an explicit DID_NOT_RUN alias in external_signal_gate.py and a test proving the alias is reached on its own rather than absorbed by the fallback.",
+    "Avoid: Quoting a test count measured before the file grew.. Re-ran the negative control against the shipping tree, deleted the alias entry, and recorded the observed 1 failed and 41 passed."
+  ]
+}

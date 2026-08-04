@@ -38,4 +38,3 @@ constant was emptied somewhere and every per-file assertion is vacuously true.
 `tests/test_workspace_limits.py` runs via the standard `pytest` suite. It imports
 constants from `scripts/validate_workspace_budget.py` directly, so the test and
 the enforcer always agree (fixed by issue #3951).
-
