@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All fifth-cycle code and evidence committed through fresh-main merge e9259f8cc"
+        "Evidence": "All fifth-cycle code, fresh-main merge, and completion evidence committed through 5dbfe4ef0"
       },
       "validationPassed": {
         "level": "MUST",
@@ -152,7 +152,7 @@
       "outcome": "Initial run exposed #4538; after merging repair 49338f940 as e9259f8cc, final pre-PR passed 46 validations with 0 failures and 4 skips"
     }
   ],
-  "endingCommit": "e9259f8cc",
+  "endingCommit": "5dbfe4ef0",
   "nextSteps": [
     "Route ACP process, environment, provider, and metadata boundaries to security PIV",
     "Keep #4123 open until this typed refusal branch lands",
