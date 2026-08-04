@@ -335,7 +335,7 @@ class TestMain:
         assert "FAIL" in captured.out
 
     def test_fail_non_ci_returns_zero(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         content = "x" * 40000
         (tmp_path / "AGENTS.md").write_text(content, encoding="utf-8")

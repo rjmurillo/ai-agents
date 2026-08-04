@@ -118,7 +118,7 @@ which is the only reason a wrong issue does not exist now.
 |---|---|
 | Fix the red tests on `main` | #4508, open |
 | Upgrade `cryptography` past `CVE-2026-69247` | In #4508. Required adding a per-package `exclude-newer` opt-out, because the repository-wide `exclude-newer = "7 days"` window pinned the resolver to the vulnerable release. |
-| Pin the `GITHUB_STEP_SUMMARY` inheritance trap so a non-hermetic subprocess test cannot recur | In #4508, as SHOULD 11 in `.claude/rules/testing.md` with both mirrors regenerated |
+| Pin the `GITHUB_STEP_SUMMARY` inheritance trap so a non-hermetic subprocess test cannot recur | In #4508, as SHOULD 12 in `.claude/rules/testing.md` with both mirrors regenerated |
 | Record that every merge invalidates every open pull request | In #4508, as a Serena memory |
 | Make the rate-limit guard able to observe the limit that actually fires | Issue drafted, see the secondary rate limit finding |
 | Decide whether to require up-to-date branches or configure a merge queue | Open question, no issue yet |

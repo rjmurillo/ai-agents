@@ -1,0 +1,166 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9019,
+    "date": "2026-08-03",
+    "branch": "fix/4296-unresolved-memory-guidance",
+    "startingCommit": "db5aab393",
+    "objective": "Land the approved three-memory follow-up for merged PR 4296 in an isolated worktree without mutating any PR"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena toolset available in this harness; explicit activate_project is not exposed, so the committed .serena/memories/ fallback that AGENTS.md names was used."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the three target memories directly from the worktree checkout at db5aab393 before editing."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md in full, read-only (ADR-014); no edit staged."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/memory/scripts/ and read README-test-size context before running test_memory_size.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No raw gh invoked; the task is local memory edits and PR 4296 is explicitly SKIP (merged), so no PR surface was touched."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md gates and boundaries plus .agents/AGENT-INSTRUCTIONS.md session protocol section."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded ci/ci-a-red-check-on-your-pr-may-be-inherited-from-main.md, ci/ci-file-size-ratchet-line-numbers-shift.md, bash/bash-anchor-grep-patterns-on-test-logs.md, and confirmed git/git-lock-pushes-per-branch-not-globally.md exists as the canonical lock memory."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4296-unresolved-memory-guidance in a fresh worktree at /home/richard/src/GitHub/rjmurillo/ai-agents-pr-4296-followup"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree HEAD is fix/4296-unresolved-memory-guidance; the coordinator checkout stayed on main and untouched."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status in the new worktree was clean at creation; only the three memories plus this log were added."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "db5aab393, the live origin/main tip fetched at session start"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every sessionStart and sessionEnd MUST item above carries evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md absent from git diff --name-only against the base commit."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Three memories edited: T1 push-after-merge requirement, T2 encoding on both subprocess recipes, T3 canonical lock-memory pointers."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run scoped to the changed files; .serena/** is in the config ignores so the memories report no issues."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Memory edits committed as 7be1d25b1 (4 files: the three memories plus the hook-regenerated memory-index.md); this commit lands the session log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py, scoped taste_lints.py, validate_session_json.py, memory_index.py --ci, and test_memory_size.py all run; results recorded in workLog."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Set up an isolated base",
+      "files": [],
+      "result": "Base: fetched live origin/main at db5aab393 and created a fresh worktree at /home/richard/src/GitHub/rjmurillo/ai-agents-pr-4296-followup on fix/4296-unresolved-memory-guidance. Nothing was copied from the stale ai-agents-pr-4296 worktree and the coordinator checkout was not touched."
+    },
+    {
+      "action": "T1: fix the self-contradicting merge/rerun advice",
+      "files": [
+        ".serena/memories/ci/ci-a-red-check-on-your-pr-may-be-inherited-from-main.md"
+      ],
+      "result": "T1 ci/ci-a-red-check-on-your-pr-may-be-inherited-from-main.md: replaced the lead 'merge origin/main and re-run' advice with a requirement to push the merge commit, naming synchronize as what recomputes the cached refs/pull/N/merge. This resolves a self-contradiction: the file's own 'Fixing main does not fix your PR until the merge ref moves' section measures gh run rerun as ineffective and a push as the only working trigger. To hold the 12,481 char budget, trimmed the duplicated push-rejection paragraph whose content the next section restates with both validator names. 12,481 to 12,456 chars."
+    },
+    {
+      "action": "T2: pin the decode encoding in both subprocess recipes",
+      "files": [
+        ".serena/memories/ci/ci-file-size-ratchet-line-numbers-shift.md"
+      ],
+      "result": "T2 ci/ci-file-size-ratchet-line-numbers-shift.md: added encoding=\"utf-8\" to both and only the two existing subprocess.run(..., text=True) recipes. No errors= argument and no other edit. 3,051 to 3,085 chars."
+    },
+    {
+      "action": "T3: canonicalize both lock-memory pointers",
+      "files": [
+        ".serena/memories/bash/bash-anchor-grep-patterns-on-test-logs.md"
+      ],
+      "result": "T3 bash/bash-anchor-grep-patterns-on-test-logs.md: normalized both backticked pointers to the canonical lock memory to the exact path .serena/memories/git/git-lock-pushes-per-branch-not-globally.md, verified to exist in this checkout. 8,168 to 8,209 chars."
+    },
+    {
+      "action": "Run the required validators",
+      "files": [],
+      "result": "Validation: pre_pr.py 48 validations, 44 passed, 0 failed, 4 skipped, exit 0. taste_lints.py scoped to the 4 changed files: no violations, exit 0. memory_index.py --ci: PASSED, 33/33 domains, exit 0 (pre-existing P1/P2 advisories are unrelated to these files). validate_session_json.py on this log: PASS."
+    },
+    {
+      "action": "Report the markdownlint scope honestly",
+      "files": [],
+      "result": "markdownlint scoped to the three memories linted 0 files: .markdownlint-cli2.yaml lists .serena/** under ignores, so memory files are out of scope by configuration. Reported as measured rather than as a pass."
+    },
+    {
+      "action": "Report the advisory memory-size failure honestly",
+      "files": [],
+      "result": "test_memory_size.py: T2 PASS at 3,085 chars and T3 PASS at 8,209 chars. T1 FAILS at 12,456 chars against the 10,000 char ceiling. That failure is inherited and advisory: the file was already 12,456+25=12,481 chars on the live base, and the lefthook memory-size gate passed the commit. This edit shrinks the overage by 25 chars; it does not create it. Decomposing that memory is a separate piece of work."
+    },
+    {
+      "action": "Respect the no-mutation constraint",
+      "files": [],
+      "result": "No PR was mutated. PR #4296 is merged and was treated as SKIP: no comment, reopen, push, or thread resolution. No comment was posted on #4437."
+    }
+  ],
+  "endingCommit": "7be1d25b1",
+  "nextSteps": []
+}
