@@ -6,7 +6,7 @@ Migrated from PowerShell modules per issue #1061 (ADR-042).
 
 from __future__ import annotations
 
-from .memory_router import (  # noqa: F401
+from .memory_router import (
     MemoryResult,
     get_content_hash,
     get_memory_router_status,
@@ -17,14 +17,14 @@ from .memory_router import (  # noqa: F401
     search_memory,
     test_forgetful_available,
 )
-from .reflexion_memory import (  # noqa: F401
+from .reflexion_memory import (
     get_decision_sequence,
     get_episode,
     get_episodes,
     get_reflexion_memory_status,
     new_episode,
 )
-from .schema_validation import (  # noqa: F401
+from .schema_validation import (
     ValidationResult,
     WriteResult,
     clear_schema_cache,
@@ -32,7 +32,7 @@ from .schema_validation import (  # noqa: F401
     test_schema_valid,
     write_validated_json,
 )
-from .url_validation import (  # noqa: F401
+from .url_validation import (
     ALLOWED_URL_SCHEMES,
     validate_http_url,
 )

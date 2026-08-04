@@ -45,9 +45,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
-import checks_spec  # noqa: E402
-import pre_pr  # noqa: E402
-import pre_pr_sequence  # noqa: E402
+import checks_spec
+import pre_pr
+import pre_pr_sequence
 
 
 def test_validate_model_pins_passes_in_warn_mode() -> None:

@@ -1069,6 +1069,40 @@ def test_regression_mode_reads_a_renamed_files_old_base_blob(
     assert payload["comparisons"][0]["file_path"] == "renamed.py"
 
 
+def test_unscored_r095_rename_is_gated_absolutely(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "legacy.txt", _SPRAWLING, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _run_git(tmp_path, "mv", "legacy.txt", "renamed.py")
+    with (tmp_path / "renamed.py").open("a", encoding="utf-8") as stream:
+        stream.write("#xxxxxxxxxxxxxxxxxxxx\n")
+    _run_git(tmp_path, "add", "renamed.py")
+    _run_git(tmp_path, "commit", "-m", "rename to scored code")
+    monkeypatch.chdir(tmp_path)
+
+    changes = get_changed_files("main")
+    assert changes == [
+        ChangedFile(
+            "R095",
+            Path("legacy.txt"),
+            Path("renamed.py"),
+        )
+    ]
+    assessment = assess_file(Path("renamed.py"), "production", False)
+    comparisons, absolute_assessments = build_comparisons(
+        [assessment],
+        "main",
+        changed_files=changes,
+    )
+
+    assert comparisons[0].is_new_file is False
+    assert comparisons[0].absolute_gate_reason == "base_unscored"
+    assert absolute_assessments == [assessment]
+    assert main(_regression_argv()) == 11
+
+
 def test_json_report_carries_base_head_and_delta(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1344,10 +1378,10 @@ def test_a_changed_binary_file_does_not_fail_the_run(
     assert main(_regression_argv()) == 0
 
 
-def test_a_source_file_that_is_not_utf8_at_base_scores_nothing(
+def test_a_source_file_that_is_not_utf8_at_base_is_gated_absolutely(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An unreadable base is unmeasurable, not a regression and not an error."""
+    """An unreadable base has no comparison evidence, so head thresholds apply."""
     _init_repo(tmp_path)
     (tmp_path / "legacy.py").write_bytes(b"# caf\xe9 latin-1\n" + _SPRAWLING.encode("utf-8"))
     _run_git(tmp_path, "add", "legacy.py")
@@ -1356,7 +1390,7 @@ def test_a_source_file_that_is_not_utf8_at_base_scores_nothing(
     _commit(tmp_path, "legacy.py", "# added note\n" + _SPRAWLING, "head")
     monkeypatch.chdir(tmp_path)
 
-    assert main(_regression_argv()) == 0
+    assert main(_regression_argv()) == 11
 
 
 def test_adding_one_small_function_is_not_a_regression(

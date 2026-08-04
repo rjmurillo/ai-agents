@@ -704,6 +704,7 @@ class FileComparison:
     evidence_loss: list[str]
     base_file_path: str | None = None
     change_status: str = "M"
+    absolute_gate_reason: str | None = None
 
 
 def _delta_for(quality: str, base: QualityScore, head: QualityScore) -> QualityDelta:
@@ -731,6 +732,7 @@ def compare_assessments(
     tolerance: float = 0.0,
     base_file_path: str | None = None,
     change_status: str = "M",
+    absolute_gate_reason: str | None = None,
 ) -> FileComparison:
     """Compare *head* against *base* quality by quality.
 
@@ -748,6 +750,7 @@ def compare_assessments(
             [],
             base_file_path,
             change_status,
+            absolute_gate_reason,
         )
 
     deltas: list[QualityDelta] = []
@@ -768,6 +771,7 @@ def compare_assessments(
         evidence_loss,
         base_file_path,
         change_status,
+        absolute_gate_reason,
     )
 
 
@@ -786,6 +790,13 @@ def check_regressions(
         if str(head.file_path) in base_assessments
     ]
     return 10 if any(c.regressions or c.evidence_loss for c in comparisons) else 0
+
+
+def _has_scored_quality(assessment: FileAssessment) -> bool:
+    return any(
+        getattr(assessment, field).confidence > 0.0
+        for field in _QUALITY_FIELDS
+    )
 
 
 def build_comparisons(
@@ -821,6 +832,7 @@ def build_comparisons(
                     tolerance,
                     None,
                     change.status,
+                    "new_file",
                 )
             )
             new_files.append(head)
@@ -830,19 +842,33 @@ def build_comparisons(
             if explicit_changes and change.status != "A":
                 raise ValueError(f"Base blob is absent for {base_path} at {revision}")
             comparisons.append(
-                compare_assessments(None, head, tolerance, None, "A")
+                compare_assessments(
+                    None,
+                    head,
+                    tolerance,
+                    None,
+                    "A",
+                    "new_file",
+                )
             )
             new_files.append(head)
             continue
+        base_assessment = _assess_base_bytes(base_path, raw)
+        absolute_reason = (
+            None if _has_scored_quality(base_assessment) else "base_unscored"
+        )
         comparisons.append(
             compare_assessments(
-                _assess_base_bytes(base_path, raw),
+                base_assessment,
                 head,
                 tolerance,
                 base_path.as_posix(),
                 change.status,
+                absolute_reason,
             )
         )
+        if absolute_reason is not None:
+            new_files.append(head)
     return comparisons, new_files
 
 
@@ -889,9 +915,8 @@ def check_regression(
             )
             degraded = True
 
-    # New files have no base, so absolute thresholds are the only policy that
-    # can apply to them. Report them whether or not a regression already fired,
-    # so one run names every problem.
+    # New files and files whose base revision scored nothing have no comparable
+    # base. Absolute thresholds are the only policy that can apply to them.
     new_file_code = check_thresholds(new_file_assessments, config, context)
 
     if degraded:
@@ -1247,6 +1272,10 @@ def generate_regression_section(comparisons: list[FileComparison]) -> str:
             lines.append(
                 f"Renamed from `{comparison.base_file_path}` "
                 f"({comparison.change_status}).\n"
+            )
+        if comparison.absolute_gate_reason == "base_unscored":
+            lines.append(
+                "Base file had no scored qualities; head is gated absolutely.\n"
             )
         lines.append("| Quality | Base | Head | Delta | Status |")
         lines.append("| --- | --- | --- | --- | --- |")

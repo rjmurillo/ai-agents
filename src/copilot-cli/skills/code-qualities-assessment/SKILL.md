@@ -157,9 +157,12 @@ set. Aggregate averages are never compared. A quality that goes from scored to
 unscored counts as evidence loss and fails, unless the file is now a generated
 artifact. A quality that goes from unscored to scored is reported with no delta.
 A file absent at the merge base is new, has no delta, and is gated absolutely. A
-file the assessor cannot decode as UTF-8 at the merge base (a binary, a
-latin-1 source) scores nothing there, so every quality reads as newly scored and
-no delta is invented from content it could not read.
+base file with no scored qualities also provides no comparison, so the head is
+gated absolutely. This covers extension-changing renames such as an unscored
+`legacy.txt` becoming scored `renamed.py`. A file the assessor cannot decode as
+UTF-8 at the merge base (a binary, a
+latin-1 source) scores nothing there, so the head is gated absolutely rather
+than passing on missing evidence.
 
 Every score is size-derived, so adding one small function moves a quality by a
 few tenths with nothing wrong. `--regression-tolerance` defaults to 0.5 for that

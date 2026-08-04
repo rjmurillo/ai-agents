@@ -18,7 +18,7 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "scripts" / "validation"))
 
-import hook_contracts  # noqa: E402
+import hook_contracts
 
 # ---------------------------------------------------------------------------
 # extract_script_path
@@ -429,7 +429,7 @@ class TestValidateExitCodeDocs:
         script.write_text('"""Exit codes: 0 allow, 2 block."""\n', encoding="utf-8")
         original = Path.read_text
 
-        def unreadable(self: Path, *_args, **_kwargs):  # noqa: ANN002, ANN003
+        def unreadable(self: Path, *_args, **_kwargs):
             if self == script:
                 raise PermissionError("denied")
             return original(self, *_args, **_kwargs)
@@ -467,7 +467,7 @@ class TestValidateExitCodeDocs:
         script = tmp_path / "hook.py"
         script.write_text('"""Guard hook."""\n', encoding="utf-8")
 
-        def _raise(self, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+        def _raise(self, *args, **kwargs):
             raise PermissionError("permission denied")
 
         monkeypatch.setattr(hook_contracts.Path, "read_text", _raise)
