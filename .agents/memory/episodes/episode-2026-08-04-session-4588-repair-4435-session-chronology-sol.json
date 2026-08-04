@@ -1,0 +1,54 @@
+{
+  "id": "episode-2026-08-04-session-4588-repair-4435-session-chronology-sol",
+  "session": "2026-08-04-session-4588-repair-4435-session-chronology-sol",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair PR 4435 session chronology after Sol review",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran independent artifact-only review",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-04-session-4588-repair-4435-session-chronology-sol"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T22:16:12+00:00",
+      "type": "milestone",
+      "content": "Filed the extractor defect",
+      "caused_by": [
+        "e001",
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-4588-repair-4435-session-chronology-sol"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Restored the causal episode",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-04-session-4588-repair-4435-session-chronology-sol"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
