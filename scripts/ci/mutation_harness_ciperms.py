@@ -237,6 +237,7 @@ def build_mutations() -> list[Mutation]:
             # the mutation is the inserted `if:` line, not the scanner's --max
             # value. An earlier literal carried `--max 58`; PR #4406 ratcheted
             # that to 0 and this mutation went un-runnable until someone noticed.
+            # Syncing the number instead of dropping it only defers the next break.
             old_bytes=b"      - name: Run ADR-006 run-block ratchet\n",
             new_bytes=(
                 b"      - name: Run ADR-006 run-block ratchet\n"

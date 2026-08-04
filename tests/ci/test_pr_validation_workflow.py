@@ -934,10 +934,11 @@ class TestBotSkipGuardClassification:
     _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
         {
             "Checkout repository",
-            # A tool install, not a gate. Skipping it on a bot PR removes no
-            # measurement, because the unguarded half of this job installs uv
-            # for itself. `test_unguarded_uv_consumers_have_an_unguarded_install`
-            # enforces that, so this justification cannot rot silently.
+            # Tool setup is throughput-only. It cannot validate repository
+            # contents, so skipping it on a bot PR removes no measurement. That
+            # holds only because the unguarded half of this job installs uv for
+            # itself; `test_unguarded_uv_consumers_have_an_unguarded_install`
+            # enforces it, so this justification cannot rot silently.
             "Setup uv",
             "Setup PowerShell",
             "Validate PR Description vs Diff",
@@ -950,7 +951,6 @@ class TestBotSkipGuardClassification:
             "Enforce Blocking Issues",
         }
     )
-
     def test_adr006_ratchet_is_unconditional(self) -> None:
         """Positive: the ADR-006 gate must run for bot-authored PRs.
 

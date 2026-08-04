@@ -174,7 +174,7 @@ as an implementer.
 
 ## Where this repo stands
 
-Measured at `b2729ee54`. Two numbers, and they are not interchangeable. The
+Measured at `ad61b51c4`. Two numbers, and they are not interchangeable. The
 **always-on corpus is 8 rules, 70,375 bytes**: the ones that load regardless
 of what you touch. The **effective context on a `.py` edit is 94,869 bytes
 across 11 files**, which is the always-on corpus plus the path-scoped rules
@@ -248,7 +248,7 @@ Name the tree with the number, because the two mirror trees disagree.
 `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions` under
 `keepInternalGlobsFor`, so the internal-glob filter is disabled there and the
 internal-only fallback cannot fire. It fires only for the plugin tree. At
-`b2729ee54` that leaves `.github/instructions` at 8 rules and 70,375 bytes while
+`ad61b51c4` that leaves `.github/instructions` at 8 rules and 70,375 bytes while
 `src/copilot-cli/instructions` carries 11 rules and 77,907 bytes: `governance`,
 `secret-redaction`, and `session-logs` are narrowly scoped here and always-on in
 the shipped plugin. Every figure in this document is the `.github/instructions`
