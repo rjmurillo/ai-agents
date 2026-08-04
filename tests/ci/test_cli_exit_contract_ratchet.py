@@ -25,7 +25,7 @@ _SCRIPT_WITHOUT_MAIN = "def helper():\n    return 0\n"
 def _fake_git(scripts: tuple[str, ...], tests: tuple[str, ...], *, returncode: int = 0):
     """Stand in for `git ls-files -z`, answering per glob."""
 
-    def _run(cmd, **_kwargs):  # noqa: ANN001, ANN003
+    def _run(cmd, **_kwargs):
         paths = tests if any("tests/" in arg for arg in cmd) else scripts
         stdout = "\0".join(paths) + ("\0" if paths else "")
         return subprocess.CompletedProcess(cmd, returncode, stdout=stdout, stderr="")
