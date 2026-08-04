@@ -113,7 +113,7 @@ def _resolve_body(args: argparse.Namespace) -> str:
     return str(args.body)
 
 
-def _query_thread_state(thread_id: str) -> dict:
+def _query_thread_state(thread_id: str) -> dict[str, object]:
     """Requery a thread's live state immediately before mutation.
 
     Returns a dict with keys ``action`` (``ACT`` or ``SKIP``),

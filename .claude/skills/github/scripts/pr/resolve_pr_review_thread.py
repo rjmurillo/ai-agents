@@ -88,7 +88,7 @@ query($threadId: ID!) {
 }"""
 
 
-def _query_thread_state(thread_id: str) -> dict:
+def _query_thread_state(thread_id: str) -> dict[str, object]:
     """Requery a thread's live state immediately before mutation.
 
     Returns a dict with ``action`` (``ACT`` or ``SKIP``) and ``reason``.
