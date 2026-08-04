@@ -220,3 +220,99 @@ class TestMain:
         # All external tools pass
         result = main(["--quick", "--skip-tests"])
         assert result == 0
+
+
+class TestHookModeBanner:
+    """The success banner must not claim PR-readiness when running as a hook job.
+
+    Issue #4506: pre_pr.py runs in a parallel lefthook group alongside
+    python-tests, ratchets, and other jobs. It only validates its own subset.
+    Printing "Ready to create pull request!" is a false claim when sibling jobs
+    may still be running or may have failed.
+
+    SKIP_AUTOFIX=1 is the marker lefthook sets on the pre-pr-validation job
+    (lefthook.yml lines 397-401). It is absent in direct interactive use.
+    """
+
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_interactive_mode_prints_pr_ready_banner(
+        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Direct invocation (no hook env) must still say 'Ready to create pull request!'."""
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = ""
+        mock_which.return_value = "/usr/bin/tool"
+
+        with patch.dict("os.environ", {}, clear=False):
+            # Ensure SKIP_AUTOFIX is absent.
+            import os
+
+            os.environ.pop("SKIP_AUTOFIX", None)
+            result = main(["--quick", "--skip-tests"])
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Ready to create pull request!" in captured.out
+        assert "sibling hook jobs" not in captured.out
+
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_hook_mode_does_not_print_pr_ready_banner(
+        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """SKIP_AUTOFIX=1 (hook mode) must suppress the PR-ready banner. Issue #4506."""
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = ""
+        mock_which.return_value = "/usr/bin/tool"
+
+        with patch.dict("os.environ", {"SKIP_AUTOFIX": "1"}):
+            result = main(["--quick", "--skip-tests"])
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Ready to create pull request!" not in captured.out
+        assert "sibling hook jobs" in captured.out
+
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_skip_autofix_zero_is_not_hook_mode(
+        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """SKIP_AUTOFIX=0 is not hook mode; the PR-ready banner must still print."""
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = ""
+        mock_which.return_value = "/usr/bin/tool"
+
+        with patch.dict("os.environ", {"SKIP_AUTOFIX": "0"}):
+            result = main(["--quick", "--skip-tests"])
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Ready to create pull request!" in captured.out
+
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_hook_mode_failure_does_not_print_either_banner(
+        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A failing run in hook mode must not print either banner."""
+        # First call (Python syntax) fails; rest pass.
+        mock_run.side_effect = [
+            type("R", (), {"returncode": 1, "stdout": "error", "stderr": ""})(),
+        ] + [
+            type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+            for _ in range(100)
+        ]
+        mock_which.return_value = "/usr/bin/tool"
+
+        with patch.dict("os.environ", {"SKIP_AUTOFIX": "1"}):
+            result = main(["--quick", "--skip-tests"])
+
+        assert result == 1
+        captured = capsys.readouterr()
+        assert "Ready to create pull request!" not in captured.out
+        assert "sibling hook jobs" not in captured.out
