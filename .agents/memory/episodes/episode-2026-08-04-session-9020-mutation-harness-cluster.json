@@ -86,6 +86,58 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9020-mutation-harness-cluster"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T02:53:27+00:00",
+      "type": "commit",
+      "content": "Commit: f18116797",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9020-mutation-harness-cluster"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T06:32:44+00:00",
+      "type": "commit",
+      "content": "Commit: ec0e33ed5",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-04-session-9020-mutation-harness-cluster"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T12:04:11+00:00",
+      "type": "commit",
+      "content": "Commit: ab1a646019",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9020-mutation-harness-cluster"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T16:14:52+00:00",
+      "type": "commit",
+      "content": "Commit: 8c5a008cbd",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9020-mutation-harness-cluster"
     }
@@ -95,8 +147,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 4
+    "commits": 6,
+    "files_changed": 50
   },
   "lessons": []
 }

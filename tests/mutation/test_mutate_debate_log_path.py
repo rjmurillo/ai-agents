@@ -195,7 +195,7 @@ def _purge_pycache(directory: Path) -> None:
     """Remove __pycache__ dirs under directory to defeat stale bytecode."""
     for cache in directory.rglob("__pycache__"):
         if cache.is_dir():
-            import shutil  # noqa: PLC0415
+            import shutil
 
             shutil.rmtree(cache, ignore_errors=True)
 
