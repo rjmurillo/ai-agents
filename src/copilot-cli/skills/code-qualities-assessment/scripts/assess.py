@@ -632,6 +632,39 @@ def get_file_at_revision(file_path: Path, revision: str) -> bytes | None:
     return result.stdout
 
 
+def _get_base_assessments(
+    files: list[Path],
+    base: str,
+    context: str,
+) -> dict[str, FileAssessment]:
+    """Return safe base assessments for callers of the earlier regression API."""
+    import subprocess
+
+    repo_result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if repo_result.returncode != 0:
+        raise RuntimeError("git rev-parse --show-toplevel failed")
+    repo_root = Path(repo_result.stdout.strip()).resolve()
+    revision = resolve_comparison_base(base)
+    assessments: dict[str, FileAssessment] = {}
+    for file_path in files:
+        try:
+            relative_path = file_path.resolve().relative_to(repo_root)
+        except ValueError:
+            continue
+        raw = get_file_at_revision(relative_path, revision)
+        if raw is None:
+            continue
+        assessments[str(file_path)] = _assess_base_bytes(file_path, raw)
+    return assessments
+
+
 # Quality attributes on FileAssessment, in report order.
 _QUALITY_FIELDS = (
     "cohesion",
@@ -736,6 +769,23 @@ def compare_assessments(
         base_file_path,
         change_status,
     )
+
+
+def check_regressions(
+    assessments: list[FileAssessment],
+    base_assessments: dict[str, FileAssessment],
+) -> int:
+    """Preserve the earlier regression helper on top of per-quality comparison."""
+    comparisons = [
+        compare_assessments(
+            base_assessments.get(str(head.file_path)),
+            head,
+            tolerance=0.05,
+        )
+        for head in assessments
+        if str(head.file_path) in base_assessments
+    ]
+    return 10 if any(c.regressions or c.evidence_loss for c in comparisons) else 0
 
 
 def build_comparisons(
@@ -1067,6 +1117,16 @@ def assess_content(file_path: Path, content: str) -> FileAssessment:
         testability=_score_testability(language, code_lines),
         non_redundancy=_score_non_redundancy(lines, language is not None),
     )
+
+
+def assess_file_content(
+    file_path: Path,
+    content: str,
+    context: str,
+) -> FileAssessment:
+    """Preserve the earlier content-assessment helper."""
+    del context
+    return assess_content(file_path, content)
 
 
 def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessment:
