@@ -4986,6 +4986,11 @@ def _is_zero_sha(sha: str) -> bool:
     return len(sha) in ZERO_SHA_LENGTHS and not sha.strip("0")
 
 
+# Documented escape for a maintainer deliberately reworking an unshared branch.
+# Not --no-verify, which .claude/rules/universal.md MUST NOT #2 forbids.
+FORCE_PUSH_ESCAPE_ENV = "FORCE_PUSH_OK"
+
+
 def _resolve_commit(repo_root: Path, ref: str) -> str | None:
     result = _run_git(repo_root, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
     if result.returncode != 0:
@@ -5520,7 +5525,13 @@ def _skip_skillforge_path(path: str, repo_root: Path) -> bool:
     A mirror is not an authored skill, so the SkillForge schema (Triggers, Process,
     Verification) does not describe it and editing it is not how you fix it. The
     mirror set is derived from `.claude/commands/<name>.md`, the generator's own
-    input, so the two cannot drift. Do not restate the names here or in lefthook.yml.
+    input, so do not restate the names here or in lefthook.yml.
+
+    Derived is not the same as in sync. Nothing regenerates a mirror at commit
+    time, so a command edit that skips the generator ships a stale mirror; one
+    did, leaving the Copilot pr-autofix skill prescribing a push the pre-push
+    guard rejects. `test_committed_command_mirrors_match_the_generator` in
+    tests/build_scripts/test_generate_commands.py is what catches that.
     """
     if path.startswith("evals/"):
         return True
