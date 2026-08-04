@@ -1,0 +1,68 @@
+{
+  "id": "episode-2026-08-04-session-9016-baseline-fix",
+  "session": "2026-08-04-session-9016-baseline-fix",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Lower cli_exit_contract_baseline.txt from 33 to 32 after spec_extract_refs fix added a nonzero-exit test.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9016-baseline-fix"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T18:47:38+00:00",
+      "type": "commit",
+      "content": "Commit: e4c965fc47877cbfd832ab8ebac913abf99c3eba",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-04-session-9016-baseline-fix"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T19:27:36+00:00",
+      "type": "commit",
+      "content": "Commit: 46fe18dd954fc1deef3e2edf37d7f7288bbb6888",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9016-baseline-fix"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T16:09:04+00:00",
+      "type": "commit",
+      "content": "Commit: 7ccc78308fbb62cd43cb4f9f7013edf57cd51cef",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-04-session-9016-baseline-fix"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 3
+  },
+  "lessons": []
+}
