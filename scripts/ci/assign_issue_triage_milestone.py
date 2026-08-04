@@ -9,6 +9,9 @@ import subprocess
 
 MILESTONE_PATTERN = re.compile(r"^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _.-]*[A-Za-z0-9])?$")
 
+CONFIG_ERROR = 2
+EXTERNAL_ERROR = 3
+
 
 def _run_gh(args: list[str], *, discard_stderr: bool = False) -> subprocess.CompletedProcess[str]:
     stderr = subprocess.DEVNULL if discard_stderr else subprocess.STDOUT
@@ -32,6 +35,13 @@ def _milestone_titles(repository: str) -> list[str]:
 
 
 def assign_milestone(*, issue_number: str, milestone: str, repository: str) -> int:
+    """Assign the milestone, returning 3 when `gh` refused the edit.
+
+    Same shape as ``apply_issue_triage_labels`` (issue #4068): the edit failed,
+    a warning printed, and the step exited 0. Nothing to assign, a malformed
+    value, and a milestone that does not exist stay at 0; those are decisions,
+    not failures.
+    """
     if not milestone or milestone == "null":
         print("No milestone to assign")
         return 0
@@ -49,12 +59,13 @@ def assign_milestone(*, issue_number: str, milestone: str, repository: str) -> i
     result = _run_gh(["issue", "edit", issue_number, "--milestone", milestone])
     if result.returncode != 0:
         print(f"WARNING: Failed to assign milestone '{milestone}' to issue #{issue_number}")
+        return EXTERNAL_ERROR
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     if argv:
-        return 2
+        return CONFIG_ERROR
     return assign_milestone(
         issue_number=os.environ.get("ISSUE_NUMBER", ""),
         milestone=os.environ.get("MILESTONE", ""),
