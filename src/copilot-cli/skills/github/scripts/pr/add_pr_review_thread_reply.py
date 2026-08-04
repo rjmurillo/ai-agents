@@ -46,6 +46,19 @@ from github_core.api import (  # noqa: E402
 )
 from github_core.validation import inline_body_error
 
+_THREAD_STATE_QUERY = """\
+query($threadId: ID!) {
+    node(id: $threadId) {
+        ... on PullRequestReviewThread {
+            id
+            isResolved
+            pullRequest {
+                number
+            }
+        }
+    }
+}"""
+
 _REPLY_MUTATION = """\
 mutation($threadId: ID!, $body: String!) {
     addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) {
@@ -100,6 +113,36 @@ def _resolve_body(args: argparse.Namespace) -> str:
     return str(args.body)
 
 
+def _query_thread_state(thread_id: str) -> dict:
+    """Requery a thread's live state immediately before mutation.
+
+    Returns a dict with keys ``action`` (``ACT`` or ``SKIP``),
+    ``reason`` (human-readable), and ``is_resolved`` (bool or None).
+    ``SKIP`` means the mutation must not proceed.
+    """
+    try:
+        data = gh_graphql(_THREAD_STATE_QUERY, {"threadId": thread_id})
+    except RuntimeError as exc:
+        return {
+            "action": "SKIP",
+            "reason": f"thread state query failed: {exc}",
+            "is_resolved": None,
+        }
+
+    node = data.get("node")
+    if not node or not node.get("id"):
+        return {
+            "action": "SKIP",
+            "reason": "thread not found or not a review thread",
+            "is_resolved": None,
+        }
+
+    if node.get("isResolved"):
+        return {"action": "SKIP", "reason": "thread already resolved", "is_resolved": True}
+
+    return {"action": "ACT", "reason": "thread is unresolved", "is_resolved": False}
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -112,6 +155,15 @@ def main(argv: list[str] | None = None) -> int:
         error_and_exit(body_error, 2)
 
     assert_gh_authenticated()
+
+    state = _query_thread_state(args.thread_id)
+    if state["action"] == "SKIP":
+        print(json.dumps({
+            "action": "SKIP",
+            "reason": state["reason"],
+            "thread_id": args.thread_id,
+        }))
+        return 0
 
     try:
         reply_data = gh_graphql(

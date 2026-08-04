@@ -77,6 +77,37 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
     }
 }"""
 
+_THREAD_STATE_QUERY = """\
+query($threadId: ID!) {
+    node(id: $threadId) {
+        ... on PullRequestReviewThread {
+            id
+            isResolved
+        }
+    }
+}"""
+
+
+def _query_thread_state(thread_id: str) -> dict:
+    """Requery a thread's live state immediately before mutation.
+
+    Returns a dict with ``action`` (``ACT`` or ``SKIP``) and ``reason``.
+    ``SKIP`` means the mutation must not proceed.
+    """
+    try:
+        data = gh_graphql(_THREAD_STATE_QUERY, {"threadId": thread_id})
+    except RuntimeError as exc:
+        return {"action": "SKIP", "reason": f"thread state query failed: {exc}"}
+
+    node = data.get("node")
+    if not node or not node.get("id"):
+        return {"action": "SKIP", "reason": "thread not found or not a review thread"}
+
+    if node.get("isResolved"):
+        return {"action": "SKIP", "reason": "thread already resolved"}
+
+    return {"action": "ACT", "reason": "thread is unresolved"}
+
 
 def resolve_review_thread(thread_id: str) -> bool:
     """Resolve a single review thread. Returns True on success."""
@@ -158,6 +189,14 @@ def main(argv: list[str] | None = None) -> int:
     assert_gh_authenticated()
 
     if args.thread_id:
+        state = _query_thread_state(args.thread_id)
+        if state["action"] == "SKIP":
+            print(json.dumps({
+                "action": "SKIP",
+                "reason": state["reason"],
+                "thread_id": args.thread_id,
+            }))
+            return 0
         success = resolve_review_thread(args.thread_id)
         return 0 if success else 1
 
