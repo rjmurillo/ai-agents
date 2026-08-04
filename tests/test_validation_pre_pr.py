@@ -15,7 +15,6 @@ from scripts.validation.pre_pr import (
     build_parser,
     main,
     run_validation,
-    validate_design_review_frontmatter,
     validate_session_end,
 )
 
