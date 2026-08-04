@@ -30,8 +30,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Any
-
+from typing import Any
 
 # ===========================================================================
 # RESULT TYPES
@@ -43,8 +42,8 @@ class Result:
     success: bool
     message: str
     data: dict = field(default_factory=dict)
-    errors: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -138,7 +137,7 @@ URL_PATTERNS = [
 ]
 
 
-def classify_input(query: str) -> Tuple[str, Dict[str, Any]]:
+def classify_input(query: str) -> tuple[str, dict[str, Any]]:
     """
     Classify user input into a category and extract signals.
 
@@ -214,7 +213,7 @@ def get_index_path() -> Path:
     return Path.home() / ".cache" / "skillrecommender" / "skill_index.json"
 
 
-def load_skill_index() -> Optional[Dict]:
+def load_skill_index() -> dict | None:
     """Load skill index from disk."""
     index_path = get_index_path()
     if not index_path.exists():
@@ -263,7 +262,7 @@ DOMAIN_SYNONYMS = {
 }
 
 
-def detect_query_domains(query: str) -> List[Tuple[str, List[str]]]:
+def detect_query_domains(query: str) -> list[tuple[str, list[str]]]:
     """
     Detect which domains a query relates to using universal synonyms.
 
@@ -286,7 +285,7 @@ def detect_query_domains(query: str) -> List[Tuple[str, List[str]]]:
     return detected
 
 
-def calculate_match_score(query: str, skill: Dict) -> Tuple[float, List[str]]:
+def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
     """
     Calculate how well a skill matches the query using UNIVERSAL domain matching.
 
@@ -314,7 +313,6 @@ def calculate_match_score(query: str, skill: Dict) -> Tuple[float, List[str]]:
     query_domains = detect_query_domains(query)
 
     # Step 2: Check if skill's domains match detected query domains (STRONG signal)
-    domain_matched = False
     for domain, matched_terms in query_domains:
         # Direct domain match (skill has this domain in its domains list)
         if domain in skill_domains:
@@ -322,7 +320,6 @@ def calculate_match_score(query: str, skill: Dict) -> Tuple[float, List[str]]:
             domain_score = min(50, 35 + len(matched_terms) * 5)
             score += domain_score
             reasons.append(f"domain: {domain} ({', '.join(matched_terms[:2])})")
-            domain_matched = True
             break  # Only count best domain match
 
     # Step 3: Check if query domain terms appear in skill keywords/description
@@ -389,7 +386,7 @@ def calculate_match_score(query: str, skill: Dict) -> Tuple[float, List[str]]:
     if significant_overlap:
         kw_score = min(20, len(significant_overlap) * 6)
         score += kw_score
-        if f"keyword:" not in str(reasons):  # Avoid duplicate
+        if "keyword:" not in str(reasons):  # Avoid duplicate
             reasons.append(f"keywords: {', '.join(significant_overlap[:3])}")
 
     # Step 7: Description word overlap (fallback)
@@ -403,7 +400,7 @@ def calculate_match_score(query: str, skill: Dict) -> Tuple[float, List[str]]:
     return min(100, score), reasons
 
 
-def find_matching_skills(query: str, skills: List[Dict], limit: int = 5, signals: Dict = None) -> List[Dict]:
+def find_matching_skills(query: str, skills: list[dict], limit: int = 5, signals: dict = None) -> list[dict]:
     """
     Find skills that match the query, sorted by score.
 
@@ -464,10 +461,10 @@ def find_matching_skills(query: str, skills: List[Dict], limit: int = 5, signals
 
 def make_triage_decision(
     category: str,
-    signals: Dict,
-    matches: List[Dict],
+    signals: dict,
+    matches: list[dict],
     query: str
-) -> Tuple[str, Dict]:
+) -> tuple[str, dict]:
     """
     Make the final triage decision based on input analysis and skill matches.
 
@@ -699,7 +696,7 @@ def format_output(result: Result) -> str:
     # Top matches
     matches = data.get("top_matches", [])
     if matches:
-        lines.append(f"\nTop Skill Matches:")
+        lines.append("\nTop Skill Matches:")
         for i, m in enumerate(matches[:3], 1):
             lines.append(f"  {i}. {m['name']} ({m['score']}%)")
             lines.append(f"     {m.get('description', '')[:60]}...")
@@ -728,7 +725,7 @@ def format_output(result: Result) -> str:
     elif action == Action.COMPOSE:
         chain = details.get("recommended_chain", [])
         lines.append(f"  Compose skill chain: {' → '.join(chain)}")
-        lines.append(f"  Run the chain in order and keep the scope minimal")
+        lines.append("  Run the chain in order and keep the scope minimal")
 
     elif action == Action.CLARIFY:
         suggestion = details.get("suggested_action", "Clarify your intent")

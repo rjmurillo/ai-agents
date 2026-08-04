@@ -91,7 +91,7 @@ def test_block_extent_stops_at_next_top_level_statement() -> None:
 
 
 def _fake_runner(stdout: str, returncode: int = 0):
-    def runner(argv, **kwargs):  # noqa: ANN001, ANN003
+    def runner(argv, **kwargs):
         return subprocess.CompletedProcess(argv, returncode, stdout=stdout, stderr="")
 
     return runner
@@ -122,7 +122,7 @@ def test_lookup_issue_state_none_on_gh_failure() -> None:
 def test_lookup_issue_state_none_on_subprocess_error() -> None:
     """gh missing from PATH (OSError) yields None, never raises."""
 
-    def boom(argv, **kwargs):  # noqa: ANN001, ANN003
+    def boom(argv, **kwargs):
         raise OSError("gh not found")
 
     assert mod.lookup_issue_state(7, "owner/repo", runner=boom) is None

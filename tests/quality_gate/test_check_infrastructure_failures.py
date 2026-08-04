@@ -56,7 +56,7 @@ class TestDetectFailures:
         path = tmp_path / "security-infrastructure-failure.txt"
         path.write_text("true", encoding="utf-8")
 
-        def unreadable(*_args, **_kwargs):  # noqa: ANN002, ANN003
+        def unreadable(*_args, **_kwargs):
             raise PermissionError("denied")
 
         monkeypatch.setattr(Path, "read_text", unreadable)
@@ -94,7 +94,7 @@ class TestMainNoFailures:
     def test_no_failures_returns_zero_without_gh(self, tmp_path, monkeypatch, capsys) -> None:
         called = {"run": False}
 
-        def fake_run(*a, **k):  # noqa: ANN002, ANN003
+        def fake_run(*a, **k):
             called["run"] = True
             return subprocess.CompletedProcess([], 0, stdout="", stderr="")
 
@@ -131,7 +131,7 @@ class TestMainWithFailures:
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
         calls: list[list[str]] = []
 
-        def fake_run(cmd, **kwargs):  # noqa: ANN001, ANN003
+        def fake_run(cmd, **kwargs):
             calls.append(cmd)
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
@@ -155,7 +155,7 @@ class TestMainWithFailures:
         calls: list[list[str]] = []
         sleeps: list[float] = []
 
-        def fake_run(cmd, **kwargs):  # noqa: ANN001, ANN003
+        def fake_run(cmd, **kwargs):
             calls.append(cmd)
             return subprocess.CompletedProcess(
                 cmd,
@@ -204,7 +204,7 @@ class TestMainWithFailures:
         monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
         called = {"run": False}
 
-        def fake_run(*a, **k):  # noqa: ANN002, ANN003
+        def fake_run(*a, **k):
             called["run"] = True
             return subprocess.CompletedProcess([], 0, stdout="", stderr="")
 
@@ -219,7 +219,7 @@ class TestMainWithFailures:
         monkeypatch.setenv("PR_NUMBER", "123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
 
-        def fake_run(cmd, **kwargs):  # noqa: ANN001, ANN003
+        def fake_run(cmd, **kwargs):
             return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="HTTP 404")
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
@@ -232,7 +232,7 @@ class TestMainWithFailures:
         monkeypatch.setenv("PR_NUMBER", "123")
         monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
 
-        def fake_run(cmd, timeout, **kwargs):  # noqa: ANN001, ANN003
+        def fake_run(cmd, timeout, **kwargs):
             raise subprocess.TimeoutExpired(cmd, timeout)
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)

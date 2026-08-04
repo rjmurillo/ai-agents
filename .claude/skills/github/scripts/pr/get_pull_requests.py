@@ -48,7 +48,7 @@ from github_core.api import (  # noqa: E402
     describe_gh_auth_failure,
     resolve_repo_params,
 )
-from github_core.output import (  # noqa: E402
+from github_core.output import (
     add_output_format_arg,
     get_output_format,
     write_skill_error,
