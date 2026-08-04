@@ -6,6 +6,7 @@ A long push in this repo takes roughly 660 seconds, so the working pattern is
 to detach it and poll a log:
 
 ```bash
+# push-lock-historical: both the log and the lock sat under /tmp here
 nohup setsid bash -c "flock /tmp/push-lock-$SLUG.lock git push origin $BR \
   > /tmp/r16/push.log 2>&1; echo REAL_EXIT=\$? >> /tmp/r16/push.log" >/dev/null 2>&1 &
 ```
@@ -22,15 +23,18 @@ Measured on 2026-08-02: a P0 push was believed in flight for about ten minutes.
 
 ## Recipe
 
-Write scratch files and logs to `~/src/scratch/`, never `/tmp`. Keep the lock
-file itself at `/tmp/push-lock-<slug>.lock`: a lock is a live kernel object, not
-an artifact, and every agent must agree on one path for mutual exclusion to
-work. Only the log moves.
+Write scratch files, logs, and the lock to `~/src/scratch/`, never `/tmp`. Every
+agent must agree on one lock path for mutual exclusion to work, and `/tmp` is
+the wrong place to put it: a wipe there leaves the holder's descriptor on a
+deleted inode while the next push creates a new inode at the same name, so the
+two stop excluding each other. `.claude/rules/push-lock.md` owns the canonical
+path and `scripts/validation/check_push_lock_paths.py` blocks any other
+spelling (issue #4366).
 
 ```bash
-S=~/src/scratch; mkdir -p "$S"
+S=~/src/scratch; mkdir -p "$S" "$HOME/src/scratch/locks"
 BR=<branch>; SLUG=$(printf '%s' "$BR" | tr '/' '-')
-nohup setsid bash -c "flock /tmp/push-lock-$SLUG.lock git push origin $BR \
+nohup setsid bash -c "flock $HOME/src/scratch/locks/push-lock-$SLUG.lock git push origin $BR \
   > $S/push-$SLUG.log 2>&1; echo REAL_EXIT=\$? >> $S/push-$SLUG.log" >/dev/null 2>&1 &
 ```
 
