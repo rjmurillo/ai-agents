@@ -488,35 +488,31 @@ constant was emptied somewhere and every per-file assertion is vacuously true.
 constants from `scripts/validate_workspace_budget.py` directly, so the test and
 the enforcer always agree (fixed by issue #3951).
 
-## Concurrent pushes: use a per-branch lock, not a global one
+## Concurrent pushes: use push_slot2.sh, not a manual flock
 
-The race a push lock exists to prevent is a lost ref update: two writers push
-to the same remote ref and one overwrites the other. Git takes its lock per ref.
-Two pushes to two different branches cannot race for the same lock on the server.
+The canonical push script is `~/src/scratch/push_slot2.sh`. Use it for all
+pushes. Do not write your own flock loop; that is the #4366 defect.
 
-A global `flock /tmp/aiagents-push.lock` wrapping `git push` serializes the
-entire fleet including the 7 to 15 minute pre-push hook. Five concurrent pushes
-to five distinct branches costs 5 x 15 = 75 minutes instead of 15.
-
-Use a per-branch lock keyed on the exact branch name:
-
-```bash
-BR=$(git branch --show-current)
-SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/home/richard/src/GitHub/rjmurillo/ai-agents-pushpol2-push-${SLUG}.lock" \
-  git push --force-with-lease origin HEAD:"$BR"
+```text
+nohup bash ~/src/scratch/push_slot2.sh > ~/src/scratch/<branch>_rc.txt 2>&1 &
 ```
 
-Notes:
-- `tr '/' '-'` is required: a branch like `fix/foo` would otherwise create a
-  lock file with a `/` in its name, which the shell reads as a directory path.
-- Use an absolute path for the lock file and keep it outside `/tmp` (not durable
-  on this machine).
-- `--force-with-lease` already fails safely on a lost update. The lock prevents
-  the git-object-packing overhead of a concurrent same-branch push, not data loss.
-- Two distinct branches never contend for the same lock file, so their pre-push
-  hooks run in parallel. Measured throughput: four concurrent pushes to four
-  distinct branches finish in approximately one hook duration, not four.
+Then poll `~/src/scratch/<branch>_rc.txt`. Empty means still running. `SLOT=N
+PUSH_RC=0` is success. `SLOT=none PUSH_RC=99` means all slots stayed busy past
+the deadline.
 
-Issue #4283 documents the measured 28-waiter convoy produced by the global lock
-and the first-principles analysis of why the race is per-ref.
+The script uses `$HOME/src/scratch/pushlocks/aiagents-push-N.lock` (N in 0-3).
+Lock files must NOT live in `/tmp`: this machine reclaimed `/tmp` mid-session,
+destroying committed work. A reclaimable lock file silently becomes a no-op
+when it vanishes under a live holder.
+
+The script sweeps all 4 slots non-blocking and re-runs after a jittered sleep
+if all are busy. No caller ever blocks on a specific slot, so idle slots are
+always reachable. A blocking fixed-slot fallback recreates a convoy.
+
+Issue #4283 documents the 28-waiter convoy from global locking.
+Issue #4366 documents the three-scheme split and the convoy from a
+fixed-slot fallback.
+
+Proof of push: `git ls-remote origin <branch>`. A non-empty result is the
+only acceptable proof. Do not trust the push log alone.

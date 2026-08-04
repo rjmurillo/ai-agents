@@ -53,7 +53,9 @@ def _commit_all(repo: Path, message: str) -> None:
     subprocess.run(["git", "-C", str(repo), "commit", "-qm", message], check=True)
 
 
-def _make_repo_with_baselines(tmp_path: Path, ruff: int, taste: int, ignore: int) -> Path:
+def _make_repo_with_baselines(
+    tmp_path: Path, ruff: int, taste: int, ignore: int, cli_exit: int = 0
+) -> Path:
     """A repo with committed baseline files and one tracked Python file."""
     repo = tmp_path / "repo"
     _init_repo(repo)
@@ -62,6 +64,7 @@ def _make_repo_with_baselines(tmp_path: Path, ruff: int, taste: int, ignore: int
     (ci / "ruff_count_baseline.txt").write_text(f"{ruff}\n", encoding="utf-8")
     (ci / "taste_count_baseline.txt").write_text(f"{taste}\n", encoding="utf-8")
     (ci / "type_ignore_count_baseline.txt").write_text(f"{ignore}\n", encoding="utf-8")
+    (ci / "cli_exit_contract_baseline.txt").write_text(f"{cli_exit}\n", encoding="utf-8")
     (repo / "hello.py").write_text("x = 1\n", encoding="utf-8")
     _commit_all(repo, "main baseline")
     return repo
@@ -73,6 +76,7 @@ def _run(repo: Path, base_ref: str = "HEAD") -> int:
         patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
         patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
         patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
     ):
         return _m.main(["--repo-root", str(repo), "--base-ref", base_ref])
 
@@ -86,6 +90,7 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.ruff_count_ratchet.current_count", return_value=5),
             patch("scripts.ci.taste_count_ratchet.current_count", return_value=5),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=5),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
         assert rc == _m.EXIT_OK
@@ -97,6 +102,7 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.ruff_count_ratchet.current_count", return_value=7),
             patch("scripts.ci.taste_count_ratchet.current_count", return_value=7),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=7),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
         assert rc == _m.EXIT_OK
@@ -108,6 +114,7 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.ruff_count_ratchet.current_count", return_value=6),
             patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
         assert rc == _m.EXIT_REGRESSION
@@ -128,7 +135,7 @@ class TestMergeTreeRatchetCheck:
         # Check out feature so HEAD is the feature branch
         _git(repo, "checkout", "feature")
 
-        call_counts = {"ruff": 0, "taste": 0, "ignore": 0}
+        call_counts = {"ruff": 0, "taste": 0, "ignore": 0, "cli_exit": 0}
 
         def _ruff(_root):
             call_counts["ruff"] += 1
@@ -142,16 +149,21 @@ class TestMergeTreeRatchetCheck:
             call_counts["ignore"] += 1
             return 0
 
+        def _cli(_root):
+            call_counts["cli_exit"] += 1
+            return 0
+
         with (
             patch("scripts.ci.ruff_count_ratchet.current_count", side_effect=_ruff),
             patch("scripts.ci.taste_count_ratchet.current_count", side_effect=_taste),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", side_effect=_ignore),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", side_effect=_cli),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
 
         assert rc == _m.EXIT_OK
         # None of the counters should run - conflict was detected and skipped
-        assert call_counts == {"ruff": 0, "taste": 0, "ignore": 0}, (
+        assert call_counts == {"ruff": 0, "taste": 0, "ignore": 0, "cli_exit": 0}, (
             f"Counters ran despite conflict: {call_counts}"
         )
 
@@ -170,6 +182,7 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.ruff_count_ratchet.current_count", return_value=None),
             patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
         assert rc == _m.EXIT_EXTERNAL
@@ -184,6 +197,7 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
             patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
 
@@ -206,6 +220,7 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
             patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
             patch.object(tempfile, "mkdtemp", side_effect=_capturing_mkdtemp),
         ):
             _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
@@ -230,6 +245,7 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.ruff_count_ratchet.current_count", return_value=5),
             patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
             patch.object(tempfile, "mkdtemp", side_effect=_capturing_mkdtemp),
         ):
             _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
@@ -265,6 +281,7 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
             patch("scripts.ci.taste_count_ratchet.current_count", return_value=8),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
         assert rc == _m.EXIT_REGRESSION
@@ -292,6 +309,7 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
             patch("scripts.ci.taste_count_ratchet.current_count", return_value=4),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
         assert rc == _m.EXIT_OK
@@ -310,6 +328,25 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
             patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
         assert rc == _m.EXIT_OK
+
+    def test_cli_exit_contract_regression_is_caught(self, tmp_path: Path) -> None:
+        """Issue #4503: cli_exit_contract_baseline.txt has the same composition
+        failure as taste_count_baseline.txt and is now covered by this gate.
+
+        Two PRs each lower the baseline; the merged tree exceeds the new ceiling.
+        """
+        repo = _make_repo_with_baselines(
+            tmp_path, ruff=10, taste=10, ignore=10, cli_exit=5
+        )
+        with (
+            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=6),
+        ):
+            rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
+        assert rc == _m.EXIT_REGRESSION
