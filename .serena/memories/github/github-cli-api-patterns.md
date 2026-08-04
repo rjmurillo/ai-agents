@@ -60,6 +60,42 @@ gh auth token
 
 **Required Scopes**: Minimum: `repo`, `read:org`. Add `workflow` for Actions, `project` for Projects.
 
+### `gh auth status` reports a rate limit as an invalid token
+
+Measured 2026-08-04 during a heavy PR sweep. `gh auth status` printed:
+
+```
+X Failed to log in to github.com account rjmurillo
+- The token in /home/richard/.config/gh/hosts.yml is invalid.
+- To re-authenticate, run: gh auth refresh -h github.com
+```
+
+The token was fine. `gh auth status` validates by calling `/user`, and `/user`
+was returning `403 API rate limit exceeded for user ID <id>`. The error handling
+maps that 403 to the same message as a 401, so a secondary rate limit is
+indistinguishable from a revoked credential in this output.
+
+Three facts make the misread expensive:
+
+1. `gh api rate_limit` showed `core.remaining: 4746` at the same moment. Secondary
+   limits never appear there, so the headroom reading looks like it exonerates the
+   rate limit and points back at the token.
+2. Wrapper scripts inherit the confusion. `.claude/skills/github/scripts/` helpers
+   print `GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login'
+   first.` for the same condition.
+3. The suggested remedy is destructive. Running `gh auth refresh` or `gh auth login`
+   against a working credential to fix a rate limit can cost the session its token.
+
+**Discriminating test**, cheaper than any re-auth:
+
+```bash
+gh api /user --jq .login          # 403 with "rate limit exceeded" => not an auth problem
+gh api rate_limit --jq '.resources.graphql'   # rate_limit itself is exempt and always answers
+```
+
+If `/user` returns a rate-limit 403, back off and retry. Do not touch the credential.
+A concurrent `git push` over HTTPS plus its hooks is usually what drained the bucket.
+
 ## Skill-GH-JSON-001: JSON Output Patterns (94%)
 
 **Statement**: Use `--json` with field names, pipe to `jq` for transformations.
