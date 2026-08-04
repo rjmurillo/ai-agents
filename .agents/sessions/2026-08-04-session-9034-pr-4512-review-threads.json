@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9034,
+    "date": "2026-08-04",
+    "branch": "fix/fixture-cleanup-and-harness-exits",
+    "startingCommit": "7eabc74d8",
+    "objective": "Resolve the three unresolved Copilot review threads on PR #4512"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions were loaded. The activate_project tool was not exposed by this harness."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the code navigation and editing guidance before code edits."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read only under ADR-014 before editing."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used the pr-comment-responder cluster script and the github skill PR thread reply and resolve scripts named in the loaded skill context."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded pr-comment-responder and reviewer-findings before resolving review threads."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read scripts/AGENTS.md, .github/instructions/ci-scripts.instructions.md, .github/instructions/python.instructions.md, and .github/instructions/secret-redaction.instructions.md before edits in those areas."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No relevant Serena memory was exposed through the available harness tools; session used repository rules and skill context instead."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree /home/richard/src/scratch/wt-4512 is on fix/fixture-cleanup-and-harness-exits."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/fixture-cleanup-and-harness-exits."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Initial status in the new worktree was clean before edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "7eabc74d802b7e6baec9ab2a34d59f52893c326c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every required session field now carries evidence. Push and thread reply results will be reported in the user-facing completion."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md is read only and was not edited."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable new convention or gotcha was discovered, so no memory update was warranted."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files were authored; no Markdown lint target was required for this change."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This session log is staged with the code and test changes for the fix(ci): quote mutation recovery hints commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted pytest passed with 49 tests. Ruff passed on the changed Python files. The required ruff ratchet pre-flight is next before push."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Created an isolated PR worktree",
+      "detail": "gh pr view 4512 returned branch fix/fixture-cleanup-and-harness-exits. git worktree add created /home/richard/src/scratch/wt-4512 at 7eabc74d8."
+    },
+    {
+      "action": "Clustered unresolved review threads",
+      "detail": "cluster_threads.py reported 3 unresolved threads, 0 clusters, and warning false, so per-thread verification was appropriate."
+    },
+    {
+      "action": "Verified the reviewer claims in the current tree",
+      "detail": "scripts/ci/mutation_harness_ciperms.py printed unquoted git checkout hints in both restore failure branches. The restore verification read was outside try/except OSError, so an IO failure there could bypass the intended exit 2 path."
+    },
+    {
+      "action": "Fixed recovery hints and restore verification",
+      "detail": "Added shlex.quote via _recovery_checkout_hint, used it at both existing recovery hint sites, and wrapped the restore verification read in except OSError with SystemExit(2)."
+    },
+    {
+      "action": "Added regression tests",
+      "detail": "test_oserror_on_restore_prints_recovery_hint now uses a path containing spaces and shell characters. test_oserror_on_restore_verification_exits_2 covers OSError during read-back verification."
+    },
+    {
+      "action": "Ran targeted validation",
+      "detail": "uv run --frozen pytest tests/ci/test_mutation_harness_ciperms.py -x passed with 49 tests. uv run --frozen ruff check scripts/ci/mutation_harness_ciperms.py tests/ci/test_mutation_harness_ciperms.py passed after import sorting."
+    }
+  ],
+  "endingCommit": "32bd25765",
+  "nextSteps": [
+    "Run the ruff ratchet pre-flight against origin/main before push.",
+    "Push asynchronously, then verify origin branch SHA equals local HEAD.",
+    "Reply to and resolve the three review threads with measured evidence."
+  ]
+}
