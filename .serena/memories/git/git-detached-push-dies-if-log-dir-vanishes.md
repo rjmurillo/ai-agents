@@ -23,14 +23,17 @@ Measured on 2026-08-02: a P0 push was believed in flight for about ten minutes.
 ## Recipe
 
 Write scratch files and logs to `~/src/scratch/`, never `/tmp`. Keep the lock
-file itself at `/tmp/push-lock-<slug>.lock`: a lock is a live kernel object, not
-an artifact, and every agent must agree on one path for mutual exclusion to
-work. Only the log moves.
+file at `$HOME/src/scratch/locks/push-lock-<slug>.lock`. This moves both the
+log and the lock out of `/tmp`: the 2026-08-02 wipe showed `/tmp` is not durable
+and the wipe splits any lock whose path sits there (new inode, flock treats the
+two holders as distinct). Both problems share the same root and the same fix.
+See issue #4366 and the canonical recipe in
+`.serena/memories/git/git-lock-pushes-per-branch-not-globally.md`.
 
 ```bash
-S=~/src/scratch; mkdir -p "$S"
+S="$HOME/src/scratch"; LOCKDIR="$S/locks"; mkdir -p "$S" "$LOCKDIR"
 BR=<branch>; SLUG=$(printf '%s' "$BR" | tr '/' '-')
-nohup setsid bash -c "flock /tmp/push-lock-$SLUG.lock git push origin $BR \
+nohup setsid bash -c "flock $LOCKDIR/push-lock-$SLUG.lock git push origin $BR \
   > $S/push-$SLUG.log 2>&1; echo REAL_EXIT=\$? >> $S/push-$SLUG.log" >/dev/null 2>&1 &
 ```
 

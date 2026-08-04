@@ -1399,8 +1399,26 @@ class TestHistoricalLogsAreExemptByConstruction:
         return seen
 
     def test_git_hook_policy_validates_only_the_paths_it_is_given(self) -> None:
-        given = ["a/one.json", "b/two.json"]
+        given = [
+            ".agents/sessions/2026-01-01-session-1.json",
+            ".agents/sessions/2026-01-02-session-2.json",
+        ]
         assert self._invoked_paths(given) == given
+
+    def test_git_hook_policy_skips_non_session_paths(self) -> None:
+        """Non-session files (e.g. GOTCHAS.md) passed by lefthook are ignored.
+
+        lefthook passes all staged .agents/** files to the session-policy
+        hook. Without the SESSION_PATH_RE filter, validate_branch_sessions
+        would try to parse governance docs as JSON and fail every commit that
+        touches both a session log and any other .agents/ file.
+        """
+        mixed = [
+            ".agents/sessions/2026-01-01-session-1.json",
+            ".agents/governance/GOTCHAS.md",
+            ".agents/architecture/ADR-001.md",
+        ]
+        assert self._invoked_paths(mixed) == [".agents/sessions/2026-01-01-session-1.json"]
 
     def test_git_hook_policy_validates_nothing_when_given_nothing(self) -> None:
         """No path list means no work. A directory fallback would fail 131 logs."""
@@ -2125,17 +2143,18 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         from scripts.validation import git_hook_policy, session_scope
 
         commands: list[list[str]] = []
+        old = ".agents/sessions/2026-01-01-session-1.json"
 
         def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
             commands.append(command)
             return subprocess.CompletedProcess(command, 0, "", "")
 
-        stub, _ = self._stub(tracked=("old.json",))
+        stub, _ = self._stub(tracked=(old,))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
             mock.patch.object(session_scope, "_git", stub),
         ):
-            git_hook_policy.validate_branch_sessions(["old.json"], Path.cwd())
+            git_hook_policy.validate_branch_sessions([old], Path.cwd())
         assert commands and "--existing-log" in commands[0]
 
     def test_the_hook_passes_creation_mode_for_a_new_log(self) -> None:
@@ -2146,17 +2165,18 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         from scripts.validation import git_hook_policy, session_scope
 
         commands: list[list[str]] = []
+        new = ".agents/sessions/2026-01-02-session-2.json"
 
         def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
             commands.append(command)
             return subprocess.CompletedProcess(command, 0, "", "")
 
-        stub, _ = self._stub(added=("new.json",), tracked=("new.json",))
+        stub, _ = self._stub(added=(new,), tracked=(new,))
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
             mock.patch.object(session_scope, "_git", stub),
         ):
-            git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
+            git_hook_policy.validate_branch_sessions([new], Path.cwd())
         assert commands
         assert "--creation-mode" in commands[0], "new log must get --creation-mode"
         assert "--existing-log" not in commands[0], "new log must not get --existing-log"
@@ -2187,6 +2207,97 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
 
         source = inspect.getsource(vsj.main)
         assert "args.scope_from_git and not existing_log" in source
+
+
+class TestCheckSessionsCreationMode:
+    """check_sessions passes --creation-mode for new logs, not --pre-commit alone.
+
+    The session-policy hook calls git_hook_policy session (singular), which
+    routes to check_sessions. Before the fix for #4425 check_sessions always
+    used --pre-commit without --creation-mode, so a pristine new log was
+    validated with full sessionEnd MUST checks that cannot be satisfied at
+    session start (changesCommitted deadlock).
+    """
+
+    @staticmethod
+    def _stub(
+        base: str = "deadbee",
+        added: tuple[str, ...] = (),
+        tracked: tuple[str, ...] = (),
+    ):
+        import subprocess
+
+        def _git(args: list, _root):
+            if args[0] == "merge-base":
+                code = 0 if base else 1
+                return subprocess.CompletedProcess([], code, f"{base}\n" if base else "", "")
+            if args[0] == "diff":
+                body = "".join(f"A\t{name}\n" for name in added)
+                return subprocess.CompletedProcess([], 0, body, "")
+            return subprocess.CompletedProcess([], 0, "\0".join(tracked), "")
+
+        return _git
+
+    def test_check_sessions_passes_creation_mode_for_new_log(self) -> None:
+        """A new session log must get --creation-mode so sessionEnd MUST items
+        are not enforced at commit time (the #4425 deadlock).
+        """
+        from scripts.validation import git_hook_policy, session_scope
+
+        new = ".agents/sessions/2026-01-01-session-1.json"
+        validate_commands: list[list[str]] = []
+
+        def _record(command, _root):
+            import subprocess
+
+            if any("validate_session_json.py" in part for part in command):
+                validate_commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "[PASS] Session log is valid", "")
+
+        stub = self._stub(added=(new,), tracked=(new,))
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(git_hook_policy, "_merge_in_progress", return_value=False),
+            mock.patch.object(session_scope, "_git", stub),
+        ):
+            rc = git_hook_policy.check_sessions([new], Path.cwd())
+        assert rc == 0
+        assert validate_commands, "expected exactly one validator call"
+        assert "--creation-mode" in validate_commands[0], "new log must get --creation-mode"
+
+    def test_check_sessions_no_creation_mode_for_existing_log(self) -> None:
+        """An existing log must NOT get --creation-mode (only --pre-commit)."""
+        from scripts.validation import git_hook_policy, session_scope
+
+        existing = ".agents/sessions/2026-01-01-session-1.json"
+        validate_commands: list[list[str]] = []
+
+        def _record(command, _root):
+            import subprocess
+
+            if any("validate_session_json.py" in part for part in command):
+                validate_commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "[PASS] Session log is valid", "")
+
+        stub = self._stub(tracked=(existing,))
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(git_hook_policy, "_merge_in_progress", return_value=False),
+            mock.patch.object(session_scope, "_git", stub),
+        ):
+            rc = git_hook_policy.check_sessions([existing], Path.cwd())
+        assert rc == 0
+        assert validate_commands
+        assert "--creation-mode" not in validate_commands[0], "existing log must not get --creation-mode"
+        assert "--pre-commit" in validate_commands[0], "existing log must still get --pre-commit"
+
+    def test_check_sessions_rejects_commit_without_session_log(self) -> None:
+        """If no session JSON is staged, the hook must fail with an error."""
+        from scripts.validation import git_hook_policy
+
+        with mock.patch.object(git_hook_policy, "_merge_in_progress", return_value=False):
+            rc = git_hook_policy.check_sessions([".agents/governance/GOTCHAS.md"], Path.cwd())
+        assert rc == 1
 
 
 def _log_with_evidence(**items: str) -> dict:

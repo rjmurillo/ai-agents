@@ -497,25 +497,68 @@ A global `flock /tmp/aiagents-push.lock` wrapping `git push` serializes the
 entire fleet including the 7 to 15 minute pre-push hook. Five concurrent pushes
 to five distinct branches costs 5 x 15 = 75 minutes instead of 15.
 
-Use a per-branch lock keyed on the exact branch name:
+Use a per-branch lock keyed on the exact branch name. All agents must use the
+same lock path, otherwise two agents on the same branch open different inodes
+and flock stops excluding them. Keep the lock outside `/tmp` because a `/tmp`
+wipe (observed 2026-08-02) creates a new inode at the same path: the old holder
+holds a deleted inode and the new process holds a different one; flock treats
+them as distinct locks and both believe they are exclusive. Fixes #4366.
 
 ```bash
 BR=$(git branch --show-current)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/home/richard/src/GitHub/rjmurillo/ai-agents-pushpol2-push-${SLUG}.lock" \
+LOCKDIR="$HOME/src/scratch/locks"
+mkdir -p "$LOCKDIR"
+flock "$LOCKDIR/push-lock-${SLUG}.lock" \
   git push --force-with-lease origin HEAD:"$BR"
 ```
 
 Notes:
 - `tr '/' '-'` is required: a branch like `fix/foo` would otherwise create a
   lock file with a `/` in its name, which the shell reads as a directory path.
-- Use an absolute path for the lock file and keep it outside `/tmp` (not durable
-  on this machine).
+- Use an absolute path under `$HOME/src/scratch/locks/`, which survives `/tmp`
+  wipes. Every agent must use this same form exactly.
 - `--force-with-lease` already fails safely on a lost update. The lock prevents
   the git-object-packing overhead of a concurrent same-branch push, not data loss.
 - Two distinct branches never contend for the same lock file, so their pre-push
   hooks run in parallel. Measured throughput: four concurrent pushes to four
   distinct branches finish in approximately one hook duration, not four.
+- Three competing schemes were measured live on 2026-08-02 (per-branch `/tmp`,
+  4-slot hash `/tmp`, and `$HOME` variant). Only processes that open the exact
+  same path are mutually excluded by flock. A mixed fleet provides no exclusion
+  at all. Use one canonical form and correct any deviation on sight.
 
 Issue #4283 documents the measured 28-waiter convoy produced by the global lock
 and the first-principles analysis of why the race is per-ref.
+Issue #4366 documents the three-scheme split and why the wipe hazard requires
+moving out of `/tmp`.
+
+## Never move a branch ref that is checked out in a linked worktree
+
+A worktree that checks out branch `feature` has its own index and files. When
+you run `git update-ref refs/heads/feature <new-sha>` from outside that
+worktree, git moves the branch pointer but does NOT update the worktree index
+or files. The result is a split state: `git rev-parse HEAD` returns the new
+commit but `git write-tree` returns the old tree, and `git status` presents the
+A-to-B diff as staged. Commits, tests, and issue claims based on this state are
+attributed to the wrong commit.
+
+This happens in an agent correction queue when a queued correction calls
+`git update-ref` (or any command that moves the branch, such as `git commit
+--amend` or `git reset`) while another agent's worktree has the same branch
+checked out.
+
+Rules:
+- Before moving a branch ref, check whether it is checked out in any registered
+  worktree: `git worktree list --porcelain | grep -B2 "branch refs/heads/<name>"`.
+- If it is checked out, do not move the ref remotely. Instead, coordinate:
+  either have the worktree owner move its own HEAD, or remove the worktree first
+  and re-add it after the move.
+- After any ref move, verify the target worktree is in the expected state:
+  `git -C <worktree-path> status --porcelain` should be empty.
+- Create safety refs for any commit or tree that could become unreachable before
+  moving: `git tag safe/<sha> <sha>`.
+
+Reproduced locally with one modified file: `git update-ref refs/heads/<branch>
+<new-sha>` while `<branch>` is checked out in a linked worktree leaves the
+worktree with `HEAD == new-sha` and `git write-tree == old-tree`. Issue #4498.

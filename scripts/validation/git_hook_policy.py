@@ -1685,16 +1685,20 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if not sessions:
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
+    new_logs = new_session_logs(sessions, repo_root)
     for session in sessions:
-        result = _run_command(
-            [
-                sys.executable,
-                "scripts/validate_session_json.py",
-                session,
-                "--pre-commit",
-            ],
-            repo_root,
-        )
+        command = [
+            sys.executable,
+            "scripts/validate_session_json.py",
+            session,
+            "--pre-commit",
+        ]
+        if session in new_logs:
+            # New logs are committed at session start before sessionEnd items
+            # are populated. --creation-mode skips sessionEnd compliance checks
+            # so a pristine log can be committed at session start (issue #4425).
+            command.append("--creation-mode")
+        result = _run_command(command, repo_root)
         if result.returncode != 0:
             _print_process_output(result)
             return result.returncode
@@ -5913,8 +5917,9 @@ def run_cli_e2e(test_file: str, repo_root: Path) -> int:
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
-    new_logs = new_session_logs(paths, repo_root)
-    for path in paths:
+    session_paths = [p for p in paths if SESSION_PATH_RE.fullmatch(p)]
+    new_logs = new_session_logs(session_paths, repo_root)
+    for path in session_paths:
         command = [sys.executable, "scripts/validate_session_json.py", path]
         if path not in new_logs:
             command.append("--existing-log")
