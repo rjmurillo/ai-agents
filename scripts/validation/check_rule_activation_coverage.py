@@ -137,7 +137,7 @@ def _read_scenario_json(path: Path) -> dict[str, object]:
     return data
 
 
-def _validate_scenarios_measure(data: dict[str, object], path: Path) -> None:
+def _validate_scenarios_measure(data: Mapping[str, Any], path: Path) -> None:
     """Require a non-empty scenarios list with at least one positive case."""
     scenarios = data.get("scenarios")
     if not isinstance(scenarios, list) or not scenarios:
@@ -214,7 +214,11 @@ def _is_reference_scenario(repo_root: Path, data: Mapping[str, Any], path: Path)
     has_rule = isinstance(rule, str) and bool(rule.strip())
     if not (has_reference and has_skill and not has_rule):
         return False
-    for ref in (reference.strip(), skill.strip()):
+    assert isinstance(reference, str)
+    assert isinstance(skill, str)
+    reference_path = reference.strip()
+    skill_path = skill.strip()
+    for ref in (reference_path, skill_path):
         target = (repo_root / ref).resolve()
         try:
             target.relative_to(repo_root.resolve())
