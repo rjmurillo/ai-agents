@@ -1336,9 +1336,9 @@ class TestCopilotErrorArtifactRedaction:
             returncode = 1
 
         monkeypatch.setattr(
-            copilot_mod.subprocess,
-            "run",
-            lambda *args, **kwargs: _Completed(),
+            copilot_mod,
+            "run_acp_completion",
+            lambda argv, prompt, **kwargs: _Completed(),
         )
         monkeypatch.setenv(
             "COPILOT_SESSION_STATE_DIR",
