@@ -135,10 +135,8 @@
       "notes": "Net 2 suppressions removed violations"
     }
   ],
-  "endingCommit": "",
-  "nextSteps": [
-    "Push to origin, verify CI green, merge PR"
-  ],
+  "endingCommit": "0fd1ea30f55193e0f833e498e3fc7db88e8c3f3a",
+  "nextSteps": [],
   "retrospective": {
     "section": "## Retrospective",
     "learningsCaptured": [

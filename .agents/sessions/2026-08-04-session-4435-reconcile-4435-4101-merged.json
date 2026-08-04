@@ -150,11 +150,13 @@
       "timestamp": "2026-08-04T10:26:49+00:00",
       "action": "Finalized closeout chronology",
       "detail": "Main fixes for #4516, #4535, and #4538 landed through PR #4508. Merged current main as 02d2f0da2, reran eval tests, Ruff, mypy, and pre_pr, and kept the live PR body marked pending push."
+    },
+    {
+      "timestamp": "2026-08-04T19:35:33+00:00",
+      "action": "Recorded final merged outcome",
+      "detail": "PR #4435 merged at head 4e2d339fe74b431184da77887c5058f9ba1a7c34 as squash commit 0fd1ea30f55193e0f833e498e3fc7db88e8c3f3a. The landed commit now anchors this session record."
     }
   ],
-  "endingCommit": "02d2f0da2",
-  "nextSteps": [
-    "Commit this chronology correction and regenerated episode, then push with normal hooks.",
-    "After the push succeeds, update PR #4435 from pending local state to live remote state. Do not merge it."
-  ]
+  "endingCommit": "0fd1ea30f55193e0f833e498e3fc7db88e8c3f3a",
+  "nextSteps": []
 }
