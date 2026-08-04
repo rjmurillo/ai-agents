@@ -39,7 +39,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Protocol
 
-UTC = timezone.utc  # noqa: UP017 - Python 3.10 compatibility
+UTC = timezone.utc
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -69,7 +69,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 try:
-    import paths  # noqa: E402
+    import paths
 except ImportError as exc:  # pragma: no cover - guarded by explicit path check
     raise RuntimeError(f"Failed to import portability helper paths.py from {_LIB_DIR}") from exc
 
@@ -415,7 +415,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         evidence = gather_evidence(project_dir, args.scope, args.since)
-    except Exception as exc:  # noqa: BLE001 - boundary: report and exit cleanly
+    except Exception as exc:
         print(f"ERROR: evidence gather failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 3
 

@@ -13,13 +13,12 @@ Example:
     python package_skill.py ~/.claude/skills/my-skill ./dist
 """
 
+import fnmatch
 import os
 import sys
 import zipfile
-import fnmatch
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -27,7 +26,7 @@ class PackageResult:
     """Result of packaging a skill."""
     success: bool
     message: str
-    output_path: Optional[Path] = None
+    output_path: Path | None = None
 
 
 def load_skillignore(skill_path: Path) -> list[str]:

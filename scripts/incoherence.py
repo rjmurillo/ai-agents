@@ -34,7 +34,6 @@ PREREQUISITE: User must specify report filename before step 1.
 """
 
 import argparse
-import sys
 import os
 
 DIMENSION_CATALOG = """
