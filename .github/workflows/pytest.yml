@@ -202,7 +202,14 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1. The checkout above already used fetch-depth: 0, so a
+          # depth-limited fetch saves nothing and writes .git/shallow, grafting
+          # the fetched tip parentless. Nothing in this job needs a merge base
+          # today, so this removes a trap rather than fixing a live failure:
+          # the graft is written by whichever fetch runs first and a plain
+          # undepthed fetch does not clear it, only --unshallow does. That is
+          # what cost a red required check in pr-validation.yml.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Run ruff count ratchet (whole tree, non-PR)
@@ -210,7 +217,8 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the pull_request leg above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Check security suppressions in diff (pull request, issue 4061)
@@ -218,7 +226,8 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the pull_request leg above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
       - name: Check security suppressions in diff (non-PR, issue 4061)
@@ -226,7 +235,8 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the pull_request leg above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
       - name: Run pytest

@@ -235,6 +235,18 @@ jobs:
       - name: Checkout repository for workflow validation
         if: steps.should-run.outputs.skip == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Must match the skip != 'true' checkout above. The ratchet steps
+          # below are unconditional (issue #4151), and `Run merge-tree ratchet`
+          # calls `git merge-tree`, which needs a merge base. A default checkout
+          # is depth 1, so on this leg merge-base resolves to nothing and the
+          # step dies with "refusing to merge unrelated histories" (rc 128,
+          # exit 3). Every bot PR took this leg, so the required check was red
+          # for all of them: Renovate PR #4552 is the recorded instance.
+          # Removing --depth=1 from the fetches below does not reach this,
+          # because a plain undepthed fetch does not clear an existing graft;
+          # only --unshallow does. The depth has to be right at checkout.
+          fetch-depth: 0
 
       - name: Setup uv for workflow validation
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
@@ -283,13 +295,15 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # CI-only: --depth=1 keeps this disposable checkout shallow to save
-          # bandwidth. Do NOT copy these two lines into a working clone; the
-          # fetch writes .git/shallow and every subsequent push will fail with
-          # "push validation requires complete Git history". In a working clone
-          # use: git fetch origin && uv run --frozen python3
-          # scripts/ci/taste_count_ratchet.py --base-ref origin/"$BASE_REF"
-          git fetch --depth=1 origin "$BASE_REF"
+          # This fetch MUST NOT pass --depth=1. The checkout above already used
+          # fetch-depth: 0, so a depth-limited fetch does not save a full clone;
+          # it writes .git/shallow and grafts the fetched tip parentless. That
+          # destroys merge-base for every later step in this job, and a plain
+          # undepthed fetch does NOT repair it (only --unshallow does). See the
+          # merge-tree ratchet step below, which is the step that breaks.
+          # Because the checkout is already complete, this fetch transfers only
+          # the commits main gained since checkout.
+          git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/taste_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4039: type: ignore suppressions bypass the mypy ratchet by inflating
       # allowed violations without the ratchet noticing. Counting them separately
@@ -298,8 +312,8 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # CI-only: see taste-lint ratchet step above for the --depth=1 caveat.
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the taste-lint ratchet step above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4398: the three count ratchets measure the branch head, not the
       # merged result. A branch cut before main lowered a baseline can pass its
@@ -322,9 +336,13 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # CI-only: --depth=1 keeps this disposable checkout shallow.
-          # See taste-lint ratchet step above for the caveat on working clones.
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1. This step calls git merge-tree, which needs a merge
+          # base. A shallow graft written by ANY earlier fetch in this job makes
+          # merge-base empty and this step fails with "refusing to merge
+          # unrelated histories" (rc 128, exit 3). It fires whenever the PR
+          # checkout predates main's current tip, so it reads as a flake but is
+          # deterministic for any branch behind main.
+          git fetch origin "$BASE_REF"
           uv run --frozen --extra dev python3 scripts/ci/merge_tree_ratchet_check.py --base-ref FETCH_HEAD
       # Issue #3770: `conflict-marker-policy` runs only at pre-commit over the
       # index. Every route that skips local hooks reached the remote unchecked:
