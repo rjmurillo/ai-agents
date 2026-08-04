@@ -25,7 +25,7 @@ _SCRIPT_WITHOUT_MAIN = "def helper():\n    return 0\n"
 def _fake_git(scripts: tuple[str, ...], tests: tuple[str, ...], *, returncode: int = 0):
     """Stand in for `git ls-files -z`, answering per glob."""
 
-    def _run(cmd, **_kwargs):  # noqa: ANN001, ANN003
+    def _run(cmd, **_kwargs):
         paths = tests if any("tests/" in arg for arg in cmd) else scripts
         stdout = "\0".join(paths) + ("\0" if paths else "")
         return subprocess.CompletedProcess(cmd, returncode, stdout=stdout, stderr="")
@@ -323,3 +323,37 @@ def test_the_gate_is_wired_into_pr_validation():
     ).read_text(encoding="utf-8")
 
     assert "scripts/ci/cli_exit_contract_ratchet.py" in workflow
+
+
+def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
+    """The baseline must describe this repository, not a number typed by hand.
+
+    This ratchet shipped in PR #4110 with a baseline of 14 against a tree that
+    already held 33 violations, so it failed on the commit that introduced it
+    and on every pull request after. Nothing in the suite compared the two, and
+    the gate itself only runs on ``pull_request``, so no run against main ever
+    contradicted it.
+
+    The sibling taste ratchet has carried this assertion since it was added
+    (``tests/ci/test_count_ratchet_against_real_git.py``). Every counting
+    ratchet needs one: a baseline above the real count is dead allowance, and a
+    baseline below it means every pull request is red for a reason that has
+    nothing to do with its diff.
+
+    Run ``python scripts/ci/cli_exit_contract_ratchet.py`` directly for the
+    per-file detail rather than waiting on the suite.
+    """
+    repo_root = Path(__file__).resolve().parents[2]
+    baseline_path = repo_root / "scripts" / "ci" / "cli_exit_contract_baseline.txt"
+    baseline = int(baseline_path.read_text(encoding="utf-8").strip())
+    actual = ratchet.current_count(repo_root)
+    assert actual is not None, (
+        "the scan returned None, which means it could not read the tree. A "
+        "broken scan reports zero violations and would look like a clean "
+        "repository, so it must fail here rather than pass quietly."
+    )
+    assert actual == baseline, (
+        f"cli exit contract ratchet: baseline is {baseline} but the current "
+        f"tree has {actual} violations. Run "
+        f"'python scripts/ci/cli_exit_contract_ratchet.py' for per-file detail."
+    )

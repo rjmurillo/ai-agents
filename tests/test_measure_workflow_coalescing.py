@@ -6,10 +6,13 @@ import importlib.util
 import sys
 from datetime import UTC
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
-from scripts.github_core.api import RepoInfo
+import pytest
+
+from scripts.github_core.api import GhAuthResult, RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (same pattern as test_invoke_pr_maintenance.py)
@@ -53,7 +56,7 @@ def _make_run(
     event: str = "pull_request",
     head_branch: str = "feature-branch",
     pull_requests: list[dict] | None = None,
-) -> Any:  # noqa: ANN401
+) -> Any:
     if pull_requests is None:
         pull_requests = [{"number": 123}]
     return WorkflowRun(
@@ -593,3 +596,53 @@ class TestDefaultWorkflows:
 
     def test_default_workflows_count(self):
         assert len(DEFAULT_WORKFLOWS) == 8
+
+
+# ---------------------------------------------------------------------------
+# Tests: prerequisite check classification (issue #3139)
+# ---------------------------------------------------------------------------
+
+
+_CHECK_PREREQUISITES = _mod.test_prerequisites
+_GhAuthStatus = _mod.GhAuthStatus
+
+
+class TestPrerequisiteAuthClassification:
+    """`gh auth status` exits nonzero for far more than a bad token.
+
+    Collapsing that to "GitHub CLI is not authenticated. Run: gh auth login"
+    tells an operator to rotate a working secret during a GitHub outage or a
+    quota window, which is verbatim the issue #3139 misdiagnosis.
+    """
+
+    def _run(self, status, detail=""):
+        with patch(
+            "measure_workflow_coalescing.subprocess.run",
+            return_value=SimpleNamespace(returncode=0, stdout="", stderr=""),
+        ), patch(
+            "measure_workflow_coalescing.check_gh_auth",
+            return_value=GhAuthResult(status, detail),
+        ):
+            _CHECK_PREREQUISITES()
+
+    def test_authenticated_passes(self):
+        self._run(_GhAuthStatus.AUTHENTICATED)
+
+    def test_bad_credentials_still_name_gh_auth_login(self):
+        with pytest.raises(RuntimeError, match="gh auth login"):
+            self._run(_GhAuthStatus.INVALID_CREDENTIALS)
+
+    @pytest.mark.parametrize(
+        "status",
+        [
+            _GhAuthStatus.RATE_LIMITED,
+            _GhAuthStatus.SECONDARY_RATE_LIMITED,
+            _GhAuthStatus.TRANSIENT_ERROR,
+        ],
+    )
+    def test_upstream_conditions_never_blame_the_token(self, status):
+        with pytest.raises(RuntimeError) as exc:
+            self._run(status, "gh: API rate limit exceeded (HTTP 403)")
+
+        assert "gh auth login" not in str(exc.value)
+        assert "not an authentication failure" in str(exc.value)

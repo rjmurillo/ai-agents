@@ -169,7 +169,7 @@ def test_unreadable_file_reports_violation(fake_repo: Path, monkeypatch) -> None
 
     original = Path.read_text
 
-    def patched(self: Path, *_args, **_kwargs):  # noqa: ANN002, ANN003
+    def patched(self: Path, *_args, **_kwargs):
         if self == path:
             raise PermissionError("denied")
         return original(self, *_args, **_kwargs)
