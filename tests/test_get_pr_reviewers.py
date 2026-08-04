@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import subprocess
 import sys
+import warnings
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
@@ -18,6 +21,7 @@ _SCRIPTS_DIR = (
     / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 _MODULE = "get_pr_reviewers"
+_SCRIPT = _SCRIPTS_DIR / f"{_MODULE}.py"
 
 
 def _import_script(name: str):
@@ -143,6 +147,24 @@ class TestBuildParser:
 
 
 class TestMain:
+    def test_foreign_github_workspace_uses_bundled_library(self):
+        env = os.environ.copy()
+        env.pop("COPILOT_PLUGIN_ROOT", None)
+        env.pop("CLAUDE_PLUGIN_ROOT", None)
+        env["GITHUB_WORKSPACE"] = str(Path(__file__).resolve().parent / "foreign-workspace")
+
+        result = subprocess.run(
+            [sys.executable, str(_SCRIPT), "--help"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=Path(__file__).resolve().parents[1],
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "Get unique reviewers" in result.stdout
+
     def test_not_authenticated_exits_4(self):
         with patch(
             f"{_MODULE}.assert_gh_authenticated",
@@ -166,6 +188,28 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "10"])
         assert exc.value.code == 3
+
+    @pytest.mark.parametrize("failing_endpoint", ["pulls", "issues"])
+    def test_partial_rest_pagination_exits_3(self, failing_endpoint, capsys):
+        def rest(endpoint: str, **_kwargs) -> list[dict]:
+            if f"/{failing_endpoint}/" in endpoint:
+                warnings.warn(
+                    "GitHub API page 2 failed. Returning partial results.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                return [_comment("partial", 1)]
+            return []
+
+        with _api(author=_actor("alice", 1)), patch(
+            f"{_MODULE}.gh_api_paginated",
+            side_effect=rest,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "10"])
+
+        assert exc.value.code == 3
+        assert '"success": true' not in capsys.readouterr().out.lower()
 
     def test_live_cli_shaped_actors_keep_database_ids(self, capsys):
         author = _actor("copilot-swe-agent", 198982749, "Bot")

@@ -19,14 +19,14 @@ import argparse
 import json
 import os
 import sys
-from typing import Any
+import warnings
+from typing import Any, cast
 
+# Two rungs, both portable. The plugin-root variables win when the host exports
+# them; otherwise walk up from this file to the bundled library.
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
@@ -248,6 +248,16 @@ def _actor_type(actor: dict[str, Any], field: str) -> str:
     return value if isinstance(value, str) else "User"
 
 
+def _fetch_complete_comments(endpoint: str) -> list[dict[str, Any]]:
+    """Reject the helper's documented partial-result warning."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        try:
+            return cast(list[dict[str, Any]], gh_api_paginated(endpoint))
+        except UserWarning as exc:
+            raise RuntimeError(f"Incomplete pagination for {endpoint}: {exc}") from exc
+
+
 def _add_comments(
     reviewer_map: dict[str, dict[str, Any]],
     comments: list[dict[str, Any]],
@@ -314,6 +324,12 @@ def main(argv: list[str] | None = None) -> int:
             owner, repo, pr
         )
         review_authors = _fetch_review_authors(owner, repo, pr)
+        review_comments = _fetch_complete_comments(
+            f"repos/{owner}/{repo}/pulls/{pr}/comments"
+        )
+        issue_comments = _fetch_complete_comments(
+            f"repos/{owner}/{repo}/issues/{pr}/comments"
+        )
     except RuntimeError as exc:
         error_and_exit(f"Failed to get PR #{pr}: {exc}", 3)
 
@@ -323,9 +339,7 @@ def main(argv: list[str] | None = None) -> int:
 
     reviewer_map: dict[str, dict[str, Any]] = {}
 
-    review_comments = gh_api_paginated(f"repos/{owner}/{repo}/pulls/{pr}/comments")
     _add_comments(reviewer_map, review_comments, "review_comments")
-    issue_comments = gh_api_paginated(f"repos/{owner}/{repo}/issues/{pr}/comments")
     _add_comments(reviewer_map, issue_comments, "issue_comments")
     _add_actors(reviewer_map, requested_reviewers)
     _add_actors(reviewer_map, review_authors)
