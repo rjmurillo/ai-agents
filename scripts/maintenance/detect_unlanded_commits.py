@@ -102,7 +102,7 @@ def _branch_pr_merged(branch: str) -> bool:
             timeout=15,
         )
         return bool(result.stdout.strip())
-    except Exception:  # noqa: BLE001
+    except Exception:
         return False
 
 
@@ -138,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         unlanded = scan(args.repo, args.base_ref, check_github=args.check_github)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
