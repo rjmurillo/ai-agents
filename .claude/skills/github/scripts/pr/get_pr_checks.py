@@ -23,6 +23,7 @@ import os
 import subprocess
 import sys
 import time
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -209,7 +210,7 @@ def fetch_ruleset_required_contexts(owner: str, repo: str, base_branch: str) -> 
 # ---------------------------------------------------------------------------
 
 
-def normalize_check(ctx: dict) -> dict | None:
+def normalize_check(ctx: dict[str, Any]) -> dict[str, Any] | None:
     """Convert a GraphQL context node to a normalized check info dict."""
     typename = ctx.get("__typename")
 
@@ -469,12 +470,12 @@ def fetch_checks(
 
 
 def build_output(
-    check_data: dict,
+    check_data: dict[str, Any],
     owner: str,
     repo: str,
     required_only: bool = False,
     ruleset_required: list[str] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Build the final output object from check data.
 
     Groups checks by name and ORs the required status across all rows
@@ -658,7 +659,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _resolve_status(
-    output: dict,
+    output: dict[str, Any],
     timeout_seconds: int,
     timed_out_pending: bool,
     checks_incomplete: bool,
@@ -698,7 +699,7 @@ def _resolve_status(
 
 
 def _check_data_error_exit(
-    check_data: dict,
+    check_data: dict[str, Any],
     fmt: str,
     pr: int,
 ) -> int | None:
@@ -811,7 +812,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _exit_code(
-    output: dict,
+    output: dict[str, Any],
     checks_incomplete: bool,
     timed_out_pending: bool,
 ) -> int:

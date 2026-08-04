@@ -28,6 +28,7 @@ import json
 import os
 import re
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -185,7 +186,7 @@ def classify_claim(
 
 
 def _resolve_closing_refs(
-    pr_closing_nodes: list[dict],
+    pr_closing_nodes: list[dict[str, Any]],
 ) -> dict[int, str]:
     """Build a map from issue number to state from GraphQL closingIssuesReferences."""
     result: dict[int, str] = {}
@@ -204,7 +205,7 @@ def extract_claims(
     closing_refs: dict[int, str],
     owner: str,
     repo: str,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Parse closing claims from one PR body."""
     if not body:
         return []
@@ -212,7 +213,7 @@ def extract_claims(
     text_no_fence, fenced_positions = _strip_fenced_code(body)
     text_no_html, html_positions = _strip_html_comments(text_no_fence)
 
-    claims: list[dict] = []
+    claims: list[dict[str, Any]] = []
     for m in _CLOSING_KEYWORDS_RE.finditer(text_no_html):
         target_num = int(m.group("number"))
         context_cls = classify_claim(body, m, fenced_positions, html_positions)
@@ -239,13 +240,13 @@ def extract_claims(
     return claims
 
 
-def fetch_open_prs(owner: str, repo: str) -> list[dict]:
+def fetch_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
     """Paginate all open PRs and return raw node list."""
-    nodes: list[dict] = []
+    nodes: list[dict[str, Any]] = []
     cursor: str | None = None
 
     for _ in range(200):  # safety cap: 200 pages * 50 = 10,000 PRs
-        variables: dict = {"owner": owner, "repo": repo}
+        variables: dict[str, Any] = {"owner": owner, "repo": repo}
         if cursor:
             variables["cursor"] = cursor
         try:
@@ -303,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    all_claims: list[dict] = []
+    all_claims: list[dict[str, Any]] = []
     audited_prs = 0
 
     for node in pr_nodes:
