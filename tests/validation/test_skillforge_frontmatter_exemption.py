@@ -32,7 +32,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.validation import git_hook_policy as ghp  # noqa: E402
+from scripts.validation import git_hook_policy as ghp
 
 _SKILL = ".claude/skills/example/SKILL.md"
 _BODY = "## Overview\n\nDo the thing.\n\n## Verification\n\n- [ ] works\n"
