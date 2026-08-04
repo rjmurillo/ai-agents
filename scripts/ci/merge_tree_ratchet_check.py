@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Merge-tree ratchet: evaluate all three count ratchets on the merged result.
+"""Merge-tree ratchet: evaluate all count ratchets on the merged result.
 
 Issue #4398. Closes the stale-branch hole: a PR branch can pass every ratchet
 individually, yet the merged result still breaches the ceiling, because the
@@ -32,7 +32,7 @@ from buying headroom. See _effective_baseline.
 Timing (measured on this repo, 7925 tracked files):
     merge-tree:      0.017 s
     git archive+tar: 0.63 s
-    three ratchets:  sub-second each
+    four ratchets:   sub-second each
     total:           ~1-2 s vs 13.5 min p50 CI critical path
 
 Conflict policy: when the merge conflicts, the PR cannot land anyway, so
@@ -65,6 +65,7 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.ci import memory_index_count_ratchet as _memory_index
 from scripts.ci import ruff_count_ratchet as _ruff
 from scripts.ci import taste_count_ratchet as _taste
 from scripts.ci import type_ignore_count_ratchet as _type_ignore
@@ -300,7 +301,9 @@ def _check_one(
     if count > baseline:
         return (
             EXIT_REGRESSION,
-            f"{label}: REGRESSION. {count} > baseline {baseline} (+{count - baseline}).",
+            f"{label}: REGRESSION. {count} > effective baseline {baseline} "
+            f"(+{count - baseline}); base ref records {base_baseline}, "
+            f"merged tree records {merged_baseline}.",
         )
     return EXIT_OK, f"{label}: OK. {count} <= {baseline}."
 
@@ -324,6 +327,7 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
         "ruff count ratchet": f"{_ci_rel}/ruff_count_baseline.txt",
         "taste count ratchet": f"{_ci_rel}/taste_count_baseline.txt",
         "type-ignore count ratchet": f"{_ci_rel}/type_ignore_count_baseline.txt",
+        "memory-index count ratchet": f"{_ci_rel}/memory_index_count_baseline.txt",
     }
 
     scratch_root = Path(tempfile.mkdtemp(prefix="merge-tree-ratchet-"))
@@ -344,6 +348,7 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
             "ruff count ratchet": _ruff.current_count(scratch_root),
             "taste count ratchet": _taste.current_count(scratch_root),
             "type-ignore count ratchet": _type_ignore.current_count(scratch_root),
+            "memory-index count ratchet": _memory_index.current_count(scratch_root),
         }
     finally:
         shutil.rmtree(scratch_root, ignore_errors=True)
@@ -372,7 +377,7 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
         return exit_code
 
     print(
-        f"merge-tree-ratchet: OK. Merged tree passes all three ratchets "
+        f"merge-tree-ratchet: OK. Merged tree passes all four ratchets "
         f"(base: {base_ref})."
     )
     return EXIT_OK
@@ -381,7 +386,7 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Evaluate all three count ratchets on the result of merging HEAD into "
+            "Evaluate all four count ratchets on the result of merging HEAD into "
             "base-ref. Closes the stale-branch hole (issue #4398)."
         )
     )

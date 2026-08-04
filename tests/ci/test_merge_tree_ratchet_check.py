@@ -55,7 +55,9 @@ def _commit_all(repo: Path, message: str) -> None:
     subprocess.run(["git", "-C", str(repo), "commit", "-qm", message], check=True)
 
 
-def _make_repo_with_baselines(tmp_path: Path, ruff: int, taste: int, ignore: int) -> Path:
+def _make_repo_with_baselines(
+    tmp_path: Path, ruff: int, taste: int, ignore: int, memory: int = 10
+) -> Path:
     """A repo with committed baseline files and one tracked Python file."""
     repo = tmp_path / "repo"
     _init_repo(repo)
@@ -64,6 +66,9 @@ def _make_repo_with_baselines(tmp_path: Path, ruff: int, taste: int, ignore: int
     (ci / "ruff_count_baseline.txt").write_text(f"{ruff}\n", encoding="utf-8")
     (ci / "taste_count_baseline.txt").write_text(f"{taste}\n", encoding="utf-8")
     (ci / "type_ignore_count_baseline.txt").write_text(f"{ignore}\n", encoding="utf-8")
+    (ci / "memory_index_count_baseline.txt").write_text(
+        f"{memory}\n", encoding="utf-8"
+    )
     (repo / "hello.py").write_text("x = 1\n", encoding="utf-8")
     _commit_all(repo, "main baseline")
     return repo
@@ -77,6 +82,12 @@ def _run(repo: Path, base_ref: str = "HEAD") -> int:
         patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
     ):
         return _m.main(["--repo-root", str(repo), "--base-ref", base_ref])
+
+
+@pytest.fixture(autouse=True)
+def _zero_memory_index_count():
+    with patch("scripts.ci.memory_index_count_ratchet.current_count", return_value=0):
+        yield
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
@@ -114,6 +125,22 @@ class TestMergeTreeRatchetCheck:
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
         assert rc == _m.EXIT_REGRESSION
 
+    def test_memory_index_regression_blocks(self, tmp_path: Path) -> None:
+        """The merge-tree gate covers the memory-index count ratchet too."""
+        repo = _make_repo_with_baselines(
+            tmp_path, ruff=10, taste=10, ignore=10, memory=5
+        )
+        with (
+            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch(
+                "scripts.ci.memory_index_count_ratchet.current_count", return_value=6
+            ),
+        ):
+            rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
+        assert rc == _m.EXIT_REGRESSION
+
     def test_conflict_skips_with_ok(self, tmp_path: Path) -> None:
         """Merge conflict -> EXIT_OK; counters are NOT invoked."""
         repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
@@ -130,7 +157,7 @@ class TestMergeTreeRatchetCheck:
         # Check out feature so HEAD is the feature branch
         _git(repo, "checkout", "feature")
 
-        call_counts = {"ruff": 0, "taste": 0, "ignore": 0}
+        call_counts = {"ruff": 0, "taste": 0, "ignore": 0, "memory": 0}
 
         def _ruff(_root):
             call_counts["ruff"] += 1
@@ -144,16 +171,24 @@ class TestMergeTreeRatchetCheck:
             call_counts["ignore"] += 1
             return 0
 
+        def _memory(_root):
+            call_counts["memory"] += 1
+            return 0
+
         with (
             patch("scripts.ci.ruff_count_ratchet.current_count", side_effect=_ruff),
             patch("scripts.ci.taste_count_ratchet.current_count", side_effect=_taste),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", side_effect=_ignore),
+            patch(
+                "scripts.ci.memory_index_count_ratchet.current_count",
+                side_effect=_memory,
+            ),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
 
         assert rc == _m.EXIT_OK
         # None of the counters should run - conflict was detected and skipped
-        assert call_counts == {"ruff": 0, "taste": 0, "ignore": 0}, (
+        assert call_counts == {"ruff": 0, "taste": 0, "ignore": 0, "memory": 0}, (
             f"Counters ran despite conflict: {call_counts}"
         )
 

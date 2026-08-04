@@ -28,7 +28,7 @@ class TestEffectiveBaseline:
 
 
 class TestCheckOne:
-    """Configuration failures identify the unreadable baseline source."""
+    """Verdicts retain both baseline sources in their diagnostics."""
 
     def test_unreadable_base_reports_merged_value(self) -> None:
         code, message = _m._check_one("ruff", 0, None, 126)
@@ -49,6 +49,14 @@ class TestCheckOne:
         assert code == _m.EXIT_CONFIG
         assert message.endswith(
             "baseline unreadable at the base ref and in the merged tree"
+        )
+
+    def test_regression_reports_both_values_and_effective_ceiling(self) -> None:
+        code, message = _m._check_one("ruff", 140, 308, 126)
+        assert code == _m.EXIT_REGRESSION
+        assert message.endswith(
+            "140 > effective baseline 126 (+14); base ref records 308, "
+            "merged tree records 126."
         )
 
 
