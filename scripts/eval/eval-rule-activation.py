@@ -354,6 +354,11 @@ def _build_routed_reference_prompt(
     )
 
 
+# ---------------------------------------------------------------------------
+# LLM judge
+# ---------------------------------------------------------------------------
+
+
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     """Build the object, refusing a repeated key instead of taking the last.
 
@@ -479,17 +484,21 @@ Respond in JSON only, no other text:
         parsed = _strict_json_loads(text)
     except ValueError:
         return _failed_judge(
-            "judge response could not be parsed as JSON",
+            "judge parse error: response did not parse as JSON",
+            raw_judge_response=raw,
+        )
+    # A second copy of a score field makes the payload carry two candidate
+    # verdicts, and picking one of two is a guess. Valid JSON nests, so a
+    # second verdict can sit inside the first as a member, a list element, or a
+    # quoted string, and the parse still succeeds.
+    if _parsed_names_two_verdicts(parsed):
+        return _failed_judge(
+            "ambiguous judge output names two verdicts",
             raw_judge_response=raw,
         )
     if not isinstance(parsed, dict):
         return _failed_judge(
             "judge returned non-object JSON",
-            raw_judge_response=raw,
-        )
-    if _parsed_names_two_verdicts(parsed):
-        return _failed_judge(
-            "ambiguous judge output names two verdicts",
             raw_judge_response=raw,
         )
     score_error = _judge_score_shape_error(parsed)
@@ -570,27 +579,13 @@ def _sample_scalar(sample: dict[str, Any]) -> float:
 
 _SCORE_FIELDS = ("activation_score", "citation_score", "behavior_score")
 
-# The judge rubric is 1-5. Kept as one authoritative range because two code
-# paths police it: the shape gate and the clamp. They disagreed once already,
-# and that disagreement is what let an out-of-range score through.
+# The judge rubric is 1-5. Kept as one authoritative range because the shape
+# gate and the clamp both police it.
 _SCORE_RANGE = range(1, 6)
+
 # The same field names, used only to detect that a decoded layer names a score
 # field at all. Neither the quoting nor the separator is required, and the value
 # is deliberately not captured.
-#
-# Three rounds of trying to compare a restated value to the filed one were each
-# broken by the next round, so round 21 refused on the name instead. Round 22
-# then showed that refusing on a *quoted* name still missed the unquoted JSON5
-# and Python spellings (``{activation_score:1}``, ``dict(activation_score=1)``),
-# and that requiring a colon still missed ``=``. Quoting styles and separators
-# are both unbounded enumerations, which is the trap the previous three rounds
-# fell into, so this matches the bare name and stops there.
-#
-# The cost is measured, not assumed: across the 264 reasoning strings nested in
-# the 288 archived judge payloads, zero name a score field, so this refuses no
-# sample any real judge in the archive has produced. A trailing capture group
-# here also consumed the rest of the layer once, so ``finditer`` returned one
-# match per layer and every field after the first went unexamined.
 _NAMED_SCORE_FIELD_RE = re.compile(
     r"\b(?:" + "|".join(re.escape(f) for f in _SCORE_FIELDS) + r")\b"
 )
@@ -864,7 +859,7 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
     return False
 
 
-def _failed_judge(reason: str, raw_judge_response: str = "") -> dict[str, Any]:
+def _failed_judge(reason: str, *, raw_judge_response: str = "") -> dict[str, Any]:
     result: dict[str, Any] = {
         "activation_score": 0,
         "citation_score": 0,
@@ -1249,6 +1244,11 @@ def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
         "avg_score_exact": (sum(scores) / len(scores)) if scores else None,
         "scenario_count": len(pool),
         "graded_count": len(scores),
+        # judge_failures counts cells where at least one sample failed.
+        # judge_failure_samples counts the individual failed judge samples.
+        # The two differ whenever a cell has multiple samples (e.g. 3-sample
+        # runs): one cell with 2 failed samples contributes 1 to judge_failures
+        # and 2 to judge_failure_samples. Issue #3958.
         "judge_failures": failure_cells,
         "judge_failure_cells": failure_cells,
         "judge_failure_samples": failure_samples,
