@@ -24,10 +24,36 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+
+# Select the platform-specific file-locking primitive at import time so a
+# bare `import fcntl` never executes on Windows (where the module does not
+# exist).  Both branches are real code paths; the Windows branch is exercised
+# through the injected _lock_file / _unlock_file seam in tests.
+if sys.platform == "win32":
+    import msvcrt
+
+    def _lock_file(fd: int) -> None:
+        """Acquire an exclusive lock on an open file descriptor (Windows)."""
+        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+
+    def _unlock_file(fd: int) -> None:
+        """Release the lock on an open file descriptor (Windows)."""
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+
+else:
+    import fcntl
+
+    def _lock_file(fd: int) -> None:
+        """Acquire an exclusive lock on an open file descriptor (POSIX)."""
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def _unlock_file(fd: int) -> None:
+        """Release the lock on an open file descriptor (POSIX)."""
+        fcntl.flock(fd, fcntl.LOCK_UN)
 
 from scripts.validation.portability_floor import (
     COUNTED_SECTIONS,
@@ -364,17 +390,28 @@ def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> boo
 
 
 @contextmanager
-def _baseline_write_lock(lock_path: Path) -> Iterator[None]:
-    """Serialize baseline writes with an fcntl advisory lock.
+def _baseline_write_lock(
+    lock_path: Path,
+    *,
+    _lock: Callable[[int], None] | None = None,
+    _unlock: Callable[[int], None] | None = None,
+) -> Iterator[None]:
+    """Serialize baseline writes with a file lock.
 
-    The lock file is created (not truncated) with O_CREAT|O_RDWR so it
-    survives a crash intact and flock() still acquires on the next run.
-    A stale directory left by a SIGKILL is removed on entry so a single
-    prior crash does not permanently wedge the lock path.
+    Uses `fcntl.flock` on POSIX and `msvcrt.locking` on Windows, selected at
+    import time so the wrong module is never imported.  The lock file survives
+    a crash and is re-acquired on the next run; a stale directory left by a
+    SIGKILL (from the previous mkdir-based lock) is removed on entry.
+
+    The ``_lock`` / ``_unlock`` parameters are injection seams for tests.
+    Pass callables with signature ``(fd: int) -> None`` to exercise a
+    specific platform path on any host.  Normal callers must not pass them.
     """
+    lock_fn = _lock if _lock is not None else _lock_file
+    unlock_fn = _unlock if _unlock is not None else _unlock_file
+
+    # Remove a stale directory from the old mkdir-based lock (Issue #4237).
     if lock_path.is_dir():
-        # Stale directory left by a process that was killed before rmdir ran.
-        # Remove it so the fcntl path can create the lock file.
         try:
             lock_path.rmdir()
         except OSError:
@@ -384,40 +421,20 @@ def _baseline_write_lock(lock_path: Path) -> Iterator[None]:
     fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
     try:
         deadline = time.monotonic() + 10.0
-        if sys.platform == "win32":
-            import msvcrt
-
-            while True:
-                try:
-                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-                    break
-                except OSError:
-                    if time.monotonic() >= deadline:
-                        raise TimeoutError(
-                            f"timed out waiting for baseline lock {lock_path}"
-                        ) from None
-                    time.sleep(0.05)
+        while True:
             try:
-                yield
-            finally:
-                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-        else:
-            import fcntl
-
-            while True:
-                try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except BlockingIOError:
-                    if time.monotonic() >= deadline:
-                        raise TimeoutError(
-                            f"timed out waiting for baseline lock {lock_path}"
-                        ) from None
-                    time.sleep(0.05)
-            try:
-                yield
-            finally:
-                fcntl.flock(fd, fcntl.LOCK_UN)
+                lock_fn(fd)
+                break
+            except (OSError, PermissionError):
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"timed out waiting for baseline lock {lock_path}"
+                    ) from None
+                time.sleep(0.05)
+        try:
+            yield
+        finally:
+            unlock_fn(fd)
     finally:
         os.close(fd)
 

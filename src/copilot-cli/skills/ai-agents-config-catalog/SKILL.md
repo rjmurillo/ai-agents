@@ -54,7 +54,7 @@ Lesson encoded: a global bypass with no teeth (no telemetry, no approval step) w
 |---|---|---|---|---|---|
 | `GIT_CONFIG_COUNT` + `GIT_CONFIG_KEY_0`/`GIT_CONFIG_VALUE_0` | env vars (set by conftest) | Test session injects `commit.gpgsign=false` with command-line precedence so test repos never invoke the user's signing setup | Production test infra | Only sets index 0 when `GIT_CONFIG_COUNT` is unset, so an outer process's config is not clobbered | `tests/conftest.py:35-38` |
 | PEP 668 / uv | environment reality | Bare `pip` fails (externally managed env). Everything goes through `uv sync --frozen --extra dev`; skill scripts need `uv run python`, not `python3` (PyYAML lives in the venv) | Production | `ModuleNotFoundError: No module named 'yaml'` means you used the wrong interpreter | `pyproject.toml`, `.python-version` (3.14.6) |
-| pytest markers `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `windows_path` | pytest -m selectors | Filter test classes; `smoke` = real-CLI tests needing auth/credits, nightly only, and the smoke gate asserts they were NOT skipped (issue #2231 item 4); `safe_push_transport` = touches a non-local transport, excluded from pre-push | Production | Marking a test `smoke` to dodge CI is detected by the not-skipped assertion | `pyproject.toml:67-74` |
+| pytest markers `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `windows_path` | pytest -m selectors | Filter test classes; `smoke` = real-CLI tests needing auth/credits, nightly only, and the smoke gate asserts they were NOT skipped (issue #2231 item 4); `safe_push_transport` = touches a non-local transport, excluded from pre-push | Production | Marking a test `smoke` to dodge CI is detected by the not-skipped assertion | `pyproject.toml:72-79` |
 
 ## .env Keys (from .env.example)
 
@@ -159,7 +159,7 @@ repository-controlled code, so command-name matching is not a safe approval boun
 - [ ] The flag you plan to use still exists: run its Provenance one-liner and get a non-empty hit in the defining file (not only in docs).
 - [ ] You used the narrowest applicable escape (per-check env var, line directive over file directive).
 - [ ] The bypass is visible in output (WARN/SKIP line, bypass job summary, or validator notice), not silent.
-- [ ] If you added a flag: tests cover honored/absent/bad-value, this catalog has the new row, and the plugin version is bumped if the flag lives in a packaged tree.
+- [ ] If you added a flag: tests cover honored/absent/bad-value, and this catalog has the new row. No manifest bump even when the flag lives in a packaged tree: the manifests carry no version (ADR-092).
 
 ## Provenance and Maintenance
 
@@ -173,7 +173,7 @@ Audited 2026-07-03 against the working tree. Sources: files and line numbers cit
 | orphan-ref directives + 50-line window | `grep -n "IGNORE_DIRECTIVE_RE" .claude/skills/orphan-ref-validator/scripts/patterns.py && grep -n "splitlines()\[:50\]" .claude/skills/orphan-ref-validator/scripts/scan.py` |
 | investigation allowlist | `grep -n "agents/" scripts/modules/investigation_allowlist.py` |
 | docs-only verdict | `grep -n "SKIPPED: docs-only" .agents/SESSION-PROTOCOL.md` |
-| plugin bump validator | `uv run python build/scripts/validate_plugin_version_bump.py --help` |
+| plugin version-field validator | `uv run python build/scripts/validate_plugin_version_bump.py --help` |
 | no version in any manifest or marketplace entry | `uv run python build/scripts/validate_plugin_version_bump.py` |
 | GIT_CONFIG_COUNT injection | `grep -n "GIT_CONFIG_COUNT" tests/conftest.py` |
 | pytest markers | `grep -n -A 5 "^markers" pyproject.toml` |
