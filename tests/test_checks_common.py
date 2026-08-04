@@ -810,7 +810,7 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
     ):
         """Return a mock _run_subprocess that replays canned responses."""
 
-        def _run(cmd, **kwargs):  # noqa: ARG001
+        def _run(cmd, **kwargs):
             key = tuple(cmd)
             for pattern, result in responses.items():
                 if all(p in key for p in pattern):
@@ -842,7 +842,7 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
         """When gh pr view fails, retries with the upstream head branch."""
         calls: list[list[str]] = []
 
-        def _run(cmd, **kwargs):  # noqa: ARG001
+        def _run(cmd, **kwargs):
             calls.append(list(cmd))
             if cmd[:3] == ["gh", "pr", "view"] and len(cmd) == 7:
                 return (1, "", "no PR for current branch")
@@ -867,7 +867,7 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
     def test_returns_none_when_both_gh_calls_fail(self, tmp_path: Path) -> None:
         """Returns None when neither gh attempt finds a PR."""
 
-        def _run(cmd, **kwargs):  # noqa: ARG001
+        def _run(cmd, **kwargs):
             if "rev-parse" in cmd and "@{u}" in cmd:
                 return (0, "origin/fix/some-feature\n", "")
             return (1, "", "no PR found")
@@ -883,7 +883,7 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
     def test_returns_none_when_no_upstream_configured(self, tmp_path: Path) -> None:
         """Returns None when there is no upstream and both gh calls fail."""
 
-        def _run(cmd, **kwargs):  # noqa: ARG001
+        def _run(cmd, **kwargs):
             if "rev-parse" in cmd:
                 return (1, "", "no upstream")
             return (1, "", "no PR found")
@@ -907,7 +907,7 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
         """Ensures the tracked ref becomes a positional head selector."""
         head_arg_seen: list[str] = []
 
-        def _run(cmd, **kwargs):  # noqa: ARG001
+        def _run(cmd, **kwargs):
             if cmd[:3] == ["gh", "pr", "view"] and len(cmd) == 7:
                 return (1, "", "fail")
             if "rev-parse" in cmd:
