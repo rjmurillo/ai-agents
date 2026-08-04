@@ -141,12 +141,7 @@ def parse_skill_reference(skill_path: Path, reference_path: Path) -> dict[str, s
     skill_name_match = re.search(r"^name:\s*(.+?)$", skill["frontmatter"], re.MULTILINE)
     skill_name = skill_name_match.group(1).strip() if skill_name_match else skill_path.parent.name
     reference_rel = str(reference_path.relative_to(skill_path.parent))
-    body = (
-        "Skill router:\n\n"
-        f"{skill['body']}\n\n"
-        "Selected reference:\n\n"
-        f"{reference['body']}"
-    )
+    body = f"Skill router:\n\n{skill['body']}\n\nSelected reference:\n\n{reference['body']}"
     return {
         "description": skill["description"],
         "body": body,
@@ -359,11 +354,6 @@ def _build_routed_reference_prompt(
     )
 
 
-# ---------------------------------------------------------------------------
-# LLM judge
-# ---------------------------------------------------------------------------
-
-
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     """Build the object, refusing a repeated key instead of taking the last.
 
@@ -489,32 +479,29 @@ Respond in JSON only, no other text:
         parsed = _strict_json_loads(text)
     except ValueError:
         return _failed_judge(
-            "judge parse error: response did not parse as JSON",
-            raw_judge_response=text,
-        )
-    # A second copy of a score field makes the payload carry two candidate
-    # verdicts, and picking one of two is a guess. Valid JSON nests, so a
-    # second verdict can sit inside the first as a member, a list element, or a
-    # quoted string, and the parse still succeeds.
-    if _parsed_names_two_verdicts(parsed):
-        return _failed_judge(
-            "ambiguous judge output names two verdicts",
-            raw_judge_response=text,
+            "judge response could not be parsed as JSON",
+            raw_judge_response=raw,
         )
     if not isinstance(parsed, dict):
         return _failed_judge(
             "judge returned non-object JSON",
-            raw_judge_response=text,
+            raw_judge_response=raw,
+        )
+    if _parsed_names_two_verdicts(parsed):
+        return _failed_judge(
+            "ambiguous judge output names two verdicts",
+            raw_judge_response=raw,
         )
     score_error = _judge_score_shape_error(parsed)
     if score_error is not None:
-        return _failed_judge(score_error, raw_judge_response=text)
+        return _failed_judge(score_error, raw_judge_response=raw)
     result = {
         "activation_score": _clamp_score(parsed["activation_score"]),
         "citation_score": _clamp_score(parsed["citation_score"]),
         "behavior_score": _clamp_score(parsed["behavior_score"]),
         "reasoning": str(parsed.get("reasoning", ""))[:300],
         "judge_failed": False,
+        "raw_judge_response": raw,
     }
     fingerprint = metadata.get("system_fingerprint")
     if isinstance(fingerprint, str):
@@ -566,9 +553,7 @@ def _reduce_score_samples(
     # average 3.67, and per-field medians publish 5/5/5. Reduce each sample to
     # its own scalar first so the cell is a real observation, or the midpoint
     # of two. The per-field values stay as the per-axis diagnostic.
-    reduced["cell_score"] = reducer(
-        [_sample_scalar(sample) for sample in graded]
-    )
+    reduced["cell_score"] = reducer([_sample_scalar(sample) for sample in graded])
     reduced["judge_failed"] = failed_count > 0
     reduced["graded"] = True
     reduced["score_reducer"] = reducer_name
@@ -582,15 +567,30 @@ def _sample_scalar(sample: dict[str, Any]) -> float:
     """Collapse one judge sample's three fields to the score it stands for."""
     return sum(float(sample[key]) for key in _SCORE_KEYS) / len(_SCORE_KEYS)
 
+
 _SCORE_FIELDS = ("activation_score", "citation_score", "behavior_score")
 
-# The judge rubric is 1-5. Kept as one authoritative range because the shape
-# gate and the clamp both police it.
+# The judge rubric is 1-5. Kept as one authoritative range because two code
+# paths police it: the shape gate and the clamp. They disagreed once already,
+# and that disagreement is what let an out-of-range score through.
 _SCORE_RANGE = range(1, 6)
-
 # The same field names, used only to detect that a decoded layer names a score
 # field at all. Neither the quoting nor the separator is required, and the value
 # is deliberately not captured.
+#
+# Three rounds of trying to compare a restated value to the filed one were each
+# broken by the next round, so round 21 refused on the name instead. Round 22
+# then showed that refusing on a *quoted* name still missed the unquoted JSON5
+# and Python spellings (``{activation_score:1}``, ``dict(activation_score=1)``),
+# and that requiring a colon still missed ``=``. Quoting styles and separators
+# are both unbounded enumerations, which is the trap the previous three rounds
+# fell into, so this matches the bare name and stops there.
+#
+# The cost is measured, not assumed: across the 264 reasoning strings nested in
+# the 288 archived judge payloads, zero name a score field, so this refuses no
+# sample any real judge in the archive has produced. A trailing capture group
+# here also consumed the rest of the layer once, so ``finditer`` returned one
+# match per layer and every field after the first went unexamined.
 _NAMED_SCORE_FIELD_RE = re.compile(
     r"\b(?:" + "|".join(re.escape(f) for f in _SCORE_FIELDS) + r")\b"
 )
@@ -714,31 +714,15 @@ def _string_values(value: object) -> Iterator[str]:
 
 
 def _parsed_names_two_verdicts(parsed: object) -> bool:
-    """Return whether a payload that parsed whole carries two candidate verdicts.
+    """Return whether a successfully-parsed payload carries two candidate verdicts.
 
-    The textual guard below answers the same question for payloads that do not
-    parse, where the verdict has to be searched for. Once a payload parses, the
-    search is over and the question can be answered exactly instead of by
-    spelling, which matters in both directions.
+    A whole-payload strict parse can still fail to name exactly one verdict.
+    Valid JSON nests, so a second verdict can sit inside the first as a member,
+    a list element, or a quoted string, and the parse still succeeds. A guess
+    between two candidates is fabrication, so both are refused.
 
-    It stops a false accept: ``_names_a_score_field_twice`` counts key shapes in
-    raw text, so a second verdict nested as a member, a list element, or a value
-    three levels down is caught only if it happens to be spelled the way the
-    patterns expect. Counting score-bearing objects in the parsed structure
-    catches all three by construction.
-
-    It also stops a false refuse, which is why this is not simply the textual
-    guard run twice. That guard refuses any payload containing ``\\u``, because
-    a name spelled with a unicode escape would slip a raw count. On a malformed
-    payload that costs nothing. On a healthy one it is a live hazard: JSON
-    encoders default to ASCII output, so a judge whose reasoning contains an
-    em-dash, a curly quote, or an accented name emits ``\\uXXXX`` and would be
-    refused for prose. Here the parse has already decoded those escapes, so the
-    blanket is not needed and the string check sees what the judge meant.
-
-    A verdict serialized inside a string value is still a second candidate and
-    is still refused, on the same reasoning that governs the recovery paths: the
-    judge named two answers and choosing one of them is a guess.
+    A verdict serialized inside a string value is still a second candidate:
+    the judge named two answers and choosing one of them is a guess.
 
     Known limit, measured rather than assumed: this cannot detect a second
     verdict whose field name is not spelled as the literal codepoint sequence.
@@ -747,20 +731,15 @@ def _parsed_names_two_verdicts(parsed: object) -> bool:
     (``activation_scоre`` with a Cyrillic о), or interleaved (a zero-width
     space inside it). Each survives any pattern written over the real name, and
     no textual check closes the class, because the encoding space is open.
-    Zero of the
-    264 recovered judge payloads contain any of those shapes, and the one
-    payload with adjacent quoted tokens is ordinary prose. The exposure is
-    bounded by the top
-    level being the schema-defined answer slot, so an undetected second verdict
-    in prose loses to the verdict the judge actually filed.
+    Zero of the 264 archived judge payloads contain any of those shapes.
+    The exposure is bounded by the top level being the schema-defined answer
+    slot, so an undetected second verdict in prose loses to the verdict the
+    judge actually filed.
     """
     if _count_score_bearing_objects(parsed) > 1:
         return True
     filed = parsed if isinstance(parsed, dict) else {}
-    return any(
-        _string_contradicts_filed_scores(text, filed)
-        for text in _string_values(parsed)
-    )
+    return any(_string_contradicts_filed_scores(text, filed) for text in _string_values(parsed))
 
 
 def _peel_one_escape_layer(text: str) -> tuple[str, bool]:
@@ -885,7 +864,7 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
     return False
 
 
-def _failed_judge(reason: str, *, raw_judge_response: str = "") -> dict[str, Any]:
+def _failed_judge(reason: str, raw_judge_response: str = "") -> dict[str, Any]:
     result: dict[str, Any] = {
         "activation_score": 0,
         "citation_score": 0,
@@ -906,14 +885,10 @@ def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
     for field in required_fields:
         value = parsed[field]
         if not isinstance(value, int) or isinstance(value, bool):
-            return (
-                f"judge returned non-integral {field}: "
-                f"{type(value).__name__}"
-            )
+            return f"judge returned non-integral {field}: {type(value).__name__}"
         if value not in _SCORE_RANGE:
             return f"judge returned out-of-range {field}: {value!r}"
     return None
-
 
 
 # ---------------------------------------------------------------------------
@@ -1089,9 +1064,7 @@ def eval_one_scenario(
         for sample_index in range(judge_repeats):
             judge_seed = None if seed is None else seed + sample_index + 1
             try:
-                sample = score_response(
-                    api_key, scenario, response, model=model, seed=judge_seed
-                )
+                sample = score_response(api_key, scenario, response, model=model, seed=judge_seed)
             except RuntimeError as e:
                 sample = {
                     "judge_failed": True,
@@ -1143,9 +1116,7 @@ def _is_valid_score(value: object) -> bool:
     return MIN_RUBRIC_SCORE <= value <= MAX_RUBRIC_SCORE
 
 
-def _scenario_score_triple(
-    scenario: dict[str, Any], mech: str
-) -> tuple[float | None, bool, bool]:
+def _scenario_score_triple(scenario: dict[str, Any], mech: str) -> tuple[float | None, bool, bool]:
     """Return (cell_score, judge_failed, legacy_reduced) for one cell.
 
     Returns `None` for the score when the cell carries no usable measurement:
@@ -1242,12 +1213,10 @@ def _incomplete_mechanisms(
     return sorted(m for m in mechs if _graded_count(per_mech[m]) < pool_size)
 
 
-def _mechanism_summary(
-    pool: list[dict[str, Any]], mech: str
-) -> dict[str, Any]:
+def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
     """Compute avg_score over the graded scenarios for one mechanism."""
     scores: list[float] = []
-    failures = 0
+    failure_cells = 0
     failure_samples = 0
     legacy = 0
     route_missed = 0
@@ -1258,11 +1227,11 @@ def _mechanism_summary(
         if score is not None:
             scores.append(score)
         if failed:
-            failures += 1
-            sc = s["mechanisms"].get(mech, {}).get("scores", {})
-            failure_samples += sc.get("failed_sample_count", 1)
+            failure_cells += 1
         if legacy_reduced:
             legacy += 1
+        sc = s.get("mechanisms", {}).get(mech, {}).get("scores", {})
+        failure_samples += sc.get("failed_sample_count", 0)
     # None rather than 0.0 when nothing graded. A 0.0 reads as a real score
     # in every consumer: it becomes a published average, a delta against
     # baseline, and a candidate for best_mechanism, none of which any
@@ -1280,12 +1249,8 @@ def _mechanism_summary(
         "avg_score_exact": (sum(scores) / len(scores)) if scores else None,
         "scenario_count": len(pool),
         "graded_count": len(scores),
-        # judge_failures counts cells where at least one sample failed.
-        # judge_failure_samples counts the individual failed judge samples.
-        # The two differ whenever a cell has multiple samples (e.g. 3-sample
-        # runs): one cell with 2 failed samples contributes 1 to judge_failures
-        # and 2 to judge_failure_samples. Issue #3958.
-        "judge_failures": failures,
+        "judge_failures": failure_cells,
+        "judge_failure_cells": failure_cells,
         "judge_failure_samples": failure_samples,
         "legacy_reduced_count": legacy,
         "route_mismatch_count": route_missed,
@@ -1356,9 +1321,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
 
     for mech in MECHANISMS:
         summary["per_mechanism"][mech] = _mechanism_summary(pos_scenarios, mech)
-        summary["negative_case_per_mechanism"][mech] = _mechanism_summary(
-            neg_scenarios, mech
-        )
+        summary["negative_case_per_mechanism"][mech] = _mechanism_summary(neg_scenarios, mech)
 
     baseline_avg = _gate_avg(summary["per_mechanism"]["baseline"])
     desc_avg = _gate_avg(summary["per_mechanism"]["description"])
@@ -1394,10 +1357,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
 
     total_judge_failures = sum(
         summary["per_mechanism"][m]["judge_failures"] for m in MECHANISMS
-    ) + sum(
-        summary["negative_case_per_mechanism"][m]["judge_failures"]
-        for m in MECHANISMS
-    )
+    ) + sum(summary["negative_case_per_mechanism"][m]["judge_failures"] for m in MECHANISMS)
     # `total_judge_failures` stays the whole-run count, because it is the
     # published record of how the judge behaved. The verdict reads a narrower
     # count: for a routed target `full` is a treatment no deployment performs,
@@ -1414,10 +1374,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     neg_gate_mechs = ["description"] if routed else [m for m in MECHANISMS if m != "baseline"]
     gating_judge_failures = sum(
         summary["per_mechanism"][m]["judge_failures"] for m in measured_mechs
-    ) + sum(
-        summary["negative_case_per_mechanism"][m]["judge_failures"]
-        for m in neg_gate_mechs
-    )
+    ) + sum(summary["negative_case_per_mechanism"][m]["judge_failures"] for m in neg_gate_mechs)
 
     summary["best_mechanism"] = best_mech
     summary["best_avg_score"] = best_avg
@@ -1438,6 +1395,10 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     )
 
     summary["total_judge_failures"] = total_judge_failures
+    total_judge_failure_samples = sum(
+        summary["per_mechanism"][m]["judge_failure_samples"] for m in MECHANISMS
+    ) + sum(summary["negative_case_per_mechanism"][m]["judge_failure_samples"] for m in MECHANISMS)
+    summary["total_judge_failure_samples"] = total_judge_failure_samples
     # Name the cells whose failures no gate reads. Deriving this in the
     # renderer instead would let the disclosure drift from the exclusion, which
     # is how the negative-baseline exclusion shipped silent in the first place.
@@ -1452,19 +1413,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
                 excluded_cells.append(f"{pool_label} {mech}")
     summary["excluded_judge_failure_cells"] = excluded_cells
     summary["gating_judge_failures"] = gating_judge_failures
-    summary["unreachable_mechanisms"] = [
-        m for m in MECHANISMS if m not in measured_mechs
-    ]
-    # "Best" is a superlative over a population even though it prints one
-    # name. Any candidate the ranking dropped has to be named, or a table row
-    # scoring above the winner reads as a broken ordering. Partial coverage
-    # and no coverage are different things to go fix, so they are published
-    # separately. `rule_enhanced` is already narrowed to what the target can
-    # reach, which is what keeps this list and the ranking on one population.
-    (
-        summary["best_mechanism_excluded"],
-        summary["best_mechanism_unmeasured"],
-    ) = _dropped_candidates(summary["per_mechanism"], rule_enhanced)
+    summary["unreachable_mechanisms"] = [m for m in MECHANISMS if m not in measured_mechs]
 
     # Negative scenarios were measured but never gated: a rule that fired on
     # every case it was written to stay out of still returned PASS. Their
@@ -1501,9 +1450,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # `round` is monotone, so the minimum of the rounded values and the rounded
     # minimum are the same number. The published field is unchanged; only the
     # value the floor is compared against gained its measured precision.
-    summary["worst_negative_avg"] = (
-        None if worst_neg_avg is None else round(worst_neg_avg, 2)
-    )
+    summary["worst_negative_avg"] = None if worst_neg_avg is None else round(worst_neg_avg, 2)
     # Name the population the number was read off. An average over a subset of
     # the negative scenarios, reported as if it covered them all, is the defect
     # this whole change exists to remove.
@@ -1562,8 +1509,7 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # would put the caveat on a different population than the scores it
     # explains.
     summary["positive_route_mismatches"] = sum(
-        summary["per_mechanism"][m].get("route_mismatch_count", 0)
-        for m in measured_mechs
+        summary["per_mechanism"][m].get("route_mismatch_count", 0) for m in measured_mechs
     )
 
     common = {
@@ -1628,9 +1574,8 @@ def _graded_avg(cell: dict[str, Any]) -> float:
 
 def _fully_graded(cell: dict[str, Any]) -> bool:
     """Whether a cell's average covers every scenario in its pool."""
-    return (
-        cell.get("avg_score") is not None
-        and _graded_count(cell) == cell.get("scenario_count")
+    return cell.get("avg_score") is not None and cell.get("graded_count") == cell.get(
+        "scenario_count"
     )
 
 
@@ -1782,9 +1727,7 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
             lines.append(f"{label} pool incomplete at: " + ", ".join(incomplete))
     unreachable = summary.get("unreachable_mechanisms") or []
     if unreachable:
-        lines.append(
-            "Excluded as unreachable for a routed target: " + ", ".join(unreachable)
-        )
+        lines.append("Excluded as unreachable for a routed target: " + ", ".join(unreachable))
     total_jf = summary.get("total_judge_failures", 0)
     gating_jf = summary.get("gating_judge_failures", 0)
     if total_jf != gating_jf:
@@ -1846,30 +1789,25 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
             population = ", ".join(floor_mechs) if floor_mechs else "rule mechanisms"
         source = summary.get("worst_negative_mechanism") or "?"
         graded = summary.get("worst_negative_graded", 0)
-        neg_total = summary["negative_case_per_mechanism"][source]["scenario_count"] if (
-            source in summary.get("negative_case_per_mechanism", {})
-        ) else 0
+        neg_total = (
+            summary["negative_case_per_mechanism"][source]["scenario_count"]
+            if (source in summary.get("negative_case_per_mechanism", {}))
+            else 0
+        )
         restraint = (
             f"worst of [{population}] {worst_neg} (floor {MIN_RESTRAINT_SCORE}), "
             f"from {source} over {graded}/{neg_total} negative scenario(s)"
         )
     dropped = []
     if summary.get("best_mechanism_excluded"):
-        dropped.append(
-            f"{', '.join(summary['best_mechanism_excluded'])} for partial coverage"
-        )
+        dropped.append(f"{', '.join(summary['best_mechanism_excluded'])} for partial coverage")
     if summary.get("best_mechanism_unmeasured"):
-        dropped.append(
-            f"{', '.join(summary['best_mechanism_unmeasured'])} as unmeasured"
-        )
-    best_excluded = f", excluding {' and '.join(dropped)}" if dropped else ""
+        dropped.append(f"{', '.join(summary['best_mechanism_unmeasured'])} as unmeasured")
     rows = [
         f"\nRule: {rule_id}",
         f"Verdict: {summary['verdict']}",
         (
-            f"Best mechanism: {summary['best_mechanism']} "
-            f"(avg {summary['best_avg_score']})"
-            + best_excluded
+            f"Best mechanism: {summary['best_mechanism']} (avg {summary['best_avg_score']})"
             if summary.get("best_mechanism")
             else (
                 "Best mechanism: no reachable rule-enhanced mechanism graded on every scenario"
@@ -1903,11 +1841,8 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         # record written before the measured gap existed carries only the
         # derivation it was written with, and that derivation is its record, so
         # render it rather than refusing to display an archived run.
-        measured_key = f"delta_{mech}_vs_baseline_measured"
         delta_val = (
-            None
-            if mech == "baseline"
-            else summary.get(measured_key, summary[f"delta_{mech}_vs_baseline"])
+            None if mech == "baseline" else _delta(pos_stats, summary["per_mechanism"]["baseline"])
         )
         delta = f"{delta_val:+}" if delta_val is not None else ""
         rows.append(
@@ -1918,9 +1853,7 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Eval rule activation across loading mechanisms."
-    )
+    parser = argparse.ArgumentParser(description="Eval rule activation across loading mechanisms.")
     parser.add_argument(
         "--scenarios",
         nargs="+",
@@ -1933,10 +1866,7 @@ def _parse_args() -> argparse.Namespace:
         "--seed",
         type=int,
         default=DEFAULT_SEED,
-        help=(
-            "Optional seed forwarded to OpenAI-compatible providers "
-            f"(default: {DEFAULT_SEED})."
-        ),
+        help=(f"Optional seed forwarded to OpenAI-compatible providers (default: {DEFAULT_SEED})."),
     )
     parser.add_argument(
         "--dry-run",
@@ -1983,9 +1913,7 @@ def _read_scenarios_json(spath: Path) -> dict[str, Any] | int:
     return data
 
 
-def _validate_scenario_gate(
-    sc: dict[str, Any], idx: int, spath: Path
-) -> int | None:
+def _validate_scenario_gate(sc: dict[str, Any], idx: int, spath: Path) -> int | None:
     """Validate one scenario's ``expected_gate``. Exit code 2 on error.
 
     An absent gate and a misspelled one both used to read as a positive case,
@@ -2081,8 +2009,7 @@ def _validate_scenarios_shape(data: dict[str, Any], spath: Path) -> int | None:
             value = sc.get(required)
             if not isinstance(value, str) or not value.strip():
                 print(
-                    f"ERROR: scenarios[{idx}].{required} must be a non-empty "
-                    f"string in {spath}",
+                    f"ERROR: scenarios[{idx}].{required} must be a non-empty string in {spath}",
                     file=sys.stderr,
                 )
                 return 2
@@ -2163,8 +2090,7 @@ def _resolve_skill_reference(
         reference_path.relative_to(references_dir.resolve())
     except ValueError:
         print(
-            "ERROR: reference_path must be under the skill's references/: "
-            f"{reference_path_str}",
+            f"ERROR: reference_path must be under the skill's references/: {reference_path_str}",
             file=sys.stderr,
         )
         return 2
@@ -2194,8 +2120,7 @@ def _resolve_target_paths(data: dict[str, Any], spath: Path) -> tuple[Path, Path
     has_skill = bool(skill_ref)
     if has_rule == has_skill:
         print(
-            "ERROR: scenario file must set exactly one of rule_path or "
-            f"skill_path in {spath}",
+            f"ERROR: scenario file must set exactly one of rule_path or skill_path in {spath}",
             file=sys.stderr,
         )
         return 2
@@ -2207,9 +2132,7 @@ def _resolve_target_paths(data: dict[str, Any], spath: Path) -> tuple[Path, Path
         return resolved, None
 
     reference_path_str = data.get("reference_path")
-    reference_ref = (
-        reference_path_str.strip() if isinstance(reference_path_str, str) else ""
-    )
+    reference_ref = reference_path_str.strip() if isinstance(reference_path_str, str) else ""
     if not reference_ref:
         resolved = _resolve_skill_path(skill_ref)
         if isinstance(resolved, int):
@@ -2289,22 +2212,8 @@ def _process_one_rule(
 ) -> tuple[str, dict[str, Any] | None, int]:
     """Run all scenarios for one rule or skill. Return (target_id, result_or_none, n_calls)."""
     primary_path, reference_path = target_paths
-    if reference_path is not None:
-        # A reference target measures one reference, not the skill that fronts
-        # it. Defaulting to the skill directory gave every reference under one
-        # router the same id, so the label named the umbrella population while
-        # the numbers measured a single reference. `.stem` matches the ids the
-        # shipped scenario files already declare.
-        default_id = reference_path.stem
-    elif primary_path.name == "SKILL.md":
-        default_id = primary_path.parent.name
-    else:
-        default_id = primary_path.stem
-    rule_id = (
-        scenarios_data.get("rule_id")
-        or scenarios_data.get("skill_id")
-        or default_id
-    )
+    default_id = primary_path.parent.name if primary_path.name == "SKILL.md" else primary_path.stem
+    rule_id = scenarios_data.get("rule_id") or scenarios_data.get("skill_id") or default_id
     if reference_path is None:
         rule = parse_rule(primary_path)
     else:
@@ -2346,15 +2255,19 @@ def _process_one_rule(
     result_paths = {"target_path": str(primary_path.relative_to(REPO_ROOT))}
     if reference_path is not None:
         result_paths["reference_path"] = str(reference_path.relative_to(REPO_ROOT))
-    return rule_id, {
-        **result_paths,
-        "summary": summary,
-        "scenarios": scenario_results,
-    }, n_calls
+    return (
+        rule_id,
+        {
+            **result_paths,
+            "summary": summary,
+            "scenarios": scenario_results,
+        },
+        n_calls,
+    )
 
 
 def _build_run_provenance(args: argparse.Namespace) -> dict[str, Any]:
-    """Collect run metadata so result artifacts are self-describing."""
+    """Collect run metadata so result artifacts are self-describing (issue #3956)."""
     commit_sha = ""
     try:
         result = subprocess.run(
@@ -2363,6 +2276,7 @@ def _build_run_provenance(args: argparse.Namespace) -> dict[str, Any]:
             text=True,
             encoding="utf-8",
             errors="replace",
+            timeout=5,
             check=False,
             cwd=REPO_ROOT,
         )
@@ -2374,10 +2288,10 @@ def _build_run_provenance(args: argparse.Namespace) -> dict[str, Any]:
     scenario_hash = ""
     try:
         h = hashlib.sha256()
-        for scenario in args.scenarios:
-            h.update(str(scenario).encode("utf-8"))
-            h.update(b"\0")
-            h.update(Path(scenario).read_bytes())
+        for sf in sorted(args.scenarios):
+            path = Path(sf)
+            if path.exists():
+                h.update(path.read_bytes())
         scenario_hash = h.hexdigest()[:16]
     except OSError:
         pass
@@ -2413,6 +2327,13 @@ def main() -> int:
             print(f"ERROR: {e}", file=sys.stderr)
             return 2
 
+    # Recorded beside `rules`, not inside it, because the consumer reads
+    # `rules` as a mapping of rule name to result and would score a metadata
+    # key as a rule. optimize-artifact.py refuses to gate two extractions whose
+    # provenance disagrees, and `upstream_model` is one of the keys it
+    # compares, so a report that does not name its model lets a run scored on
+    # one model be compared against a run scored on another. This is the only
+    # place that knows these values.
     all_results: dict[str, Any] = {
         "schema_version": RESULTS_SCHEMA_VERSION,
         "run": _build_run_provenance(args),
@@ -2423,9 +2344,7 @@ def main() -> int:
     state = _RunState()
 
     for scenario_file in args.scenarios:
-        exit_code = _process_scenario_file(
-            scenario_file, api_key, args, all_results, state
-        )
+        exit_code = _process_scenario_file(scenario_file, api_key, args, all_results, state)
         if exit_code is not None:
             # max, not the bare code: a hard refusal stops the run, but an
             # earlier target may already have recorded something worse. A
@@ -2476,30 +2395,12 @@ def _process_scenario_file(
         return loaded
     scenarios_data, target_paths = loaded
 
-    rule_id, result, n_calls = _process_one_rule(
-        api_key, scenarios_data, target_paths, args
-    )
-    # Checked before the results are stored and before any spend, so a dry run
-    # catches the collision too. Refusing is the visible failure; overwriting
-    # is an invisible one that leaves no trace in the published output.
-    claimed_by = state.claimed_ids.get(rule_id)
-    if claimed_by is not None:
-        print(
-            f"ERROR: {scenario_file} declares id {rule_id!r}, already claimed "
-            f"by {claimed_by}. Two targets cannot publish under one id: the "
-            "second would overwrite the first. Set a distinct rule_id or "
-            "skill_id in one of them.",
-            file=sys.stderr,
-        )
-        return 2
-    state.claimed_ids[rule_id] = scenario_file
+    rule_id, result, n_calls = _process_one_rule(api_key, scenarios_data, target_paths, args)
     state.total_calls += n_calls
 
     if result is not None:
         all_results["rules"][rule_id] = result
-        state.worst_exit = max(
-            state.worst_exit, _classify_verdict(result["summary"]["verdict"])
-        )
+        state.worst_exit = max(state.worst_exit, _classify_verdict(result["summary"]["verdict"]))
     return None
 
 
@@ -2545,6 +2446,7 @@ def _print_dry_run_summary(total_calls: int) -> None:
         return
     est_cost = est_tokens / 1_000_000 * 3
     print(f"Estimated tokens: ~{est_tokens:,} (~${est_cost:.2f} sonnet input rate)")
+
 
 if __name__ == "__main__":
     sys.exit(main())
