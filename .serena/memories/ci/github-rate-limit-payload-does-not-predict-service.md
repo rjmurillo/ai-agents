@@ -152,3 +152,35 @@ fetch `statusCheckRollup` per pull request only for the ones you need.
 mergeability lazily. The first query enqueues the computation. Wait about a
 minute and query again rather than treating `UNKNOWN` as a state. In one reading
 48 of 55 were `UNKNOWN` on the first pass and 0 on the second.
+
+## The blast radius reaches other people's CI
+
+Measured 2026-08-04. The AI PR quality gate builds each agent's review context
+by fetching the PR diff, and it authenticates as `user ID 6811113`, which is
+`rjmurillo`. An interactive agent session authenticates as the same account.
+They share one REST budget and one GraphQL budget.
+
+On PR #4567, run `30929337949`, every one of the ten review agents failed at the
+context step:
+
+```
+##[error]Failed to fetch PR diff for #4567 ... HTTP 403: API rate limit
+exceeded for user ID 6811113
+PR diff has 0 lines
+##[error]Process completed with exit code 3.
+```
+
+`scripts/ci/build_ai_review_context.py` has no retry, so one 403 ends the job.
+The remaining steps skip, `INFRA_FAILURE` is written as `false`, the verdict
+comes back empty, and the required `Aggregate Results` check goes red while
+every underlying job reports success. Issue #4547 tracks both halves.
+
+The consequence that is easy to miss: this is not confined to the PR the agent
+is working on. Ten agents fetch a diff per run, so an agent polling `gh` across
+a queue can drain the shared budget and turn *unrelated* PRs red. Nine or ten
+identical `NEEDS_REVIEW` verdicts across independent agents is that signature,
+not nine findings.
+
+So throttle polling when a queue is in flight, prefer one paginated REST call
+over repeated `gh pr checks`, and read a uniform verdict sweep as infrastructure
+before reading it as review feedback.
