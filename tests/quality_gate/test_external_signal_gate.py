@@ -118,6 +118,16 @@ class TestAgentSignal:
         assert "SOMETHING_NEW" in err
         assert "_AGENT_VERDICT_ALIAS" in err
 
+    def test_the_drift_warning_uses_the_annotation_channel(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        # Pinned separately from the test above, which passes on a bare stderr
+        # line. This path degrades rather than failing, so nothing makes a
+        # human open the log; the annotation is what puts the drift in the run
+        # summary. Without this assertion, dropping the prefix is invisible.
+        agent_signal("qa", "SOMETHING_NEW")
+        assert capsys.readouterr().err.startswith("::warning::")
+
     def test_known_aggregator_tokens_do_not_warn(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:

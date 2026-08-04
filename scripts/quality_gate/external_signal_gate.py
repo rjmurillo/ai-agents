@@ -102,11 +102,18 @@ def agent_signal(agent: str, verdict: str) -> str:
     to pass. This mirrors merge_verdicts in scripts/ai_review_common/verdict.py,
     which coerces unrecognized tokens to UNKNOWN for the same reason.
 
-    The fallback warns. Silently absorbing an unrecognized token would hide the
-    exact drift that made this function crash on DID_NOT_RUN: a producer grew a
-    verdict the adapter never learned, and nothing surfaced it. An aliased token
-    is a decided mapping and stays quiet; an unaliased one is a gap in the table
-    and says so.
+    The fallback warns, and it warns in GitHub's annotation format. Silently
+    absorbing an unrecognized token would hide the exact drift that made this
+    function crash on DID_NOT_RUN: a producer grew a verdict the adapter never
+    learned, and nothing surfaced it. An aliased token is a decided mapping and
+    stays quiet; an unaliased one is a gap in the table and says so.
+
+    The ``::warning::`` prefix is load-bearing, not cosmetic. A bare line on
+    stderr is a dead channel: CI logs are read after a failure, and this path
+    does not fail, it degrades. The annotation form surfaces in the run summary
+    and on the diff without anyone opening the log. The repo already relies on
+    this convention in 217 places, so this is the established surface rather
+    than a new one.
     """
 
     normalized = verdict.strip().upper()
@@ -115,8 +122,9 @@ def agent_signal(agent: str, verdict: str) -> str:
         return f"llm:{agent}={aliased}"
     if normalized not in gate_aggregator.KNOWN_VERDICTS:
         print(
-            f"warning: unrecognized verdict {normalized!r} for agent {agent!r};"
-            " treating as UNKNOWN. Add it to _AGENT_VERDICT_ALIAS.",
+            f"::warning::unrecognized verdict {normalized!r} for agent"
+            f" {agent!r}; treating as UNKNOWN."
+            " Add it to _AGENT_VERDICT_ALIAS.",
             file=sys.stderr,
         )
         normalized = "UNKNOWN"
