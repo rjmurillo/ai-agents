@@ -6,6 +6,7 @@ A long push in this repo takes roughly 660 seconds, so the working pattern is
 to detach it and poll a log:
 
 ```bash
+# push-lock-historical: both the log and the lock sat under /tmp here
 nohup setsid bash -c "flock /tmp/push-lock-$SLUG.lock git push origin $BR \
   > /tmp/r16/push.log 2>&1; echo REAL_EXIT=\$? >> /tmp/r16/push.log" >/dev/null 2>&1 &
 ```
@@ -22,32 +23,31 @@ Measured on 2026-08-02: a P0 push was believed in flight for about ten minutes.
 
 ## Recipe
 
-Write scratch files and logs to `~/src/scratch/`, never `/tmp`. The lock uses
-the slot-scanner recipe; the log path uses `~/src/scratch/` to survive `/tmp`
-wipes.
+Write scratch files, logs, and the lock to `~/src/scratch/`, never `/tmp`. Every
+agent must agree on one lock path for mutual exclusion to work, and `/tmp` is
+the wrong place to put it: a wipe there leaves the holder's descriptor on a
+deleted inode while the next push creates a new inode at the same name, so the
+two stop excluding each other. `.claude/rules/push-lock.md` owns the canonical
+path and `scripts/validation/check_push_lock_paths.py` blocks any other
+spelling (issue #4366).
 
 ```bash
-S=~/src/scratch/locks; mkdir -p "$S"
-SCRATCH=~/src/scratch; mkdir -p "$SCRATCH"
-BRANCH=<branch>
-for s in 0 1 2 3; do
-  SKIP_SCOPE_CHECK=1 flock -n --conflict-exit-code 99 "$S/aiagents-push-$s.lock" \
-    git push --force-with-lease origin "HEAD:$BRANCH" \
-    > "$SCRATCH/push-$BRANCH-s$s.log" 2>&1
-  rc=$?
-  if [ "$rc" -ne 99 ]; then
-    echo "SLOT=$s PUSH_RC=$rc"
-    break
-  fi
-done
+S=~/src/scratch; mkdir -p "$S" "$HOME/src/scratch/locks"
+BR=<branch>; SLUG=$(printf '%s' "$BR" | tr '/' '-')
+nohup setsid bash -c "flock $HOME/src/scratch/locks/push-lock-$SLUG.lock git push origin $BR \
+  > $S/push-$SLUG.log 2>&1; echo REAL_EXIT=\$? >> $S/push-$SLUG.log" >/dev/null 2>&1 &
 ```
 
-Both lock files and logs go in `~/src/scratch/` (locks under `~/src/scratch/locks/`).
-`/tmp` is wiped periodically: a wiped log redirect fails silently, and even the
-inode-survives-wipe argument for lock files breaks when the lock file is unlinked
-while held. A new push recreates the path and `flock` opens a fresh inode, so two
-processes can hold different inodes at the same path simultaneously. Keep both
-locks and logs out of `/tmp`.
+Then verify the process actually exists before trusting the wait:
+
+```bash
+sleep 5
+test -f "$S/push-$SLUG.log" || echo "log missing, the redirect failed"
+ps -eo pid,etime,args | grep "git push" | grep -v grep
+```
+
+An absent log file five seconds in means the launch failed, not that the push
+is quiet.
 
 The log alone cannot tell you which of four states you are in. Read it together
 with the process table and the `REAL_EXIT` sentinel.

@@ -8,6 +8,7 @@ reference already exists`, usually after the work already landed. The obvious
 guard is a single lock file:
 
 ```bash
+# push-lock-historical: the superseded global scheme, kept as evidence
 flock /tmp/aiagents-push.lock git push origin "$BR"
 ```
 
@@ -19,6 +20,7 @@ different ref, and pushes to different refs never contended in the first place.
 Measured on 2026-08-02 with five queued pushes to five distinct branches:
 
 ```
+push-lock-historical: ps output from the superseded global scheme
 1183836  48:45  flock /tmp/aiagents-push.lock git push ... rjmurillo/eureka-ratchet-grep
 1556659  40:35  flock /tmp/aiagents-push.lock git push ... chore/measurement-validity-rule
 1710429  37:25  flock /tmp/aiagents-push.lock git push ... fix/script-entrypoints-and-pins
@@ -31,33 +33,21 @@ nothing they could collide with.
 
 ## Recipe
 
-Scan slots non-blocking; take the first free one. This gives the same
-one-at-a-time guarantee as the old per-branch scheme without making different
-branches contend on the same slot.
+Key the lock on the branch, so it still blocks the collision that actually
+happens and blocks nothing else.
 
 ```bash
-cd <your worktree>
-BRANCH=$(git branch --show-current)
-for s in 0 1 2 3; do
-  SKIP_SCOPE_CHECK=1 flock -n --conflict-exit-code 99 "/tmp/aiagents-push-$s.lock" \
-    git push --force-with-lease origin "HEAD:$BRANCH" \
-    > ~/src/scratch/push-$BRANCH-s$s.log 2>&1
-  rc=$?
-  if [ "$rc" -ne 99 ]; then
-    echo "SLOT=$s PUSH_RC=$rc"
-    break
-  fi
-done
+BR=$(git rev-parse --abbrev-ref HEAD)
+SLUG=$(printf '%s' "$BR" | tr '/' '-')
+mkdir -p "$HOME/src/scratch/locks"
+flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push origin "$BR"
 ```
 
-`--conflict-exit-code 99` is load-bearing. Without it, `flock -n` returns 1
-for both "lock busy" and "command failed", making the two indistinguishable.
-With 99, only a busy lock produces 99; every other code is the real git result.
-
-Do NOT use a fixed hash (`SLOT=$(( ... % 4 ))`). A hash is a partition: it
-maps a branch name to a fixed slot regardless of load. Measured 2026-08-03:
-slot 2 had 9 holders and a 68-minute oldest waiter while slot 3 was idle.
-Three branches all hashed to slot 2. The scanner always finds the idle slot.
+The path is canonical and `.claude/rules/push-lock.md` owns it. It moved off
+`/tmp` because a wipe there splits one filename across two inodes and the
+holders stop excluding each other; three schemes were live at once on
+2026-08-02 (issue #4366). Do not spell it any other way: `flock` excludes only
+processes that open the same path, so a second name is not a second lock.
 
 ## Evidence that it is safe
 
@@ -96,6 +86,7 @@ Observed live on 2026-08-02, not reasoned. Two processes were pushing the same
 branch at the same time under two lock paths that cannot see each other:
 
 ```
+push-lock-historical: a ps census of the schemes that were live, not a recipe
 PID 761266  cwd ai-agents3-rebase-wt/pr4095
             flock /tmp/aiagents-push-2.lock
             git push --force-with-lease origin HEAD:fix/escaped-pipes-claude-skills
@@ -118,9 +109,12 @@ child, so `ps` shows two entries per push with different elapsed times, because
 acquired. That pair is not a double push. Check `ppid` before concluding one:
 two of the three suspicious pairs there were parent and child.
 
-So the recipe above is not a suggestion. Any agent or script that pushes in
-this repo uses exactly this scanner with `/tmp/aiagents-push-$s.lock` and
-nothing else. If you find another form in a prompt, a skill, or a memory,
+So the path above is not a suggestion. Any agent or script that pushes in this
+repo uses exactly `/tmp/push-lock-<branch-with-slashes-replaced-by-dashes>.lock`
+and nothing else. What is mandated is the exact *string*, not the directory:
+see "Every agent must name the lock identically" below for why, and for the
+conditions under which the directory should change. If you find another form in
+a prompt, a skill, or a memory,
 correct it rather than adding a third. Historical records are the exception:
 `.agents/retrospective/2026-07-31-test-infrastructure-cluster.md` records the
 older `/tmp/aiagents-push.lock` as what was running at the time, and a
@@ -129,18 +123,25 @@ Leave those alone; a grep for lock paths will keep surfacing them.
 
 Two details that get "simplified" back into bugs:
 
-- Every agent must use exactly the slot-scanner recipe above. `flock` excludes
-  only processes that open the same path. A per-branch lock in a private
-  directory or a different naming scheme is invisible to the fleet, not safer.
-  `/tmp/aiagents-push-$s.lock` with `s` in `0..3` is the shared namespace.
-- The `/tmp` wipe hazard still applies to the log, not to the lock. The lock
-  is a kernel object held in the process's open file descriptor; if `/tmp` is
-  wiped, the inode remains alive as long as any process holds it open. The log
-  redirect fails immediately and silently. Put logs in `~/src/scratch/`, not
-  `/tmp`. Locks stay in `/tmp` because every agent can name `/tmp`; the lock
-  path must be universal, not durable.
-- Capture the push status as `echo "PUSH_RC=$?"` immediately after the inner
-  command, never through a pipeline. The scanner already does this via `rc=$?`.
+- Every agent must name the lock identically. That, not the directory, is the
+  requirement: `flock` excludes only processes that open the same path, so a
+  per-user or per-worktree lock directory silently buys nothing. `/tmp` is the
+  current choice because it is the one absolute path every agent in this repo
+  can already name, not because `/tmp` is special. The push *log* is the
+  opposite case and belongs in `~/src/scratch`; `/tmp` was wiped mid-session on
+  2026-08-02 and a detached process whose redirect target had vanished reported
+  nothing at all.
+- That same wipe is a live hazard for the lock, not just the log. If `/tmp` is
+  cleared while a push holds the lock, the next push creates a *new inode* at
+  the same path and `flock` stops excluding the two, which is the split-lock
+  failure under a single filename. It is detectable rather than preventable:
+  compare the inode you hold against the one on disk
+  (`stat -c %i <lockfile>`) after acquiring, and treat a mismatch as a lost
+  lock. If this ever fires in practice, move the path to a directory with no
+  wipe policy rather than adding a second scheme.
+- Capture the push status as `echo "REAL_EXIT=$?"` immediately after the `git
+  push`, never through a pipeline. `git push | tail -3; echo $?` reports
+  `tail`'s status, which is always 0.
 
 ## Related
 

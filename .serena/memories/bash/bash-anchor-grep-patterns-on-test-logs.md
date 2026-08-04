@@ -129,39 +129,40 @@ a push still running. The only completion signals are a non empty
 the wrapper appends after `git push` returns.
 
 Better than detecting the race is preventing it. Serialize pushes through a
-shared lockfile using the slot-scanner:
+lockfile, keyed on the branch:
 
 ```bash
-cd <your worktree>
-BRANCH=$(git branch --show-current)
-for s in 0 1 2 3; do
-  SKIP_SCOPE_CHECK=1 flock -n --conflict-exit-code 99 "/tmp/aiagents-push-$s.lock" \
-    git push --force-with-lease origin "HEAD:$BRANCH" \
-    > ~/src/scratch/push-$BRANCH-s$s.log 2>&1
-  rc=$?
-  if [ "$rc" -ne 99 ]; then
-    echo "SLOT=$s PUSH_RC=$rc"
-    break
-  fi
-done
+BR=$(git rev-parse --abbrev-ref HEAD)
+SLUG=$(printf '%s' "$BR" | tr '/' '-')
+mkdir -p "$HOME/src/scratch/locks"
+flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push -u origin "$BR"
 ```
 
-`--conflict-exit-code 99` is load-bearing: `flock -n` returns 1 for both
-"lock busy" and "command failed" without it, so the two are indistinguishable.
-With 99, only a busy lock produces 99; every other code is the real git result.
+`flock` waits for the lock rather than failing, so a queued push runs when the
+one ahead of it finishes instead of racing it.
 
-Do NOT use a fixed hash (`SLOT=$(( ... % 4 ))`). A hash is a partition: it
-maps a branch name to a fixed slot regardless of load. Measured 2026-08-03:
-slot 2 had a 68-minute oldest waiter while slot 3 was idle. The scanner always
-finds the idle slot.
+Key the lock on the branch, not on the repo. The collision that actually
+happens is two agents pushing the SAME ref; two pushes to different refs never
+contended. A single global lock (`/tmp/aiagents-push.lock`) serializes every
+push behind an 11 minute pre-push hook it did not need to wait for. See
+`git/git-lock-pushes-per-branch-not-globally.md` for the measurement.
 
-Every agent must use exactly this recipe. `flock` excludes only processes that
-open the same path. A per-branch lock in a private directory or a different
-naming scheme is invisible to the fleet, not safer. `/tmp/aiagents-push-$s.lock`
-with `s` in `0..3` is the shared namespace. Logs stay in `~/src/scratch/`, not
-`/tmp`, because `/tmp` is wiped periodically and a wiped log redirects silently.
+Every agent must name the lock identically or it excludes nothing. Measured
+2026-08-02: three schemes were live at once (`/tmp/aiagents-push.lock`,
+`/tmp/aiagents-push-$SLOT.lock` hashed into four slots, and the per branch
+path above), and one branch had two concurrent pushes running under two
+different lock names. `flock` only excludes processes that agree on the path,
+so the extra schemes bought nothing and hid the race. The path above is now the
+only sanctioned one: `.claude/rules/push-lock.md` states it and
+`scripts/validation/check_push_lock_paths.py` fails a tracked prescription that
+names anything else (issue #4366).
 
-See `git/git-lock-pushes-per-branch-not-globally.md` for the full rationale.
+The lock file currently lives under `/tmp`. The requirement is that every agent
+names it identically, since `flock` excludes only processes that agree on the
+path; `/tmp` is just the one absolute path every agent here can already name.
+The push *log* must not go there: use `~/src/scratch`. See
+`git-lock-pushes-per-branch-not-globally` for the `/tmp`-wipe hazard this
+carries and how to detect it.
 
 ## Evidence
 

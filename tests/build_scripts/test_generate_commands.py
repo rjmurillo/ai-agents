@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -251,3 +253,44 @@ def test_main_missing_config_returns_2(tmp_path: Path) -> None:
         "--config", str(tmp_path / "nope.yaml"), "--repo-root", str(tmp_path),
     ])
     assert rc == 2
+
+
+# Committed-mirror drift -----------------------------------------------------
+
+
+def test_committed_command_mirrors_match_the_generator() -> None:
+    """The shipped mirror must equal what this generator writes from the command.
+
+    `_skip_skillforge_path` in scripts/validation/git_hook_policy.py exempts
+    these mirrors from skill validation on the reasoning that they are derived
+    from `.claude/commands/<name>.md` and so "cannot drift". Nothing
+    regenerates them at commit time, so they can and did: an edit to
+    `.claude/commands/pr-autofix.md` left the Copilot mirror prescribing a
+    force push without `FORCE_PUSH_OK=1`, which the repository's own pre-push
+    guard exits 1 on. Every Copilot CLI agent following the shipped skill hit
+    that.
+    """
+    staged = Path(tempfile.mkdtemp())
+    try:
+        shutil.copytree(REPO_ROOT / ".claude" / "commands", staged / ".claude" / "commands")
+        config = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
+
+        assert generate_commands.generate_commands(config, staged) == 0
+
+        produced = sorted((staged / "src" / "copilot-cli" / "skills").glob("*/SKILL.md"))
+        assert produced, "generator wrote no mirror; the comparison would be vacuous"
+        committed_root = REPO_ROOT / "src" / "copilot-cli" / "skills"
+        drifted = [
+            path.parent.name
+            for path in produced
+            if not (committed_root / path.parent.name / "SKILL.md").is_file()
+            or (committed_root / path.parent.name / "SKILL.md").read_text(encoding="utf-8")
+            != path.read_text(encoding="utf-8")
+        ]
+
+        assert drifted == [], (
+            f"{len(drifted)} of {len(produced)} command mirrors are stale: "
+            f"{drifted}. Run uv run --frozen python build/scripts/generate_commands.py"
+        )
+    finally:
+        shutil.rmtree(staged, ignore_errors=True)

@@ -1,6 +1,5 @@
 <!-- # taste-lint: ignore file-size, append-only trap index; split entries lose search locality. -->
 # Gotchas
-<!-- # taste-lint: ignore file-size (governance reference; no cohesion boundary to split on) -->
 
 Non-obvious repository behavior that cost real time to learn and cannot be
 inferred from reading the code. Each entry states the trap, the symptom you
@@ -495,50 +494,35 @@ The race a push lock exists to prevent is a lost ref update: two writers push
 to the same remote ref and one overwrites the other. Git takes its lock per ref.
 Two pushes to two different branches cannot race for the same lock on the server.
 
-A global `flock /tmp/aiagents-push.lock` wrapping `git push` serializes the
-entire fleet including the 7 to 15 minute pre-push hook. Five concurrent pushes
-to five distinct branches costs 5 x 15 = 75 minutes instead of 15.
+A single global lock wrapping `git push` serializes the entire fleet including
+the 7 to 15 minute pre-push hook. Five concurrent pushes to five distinct
+branches costs 5 x 15 = 75 minutes instead of 15.
 
-Use the slot-scanner recipe with `~/src/scratch/locks/aiagents-push-$s.lock`:
+Use the canonical per-branch lock, keyed on the exact branch name. The path is
+fixed by `.claude/rules/push-lock.md` and `scripts/validation/check_push_lock_paths.py`
+blocks any other spelling:
 
 ```bash
-cd <your worktree>
-BRANCH=$(git branch --show-current)
-L=~/src/scratch/locks; mkdir -p "$L"
-for s in 0 1 2 3; do
-  SKIP_SCOPE_CHECK=1 flock -n --conflict-exit-code 99 "$L/aiagents-push-$s.lock" \
-    git push --force-with-lease origin "HEAD:$BRANCH" \
-    > ~/src/scratch/push-$BRANCH-s$s.log 2>&1
-  rc=$?
-  if [ "$rc" -ne 99 ]; then
-    echo "SLOT=$s PUSH_RC=$rc"
-    break
-  fi
-done
+BR=$(git branch --show-current)
+SLUG=$(printf '%s' "$BR" | tr '/' '-')
+mkdir -p "$HOME/src/scratch/locks"
+flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" \
+  git push origin HEAD:"$BR"
 ```
 
-`--conflict-exit-code 99` is load-bearing: `flock -n` returns 1 for both
-"lock busy" and "command failed" without it. With 99, only a busy lock produces
-99; every other code is the real git result.
-
-Do NOT use a fixed hash (`SLOT=$(( ... % 4 ))`). A hash is a partition not a
-scheduler. Measured 2026-08-03: slot 2 had a 68-minute oldest waiter while
-slot 3 was idle. The scanner always finds the idle slot.
-
 Notes:
-- `~/src/scratch/locks/aiagents-push-$s.lock` with `s` in `0..3` is the shared
-  namespace. Every agent uses this exact path or the semaphore is invisible to
-  the fleet. Do NOT use `/tmp` for lock files: if the lock file is unlinked
-  while held, a new push creates a fresh inode at the same path and two
-  processes can hold different inodes simultaneously, destroying mutual exclusion.
-- Logs go in `~/src/scratch/`. `/tmp` is wiped periodically; a wiped log
-  redirect fails silently.
-- `--force-with-lease` already fails safely on a lost update. The lock prevents
-  the git-object-packing overhead of a concurrent same-branch push.
-- The slot scanner serializes pushes to the same branch (one holder per slot).
-  Two branches that map to identical slugs when `/` is replaced by `-` would
-  contend for the same slot set if a per-branch naming scheme were used; the
-  slot scanner avoids this because it races on numbered slots, not branch names.
+- `tr '/' '-'` is required: a branch like `fix/foo` would otherwise create a
+  lock file with a `/` in its name, which the shell reads as a directory path.
+- `mkdir -p` first. `flock` fails when the parent directory is missing, and a
+  failed `flock` in a detached push says nothing.
+- Keep the lock outside `/tmp`. A wipe there splits one filename across two
+  inodes, and the two holders stop excluding each other (issue #4366).
+- The lock prevents the git-object-packing overhead of a concurrent same-branch
+  push. It is not a substitute for the pre-push non-fast-forward guard, and a
+  force push stays forbidden on a shared branch (issue #4293).
+- Two distinct branches never contend for the same lock file, so their pre-push
+  hooks run in parallel. Measured throughput: four concurrent pushes to four
+  distinct branches finish in approximately one hook duration, not four.
 
-Issue #4283 documents the measured 28-waiter convoy from the global lock.
-Issue #4366 documents the three-scheme fragmentation measured 2026-08-03.
+Issue #4283 documents the measured 28-waiter convoy produced by the global lock
+and the first-principles analysis of why the race is per-ref.
