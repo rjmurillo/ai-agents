@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size, append-only trap index; split entries lose search locality. -->
 # Gotchas
 
 <!-- # taste-lint: ignore file-size, a trap catalog has to be readable in one
