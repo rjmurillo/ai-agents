@@ -19,8 +19,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "validation"))
 
-import ci_runner_base as base  # noqa: E402
-import run_install_parity_ci as runner  # noqa: E402
+import ci_runner_base as base
+import run_install_parity_ci as runner
 
 # --- validate_branch -----------------------------------------------------
 
