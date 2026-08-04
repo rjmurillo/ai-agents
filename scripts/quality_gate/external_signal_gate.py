@@ -94,13 +94,22 @@ def pytest_signal(pytest_status: str) -> str:
 def agent_signal(agent: str, verdict: str) -> str:
     """Return an ``llm:<agent>=VERDICT`` spec, aliasing the repo vocabulary.
 
-    The alias table covers the repo verdict tokens gate_aggregator does not
-    accept. Anything still outside its vocabulary falls back to UNKNOWN rather
-    than being passed through, because a token gate_aggregator rejects makes it
-    exit 2 with no verdict at all. A gate that cannot name a result is worse
-    than one that blocks: UNKNOWN resolves to NEEDS_REVIEW, which still refuses
-    to pass. This mirrors merge_verdicts in scripts/ai_review_common/verdict.py,
-    which coerces unrecognized tokens to UNKNOWN for the same reason.
+    The alias table serves two purposes. Most of its entries cover repo verdict
+    tokens gate_aggregator does not accept. One does not: ``NEEDS_REVIEW`` is
+    already in ``KNOWN_VERDICTS``, where gate_aggregator files it under
+    ``_WARNING``, and the table deliberately remaps it to ``FAIL`` anyway. The
+    repo treats NEEDS_REVIEW as blocking (REQ-008-05, #1934/#2818), so passing
+    it through unaliased would quietly downgrade a blocking verdict to a
+    warning. Aliasing an accepted token is therefore load-bearing, not
+    redundant, and the table is not simply the set-difference it resembles.
+
+    Anything still outside gate_aggregator's vocabulary falls back to UNKNOWN
+    rather than being passed through, because a token gate_aggregator rejects
+    makes it exit 2 with no verdict at all. A gate that cannot name a result is
+    worse than one that blocks: UNKNOWN resolves to NEEDS_REVIEW, which still
+    refuses to pass. This mirrors merge_verdicts in
+    scripts/ai_review_common/verdict.py, which coerces unrecognized tokens to
+    UNKNOWN for the same reason.
 
     The fallback warns, and it warns in GitHub's annotation format. Silently
     absorbing an unrecognized token would hide the exact drift that made this

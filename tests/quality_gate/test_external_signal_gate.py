@@ -145,7 +145,9 @@ class TestAgentSignal:
         assert agent_signal("qa", "WARN") == "llm:qa=WARN"
 
     @pytest.mark.parametrize("token", sorted(_KNOWN_VERDICT_TOKENS))
-    def test_every_repo_verdict_token_is_parseable(self, token: str) -> None:
+    def test_every_repo_verdict_token_is_parseable(
+        self, token: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """The adapter is total over the repo verdict vocabulary.
 
         gate_aggregator accepts a deliberately narrow token set. This adapter
@@ -153,10 +155,24 @@ class TestAgentSignal:
         scripts/ai_review_common/verdict.py and a parse_signal ValueError that
         kills the gate. DID_NOT_RUN was added to three modules by #2818/#2821
         and missed here, which is what this guard exists to catch next time.
+
+        The stderr assertion is the load-bearing half. Parseability alone
+        cannot fail: the catch-all fallback coerces anything unrecognized to
+        UNKNOWN, so a new repo token that nobody aliased would still parse and
+        this test would still pass while the adapter silently dropped it. That
+        is precisely the DID_NOT_RUN regression above, and the fallback made
+        the original guard blind to a repeat. Requiring silence restores it,
+        because an unaliased token that gate_aggregator does not accept takes
+        the warning branch.
         """
         spec = agent_signal("qa", token)
         parsed = parse_signal(spec)
         assert parsed.verdict in KNOWN_VERDICTS
+        assert capsys.readouterr().err == "", (
+            f"repo verdict token {token!r} reached the drift fallback."
+            " Add it to _AGENT_VERDICT_ALIAS in"
+            " scripts/quality_gate/external_signal_gate.py."
+        )
 
 
 # ---------------------------------------------------------------------------

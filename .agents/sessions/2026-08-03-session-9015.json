@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit ee9d10dfb lands the rule, the governance entry, both generated mirrors, and this log. This follow-up commit records the ending commit so the extracted episode can derive metrics.commits."
+        "Evidence": "Commit de1e2a982 lands the rule, the governance entry, both generated mirrors, and this log. Commit 2c9956c2a captures the totalizing-fallback learnings and is recorded as endingCommit so the extracted episode can derive metrics.commits."
       },
       "validationPassed": {
         "level": "MUST",
@@ -160,7 +160,7 @@
       }
     ]
   },
-  "endingCommit": "",
+  "endingCommit": "2c9956c2a",
   "nextSteps": [
     "Push and open the PR",
     "Renumber the anti-pattern to 8 if test/vacuous-assertion-anti-pattern merges first"
