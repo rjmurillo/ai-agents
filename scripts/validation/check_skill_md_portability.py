@@ -94,6 +94,9 @@ from scripts.validation.portability_common import (
 from scripts.validation.portability_common import (
     resolve_root as _common_resolve_root,
 )
+from scripts.validation.portability_floor import (
+    read_previous_sections as _read_previous_sections,
+)
 
 # Upstream-only runtime path prefixes. Companion to check_skill_portability.py
 # which covers script files; this validator covers .md files. The .claude/skills/
@@ -548,6 +551,16 @@ def build_parser() -> argparse.ArgumentParser:
             "guard."
         ),
     )
+    parser.add_argument(
+        "--allow-marker-grow",
+        action="store_true",
+        default=False,
+        help=(
+            "Allow the total marker_files suppressed-ref count to increase "
+            "during --update-baseline. Required when deliberately adding a new "
+            "vendor-portability marker or expanding an existing one (issue #4204)."
+        ),
+    )
     return parser
 
 
@@ -572,15 +585,29 @@ def _is_measured_input(rel_path: str) -> bool:
     )
 
 
+def _is_skill_markdown(rel_path: str) -> bool:
+    return rel_path.endswith(".md") and any(
+        rel_path.startswith(f"{root}/skills/") for root in PLUGIN_ROOTS
+    )
+
+
 def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
-    """List files changed in the working tree relative to ``base_ref``.
+    """List files changed or untracked in the working tree relative to ``base_ref``.
+
+    Returns the union of:
+    - files in ``git diff --name-only <base_ref>`` (tracked changes)
+    - files in ``git ls-files --others --exclude-standard`` (untracked new files)
+
+    A newly created baseline file that has not been ``git add``ed yet is
+    untracked; ``git diff`` alone omits it, causing the semantic-conflict guard
+    to miss it (issue #4372).
 
     ``None`` means git could not answer. The caller must fail closed because a
     supplied ``--base-ref`` is the evidence source for the semantic-conflict
     guard; silently skipping it would recreate issue #4195.
     """
     try:
-        result = subprocess.run(
+        diff_result = subprocess.run(
             ["git", "diff", "--name-only", base_ref],
             cwd=root,
             capture_output=True,
@@ -592,15 +619,61 @@ def _changed_files_against_base(root: Path, base_ref: str) -> list[str] | None:
     except OSError as exc:
         print(f"Could not compare against --base-ref {base_ref}: {exc}", file=sys.stderr)
         return None
-    if result.returncode != 0:
-        stderr = result.stderr.strip() or "git diff failed"
+    if diff_result.returncode != 0:
+        stderr = diff_result.stderr.strip() or "git diff failed"
         print(f"Could not compare against --base-ref {base_ref}: {stderr}", file=sys.stderr)
         return None
-    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+    try:
+        untracked_result: subprocess.CompletedProcess[str] | None = subprocess.run(
+            ["git", "ls-files", "--others", "--exclude-standard"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            encoding="utf-8",
+            check=False,
+        )
+    except OSError:
+        untracked_result = None
+
+    diff_files = {line.strip() for line in diff_result.stdout.splitlines() if line.strip()}
+    untracked_files: set[str] = set()
+    if untracked_result is not None and untracked_result.returncode == 0:
+        untracked_files = {
+            line.strip()
+            for line in untracked_result.stdout.splitlines()
+            if line.strip()
+        }
+
+    return sorted(diff_files | untracked_files)
+
+
+def _baseline_matches_scan(
+    baseline_path: Path,
+    current: dict[str, int],
+    marker_current: dict[str, int],
+) -> bool:
+    """Return True when the baseline on disk reflects the current scan result.
+
+    When it does, the semantic-conflict guard is unnecessary: the baseline was
+    regenerated against the exact tree being validated, so there is no stale
+    data risk (issue #4300).
+    """
+    try:
+        on_disk_files = _load_baseline(baseline_path)
+        on_disk_markers = _load_marker_baseline(baseline_path)
+    except (OSError, ValueError):
+        return False
+    return on_disk_files == current and on_disk_markers == marker_current
 
 
 def check_semantic_baseline_conflict(
-    root: Path, base_ref: str, baseline_path: Path
+    root: Path,
+    base_ref: str,
+    baseline_path: Path,
+    current: dict[str, int] | None = None,
+    marker_current: dict[str, int] | None = None,
 ) -> list[str] | None:
     """Return measured inputs that changed alongside the baseline (issue #4195).
 
@@ -614,6 +687,9 @@ def check_semantic_baseline_conflict(
     A non-empty result is a finding, not yet a verdict.
     ``_semantic_conflict_is_fatal`` decides: scanner changes always fail,
     while .md changes fail only on a real count increase against ``base_ref``.
+
+    Skill-file changes still return a finding here. The fatality check decides
+    whether those changes raised undeclared counts above ``base_ref``.
     """
     changed = _changed_files_against_base(root, base_ref)
     if changed is None:
@@ -833,6 +909,48 @@ def diff_marker_baseline(
     return regressions, []
 
 
+
+def _refuse_marker_files_growth(
+    root: Path,
+    baseline_path: Path,
+    marker_current: dict[str, int],
+    *,
+    allow_marker_grow: bool,
+) -> bool:
+    """Refuse when the total marker_files count has grown.
+
+    A marker declares that a file's upstream references are intentional. Once
+    a file carries the marker every future reference added to that file inherits
+    the exemption automatically. Treating a growth in the total suppressed-ref
+    count as a ratchet regression makes that growth visible at review time
+    instead of silently absorbed into the next baseline regeneration.
+
+    Pass allow_marker_grow=True (via --allow-marker-grow) to acknowledge a
+    deliberate expansion, for example when adding a new marked file.
+
+    Returns True when the write should be refused.
+    """
+    if allow_marker_grow:
+        return False
+    previous, problem = _read_previous_sections(root, baseline_path)
+    if problem or previous is None:
+        # No committed predecessor to compare against; let the write proceed.
+        return False
+    committed_marker = previous.get("marker_files", {})
+    committed_total = sum(committed_marker.values())
+    current_total = sum(marker_current.values())
+    if current_total > committed_total:
+        print(
+            f"Refusing --update-baseline: marker_files total grew from "
+            f"{committed_total} to {current_total}. "
+            "A vendor-portability marker now suppresses more refs than before. "
+            "If this is deliberate, pass --allow-marker-grow.",
+            file=sys.stderr,
+        )
+        return True
+    return False
+
+
 def _write_baseline(
     root: Path,
     baseline_path: Path,
@@ -921,6 +1039,34 @@ def _report(
     )
 
 
+def _run_update_baseline(
+    args: argparse.Namespace,
+    root: Path,
+    baseline_path: Path,
+    current: dict[str, int],
+    marker_current: dict[str, int],
+    scanned_by_root: dict[str, int],
+) -> int:
+    """Execute the --update-baseline path and return an exit code."""
+    if refuse_unsafe_baseline_write(
+        root,
+        scanned_by_root,
+        baseline_path,
+        {"files": current, "marker_files": marker_current},
+        "skill .md files",
+        args.allow_baseline_shrink,
+    ):
+        return 2
+    if _refuse_marker_files_growth(
+        root,
+        baseline_path,
+        marker_current,
+        allow_marker_grow=args.allow_marker_grow,
+    ):
+        return 2
+    return _write_baseline(root, baseline_path, current, marker_current, args.allow_baseline_shrink)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
@@ -940,22 +1086,13 @@ def main(argv: list[str] | None = None) -> int:
     current, marker_current, scanned_by_root = counts
 
     if args.update_baseline:
-        if refuse_unsafe_baseline_write(
-            root,
-            scanned_by_root,
-            baseline_path,
-            {"files": current, "marker_files": marker_current},
-            "skill .md files",
-            args.allow_baseline_shrink,
-        ):
-            return 2
-        return _write_baseline(
-            root, baseline_path, current, marker_current, args.allow_baseline_shrink
+        return _run_update_baseline(
+            args, root, baseline_path, current, marker_current, scanned_by_root
         )
 
     if args.base_ref:
         conflicting_inputs = check_semantic_baseline_conflict(
-            root, args.base_ref, baseline_path
+            root, args.base_ref, baseline_path, current, marker_current
         )
         if conflicting_inputs is None:
             return 2

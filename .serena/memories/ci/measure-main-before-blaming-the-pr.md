@@ -32,7 +32,7 @@ file-size ceiling on main, already fixed in flight by PR #4290.
 ```bash
 git worktree add <tmp> --detach origin/main
 cd <tmp> && git clean -qfd
-python3 .claude/skills/taste-lints/scripts/taste_lints.py -d . --format text | tail -2
+uv run --frozen python .claude/skills/taste-lints/scripts/taste_lints.py -d . --format text | tail -2
 cat scripts/ci/taste_count_baseline.txt
 ```
 

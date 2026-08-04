@@ -62,6 +62,20 @@ def _isolate_git_config_for_test_git() -> Iterator[None]:
 
 
 @pytest.fixture(autouse=True)
+def _clear_ci_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clear CI from every test so behavior does not depend on ambient env.
+
+    Tests that need CI set must do so explicitly via monkeypatch.setenv.
+    Mirrors the same fixture in tests/validation/conftest.py, which only
+    covers files under that package. The twelve test_validation_*.py files
+    in tests/ root and any other file in this directory that reads CI
+    inherit ambient CI from the caller's environment without this fixture.
+    See issue #4380.
+    """
+    monkeypatch.delenv("CI", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _default_project_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     """Default every test to the ai-agents project repo (issue #2610).
 
@@ -76,15 +90,37 @@ def _default_project_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "1")
 
 
+_GIT_POINTER_VARS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+)
+
+
 @pytest.fixture(autouse=True)
 def _isolate_tmp_path_from_parent_git_repo(
     request: pytest.FixtureRequest,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Prevent repo-local pytest temp dirs from discovering the parent checkout."""
+    """Prevent repo-local pytest temp dirs from discovering the parent checkout.
+
+    ``GIT_CEILING_DIRECTORIES`` only bounds git's upward discovery walk. It is
+    inert when ``GIT_DIR`` is already set in the environment, because an
+    explicit ``GIT_DIR`` bypasses discovery entirely. Any git command run with
+    only the ceiling and an inherited ``GIT_DIR`` operates on the repository
+    that ``GIT_DIR`` names, not on the temp tree. This fixture unsets every
+    pointer variable before setting the ceiling so that a hostile caller
+    environment cannot silently redirect git operations away from ``tmp_path``.
+    Refs #4287.
+    """
     if "tmp_path" not in request.fixturenames:
         return
     tmp_path = request.getfixturevalue("tmp_path")
+    for name in _GIT_POINTER_VARS:
+        monkeypatch.delenv(name, raising=False)
     existing = os.environ.get("GIT_CEILING_DIRECTORIES")
     ceiling = str(tmp_path.parent)
     value = ceiling if not existing else f"{ceiling}{os.pathsep}{existing}"
