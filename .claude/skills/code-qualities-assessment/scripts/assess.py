@@ -343,7 +343,7 @@ class FileAssessment:
         return sum(scored_values) / len(scored_values)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
         description="Assess code quality across 5 foundational qualities"
@@ -364,6 +364,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--base", help="Base revision for --changed-only, such as origin/main")
     parser.add_argument(
+        "--gate-mode",
+        choices=["regression", "absolute"],
+        default=None,
+        help=(
+            "Gate mode for --changed-only. "
+            "'regression' (default when --base is set) fails only when HEAD scores are "
+            "worse than the base revision. "
+            "'absolute' applies threshold checks to HEAD scores regardless of base."
+        ),
+    )
+    parser.add_argument(
         "--format", choices=["markdown", "json", "html"], default="markdown", help="Output format"
     )
     parser.add_argument("--config", default=".qualityrc.json", help="Path to configuration file")
@@ -374,7 +385,7 @@ def parse_args() -> argparse.Namespace:
         default="auto",
         help="Use Serena for symbol extraction",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def load_config(config_path: str) -> dict[str, Any]:
@@ -762,6 +773,104 @@ def generate_json_report(assessments: list[FileAssessment]) -> str:
     )
 
 
+def _assess_base_content(
+    file_path: Path, base: str, context: str, use_serena: bool
+) -> FileAssessment | None:
+    """Return a FileAssessment for the base revision of a file, or None if unavailable.
+
+    Uses ``git show <base>:<path>`` to read the file at the base revision.
+    A missing path at the base (new file) returns None so the caller can treat
+    it as no regression (there is nothing to regress from).
+    """
+    import subprocess
+    import tempfile
+
+    # Normalize to repo-relative path for git show.
+    try:
+        rel = file_path.relative_to(Path(".").resolve())
+    except ValueError:
+        rel = file_path
+
+    try:
+        result = subprocess.run(
+            ["git", "show", f"{base}:{rel}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+
+    if result.returncode != 0:
+        # File did not exist at base (new file). No regression possible.
+        return None
+
+    suffix = file_path.suffix
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=suffix, delete=False, encoding="utf-8"
+    ) as tmp:
+        tmp.write(result.stdout)
+        tmp_path = Path(tmp.name)
+
+    try:
+        return assess_file(tmp_path, context, use_serena)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def _score_regressed(head: QualityScore, base: QualityScore) -> bool:
+    """Return True when the HEAD score is strictly lower than the base score.
+
+    Only compares qualities where both revisions were scored (confidence > 0).
+    An unscored quality at either revision is not a regression.
+    """
+    return (
+        head.confidence > 0.0
+        and base.confidence > 0.0
+        and head.value < base.value
+    )
+
+
+def check_regressions(
+    assessments: list[FileAssessment],
+    base: str,
+    context: str,
+    use_serena: bool,
+) -> int:
+    """Compare HEAD assessments against their base revision.
+
+    Fails with exit 10 when any quality score is strictly lower than the
+    corresponding base score. A file that is new (no base) is skipped.
+
+    Returns:
+        0: No regressions (or all changed files are new)
+        10: At least one quality regressed vs the base revision
+    """
+    for assessment in assessments:
+        file_path = Path(assessment.file_path)
+        base_assessment = _assess_base_content(file_path, base, context, use_serena)
+        if base_assessment is None:
+            continue
+
+        pairs = (
+            ("Cohesion", assessment.cohesion, base_assessment.cohesion),
+            ("Coupling", assessment.coupling, base_assessment.coupling),
+            ("Encapsulation", assessment.encapsulation, base_assessment.encapsulation),
+            ("Testability", assessment.testability, base_assessment.testability),
+            ("Non-Redundancy", assessment.non_redundancy, base_assessment.non_redundancy),
+        )
+        for name, head_score, base_score in pairs:
+            if _score_regressed(head_score, base_score):
+                print(
+                    f"regression {assessment.file_path}: {name} "
+                    f"{head_score.value:.1f} < base {base_score.value:.1f}",
+                    file=sys.stderr,
+                )
+                return 10
+
+    return 0
+
+
 def check_thresholds(
     assessments: list[FileAssessment], config: dict[str, Any], context: str
 ) -> int:
@@ -842,9 +951,9 @@ def check_thresholds(
     return 0
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Main entry point"""
-    args = parse_args()
+    args = parse_args(argv)
 
     # Load configuration
     config = load_config(args.config)
@@ -904,8 +1013,27 @@ def main() -> int:
     else:
         print(report)
 
-    # Check thresholds
-    exit_code = check_thresholds(assessments, config, args.context)
+    # Resolve effective gate mode.
+    # Default: regression when --changed-only and --base are both set;
+    # absolute otherwise (preserves historical behavior for callers that do
+    # not pass --gate-mode).
+    if args.gate_mode is not None:
+        gate_mode = args.gate_mode
+    elif args.changed_only and args.base:
+        gate_mode = "regression"
+    else:
+        gate_mode = "absolute"
+
+    if gate_mode == "regression":
+        if not args.base:
+            print(
+                "ERROR: --gate-mode regression requires --base to be set.",
+                file=sys.stderr,
+            )
+            return 1
+        exit_code = check_regressions(assessments, args.base, args.context, use_serena)
+    else:
+        exit_code = check_thresholds(assessments, config, args.context)
 
     return exit_code
 
