@@ -1,0 +1,138 @@
+{
+  "id": "episode-2026-08-04-session-9033",
+  "session": "2026-08-04-session-9033",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Address the six unresolved review threads on PR #4508 and clear the inherited ruff ratchet regression from issue #4538",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the PR head before creating an isolated worktree",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9033"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Clustered the six unresolved threads before fixing any of them",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9033"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found that the branch was measured against a stale main",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9033"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cleared the ratchet by deleting dead noqa directives, not by raising the baseline",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9033"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked the reviewer's markdown diagnosis before applying the prescribed fix",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9033"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split the episode-metadata cluster into the half that is fixable and the half that is generator-forced",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9033"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the outdated subprocess-encoding thread rather than arguing it",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9033"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T07:42:25+00:00",
+      "type": "commit",
+      "content": "Commit: a450a51a9",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e009",
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9033"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7281a710d",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9033"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discriminated an inherited red from a branch-authored one before touching a baseline",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9033"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 9
+  },
+  "lessons": []
+}
