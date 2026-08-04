@@ -174,9 +174,14 @@ as an implementer.
 
 ## Where this repo stands
 
-Measured at `0c75045d6`. Two numbers, and they are not interchangeable. The
-**always-on corpus is 8 rules, 70,375 bytes**: the ones that load regardless
-of what you touch. The **effective context on a `.py` edit is 94,869 bytes
+Every figure below is asserted continuously by
+`tests/validation/test_always_on_corpus_claims.py`, so it is measured at
+whatever commit you are reading, not at a commit named here. A SHA in this
+paragraph would go stale on the next always-on edit while the numbers stayed
+correct, which is the harder error to notice. Two numbers, and they are not
+interchangeable. The
+**always-on corpus is 8 rules, 71,246 bytes**: the ones that load regardless
+of what you touch. The **effective context on a `.py` edit is 95,740 bytes
 across 11 files**, which is the always-on corpus plus the path-scoped rules
 that a Python file activates. Use the first when arguing about what every
 session pays. Use the second when arguing about what a specific edit pays.
@@ -190,7 +195,7 @@ uv run --frozen python scripts/validation/instruction_budget.py --format table
 
 **State the basis whenever you quote a number.** That command measures the
 generated `.github/instructions/` mirrors. The `.claude/rules/` sources are
-135 bytes larger in total (70,510 always-on) because `generate_rules.py`
+135 bytes larger in total (71,381 always-on) because `generate_rules.py`
 strips the `priority:` frontmatter key that the Copilot tree does not use.
 An earlier draft of this document mixed the two bases in one paragraph and
 published a corpus size that matched neither. If a figure here disagrees with
@@ -251,7 +256,7 @@ Name the tree with the number, because the two mirror trees disagree.
 `keepInternalGlobsFor`, so the internal-glob filter is disabled there and the
 internal-only fallback cannot fire. It fires only for the plugin tree. At
 `0c75045d6` that leaves `.github/instructions` at 8 rules and 70,375 bytes while
-`src/copilot-cli/instructions` carries 12 rules and 82,299 bytes: `governance`,
+`src/copilot-cli/instructions` carries 12 rules and 83,170 bytes: `governance`,
 `push-lock`, `secret-redaction`, and `session-logs` are narrowly scoped here and
 always-on in the shipped plugin. Every figure in this document is the
 `.github/instructions` number. A vendor install pays 11,924 bytes a turn that
@@ -274,7 +279,7 @@ It was real. Commit `77edc827` (PR #1022, 2026-01-31) adopted the Vercel
 strategy and wrote "Total passive context: ~4.5KB (well under Vercel's 8KB
 threshold)".
 
-The always-on corpus is 8.6x that threshold and a Python edit sees 11.6x,
+The always-on corpus is 8.7x that threshold and a Python edit sees 11.7x,
 measured at source. The enforced budget ceiling in
 `scripts/validation/instruction_budget_constants.py` ratcheted upward to track
 measured size instead of holding at the goal, which made every increase look
