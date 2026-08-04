@@ -547,9 +547,57 @@ Two traps around diagnosing it:
   the hook. Without it the CLI cases skip and pytest reports the file as passing,
   which proves nothing. Set both variables to reproduce.
 
+A third failure mode reads like the first two and is not. When the service
+rejects a token that is actually valid, the test fails with "Copilot auth token
+was rejected (expired or revoked); rotate COPILOT_GITHUB_TOKEN". That message
+names one cause and the service's own text in the same output contradicts it:
+"Your token may still be valid. Check your network connection and try again."
+Measured: a push failed both e2e jobs on that message, and the same test passed
+in 24.99 seconds a few minutes later with a token from the same `gh auth token`
+call. Reproduce before rotating anything:
+
+```bash
+RUN_CLI_E2E=1 COPILOT_GITHUB_TOKEN="$(gh auth token)" \
+  uv run --frozen python -m pytest \
+  tests/e2e/test_plugin_load_smoke.py::test_copilot_plugin_loads_expected_skills -q
+```
+
+That is 25 seconds against 18 minutes for a push, and it tells you whether you
+have a credential problem or a bad minute.
+
 Measured on that same push: `plugin-load-e2e` failed at 13.03 seconds and
 `hook-anchoring-e2e` at 16.73 seconds, while `python-tests` passed in 1071.94
 seconds. The same two tests passed in 27.92 seconds under `RUN_CLI_E2E=1` with
 `COPILOT_GITHUB_TOKEN` set, and skipped silently with the token set but
 `RUN_CLI_E2E` unset. Those four durations are author-reported from the push
 console; no log artifact is committed.
+
+## Editing any `.claude/rules/*.md` file changes a number the doctrine asserts
+
+`model-context-doctrine.md` states the shipped plugin tree's always-on size as
+a literal byte count, and `tests/validation/test_always_on_corpus_claims.py`
+measures the tree and asserts the prose matches. Editing a rule changes that
+measurement, so a one-paragraph clarification to an unrelated rule turns the
+guard red.
+
+The trap is where it fires. The guard lives in `python-tests`, so it costs the
+full suite before the ref is rejected. Nothing in the pre-commit set catches
+it, and the edit itself looks unrelated to any figure.
+
+Four rules are narrowly scoped in `.github/instructions` and always-on in the
+plugin tree: `governance`, `push-lock`, `secret-redaction`, and `session-logs`.
+Editing one of those moves the plugin figure while leaving the
+`.github/instructions` figure alone, which is why the two numbers in that
+paragraph drift independently.
+
+Check it in under a second before pushing:
+
+```bash
+uv run --frozen python -m pytest tests/validation/test_always_on_corpus_claims.py -q
+```
+
+When it fails, take the measured value from the assertion message, update the
+sentence in `.claude/skills/context-optimizer/references/model-context-doctrine.md`,
+and rerun `build/scripts/generate_skills.py` so the `src/copilot-cli/` mirror
+matches. Update the vendor-cost figure in the same sentence: it is the plugin
+count minus the `.github/instructions` count, and no test checks it.

@@ -94,7 +94,10 @@
         "e014",
         "e015",
         "e016",
-        "e017"
+        "e017",
+        "e019",
+        "e020",
+        "e021"
       ],
       "leads_to": [
         "e018"
@@ -220,6 +223,39 @@
         "e007"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pushed both branches after merging main and hit two new failures, neither of which was the original one.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Investigated the other branch's e2e failure, which reported the Copilot token as expired or revoked.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded the rule-edit trap in GOTCHAS as its own section.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
     }
   ],

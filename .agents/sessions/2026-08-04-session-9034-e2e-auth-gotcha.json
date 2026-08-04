@@ -182,6 +182,21 @@
       "timestamp": "2026-08-04T15:05:00Z",
       "action": "Diagnosed why both in-flight pushes were rejected despite passing the full suite.",
       "outcome": "Same cause on both branches: the taste-count-ratchet baseline was stale at 586 while origin/main had lowered it to 584. merge-tree-ratchet had already pre-computed that the merged tree passes at 584, which is the signal that a merge is the fix. Merged origin/main into both worktrees cleanly."
+    },
+    {
+      "timestamp": "2026-08-04T15:40:00Z",
+      "action": "Pushed both branches after merging main and hit two new failures, neither of which was the original one.",
+      "outcome": "The rule edit in this branch grew the shipped plugin tree from 82,299 to 83,331 bytes, which turned the doctrine figure guard red inside python-tests. Updated the sentence in model-context-doctrine.md, recomputed the vendor-cost figure that no test checks (12,956), and regenerated the mirror."
+    },
+    {
+      "timestamp": "2026-08-04T15:55:00Z",
+      "action": "Investigated the other branch's e2e failure, which reported the Copilot token as expired or revoked.",
+      "outcome": "Transient, not a credential problem. The same test passed in 24.99 seconds a few minutes later using a token from the same gh auth token call. The failure text names one cause while the service's own message in the same output says the token may still be valid. Documented the 25-second reproduction so nobody rotates a working credential."
+    },
+    {
+      "timestamp": "2026-08-04T16:05:00Z",
+      "action": "Recorded the rule-edit trap in GOTCHAS as its own section.",
+      "outcome": "Editing any .claude/rules file moves a byte count the doctrine asserts, and the guard sits in python-tests, so the cost is the full suite. Named the four rules that are narrowly scoped in .github/instructions and always-on in the plugin tree, which is why the two figures drift independently."
     }
   ],
   "endingCommit": "c6c61fbf5",

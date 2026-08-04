@@ -250,11 +250,11 @@ Name the tree with the number, because the two mirror trees disagree.
 `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions` under
 `keepInternalGlobsFor`, so the internal-glob filter is disabled there and the
 internal-only fallback cannot fire. It fires only for the plugin tree. At
-`a81239d0c` that leaves `.github/instructions` at 8 rules and 70,375 bytes while
-`src/copilot-cli/instructions` carries 12 rules and 82,299 bytes: `governance`,
+`e0cf480e0` that leaves `.github/instructions` at 8 rules and 70,375 bytes while
+`src/copilot-cli/instructions` carries 12 rules and 83,331 bytes: `governance`,
 `push-lock`, `secret-redaction`, and `session-logs` are narrowly scoped here and
 always-on in the shipped plugin. Every figure in this document is the
-`.github/instructions` number. A vendor install pays 11,924 bytes a turn that
+`.github/instructions` number. A vendor install pays 12,956 bytes a turn that
 this repository never measures, on four rules whose globs point at `.agents/`
 paths the installing
 repository does not have.
