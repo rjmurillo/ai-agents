@@ -22,7 +22,8 @@
         "e009",
         "e010",
         "e011",
-        "e012"
+        "e012",
+        "e013"
       ],
       "leads_to": [
         "e002"
@@ -144,6 +145,17 @@
       "timestamp": "2026-08-03T00:00:00+00:00",
       "type": "milestone",
       "content": "Merged origin/main after verifying the real remote tip, then found and fixed a tenth failure on main",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a retrospective after the push gate demanded one, and the material was already owed",
       "caused_by": [],
       "leads_to": [
         "e001"
