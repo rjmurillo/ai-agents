@@ -33,26 +33,27 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from active_plan_closeout import validate_active_plan_closeout
-from check_doc_interpreter_portability import (  # noqa: E402
+from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_nested_tests import validate_no_nested_tests
+from check_push_lock_paths import validate_push_lock_paths
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
 from check_unreachable_code import validate_unreachable_code
-from checks_coverage import (  # noqa: E402
+from checks_coverage import (
     validate_review_marker,
 )
-from checks_dash import validate_dash_prohibition  # noqa: E402
-from checks_plugin import (  # noqa: E402
+from checks_dash import validate_dash_prohibition
+from checks_plugin import (
     validate_agent_content_parity,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
@@ -62,8 +63,8 @@ from checks_plugin import (  # noqa: E402
     validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
-from checks_ratchet import validate_count_ratchets  # noqa: E402
-from checks_spec import (  # noqa: E402
+from checks_ratchet import validate_count_ratchets
+from checks_spec import (
     validate_agent_catalog,
     validate_build_gates,
     validate_canonical_citations,
@@ -79,7 +80,7 @@ from checks_spec import (  # noqa: E402
     validate_traceability,
     validate_vendor_portability,
 )
-from checks_tooling import (  # noqa: E402
+from checks_tooling import (
     validate_agent_drift,
     validate_ci_dependency_pins,
     validate_copilot_version_pin,
@@ -92,13 +93,13 @@ from checks_tooling import (  # noqa: E402
     validate_workflow_yaml,
     validate_yaml_style,
 )
-from stale_script_refs import validate_stale_script_refs  # noqa: E402
-from validate_argument_hint import validate_argument_hint  # noqa: E402
-from validate_design_review import validate_design_review_frontmatter  # noqa: E402
-from validate_no_orphaned_build_deferrals import (  # noqa: E402
+from stale_script_refs import validate_stale_script_refs
+from validate_argument_hint import validate_argument_hint
+from validate_design_review import validate_design_review_frontmatter
+from validate_no_orphaned_build_deferrals import (
     validate_no_orphaned_build_deferrals,
 )
-from validate_python_syntax import validate_python_syntax  # noqa: E402
+from validate_python_syntax import validate_python_syntax
 
 if TYPE_CHECKING:
     import argparse
@@ -140,10 +141,21 @@ class _Gate:
 
 
 def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
-    """Adapt a ``validate_x(repo_root)`` validator to the uniform gate signature."""
+    """Adapt a ``validate_x(repo_root)`` validator to the uniform gate signature.
+
+    The validator is resolved by name at call time, not captured at import.
+    ``_SEQUENCE`` is built once at module import, so capturing the function
+    object would freeze it and a wiring test that rebinds the module attribute
+    could never observe the call. Per-consumer wiring tests are required here
+    (``testing.md`` SHOULD 6), so the indirection is what keeps them able to
+    fail.
+    """
+
+    name = validator.__name__
 
     def _run(repo_root: Path, _args: argparse.Namespace) -> bool:
-        return validator(repo_root)
+        current = cast("Callable[[Path], bool]", globals().get(name, validator))
+        return current(repo_root)
 
     return _run
 
@@ -194,6 +206,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Unreachable Code Detection", _root_only(validate_unreachable_code)),
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
+    _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),
     _Gate("Session End Validation", _root_only(validate_session_end)),
     _Gate(
         "Pester Unit Tests",
