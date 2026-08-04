@@ -134,7 +134,8 @@ lockfile, keyed on the branch:
 ```bash
 BR=$(git rev-parse --abbrev-ref HEAD)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/tmp/push-lock-$SLUG.lock" git push -u origin "$BR"
+mkdir -p "$HOME/src/scratch/locks"
+flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push -u origin "$BR"
 ```
 
 `flock` waits for the lock rather than failing, so a queued push runs when the
@@ -151,7 +152,10 @@ Every agent must name the lock identically or it excludes nothing. Measured
 `/tmp/aiagents-push-$SLOT.lock` hashed into four slots, and the per branch
 path above), and one branch had two concurrent pushes running under two
 different lock names. `flock` only excludes processes that agree on the path,
-so the extra schemes bought nothing and hid the race.
+so the extra schemes bought nothing and hid the race. The path above is now the
+only sanctioned one: `.claude/rules/push-lock.md` states it and
+`scripts/validation/check_push_lock_paths.py` fails a tracked prescription that
+names anything else (issue #4366).
 
 The lock file currently lives under `/tmp`. The requirement is that every agent
 names it identically, since `flock` excludes only processes that agree on the
