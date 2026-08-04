@@ -17,7 +17,13 @@ three of them prescribe a fix the file under review had already applied.
 
 * It reported `model-context-doctrine.md:179` shipping a `.py` effective size
   of 96,848 and prescribed 96,785. `git log -S "96,848"` on that path returns
-  nothing on any branch; the document has held 96,785 since `f326f3399`.
+  nothing on any branch, so the figure it reported has never been in the file.
+  The document carried 96,785 from `81b877fd8`, the merge of #4485, until
+  `f326f3399` changed it to 94,869, which is the value there now. Run the
+  search rather than trusting this sentence: an earlier draft of it claimed
+  the file had held 96,785 since `f326f3399`, which inverts what that commit
+  did, and a dispatched reviewer caught it. A memory about fabricated premises
+  shipped one for a day.
 * It reported the same 96,848 in the commit message. That message reads
   `.py effective: 94,088 bytes -> 96,785 bytes`.
 * It called the byte and multiplier claims "unguarded theater," and it flagged
@@ -65,6 +71,37 @@ policy was permanently lost when the substance had been compressed into
 `builder-ethos.md`). Precision one in two, and the correct one drove a real
 fix. Worth the dispatch.
 
+Third round, 2026-08-03, two documentation branches, same model. Seven findings
+across both, three of which held. The three that held were each worth the
+round: a documentation branch citing a test name and a symbol that existed on
+no branch but the one it was split from, and a factual error in this very
+memory. The four that failed all failed the same way, on a local convention the
+reviewer could not see.
+
+## A reviewer that cannot see a convention will misread data against the one it assumes
+
+This is a distinct failure from fabrication and the countermeasure is
+different. Fabrication invents a premise. This reads a real premise correctly
+and interprets it against the wrong rule, so the quoted evidence is genuine and
+the conclusion is still wrong. Quoting requirements do not catch it.
+
+Measured. A reviewer flagged `memory-index.md` for "wildly incorrect byte
+counts," quoting a real line that reads `(1579)` beside a file of 6,644 bytes,
+and it pasted true `wc -c` output. The number is a token count, not a byte
+count. Every entry in that index ratios between 3.8 and 5.1 bytes per unit, and
+6644/1579 is 4.21. The finding was High severity, the evidence was real, and
+the conclusion was backwards. In the same round another finding declared a rule
+file an always-on context cost when its frontmatter scopes it to `tests/**`,
+and a third reported `TESTING-RIGOR.md` missing after running `ls` from a
+directory that was not the worktree.
+
+The tell is that all three are claims about how this repository works rather
+than about the change under review. So treat any finding of that kind as
+unverified until you check the convention itself, and prefer to state the
+convention in the dispatch prompt when you already know the reviewer will need
+it. Acting on the byte-count finding would have replaced correct token counts
+with byte counts across the index.
+
 ## Recall is worth more than precision, but only if you pay for verification
 
 A reviewer whose findings are mostly false is still worth running when the true
@@ -82,12 +119,23 @@ skimming more of them.
 
 ## Model selection for the `code-review` agent type
 
-Observed repeatedly in this repository, across many dispatches in one session:
+The durable part of this section is the shape, not the roster. Dispatched
+reviewers fail in two independent ways, liveness and precision, and a model can
+be good at one and bad at the other. So pick on both axes, and treat a hang as
+a permanent cost rather than a retryable one. That much outlives any model
+name.
+
+The roster below is perishable. It is one session's observation in this
+repository, current as of 2026-08-03, on the `code-review` agent type only.
+Re-measure before relying on it; if these version strings no longer resolve,
+the roster is expired and only the paragraph above still applies.
 
 * `gpt-5.6-terra` hangs on `code-review` here. Multiple dispatches ran past
   four and six hours with zero turns completed and never returned. Do not
   assign it to `code-review` on this repository. It occupies an agent slot for
   the rest of the session and produces nothing.
+* `gpt-5.5` behaved the same way on the same agent type: one dispatch reached
+  8,286 seconds with 17 tool calls and zero completed turns.
 * `gemini-3.1-pro-preview` usually returns and its findings are usually real,
   but it also hangs sometimes. One dispatch sat at zero turns past 3,300
   seconds while a sibling dispatch of the same model on the same branch

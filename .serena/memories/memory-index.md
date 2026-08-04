@@ -14,7 +14,7 @@
 |new_pr create stale main ref session end validation failed opaque diff: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
 |git diff origin main direction stale branch deletion behind predates restore: [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) (496)
 |close_issue comment-file must stay under repo root git scratch verify-claims unmerged reason quoting: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (891)
-|adversarial review dispatched model subagent fabricated finding verify number grok gemini terra hangs code-review slot: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (1579)
+|adversarial review dispatched model subagent fabricated finding verify number grok gemini terra hangs code-review slot: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2285)
 |github pr issue cli gh api review comment batch response: [skills-github-cli-index](skills-github-cli-index.md) (552), [skills-pr-review-index](skills-pr-review-index.md) (1019), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object string: [skills-jq-index](skills-jq-index.md) (356)
