@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Lowered the taste count baseline from 593 to 592 after merging current main.",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e004"
+      ],
       "_source_session": "2026-08-04-session-4371-queue-drain"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Corrected the split-test episode metrics so commits is 1 when files_changed is 3.",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e004"
+      ],
       "_source_session": "2026-08-04-session-4371-queue-drain"
     },
     {
@@ -31,6 +35,21 @@
       "type": "milestone",
       "content": "Kept the removed causal graph artifact deleted after the merge restored it.",
       "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-4371-queue-drain"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:38:11+00:00",
+      "type": "commit",
+      "content": "Commit: f0123e641",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-4371-queue-drain"
     }
@@ -40,7 +59,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": []

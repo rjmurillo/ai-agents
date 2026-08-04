@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Prepared for commit on wt/t_4e0b0cc0."
+        "Evidence": "Committed as f0123e641."
       },
       "validationPassed": {
         "level": "MUST",
@@ -144,6 +144,6 @@
       "result": "The causal tier removal test passed."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "f0123e641",
   "nextSteps": []
 }
