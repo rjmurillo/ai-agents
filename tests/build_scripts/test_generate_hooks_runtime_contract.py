@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -277,8 +278,13 @@ def _slash(text: str) -> str:
     PowerShell echoes a root back with the separator it was handed and pathlib
     hands it native ones, so a raw string comparison fails on Windows for a
     reason that has nothing to do with the contract under test.
+
+    Runs of backslashes collapse to a single forward slash. CPython renders the
+    path in ``can't open file '...'`` with each separator doubled, so a
+    one-for-one replacement yields ``C://Users//runneradmin`` and the
+    comparison fails against a correctly resolved ``C:/Users/runneradmin``.
     """
-    return text.replace("\\", "/")
+    return re.sub(r"\\+", "/", text)
 
 
 def _pwsh_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
@@ -568,7 +574,7 @@ def test_stale_plugin_root_powershell_failure_names_the_missing_path(
     # operands are strings from a subprocess, where str.replace is the only
     # tool; _slash keeps that in one place and makes it testable off Windows.
     expected_path = _slash(_pwsh_resolve(_path_arg(command), env, tmp_path))
-    normalized_stderr = _slash(proc.stderr.replace("\\\\", "\\"))
+    normalized_stderr = _slash(proc.stderr)
     assert stale_root.as_posix() in expected_path, expected_path
     assert expected_path in normalized_stderr, (
         "PowerShell interpreter error must name the missing path, otherwise the "
@@ -634,6 +640,49 @@ class TestSeparatorNormalization:
         root = PurePosixPath(PureWindowsPath(r"C:\Users\runneradmin\elsewhere").as_posix())
         resolved = r"C:\Users\runneradmin\moved-away\hooks\PreToolUse\x.py"
         assert str(root) not in _slash(resolved)
+
+    def test_doubled_separators_collapse_to_one(self) -> None:
+        """CPython doubles each separator inside ``can't open file '...'``.
+
+        A one-for-one replacement turned ``C:\\\\Users`` into ``C://Users`` and
+        the stale-root assertion failed on ``windows-latest`` while every POSIX
+        run stayed green. Run 30878223824 is the observed failure.
+        """
+        assert _slash(r"C:\\Users\\runneradmin") == "C:/Users/runneradmin"
+
+    def test_single_and_doubled_separators_agree(self) -> None:
+        """The invariant the fix rests on, stated directly."""
+        assert _slash(r"C:\Users\x.py") == _slash(r"C:\\Users\\x.py")
+
+    def test_the_observed_windows_stderr_names_the_expected_path(self) -> None:
+        """The verbatim failure from run 30878223824, as a regression test.
+
+        The interpreter prefix carries single separators and the quoted path
+        carries doubled ones, with a forward-slash tail from the launcher
+        argument. All three shapes appear in one string.
+        """
+        stderr = (
+            r"C:\hostedtoolcache\windows\Python\3.14.6\x64\python3.exe: "
+            r"can't open file 'C:\\Users\\runneradmin\\AppData\\Local\\Temp"
+            r"\\pytest-of-runneradmin\\pytest-0\\test_stale_plugin_root_failure0"
+            r"\\moved-away/hooks/PreToolUse/_dispatch.py': "
+            "[Errno 2] No such file or directory\n"
+        )
+        expected = (
+            "C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/"
+            "pytest-0/test_stale_plugin_root_failure0/moved-away/hooks/"
+            "PreToolUse/_dispatch.py"
+        )
+        assert expected in _slash(stderr)
+
+    def test_the_observed_stderr_rejects_a_path_it_does_not_name(self) -> None:
+        """Guard the guard on the real shape, not just the synthetic one."""
+        stderr = (
+            r"can't open file 'C:\\Users\\runneradmin\\moved-away"
+            r"/hooks/PreToolUse/_dispatch.py'"
+        )
+        absent = "C:/Users/runneradmin/still-here/hooks/PreToolUse/_dispatch.py"
+        assert absent not in _slash(stderr)
 
 
 class TestBashProbe:
