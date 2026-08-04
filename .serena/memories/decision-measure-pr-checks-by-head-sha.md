@@ -109,3 +109,64 @@ on PR #4542. The passing set is `{success, skipped, neutral}`.
 check green means the cause is outside check runs: an unresolved review thread,
 a required context that never reported at all, or a legacy commit status, which
 lives at `/commits/{sha}/status` and is a separate surface from `/check-runs`.
+
+## Amendment 2026-08-04b: do not reduce at all, ask the server for the aggregate
+
+The amendment above prescribes a local reduction. Measured on PR #4515, that
+reduction returns the wrong answer, so the runnable form below is the one to
+copy.
+
+**4. Two concurrent runs under different triggers share one required name, and
+neither supersedes the other.** `.github/workflows/pytest.yml` runs on both
+`push` and `pull_request`. One head SHA therefore produces two rows named `Run
+Python Tests`, a required context, from two runs that started seconds apart for
+two different events. Latest per name picks exactly one of them. GitHub does
+not: it ORs every row bearing a required name, so one red row blocks the merge
+while the local reduction reports green.
+
+Measured on head `09506b4cc`:
+
+| job | trigger | step 9 |
+|---|---|---|
+| 91970285221 | `pull_request` | success |
+| 91969707666 | `push` | failure |
+
+Latest per name reported green. `mergeStateStatus` reported `BLOCKED`. The
+server was right.
+
+The rule that survives every case measured so far is that the aggregate is not
+reconstructable from the rows, because the required-context set is not visible
+in them. Ask the server for the aggregate it already computed:
+
+```bash
+gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){
+  repository(owner:$o,name:$r){pullRequest(number:$n){
+    headRefOid mergeable mergeStateStatus
+    commits(last:1){nodes{commit{statusCheckRollup{state}}}}}}}' \
+  -F o=rjmurillo -F r=ai-agents -F n="$PR" \
+  --jq '.data.repository.pullRequest
+        | "head=\(.headRefOid[0:9]) rollup=\(.commits.nodes[0].commit.statusCheckRollup.state) state=\(.mergeStateStatus)"'
+```
+
+`rollup` is the aggregate over every row on the head commit. `mergeStateStatus`
+folds in review threads and branch protection on top of it. Read them together:
+
+| rollup | mergeStateStatus | meaning |
+|---|---|---|
+| `SUCCESS` | `CLEAN` | mergeable now |
+| `SUCCESS` | `BLOCKED` | checks are green, the block is threads or a missing required context |
+| `FAILURE` | `BLOCKED` | a real red row, list the rows to find it |
+| `PENDING` | `BLOCKED` | still running, not a failure |
+
+Only after `rollup` says `FAILURE` is it worth listing rows, and then the
+question is which row, not whether:
+
+```bash
+gh pr view "$PR" --json statusCheckRollup --jq '
+  .statusCheckRollup[]
+  | select((.conclusion // .state) == "FAILURE" or (.conclusion // .state) == "failure")
+  | "\(.name // .context)  \(.detailsUrl // "")"'
+```
+
+A row whose `conclusion` is null is still running. It is neither a pass nor a
+failure, and filtering on "not success" misfiles it as red.
