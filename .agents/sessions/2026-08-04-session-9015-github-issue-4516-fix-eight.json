@@ -156,7 +156,7 @@
       "result": "QA passed 33 of 33 with zero skips, independent re-review reported no findings, pre_pr.py passed 46 validations with 0 failures, and the critic returned READY."
     }
   ],
-  "endingCommit": "8365f99a258a77515c4062836d49e227e57e49ac",
+  "endingCommit": "8744545a33161658e3b1430c03c5eacc36077da5",
   "nextSteps": [
     "Commit this session-log follow-up, push normally, and open a PR with the prepared body containing standalone Fixes #4516.",
     "Monitor all checks and review threads, then merge only when fully green and resolved."
