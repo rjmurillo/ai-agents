@@ -287,13 +287,9 @@ def _check_one(
         if base_baseline is None and merged_baseline is None:
             unreadable = "at the base ref and in the merged tree"
         elif base_baseline is None:
-            unreadable = (
-                f"at the base ref (merged tree records {merged_baseline})"
-            )
+            unreadable = f"at the base ref (merged tree records {merged_baseline})"
         else:
-            unreadable = (
-                f"in the merged tree (base ref records {base_baseline})"
-            )
+            unreadable = f"in the merged tree (base ref records {base_baseline})"
         return (
             EXIT_CONFIG,
             f"{label}: CONFIG ERROR - baseline unreadable {unreadable}",
@@ -376,10 +372,7 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
         )
         return exit_code
 
-    print(
-        f"merge-tree-ratchet: OK. Merged tree passes all four ratchets "
-        f"(base: {base_ref})."
-    )
+    print(f"merge-tree-ratchet: OK. Merged tree passes all four ratchets (base: {base_ref}).")
     return EXIT_OK
 
 
