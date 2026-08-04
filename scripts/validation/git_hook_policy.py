@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
 # ruff: noqa: E402
 """Narrow Git policies that Lefthook cannot express declaratively."""
 
@@ -998,23 +999,26 @@ def _today_session_log(sessions_dir: Path) -> Path | None:
 
 
 def _session_log_for_current_branch(sessions_dir: Path, repo_root: Path) -> Path | None:
-    """Return the session log for the current branch, falling back to mtime.
+    """Return the session log for the current branch, or None.
 
     Calls ``_current_branch`` to identify the active branch, then uses
-    ``_session_log_for_branch`` to find its log deterministically. Falls back
-    to ``_today_session_log`` (newest by mtime) so callers fail open rather
-    than hard-blocking when no branch-specific log exists yet.
+    ``_session_log_for_branch`` to find its log deterministically. Returns
+    ``None`` when the branch cannot be determined (detached HEAD, git
+    unavailable) or when no recent log carries a matching branch field.
 
-    This is the correct replacement for bare ``_today_session_log`` calls
-    in ADR and retrospective gates: concurrent agents on other branches
-    frequently own a newer mtime and the mtime winner names the wrong session.
+    Returning ``None`` rather than the mtime winner prevents the ADR and
+    retrospective gates from judging a commit against a different session's
+    evidence. A caller that needs fail-open behaviour should check the
+    returned value and decide whether to pass or fail on ``None`` itself.
+
+    ``_today_session_log`` (mtime fallback) is intentionally NOT used here;
+    it remains available for ``check_branch_context`` which relies on the
+    mtime ordering to detect co-mingling (issues #682, #3343).
     """
     branch = _current_branch(repo_root)
-    if branch is not None:
-        log = _session_log_for_branch(sessions_dir, branch)
-        if log is not None:
-            return log
-    return _today_session_log(sessions_dir)
+    if branch is None:
+        return None
+    return _session_log_for_branch(sessions_dir, branch)
 
 
 def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
@@ -2519,6 +2523,48 @@ def check_pushed_suppressions(stream: TextIO, repo_root: Path) -> int:
     for violation in violations:
         print(f"  {violation}", file=sys.stderr)
     return 1
+
+
+def _report_suppression_violations(
+    updates: Sequence[PushUpdate],
+    repo_root: Path,
+) -> int:
+    """Scan each update's range and report every net-new suppression."""
+    violations: list[str] = []
+    for update in updates:
+        paths = _changed_commit_paths(update, repo_root)
+        if paths is None:
+            return 2
+        added_violations = _added_suppression_violations(update, paths, repo_root)
+        if added_violations is None:
+            return 2
+        violations.extend(added_violations)
+    if not violations:
+        return 0
+    print("ERROR: security suppression comments detected in pushed commits:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    return 1
+
+
+def check_range_suppressions(base: str, head: str, repo_root: Path) -> int:
+    """CI backstop for the no-net-new suppression policy."""
+    head_sha = _resolve_commit(repo_root, head)
+    if head_sha is None:
+        print(f"ERROR: could not resolve head revision: {head}", file=sys.stderr)
+        return 2
+    base_sha = _merge_base(repo_root, base, head_sha) or _resolve_commit(repo_root, base)
+    if base_sha is None:
+        print(f"ERROR: could not resolve base revision: {base}", file=sys.stderr)
+        return 2
+    update = PushUpdate(
+        source=PushRef("HEAD", head_sha, "HEAD", base_sha),
+        base=base_sha,
+        head=head_sha,
+        range_spec=f"{base_sha}..{head_sha}",
+        destination_branch=None,
+    )
+    return _report_suppression_violations([update], repo_root)
 
 
 def _added_suppression_violations(
@@ -4941,6 +4987,18 @@ def _is_zero_sha(sha: str) -> bool:
     return len(sha) in ZERO_SHA_LENGTHS and not sha.strip("0")
 
 
+# Documented escape for a maintainer deliberately reworking an unshared branch.
+# Not --no-verify, which .claude/rules/universal.md MUST NOT #2 forbids.
+FORCE_PUSH_ESCAPE_ENV = "FORCE_PUSH_OK"
+
+
+def _resolve_commit(repo_root: Path, ref: str) -> str | None:
+    result = _run_git(repo_root, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
 def _merge_base(repo_root: Path, base: str, head: str) -> str | None:
     result = _run_git(repo_root, ["merge-base", base, head])
     if result.returncode != 0:
@@ -5468,7 +5526,13 @@ def _skip_skillforge_path(path: str, repo_root: Path) -> bool:
     A mirror is not an authored skill, so the SkillForge schema (Triggers, Process,
     Verification) does not describe it and editing it is not how you fix it. The
     mirror set is derived from `.claude/commands/<name>.md`, the generator's own
-    input, so the two cannot drift. Do not restate the names here or in lefthook.yml.
+    input, so do not restate the names here or in lefthook.yml.
+
+    Derived is not the same as in sync. Nothing regenerates a mirror at commit
+    time, so a command edit that skips the generator ships a stale mirror; one
+    did, leaving the Copilot pr-autofix skill prescribing a push the pre-push
+    guard rejects. `test_committed_command_mirrors_match_the_generator` in
+    tests/build_scripts/test_generate_commands.py is what catches that.
     """
     if path.startswith("evals/"):
         return True
@@ -6187,6 +6251,10 @@ def _handle_staged_suppressions(args: argparse.Namespace) -> int:
     return check_staged_suppressions(_repo_root(args))
 
 
+def _handle_suppressions_range(args: argparse.Namespace) -> int:
+    return check_range_suppressions(args.base, args.head, _repo_root(args))
+
+
 def _handle_suppression_diff(args: argparse.Namespace) -> int:
     return check_suppression_diff(args.base_ref, _repo_root(args))
 
@@ -6268,6 +6336,10 @@ def build_parser() -> argparse.ArgumentParser:
     generated = subparsers.add_parser("stage-generated")
     generated.add_argument("kind", choices=sorted(GENERATED_PATHS | GENERATED_GLOBS))
     generated.set_defaults(handler=_handle_stage_generated)
+    suppression_range = subparsers.add_parser("security-suppressions-range")
+    suppression_range.add_argument("--base", required=True)
+    suppression_range.add_argument("--head", default="HEAD")
+    suppression_range.set_defaults(handler=_handle_suppressions_range)
     suppression_diff = subparsers.add_parser(
         "security-suppressions-diff",
         help="CI backstop: check HEAD..base_ref range for new security suppressions",

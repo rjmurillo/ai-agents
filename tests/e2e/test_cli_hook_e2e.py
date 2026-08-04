@@ -71,7 +71,7 @@ _copilot_command = copilot_hook_probe.copilot_command
 _manifest = copilot_hook_probe.manifest
 _probe_name = copilot_hook_probe.probe_name
 _write_probe_script = copilot_hook_probe.write_probe_script
-_copilot_auth_failed = copilot_hook_probe.copilot_auth_failed
+_copilot_auth_failed = copilot_hook_probe.copilot_run_blocked
 _copilot_auth_failure_headline = copilot_hook_probe.copilot_auth_failure_headline
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"

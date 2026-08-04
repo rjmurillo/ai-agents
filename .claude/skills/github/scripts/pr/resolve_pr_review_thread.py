@@ -20,6 +20,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -38,7 +39,7 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     gh_graphql,
 )
@@ -77,6 +78,19 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
     }
 }"""
 
+_THREAD_QUERY = """\
+query($threadId: ID!) {
+    node(id: $threadId) {
+        ... on PullRequestReviewThread {
+            id
+            isResolved
+            pullRequest {
+                number
+            }
+        }
+    }
+}"""
+
 
 def resolve_review_thread(thread_id: str) -> bool:
     """Resolve a single review thread. Returns True on success."""
@@ -97,7 +111,7 @@ def resolve_review_thread(thread_id: str) -> bool:
     return False
 
 
-def get_unresolved_threads(pr_number: int) -> list[dict]:
+def get_unresolved_threads(pr_number: int) -> list[dict[str, Any]]:
     """Fetch unresolved review threads for a PR."""
     result = subprocess.run(
         ["gh", "repo", "view", "--json", "owner,name"],
@@ -124,6 +138,27 @@ def get_unresolved_threads(pr_number: int) -> list[dict]:
         .get("nodes", [])
     )
     return [t for t in threads if not t.get("isResolved", True)]
+
+
+def query_thread_state(thread_id: str) -> dict[str, Any] | None:
+    data = gh_graphql(_THREAD_QUERY, {"threadId": thread_id})
+    node = data.get("node")
+    return node if isinstance(node, dict) else None
+
+
+def _single_thread_skip_code(thread_id: str) -> int | None:
+    try:
+        thread = query_thread_state(thread_id)
+    except RuntimeError as exc:
+        print(f"Error: failed to query thread state: {exc}", file=sys.stderr)
+        return 3
+    if thread is None:
+        print(json.dumps({"action": "SKIP", "reason": "not_found"}, indent=2))
+        return 0
+    if thread.get("isResolved"):
+        print(json.dumps({"action": "SKIP", "reason": "already_resolved"}, indent=2))
+        return 0
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +193,16 @@ def main(argv: list[str] | None = None) -> int:
     assert_gh_authenticated()
 
     if args.thread_id:
+        skip_code = _single_thread_skip_code(args.thread_id)
+        if skip_code is not None:
+            return skip_code
         success = resolve_review_thread(args.thread_id)
+        print(
+            json.dumps(
+                {"action": "ACT", "success": success, "thread_id": args.thread_id},
+                indent=2,
+            )
+        )
         return 0 if success else 1
 
     # Resolve all unresolved threads

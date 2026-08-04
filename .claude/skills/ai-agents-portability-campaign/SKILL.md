@@ -263,7 +263,7 @@ tests, shipped-artifact tests, real CLI probe, and generated mirrors together.
 - [ ] Canonical and generated artifacts changed together.
 - [ ] Targeted generator and runtime tests pass.
 - [ ] Real CLI ran for runtime-only changes.
-- [ ] Both project-toolkit plugin manifests were bumped to the same version.
+- [ ] Both project-toolkit plugin manifests are still version-free (`validate_plugin_version_bump.py` exits 0).
 - [ ] No stale contract claim remains in requirements, audits, memories, or mirrors.
 
 ## Provenance and Maintenance

@@ -64,7 +64,7 @@ class TestReadVerdict:
     def test_unreadable_file_raises(self, tmp_path: Path, monkeypatch) -> None:
         (tmp_path / "qa-verdict.txt").write_text("PASS", encoding="utf-8")
 
-        def unreadable(*_args, **_kwargs):  # noqa: ANN002, ANN003
+        def unreadable(*_args, **_kwargs):
             raise PermissionError("denied")
 
         monkeypatch.setattr(Path, "read_text", unreadable)

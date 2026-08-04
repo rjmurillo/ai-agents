@@ -340,5 +340,3 @@ class TestValidateWorkflowYamlScope:
             with patch("checks_tooling._run_subprocess") as mock_run:
                 assert validate_workflow_yaml(tmp_path) is True
         mock_run.assert_not_called()
-
-
