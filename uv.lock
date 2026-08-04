@@ -21,6 +21,7 @@ semgrep = false
 [manifest]
 overrides = [
     { name = "click", specifier = "==8.3.3" },
+    { name = "cryptography", specifier = "==50.0.0" },
     { name = "mcp", specifier = "==1.28.1" },
 ]
 
