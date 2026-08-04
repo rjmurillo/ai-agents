@@ -26,7 +26,7 @@ Validate and complete session logs before commit. Complements `session-init` (wh
 ### Automated (Recommended)
 
 ```bash
-uv run python .claude/skills/session-end/scripts/complete_session_log.py
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-end/scripts/complete_session_log.py"
 ```
 
 The script will:
@@ -40,7 +40,7 @@ The script will:
 ### Preview Changes First
 
 ```bash
-uv run python .claude/skills/session-end/scripts/complete_session_log.py --dry-run
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-end/scripts/complete_session_log.py" --dry-run
 ```
 
 ---
@@ -165,13 +165,13 @@ Before running this skill, ensure you have:
 
 ```bash
 # Auto-detect and complete
-uv run python .claude/skills/session-end/scripts/complete_session_log.py
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-end/scripts/complete_session_log.py"
 
 # Or specify session explicitly
-uv run python .claude/skills/session-end/scripts/complete_session_log.py --session-path ".agents/sessions/2026-02-07-session-05.json"
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-end/scripts/complete_session_log.py" --session-path ".agents/sessions/2026-02-07-session-05.json"
 
 # Preview only
-uv run python .claude/skills/session-end/scripts/complete_session_log.py --dry-run
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-end/scripts/complete_session_log.py" --dry-run
 ```
 
 ### Step 3: Address Any Failures
