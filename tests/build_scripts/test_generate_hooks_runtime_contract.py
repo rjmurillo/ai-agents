@@ -283,10 +283,14 @@ def _require_bash() -> str:
     details = "\n".join(f"- {failure}" for failure in _BASH_PROBE_FAILURES)
     if not details:
         details = "- no bash candidates were found"
+    hint = (
+        "Install Git Bash or repair its installation."
+        if sys.platform == "win32"
+        else "Install bash or make it available on PATH."
+    )
     raise AssertionError(
         "no working bash resolved; refusing to skip the runtime contract. "
-        "Install Git Bash on Windows or make bash available on PATH.\n"
-        f"Probe results:\n{details}"
+        f"{hint}\nProbe results:\n{details}"
     )
 
 
@@ -876,6 +880,27 @@ class TestBashProbe:
             _require_bash()
 
         assert "Windows WSL launcher stub" in str(exc_info.value)
+
+    @pytest.mark.parametrize(
+        ("platform", "expected_hint"),
+        [
+            ("win32", "Install Git Bash or repair its installation."),
+            ("linux", "Install bash or make it available on PATH."),
+        ],
+    )
+    def test_missing_bash_hint_matches_the_platform(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        platform: str,
+        expected_hint: str,
+    ) -> None:
+        """A missing interpreter reports an actionable platform-specific hint."""
+        monkeypatch.setattr(sys, "platform", platform)
+        monkeypatch.setitem(globals(), "_RESOLVED_BASH", None)
+        monkeypatch.setitem(globals(), "_BASH_PROBE_FAILURES", ())
+
+        with pytest.raises(AssertionError, match=expected_hint):
+            _require_bash()
 
     def test_the_negative_control_requires_a_shell_diagnostic(self) -> None:
         """The control's stderr limb is what a dead launcher cannot satisfy.
