@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from _eval_errors import MalformedProviderMetadataError
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -106,10 +108,6 @@ def cost_basis(provider: str | None) -> str:
     """
     selected = (provider or os.environ.get("EVAL_PROVIDER") or "anthropic").strip().lower()
     return "requests" if selected in QUOTA_BILLED_PROVIDERS else "usd"
-
-
-class MalformedProviderMetadataError(RuntimeError):
-    """A provider returned metadata that cannot be recorded truthfully."""
 
 
 def require_str_or_none(value: object, field: str) -> str | None:
