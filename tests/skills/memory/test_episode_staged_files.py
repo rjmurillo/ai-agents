@@ -21,7 +21,7 @@ _SCRIPTS = (
 )
 sys.path.insert(0, str(_SCRIPTS))
 
-import extract_session_episode as ese  # noqa: E402
+import extract_session_episode as ese
 
 
 def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess[str]:

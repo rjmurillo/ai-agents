@@ -66,7 +66,7 @@ def _repo(tmp_path: Path, *, with_script: bool) -> Path:
 def test_advisory_failure_prints_warn_and_never_fail(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     repo = _repo(tmp_path, with_script=True)
     monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
@@ -83,7 +83,7 @@ def test_advisory_failure_prints_warn_and_never_fail(
 def test_enforced_failure_keeps_the_fail_token(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     repo = _repo(tmp_path, with_script=True)
     monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
@@ -98,7 +98,7 @@ def test_enforced_failure_keeps_the_fail_token(
 def test_missing_script_advisory_still_warns(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     repo = _repo(tmp_path, with_script=False)
     monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
@@ -137,7 +137,7 @@ def _marker_line_count(captured: str) -> int:
 def test_advisory_failure_forwards_each_line_once(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     """The verdict line is printed on the exit path only, never twice.
 
@@ -157,7 +157,7 @@ def test_advisory_failure_forwards_each_line_once(
 def test_enforced_failure_forwards_each_line_once(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     repo = _repo(tmp_path, with_script=True)
     monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")

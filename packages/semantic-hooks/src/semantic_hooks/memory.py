@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from pathlib import Path
 import json
 import sqlite3
-from typing import Any, TYPE_CHECKING
+from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from semantic_hooks.core import (
     DEFAULT_ZONE_THRESHOLDS,
