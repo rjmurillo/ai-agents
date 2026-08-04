@@ -24,6 +24,7 @@ _ORIGINAL_SYS_PATH = sys.path.copy()
 sys.path.insert(0, str(_EVAL_DIR))
 try:
     import _anthropic_api
+    import _copilot_cli_acp
     import _eval_api_adapter
     import _providers
     from _eval_common import MalformedProviderMetadataError
@@ -415,6 +416,25 @@ class TestSubprocessAuthFailureIsPermanent:
         assert result.attempts == 1
         assert attempts == 1
         assert sleeps == []
+
+    def test_call_model_does_not_retry_an_acp_auth_failure(self) -> None:
+        attempts = 0
+
+        def _raise_auth(_prompt: str, _model_id: str, _system: str) -> str:
+            nonlocal attempts
+            attempts += 1
+            raise _copilot_cli_acp.ACPProviderError("authentication failed")
+
+        adapter = _eval_api_adapter.AnthropicAPIAdapter(
+            transport=_raise_auth,
+            sleep=lambda _delay: None,
+        )
+
+        result = adapter.call_model("prompt", "model", "fixture", "variant", 0)
+
+        assert result.error_category == "auth"
+        assert result.attempts == 1
+        assert attempts == 1
 
 
 class TestEvalLogSchema:
@@ -1524,6 +1544,68 @@ def test_copilot_accepts_an_absolute_session_state_override(
     out = provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
 
     assert out == "answer"
+
+
+def test_copilot_passes_validated_session_root_to_child(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = tmp_path / "sessions"
+    _allow_unverified_model(monkeypatch)
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="answer\n"))
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(root))
+    provider = _providers._CopilotCLIProvider()
+
+    provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert seen["kwargs"]["env"]["COPILOT_SESSION_STATE_DIR"] == str(root)
+
+
+def test_copilot_home_selects_one_child_and_reader_session_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    copilot_home = tmp_path / "copilot-home"
+    expected_root = copilot_home / "session-state"
+
+    def fake_run(
+        argv: list[str], prompt: str, **kwargs: object
+    ) -> _FakeCompleted:
+        env = kwargs["env"]
+        assert isinstance(env, dict)
+        assert env["COPILOT_HOME"] == str(copilot_home)
+        assert env["COPILOT_SESSION_STATE_DIR"] == str(expected_root)
+        _write_session(
+            expected_root,
+            str(kwargs["cwd"]),
+            model="claude-opus-5",
+            contents=["home-root answer"],
+        )
+        return _FakeCompleted(stdout="wrong fallback\n")
+
+    monkeypatch.delenv("COPILOT_SESSION_STATE_DIR", raising=False)
+    monkeypatch.setenv("COPILOT_HOME", str(copilot_home))
+    monkeypatch.setattr(_copilot_cli, "run_acp_completion", fake_run)
+    provider = _providers._CopilotCLIProvider()
+
+    out = provider.complete(
+        messages=[{"role": "user", "content": "q"}],
+        model="claude-opus-5",
+    )
+
+    assert out == "home-root answer"
+
+
+def test_copilot_refuses_a_relative_copilot_home(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="answer\n"))
+    monkeypatch.delenv("COPILOT_SESSION_STATE_DIR", raising=False)
+    monkeypatch.setenv("COPILOT_HOME", "relative-home")
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError, match="COPILOT_HOME.*absolute"):
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert "argv" not in seen
 
 
 def test_copilot_falls_back_to_stdout_when_session_root_is_missing(

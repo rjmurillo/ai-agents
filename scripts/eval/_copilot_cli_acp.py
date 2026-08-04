@@ -8,12 +8,21 @@ import subprocess
 import threading
 import time
 from dataclasses import dataclass
-from typing import TextIO, cast
+from typing import Literal, TextIO, cast
 
 _PROTOCOL_VERSION = 1
 _MAX_CAPTURE_CHARS = 4 * 1024 * 1024
 _STDERR_CLASSIFICATION_CHARS = 4096
 _TOOL_UPDATE_NAMES = frozenset({"tool_call", "tool_call_update"})
+_AUTH_HINTS = (
+    "auth",
+    "forbidden",
+    "login",
+    "not logged in",
+    "permission denied",
+    "sign in",
+    "unauthorized",
+)
 
 
 class ACPProcessError(RuntimeError):
@@ -25,11 +34,32 @@ class ACPProcessError(RuntimeError):
         self.stderr = stderr
 
 
+ACPErrorCategory = Literal[
+    "authentication failed",
+    "provider failure",
+    "rate limit",
+    "request timed out",
+]
+
+
+class ACPProviderError(RuntimeError):
+    """A fixed, redacted provider failure returned over ACP JSON-RPC."""
+
+    def __init__(self, category: ACPErrorCategory) -> None:
+        super().__init__(
+            f"Copilot ACP provider error: error={category}; "
+            "provider details redacted"
+        )
+        self.category = category
+
+
 @dataclass
 class _ProcessStreams:
     process: subprocess.Popen[str]
     stdout_lines: queue.Queue[str | None]
     stderr_chunks: list[str]
+    stdout_thread: threading.Thread
+    stderr_thread: threading.Thread
 
 
 def _read_stdout(stream: TextIO, lines: queue.Queue[str | None]) -> None:
@@ -71,17 +101,25 @@ def _start_process(
         raise RuntimeError("Copilot ACP process pipes were unavailable")
     stdout_lines: queue.Queue[str | None] = queue.Queue()
     stderr_chunks: list[str] = []
-    threading.Thread(
+    stdout_thread = threading.Thread(
         target=_read_stdout,
         args=(process.stdout, stdout_lines),
         daemon=True,
-    ).start()
-    threading.Thread(
+    )
+    stderr_thread = threading.Thread(
         target=_read_stderr,
         args=(process.stderr, stderr_chunks),
         daemon=True,
-    ).start()
-    return _ProcessStreams(process, stdout_lines, stderr_chunks)
+    )
+    stdout_thread.start()
+    stderr_thread.start()
+    return _ProcessStreams(
+        process,
+        stdout_lines,
+        stderr_chunks,
+        stdout_thread,
+        stderr_thread,
+    )
 
 
 def _send_request(
@@ -137,6 +175,20 @@ def _parse_message(raw_line: str) -> dict[str, object]:
     return cast(dict[str, object], parsed)
 
 
+def _provider_error(payload: object) -> ACPProviderError:
+    message = payload.get("message") if isinstance(payload, dict) else None
+    lowered = message[:_STDERR_CLASSIFICATION_CHARS].lower() if isinstance(message, str) else ""
+    if any(hint in lowered for hint in _AUTH_HINTS):
+        category: ACPErrorCategory = "authentication failed"
+    elif "rate limit" in lowered or "too many requests" in lowered:
+        category = "rate limit"
+    elif "timed out" in lowered or "timeout" in lowered:
+        category = "request timed out"
+    else:
+        category = "provider failure"
+    return ACPProviderError(category)
+
+
 def _wait_for_response(
     streams: _ProcessStreams,
     request_id: int,
@@ -154,15 +206,15 @@ def _wait_for_response(
         except queue.Empty:
             raise subprocess.TimeoutExpired(streams.process.args, timeout) from None
         if raw_line is None:
-            returncode = streams.process.poll()
+            returncode = _close_process(streams)
             raise ACPProcessError(
-                returncode if returncode is not None else 1,
+                returncode,
                 "".join(streams.stderr_chunks),
             )
         message = _parse_message(raw_line)
         if message.get("id") == request_id:
             if "error" in message:
-                raise RuntimeError("Copilot ACP provider error") from None
+                raise _provider_error(message.get("error")) from None
             result = message.get("result")
             if not isinstance(result, dict):
                 raise RuntimeError("Copilot ACP returned a malformed result")
@@ -173,31 +225,38 @@ def _wait_for_response(
             _consume_update(message, answer_chunks)
 
 
+def _join_readers(streams: _ProcessStreams) -> None:
+    streams.stdout_thread.join()
+    streams.stderr_thread.join()
+
+
 def _close_process(streams: _ProcessStreams) -> int:
     process = streams.process
     if process.stdin is not None and not process.stdin.closed:
         process.stdin.close()
     try:
-        return process.wait(timeout=5)
+        returncode = process.wait(timeout=5)
     except subprocess.TimeoutExpired:
         process.terminate()
         try:
-            return process.wait(timeout=5)
+            returncode = process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             process.kill()
-            return process.wait(timeout=5)
+            returncode = process.wait(timeout=5)
+    _join_readers(streams)
+    return returncode
 
 
 def _stop_process(streams: _ProcessStreams) -> None:
     process = streams.process
-    if process.poll() is not None:
-        return
-    process.terminate()
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=5)
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+    _join_readers(streams)
 
 
 def _request(

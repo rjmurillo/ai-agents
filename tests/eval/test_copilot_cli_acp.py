@@ -6,7 +6,9 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
+from typing import TextIO
 
 import pytest
 
@@ -14,7 +16,12 @@ EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
 ORIGINAL_SYS_PATH = sys.path.copy()
 sys.path.insert(0, str(EVAL_DIR))
 try:
-    from _copilot_cli_acp import run_acp_completion
+    import _copilot_cli_acp as acp_module
+    from _copilot_cli_acp import (
+        ACPProcessError,
+        ACPProviderError,
+        run_acp_completion,
+    )
 finally:
     sys.path[:] = ORIGINAL_SYS_PATH
 
@@ -182,6 +189,79 @@ def test_protocol_error_never_serializes_server_payload(
 
     assert secret not in str(exc_info.value)
     assert "provider error" in str(exc_info.value)
+
+
+def test_auth_protocol_error_maps_to_fixed_redacted_category(
+    tmp_path: Path,
+) -> None:
+    fake = _write_fake_acp(tmp_path)
+    secret = "ghp_" + "Q" * 36
+    broken = _FAKE_ACP.replace(
+        '"result": {"stopReason": "end_turn"}',
+        (
+            '"error": {"code": -32000, '
+            f'"message": "Authentication required token {secret}"}}'
+        ),
+    )
+    fake.write_text(broken, encoding="utf-8")
+
+    with pytest.raises(ACPProviderError) as exc_info:
+        run_acp_completion(
+            _safe_argv(fake),
+            "WRITE_MARKER:/unused",
+            cwd=str(tmp_path),
+            env={"PATH": os.environ.get("PATH", os.defpath)},
+            timeout=10.0,
+        )
+
+    assert secret not in str(exc_info.value)
+    assert str(exc_info.value) == (
+        "Copilot ACP provider error: error=authentication failed; "
+        "provider details redacted"
+    )
+
+
+def test_delayed_stderr_is_joined_before_process_failure_is_classified(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    original_reader = acp_module._read_stderr
+
+    def delayed_reader(stream: TextIO, chunks: list[str]) -> None:
+        time.sleep(0.1)
+        original_reader(stream, chunks)
+
+    monkeypatch.setattr(acp_module, "_read_stderr", delayed_reader)
+    fake = tmp_path / "delayed_stderr.py"
+    fake.write_text(
+        "\n".join(
+            [
+                "import os",
+                "import sys",
+                "import time",
+                "sys.stdin.readline()",
+                "sys.stdout.flush()",
+                "os.close(1)",
+                "time.sleep(0.05)",
+                'sys.stderr.write("authentication failed after delay")',
+                "sys.stderr.flush()",
+                "os._exit(1)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ACPProcessError) as exc_info:
+        run_acp_completion(
+            _safe_argv(fake),
+            "PRIVATE PROMPT",
+            cwd=str(tmp_path),
+            env={"PATH": os.environ.get("PATH", os.defpath)},
+            timeout=10.0,
+        )
+
+    assert exc_info.value.returncode == 1
+    assert exc_info.value.stderr == "authentication failed after delay"
 
 
 def test_timeout_exception_does_not_receive_prompt_in_command(

@@ -9,18 +9,29 @@ from typing import cast
 
 from _eval_common import require_str_or_none
 
+_COPILOT_HOME_ENV = "COPILOT_HOME"
 
-def _session_state_root(env_name: str, provider_label: str) -> Path:
+
+def session_state_root(env_name: str, provider_label: str) -> Path:
+    """Resolve and validate the one session root shared with the child."""
     override = os.environ.get(env_name)
-    if not override:
-        return Path.home() / ".copilot" / "session-state"
-    root = Path(override)
-    if root.is_absolute():
-        return root
-    raise RuntimeError(
-        f"{provider_label} needs {env_name} to be absolute; got {override!r}, "
-        "which the CLI resolves against a per-call sandbox this process cannot read."
-    )
+    if override:
+        root = Path(override)
+        if root.is_absolute():
+            return root
+        raise RuntimeError(
+            f"{provider_label} needs {env_name} to be absolute; got {override!r}"
+        )
+    copilot_home = os.environ.get(_COPILOT_HOME_ENV)
+    if copilot_home:
+        home = Path(copilot_home)
+        if home.is_absolute():
+            return home / "session-state"
+        raise RuntimeError(
+            f"{provider_label} needs {_COPILOT_HOME_ENV} to be absolute; "
+            f"got {copilot_home!r}"
+        )
+    return Path.home() / ".copilot" / "session-state"
 
 
 def _read_candidate(path: Path, since: float) -> str | None:
@@ -130,14 +141,13 @@ def _read_matching_session(
 
 
 def read_session_transcript(
+    root: Path,
     sandbox: str,
     *,
     since: float,
-    env_name: str,
     provider_label: str,
 ) -> tuple[str, str | None] | None:
     """Return the answer and the one model that authored all accepted text."""
-    root = _session_state_root(env_name, provider_label)
     try:
         candidates = sorted(root.glob("*/events.jsonl"))
     except OSError:

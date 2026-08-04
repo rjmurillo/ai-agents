@@ -16,6 +16,7 @@ import os
 import subprocess
 import tempfile
 import time
+from pathlib import Path
 from typing import cast
 
 from _copilot_cli_acp import ACPProcessError, run_acp_completion
@@ -29,7 +30,7 @@ from _copilot_cli_constants import (
     TRACE_LINE_PREFIXES,
     UNVERIFIED_MODEL_ENV,
 )
-from _copilot_cli_transcript import read_session_transcript
+from _copilot_cli_transcript import read_session_transcript, session_state_root
 
 __all__ = ["_CopilotCLIProvider"]
 
@@ -86,7 +87,7 @@ def _safe_process_error(returncode: int, stderr: str) -> RuntimeError:
     )
 
 
-def _minimal_process_env() -> dict[str, str]:
+def _minimal_process_env(root: Path) -> dict[str, str]:
     """Return only runtime and authentication variables needed by Copilot."""
     env = {
         name: value
@@ -97,6 +98,7 @@ def _minimal_process_env() -> dict[str, str]:
     env["COPILOT_AUTO_UPDATE"] = "false"
     env["COPILOT_OTEL_ENABLED"] = "false"
     env["NO_COLOR"] = "1"
+    env[SESSION_STATE_ENV] = str(root)
     return env
 
 
@@ -168,15 +170,19 @@ class _CopilotCLIProvider:
 
     @classmethod
     def _read_session_transcript(
-        cls, sandbox: str, *, since: float
+        cls,
+        root: Path,
+        sandbox: str,
+        *,
+        since: float,
     ) -> tuple[str, str | None] | None:
         """Return model-attributed text from this call session."""
         return cast(
             tuple[str, str | None] | None,
             read_session_transcript(
+                root,
                 sandbox,
                 since=since,
-                env_name=cls._SESSION_STATE_ENV,
                 provider_label=cls._PROVIDER_LABEL,
             ),
         )
@@ -271,6 +277,7 @@ class _CopilotCLIProvider:
         argv: list[str],
         sandbox: str,
         prompt: str,
+        root: Path,
     ) -> subprocess.CompletedProcess[str]:
         """Run one isolated CLI process and return only successful output."""
         try:
@@ -280,7 +287,7 @@ class _CopilotCLIProvider:
                     argv,
                     prompt,
                     cwd=sandbox,
-                    env=_minimal_process_env(),
+                    env=_minimal_process_env(root),
                     timeout=self._timeout,
                 ),
             )
@@ -427,10 +434,15 @@ class _CopilotCLIProvider:
 
         prompt = self._build_prompt(messages, system)
         argv = self._build_argv(model)
+        root = session_state_root(self._SESSION_STATE_ENV, self._PROVIDER_LABEL)
         with tempfile.TemporaryDirectory(prefix="eval-copilot-") as sandbox:
             started = time.time()
-            completed = self._run_process(argv, sandbox, prompt)
-            transcript = self._read_session_transcript(sandbox, since=started - 5.0)
+            completed = self._run_process(argv, sandbox, prompt, root)
+            transcript = self._read_session_transcript(
+                root,
+                sandbox,
+                since=started - 5.0,
+            )
         answer, model_used = self._read_answer(completed, transcript, model)
         # Publish which model the transcript confirmed, reset on every call so
         # an earlier verified reply cannot vouch for a later unverified one.
