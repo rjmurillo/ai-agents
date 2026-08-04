@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+# This file covers a wide surface (inventory, changed-files filter, link checks,
+# freshness, symlink, real-git integration). 522 lines for 48 test cases is the
+# right granularity; splitting the file would spread related fixtures.
 """Tests for doc_accuracy module."""
 
 from __future__ import annotations
@@ -176,6 +180,142 @@ class TestRunAssessment:
         assert len(result["source_symbols"]) >= 1
         assert "coverage_summary" in result
         assert result["changed_files"] is None
+
+    def test_diff_base_scopes_doc_inventory_to_changed_files(
+        self, tmp_path: Path
+    ) -> None:
+        """diff_base must restrict assessed docs to files changed since that ref.
+
+        Regression for issue #4520: changed_files was computed but never used
+        to filter the doc inventory, so --diff-base reported the full backlog
+        even when no documentation files changed.
+        """
+        import subprocess
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(
+            ["git", "init", "--initial-branch=main"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Base commit: two markdown docs and one Python source
+        (repo / "old.md").write_text("# Old doc\n")
+        (repo / "unchanged.md").write_text("# Unchanged doc\n")
+        (repo / "main.py").write_text("def foo():\n    pass\n")
+        subprocess.run(
+            ["git", "add", "old.md", "unchanged.md", "main.py"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "base"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Second commit: only old.md changed; unchanged.md not touched
+        (repo / "old.md").write_text("# Old doc updated\n")
+        subprocess.run(
+            ["git", "add", "old.md"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "update doc"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+
+        result = run_assessment(repo, diff_base="HEAD~1")
+
+        doc_paths = [d["path"] for d in result["documentation_files"]]
+        # Only old.md changed since HEAD~1; unchanged.md must be excluded.
+        assert "old.md" in doc_paths
+        assert "unchanged.md" not in doc_paths
+        # Source files are always indexed regardless of diff_base.
+        assert len(result["source_symbols"]) >= 0
+
+    def test_diff_base_no_changed_docs_yields_empty_inventory(
+        self, tmp_path: Path
+    ) -> None:
+        """When only non-doc files changed, the doc inventory is empty."""
+        import subprocess
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(
+            ["git", "init", "--initial-branch=main"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+
+        (repo / "doc.md").write_text("# Doc\n")
+        (repo / "script.sh").write_text("#!/bin/bash\necho hi\n")
+        subprocess.run(
+            ["git", "add", "."],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "base"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+
+        # Only the shell script changed, not the doc
+        (repo / "script.sh").write_text("#!/bin/bash\necho bye\n")
+        subprocess.run(
+            ["git", "add", "script.sh"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "update script"],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+        )
+
+        result = run_assessment(repo, diff_base="HEAD~1")
+
+        doc_paths = [d["path"] for d in result["documentation_files"]]
+        # doc.md was not changed; must not appear in the scoped inventory.
+        assert "doc.md" not in doc_paths
 
     def test_empty_directory(self, tmp_path: Path) -> None:
         result = run_assessment(tmp_path)

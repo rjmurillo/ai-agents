@@ -352,10 +352,14 @@ def _count_code_blocks(content: str) -> int:
 
 
 def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
-    """Get files changed since diff_base."""
+    """Get files changed between diff_base and HEAD (committed changes only).
+
+    Uses ``git diff diff_base HEAD`` so the result reflects what the commit
+    history changed, not the state of the working tree.
+    """
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only", "--", diff_base],
+            ["git", "diff", "--name-only", diff_base, "HEAD", "--"],
             capture_output=True,
             text=True,
             check=True,
@@ -420,6 +424,11 @@ def run_assessment(
     doc_inventory: list[DocFile] = []
     for doc_path in sorted(doc_files_set):
         rel_path = str(doc_path.relative_to(repo_root))
+        # When diff_base is set, only process documentation files that were
+        # changed since that base. Source files are always fully indexed so
+        # symbol resolution works across the whole repo.
+        if changed_files is not None and rel_path not in changed_files:
+            continue
         try:
             content = doc_path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
