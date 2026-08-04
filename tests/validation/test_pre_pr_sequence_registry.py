@@ -50,6 +50,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Unreachable Code Detection',
     'Subprocess Encoding Convention',
     'Test Working Tree Writes',
+    'Push Lock Path Agreement',
     'Session End Validation',
     'Pester Unit Tests',
     'Markdown Linting',
