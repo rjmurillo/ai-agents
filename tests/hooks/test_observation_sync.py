@@ -18,7 +18,7 @@ import pytest
 HOOK_DIR = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PostToolUse"
 sys.path.insert(0, str(HOOK_DIR))
 
-from invoke_observation_sync import (  # noqa: E402
+from invoke_observation_sync import (
     _find_observation_file,
     _get_repo_root,
     _is_observation_memory,

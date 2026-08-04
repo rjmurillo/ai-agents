@@ -131,7 +131,7 @@ def test_plan_source_and_mirror_agree() -> None:
     try:
         if build_scripts not in sys.path:
             sys.path.insert(0, build_scripts)
-        import copilot_body_translation  # noqa: PLC0415
+        import copilot_body_translation
     finally:
         sys.path[:] = original_path
 
