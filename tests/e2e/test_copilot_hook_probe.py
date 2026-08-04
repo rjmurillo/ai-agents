@@ -24,6 +24,8 @@ try:
         copilot_auth_failed,
         copilot_auth_failure_headline,
         copilot_auth_rejected,
+        copilot_transient_failure,
+        copilot_transient_failure_headline,
     )
 finally:
     sys.path[:] = _original_sys_path
@@ -195,3 +197,104 @@ def test_auth_rejected_ignores_a_bare_bad_credentials_mention() -> None:
     )
     assert copilot_auth_rejected(noisy) is False
     assert copilot_auth_failed(noisy) is False
+
+
+# Verbatim stderr of a rate-limited run, captured 2026-08-04 from a pre-push
+# `plugin-load-e2e` failure. The request id and timestamp are GitHub's standard
+# error footer. Note the auth-methods list: it is the SAME boilerplate a missing
+# token produces, which is why the absent detector used to claim this run had no
+# token. See issue #4504.
+_RATE_LIMITED_STDERR = (
+    "FF7:14E4D001:1566914C:6A71CB91 and timestamp 2026-08-04 11:22:57 UTC. F\u2026\n\n"
+    "Your token may still be valid. Check your network connection and try again.\n\n"
+    "To authenticate, you can use any of the following methods:\n"
+    "  \u2022 Start 'copilot' and run the '/login' command\n"
+    "  \u2022 Set the COPILOT_GITHUB_TOKEN, GH_TOKEN, or GITHUB_TOKEN environment variable\n"
+    "  \u2022 Run 'gh auth login' to authenticate with the GitHub CLI\n"
+)
+
+
+def test_transient_failure_detects_the_measured_rate_limited_run() -> None:
+    """The captured rate-limit stderr is classified as transient (issue #4504)."""
+    assert copilot_transient_failure(_completed(stderr=_RATE_LIMITED_STDERR, returncode=1))
+
+
+def test_rate_limited_run_is_not_an_auth_failure() -> None:
+    """The regression this fixes: a rate limit read as an empty token (issue #4504).
+
+    The auth-methods list in the captured stderr matches every absent marker, so
+    without the transient carve-out the smoke failed with "provision
+    COPILOT_GITHUB_TOKEN" for a token that exists and works.
+    """
+    result = _completed(stderr=_RATE_LIMITED_STDERR, returncode=1)
+    assert not copilot_auth_absent(result)
+    assert not copilot_auth_rejected(result)
+    assert not copilot_auth_failed(result)
+
+
+def test_transient_failure_matches_the_network_advice_alone() -> None:
+    """Either half of the CLI's transient disclaimer is sufficient."""
+    assert copilot_transient_failure(
+        _completed(stderr="Check your network connection and try again.", returncode=1)
+    )
+
+
+def test_transient_failure_is_case_insensitive_and_matches_stdout() -> None:
+    """Survives a stream swap and the CLI's own capitalization."""
+    assert copilot_transient_failure(
+        _completed(stdout="YOUR TOKEN MAY STILL BE VALID.", stderr="", returncode=1)
+    )
+
+
+def test_transient_failure_false_on_healthy_run() -> None:
+    """rc=0 is never a transient failure, even if the text appears in output."""
+    assert not copilot_transient_failure(
+        _completed(stdout="your token may still be valid", returncode=0)
+    )
+
+
+def test_transient_failure_false_for_a_genuinely_absent_token() -> None:
+    """A real missing-token abort stays an auth failure, not a transient one."""
+    result = _completed(
+        stderr="Error: No authentication information found. Set the COPILOT_GITHUB_TOKEN env var.",
+        returncode=1,
+    )
+    assert not copilot_transient_failure(result)
+    assert copilot_auth_absent(result)
+    assert copilot_auth_failed(result)
+
+
+def test_transient_failure_false_for_a_genuinely_rejected_token() -> None:
+    """A real refusal stays an auth failure, not a transient one."""
+    result = _completed(stderr="GitHub returned: Bad credentials", returncode=1)
+    assert not copilot_transient_failure(result)
+    assert copilot_auth_rejected(result)
+    assert copilot_auth_failed(result)
+
+
+def test_transient_failure_tolerates_none_streams() -> None:
+    """A timed-out or not-yet-run process has None streams and must not raise."""
+    assert not copilot_transient_failure(
+        _completed(stdout=None, stderr=None, returncode=1)
+    )
+
+
+def test_transient_headline_names_the_cause_and_denies_an_auth_fault() -> None:
+    """The skip reason must not send anyone to provision or rotate a secret."""
+    text = copilot_transient_failure_headline(
+        _completed(stderr=_RATE_LIMITED_STDERR, returncode=1)
+    )
+    lowered = text.lower()
+    assert "transient" in lowered
+    assert "not an auth" in lowered
+    assert "rc=1" in lowered
+    assert "provision" not in lowered
+    assert "rotate" not in lowered
+
+
+def test_transient_headline_tolerates_none_streams() -> None:
+    """None streams must not raise while building the skip reason."""
+    text = copilot_transient_failure_headline(
+        _completed(stdout=None, stderr=None, returncode=3)
+    )
+    assert "rc=3" in text
