@@ -382,6 +382,11 @@ pre-push:
             run: uv run --frozen python scripts/validation/git_hook_policy.py placeholder-identity
             use_stdin: true
 
+    - name: push-ref-staleness
+      timeout: 1m
+      run: uv run --frozen python scripts/validation/push_ref_staleness.py
+      use_stdin: true
+
     - group:
         parallel: true
         jobs:
@@ -429,6 +434,12 @@ pre-push:
             timeout: 5m
             run: uv run --frozen python scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main
             glob: ["**/*.py", "scripts/ci/type_ignore_count_baseline.txt"]
+
+
+          - name: python-unreachable-statements
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/check_unreachable_after_terminator.py .
+            glob: "**/*.py"
           - name: merge-tree-ratchet
             timeout: 5m
             run: uv run --frozen --extra dev python scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main
@@ -449,9 +460,14 @@ pre-push:
             glob: "**/*.py"
             exclude:
               - ".claude/lib/**"
+              - ".claude/hooks/**"
+              - ".claude/skills/**"
               - "src/copilot-cli/lib/**"
               - "src/copilot-cli/hooks/**"
               - "src/copilot-cli/skills/**"
+              - "tests/skills/**"
+              - "docs/**"
+              - "evals/**"
 
           - name: infrastructure-advisory
             timeout: 5m

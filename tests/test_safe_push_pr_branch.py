@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, this suite exercises one CLI contract end to end.
 """Tests for ``.github/scripts/safe_push_pr_branch.py`` (issue #3412)."""
 
 from __future__ import annotations
 
 import builtins
 import importlib.util
+import shlex
 import subprocess
 import sys
 import threading
@@ -245,7 +247,9 @@ def test_push_uses_resolved_sha_when_head_moves_before_transport(
     mutated = False
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    def fake_run_git(
+        args: list[str], repo_root: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         nonlocal interloper_sha, mutated, push_args
         if args == ["rev-parse", "--verify", "HEAD"] and not mutated:
             interloper_sha = _commit_file(Path(repo_root), "interloper.txt", "interloper\n")
@@ -334,7 +338,9 @@ def test_push_fails_when_transport_names_a_different_ref(
     local_sha = _git(repo, "rev-parse", "HEAD")
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    def fake_run_git(
+        args: list[str], repo_root: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         if args and args[0] == "push":
             return subprocess.CompletedProcess(
                 args=["git", *args],
@@ -368,7 +374,9 @@ def test_push_checks_git_returncode_before_porcelain_verification(
 
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    def fake_run_git(
+        args: list[str], repo_root: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         if args and args[0] == "push":
             return subprocess.CompletedProcess(
                 args=["git", *args],
@@ -402,7 +410,9 @@ def test_push_fails_when_ls_remote_mismatches_local_after_successful_porcelain(
 
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    def fake_run_git(
+        args: list[str], repo_root: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         if args and args[0] == "push":
             return subprocess.CompletedProcess(
                 args=["git", *args],
@@ -664,7 +674,9 @@ def test_safe_push_rejects_invalid_expected_remote_sha_before_transport(
     calls: list[list[str]] = []
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    def fake_run_git(
+        args: list[str], repo_root: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         calls.append(args)
         return real_run_git(args, repo_root)
 
@@ -710,7 +722,9 @@ def test_main_failure_emits_populated_audit(
     _git(repo, "remote", "add", "origin", str(bare))
     real_run_git = safe_push_pr_branch._run_git
 
-    def fake_run_git(args: list[str], repo_root: str) -> subprocess.CompletedProcess[str]:
+    def fake_run_git(
+        args: list[str], repo_root: str, env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         if args and args[0] == "push":
             return subprocess.CompletedProcess(
                 args=["git", *args],
@@ -1044,3 +1058,122 @@ def test_run_pytest_budget_exhaustion_cosmetic_change_survives(
     assert rc == 0
     # No error output on clean run.
     assert capsys.readouterr().err == ""
+
+
+# The #4293 pre-push guard must not reject this script's own lease push
+# ---------------------------------------------------------------------------
+
+_PRE_PUSH_HOOK = """#!/bin/sh
+exec {interpreter} "$0.py"
+"""
+
+_PRE_PUSH_HOOK_PY = '''
+import sys
+from pathlib import Path
+
+sys.path.insert(0, {repo_root!r})
+from scripts.validation import git_hook_policy
+
+refs = git_hook_policy.parse_push_refs(sys.stdin)
+codes = [
+    git_hook_policy._check_non_fast_forward(ref, Path({work!r})) for ref in refs
+]
+sys.exit(1 if any(codes) else 0)
+'''
+
+
+def _install_non_fast_forward_hook(repo: Path) -> None:
+    """Install the real #4293 guard as this repo's pre-push hook.
+
+    Drives ``_check_non_fast_forward`` over the argv-free stdin git hands a
+    pre-push hook, which is the only channel the guard reads. A push that
+    rewrites published history exits 1 here whatever flags git was given.
+    """
+    hooks = repo / ".git" / "hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    hook = hooks / "pre-push"
+    hook.write_text(
+        _PRE_PUSH_HOOK.format(interpreter=shlex.quote(sys.executable)),
+        encoding="utf-8",
+    )
+    (hooks / "pre-push.py").write_text(
+        _PRE_PUSH_HOOK_PY.format(
+            repo_root=str(Path(__file__).resolve().parents[1]),
+            work=str(repo),
+        ),
+        encoding="utf-8",
+    )
+    hook.chmod(0o755)
+
+
+def _rewritten_branch_with_lease(tmp_path: Path) -> tuple[Path, str]:
+    """Return (repo, expected_remote_sha) with local history rewritten."""
+    bare = _bare_remote(tmp_path)
+    repo = tmp_path / "work"
+    _init_worktree(repo, "feature-x")
+    _git(repo, "remote", "add", "origin", str(bare))
+    safe_push("feature-x", "origin", str(repo))
+    expected_sha = _bare_git(bare, "rev-parse", "refs/heads/feature-x")
+    _commit_file(repo, "next.txt", "next\n")
+    safe_push("feature-x", "origin", str(repo))
+    expected_sha = _bare_git(bare, "rev-parse", "refs/heads/feature-x")
+
+    _git(repo, "reset", "--hard", "HEAD~1")
+    _commit_file(repo, "rewrite.txt", "rewrite\n")
+    return repo, expected_sha
+
+
+def test_lease_push_survives_the_non_fast_forward_pre_push_guard(tmp_path: Path) -> None:
+    repo, expected_sha = _rewritten_branch_with_lease(tmp_path)
+    _install_non_fast_forward_hook(repo)
+
+    audit = safe_push(
+        "feature-x",
+        "origin",
+        str(repo),
+        expected_remote_sha=expected_sha,
+        force_with_lease=True,
+    )
+
+    assert audit.verified is True
+
+
+def test_the_same_rewrite_without_a_lease_is_blocked_by_the_guard(tmp_path: Path) -> None:
+    repo, _ = _rewritten_branch_with_lease(tmp_path)
+    _install_non_fast_forward_hook(repo)
+
+    with pytest.raises(SafePushError) as excinfo:
+        safe_push("feature-x", "origin", str(repo))
+
+    assert excinfo.value.exit_code == EXIT_TRANSPORT
+
+
+def test_lease_push_sets_the_documented_escape_and_a_plain_push_does_not(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The escape is scoped to the lease push, not exported for every push."""
+    seen: list[dict[str, str] | None] = []
+    real_run_git = safe_push_pr_branch._run_git
+
+    def record(args: list[str], repo_root: str, env: dict[str, str] | None = None):
+        if args and args[0] == "push":
+            seen.append(env)
+        return real_run_git(args, repo_root, env)
+
+    monkeypatch.setattr(safe_push_pr_branch, "_run_git", record)
+
+    repo, expected_sha = _rewritten_branch_with_lease(tmp_path)
+    safe_push(
+        "feature-x",
+        "origin",
+        str(repo),
+        expected_remote_sha=expected_sha,
+        force_with_lease=True,
+    )
+    _commit_file(repo, "after.txt", "after\n")
+    safe_push("feature-x", "origin", str(repo))
+
+    lease_env, plain_env = seen[-2], seen[-1]
+    assert lease_env is not None
+    assert lease_env[safe_push_pr_branch.FORCE_PUSH_ESCAPE_ENV] == "1"
+    assert plain_env is None
