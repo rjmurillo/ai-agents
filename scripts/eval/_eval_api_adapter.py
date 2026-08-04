@@ -302,7 +302,7 @@ class AnthropicAPIAdapter:
         resolve_start = self._clock()
         try:
             transport = self._resolve_transport()
-        except Exception as exc:  # noqa: BLE001 - categorize-then-decide
+        except Exception as exc:
             latency_ms = (self._clock() - resolve_start) * 1000.0
             # Best-effort categorization: today the only resolve-time
             # raise is `load_api_key()` raising RuntimeError when no key

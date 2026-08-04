@@ -175,7 +175,7 @@ def _build_messages_request(
 def _reachable_model_hint(api_key: str, model: str) -> str:
     try:
         reachable = list_available_models(api_key)
-    except Exception:  # noqa: BLE001 - enrichment is best-effort
+    except Exception:
         print(
             "warning: reachable-model lookup failed: provider details redacted",
             file=sys.stderr,

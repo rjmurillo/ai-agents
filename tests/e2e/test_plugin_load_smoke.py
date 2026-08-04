@@ -64,7 +64,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 _original_sys_path = sys.path.copy()
 try:
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
-    from cli_exec import resolve_executable  # noqa: E402
+    from cli_exec import resolve_executable
 finally:
     sys.path[:] = _original_sys_path
 

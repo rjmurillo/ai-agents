@@ -23,10 +23,10 @@ _EVAL_DIR = _REPO_ROOT / "scripts" / "eval"
 _ORIGINAL_SYS_PATH = sys.path.copy()
 sys.path.insert(0, str(_EVAL_DIR))
 try:
-    import _anthropic_api  # noqa: E402
-    import _eval_api_adapter  # noqa: E402
-    import _providers  # noqa: E402
-    from _eval_common import MalformedProviderMetadataError  # noqa: E402
+    import _anthropic_api
+    import _eval_api_adapter
+    import _providers
+    from _eval_common import MalformedProviderMetadataError
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
 

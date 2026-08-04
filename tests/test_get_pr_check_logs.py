@@ -586,6 +586,18 @@ class TestMergeRefUnusableWithFailingChecks:
         assert output["Success"] is True
         assert output["Data"]["FailingChecks"] == 1
 
+    def test_pipeline_unusable_ref_with_failing_check_without_details_exits_1(self, capsys):
+        """Failing check without DetailsUrl + unusable merge ref -> no logs available."""
+        checks_json = self._failing_check_payload("")
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+
     def test_pipeline_unusable_ref_emits_warning_to_stderr(self, capsys):
         """Warning message appears on stderr when merge ref is unusable."""
         checks_json = self._failing_check_payload()

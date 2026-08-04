@@ -359,7 +359,7 @@ def call_router(api_key: str, prompt: str) -> str:
         )
     except MalformedProviderMetadataError:
         raise
-    except Exception as exc:  # noqa: BLE001 - normalize ordinary transport errors
+    except Exception as exc:
         raise RuntimeError(f"Anthropic API call failed: {exc}") from exc
 
 

@@ -117,7 +117,7 @@ class TestSubprocess:
     def test_returns_poster_exit_code_zero(self, monkeypatch, tmp_path) -> None:
         self._setup_valid(monkeypatch, tmp_path)
 
-        def fake_run(cmd, timeout, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, check):
             assert "post_issue_comment.py" in " ".join(cmd)
             return subprocess.CompletedProcess(cmd, 0)
 
@@ -127,7 +127,7 @@ class TestSubprocess:
     def test_propagates_poster_failure(self, monkeypatch, tmp_path) -> None:
         self._setup_valid(monkeypatch, tmp_path)
 
-        def fake_run(cmd, timeout, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, check):
             return subprocess.CompletedProcess(cmd, 1)
 
         monkeypatch.setattr(post_pr_comment.subprocess, "run", fake_run)
@@ -136,7 +136,7 @@ class TestSubprocess:
     def test_timeout_returns_three(self, monkeypatch, tmp_path, capsys) -> None:
         self._setup_valid(monkeypatch, tmp_path)
 
-        def fake_run(cmd, timeout, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, check):
             raise subprocess.TimeoutExpired(cmd, timeout)
 
         monkeypatch.setattr(post_pr_comment.subprocess, "run", fake_run)
@@ -148,7 +148,7 @@ class TestSubprocess:
         self._setup_valid(monkeypatch, tmp_path)
         seen = {}
 
-        def fake_run(cmd, timeout, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, check):
             seen["timeout"] = timeout
             return subprocess.CompletedProcess(cmd, 0)
 
