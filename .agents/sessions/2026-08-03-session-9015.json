@@ -138,5 +138,13 @@
   "endingCommit": "",
   "nextSteps": [
     "Push to origin, verify CI green, merge PR"
-  ]
+  ],
+  "retrospective": {
+    "section": "## Retrospective",
+    "learningsCaptured": [
+      "All 5 PRs needed merge-from-main after taste baseline diverged",
+      "Pre-existing broken session logs on branches block push; fix before committing",
+      "GOTCHAS.md governance docs need taste-lint file-size suppression"
+    ]
+  }
 }
