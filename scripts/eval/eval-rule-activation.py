@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-# Taste naming wants snake_case module names.
-# This hyphenated script path is a shipped CLI entry point used by PR tooling.
-# Suppression is narrower than renaming the command during a judge parser fix.
-# taste-lint: ignore naming
-# Taste file-size wants this 2,000 line CLI split.
-# This PR changes strict judge parsing inside an existing oversized script.
-# Suppression avoids unrelated module extraction in a merge rescue.
-# taste-lint: ignore file-size
+# taste-lint: ignore file-size, eval CLI keeps one artifact path.
+# taste-lint: ignore complexity, render_table mirrors the output schema.
+# taste-lint: ignore naming, hyphenated CLI name is the shipped entrypoint.
 """Rule Activation Eval: measure whether rules and skill references actually fire.
 
 Tests how a rule or skill reference activates across loading mechanisms:
