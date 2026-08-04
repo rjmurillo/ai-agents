@@ -566,7 +566,7 @@ def test_workflow_delegates_all_pr_validation_blocks():
     assert "python3 scripts/ci/update_needs_split_label.py --mode add" in workflow
     assert "python3 scripts/ci/update_needs_split_label.py --mode remove" in workflow
     assert "python3 scripts/ci/enforce_pr_validation.py" in workflow
-    assert "python3 scripts/ci/adr006_run_block_scanner.py --max 58" in workflow
+    assert "python3 scripts/ci/adr006_run_block_scanner.py --max 0" in workflow
     assert "gh api `\n            -X DELETE" not in workflow
     assert "Write-Error \"PR has $env:COMMIT_COUNT commits" not in workflow
 
@@ -934,6 +934,8 @@ class TestBotSkipGuardClassification:
     _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
         {
             "Checkout repository",
+            # Tool setup is throughput-only. It cannot validate repository contents.
+            "Setup uv",
             "Setup PowerShell",
             "Validate PR Description vs Diff",
             "Validate PR Description Standards",
@@ -945,7 +947,6 @@ class TestBotSkipGuardClassification:
             "Enforce Blocking Issues",
         }
     )
-
     def test_adr006_ratchet_is_unconditional(self) -> None:
         """Positive: the ADR-006 gate must run for bot-authored PRs.
 

@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size, append-only trap index; split entries lose search locality. -->
 # Gotchas
 
 Non-obvious repository behavior that cost real time to learn and cannot be
@@ -30,7 +31,7 @@ for executable invocations of exactly that tree. All four live in
 |---|---|---|
 | `scripts/validation/check_vendor_portability.py` | skill scripts | code that reads an upstream-only path |
 | `scripts/validation/check_skill_portability.py` | skill scripts | drift against the script baseline |
-| `scripts/validation/check_skill_md_portability.py` | skill `.md` | an upstream path cited in **prose** |
+| `scripts/validation/check_skill_md_portability.py` | skill `.md`, `.claude/commands/`, `templates/agents/` | an upstream path cited in **prose** |
 | `scripts/validation/check_skill_md_exec_portability.py` | skill `.md` | a bare `.claude/skills/...` script **invocation** |
 
 Symptom: the first two pass, you commit, and the push is rejected by
@@ -127,6 +128,45 @@ endingCommit '<sha>' names a commit that is not an ancestor of HEAD
 
 Refs #3618.
 
+## The same `endingCommit` error also fires when you never amended anything
+
+The tell is that the log it validated is not yours. Do not rely on the
+push-hook summary to name the SHA. It may only show the broad Session End
+failure line below.
+
+`new_pr.py --base` defaults to the **local** `main` ref, not `origin/main`, and
+uses it for both the PR target and the changed-file set. A stale local `main`
+makes `git diff main...HEAD` report every session log merged upstream since you
+last updated it. The Session End gate then sorts that set by date and session
+number and validates only the highest, which is a stranger's log, against your
+branch. Its `endingCommit` is legitimately not an ancestor of your HEAD, so the
+gate fails your PR for someone else's file, and prints one line with no path:
+
+```text
+Session End validation failed
+```
+
+Measured 2026-08-02 with local `main` 44 commits behind. The gate selected
+`2026-08-02-session-4231-episode-corpus-migration.json` out of 19 candidates;
+the branch's own log passed standalone in the same worktree.
+
+Check staleness first, before reading any session log:
+
+```bash
+git rev-list --left-right --count main...origin/main   # non-zero right = stale
+git fetch origin main:main                             # fast-forward the ref
+```
+
+The fetch is refused when `main` is checked out in a worktree. It usually is
+not: the primary clone here sits on a detached HEAD, and `git worktree list`
+tells you in one line.
+
+Two reasons this is expensive. The message names neither the file it validated
+nor the base it used, so the natural next move is to re-validate your own log,
+which passes and sends you looking for a gate bug. And the same stale ref makes
+`git diff main..HEAD` report thousands of phantom deletions, so the two symptoms
+show up together and look like one catastrophic branch problem.
+
 ## Run validation with `uv run python`, never bare `python3`
 
 `scripts/validation/checks_spec.py` shells out to child validators with
@@ -214,6 +254,59 @@ eight will fail the push with all nine printed.
 Symptom: a wall of errors on lines you did not touch. Count them against the
 merge base before assuming the change is yours.
 
+## A branch behind main fails the count ratchets on a number it never touched
+
+The count ratchets (`ruff_count_ratchet.py`, `taste_count_ratchet.py`,
+`type_ignore_count_ratchet.py`) compare this tree's recorded baseline against
+the baseline at `origin/main`, and the baseline may only fall. A branch that is
+behind carries the older, higher value, so the gate blocks even when the branch
+added nothing. The message says so itself, and cannot tell you which case you
+are in, by design (issue #4066):
+
+```text
+ruff count ratchet: BASELINE ABOVE BASE. This tree records 311, origin/main
+records 309 (+2). The measured count is 309, which origin/main already allows,
+so nothing in this tree added a violation. The baseline may only fall. If this
+branch did not edit the baseline, it is behind origin/main: merge or rebase to
+pick up the lowered value. If it did raise the baseline, restore 309 and fix
+the violations instead of widening the allowance.
+```
+
+Line-wrapped here; the real output is one line. The second sentence appears in
+that form only when the measured count is at or below the base, which is
+exactly the behind-but-innocent case.
+
+This is a different mechanism from the per-file case above. That one is about
+errors you added to one file; this one is about a repo-wide number your branch
+never touched.
+
+The cost is the wait, not the ordering. These ratchets sit in the same
+`parallel: true` pre-push group as `python-tests` (`lefthook.yml`), so they do
+not run after the suite, but `git push` does not return until every job in the
+group finishes. A measured run put `python-tests` at 946 seconds against 2.6
+seconds for `taste-count-ratchet`, so you wait out the suite to be told your
+branch is behind.
+
+Rebase before you push, or run the four gates yourself first. They take about
+2 seconds:
+
+```bash
+for s in taste_count_ratchet type_ignore_count_ratchet; do
+  uv run --frozen python scripts/ci/$s.py --base-ref origin/main
+done
+uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py \
+  --base-ref origin/main
+RUFF_RATCHET_BASE_REF=origin/main \
+  uv run --frozen --extra dev python scripts/ci/ruff_ratchet.py
+```
+
+A rebase can also orphan the `endingCommit` recorded in your session log.
+`session_scope.py` accepts any SHA that `git merge-base --is-ancestor <sha>
+HEAD` accepts, so the record breaks only when history rewrites that specific
+commit. Amending `HEAD` is safe whenever the recorded commit stays reachable,
+which includes `HEAD~1` and anything older. It is unsafe only when the commit
+you are rewriting *is* the recorded one; there, add a follow-up commit instead.
+
 ## Eval harness
 
 These matter only when running `scripts/eval/`. Full detail lives in
@@ -286,10 +379,15 @@ update the PR before running it locally.
 ## Spec coverage blocks when the PR body has no checked acceptance boxes
 
 `Validate Spec Coverage` fails with this, and the reason names a rule rather
-than a missing file, so it reads like an infrastructure fault:
+than a missing file, so it reads like an infrastructure fault. Its wrapper
+`scripts/quality_gate/spec_external_signal_gate.py` always passes `--json` to
+the aggregator, so grep the quoted keys, not a prose line. (Running
+`gate_aggregator.py` by hand without `--json` does print prose, which is why
+the prose form looks plausible and never appears in CI.)
 
-```
-verdict: NEEDS_REVIEW   reason: closed-loop:external-signal-inconclusive
+```text
+  "verdict": "NEEDS_REVIEW",
+  "reason": "closed-loop:external-signal-inconclusive",
 ```
 
 The cause is a missing section in **the PR body**, not the issue.

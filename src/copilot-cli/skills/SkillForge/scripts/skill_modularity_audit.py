@@ -10,8 +10,8 @@ shorter is always better. See references/modularity-guidelines.md.
 This script audits all skills in .claude/skills/ and produces a report with
 modularity scores and refactoring recommendations. Its length curve is one-sided:
 it subtracts above 300 lines and subtracts nothing below, so nothing signals that
-a skill has been cut past the standard range the study ranked first. Tracked in
-issue #4327.
+a skill has been cut past the standard range the study ranked first. Tracked at
+https://github.com/rjmurillo/ai-agents/issues/4327.
 
 Modularity scoring:
     - Lines: penalized above 300 (warning) and 500 (error) thresholds
@@ -60,6 +60,12 @@ LINE_WARNING: int = 300
 # Modularity thresholds
 MAX_H2_SECTIONS: int = 10
 IDEAL_MAX_LINES: int = 300
+# SkillsBench (Feb 2026) measured standard-length skills at +21.5 pp versus compact at
+# +19.0 pp.  The scoring curve now has a floor at IDEAL_MIN_LINES: skills below this
+# threshold are penalised symmetrically to skills above IDEAL_MAX_LINES.  The boundary
+# is calibrated against this repo's own distribution (98 skills, p25=154, mean=238)
+# rather than against the study's named buckets, which carry no numeric thresholds.
+IDEAL_MIN_LINES: int = 100
 
 
 @dataclass
@@ -99,16 +105,23 @@ def _score_modularity(
     """Calculate modularity score (0-100).
 
     Higher score means better modularity. Factors:
-    - Size penalty: lines above IDEAL_MAX_LINES reduce score
+    - Size band: full marks inside [IDEAL_MIN_LINES, IDEAL_MAX_LINES]; penalty on both sides
     - Section focus: too many h2 sections reduce score
     - Progressive disclosure bonus: subdirectories add score
     """
     score = 100
 
-    # Size penalty: -1 point per 10 lines above ideal
+    # Size penalty above ideal: -1 point per 10 lines above IDEAL_MAX_LINES
     if line_count > IDEAL_MAX_LINES:
         overage = line_count - IDEAL_MAX_LINES
         score -= min(overage // 10, 40)
+
+    # Size penalty below ideal: -1 point per 10 lines below IDEAL_MIN_LINES.
+    # SkillsBench measured standard length (+21.5 pp) above compact (+19.0 pp),
+    # so very short skills should not score at par with standard-length ones.
+    if line_count < IDEAL_MIN_LINES:
+        shortfall = IDEAL_MIN_LINES - line_count
+        score -= min(shortfall // 10, 40)
 
     # Section focus penalty: -3 per h2 above threshold
     if h2_count > MAX_H2_SECTIONS:
@@ -248,6 +261,33 @@ def audit_all_skills(skills_path: Path) -> list[SkillAuditResult]:
     return results
 
 
+def _print_recommendation_group(
+    title: str,
+    results: list[SkillAuditResult],
+    *,
+    sort_by_lines: bool = False,
+) -> None:
+    """Print one recommendation group when it has entries."""
+    if not results:
+        return
+
+    print("-" * 60)
+    print(title)
+    print("-" * 60)
+    ordered = sorted(results, key=lambda x: -x.line_count) if sort_by_lines else results
+    for result in ordered:
+        if result.rating == "error":
+            print(f"  {result.name}: {result.file_path}")
+        else:
+            print(
+                f"  {result.name}: {result.line_count} lines, "
+                f"score={result.modularity_score}"
+            )
+        for recommendation in result.recommendations:
+            print(f"    -> {recommendation}")
+    print()
+
+
 def print_report(results: list[SkillAuditResult]) -> None:
     """Print a human-readable audit report."""
     if not results:
@@ -270,35 +310,17 @@ def print_report(results: list[SkillAuditResult]) -> None:
         print(f"Errors:       {len(errors)}")
     print()
 
-    if errors:
-        print("-" * 60)
-        print("ERRORS (unreadable skills)")
-        print("-" * 60)
-        for r in errors:
-            print(f"  {r.name}: {r.file_path}")
-            for rec in r.recommendations:
-                print(f"    -> {rec}")
-        print()
-
-    if oversized:
-        print("-" * 60)
-        print("OVERSIZED (exceed 500-line limit)")
-        print("-" * 60)
-        for r in sorted(oversized, key=lambda x: -x.line_count):
-            print(f"  {r.name}: {r.line_count} lines, score={r.modularity_score}")
-            for rec in r.recommendations:
-                print(f"    -> {rec}")
-        print()
-
-    if warnings:
-        print("-" * 60)
-        print("WARNING (300-500 lines or low modularity score)")
-        print("-" * 60)
-        for r in sorted(warnings, key=lambda x: -x.line_count):
-            print(f"  {r.name}: {r.line_count} lines, score={r.modularity_score}")
-            for rec in r.recommendations:
-                print(f"    -> {rec}")
-        print()
+    _print_recommendation_group("ERRORS (unreadable skills)", errors)
+    _print_recommendation_group(
+        "OVERSIZED (exceed 500-line limit)",
+        oversized,
+        sort_by_lines=True,
+    )
+    _print_recommendation_group(
+        "WARNING (300-500 lines or low modularity score)",
+        warnings,
+        sort_by_lines=True,
+    )
 
     print("-" * 60)
     print("ALL SKILLS (sorted by modularity score)")

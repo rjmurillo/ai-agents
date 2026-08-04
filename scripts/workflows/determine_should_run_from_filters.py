@@ -36,9 +36,12 @@ def should_run(
     changes)`` passed in its place. The commit that caused the breach had its own
     run cancelled in a merge burst, so no run ever measured the breach.
 
-    List ``push`` here for a whole-tree check so the mainline is always measured.
-    Leave it empty for a diff-scoped check, where re-running on an unrelated push
-    buys nothing.
+    A whole-tree check should drop its filter instead of listing ``push`` here.
+    Forcing one event measures the mainline and leaves every pull request
+    unmeasured, so two of them each green against their own base still merge to
+    a breaching union. ``instruction-budget.yml`` took the filter out for that
+    reason and no workflow lists ``push`` today. Leave this empty for a
+    diff-scoped check, where re-running on an unrelated push buys nothing.
     """
     if event_name == "workflow_dispatch" or event_name in force_run_events:
         return True

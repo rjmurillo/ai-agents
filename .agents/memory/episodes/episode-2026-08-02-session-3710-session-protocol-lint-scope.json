@@ -1,0 +1,235 @@
+{
+  "id": "episode-2026-08-02-session-3710-session-protocol-lint-scope",
+  "session": "2026-08-02-session-3710-session-protocol-lint-scope",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Point the session-end markdown lint step at the pre_pr.py wrapper so the step discloses how many files it actually read, closing the follow-up left by issue #3710.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "design",
+      "context": "",
+      "chosen": "adopted the reviewers' shared remedy without their proposed severity change",
+      "rationale": "critic, independent-thinker and security all flagged that zero selection still exits 0. independent-thinker showed that failing closed would break investigation-only, memory-only and ADR sessions, whose trees are ignored by design. Adopted security's cheaper remedy: evidence must read NOT LINTED when the count is zero, so the string stops asserting clean without turning a deliberate exclusion into a failure.",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T21:05:00+00:00",
+      "type": "milestone",
+      "content": "found the defect",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T21:20:00+00:00",
+      "type": "milestone",
+      "content": "proved the wrapper is a safe substitute",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T21:35:00+00:00",
+      "type": "milestone",
+      "content": "ran adr-review Phase 0 research",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T21:50:00+00:00",
+      "type": "milestone",
+      "content": "ran the adr-review 6-agent debate across four non-Claude model families",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T22:10:00+00:00",
+      "type": "milestone",
+      "content": "resolved architect P0",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T22:25:00+00:00",
+      "type": "milestone",
+      "content": "resolved analyst P0",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-02T22:40:00+00:00",
+      "type": "milestone",
+      "content": "re-measured every number in the Rationale rather than citing the issue",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-02T22:55:00+00:00",
+      "type": "milestone",
+      "content": "recorded independent-thinker Disagree-and-Commit",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-02T23:10:00+00:00",
+      "type": "milestone",
+      "content": "resolved critic P0",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-02T23:20:00+00:00",
+      "type": "milestone",
+      "content": "confirmed and fixed a regression the critic predicted",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-02T23:30:00+00:00",
+      "type": "milestone",
+      "content": "fixed unsafe path transport using a discriminating test",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-02T23:40:00+00:00",
+      "type": "milestone",
+      "content": "refuted one critic finding by measurement",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-02T23:50:00+00:00",
+      "type": "milestone",
+      "content": "removed a number rather than refresh it",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "adopted the reviewers' shared remedy without their proposed severity change",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-03T05:20:00+00:00",
+      "type": "milestone",
+      "content": "closed the 6-agent adr-review debate and filed the one deferred finding",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-03T06:05:34+00:00",
+      "type": "commit",
+      "content": "Commit: 1be7533cc",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-3710-session-protocol-lint-scope"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 495,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

@@ -27,7 +27,7 @@ def _run(args: list[str], *, stdin: str | None = None) -> subprocess.CompletedPr
     back to GitHub is worse than a visible failure.
     """
 
-    return subprocess.run(
+    return subprocess.run(  # subprocess-encoding: strict-ok
         args,
         input=stdin,
         capture_output=True,
