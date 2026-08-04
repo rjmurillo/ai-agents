@@ -194,7 +194,7 @@ class TestStaleLockRecovery:
 
         # The context manager must clean up and succeed.
         entered = False
-        with baseline_mod._baseline_write_lock(lock_path):
+        with baseline_mod.baseline_write_lock(lock_path):
             entered = True
             # Lock file (not dir) must exist while held.
             assert lock_path.is_file()
@@ -206,7 +206,7 @@ class TestStaleLockRecovery:
         lock_path = tmp_path / ".baseline.write-lock"
         assert not lock_path.exists()
         entered = False
-        with baseline_mod._baseline_write_lock(lock_path):
+        with baseline_mod.baseline_write_lock(lock_path):
             entered = True
         assert entered
 
@@ -219,7 +219,7 @@ class TestStaleLockRecovery:
         # The old code did not remove the directory; it just called mkdir and
         # got FileExistsError until timeout. With the fix, it recovers instead.
         # We only verify the fix path here -- the stale dir was removed.
-        with baseline_mod._baseline_write_lock(lock_path):
+        with baseline_mod.baseline_write_lock(lock_path):
             assert lock_path.is_file(), "fix converted stale dir to lock file"
 
 

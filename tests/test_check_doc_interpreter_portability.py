@@ -1,10 +1,15 @@
+# taste-lint: ignore file-size -- one suite owns shared git fixtures and the failure matrix.
 """Tests for the documented-interpreter portability ratchet (issue #3791)."""
 
 from __future__ import annotations
 
 import json
 import subprocess
+import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -79,6 +84,102 @@ def test_cli_exits_1_when_a_clean_file_starts_offending(
 
     assert exit_code == 1
     assert "README.md" in capsys.readouterr().err
+
+
+def test_validation_ignores_ambient_git_repository_overrides(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = make_repo(
+        tmp_path / "target",
+        {"tool.py": "import yaml\n", "README.md": "Run `python3 tool.py`.\n"},
+    )
+    baseline = write_baseline(repo, {})
+    other_repo = make_repo(tmp_path / "other", {"unrelated.txt": "other\n"})
+    monkeypatch.setenv("GIT_DIR", str(other_repo / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(other_repo))
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 1
+    assert "README.md" in capsys.readouterr().err
+
+
+def test_validation_disables_git_replacement_objects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n"})
+    baseline = write_baseline(repo, {})
+    run_mock = Mock(wraps=subprocess.run)
+    monkeypatch.setattr(subprocess, "run", run_mock)
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    git_commands = [call.args[0] for call in run_mock.call_args_list]
+    assert exit_code == 0
+    assert git_commands
+    assert all(command[:2] == ["git", "--no-replace-objects"] for command in git_commands)
+
+
+def test_validation_reports_git_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "text\n"})
+    baseline = write_baseline(repo, {})
+
+    def time_out(*args: object, **kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(cmd="git", timeout=30)
+
+    monkeypatch.setattr(subprocess, "run", time_out)
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 2
+    assert "git command timed out after 30 seconds" in capsys.readouterr().err
+
+
+def test_direct_script_execution_imports_sibling_helper(tmp_path: Path) -> None:
+    validation_dir = tmp_path / "scripts" / "validation"
+    validation_dir.mkdir(parents=True)
+    for name in (
+        "check_doc_interpreter_portability.py",
+        "doc_interpreter_subprocess.py",
+        "portability_baseline.py",
+        "portability_baseline_write.py",
+        "portability_floor.py",
+        "portability_git.py",
+    ):
+        source = REPO_ROOT / "scripts" / "validation" / name
+        (validation_dir / name).write_bytes(source.read_bytes())
+    (tmp_path / "tool.py").write_text("import json\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("Run `python3 tool.py`.\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    baseline = write_baseline(tmp_path, {})
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(validation_dir / "check_doc_interpreter_portability.py"),
+            "--repo-root",
+            str(tmp_path),
+            "--baseline",
+            str(baseline),
+            "--update-baseline",
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert baseline.is_file()
+    assert "wrote" in completed.stdout
 
 
 def test_transitive_local_import_reaches_third_party(tmp_path: Path) -> None:
@@ -327,6 +428,7 @@ def test_historical_records_are_out_of_scope(path: str) -> None:
         "src/copilot-cli/skills/session-init/SKILL.md",
         "src/vs-code-agents/retrospective.agent.md",
         ".github/instructions/python.instructions.md",
+        ".github/prompts/pr-quality-gate-architect.md",
     ],
 )
 def test_generated_mirrors_are_out_of_scope(path: str) -> None:
@@ -457,7 +559,9 @@ def test_unreadable_baseline_exits_2(tmp_path: Path) -> None:
     assert exit_code == 2
 
 
-def test_update_baseline_writes_current_counts(tmp_path: Path) -> None:
+def test_update_baseline_requires_existing_baseline(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     repo = make_repo(
         tmp_path,
         {"tool.py": "import yaml\n", "README.md": "Run `python3 tool.py`.\n"},
@@ -466,8 +570,110 @@ def test_update_baseline_writes_current_counts(tmp_path: Path) -> None:
 
     exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
 
+    assert exit_code == 2
+    assert not baseline.exists()
+    assert "baseline not found" in capsys.readouterr().err
+
+
+def test_update_baseline_refuses_symlink(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n"})
+    target = write_baseline(repo, {"README.md": 1})
+    baseline = repo / "baseline-link.json"
+    baseline.symlink_to(target.name)
+    original = target.read_text(encoding="utf-8")
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
+
+    assert exit_code == 2
+    assert baseline.is_symlink()
+    assert target.read_text(encoding="utf-8") == original
+    assert "through a symlink" in capsys.readouterr().err
+
+
+def test_update_baseline_refuses_symlinked_parent(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {
+            "README.md": "No command.\n",
+            "real/baseline.json": '{"files": {}}\n',
+        },
+    )
+    linked = repo / "linked"
+    linked.symlink_to(repo / "real", target_is_directory=True)
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(repo),
+            "--baseline",
+            str(linked / "baseline.json"),
+            "--update-baseline",
+        ]
+    )
+
+    assert exit_code == 2
+    assert "through a symlink" in capsys.readouterr().err
+
+
+def test_update_baseline_refuses_hidden_diff(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {
+            ".gitattributes": "baseline.json -diff\n",
+            "README.md": "No command.\n",
+            "baseline.json": '{"files": {}}\n',
+        },
+    )
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(repo),
+            "--baseline",
+            str(repo / "baseline.json"),
+            "--update-baseline",
+        ]
+    )
+
+    assert exit_code == 2
+    assert "told not to diff" in capsys.readouterr().err
+
+
+def test_update_baseline_uses_shared_write_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n"})
+    baseline = write_baseline(repo, {})
+    acquired: list[Path] = []
+
+    @contextmanager
+    def record_lock(lock_path: Path) -> Iterator[None]:
+        acquired.append(lock_path)
+        yield
+
+    monkeypatch.setattr(
+        "scripts.validation.check_doc_interpreter_portability.baseline_write_lock",
+        record_lock,
+    )
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(repo),
+            "--baseline",
+            str(baseline),
+            "--update-baseline",
+        ]
+    )
+
     assert exit_code == 0
-    assert json.loads(baseline.read_text(encoding="utf-8"))["files"] == {"README.md": ["tool.py"]}
+    assert acquired == [repo / ".baseline.json.write-lock"]
 
 
 def test_update_baseline_refuses_count_increase(
@@ -497,3 +703,172 @@ def test_update_baseline_records_verified_reduction(tmp_path: Path) -> None:
 
     assert exit_code == 0
     assert json.loads(baseline.read_text(encoding="utf-8"))["files"] == {}
+
+
+def test_update_baseline_preserves_original_when_replace_fails(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n"})
+    baseline = write_baseline(repo, {"README.md": 1})
+    original = baseline.read_text(encoding="utf-8")
+
+    def fail_replace(source: Path, target: Path) -> Path:
+        if target == baseline:
+            raise OSError("replace failed")
+        return source
+
+    monkeypatch.setattr(Path, "replace", fail_replace)
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
+
+    assert exit_code == 2
+    assert baseline.read_text(encoding="utf-8") == original
+    assert list(baseline.parent.glob(f".{baseline.name}.*.tmp")) == []
+    assert "replace failed" in capsys.readouterr().err
+
+
+def test_update_baseline_preserves_replace_error_when_cleanup_fails(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n"})
+    baseline = write_baseline(repo, {"README.md": 1})
+    original = baseline.read_text(encoding="utf-8")
+
+    def fail_replace(source: Path, target: Path) -> Path:
+        if target == baseline:
+            raise OSError("replace failed")
+        return source
+
+    def fail_cleanup(path: Path, missing_ok: bool = False) -> None:
+        del missing_ok
+        if path.name.startswith(f".{baseline.name}."):
+            raise OSError("cleanup failed")
+
+    monkeypatch.setattr(Path, "replace", fail_replace)
+    monkeypatch.setattr(Path, "unlink", fail_cleanup)
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
+
+    assert exit_code == 2
+    assert baseline.read_text(encoding="utf-8") == original
+    error = capsys.readouterr().err
+    assert "replace failed" in error
+    assert "cleanup failed" not in error
+
+
+def test_update_baseline_reports_cleanup_only_failure(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n"})
+    baseline = write_baseline(repo, {"README.md": 1})
+
+    def fail_cleanup(path: Path, missing_ok: bool = False) -> None:
+        del missing_ok
+        if path.name.startswith(f".{baseline.name}."):
+            raise OSError("cleanup failed")
+
+    monkeypatch.setattr(Path, "unlink", fail_cleanup)
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
+
+    assert exit_code == 2
+    assert json.loads(baseline.read_text(encoding="utf-8"))["files"] == {}
+    assert "cleanup failed" in capsys.readouterr().err
+
+
+def test_update_baseline_refuses_empty_scan(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path, {"tests/fixture.md": "Run `python3 tool.py`.\n"})
+    baseline = write_baseline(repo, {"README.md": 1})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
+
+    assert exit_code == 2
+    assert json.loads(baseline.read_text(encoding="utf-8"))["files"] == {"README.md": 1}
+    assert "refusing zero-file scan" in capsys.readouterr().err
+
+
+def test_update_baseline_refuses_repository_subdirectory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"docs/README.md": "No command.\n", "outside.md": "No command.\n"},
+    )
+    baseline = write_baseline(repo, {"outside.md": 1})
+    original = baseline.read_text(encoding="utf-8")
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(repo / "docs"),
+            "--baseline",
+            str(baseline),
+            "--update-baseline",
+        ]
+    )
+
+    assert exit_code == 2
+    assert baseline.read_text(encoding="utf-8") == original
+    assert "repository root must be" in capsys.readouterr().err
+
+
+def test_validation_refuses_empty_scan(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path, {"tests/fixture.md": "No command.\n"})
+    baseline = write_baseline(repo, {})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 2
+    assert "refusing zero-file scan" in capsys.readouterr().err
+
+
+def test_update_baseline_refuses_partial_scan_with_unreadable_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n", "bad.md": "placeholder\n"})
+    (repo / "bad.md").write_bytes(b"\xff")
+    baseline = write_baseline(repo, {"bad.md": 1})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
+
+    assert exit_code == 2
+    assert json.loads(baseline.read_text(encoding="utf-8"))["files"] == {"bad.md": 1}
+    assert "could not read bad.md" in capsys.readouterr().err
+
+
+def test_validation_refuses_malformed_referenced_script(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        {"README.md": "Run `python3 tool.py`.\n", "tool.py": "def broken(:\n"},
+    )
+    baseline = write_baseline(repo, {})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 2
+    assert "could not analyze tool.py" in capsys.readouterr().err
+
+
+def test_validation_refuses_missing_tracked_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n", "missing.md": "tracked\n"})
+    (repo / "missing.md").unlink()
+    baseline = write_baseline(repo, {})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 2
+    assert "tracked file is missing or not a regular file: missing.md" in capsys.readouterr().err

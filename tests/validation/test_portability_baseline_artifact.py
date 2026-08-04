@@ -246,6 +246,36 @@ class TestTheWriteItself:
         assert write_baseline_json(root, path, NESTED, SECTIONS, UNIT, False) == 0
         assert json.loads(path.read_text(encoding="utf-8"))["files"] == {"a.md": 2, "b.md": 3}
 
+    def test_replace_error_survives_cleanup_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        root = _repo(tmp_path)
+        path = _baseline(root, NESTED)
+        original = path.read_text(encoding="utf-8")
+        real_unlink = Path.unlink
+
+        def fail_replace(source: Path, destination: Path) -> Path:
+            if destination == path:
+                raise OSError("replace failed")
+            return source
+
+        def fail_cleanup(temporary_path: Path, *, missing_ok: bool = False) -> None:
+            if temporary_path.suffix == ".tmp":
+                raise OSError("cleanup failed")
+            real_unlink(temporary_path, missing_ok=missing_ok)
+
+        monkeypatch.setattr(Path, "replace", fail_replace)
+        monkeypatch.setattr(Path, "unlink", fail_cleanup)
+
+        assert write_baseline_json(root, path, NESTED, SECTIONS, UNIT, False) == 2
+        assert path.read_text(encoding="utf-8") == original
+        error = capsys.readouterr().err
+        assert "replace failed" in error
+        assert "cleanup failed" not in error
+
     def test_a_precreated_temporary_symlink_cannot_redirect_the_write(
         self, tmp_path: Path
     ) -> None:
