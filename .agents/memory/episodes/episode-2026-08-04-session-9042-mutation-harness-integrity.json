@@ -1,0 +1,68 @@
+{
+  "id": "episode-2026-08-04-session-9042-mutation-harness-integrity",
+  "session": "2026-08-04-session-9042-mutation-harness-integrity",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix mutation harness integrity issues #4457 #4493 #4494 #4505. #4346 closed, #4497 fixed by PR #4512.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T08:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged #4346: already closed before this session.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-04-session-9042-mutation-harness-integrity"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T08:01:00+00:00",
+      "type": "milestone",
+      "content": "Triaged #4497: fixed by PR #4512 (commit 11bdf7e4f7, merged to main).",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-04-session-9042-mutation-harness-integrity"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T08:02:00+00:00",
+      "type": "milestone",
+      "content": "Triaged #4457 #4493 #4494 #4505: all confirmed open against origin/main.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9042-mutation-harness-integrity"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T17:45:03+00:00",
+      "type": "commit",
+      "content": "Commit: 11bdf7e4f7",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9042-mutation-harness-integrity"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 7
+  },
+  "lessons": []
+}

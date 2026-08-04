@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-03-session-9030-mutation-harness-safety",
+  "session": "2026-08-03-session-9030-mutation-harness-safety",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix mutation harness safety issues: #4346, #4457, #4493, #4494, #4505.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T03:55:48+00:00",
+      "type": "commit",
+      "content": "Commit: 4607f6ce8",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9030-mutation-harness-safety"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}

@@ -257,17 +257,17 @@ def build_mutations() -> list[Mutation]:
         ),
 
         # M7: Put the ADR-006 correctness gate back behind the skip guard.
+        # Anchored on the step name only (not the run: line) so a correct change
+        # to the threshold or the command does not break this mutation (#4505).
         Mutation(
             description="M7: re-add bot-skip guard to the ADR-006 ratchet step",
             target_file=pr_val_workflow,
             old_bytes=(
                 b"      - name: Run ADR-006 run-block ratchet\n"
-                b"        run: python3 scripts/ci/adr006_run_block_scanner.py --max 0\n"
             ),
             new_bytes=(
                 b"      - name: Run ADR-006 run-block ratchet\n"
                 b"        if: steps.should-run.outputs.skip != 'true'\n"
-                b"        run: python3 scripts/ci/adr006_run_block_scanner.py --max 0\n"
             ),
             test_filter=f"{guard_class}::test_adr006_ratchet_is_unconditional",
         ),
