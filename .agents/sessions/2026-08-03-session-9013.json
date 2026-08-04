@@ -3,9 +3,9 @@
   "session": {
     "number": 9013,
     "date": "2026-08-03",
-    "branch": "work-ai-agents-land4-369150-fix-push-lock-consolidation-4366",
-    "startingCommit": "54fbdb7fca",
-    "objective": "Lower taste baseline to 593, add GOTCHAS.md suppression, re-merge main for PR 4437"
+    "branch": "fix/red-main-after-merge-sweep",
+    "startingCommit": "b2729ee54",
+    "objective": "Repair the nine test failures that a 29-PR merge sweep left on main"
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -17,12 +17,12 @@
       "serenaInstructions": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena MCP unavailable; read memory-index.md directly to place the recovered entry."
+        "Evidence": "Serena MCP unavailable; read memory-index.md directly to find the memories adjacent to this failure."
       },
       "handoffRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read .agents/HANDOFF.md read-only; no edits (ADR-014)."
+        "Evidence": "Read .agents/HANDOFF.md read-only; no edits (ADR-014). Absent from git status."
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -32,42 +32,42 @@
       "skillScriptsListed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Listed .claude/skills/memory/scripts/ and .claude/skills/github/scripts/pr/ before invoking either."
+        "Evidence": "Listed .claude/skills/orphan-ref-validator/scripts/ and .claude/skills/memory/scripts/ before invoking scan.py and count_memory_tokens.py."
       },
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Used count_memory_tokens.py for the index size and the github skill scripts for PR queries rather than raw gh where a skill exists."
+        "Evidence": "Used the orphan-ref-validator skill's scan.py and the memory skill's count_memory_tokens.py rather than hand-rolling either check; used build/scripts/generate_skills.py to update the copilot-cli mirror rather than editing it."
       },
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read PROJECT-CONSTRAINTS.md and AGENTS.md boundaries via the injected repository instructions."
+        "Evidence": "Read PROJECT-CONSTRAINTS.md and AGENTS.md boundaries via the injected repository instructions; read .claude/rules/session-logs.md when the session-policy hook rejected the first commit."
       },
       "memoriesLoaded": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read ci/ci-spec-coverage-acceptance-signal-is-observe-only.md and searched for other references to the pre-rename name before recovering it."
+        "Evidence": "Read ci/ci-a-red-check-on-your-pr-may-be-inherited-from-main.md and decision-every-merge-invalidates-every-open-pr.md before writing, to augment rather than duplicate."
       },
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "work-ai-agents-land4-369150-fix-push-lock-consolidation-4366"
+        "Evidence": "fix/red-main-after-merge-sweep"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On work-ai-agents-land4-369150-fix-push-lock-consolidation-4366"
+        "Evidence": "On fix/red-main-after-merge-sweep"
       },
       "gitStatusVerified": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "git status --short run before each of the three commits; caught that commit B had been rejected by the session-policy hook while a piped exit code reported success."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "54fbdb7fca"
+        "Evidence": "b2729ee54"
       }
     },
     "sessionEnd": {
@@ -79,27 +79,27 @@
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "HANDOFF.md absent from git diff origin/main --name-only."
+        "Evidence": "HANDOFF.md absent from git status --short and from the branch diff."
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Recovered ci/ci-spec-coverage-acceptance-signal-is-observe-only.md, appended a server-measured confirmation section, and indexed it at 917 tokens; memory_index.py --ci reports PASSED."
+        "Evidence": "Augmented decision-every-merge-invalidates-every-open-pr.md with the sweep-composition corollary and repointed its index row to 1529 tokens, measured by count_memory_tokens.py. Committed as 875b2a00c."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "markdownlint-cli2 run over the branch's changed .md files: 0 issues."
+        "Evidence": "markdownlint-cli2 over the changed .md files reported 0 issues; .agents/** is excluded by the repo config so the governance files are linted by the pre-commit markdown-check job instead, which passed."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Content committed as 920fb22f6, 9f8150f24, ed0860131; this commit lands the session log."
+        "Evidence": "01bada7e8 (three test and script fixes) and 875b2a00c (memory); this commit lands the governance split and the session log."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py exits 0 on this file."
+        "Evidence": "The nine failing node ids now report 22 passed; the four neighbouring test files report 135 passed; taste_count_ratchet.py reports OK at 595; orphan-ref scan.py reports VERDICT PASS. After merging origin/main the ratchet baseline moved to 593 and the suite reports 12 passed; ruff reports All checks passed on the edited test file."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -108,43 +108,53 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-04-twenty-nine-green-prs-merged-into-a-red-main.md. Classifies the batch merge against FAILURE-MODES class 5 with class 4 secondary, carries a five-whys root cause, an impact table, and a remediation table linking #4507 and #4508."
       }
     }
   },
   "workLog": [
     {
-      "task": "Re-merge origin/main",
-      "status": "complete",
-      "commits": [
-        "54fbdb7fca"
-      ],
-      "notes": "Merged origin/main to pick up SkillForge changes and updated baseline"
+      "action": "Reproduced the three red jobs on main before touching anything",
+      "detail": "main run 30859303495 at f326f3399 fails Run Python Tests, Python Security Checks and Run Windows path-contract tests. Establishing that first kept the failures from being attributed to this branch."
     },
     {
-      "task": "Add taste-lint ignore to GOTCHAS.md",
-      "status": "complete",
-      "commits": [],
-      "notes": "Governance reference doc; file-size rule does not apply"
+      "action": "Fixed a non-hermetic subprocess test",
+      "detail": "test_write_copilot_synthesis_summary merged os.environ into the child env, so it passed locally and failed in CI where GITHUB_STEP_SUMMARY is always set. Pinned as SHOULD 11 in .claude/rules/testing.md with both instruction mirrors regenerated by generate_rules.py."
     },
     {
-      "task": "Lower taste baseline 595->593",
-      "status": "complete",
-      "commits": [],
-      "notes": "Net 2 suppressions removed violations"
+      "action": "Split the gotcha detail out of the Copilot entry point",
+      "detail": "Moved the recurring traps into .agents/governance/GOTCHAS.md and left a pointer, so the detail is not paid for on every turn and the Claude and Copilot entry points cite one source."
+    },
+    {
+      "action": "Resolved a merge conflict by re-measuring rather than arguing",
+      "detail": "Both sides of model-context-doctrine.md differed only in an attributed SHA and one derived percentage. main had updated the denominator to 70510 but left the share at 19.5 percent; 14152/70510 is 20.1 percent. Re-ran the instruction budget gate at the merge result to confirm, then regenerated the mirror with generate_skills.py rather than hand editing it."
+    },
+    {
+      "action": "Found the real cause of the red security job",
+      "detail": "CVE-2026-69247 in cryptography 49.0.0, fixed in 50.0.0. The pip-audit line naming ai-agents 0.1.0 is a skip-reason table, not the failure; pip-audit only treats a skipped dependency as fatal under --strict, which the step does not pass. An issue with the wrong root cause was drafted and held rather than filed."
+    },
+    {
+      "action": "Root caused why the resolver could not reach the fix",
+      "detail": "exclude-newer = 7 days under [tool.uv] pinned the lock to the vulnerable release. uv lock --upgrade-package cryptography was a silent no-op with a zero-line diff. Added cryptography = false to the existing [tool.uv.exclude-newer-package] table, then verified with a negative control: 49.0.0 reproduces CVE-2026-69247 and exits 1, 50.0.0 reports no known vulnerabilities and exits 0."
+    },
+    {
+      "action": "Removed a change of mine that did nothing",
+      "detail": "An entry added to the _ALLOWED_BEHIND_GUARD frozenset was already present, so the addition was a semantic no-op that only ruff could see, as B033. Negative control: 51 tests pass with the addition removed, which proves the workflow file carried the real fix. A membership insertion is idempotent, so no behavioral test can distinguish a redundant one from a necessary one."
+    },
+    {
+      "action": "Wrote the retrospective for the sweep",
+      "detail": ".agents/retrospective/2026-08-04-twenty-nine-green-prs-merged-into-a-red-main.md, classified against FAILURE-MODES classes 5 and 4. Confirmed mechanically that no merge queue exists: none of the 62 workflow files carries a merge_group trigger."
+    },
+    {
+      "action": "Closed two reviewer findings and traced a third to its emitter",
+      "detail": "WORKSPACE-BUDGET.md had an inline code span split across a newline so it rendered with literal backticks; reflowed it. mutation_test_proc_group.py decoded captured pytest output with errors=replace, discarding the original bytes; switched to backslashreplace. The four remaining threads all reported inconsistent episode metadata, which is an emitter defect: json_timestamp promotes a date-only session.date to midnight, and _duration_from_worklogs reads only the time key while _entry_timestamp accepts timestamp or time. Measured 967 entries under timestamp against 666 under time, zero using both, so the majority key is the one the duration function ignores. Reopened #3972 with the measurement rather than editing generated artifacts."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "c4f99626d",
   "nextSteps": [
-    "Push to origin, verify CI green, merge PR 4437"
-  ],
-  "retrospective": {
-    "section": "## Retrospective",
-    "learningsCaptured": [
-      "All 5 PRs needed merge-from-main after taste baseline diverged",
-      "Pre-existing broken session logs on branches block push; fix before committing",
-      "GOTCHAS.md governance docs need taste-lint file-size suppression"
-    ]
-  }
+    "Push the branch and refresh the #4508 body; the file list must be re-derived after every merge.",
+    "Land the Copilot probe rate-limit fix so a throttled API stops blocking every push on this machine.",
+    "Decide between requiring up-to-date branches and configuring a merge queue; the cheap middle option is to run main and fix it between merge batches."
+  ]
 }

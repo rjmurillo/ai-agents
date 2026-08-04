@@ -4,89 +4,161 @@
   "timestamp": "2026-08-03T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Lower taste baseline to 593, add GOTCHAS.md suppression, re-merge main for PR 4437",
+  "task": "Repair the nine test failures that a 29-PR merge sweep left on main",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-08-03T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Re-merge origin/main",
-      "caused_by": [],
+      "timestamp": "2026-08-03T21:00:38+00:00",
+      "type": "commit",
+      "content": "Commit: 01bada7e8",
+      "caused_by": [
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012"
+      ],
       "leads_to": [
-        "e004"
+        "e002"
       ],
       "_source_session": "2026-08-03-session-9013"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-03T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Add taste-lint ignore to GOTCHAS.md",
-      "caused_by": [],
+      "timestamp": "2026-08-03T21:14:52+00:00",
+      "type": "commit",
+      "content": "Commit: 875b2a00c",
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": [
-        "e004"
+        "e003"
       ],
       "_source_session": "2026-08-03-session-9013"
     },
     {
       "id": "e003",
-      "timestamp": "2026-08-03T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Lower taste baseline 595->593",
-      "caused_by": [],
-      "leads_to": [
-        "e004"
+      "timestamp": "2026-08-03T22:21:43+00:00",
+      "type": "commit",
+      "content": "Commit: c4f99626d",
+      "caused_by": [
+        "e002"
       ],
+      "leads_to": [],
       "_source_session": "2026-08-03-session-9013"
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-03T08:13:27+00:00",
-      "type": "commit",
-      "content": "Commit: 920fb22f6",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003"
-      ],
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the three red jobs on main before touching anything",
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e001"
       ],
       "_source_session": "2026-08-03-session-9013"
     },
     {
       "id": "e005",
-      "timestamp": "2026-08-03T08:13:27+00:00",
-      "type": "commit",
-      "content": "Commit: 9f8150f24",
-      "caused_by": [
-        "e004"
-      ],
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed a non-hermetic subprocess test",
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e001"
       ],
       "_source_session": "2026-08-03-session-9013"
     },
     {
       "id": "e006",
-      "timestamp": "2026-08-03T08:18:35+00:00",
-      "type": "commit",
-      "content": "Commit: ed0860131",
-      "caused_by": [
-        "e005"
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split the gotcha detail out of the Copilot entry point",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
       ],
-      "leads_to": [],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved a merge conflict by re-measuring rather than arguing",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found the real cause of the red security job",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Root caused why the resolver could not reach the fix",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed a change of mine that did nothing",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote the retrospective for the sweep",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9013"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed two reviewer findings and traced a third to its emitter",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
       "_source_session": "2026-08-03-session-9013"
     }
   ],
   "metrics": {
-    "duration_minutes": 0,
+    "duration_minutes": 81,
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
     "commits": 3,
-    "files_changed": 4
+    "files_changed": 6
   },
   "lessons": []
 }
