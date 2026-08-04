@@ -86,8 +86,13 @@ class TestSessionLogForCurrentBranch:
             f"Expected the branch-matching log {log_mine.name}, got {result}"
         )
 
-    def test_falls_back_to_mtime_when_no_branch_log_exists(self, tmp_path: Path) -> None:
-        """Falls back to mtime selection when no log for the current branch exists."""
+    def test_returns_none_when_no_branch_log_exists(self, tmp_path: Path) -> None:
+        """Returns None when no log for the current branch exists.
+
+        The previous behaviour was to fall back to the mtime winner; that
+        silently picked another session's log. Returning None lets the caller
+        fail with a clear message instead (issue #4288).
+        """
         sessions = tmp_path / "sessions"
         sessions.mkdir()
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
@@ -103,7 +108,10 @@ class TestSessionLogForCurrentBranch:
 
         result = policy._session_log_for_current_branch(sessions, repo)
 
-        assert result == log_new, "Should fall back to mtime winner when no branch log exists"
+        assert result is None, (
+            "Unmatched branch must return None, not the mtime winner. "
+            "Returning the mtime winner silently picks another session's log."
+        )
 
     def test_returns_none_when_no_logs_at_all(self, tmp_path: Path) -> None:
         """Returns None when the sessions directory is empty."""
@@ -126,8 +134,13 @@ class TestSessionLogForCurrentBranch:
 
         assert result is None
 
-    def test_falls_back_to_mtime_when_branch_unavailable(self, tmp_path: Path) -> None:
-        """Falls back to mtime if _current_branch returns None (detached HEAD etc.)."""
+    def test_returns_none_when_branch_unavailable(self, tmp_path: Path) -> None:
+        """Returns None when _current_branch returns None (detached HEAD etc.).
+
+        The previous behaviour was to fall back to mtime; that silently picked
+        another session's log. Returning None lets the caller fail with a clear
+        message instead of silently operating on the wrong log (issue #4288).
+        """
         sessions = tmp_path / "sessions"
         sessions.mkdir()
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
@@ -145,7 +158,10 @@ class TestSessionLogForCurrentBranch:
         with mock.patch.object(policy, "_current_branch", no_branch):
             result = policy._session_log_for_current_branch(sessions, repo)
 
-        assert result == log
+        assert result is None, (
+            "Detached HEAD must return None, not the mtime winner. "
+            "Returning the mtime winner silently picks another session's log."
+        )
 
 
 class TestAdrPolicyUsesBranchLog:
@@ -154,7 +170,19 @@ class TestAdrPolicyUsesBranchLog:
     def test_uses_current_branch_log_not_mtime_winner(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Gate reaches branch log evidence, then fails on missing debate log evidence."""
+        """Gate passes when branch log has evidence and a debate log exists.
+
+        The original test asserted result == 1, but that assertion is vacuous:
+        both the fixed and reverted code paths return 1 (different reasons,
+        same code).  The distinguishing observable is whether the gate PASSES
+        (returns 0) when the branch log carries evidence.
+
+        Fixed path: _session_log_for_current_branch returns branch_log,
+        _session_has_adr_review is True, debate log exists -> returns 0.
+
+        Reverted path: _today_session_log returns other_log (newer mtime),
+        _session_has_adr_review is False, returns 1 immediately.
+        """
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: False)
 
@@ -162,7 +190,7 @@ class TestAdrPolicyUsesBranchLog:
         sessions = tmp_path / ".agents" / "sessions"
         sessions.mkdir(parents=True)
 
-        # Branch log has adr-review evidence
+        # Branch log has adr-review evidence but is OLDER by mtime.
         branch_log = sessions / f"{today}-session-mine.json"
         branch_log.write_text(
             json.dumps(
@@ -176,13 +204,20 @@ class TestAdrPolicyUsesBranchLog:
         )
         os.utime(branch_log, (1_000_000_000.0, 1_000_000_000.0))
 
-        # Other-branch log is newer but has no adr-review evidence
+        # Other-branch log is NEWER but has no adr-review evidence.
+        # _today_session_log (mtime-based, pre-fix) would pick this one.
         other_log = sessions / f"{today}-session-other.json"
         other_log.write_text(json.dumps({"session": {"branch": "feature/other"}}))
         os.utime(other_log, (2_000_000_000.0, 2_000_000_000.0))
 
-        # Stub out ADR evidence and force the branch log selection
+        # Provide a debate log so the gate can reach return 0.
+        critique_dir = tmp_path / ".agents" / "critique"
+        critique_dir.mkdir(parents=True)
+        (critique_dir / "ADR-099-debate-log.md").write_text("ADR-099 debate\n")
+
+        # _session_has_adr_review is True only for branch_log.
         monkeypatch.setattr(policy, "_session_has_adr_review", lambda log: log == branch_log)
+        # _session_log_for_current_branch (the fix) returns branch_log.
         monkeypatch.setattr(
             policy,
             "_session_log_for_current_branch",
@@ -193,9 +228,48 @@ class TestAdrPolicyUsesBranchLog:
             [".agents/architecture/ADR-099-test.md"], tmp_path
         )
 
-        # Branch log has evidence even though mtime winner does not.
-        # Debate log evidence is still missing, so the full gate fails.
-        assert result == 1  # debate log check will fail since no .agents/analysis/ dir
+        # Fixed path: branch log found, evidence present, debate log present -> 0.
+        # Reverted path: mtime winner (other_log) has no evidence -> 1.
+        assert result == 0, (
+            "Gate must pass when the branch log has adr-review evidence "
+            "even though the mtime-newest log does not. "
+            "Failure here means the reverted (_today_session_log) path is active."
+        )
+
+    def test_uses_current_branch_log_mtime_winner_is_not_branch_log(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Gate fails when mtime winner has no evidence (negative control).
+
+        With the fix present, _session_log_for_current_branch returns
+        other_log (simulating a branch that owns the newer log but has no
+        evidence).  Gate must return 1.  This is the negative control that
+        proves the previous test is load-bearing: if the positive test
+        returned 0 because the gate was broken in some third way, this test
+        would also return 0 and fail.
+        """
+        monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        monkeypatch.setattr(policy, "_merge_in_progress", lambda root: False)
+
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        sessions = tmp_path / ".agents" / "sessions"
+        sessions.mkdir(parents=True)
+
+        branch_log = sessions / f"{today}-session-mine.json"
+        branch_log.write_text(json.dumps({"session": {"branch": "feature/other"}}))
+
+        monkeypatch.setattr(policy, "_session_has_adr_review", lambda log: False)
+        monkeypatch.setattr(
+            policy,
+            "_session_log_for_current_branch",
+            lambda sessions_dir, root: branch_log,
+        )
+
+        result = policy.check_adr_review_policy(
+            [".agents/architecture/ADR-099-test.md"], tmp_path
+        )
+
+        assert result == 1
 
     def test_fails_when_no_session_log_for_branch(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

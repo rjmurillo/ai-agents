@@ -183,12 +183,12 @@ Rollback is roll-FORWARD: npm unpublish is restricted; fix, bump patch, retag (R
 | Hand-editing `src/copilot-cli/`, `src/vs-code-agents/`, `.github/instructions/`, `.claude/lib/` | Next regen silently overwrites your edit; ruff deliberately exempts generated Python (pyproject.toml:129-130 ignores all selected rule families under `src/copilot-cli/{hooks,skills}/**/*.py`), so lint will not even look at it | Edit the canonical tree (Phase 1 table), regenerate |
 | Editing source to make a drift gate green | The 2025-12-15 disaster; drift output shows difference, not direction | Identify canonical side first, regenerate outward |
 | Syncing lib with only one of the two steps | `sync_plugin_lib.py` feeds `.claude/lib/`; `build_all.py` feeds `src/copilot-cli/lib/`; missing either fails CI | Run both, in that order |
-| Bumping one project-toolkit manifest | Parity gate fails (#2222) | Bump `.claude` and `src/copilot-cli` manifests to the same value |
+| Bumping the two project-toolkit manifests in lockstep to satisfy version parity | Version parity retired with the field (ADR-092); `check_plugin_manifest_parity.py` no longer compares versions, and the bump itself now fails the gate | Nothing to bump; leave both manifests version-free |
 | Re-adding a `version` to a manifest to clear a red gate | The gate fails on the field's presence, so the red is permanent | Delete the field; freshness already tracks the commit SHA |
 | Treating `Dropped: N` as normal without checking the source | Current source registrations all map to Copilot events; an unexplained drop means contract drift | Read `build/audit/GENERATION-AUDIT.md`, identify the source registration, and require an explicit `eventDrop` decision |
 | Running `build_all.py` with bare `python3` in a fresh shell | PyYAML lives in the venv; import fails | `uv run python build/scripts/build_all.py` |
 | Running installed-plugin E2E against live `~/.copilot` | Version skew and ambiguous uninstall mutate active hooks; a missing hook root can deny every matching tool | Set both `HOME` and `COPILOT_HOME` to one isolated directory and register the worktree marketplace there |
-| Treating `src/claude/` as generated | It is the manual exception (ADR-036); no generator will save you | Hand-apply changes there and bump its manifest |
+| Treating `src/claude/` as generated | It is the manual exception (ADR-036); no generator will save you | Hand-apply changes there; its manifest carries no version to bump |
 
 ## Verification
 
@@ -224,7 +224,7 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md:35-54; .github/workflows/publish.yml:13-16 | `grep -n "tags" .github/workflows/publish.yml` |
 | Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` |
 | Audit log path, gitignored | .gitignore:70 | `grep -n "build/audit" .gitignore` |
-| 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `ls .agents/retrospective/ \| grep drift` |
+| 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `python3 -c "import pathlib;print([p.name for p in pathlib.Path('.agents/retrospective').glob('*drift*')])"` |
 | ADR-036 Accepted, ADR-072 Proposed | .agents/architecture/ADR-036-*.md, ADR-072-*.md | `head -12 .agents/architecture/ADR-072-jtbd-plugin-architecture.md` |
 
 Maintenance: when a generator is added or removed from `GENERATORS`, when a fourth plugin.json appears, or if a marketplace count validator is reintroduced to replace the retired one, update Phase 1/4 tables and re-run every re-verify command above.

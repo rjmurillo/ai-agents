@@ -2,10 +2,20 @@
 
 ## Recipe
 
-To change shared agent behavior, edit BOTH of these in the same change, then regenerate:
+To change shared agent behavior, edit the template plus all three
+hand-maintained copies in the same change, then regenerate:
 
-1. `src/claude/<agent>.md` , the hand-maintained Claude agent prompt (carries Claude-specific `name`/`model` frontmatter). NOT generated; edit directly.
-2. `templates/agents/<agent>.shared.md` , the shared body the Copilot CLI and VS Code copies are generated from.
+1. `templates/agents/<agent>.shared.md` , the shared body the Copilot CLI and VS Code copies are generated from. Edit this first.
+2. `src/claude/<agent>.md` , hand-maintained Claude agent prompt (carries Claude-specific `name`/`model` frontmatter). NOT generated; edit directly.
+3. `.claude/agents/<agent>.md` , hand-maintained Claude Code copy. NOT generated; edit directly.
+4. `.github/agents/<agent>.agent.md` , hand-maintained GitHub Copilot self-host copy. NOT generated; edit directly.
+
+Correction verified 2026-07-31: this recipe previously named only items 1 and 2.
+Omitting items 3 and 4 is how PR #1715 shipped an orchestrator section to the
+Claude copies and never to Copilot. Negative control: revert only
+`.claude/agents/orchestrator.md` to `origin/main`, run `build_all.py` (exit 0),
+and the reverted content stays reverted. See
+`.serena/memories/decision-agent-files-are-not-canonical.md`.
 
 Then run `python3 build/generate_agents.py` to refresh the generated copies (`src/copilot-cli/agents/`, `src/vs-code-agents/`).
 
@@ -20,3 +30,28 @@ Issue #2707 shipped SkillOpt determinism fixes for `silent-failure-hunter` (an A
 Editing any agent's shared behavior. See `.claude/rules/claude-agents.md` MUST-1 for the binding rule.
 
 Source: issue/PR #2707 (MERGED); `.claude/rules/claude-agents.md`; `build/scripts/detect_agent_drift.py`.
+
+## Correction (2026-08-03): four hand-maintained surfaces, not two
+
+The recipe above names two files to edit. Measurement says four. `build_all.py`
+prints `Output Root: <repo>/src` and writes only `src/copilot-cli/agents/` and
+`src/vs-code-agents/`. Every other agent surface is hand-maintained, so a
+one-character fix to the shared body has to be repeated by hand in three more
+places:
+
+| Surface | Written by | Checked by |
+|---|---|---|
+| `templates/agents/<a>.shared.md` | hand | source of the two generated copies |
+| `src/claude/<a>.md` | hand | co-change parity (`validate_install_parity.py`) |
+| `.claude/agents/<a>.md` | hand | `check_agent_content_parity.py`: byte-identical to `src/claude/` |
+| `.github/agents/<a>.prompt.md` | hand | `detect_agent_drift.py` install-copy comparison vs `.claude/agents/` |
+| `src/copilot-cli/agents/<a>.agent.md` | `build_all.py` | drift gate |
+| `src/vs-code-agents/<a>.agent.md` | `build_all.py` | drift gate |
+
+Also: `build/scripts/generate_agents.py` does not exist. `build_all.py` imports
+the module and calls it; invoking the path directly gives Errno 2.
+
+Evidence: PR #4069, 2026-08-03. A bare `|` inside a backticked grep pattern in a
+table cell tripped MD056 in all six copies. Running `build_all.py` fixed two of
+them. `check_agent_content_parity.py` then reported the trees byte-identical only
+after the remaining three were edited by hand.

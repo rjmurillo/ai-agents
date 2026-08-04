@@ -13,7 +13,7 @@
       "content": "Discovered PR #3507 had already merged as 87b117667 and closed issue #3419 while a stale worktree still held the branch. Verified against origin rather than trusting the local checkout, and abandoned the branch instead of pushing work into a merged PR.",
       "caused_by": [],
       "leads_to": [
-        "e002"
+        "e011"
       ]
     },
     {
@@ -21,11 +21,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Checked what actually reached main. The progressive-disclosure split landed complete, 8 references in each of the two harness trees plus both SKILL.md bodies. The duplicate episode event id is absent on main, 16 events with no repeats, so that thread needed no follow-up.",
-      "caused_by": [
-        "e001"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e003"
+        "e011"
       ]
     },
     {
@@ -33,11 +31,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Found the one thing that did not land: both spec forms carry size-exception: true at line 5 with no stated reason. The two review threads asking about it merged unanswered.",
-      "caused_by": [
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e004"
+        "e011"
       ]
     },
     {
@@ -45,11 +41,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Wrote the rationale into both forms. Each states what the check wants, that the overage was inherited rather than introduced because both files were already past 500 lines, why splitting a 625-line command inside a one-line reference reroute would hide a behavior change inside a refactor, and that issue #3632 retires the key.",
-      "caused_by": [
-        "e003"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e005"
+        "e011"
       ]
     },
     {
@@ -57,11 +51,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Treated the missing justification as a gate defect rather than a paperwork miss. skill_size.py emits 'Add size-exception: true to frontmatter if overage is justified' in three places and then never reads a justification, so a declared exception and a reviewed one are indistinguishable to the gate.",
-      "caused_by": [
-        "e004"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e006"
+        "e011"
       ]
     },
     {
@@ -69,11 +61,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Added has_exception_rationale and made an oversized file with a declared exception fail unless a rationale comment opens in the first 40 lines, mentions size-exception, and carries at least 200 characters. Bounded the opening position only, not the close, so a long reason is not penalized for extending past the window; anchoring on the close would push authors to compress the explanation, which is the opposite of the goal.",
-      "caused_by": [
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e007"
+        "e011"
       ]
     },
     {
@@ -81,11 +71,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Measured the blast radius before committing to the design. Scanned every Markdown file in the repository: exactly 2 carry the key, both are the spec forms, and both pass once documented. The gate goes green on main immediately and blocks only the next undocumented exception.",
-      "caused_by": [
-        "e006"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e008"
+        "e011"
       ]
     },
     {
@@ -93,11 +81,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Kept the gate narrow deliberately. It fires only when the exception is load-bearing, that is when the file is actually over the line or byte ceiling. A key declared on an under-limit file is dead config, not a blocking defect, so it stays passing.",
-      "caused_by": [
-        "e007"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e009"
+        "e011"
       ]
     },
     {
@@ -105,11 +91,9 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Found that 5 pre-existing tests failed against the new gate because their fixtures declared the key with no reason. That is the gate working: the fixtures encoded the exact shape the repository now forbids. Gave each fixture a rationale rather than weakening the check.",
-      "caused_by": [
-        "e008"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e010"
+        "e011"
       ]
     },
     {
@@ -117,24 +101,35 @@
       "timestamp": "2026-07-28T00:00:00+00:00",
       "type": "milestone",
       "content": "Proved every new test is load-bearing with a five-way mutation table run from a scratch copy outside the repository. Disabling the enforcement block fails 2 tests. Forcing the detector to always return True fails 6. Forcing it to always return False fails 6. Dropping the over-a-limit guard fails the under-limit negative control. Dropping the exception-declared guard fails the no-exception negative control. Every one of the 16 new tests fails under at least one mutation, so none is tautological.",
-      "caused_by": [
-        "e009"
-      ],
-      "leads_to": []
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ]
     },
     {
       "id": "e011",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T07:26:42+00:00",
       "type": "commit",
       "content": "Commit: 87b117667",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010"
+      ],
       "leads_to": [
         "e012"
       ]
     },
     {
       "id": "e012",
-      "timestamp": "2026-07-28T00:00:00+00:00",
+      "timestamp": "2026-07-28T12:17:22+00:00",
       "type": "commit",
       "content": "Commit: e61b6955f",
       "caused_by": [

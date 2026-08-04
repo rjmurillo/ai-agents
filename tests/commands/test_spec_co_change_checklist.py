@@ -21,6 +21,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SPEC_PATH = REPO_ROOT / ".claude" / "commands" / "spec.md"
+SPEC_PRIOR_ART_PATH = (
+    REPO_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+)
 
 
 @pytest.fixture(scope="module")
@@ -29,24 +32,31 @@ def spec_text() -> str:
 
 
 @pytest.fixture(scope="module")
-def step_6_region(spec_text: str) -> str:
+def spec_prior_art_text() -> str:
+    """Steps 1-9 live in spec-prior-art-schema.md after issue #3632."""
+    return SPEC_PRIOR_ART_PATH.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def step_6_region(spec_prior_art_text: str) -> str:
     """Return the substring covering Step 6 of /spec.
 
+    After issue #3632, Step 6 lives in spec-prior-art-schema.md.
     Step 6 begins with the numbered ordered-list item `6. **Formalize the
     PRD into durable artifacts**:` and ends at the next top-level item
     (`7.`) or the next major section (`## ...`), whichever comes first.
     """
     start_marker = "6. **Formalize the PRD into durable artifacts**"
-    start = spec_text.find(start_marker)
-    assert start != -1, "Step 6 anchor not found in spec.md"
+    start = spec_prior_art_text.find(start_marker)
+    assert start != -1, "Step 6 anchor not found in spec-prior-art-schema.md"
     # End at the next numbered step or the next ## section.
     end_candidates = [
-        spec_text.find("\n7.", start),
-        spec_text.find("\n## ", start),
+        spec_prior_art_text.find("\n7.", start),
+        spec_prior_art_text.find("\n## ", start),
     ]
     end_candidates = [c for c in end_candidates if c != -1]
     assert end_candidates, "Step 6 has no terminator"
-    return spec_text[start : min(end_candidates)]
+    return spec_prior_art_text[start : min(end_candidates)]
 
 
 def test_co_change_checklist_header_present(step_6_region: str) -> None:

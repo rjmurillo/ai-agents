@@ -10,7 +10,9 @@ sibling more often than the old ones did.
 For each fixture (a verbatim user request plus 2-4 candidate sibling skills) and
 each VARIANT in {before, after}, the scorer:
   1. Resolves every candidate's description text:
-       - before : `git show origin/main:<path>` (the pre-#2127 description)
+       - before : `git show fd379f0a85e0dc4362c3960a84a7ad5632270239:<path>`
+                  (the immutable first-parent of the #2127 merge commit 817e466f8
+                  -- this is the state of main the instant before #2127 landed).
        - after  : the working-tree file (the rewritten description)
   2. Builds a router prompt that lists ONLY the candidate descriptions plus the
      user query, and instructs the model to reply with EXACTLY one candidate name.
@@ -47,9 +49,12 @@ Usage:
 
 Exit codes:
     0 ok
-    2 config (fixtures file invalid, candidate description failed to load, or
-              missing ANTHROPIC_API_KEY - a missing env var is config per ADR-035)
-    3 external (API failure)
+1 identical-arms (before and after descriptions are byte-identical for every
+  candidate in every fixture; the eval cannot measure any change and exits
+  loudly so the caller knows the result is not a null finding)
+2 config (fixtures file invalid, candidate description failed to load, or
+          missing ANTHROPIC_API_KEY - a missing env var is config per ADR-035)
+3 external (API failure)
 """
 
 from __future__ import annotations
@@ -62,10 +67,16 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
-from _anthropic_api import call_api, load_api_key
+from _anthropic_api import call_api, load_api_key_for_selected_provider
 
 MODEL = "claude-sonnet-4-6"
-BEFORE_REF = "origin/main"
+# Immutable first-parent of the #2127 merge commit (817e466f8).
+# This is the exact state of main the instant before #2127 landed.
+# Do NOT change this to a branch name: a moving ref makes both arms
+# read identical bytes once the target commit is on that branch, and
+# a zero delta reads as "no improvement" when it actually means
+# "nothing was compared" (issue #4304).
+BEFORE_REF = "fd379f0a85e0dc4362c3960a84a7ad5632270239"
 MAX_TOKENS = 64
 
 REQUIRED_FIXTURE_FIELDS = {"id", "query", "candidates", "correct"}
@@ -74,6 +85,7 @@ REQUIRED_FIXTURE_FIELDS = {"id", "query", "candidates", "correct"}
 # ---------------------------------------------------------------------------
 # Fixture loading and validation
 # ---------------------------------------------------------------------------
+
 
 def load_fixtures(path: str) -> list[dict[str, Any]]:
     """Load and validate the fixtures file.
@@ -97,9 +109,7 @@ def load_fixtures(path: str) -> list[dict[str, Any]]:
         ) from exc
 
     if not isinstance(data, list):
-        raise RuntimeError(
-            f"Invalid fixtures file {path}: expected a top-level JSON array."
-        )
+        raise RuntimeError(f"Invalid fixtures file {path}: expected a top-level JSON array.")
     if not data:
         raise RuntimeError(f"Fixtures file {path} has 0 cases; need at least 1.")
 
@@ -109,14 +119,11 @@ def load_fixtures(path: str) -> list[dict[str, Any]]:
     return data
 
 
-def _validate_fixture(
-    fx: object, index: int, path: str, seen_ids: set[str]
-) -> None:
+def _validate_fixture(fx: object, index: int, path: str, seen_ids: set[str]) -> None:
     """Validate one fixture's shape. Raises RuntimeError on any violation."""
     if not isinstance(fx, dict):
         raise RuntimeError(
-            f"Fixture at index {index} in {path} is not an object "
-            f"(got {type(fx).__name__})."
+            f"Fixture at index {index} in {path} is not an object (got {type(fx).__name__})."
         )
     missing = REQUIRED_FIXTURE_FIELDS - set(fx.keys())
     if missing:
@@ -139,8 +146,7 @@ def _validate_fixture(
     if not isinstance(candidates, list) or not (2 <= len(candidates) <= 4):
         got = len(candidates) if isinstance(candidates, list) else type(candidates).__name__
         raise RuntimeError(
-            f"Fixture {fid} in {path}: 'candidates' must be a list of 2-4 names "
-            f"(got {got})."
+            f"Fixture {fid} in {path}: 'candidates' must be a list of 2-4 names (got {got})."
         )
     if len(set(candidates)) != len(candidates):
         raise RuntimeError(f"Fixture {fid} in {path}: 'candidates' contains duplicates.")
@@ -160,6 +166,7 @@ def _validate_fixture(
 # ---------------------------------------------------------------------------
 # Candidate resolution: name -> repo-relative path
 # ---------------------------------------------------------------------------
+
 
 def resolve_candidate_path(name: str, repo_root: Path) -> str:
     """Resolve a candidate name to its repo-relative description-bearing file.
@@ -186,6 +193,7 @@ def resolve_candidate_path(name: str, repo_root: Path) -> str:
 # Description extraction
 # ---------------------------------------------------------------------------
 
+
 def extract_description(markdown: str, source_label: str) -> str:
     """Extract the YAML frontmatter `description` field from a SKILL/agent file.
 
@@ -203,9 +211,7 @@ def extract_description(markdown: str, source_label: str) -> str:
     try:
         import yaml  # lazy: only the description path needs it
     except ModuleNotFoundError as exc:  # pragma: no cover - env guard
-        raise RuntimeError(
-            "PyYAML is required to parse frontmatter but is not installed."
-        ) from exc
+        raise RuntimeError("PyYAML is required to parse frontmatter but is not installed.") from exc
 
     try:
         front = yaml.safe_load(match.group(1))
@@ -256,9 +262,8 @@ def load_description_after(rel_path: str, repo_root: Path) -> str:
 # Prompt construction
 # ---------------------------------------------------------------------------
 
-def build_router_prompt(
-    query: str, candidates: list[str], descriptions: dict[str, str]
-) -> str:
+
+def build_router_prompt(query: str, candidates: list[str], descriptions: dict[str, str]) -> str:
     """Build the router user message for one fixture/variant.
 
     Lists ONLY the candidate skills and their descriptions, then the user query,
@@ -273,13 +278,15 @@ def build_router_prompt(
     ]
     for name in candidates:
         lines.append(f"- {name}: {descriptions[name]}")
-    lines.extend([
-        "",
-        f"User request: {query}",
-        "",
-        "Reply with EXACTLY one skill name from the candidate list above and nothing",
-        "else. No punctuation, no explanation, no code fences.",
-    ])
+    lines.extend(
+        [
+            "",
+            f"User request: {query}",
+            "",
+            "Reply with EXACTLY one skill name from the candidate list above and nothing",
+            "else. No punctuation, no explanation, no code fences.",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -294,6 +301,7 @@ def resolve_variant_descriptions(
 # ---------------------------------------------------------------------------
 # Response parsing
 # ---------------------------------------------------------------------------
+
 
 def parse_pick(raw: str, candidates: list[str]) -> str:
     """Parse the model's chosen skill from its raw reply.
@@ -321,6 +329,7 @@ def parse_pick(raw: str, candidates: list[str]) -> str:
 # API call (live path only; lazily imports the SDK)
 # ---------------------------------------------------------------------------
 
+
 def call_router(api_key: str, prompt: str) -> str:
     """Call the Anthropic Messages API and return the assistant's text.
 
@@ -342,7 +351,7 @@ def call_router(api_key: str, prompt: str) -> str:
                 temperature=0,
             ),
         )
-    except Exception as exc:  # noqa: BLE001 - normalize all transport errors to one type
+    except Exception as exc:
         raise RuntimeError(f"Anthropic API call failed: {exc}") from exc
 
 
@@ -350,9 +359,8 @@ def call_router(api_key: str, prompt: str) -> str:
 # Eval execution
 # ---------------------------------------------------------------------------
 
-def build_plan(
-    fixtures: list[dict[str, Any]], repo_root: Path
-) -> list[dict[str, Any]]:
+
+def build_plan(fixtures: list[dict[str, Any]], repo_root: Path) -> list[dict[str, Any]]:
     """Resolve paths and both-variant descriptions/prompts for every fixture.
 
     This is the shared work for dry-run and live runs: it touches `git show` and
@@ -367,15 +375,37 @@ def build_plan(
         paths = {name: resolve_candidate_path(name, repo_root) for name in candidates}
         before_desc = resolve_variant_descriptions(candidates, paths, repo_root, "before")
         after_desc = resolve_variant_descriptions(candidates, paths, repo_root, "after")
-        plan.append({
-            "fixture": fx,
-            "paths": paths,
-            "prompts": {
-                "before": build_router_prompt(fx["query"], candidates, before_desc),
-                "after": build_router_prompt(fx["query"], candidates, after_desc),
-            },
-        })
+        plan.append(
+            {
+                "fixture": fx,
+                "paths": paths,
+                "before_desc": before_desc,
+                "after_desc": after_desc,
+                "prompts": {
+                    "before": build_router_prompt(fx["query"], candidates, before_desc),
+                    "after": build_router_prompt(fx["query"], candidates, after_desc),
+                },
+            }
+        )
     return plan
+
+
+def check_identical_arms(plan: list[dict[str, Any]]) -> list[str]:
+    """Return a list of "fixture_id/candidate" strings where before==after description.
+
+    An empty list means the two arms differ somewhere (healthy). A non-empty list
+    means those specific candidates read identical bytes in both variants. When
+    ALL candidates in EVERY fixture are identical the eval is a no-op and must
+    exit non-zero (exit 1) so the caller cannot mistake zero-delta for a null
+    finding (issue #4304).
+    """
+    identical_pairs: list[str] = []
+    for item in plan:
+        fx_id = item["fixture"]["id"]
+        for name in item["fixture"]["candidates"]:
+            if item["before_desc"][name] == item["after_desc"][name]:
+                identical_pairs.append(f"{fx_id}/{name}")
+    return identical_pairs
 
 
 def run_eval(plan: list[dict[str, Any]], api_key: str) -> dict[str, Any]:
@@ -399,14 +429,16 @@ def run_eval(plan: list[dict[str, Any]], api_key: str) -> dict[str, Any]:
         before_ok_count += int(before_ok)
         after_ok_count += int(after_ok)
 
-        per_fixture.append({
-            "id": fx["id"],
-            "before_pick": before_pick,
-            "after_pick": after_pick,
-            "correct": correct,
-            "before_ok": before_ok,
-            "after_ok": after_ok,
-        })
+        per_fixture.append(
+            {
+                "id": fx["id"],
+                "before_pick": before_pick,
+                "after_pick": after_pick,
+                "correct": correct,
+                "before_ok": before_ok,
+                "after_ok": after_ok,
+            }
+        )
 
     return {
         "accuracy_before": round(before_ok_count / total, 4),
@@ -420,26 +452,28 @@ def run_eval(plan: list[dict[str, Any]], api_key: str) -> dict[str, Any]:
 # Main
 # ---------------------------------------------------------------------------
 
+
 def _parse_args() -> argparse.Namespace:
     """Parse and validate command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Skill-router eval: before/after SKIP-clause disambiguation accuracy."
     )
     parser.add_argument(
-        "--fixtures", type=str, required=True,
-        help="Path to the fixtures JSON array."
+        "--fixtures", type=str, required=True, help="Path to the fixtures JSON array."
     )
     parser.add_argument(
-        "--repo-root", type=str, default=".",
-        help="Repository root holding .claude/ and origin/main (default: cwd)."
+        "--repo-root",
+        type=str,
+        default=".",
+        help="Repository root holding .claude/ and origin/main (default: cwd).",
     )
     parser.add_argument(
-        "--limit", type=int, default=None,
-        help="Evaluate only the first N fixtures."
+        "--limit", type=int, default=None, help="Evaluate only the first N fixtures."
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Build prompts and resolve all before+after descriptions; no API calls."
+        "--dry-run",
+        action="store_true",
+        help="Build prompts and resolve all before+after descriptions; no API calls.",
     )
     args = parser.parse_args()
     if args.limit is not None and args.limit < 1:
@@ -473,22 +507,54 @@ def main() -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
+    # Detect identical arms: if before and after descriptions are byte-identical
+    # for every candidate in every fixture, the eval measures nothing. Exit 1
+    # loudly so the caller cannot mistake a zero-delta result for a null finding.
+    # Partial overlap (some candidates identical, some differ) is reported as a
+    # warning but does not abort, because a partial change is still measurable.
+    identical_pairs = check_identical_arms(plan)
+    total_candidate_slots = sum(len(item["fixture"]["candidates"]) for item in plan)
+    if identical_pairs and len(identical_pairs) == total_candidate_slots:
+        print(
+            "ERROR: identical arms detected. Before and after descriptions are "
+            "byte-identical for every candidate in every fixture. "
+            f"BEFORE_REF={BEFORE_REF!r} resolves to the same content as the "
+            "working tree for all candidates, so no change is being measured. "
+            "Fix BEFORE_REF to point to the immutable pre-change commit.",
+            file=sys.stderr,
+        )
+        return 1
+    if identical_pairs:
+        print(
+            f"WARNING: {len(identical_pairs)}/{total_candidate_slots} candidate slots "
+            "have identical before/after descriptions and will not contribute signal: "
+            + ", ".join(identical_pairs[:10])
+            + ("..." if len(identical_pairs) > 10 else ""),
+            file=sys.stderr,
+        )
+
     if args.dry_run:
         planned_calls = len(plan) * 2  # one before + one after per fixture
-        print("\n  DRY RUN: prompts built, descriptions resolved, no API calls made.",
-              file=sys.stderr)
-        print(json.dumps({
-            "dry_run": True,
-            "fixtures": len(plan),
-            "variants": ["before", "after"],
-            "planned_api_calls": planned_calls,
-            "model": MODEL,
-            "before_ref": BEFORE_REF,
-        }, indent=2))
+        print(
+            "\n  DRY RUN: prompts built, descriptions resolved, no API calls made.", file=sys.stderr
+        )
+        print(
+            json.dumps(
+                {
+                    "dry_run": True,
+                    "fixtures": len(plan),
+                    "variants": ["before", "after"],
+                    "planned_api_calls": planned_calls,
+                    "model": MODEL,
+                    "before_ref": BEFORE_REF,
+                },
+                indent=2,
+            )
+        )
         return 0
 
     try:
-        api_key = load_api_key()
+        api_key = load_api_key_for_selected_provider()
     except RuntimeError as exc:
         # A missing ANTHROPIC_API_KEY is an absent environment variable, which
         # ADR-035 classifies as a configuration/environment error (exit 2), not

@@ -20,19 +20,19 @@ _EVAL_DIR = _REPO_ROOT / "scripts" / "eval"
 _ORIGINAL_SYS_PATH = sys.path.copy()
 sys.path.insert(0, str(_EVAL_DIR))
 try:
-    import _anthropic_api  # noqa: E402
-    import _eval_common  # noqa: E402
+    import _anthropic_api
+    import _eval_common
 
     # verify_model_available lazily does `from _providers import ...` at
     # runtime. Import it here so it is cached in sys.modules and resolves
     # even after sys.path is restored below (mirrors test_providers.py).
-    import _providers  # noqa: E402,F401
+    import _providers  # noqa: F401
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
 
 
 class _Resp(io.BytesIO):
-    def __enter__(self) -> "_Resp":
+    def __enter__(self) -> _Resp:
         return self
 
     def __exit__(self, *_: object) -> bool:
@@ -85,9 +85,7 @@ def test_no_dead_id_default_in_eval_scripts() -> None:
 
 def test_list_available_models_parses_ids(monkeypatch: pytest.MonkeyPatch) -> None:
     payload = _models_payload(["claude-sonnet-4-6", "claude-opus-4-8"])
-    monkeypatch.setattr(
-        "urllib.request.urlopen", lambda req, timeout=None: _Resp(payload)
-    )
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=None: _Resp(payload))
     result = _anthropic_api.list_available_models("key")
     assert result == ["claude-sonnet-4-6", "claude-opus-4-8"]
 
@@ -130,9 +128,7 @@ def test_verify_passes_when_model_reachable(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.delenv("EVAL_SKIP_MODEL_PREFLIGHT", raising=False)
     monkeypatch.delenv("EVAL_PROVIDER", raising=False)
     payload = _models_payload(["claude-sonnet-4-6", "claude-opus-4-8"])
-    monkeypatch.setattr(
-        "urllib.request.urlopen", lambda req, timeout=None: _Resp(payload)
-    )
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=None: _Resp(payload))
     _anthropic_api.verify_model_available("key", "claude-sonnet-4-6")  # no raise
 
 
@@ -140,9 +136,7 @@ def test_verify_fails_closed_on_missing_model(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.delenv("EVAL_SKIP_MODEL_PREFLIGHT", raising=False)
     monkeypatch.delenv("EVAL_PROVIDER", raising=False)
     payload = _models_payload(["claude-sonnet-4-6", "claude-opus-4-8"])
-    monkeypatch.setattr(
-        "urllib.request.urlopen", lambda req, timeout=None: _Resp(payload)
-    )
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=None: _Resp(payload))
     with pytest.raises(RuntimeError) as exc:
         _anthropic_api.verify_model_available("key", "claude-sonnet-4-20250514")
     # Error lists the reachable ids so the user can pick one.
@@ -254,3 +248,90 @@ def test_call_api_404_enriches_with_reachable_ids(monkeypatch: pytest.MonkeyPatc
     assert "HTTP 404" in msg
     assert "claude-sonnet-4-6" in msg
     assert calls["n"] == 1
+
+
+# --- load_api_key_for_selected_provider (#3924) -------------------------
+
+
+class TestLoadApiKeyForSelectedProvider:
+    """Tests for load_api_key_for_selected_provider (#3924).
+
+    Default-Anthropic providers must load the real key; all others return "".
+    """
+
+    def test_default_empty_string_loads_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
+        result = _anthropic_api.load_api_key_for_selected_provider()
+        assert result == "sk-test-key"
+
+    def test_explicit_anthropic_loads_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
+        result = _anthropic_api.load_api_key_for_selected_provider("anthropic")
+        assert result == "sk-test-key"
+
+    def test_anthropic_http_loads_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
+        result = _anthropic_api.load_api_key_for_selected_provider("anthropic-http")
+        assert result == "sk-test-key"
+
+    def test_anthropic_urllib_loads_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
+        result = _anthropic_api.load_api_key_for_selected_provider("anthropic-urllib")
+        assert result == "sk-test-key"
+
+    def test_openai_provider_returns_empty_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        result = _anthropic_api.load_api_key_for_selected_provider("openai")
+        assert result == ""
+
+    def test_github_models_provider_returns_empty_string(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        result = _anthropic_api.load_api_key_for_selected_provider("github-models")
+        assert result == ""
+
+    def test_codex_provider_returns_empty_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        result = _anthropic_api.load_api_key_for_selected_provider("codex")
+        assert result == ""
+
+    def test_eval_provider_env_openai_returns_empty_string(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("EVAL_PROVIDER", "openai")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        result = _anthropic_api.load_api_key_for_selected_provider()
+        assert result == ""
+
+    def test_eval_provider_env_anthropic_sdk_returns_empty_string(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # anthropic-sdk is NOT in the default-Anthropic set; it is a separate provider
+        monkeypatch.setenv("EVAL_PROVIDER", "anthropic-sdk")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        result = _anthropic_api.load_api_key_for_selected_provider()
+        assert result == ""
+
+    def test_missing_key_for_default_anthropic_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        # load_api_key() also searches .env files; patch Path.exists to block them
+        monkeypatch.setattr("pathlib.Path.exists", lambda self: False)
+        with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY not found"):
+            _anthropic_api.load_api_key_for_selected_provider()
+
+    def test_provider_arg_takes_precedence_over_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Even if EVAL_PROVIDER=anthropic, an explicit keyless provider arg wins.
+        monkeypatch.setenv("EVAL_PROVIDER", "anthropic")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        result = _anthropic_api.load_api_key_for_selected_provider("openai")
+        assert result == ""
+
+    def test_case_insensitive_provider_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
+        result = _anthropic_api.load_api_key_for_selected_provider("ANTHROPIC")
+        assert result == "sk-test-key"
