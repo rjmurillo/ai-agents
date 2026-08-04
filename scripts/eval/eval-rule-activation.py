@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, eval CLI keeps one artifact path.
+# taste-lint: ignore complexity, render_table mirrors the output schema.
+# taste-lint: ignore naming, hyphenated CLI name is the shipped entrypoint.
 """Rule Activation Eval: measure whether rules and skill references actually fire.
 
 Tests how a rule or skill reference activates across loading mechanisms:
