@@ -100,7 +100,7 @@ def grade_fixture(fixture: Fixture, *, api_key: str, model: str) -> FixtureResul
             model=model,
             max_tokens=_AGENT_MAX_TOKENS,
         )
-    except Exception as exc:  # noqa: BLE001 - transport boundary, recorded not raised
+    except Exception as exc:
         return FixtureResult(
             fixture_id=fixture.id,
             issue_number=fixture.issue_number,
@@ -115,7 +115,7 @@ def grade_fixture(fixture: Fixture, *, api_key: str, model: str) -> FixtureResul
             model=model,
             max_tokens=_JUDGE_MAX_TOKENS,
         )
-    except Exception as exc:  # noqa: BLE001 - transport boundary, recorded not raised
+    except Exception as exc:
         return FixtureResult(
             fixture_id=fixture.id,
             issue_number=fixture.issue_number,
@@ -266,7 +266,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         api_key = _load_api_key_for_selected_provider()
-    except Exception as exc:  # noqa: BLE001 - surface auth/config as exit 2
+    except Exception as exc:
         print(f"error: cannot load API key: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 
