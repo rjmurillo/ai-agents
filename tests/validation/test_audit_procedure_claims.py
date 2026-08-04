@@ -19,6 +19,7 @@ drift on what "always-on" means.
 from __future__ import annotations
 
 import re
+import sys
 
 import pytest
 
@@ -212,8 +213,28 @@ def test_audit_procedure_form_counts_sum_to_the_corpus() -> None:
     measured = measured_source_forms()
     assert sum(measured.values()) == len(measured_always_on()), (
         f"source forms sum to {sum(measured.values())} but the mirror reports "
-        f"{len(measured_always_on())} always-on rules; a rule declares scope some other way"
+        f"{len(measured_always_on())} always-on rules; a rule declares always-on "
+        "scope more than one way, or a fourth convention exists"
     )
+
+
+def test_form_sum_failure_message_names_double_count(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A non-disjoint form should not be reported only as a missing convention."""
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "measured_source_forms",
+        lambda: {
+            "applyTo form count": 1,
+            "alwaysApply form count": 1,
+            "paths form count": 0,
+        },
+    )
+    monkeypatch.setattr(sys.modules[__name__], "measured_always_on", lambda: {"code-quality"})
+
+    with pytest.raises(AssertionError) as excinfo:
+        test_audit_procedure_form_counts_sum_to_the_corpus()
+
+    assert "more than one way" in str(excinfo.value)
 
 
 def test_audit_procedure_mirror_delta_matches_measurement() -> None:
