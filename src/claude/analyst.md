@@ -5,6 +5,17 @@ model: sonnet
 metadata:
   tier: integration
 argument-hint: Describe the topic, issue, or feature to research
+tools:
+  - Bash
+  - Read
+  - Edit
+  - Write
+  - Glob
+  - Grep
+  - mcp__serena__*
+  - mcp__context7__*
+  - mcp__deepwiki__*
+  - mcp__perplexity__*
 ---
 
 # Analyst Agent

@@ -5,6 +5,7 @@ argument-hint: Describe the topic, issue, or feature to research
 tools:
   - read
   - edit
+  - shell
   - search
   - web
   - github/search_code
