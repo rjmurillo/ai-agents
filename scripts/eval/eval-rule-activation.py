@@ -872,7 +872,7 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
 
 
 def _failed_judge(
-    reason: str, raw_judge_response: str = "", judge_model: str | None = None
+    reason: str, *, raw_judge_response: str = "", judge_model: str | None = None
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "activation_score": 0,

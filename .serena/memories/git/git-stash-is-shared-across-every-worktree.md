@@ -47,8 +47,23 @@ To measure another ref without moving your tree, read it directly rather than
 checking it out:
 
 ```bash
-git show main:path/to/file > /tmp/scratch/file.main
+git show main:path/to/file > ~/src/scratch/file.main
 ```
+
+The same applies to the most tempting case, checking whether a lint or test
+failure predates your change. `git stash` to get a clean tree, run the tool, pop
+back is the obvious move and it is the one that loses work. Extract the base
+version and run the tool on that instead:
+
+```bash
+git show origin/main:path/to/file > ~/src/scratch/file.base
+uv run --frozen python <the linter> ~/src/scratch/file.base
+```
+
+Observed 2026-08-04: the author of this memory reached for `git stash` to check
+a taste-lints baseline within an hour of writing it. Three other agents' stashes
+were on the stack at the time. The pop happened to return the right entry, which
+is luck, not safety.
 
 Most gates in this repository accept a ref argument for exactly this reason, for
 example `scripts/ci/taste_count_ratchet.py --base-ref FETCH_HEAD`.
@@ -69,6 +84,10 @@ Verify your own commits were not contaminated before continuing, with
 unaffected by the pop but a `git add -A` would not be.
 
 ## Related
+
+`.serena/memories/git/git-shallow-is-shared-across-every-worktree.md` is the
+same family: `shallow` also lives in the common directory, so one depth-limited
+fetch in any worktree blocks the push in all of them.
 
 `git commit` in a compound command is the sibling trap: `git switch X && git
 commit` looks safe, but a `switch` that aborts (an untracked file would be
