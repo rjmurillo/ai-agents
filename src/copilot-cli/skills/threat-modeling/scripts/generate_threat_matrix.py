@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# ruff: noqa: E501
 """Generate a structured threat matrix document.
 
 Creates a markdown threat model template with STRIDE categories
