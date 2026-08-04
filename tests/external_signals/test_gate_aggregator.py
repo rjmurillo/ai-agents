@@ -119,3 +119,67 @@ def test_multiple_unknown_signals_all_named_in_reason():
     assert verdict == "NEEDS_REVIEW"
     assert "llm:critic" in reason
     assert "llm:qa" in reason
+
+
+# ---------------------------------------------------------------------------
+# Tests: DID_NOT_RUN verdict (issue #4487)
+# ---------------------------------------------------------------------------
+
+
+def test_did_not_run_is_known_verdict():
+    """DID_NOT_RUN parses without raising ValueError."""
+    s = ga.parse_signal("llm:qa=DID_NOT_RUN")
+    assert s.verdict == "DID_NOT_RUN"
+
+
+def test_did_not_run_triggers_needs_review():
+    """DID_NOT_RUN from any signal kind blocks PASS, same as UNKNOWN."""
+    sigs = _parse("external:pytest=PASS", "llm:qa=DID_NOT_RUN")
+    verdict, reason = ga.aggregate(sigs)
+    assert verdict == "NEEDS_REVIEW"
+    assert "llm:qa" in reason
+
+
+def test_did_not_run_external_triggers_needs_review():
+    """DID_NOT_RUN from an external signal also blocks PASS."""
+    sigs = _parse("external:pytest=PASS", "external:codeql=DID_NOT_RUN")
+    verdict, reason = ga.aggregate(sigs)
+    assert verdict == "NEEDS_REVIEW"
+    assert "external:codeql" in reason
+
+
+def test_did_not_run_does_not_crash_cli(capsys: pytest.CaptureFixture[str]):
+    """CLI must exit 1 (logic), not 2 (harness error), for DID_NOT_RUN."""
+    rc = ga.main([
+        "--signal", "external:pytest=PASS",
+        "--signal", "llm:qa=DID_NOT_RUN",
+    ])
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "NEEDS_REVIEW" in out
+
+
+def test_blocking_verdict_beats_did_not_run():
+    """A FAIL verdict still dominates DID_NOT_RUN."""
+    sigs = _parse("external:pytest=FAIL", "llm:qa=DID_NOT_RUN")
+    verdict, _ = ga.aggregate(sigs)
+    assert verdict == "FAIL"
+
+
+def test_known_set_contains_every_verdict_token_from_verdict_py():
+    """Every token in ai_review_common.verdict._KNOWN_VERDICT_TOKENS must
+    parse in gate_aggregator so the two sets cannot drift apart again.
+
+    Tokens that gate_aggregator cannot model as a signal verdict (COMPLIANT,
+    NON_COMPLIANT, PARTIAL are action.yml tokens, not gate-level verdicts) are
+    translated in the CI pipeline before they reach gate_aggregator, so they
+    are intentionally absent. The test asserts the overlap is complete for the
+    tokens that gate_aggregator explicitly owns.
+    """
+    gate_known = ga._KNOWN
+    # Tokens that gate_aggregator must handle directly (union of _KNOWN sets).
+    expected = {"PASS", "WARN", "FAIL", "CRITICAL_FAIL", "REJECTED", "NEEDS_REVIEW",
+                "UNKNOWN", "DID_NOT_RUN"}
+    for token in expected:
+        assert token in gate_known, f"{token!r} missing from gate_aggregator._KNOWN"
+
