@@ -43,6 +43,7 @@ if _lib_dir not in sys.path:
 
 import argparse  # noqa: E402
 import subprocess  # noqa: E402
+from typing import Any  # noqa: E402
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
@@ -145,7 +146,7 @@ def _fetch_ruleset_contexts(owner: str, repo: str, base_branch: str) -> list[str
         return []
 
 
-def _normalize_check(node: dict) -> dict | None:
+def _normalize_check(node: dict[str, Any]) -> dict[str, Any] | None:
     """Convert a GraphQL context node to a normalized dict."""
     typename = node.get("__typename")
     if typename == "CheckRun":
@@ -177,7 +178,7 @@ def diagnose(
     owner: str,
     repo: str,
     pr_number: int,
-) -> dict:
+) -> dict[str, Any]:
     """Run the full blocked diagnostic for one PR. Returns the result dict."""
     try:
         data = gh_graphql(_PR_QUERY, {"owner": owner, "repo": repo, "number": pr_number})
@@ -196,7 +197,7 @@ def diagnose(
 
     # Collect raw check nodes from rollup.
     commits = (pr.get("commits") or {}).get("nodes") or []
-    raw_nodes: list[dict] = []
+    raw_nodes: list[dict[str, Any]] = []
     if commits:
         commit_obj = (commits[0].get("commit") or {})
         rollup = commit_obj.get("statusCheckRollup")
@@ -211,8 +212,8 @@ def diagnose(
     checks_by_name, is_required_by_name, _ = group_checks_by_name(checks)
 
     # Best verdict per name: passing beats failing beats pending.
-    def _best(name: str) -> dict:
-        return checks_by_name[name]
+    def _best(name: str) -> dict[str, Any]:
+        return dict(checks_by_name[name])
 
     # Ruleset required contexts (ground truth independent of what reported).
     ruleset_required = _fetch_ruleset_contexts(owner, repo, base_branch) if base_branch else []
