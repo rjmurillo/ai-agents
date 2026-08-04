@@ -321,11 +321,13 @@ def _write_today_session(repo: Path, content: str) -> Path:
 def test_adr_review_policy_blocks_stale_debate_reference(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A debate log exists in the correct dir (.agents/critique/) but references
     # a DIFFERENT ADR (ADR-042), not the staged ADR (ADR-062). This exercises
     # the stale-reference branch, not the missing-log branch.
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     _write_lf(critique / "adr-042-debate.md", "ADR-042 review")
@@ -339,8 +341,12 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     assert "ADR-062" in capsys.readouterr().err
 
 
-def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(tmp_path: Path) -> None:
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     _write_lf(critique / "adr-062-debate.md", "ADR-062 review")
@@ -392,9 +398,11 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
 def test_adr_review_policy_missing_critique_dir_fails(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No .agents/critique/ directory at all means no debate logs: gate fails."""
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     # Only the old wrong dir exists; critique dir is absent.
     wrong = tmp_path / ".agents" / "analysis"
     wrong.mkdir(parents=True)
@@ -430,8 +438,10 @@ def test_retrospective_policy_blocks_missing_evidence(
 
 def test_retrospective_policy_allows_session_evidence_and_documentation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _write_today_session(tmp_path, '{"notes": "Learnings captured"}')
+    session = _write_today_session(tmp_path, '{"notes": "Learnings captured"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
 
     assert (
         policy.check_retrospective_evidence(
@@ -521,7 +531,9 @@ def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
     sessions = tmp_path / ".agents" / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
-    _write_lf(sessions / "2026-03-14-session-1.json", '{"notes": "Learnings captured"}')
+    session = sessions / "2026-03-14-session-1.json"
+    _write_lf(session, '{"notes": "Learnings captured"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
 
     # No retrospective file: the only passing path is the yesterday session log.
     assert (
