@@ -646,6 +646,44 @@ def _resolve_status(
     return f"PR #{number}: All {output['PassedCount']} check(s) passing", "PASS"
 
 
+def _handle_fetch_error(check_data: dict, pr_number: int, fmt: object) -> int | None:
+    """Return an exit code if check_data carries an error, else None."""
+    if check_data.get("Error") == "NotFound":
+        write_skill_error(
+            check_data["Message"],
+            2,
+            error_type="NotFound",
+            output_format=fmt,
+            script_name="get_pr_checks.py",
+            extra={"Number": pr_number},
+        )
+        return 2
+    if check_data.get("Error") == "ApiError":
+        write_skill_error(
+            check_data["Message"],
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_pr_checks.py",
+            extra={"Number": pr_number},
+        )
+        return 3
+    return None
+
+
+def _exit_code(output: dict, checks_incomplete: bool, timed_out_pending: bool) -> int:
+    """Return the exit code derived from the final output dict."""
+    if output["FailedCount"] > 0:
+        return 1
+    if output.get("MissingRequiredChecks"):
+        return 1
+    if not output.get("MergeRefUsable", True):
+        return 1
+    if checks_incomplete or timed_out_pending:
+        return 7
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     assert_gh_authenticated()
@@ -675,28 +713,9 @@ def main(argv: list[str] | None = None) -> int:
         iteration += 1
         check_data = fetch_checks(owner, repo, args.pull_request)
 
-        # Handle errors
-        if check_data.get("Error") == "NotFound":
-            write_skill_error(
-                check_data["Message"],
-                2,
-                error_type="NotFound",
-                output_format=fmt,
-                script_name="get_pr_checks.py",
-                extra={"Number": args.pull_request},
-            )
-            return 2
-
-        if check_data.get("Error") == "ApiError":
-            write_skill_error(
-                check_data["Message"],
-                3,
-                error_type="ApiError",
-                output_format=fmt,
-                script_name="get_pr_checks.py",
-                extra={"Number": args.pull_request},
-            )
-            return 3
+        rc = _handle_fetch_error(check_data, args.pull_request, fmt)
+        if rc is not None:
+            return rc
 
         output = build_output(
             check_data, owner, repo, args.required_only, ruleset_contexts
@@ -732,7 +751,6 @@ def main(argv: list[str] | None = None) -> int:
     output["ChecksIncomplete"] = checks_incomplete
     timed_out_pending = not settled and output["PendingCount"] > 0
 
-    # Determine status for human output
     summary, status = _resolve_status(
         output, args.timeout_seconds, timed_out_pending, checks_incomplete
     )
@@ -745,15 +763,7 @@ def main(argv: list[str] | None = None) -> int:
         script_name="get_pr_checks.py",
     )
 
-    if output["FailedCount"] > 0:
-        return 1
-    if output.get("MissingRequiredChecks"):
-        return 1
-    if not output.get("MergeRefUsable", True):
-        return 1
-    if checks_incomplete or timed_out_pending:
-        return 7
-    return 0
+    return _exit_code(output, checks_incomplete, timed_out_pending)
 
 
 if __name__ == "__main__":
