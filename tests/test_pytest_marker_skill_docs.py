@@ -27,30 +27,6 @@ def _pytest_marker_names() -> list[str]:
     return [marker.split(":", 1)[0] for marker in markers]
 
 
-def _line_range(start_predicate: str) -> str:
-    lines = PYPROJECT.read_text(encoding="utf-8").splitlines()
-    start = next(
-        number for number, line in enumerate(lines, start=1) if line == start_predicate
-    )
-    end = next(
-        number
-        for number, line in enumerate(lines[start - 1 :], start=start)
-        if line == "]"
-    )
-    return f"pyproject.toml:{start}-{end}"
-
-
-def _section_range(header: str, closing_line: str) -> str:
-    lines = PYPROJECT.read_text(encoding="utf-8").splitlines()
-    start = next(number for number, line in enumerate(lines, start=1) if line == header)
-    end = next(
-        number
-        for number, line in enumerate(lines[start - 1 :], start=start)
-        if line == closing_line
-    )
-    return f"pyproject.toml:{start}-{end}"
-
-
 def test_skill_docs_enumerate_every_pytest_marker() -> None:
     """Skill docs must not omit configured pytest markers."""
     expected = _pytest_marker_names()
@@ -62,23 +38,48 @@ def test_skill_docs_enumerate_every_pytest_marker() -> None:
 
 
 def test_skill_docs_cite_the_marker_list_lines() -> None:
-    """Marker guidance must point readers at the marker array, not uv settings."""
-    marker_range = _line_range("markers = [")
+    """Marker guidance must point readers at the marker array by section anchor.
+
+    Citing by line number is fragile: any insertion above the marker section
+    shifts the numbers and fails the gate for unrelated changes. The section
+    anchor ``pyproject.toml [tool.pytest.ini_options] markers`` is stable
+    across insertions.
+    """
+    anchor = "pyproject.toml `[tool.pytest.ini_options]` markers"
 
     for path in MARKER_DOCS:
         text = path.read_text(encoding="utf-8")
-        assert marker_range in text
-        assert "pyproject.toml:46-51" not in text
+        assert anchor in text, (
+            f"{path} must cite '{anchor}' instead of a fragile line number"
+        )
+        # Guard: the old fragile line-number form must not reappear.
+        stale_pattern = re.compile(r"pyproject\.toml:\d+-\d+")
+        stale = stale_pattern.search(text)
+        assert stale is None, (
+            f"{path} still contains a fragile line-range citation: {stale.group()!r}"
+        )
 
 
 def test_validation_skill_provenance_cites_pytest_section() -> None:
-    """Validation provenance must include the pytest section, not build metadata."""
-    pytest_section = _section_range("[tool.pytest.ini_options]", "]")
+    """Validation provenance must include the pytest section by section anchor.
+
+    Citing by line number is fragile: any insertion above the pytest section
+    shifts the numbers and fails the gate for unrelated changes. The section
+    anchor ``pyproject.toml [tool.pytest.ini_options]`` is stable.
+    """
+    anchor = "pyproject.toml `[tool.pytest.ini_options]`"
 
     for path in VALIDATION_DOCS:
         text = path.read_text(encoding="utf-8")
-        assert pytest_section in text
-        assert "pyproject.toml:40-55" not in text
+        assert anchor in text, (
+            f"{path} must cite '{anchor}' instead of a fragile line number"
+        )
+        # Guard: the old fragile form must not reappear.
+        stale_pattern = re.compile(r"pyproject\.toml:\d+-\d+")
+        stale = stale_pattern.search(text)
+        assert stale is None, (
+            f"{path} still contains a fragile line-range citation: {stale.group()!r}"
+        )
 
 
 def test_safe_push_transport_marker_has_behavioral_gloss() -> None:
