@@ -23,7 +23,8 @@ import sys
 import time
 import warnings
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
+from enum import Enum
 from typing import TYPE_CHECKING, NoReturn
 
 if TYPE_CHECKING:
@@ -157,129 +158,343 @@ def resolve_repo_params(owner: str = "", repo: str = "") -> RepoInfo:
 # Authentication
 # ---------------------------------------------------------------------------
 
-#: Patterns in ``gh auth status`` or ``gh api graphql`` output that indicate
-#: GraphQL quota exhaustion rather than a missing or invalid credential.
-#: GitHub emits these through two channels: a GraphQL-level ``errors`` list
-#: (``"API rate limit exceeded"``) and an HTTP-level body (``"rate limit
-#: exceeded"``). Both must be caught before the auth-error branch fires.
-_QUOTA_EXHAUSTED_PATTERNS = re.compile(
-    r"API rate limit exceeded|rate limit exceeded|secondary rate limit",
-    re.IGNORECASE,
+
+class GhAuthStatus(Enum):
+    """Classification of a GitHub CLI authentication preflight.
+
+    ``gh auth status`` reduces every failure to a nonzero exit. Collapsing that
+    to a bool sent operators to ``gh auth login`` for a GitHub 5xx (issue #3139)
+    and for an exhausted GraphQL quota (issue #4344). Each cause needs a
+    different remedy, so each gets its own member.
+    """
+
+    AUTHENTICATED = "authenticated"
+    MISSING_GH = "missing_gh"
+    INVALID_CREDENTIALS = "invalid_credentials"
+    TRANSIENT_ERROR = "transient_error"
+    RATE_LIMITED = "rate_limited"
+    SECONDARY_RATE_LIMITED = "secondary_rate_limited"
+
+
+# Statuses that are a token problem the operator can fix (exit 4). Everything
+# else that is not AUTHENTICATED is an upstream condition (exit 3).
+_AUTH_FAILURE_STATUSES = frozenset(
+    {GhAuthStatus.MISSING_GH, GhAuthStatus.INVALID_CREDENTIALS}
 )
 
 
-def _is_rest_reachable() -> bool:
-    """Return True when the GitHub REST API responds without auth error.
+@dataclass(frozen=True)
+class GhAuthResult:
+    """Outcome of :func:`check_gh_auth` with a sanitized diagnostic detail."""
 
-    Uses ``gh api rate_limit`` (consumes no quota budget) to prove the
-    credential is valid and REST is reachable, even when GraphQL quota is
-    zero. This is the discriminator for issue #4344: ``gh auth status``
-    can return non-zero when GraphQL quota is exhausted on some ``gh``
-    versions; a successful ``rate_limit`` call proves the token is valid.
+    status: GhAuthStatus
+    detail: str = ""
+
+    @property
+    def is_authenticated(self) -> bool:
+        return self.status is GhAuthStatus.AUTHENTICATED
+
+
+# Credentials that must never reach an error envelope or log line.
+_TOKEN_REDACTION_PATTERN = re.compile(
+    r"gh[opsu]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|\b[A-Fa-f0-9]{40}\b"
+)
+
+# Signatures that mark a transport (REST/GraphQL) as transiently degraded
+# rather than proof of an invalid token: 5xx responses, the GitHub "Unicorn"
+# page, timeouts, and connection failures (issue #3139).
+#
+# The second block is gh's own connectivity wording, captured from the binary
+# rather than guessed. `gh api --hostname invalid.example.test user` on gh
+# 2.97.0 prints:
+#
+#     dial tcp: lookup invalid.example.test on 127.0.0.53:53: no such host
+#     error connecting to invalid.example.test
+#     check your internet connection or https://githubstatus.com
+#
+# None of the first-block alternatives matches any of those lines, so a plain
+# loss of connectivity used to fall through to INVALID_CREDENTIALS and send the
+# operator to `gh auth login`, which is the exact #3139 symptom. gh is a Go
+# program, so its transport errors carry Go's net wording ("no such host",
+# "i/o timeout", "network is unreachable"), never curl's "could not resolve
+# host"; both are listed because callers also shell out through other clients.
+_TRANSIENT_SIGNATURE = re.compile(
+    r"HTTP 5\d\d"
+    r"|status(?:\s+code)?\s+5\d\d"
+    r"|\b50[0-4]\b"
+    r"|unicorn"
+    r"|try again"
+    r"|temporarily unavailable"
+    r"|service unavailable"
+    r"|bad gateway"
+    r"|gateway time"
+    r"|timed out"
+    r"|timeout"
+    r"|connection (?:reset|refused|error|timed out)"
+    r"|could not resolve host"
+    r"|server error"
+    r"|no server is currently available"
+    r"|error connecting to"
+    r"|check your internet connection"
+    r"|githubstatus\.com"
+    r"|dial tcp"
+    r"|no such host"
+    r"|i/o timeout"
+    r"|network is unreachable"
+    r"|tls handshake"
+    r"|unexpected eof",
+    re.IGNORECASE,
+)
+
+# GitHub's secondary limit and abuse-detection wording. Checked before the
+# primary pattern because both bodies say "rate limit" and the remedies differ:
+# secondary clears in about a minute, primary waits for the bucket reset.
+_SECONDARY_RATE_LIMIT_SIGNATURE = re.compile(
+    r"secondary rate limit|abuse detection", re.IGNORECASE
+)
+
+# Primary quota refusal, in every shape GitHub emits it: with an HTTP code
+# ("... (HTTP 403)"), without one ("GraphQL: API rate limit already exceeded
+# for user ID ..."), and the REST body form (issues #4326, #4344).
+_RATE_LIMIT_SIGNATURE = re.compile(r"rate limit (?:already )?exceeded", re.IGNORECASE)
+
+
+def _sanitize_auth_detail(text: str, limit: int = 200) -> str:
+    """Redact tokens and collapse whitespace so detail is envelope/log safe."""
+    redacted = _TOKEN_REDACTION_PATTERN.sub("[REDACTED]", text or "")
+    redacted = " ".join(redacted.split())
+    if len(redacted) > limit:
+        redacted = redacted[:limit] + "..."
+    return redacted
+
+
+def classify_gh_failure_text(text: str) -> GhAuthStatus:
+    """Map gh failure output to the condition that produced it.
+
+    Rate-limit wording wins over the transient signature because a quota
+    refusal is often delivered as ``HTTP 403 ... API rate limit exceeded`` and
+    the 403 alone would otherwise read as a permission denial.
+    """
+    haystack = text or ""
+    if _SECONDARY_RATE_LIMIT_SIGNATURE.search(haystack):
+        return GhAuthStatus.SECONDARY_RATE_LIMITED
+    if _RATE_LIMIT_SIGNATURE.search(haystack):
+        return GhAuthStatus.RATE_LIMITED
+    if _TRANSIENT_SIGNATURE.search(haystack):
+        return GhAuthStatus.TRANSIENT_ERROR
+    return GhAuthStatus.INVALID_CREDENTIALS
+
+
+def _run_gh(args: list[str], timeout: int = 10) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["gh", *args],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+    )
+
+
+def _graphql_viewer_probe() -> GhAuthResult:
+    """Confirm auth over the GraphQL transport (issue #3139).
+
+    ``gh auth status`` uses the REST transport, which can return a transient
+    5xx or a quota refusal while the same token authenticates GraphQL and git.
+    When REST status is inconclusive, probe ``gh api graphql`` for the viewer: a
+    clean success means the token is valid and only REST was degraded.
     """
     try:
-        result = subprocess.run(
-            ["gh", "api", "rate_limit"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=15,
+        result = _run_gh(["api", "graphql", "-f", "query=query { viewer { login } }"])
+    except FileNotFoundError:
+        logger.debug("GitHub CLI (gh) not found on PATH")
+        return GhAuthResult(GhAuthStatus.MISSING_GH)
+    except subprocess.TimeoutExpired:
+        logger.debug("gh api graphql viewer probe timed out")
+        return GhAuthResult(
+            GhAuthStatus.TRANSIENT_ERROR, "GraphQL viewer probe timed out"
         )
-        return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        return False
+
+    if result.returncode == 0:
+        return GhAuthResult(GhAuthStatus.AUTHENTICATED)
+
+    combined = f"{result.stdout}\n{result.stderr}"
+    return GhAuthResult(
+        classify_gh_failure_text(combined), _sanitize_auth_detail(combined)
+    )
 
 
-def _graphql_remaining() -> int | None:
-    """Return the GraphQL ``remaining`` quota from ``gh api rate_limit``.
+def check_gh_auth() -> GhAuthResult:
+    """Classify GitHub CLI auth across the REST and GraphQL transports.
 
-    Returns ``None`` when the call fails or the field is absent.
+    ``gh auth status`` (REST) can misreport a transient 5xx or an exhausted
+    quota as an invalid token, which sent operators to ``gh auth login`` for a
+    GitHub outage (issue #3139) and blocked the pr-autofix gates during a
+    GraphQL quota window (issue #4344). When REST status is nonzero but ``gh``
+    is installed, confirm the real state via a GraphQL viewer probe before
+    declaring an auth failure.
+
+    Returns:
+        A :class:`GhAuthResult`. ``MISSING_GH`` and ``INVALID_CREDENTIALS`` map
+        to auth exit 4; every other non-authenticated status maps to external
+        exit 3.
     """
     try:
-        result = subprocess.run(
-            ["gh", "api", "rate_limit"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=15,
-        )
-        if result.returncode != 0:
-            return None
-        payload = json.loads(result.stdout)
-        return int(payload["resources"]["graphql"]["remaining"])
-    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError, KeyError, TypeError):
-        return None
+        result = _run_gh(["auth", "status"])
+    except FileNotFoundError:
+        logger.debug("GitHub CLI (gh) not found on PATH")
+        return GhAuthResult(GhAuthStatus.MISSING_GH)
+    except subprocess.TimeoutExpired:
+        logger.debug("gh auth status timed out")
+        # A REST status timeout is not proof of an invalid token; confirm via
+        # the GraphQL transport before failing.
+        return _graphql_viewer_probe()
+
+    if result.returncode == 0:
+        return GhAuthResult(GhAuthStatus.AUTHENTICATED)
+
+    # REST status failed. Do not trust its verdict (it may relabel a 5xx or a
+    # quota refusal as an invalid token); confirm the real state over GraphQL.
+    return _graphql_viewer_probe()
 
 
 def is_gh_authenticated() -> bool:
-    """Check if GitHub CLI is installed and authenticated.
+    """Return True if the GitHub token authenticates on any supported transport.
 
-    Uses ``gh auth status`` as the primary check. When that returns
-    non-zero, falls back to ``gh api rate_limit`` (REST, no quota cost)
-    to distinguish genuine auth failure from GraphQL quota exhaustion
-    (issue #4344): a successful REST call proves the credential is valid.
+    Thin boolean wrapper over :func:`check_gh_auth` for callers that only need a
+    gate. A transient REST failure (for example a 5xx "Unicorn" page) no longer
+    reads as unauthenticated when the same token still works over GraphQL
+    (issue #3139).
+    """
+    return check_gh_auth().is_authenticated
+
+
+def _rate_limit_resources() -> dict:
+    """Best-effort ``gh api rate_limit`` resources map, or ``{}``.
+
+    ``gh api rate_limit`` is exempt from the quota it reports, so it keeps
+    answering during a refusal. Never raises: every caller only enriches or
+    shortens a diagnostic with it.
     """
     try:
-        result = subprocess.run(
-            ["gh", "auth", "status"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
+        result = _run_gh(["api", "rate_limit"])
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    if result.returncode != 0:
+        return {}
+    try:
+        return (json.loads(result.stdout) or {}).get("resources") or {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def drained_rate_limit_buckets() -> list[str]:
+    """Names of buckets the exempt payload reports at zero remaining.
+
+    Issue #4326 measured two different conditions behind the same "API rate
+    limit exceeded" wording. The velocity refusal leaves every bucket healthy
+    and clears in about a minute, so retrying wins. Genuine exhaustion shows in
+    the payload (``core 4950/5000, graphql 0/5000, reset 34m``) and no bounded
+    retry can outlast it, so retrying only burns requests. This separates them.
+
+    An empty list means "no drained bucket observed", which includes the case
+    where the payload could not be read: without evidence of exhaustion the
+    caller should retry rather than fail early.
+    """
+    resources = _rate_limit_resources()
+    drained = []
+    for name, bucket in resources.items():
+        if isinstance(bucket, dict) and bucket.get("remaining") == 0:
+            drained.append(name)
+    return sorted(drained)
+
+
+def _rate_limit_reset_hint() -> str:
+    """Bucket and reset evidence for a quota refusal, or ``""``."""
+    resources = _rate_limit_resources()
+    parts = []
+    for name in ("core", "graphql"):
+        bucket = resources.get(name) or {}
+        if "remaining" not in bucket:
+            continue
+        reset = bucket.get("reset")
+        reset_text = (
+            datetime.fromtimestamp(reset, tz=timezone.utc).isoformat()
+            if isinstance(reset, int)
+            else "unknown"
         )
-        if result.returncode == 0:
-            return True
-        # ``gh auth status`` returned non-zero. On some gh versions this
-        # happens when the GraphQL quota is zero because auth-status
-        # internally calls GraphQL. Probe REST before declaring unauthenticated.
-        if _is_rest_reachable():
-            logger.debug(
-                "gh auth status returned non-zero but REST rate_limit succeeded; "
-                "treating as authenticated (likely GraphQL quota exhaustion)"
-            )
-            return True
-        return False
-    except FileNotFoundError:
-        logger.debug("GitHub CLI (gh) not found on PATH")
-        return False
-    except subprocess.TimeoutExpired:
-        logger.debug("gh auth status timed out")
-        return False
+        parts.append(
+            f"{name} {bucket['remaining']}/{bucket.get('limit', '?')} reset {reset_text}"
+        )
+    return "; ".join(parts)
+
+
+_RATE_LIMIT_REMEDY = {
+    GhAuthStatus.RATE_LIMITED: (
+        "GitHub refused the request for exceeding an API rate limit. This is not "
+        "an authentication failure; the token is valid. Wait for the bucket reset "
+        "and retry."
+    ),
+    GhAuthStatus.SECONDARY_RATE_LIMITED: (
+        "GitHub applied a secondary rate limit. This is not an authentication "
+        "failure; the token is valid. Back off for about a minute and retry."
+    ),
+}
+
+
+_MISSING_OR_INVALID_MESSAGE = (
+    "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first."
+)
+
+
+def describe_gh_auth_failure(result: GhAuthResult) -> tuple[str, int, str]:
+    """Message, ADR-035 exit code, and error type for a non-authenticated result.
+
+    Single source of the auth-failure vocabulary. :func:`assert_gh_authenticated`
+    prints it as plain text and exits; envelope-emitting skill scripts feed it to
+    ``write_skill_error``. Before issue #4344 those scripts called
+    :func:`is_gh_authenticated` and hardcoded the "run gh auth login" message, so
+    a quota refusal reported as ``AuthError`` exit 4, which is the misdiagnosis
+    this module exists to remove.
+
+    Args:
+        result: A non-authenticated :class:`GhAuthResult`.
+
+    Returns:
+        ``(message, exit_code, error_type)``. Missing ``gh`` and confirmed
+        invalid credentials map to exit 4 / ``AuthError``; quota refusals and
+        transport failures map to exit 3 / ``ApiError`` (the envelope vocabulary
+        in ADR-056 has no rate-limit member).
+    """
+    if result.status in _AUTH_FAILURE_STATUSES:
+        return _MISSING_OR_INVALID_MESSAGE, 4, "AuthError"
+
+    detail = f" ({result.detail})" if result.detail else ""
+    remedy = _RATE_LIMIT_REMEDY.get(result.status)
+    if remedy is None:
+        return (
+            "GitHub API is temporarily unavailable (transport error); this is "
+            f"not an authentication failure. Retry shortly.{detail}",
+            3,
+            "ApiError",
+        )
+    reset_hint = _rate_limit_reset_hint()
+    evidence = f" Buckets: {reset_hint}." if reset_hint else ""
+    return f"{remedy}{detail}{evidence}", 3, "ApiError"
 
 
 def assert_gh_authenticated() -> None:
-    """Ensure GitHub CLI is authenticated, distinguishing quota from auth errors.
+    """Ensure GitHub CLI can authenticate. Raises SystemExit if not.
 
-    When the credential is valid but the GraphQL quota is zero, emits a
-    quota-exhaustion message (exit 3) rather than the misleading auth
-    error (exit 4). This is the fix for issue #4344: both gate scripts
-    printed "not installed or not authenticated" when GraphQL remaining
-    was 0 but the token itself was valid and REST quota was available.
+    Quota refusals and transient transport failures (5xx, timeouts) exit 3
+    (external) and name the observed condition without leaking credentials;
+    missing ``gh`` and confirmed invalid credentials exit 4 (auth). See
+    :func:`check_gh_auth`, issue #3139, and issue #4344.
     """
-    if is_gh_authenticated():
+    result = check_gh_auth()
+    if result.status is GhAuthStatus.AUTHENTICATED:
         return
-    # Distinguish: gh not found vs. unauthenticated vs. quota exhausted.
-    # Try REST rate_limit to see if the token works at all.
-    if _is_rest_reachable():
-        # Token is valid; quota must be the issue.
-        remaining = _graphql_remaining()
-        if remaining == 0:
-            error_and_exit(
-                "GitHub GraphQL quota exhausted (0 remaining). "
-                "REST quota is available. "
-                "Re-run after the GraphQL reset window or use a REST fallback.",
-                3,
-            )
-        error_and_exit(
-            "GitHub CLI is authenticated but GraphQL is unavailable. "
-            f"GraphQL remaining: {remaining}. "
-            "Check gh auth status and network connectivity.",
-            3,
-        )
-    error_and_exit(
-        "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
-        4,
-    )
+    message, code, _ = describe_gh_auth_failure(result)
+    error_and_exit(message, code)
 
 
 # ---------------------------------------------------------------------------
@@ -357,15 +572,56 @@ _GRAPHQL_MAX_ATTEMPTS = 3
 _GRAPHQL_BACKOFF_BASE_SECONDS = 2.0
 _TRANSIENT_HTTP_PATTERN = re.compile(r"\(?\bHTTP\s+(429|500|502|503|504)\b")
 
+# Ceiling for the jittered wait before retrying a refusal, per attempt. Sized to
+# the recovery measured on issue #4326, where "the next call of the same shape
+# succeeded about a minute later". The 5xx ladder (1s then 2s) is wrong for this
+# condition: full-jitter over it spends 1.5s on average and 3s at worst, so the
+# three attempts land inside the same refusal window and the retry burns two
+# extra requests for the same failure. Full jitter is kept, so the expected
+# total is about 22s and the worst case 45s.
+REFUSAL_BACKOFF_SECONDS = (15.0, 30.0)
+
+# Quota and secondary-limit refusals clear on their own, so a bounded retry
+# recovers them (issue #4326). 5xx and 429 keep their existing coverage through
+# _TRANSIENT_HTTP_PATTERN; nothing else becomes retryable here.
+_RETRYABLE_REFUSAL_STATUSES = frozenset(
+    {GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED}
+)
+
 
 def _is_transient_graphql_error(error_msg: str) -> bool:
     """Return True when the gh error text indicates a retryable upstream status.
 
-    Transient = HTTP 429 (rate limit) or 5xx (500/502/503/504). These are
-    upstream timeouts/overloads that a bounded retry can recover. Client errors
-    (4xx other than 429) and GraphQL-level errors are permanent and not retried.
+    Transient = HTTP 429 or 5xx (500/502/503/504), plus any refusal whose body
+    carries rate-limit wording. GitHub still delivers quota and secondary-limit
+    refusals as HTTP 403, and as a code-less GraphQL message ("GraphQL: API rate
+    limit already exceeded for user ID ..."); both cleared on their own within
+    about a minute in the measurements on issue #4326, so both are retryable.
+
+    Matching a bare 403 would be wrong: a genuine permission denial is also 403.
+    The rate-limit wording is what separates the two, so it is required.
+
+    Client errors without that wording, and GraphQL-level errors, stay permanent.
     """
-    return _TRANSIENT_HTTP_PATTERN.search(error_msg) is not None
+    if _TRANSIENT_HTTP_PATTERN.search(error_msg) is not None:
+        return True
+    return classify_gh_failure_text(error_msg) in _RETRYABLE_REFUSAL_STATUSES
+
+
+def _graphql_retry_ceiling(error_text: str, attempt: int) -> float | None:
+    """Jitter ceiling for the next retry, or ``None`` when retry cannot help.
+
+    A 5xx or 429 keeps the original exponential ladder. A rate-limit refusal
+    gets the longer ladder sized to its measured recovery, unless the exempt
+    ``rate_limit`` payload shows the bucket actually drained, in which case the
+    reset is bucket-scale (34 minutes in the issue #4326 measurement) and no
+    bounded retry reaches it.
+    """
+    if classify_gh_failure_text(error_text) not in _RETRYABLE_REFUSAL_STATUSES:
+        return _GRAPHQL_BACKOFF_BASE_SECONDS ** (attempt - 1)
+    if drained_rate_limit_buckets():
+        return None
+    return REFUSAL_BACKOFF_SECONDS[min(attempt, len(REFUSAL_BACKOFF_SECONDS)) - 1]
 
 
 _RETRY_AFTER_PATTERN = re.compile(r"\bRetry-After:\s*(\d+)", re.IGNORECASE)
@@ -467,7 +723,13 @@ def gh_graphql(query: str, variables: dict | None = None) -> dict:
         error_msg = _extract_graphql_error(result)
         is_last = attempt == _GRAPHQL_MAX_ATTEMPTS
         if not is_last and _is_transient_graphql_error(raw_error):
-            backoff = _GRAPHQL_BACKOFF_BASE_SECONDS ** (attempt - 1)
+            backoff = _graphql_retry_ceiling(raw_error, attempt)
+            if backoff is None:
+                drained = ", ".join(drained_rate_limit_buckets())
+                raise RuntimeError(
+                    f"GraphQL request failed: {error_msg} "
+                    f"(bucket exhausted: {drained}; retry cannot outlast the reset)"
+                )
             delay = _retry_after_delay(raw_error, backoff)
             logger.warning(
                 "Transient GraphQL failure (attempt %d/%d), retrying in %.1fs: %s",

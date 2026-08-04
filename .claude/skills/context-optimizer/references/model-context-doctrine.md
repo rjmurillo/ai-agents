@@ -174,7 +174,7 @@ as an implementer.
 
 ## Where this repo stands
 
-Measured at `0c75045d6`. Two numbers, and they are not interchangeable. The
+Measured at `b2729ee54`. Two numbers, and they are not interchangeable. The
 **always-on corpus is 8 rules, 70,375 bytes**: the ones that load regardless
 of what you touch. The **effective context on a `.py` edit is 96,126 bytes
 across 11 files**, which is the always-on corpus plus the path-scoped rules
@@ -200,7 +200,7 @@ disagrees by more, the document is stale and the command wins.
 One book rule loads on every file. `pragmatic-programmer.md` was narrowed to
 code files in PR #4424, which recovered 11,225 always-on bytes, the largest
 single reduction this corpus has taken. What remains always-on is not the
-largest rule either: `voice.md` at 19,624 bytes is the single biggest
+largest rule either: `voice.md` at 17,527 bytes is the single biggest
 always-on file.
 
 | Rule | Bytes | Loading | Scenario file | Scored result |
@@ -250,7 +250,7 @@ Name the tree with the number, because the two mirror trees disagree.
 `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions` under
 `keepInternalGlobsFor`, so the internal-glob filter is disabled there and the
 internal-only fallback cannot fire. It fires only for the plugin tree. At
-`0c75045d6` that leaves `.github/instructions` at 8 rules and 70,375 bytes while
+`a81239d0c` that leaves `.github/instructions` at 8 rules and 70,375 bytes while
 `src/copilot-cli/instructions` carries 12 rules and 82,299 bytes: `governance`,
 `push-lock`, `secret-redaction`, and `session-logs` are narrowly scoped here and
 always-on in the shipped plugin. Every figure in this document is the

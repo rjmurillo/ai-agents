@@ -46,6 +46,11 @@ override-dependencies = [
 [tool.uv.exclude-newer-package]
 anthropic = false
 click = false
+# CVE-2026-69247 affects cryptography 49.0.0 and is fixed in 50.0.0. The
+# 7-day exclude-newer window held the resolver on the vulnerable release, so
+# pip-audit failed the security job. Opt this package out of the window so a
+# security fix is reachable the day it ships.
+cryptography = false
 lefthook = false
 mcp = false
 semgrep = false
