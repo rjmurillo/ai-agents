@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Fetch submitted reviews for a GitHub Pull Request.
 
-Returns each review's identifiers, author identity, verdict state, body,
-submitted timestamp, URL, and commit ID. Paginates via REST so large review
-histories do not truncate.
+Returns each review's `id`, `node_id`, `author`, `aliases`, `author_id`,
+`author_observed`, verdict state, body, submitted timestamp, URL, and commit
+ID. Paginates via REST so large review histories do not truncate.
 
 Issue #4378: ``get_pr_reviewers.py`` discards review state and body, so an
 agent cannot read APPROVED or CHANGES_REQUESTED verdicts through the skill
@@ -158,10 +158,13 @@ def _normalize(item: dict[str, Any]) -> dict[str, Any]:
     author_id = user.get("id") if isinstance(user, dict) else None
     if not isinstance(author_id, int):
         author_id = None
+    author = canonicalize_login(observed, author_id) if observed else None
+    aliases = [observed] if observed and author != observed else []
     return {
         "id": item.get("id"),
         "node_id": item.get("node_id"),
-        "author": canonicalize_login(observed, author_id) if observed else None,
+        "author": author,
+        "aliases": aliases,
         "author_id": author_id,
         "author_observed": observed,
         "state": item.get("state"),

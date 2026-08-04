@@ -99,6 +99,7 @@ class TestNormalize:
             "id": 42,
             "node_id": "PRR_node42",
             "author": "alice",
+            "aliases": [],
             "author_id": 101,
             "author_observed": "alice",
             "state": "APPROVED",
@@ -116,14 +117,28 @@ class TestNormalize:
         item["user"] = None
         out = _normalize(item)
         assert out["author"] is None
+        assert out["aliases"] == []
         assert out["author_id"] is None
         assert out["author_observed"] is None
+
+    def test_aliases_api_is_preserved_with_additive_identity_fields(self):
+        out = _normalize(
+            _api_review(
+                login="copilot-pull-request-reviewer",
+                author_id=175728472,
+            )
+        )
+        assert out["author"] == "github-copilot[bot]"
+        assert out["aliases"] == ["copilot-pull-request-reviewer"]
+        assert out["author_id"] == 175728472
+        assert out["author_observed"] == "copilot-pull-request-reviewer"
 
     def test_account_id_separates_two_authors_reported_as_copilot(self):
         reviewer = _normalize(_api_review(login="Copilot", author_id=175728472))
         coding_agent = _normalize(_api_review(login="Copilot", author_id=198982749))
         assert reviewer["author"] == "github-copilot[bot]"
         assert coding_agent["author"] == "copilot-swe-agent[bot]"
+        assert reviewer["aliases"] == coding_agent["aliases"] == ["Copilot"]
         assert reviewer["author_observed"] == coding_agent["author_observed"] == "Copilot"
 
 
