@@ -19,11 +19,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.validation.portability_floor import (  # noqa: E402
+from scripts.validation.portability_floor import (
     Sections,
     read_previous_sections,
 )
-from scripts.validation.portability_git import tracked_blob  # noqa: E402
+from scripts.validation.portability_git import tracked_blob
 
 
 def _git(root: Path, *args: str) -> None:

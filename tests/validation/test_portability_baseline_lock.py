@@ -93,7 +93,7 @@ class TestPosixPath:
                     log.append(f"{label}:enter")
                     time.sleep(hold)
                     log.append(f"{label}:exit")
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 errors.append(exc)
 
         t1 = threading.Thread(target=writer, args=("A", 0.08))
