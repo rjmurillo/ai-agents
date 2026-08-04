@@ -999,23 +999,26 @@ def _today_session_log(sessions_dir: Path) -> Path | None:
 
 
 def _session_log_for_current_branch(sessions_dir: Path, repo_root: Path) -> Path | None:
-    """Return the session log for the current branch, falling back to mtime.
+    """Return the session log for the current branch, or None.
 
     Calls ``_current_branch`` to identify the active branch, then uses
-    ``_session_log_for_branch`` to find its log deterministically. Falls back
-    to ``_today_session_log`` (newest by mtime) so callers fail open rather
-    than hard-blocking when no branch-specific log exists yet.
+    ``_session_log_for_branch`` to find its log deterministically. Returns
+    ``None`` when the branch cannot be determined (detached HEAD, git
+    unavailable) or when no recent log carries a matching branch field.
 
-    This is the correct replacement for bare ``_today_session_log`` calls
-    in ADR and retrospective gates: concurrent agents on other branches
-    frequently own a newer mtime and the mtime winner names the wrong session.
+    Returning ``None`` rather than the mtime winner prevents the ADR and
+    retrospective gates from judging a commit against a different session's
+    evidence. A caller that needs fail-open behaviour should check the
+    returned value and decide whether to pass or fail on ``None`` itself.
+
+    ``_today_session_log`` (mtime fallback) is intentionally NOT used here;
+    it remains available for ``check_branch_context`` which relies on the
+    mtime ordering to detect co-mingling (issues #682, #3343).
     """
     branch = _current_branch(repo_root)
-    if branch is not None:
-        log = _session_log_for_branch(sessions_dir, branch)
-        if log is not None:
-            return log
-    return _today_session_log(sessions_dir)
+    if branch is None:
+        return None
+    return _session_log_for_branch(sessions_dir, branch)
 
 
 def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
@@ -4984,6 +4987,11 @@ def _is_zero_sha(sha: str) -> bool:
     return len(sha) in ZERO_SHA_LENGTHS and not sha.strip("0")
 
 
+# Documented escape for a maintainer deliberately reworking an unshared branch.
+# Not --no-verify, which .claude/rules/universal.md MUST NOT #2 forbids.
+FORCE_PUSH_ESCAPE_ENV = "FORCE_PUSH_OK"
+
+
 def _resolve_commit(repo_root: Path, ref: str) -> str | None:
     result = _run_git(repo_root, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
     if result.returncode != 0:
@@ -5518,7 +5526,13 @@ def _skip_skillforge_path(path: str, repo_root: Path) -> bool:
     A mirror is not an authored skill, so the SkillForge schema (Triggers, Process,
     Verification) does not describe it and editing it is not how you fix it. The
     mirror set is derived from `.claude/commands/<name>.md`, the generator's own
-    input, so the two cannot drift. Do not restate the names here or in lefthook.yml.
+    input, so do not restate the names here or in lefthook.yml.
+
+    Derived is not the same as in sync. Nothing regenerates a mirror at commit
+    time, so a command edit that skips the generator ships a stale mirror; one
+    did, leaving the Copilot pr-autofix skill prescribing a push the pre-push
+    guard rejects. `test_committed_command_mirrors_match_the_generator` in
+    tests/build_scripts/test_generate_commands.py is what catches that.
     """
     if path.startswith("evals/"):
         return True
