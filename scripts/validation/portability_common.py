@@ -116,24 +116,53 @@ def resolve_root(repo_root: Path | None, start: Path, require_repo_marker: bool)
     return base
 
 
+def refuse_symlinked_scan_root(root: Path, scan_dir: Path) -> bool:
+    """Return True and print to stderr when scan_dir resolves outside root.
+
+    ``Path.is_dir()`` returns True through a symlink and ``os.walk`` follows it
+    into the target, so a scan root symlinked outside the repository reads
+    external files and counts them as repository content. That breaks the
+    coverage guard added in PR #4206: a symlinked root could satisfy the
+    per-root non-zero rule with files git does not track, while the real
+    tracked files stay unscanned.
+
+    Resolve both paths and assert containment. A symlink pointing inside the
+    root is refused the same way: the caller can choose to allow it by not
+    calling this function, but the choice is explicit, not accidental.
+    """
+    root_real = root.resolve()
+    try:
+        dir_real = scan_dir.resolve()
+    except OSError:
+        print(
+            f"Refusing scan root {scan_dir}: could not resolve its real path.",
+            file=sys.stderr,
+        )
+        return True
+    if not dir_real.is_relative_to(root_real):
+        print(
+            f"Refusing scan root {scan_dir}: resolved path {dir_real} is outside "
+            f"the repository root {root_real}. Symlinks that point outside the "
+            "repository are a path-traversal risk (CWE-22).",
+            file=sys.stderr,
+        )
+        return True
+    return False
+
+
 def resolve_baseline_path(
     root: Path,
     baseline: Path | None,
     default_baseline_name: str,
-    reject_outside_root: bool,
 ) -> Path | None:
-    """Resolve the baseline path, optionally rejecting root escapes.
+    """Resolve the baseline path, rejecting candidates that escape the repo root.
 
-    The single home for this reasoning. Every checker that accepts `--baseline`
-    delegates here rather than keeping a copy, because the copies drifted into
-    the same defect independently once already: both resolved the path before
-    handing it on, which erased the symlink the guard downstream exists to
-    refuse. Returns None when the candidate escapes the root.
+    Every caller that accepts ``--baseline`` delegates here. Returns None when
+    the candidate path resolves outside the repository root. ``check_vendor_portability``
+    has its own resolver and does not use this function.
     """
     if baseline is None:
         return root / "scripts" / "validation" / default_baseline_name
-    if not reject_outside_root:
-        return baseline if baseline.is_absolute() else root / baseline
 
     root_resolved = root.resolve()
     candidate = baseline.expanduser()
@@ -178,9 +207,7 @@ def resolve_checked_baseline(
     deeper. Refusing the link closes both, and it runs first because a link is
     the more basic objection: the target need not be inside the tree at all.
     """
-    resolved = resolve_baseline_path(
-        root, baseline, default_baseline_name, reject_outside_root=True
-    )
+    resolved = resolve_baseline_path(root, baseline, default_baseline_name)
     if resolved is None:
         print(
             f"Refusing a --baseline outside the repository root: {baseline}. "
