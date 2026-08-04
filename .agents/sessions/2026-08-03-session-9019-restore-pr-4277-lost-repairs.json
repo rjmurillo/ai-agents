@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9019,
+    "date": "2026-08-03",
+    "branch": "fix/4054-restore-lost-pr-comment-responder-gate-repairs",
+    "startingCommit": "fa57eb5cb",
+    "objective": "Restore the two pr-comment-responder repairs that PR 4277 validated on its head branch but lost at merge, and add the executable guard the envelope repair never had"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Serena MCP active on the ai-agents project; list_memories and read_memory both returned."
+      },
+      "serenaInstructions": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Called mcp__serena__initial_instructions and read the manual before any symbolic operation."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/agents-two-pipeline-mirror-recipe.md before touching the hand-maintained and generated agent carriers."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; it is read-only as of 2025-12-22 and routes session context to session logs."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/pr/ and .claude/skills/github/scripts/issue/ before any GitHub call; used get_pull_requests.py, list_issues.py, get_issue_context.py, get_pr_context.py and new_pr.py."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, CLAUDE.md, .agents/governance/GENERATOR-FILES.md and .agents/architecture/ADR-056 scope before editing generated and hand-maintained agent carriers."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4054-restore-lost-pr-comment-responder-gate-repairs in an isolated worktree at /home/richard/src/GitHub/rjmurillo/ai-agents-pr4277-followup"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree created detached at origin/main fa57eb5cb, branch named only after the duplicate search cleared."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --porcelain run clean after every commit and after each temporary carrier checkout used for inverse testing."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "fa57eb5cb, verified equal to origin/main immediately before push."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed SESSION-PROTOCOL.md and PROJECT-CONSTRAINTS.md at session start."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Both defects reproduced on merged main, both repairs cherry-picked, both guards proven to fail against pre-fix carriers and pass after."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md never appeared in git status in this worktree."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Markdown Linting reported PASS inside scripts/validation/pre_pr.py, which exited 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "132978828 envelope repair, 90b0dfc46 dead-grep repair, 25e560af4 new envelope guard; this log is a separate commit and carries no code."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "build_all.py --check exit 0 with no drift; validate_install_parity.py exit 0; pre_pr.py exit 0 with RESULT: All validations passed; push ran every Lefthook pre-push job including the full pytest suite with no bypass and exited 0."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote .serena/memories/decision-doc-only-repairs-need-an-executable-guard.md recording that a documentation-only repair with no executable guard does not survive a merge, with the measured pre-fix and post-fix test splits."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No task tracker used for this restore."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Recommended but not run here: the loss of validated repairs at merge time deserves its own retrospective."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reproduced both defects on merged main",
+      "detail": "At fa57eb5cb, six carriers still published the unbolded status grep and five still read get_pr_checks counts at the envelope top level."
+    },
+    {
+      "action": "Quoted the canonical envelope contract",
+      "detail": "write_skill_output in scripts/github_core/output.py nests the payload under Data, so AllPassing, FailedCount and PendingCount never exist at the top level."
+    },
+    {
+      "action": "Searched for duplicates before naming a branch",
+      "detail": "Seven PR searches and three issue searches. Only PR 4445 overlapped by file; its diff was fetched and contains neither repair. Issue 4465 covers the github skill patterns.md sibling, not these carriers."
+    },
+    {
+      "action": "Cherry-picked both repairs onto current origin/main",
+      "detail": "Both applied with no conflict. Author identity was reset from a pytest-polluted local git config to the repository owner using worktree-scoped config only."
+    },
+    {
+      "action": "Added the missing regression guard",
+      "detail": "tests/test_pr_comment_responder_check_envelope.py pins the envelope contract and scans all nine carriers. It fails 7 of 11 against the pre-fix carriers and passes 11 of 11 after."
+    }
+  ],
+  "endingCommit": "25e560af4",
+  "nextSteps": [
+    "Hold for an independent adversarial review before any merge.",
+    "Decide whether issue 4465 (github skill patterns.md, same root cause, different files) should be folded in or fixed separately.",
+    "Consider reopening issue 4034: its fix shipped with a residual dead example that survived until this PR."
+  ]
+}
