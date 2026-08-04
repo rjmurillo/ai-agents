@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All MUST fields contain evidence."
+        "Evidence": "All MUST items verified; validate_session_json.py passed."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No duplicate memory added; code, tests, baselines, and canonical skill docs carry the durable changes."
+        "Evidence": "No duplicate memory added; code, tests, ratchets, and generated artifacts carry the durable contract."
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final artifact fixes committed through 7f4c21887; latest main merged in a43bf1854 and aab8ddff8."
+        "Evidence": "Implementation committed through 7f4c21887, latest main merged through aab8ddff8, and session evidence committed at 034e980fe."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "5,120 relevant tests passed, 2 skipped; Ruff ratchet, mypy, live probes, generators, mutations, and pre_pr 46/46 passed."
+        "Evidence": "5,120 relevant tests passed, 2 skipped; Ruff ratchet, mypy, live probes, generators, mutations, pre_pr 46/46, and session validation passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },
