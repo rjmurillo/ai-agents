@@ -20,6 +20,7 @@ import math
 import os
 import sys
 import time
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -246,7 +247,7 @@ def _dedupe_rank(check: dict) -> tuple[int, int]:
     return (_TYPE_RANK.get(check.get("Type"), 2), _check_rank(check))
 
 
-def _collapse_same_run_siblings(rows: list[dict]) -> list[dict]:
+def _collapse_same_run_siblings(rows: list[dict[Any, Any]]) -> list[dict[Any, Any]]:
     """Reduce each workflow run's same-named rows to one representative row.
 
     Within one run, two rows sharing a check name are concurrent siblings, not
@@ -256,14 +257,14 @@ def _collapse_same_run_siblings(rows: list[dict]) -> list[dict]:
 
     Refs issue #4499.
     """
-    representatives: list[dict] = []
+    representatives: list[dict[Any, Any]] = []
     for group in partition_rows_by_run(rows, "DetailsUrl"):
         if len(group) == 1:
             representatives.append(group[0])
             continue
         failing = [row for row in group if row.get("IsFailing")]
         pool = failing if failing else group
-        representatives.append(min(pool, key=_dedupe_rank))
+        representatives.append(sorted(pool, key=_dedupe_rank)[0])
     return representatives
 
 
@@ -302,8 +303,9 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
     deduped = []
     for name in order:
         candidates = _collapse_same_run_siblings(rows_by_name[name])
+        best = sorted(candidates, key=_dedupe_rank)[0]
         winner = {
-            **min(candidates, key=_dedupe_rank),
+            **best,
             "IsRequired": required_by_name[name],
         }
         winner["IsPending"] = pending_by_name[name]
