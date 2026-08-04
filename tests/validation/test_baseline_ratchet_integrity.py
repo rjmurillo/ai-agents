@@ -75,7 +75,7 @@ class TestResolveBaselinePathSentinel:
         root = tmp_path / "repo"
         root.mkdir()
         result = common.resolve_baseline_path(
-            root, Path("../../etc/passwd"), "default.json", reject_outside_root=True
+            root, Path("../../etc/passwd"), "default.json"
         )
         assert result is None
 
@@ -85,7 +85,7 @@ class TestResolveBaselinePathSentinel:
         outside = tmp_path / "other.json"
         outside.write_text("{}")
         result = common.resolve_baseline_path(
-            root, outside, "default.json", reject_outside_root=True
+            root, outside, "default.json"
         )
         assert result is None
 
@@ -96,7 +96,7 @@ class TestResolveBaselinePathSentinel:
         inside.parent.mkdir(parents=True)
         inside.write_text("{}")
         result = common.resolve_baseline_path(
-            root, inside, "default.json", reject_outside_root=True
+            root, inside, "default.json"
         )
         assert result is not None
         assert result.is_relative_to(root)
@@ -105,21 +105,23 @@ class TestResolveBaselinePathSentinel:
         root = tmp_path / "repo"
         root.mkdir()
         result = common.resolve_baseline_path(
-            root, None, "my_baseline.json", reject_outside_root=True
+            root, None, "my_baseline.json"
         )
         assert result == root / "scripts" / "validation" / "my_baseline.json"
 
-    def test_false_branch_returns_path_not_none(self, tmp_path: Path) -> None:
-        # reject_outside_root=False must still return a Path, never None.
+    def test_dead_branch_removed_function_always_rejects_outside(
+        self, tmp_path: Path
+    ) -> None:
+        # The reject_outside_root=False branch was dead and has been removed.
+        # Outside-root paths are always refused.
         root = tmp_path / "repo"
         root.mkdir()
         outside = tmp_path / "other.json"
         outside.write_text("{}")
         result = common.resolve_baseline_path(
-            root, outside, "default.json", reject_outside_root=False
+            root, outside, "default.json"
         )
-        assert result is not None
-        assert isinstance(result, Path)
+        assert result is None
 
 
 # ---------------------------------------------------------------------------
