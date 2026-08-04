@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
 
     for line in lines:
         parts = line.split()
-        if len(parts) < 4:  # noqa: PLR2004
+        if len(parts) < 4:
             continue
 
         local_ref, local_sha, remote_ref, _cached_remote_sha = parts[:4]
