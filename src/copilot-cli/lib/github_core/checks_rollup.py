@@ -10,6 +10,8 @@ This is documented in issue #2325 and PR #1887 retrospective.
 
 from __future__ import annotations
 
+import json
+import subprocess
 from collections import defaultdict
 
 
@@ -86,3 +88,61 @@ def extract_required_check_lists(
             pending_required.append(name)
 
     return pending_required, failed_required
+
+
+def fetch_ruleset_required_contexts(
+    owner: str, repo: str, branch: str = "main"
+) -> list[str] | None:
+    """Return the required status check context names from the branch ruleset.
+    Uses ``gh api repos/{owner}/{repo}/rules/branches/{branch}`` (not the
+    legacy ``/branches/{branch}/protection`` endpoint, which returns 404 for
+    repos that use rulesets instead of branch protection).
+
+    Returns a sorted list of context strings, or None if the API call fails
+    (callers should treat None as unknown rather than empty). Refs issue #4359.
+    """
+    endpoint = f"repos/{owner}/{repo}/rules/branches/{branch}"
+    result = subprocess.run(
+        ["gh", "api", endpoint],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        rules = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(rules, list):
+        return None
+
+    contexts: list[str] = []
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        if rule.get("type") != "required_status_checks":
+            continue
+        params = rule.get("parameters") or {}
+        for check_entry in params.get("required_status_checks") or []:
+            if isinstance(check_entry, dict):
+                ctx = check_entry.get("context")
+            else:
+                ctx = None
+            if ctx and isinstance(ctx, str):
+                contexts.append(ctx)
+    return sorted(set(contexts))
+
+
+def find_missing_required(
+    ruleset_contexts: list[str],
+    reported_check_names: set[str],
+) -> list[str]:
+    """Return context names required by the ruleset but absent from the rollup.
+
+    A context that the ruleset requires but that never triggered any check run
+    is invisible to isRequired-based tooling (because isRequired is only set on
+    checks that did report). This function bridges that gap. Refs issue #4359.
+    """
+    return sorted(c for c in ruleset_contexts if c not in reported_check_names)

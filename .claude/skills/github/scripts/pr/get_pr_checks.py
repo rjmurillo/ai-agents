@@ -45,6 +45,8 @@ from github_core.api import (  # noqa: E402
 )
 from github_core.checks_rollup import (  # noqa: E402
     extract_required_check_lists,
+    fetch_ruleset_required_contexts,
+    find_missing_required,
     group_checks_by_name,
 )
 from github_core.output import (  # noqa: E402
@@ -418,12 +420,18 @@ def build_output(
     owner: str,
     repo: str,
     required_only: bool = False,
+    ruleset_contexts: list[str] | None = None,
 ) -> dict:
     """Build the final output object from check data.
 
     Groups checks by name and ORs the required status across all rows
     for each name, matching test_pr_merge_ready.py semantics. Returns
     structured lists of pending and failed required checks.
+
+    If ``ruleset_contexts`` is provided (from the branch ruleset API), computes
+    ``MissingRequired``: context names the ruleset requires but that never
+    reported any check run. These are invisible to isRequired-based logic.
+    Refs issue #4359.
     """
     checks_value = check_data.get("Checks")
     if checks_value is None:
@@ -510,6 +518,16 @@ def build_output(
         filtered_checks, is_required_by_name
     )
 
+    # Issue #4359: required checks that never triggered any run are invisible
+    # to isRequired-based logic. Cross-reference against the branch ruleset to
+    # surface them as a distinct MISSING state.
+    reported_names = {c.get("Name", "") for c in checks}
+    missing_required: list[str] | None
+    if ruleset_contexts is not None:
+        missing_required = find_missing_required(ruleset_contexts, reported_names)
+    else:
+        missing_required = None
+
     return {
         "Success": True,
         "Number": check_data.get("Number"),
@@ -545,6 +563,10 @@ def build_output(
         # failed ones and from non-required checks.
         "PendingRequiredChecks": pending_required,
         "FailedRequiredChecks": failed_required,
+        # Issue #4359: required checks from the branch ruleset that produced no
+        # check run at all. None when the ruleset fetch was skipped or failed
+        # (caller should treat as unknown, not empty).
+        "MissingRequiredChecks": missing_required,
     }
 
 
@@ -575,6 +597,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--required-only", action="store_true",
         help="Filter output to required checks only",
     )
+    parser.add_argument(
+        "--base-branch", default="main",
+        help="Base branch to read the ruleset from for missing-check detection "
+             "(default: main). Pass empty string to skip ruleset fetch.",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -595,6 +622,13 @@ def _resolve_status(
             f"PR #{number}: checks still unavailable after {timeout_seconds}s "
             "(empty rollup; not treated as passing)",
             "WARNING",
+        )
+    missing = output.get("MissingRequiredChecks")
+    if missing:
+        return (
+            f"PR #{number}: {len(missing)} required check(s) never reported "
+            f"(MISSING: {', '.join(missing[:3])}{'...' if len(missing) > 3 else ''})",
+            "FAIL",
         )
     if output["FailedCount"] > 0:
         return f"PR #{number}: {output['FailedCount']} check(s) failed", "FAIL"
@@ -621,6 +655,15 @@ def main(argv: list[str] | None = None) -> int:
     repo = resolved.repo
 
     fmt = get_output_format(args.output_format)
+
+    # Issue #4359: fetch the branch ruleset once, before polling, so the
+    # missing-check cross-reference uses a stable snapshot. Returns None if
+    # the fetch fails or --base-branch was passed empty; callers treat None
+    # as "unknown" rather than "nothing required".
+    base_branch = args.base_branch.strip() if args.base_branch else ""
+    ruleset_contexts: list[str] | None = None
+    if base_branch:
+        ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
 
     start_time = time.monotonic()
     max_iterations = math.ceil(args.timeout_seconds / 10)
@@ -655,7 +698,9 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 3
 
-        output = build_output(check_data, owner, repo, args.required_only)
+        output = build_output(
+            check_data, owner, repo, args.required_only, ruleset_contexts
+        )
         checks_incomplete = checks_incomplete or bool(
             output.get("ChecksIncomplete", False)
         )
@@ -701,6 +746,8 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if output["FailedCount"] > 0:
+        return 1
+    if output.get("MissingRequiredChecks"):
         return 1
     if not output.get("MergeRefUsable", True):
         return 1
