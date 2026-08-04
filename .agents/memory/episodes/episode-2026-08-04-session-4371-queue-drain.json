@@ -1,0 +1,47 @@
+{
+  "id": "episode-2026-08-04-session-4371-queue-drain",
+  "session": "2026-08-04-session-4371-queue-drain",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Clear push gates while draining PR 4371.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Lowered the taste count baseline from 593 to 592 after merging current main.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-4371-queue-drain"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the split-test episode metrics so commits is 1 when files_changed is 3.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-4371-queue-drain"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Kept the removed causal graph artifact deleted after the merge restored it.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-4371-queue-drain"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}
