@@ -121,5 +121,6 @@
       "content": "Session 3605 (PR #3606) measured the disable-model-invocation cost: descriptions cost about 17K tokens for 50 skills but the cost saturates. Memory file .serena/memories/decision-skill-description-context-cost.md shipped. Issue asked for 3 steps: (1) measure done; (2) classify skills if cost is material, not warranted because cost saturates; (3) write guidance, not yet done. Closing: step 1 complete, steps 2-3 gated on step 1 showing non-saturating cost, measurement shows saturation. The measured memory is the deliverable."
     }
   ],
-  "nextSteps": []
+  "nextSteps": [],
+  "retrospectiveFile": ".agents/retrospective/2026-08-03-adr-043-no-globs-correction.md"
 }
