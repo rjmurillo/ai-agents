@@ -307,6 +307,53 @@ commit. Amending `HEAD` is safe whenever the recorded commit stays reachable,
 which includes `HEAD~1` and anything older. It is unsafe only when the commit
 you are rewriting *is* the recorded one; there, add a follow-up commit instead.
 
+## One file crossing 500 lines fails four pre-push jobs with three messages
+
+`taste_lints.py` treats a file over 500 lines as an error and a file over 300
+as a warning. Only the error counts. Growing one file from 402 to 691 lines
+raised the whole-repo taste count by exactly one, and that single increment
+failed four jobs in the same push:
+
+| Job | What it printed |
+|---|---|
+| `taste-count-ratchet` | `REGRESSION. 585 > baseline 584 (+1)` |
+| `merge-tree-ratchet` | `BLOCKED. The merged result breaches a ratchet ceiling.` |
+| `pre-pr-validation` | `Error: Validation failed`, after 500-plus lines of unrelated file-size output |
+| `python-tests` | `FAILED tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree` |
+
+The fourth is the trap. It reads as an unrelated test failure buried in 23,058
+passes, and it is the one that costs you the 16-minute suite before you see it.
+All four clear together once the count returns to baseline.
+
+`merge-tree-ratchet`'s advice is also wrong for this case. It says to merge or
+rebase from `origin/main` and re-check, which is right for the behind-but-innocent
+case above and useless when the regression is genuinely yours. That job already
+computed the merged result, so if it still says `REGRESSION`, merging will not
+help. Read the number: `585 > baseline 584` means your tree added one.
+
+Find the offending file directly rather than by bisecting the push:
+
+```bash
+uv run --frozen python .claude/skills/taste-lints/scripts/taste_lints.py <changed files>
+```
+
+Note the path. The linter is not under `scripts/validation/`; it ships inside
+the `taste-lints` skill, which is where the plugin needs it.
+
+The fix is usually a split rather than a suppression. A test file that grew by
+appending a second, self-contained group of guards splits cleanly on the
+document or subject each group covers, and the halves keep the shared helpers
+by import rather than by copy. Confirm with the real gate before pushing again,
+which takes seconds against the suite's sixteen minutes:
+
+```bash
+git add <the split files>
+uv run --frozen python scripts/ci/taste_count_ratchet.py
+```
+
+It reads `git ls-files`, so an unstaged new file is invisible to it and the
+count looks fine right up until the push.
+
 ## Eval harness
 
 These matter only when running `scripts/eval/`. Full detail lives in

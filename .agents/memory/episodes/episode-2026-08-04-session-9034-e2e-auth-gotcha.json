@@ -97,7 +97,8 @@
         "e017",
         "e019",
         "e020",
-        "e021"
+        "e021",
+        "e022"
       ],
       "leads_to": [
         "e018"
@@ -252,6 +253,17 @@
       "timestamp": "2026-08-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Recorded the rule-edit trap in GOTCHAS as its own section.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded the taste-count ratchet trap after a sibling branch tripped it.",
       "caused_by": [],
       "leads_to": [
         "e007"
