@@ -94,17 +94,17 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Final latest-main reconciliation committed as d1c74f3dd."
+        "Evidence": "Final artifact fixes committed through 7f4c21887; latest main merged in a43bf1854 and aab8ddff8."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "2,662 tests passed, 2 skipped; Ruff, mypy, live probes, mutations, build drift, all ratchets, and pre_pr 46/46 passed."
+        "Evidence": "5,120 relevant tests passed, 2 skipped; Ruff ratchet, mypy, live probes, generators, mutations, and pre_pr 46/46 passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "SQL parent and validation todos marked done."
+        "Evidence": "SQL parent and validation todos marked done after final artifact review."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -129,8 +129,20 @@
     {
       "task": "Validate",
       "result": "2,662 tests passed with 2 skips and 1 known warning. Live IDs and aliases passed. Four killing mutations plus one surviving inverted control, mirror parity, build_all --check, Ruff, mypy, and pre_pr 46/46 passed."
+    },
+    {
+      "task": "Complete final artifact review",
+      "result": "Merged origin/main through 0b704fb50. Removed the foreign workspace library rung, failed closed on partial pagination, preserved legacy author fields, and added canonical identity metadata."
+    },
+    {
+      "task": "Repair build gate invocation",
+      "result": "Build now passes origin/main and explicit regression mode. Validator tests parse exact option tokens and reject missing or near-match values."
+    },
+    {
+      "task": "Revalidate final state",
+      "result": "Live PR 3235 returned actor IDs 198982749 and 175728472. 5,120 tests passed, three mutants died, one inverted control survived, mirrors matched, and pre_pr passed 46 of 46."
     }
   ],
-  "endingCommit": "d1c74f3dd",
+  "endingCommit": "aab8ddff8",
   "nextSteps": []
 }
