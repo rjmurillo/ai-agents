@@ -20,7 +20,14 @@ Mechanism:
     git archive <tree-oid>, extract with Python tarfile into <scratch>
     git init <scratch>, git -C <scratch> add -A, git -C <scratch> commit
     run current_count() from each ratchet against <scratch>
-    compare against baselines at <base>
+    compare against min(baseline at <base>, baseline in the merged tree)
+
+The ceiling is the LOWER of the base's baseline and the one the merged tree
+would install (issue #4538). Reading only the base's value left the gate blind
+to a branch that LOWERS a baseline: PR #4208 rewrote the ruff baseline
+308 -> 126 while activating RUF100, its merged tree measured 140, and 140 <= 308
+passed here. main merged red. Taking the minimum also keeps a RAISED baseline
+from buying headroom. See _effective_baseline.
 
 Timing (measured on this repo, 7925 tracked files):
     merge-tree:      0.017 s
@@ -58,9 +65,9 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.ci import ruff_count_ratchet as _ruff  # noqa: E402
-from scripts.ci import taste_count_ratchet as _taste  # noqa: E402
-from scripts.ci import type_ignore_count_ratchet as _type_ignore  # noqa: E402
+from scripts.ci import ruff_count_ratchet as _ruff
+from scripts.ci import taste_count_ratchet as _taste
+from scripts.ci import type_ignore_count_ratchet as _type_ignore
 
 EXIT_OK = 0
 EXIT_REGRESSION = 1
@@ -208,6 +215,49 @@ def _read_baseline_at_ref(repo_root: Path, ref: str, rel_path: str) -> int | Non
         return None
 
 
+def _read_baseline_in_tree(tree_root: Path, rel_path: str) -> int | None:
+    """Read an integer baseline from an extracted tree, or None on failure.
+
+    The merged tree carries the baseline file the merge would install on main.
+    Reading it from the extracted snapshot (rather than from either input ref)
+    is what makes the ceiling reflect the post-merge repository.
+    """
+    try:
+        return int((tree_root / rel_path).read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _effective_baseline(base_value: int | None, merged_value: int | None) -> int | None:
+    """The ceiling the merged tree must satisfy: the lower of the two.
+
+    Issue #4538. Comparing only against the baseline at the base ref left the
+    gate blind in one direction. A PR that LOWERS a baseline is measured
+    against the base's older, looser number, so the branch can install a
+    ceiling the post-merge tree does not meet. PR #4208 is the worked example:
+    it enabled RUF100 and rewrote the ruff baseline 308 -> 126 in one commit.
+    Its own tree measured exactly 126, but between its base (``ca5deebe8``) and
+    its merge, PR #4448 landed 14 more dead ``noqa`` directives. The merged
+    tree measured 140 and still passed here, because 140 <= the base's 308.
+    main merged red and blocked every unrelated push (issue #4538).
+
+    Taking the minimum closes both directions at once and needs no knowledge of
+    which side moved:
+
+    - The PR lowers the baseline -> the merged (proposed) value wins, so the
+      post-merge tree must actually meet the ceiling it ships.
+    - The PR raises the baseline -> the base value wins, so widening the
+      allowance cannot buy headroom for merged-tree debt.
+    - Neither side moves -> both values agree and the minimum is that value.
+
+    ``None`` propagates: an unreadable baseline on either side is a config
+    error, never a silently skipped check.
+    """
+    if base_value is None or merged_value is None:
+        return None
+    return min(base_value, merged_value)
+
+
 def _check_one(
     label: str,
     count: int | None,
@@ -217,7 +267,11 @@ def _check_one(
     if count is None:
         return EXIT_EXTERNAL, f"{label}: EXTERNAL ERROR - counter returned None"
     if baseline is None:
-        return EXIT_CONFIG, f"{label}: CONFIG ERROR - baseline at base ref unreadable"
+        return (
+            EXIT_CONFIG,
+            f"{label}: CONFIG ERROR - baseline unreadable at the base ref "
+            "or in the merged tree",
+        )
     if count > baseline:
         return (
             EXIT_REGRESSION,
@@ -254,7 +308,10 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
             return EXIT_EXTERNAL
 
         baselines = {
-            label: _read_baseline_at_ref(repo_root, base_ref, rel)
+            label: _effective_baseline(
+                _read_baseline_at_ref(repo_root, base_ref, rel),
+                _read_baseline_in_tree(scratch_root, rel),
+            )
             for label, rel in _baseline_map.items()
         }
         counts = {
@@ -279,8 +336,10 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
             "\nmerge-tree-ratchet: BLOCKED. The merged result breaches a ratchet ceiling.\n"
             "This means your branch is measured against a stale main, or your changes\n"
             "genuinely exceed the baseline. Merge or rebase from origin/main and re-check.\n"
-            "If the ceiling is still breached after rebasing, fix the violations.\n"
-            "(See issue #4398 for context.)",
+            "If the ceiling is still breached after rebasing, fix the violations\n"
+            "rather than raising the baseline: the ceiling here is the LOWER of the\n"
+            "base's baseline and the one this branch would install.\n"
+            "(See issues #4398 and #4538 for context.)",
             file=sys.stderr,
         )
         return exit_code

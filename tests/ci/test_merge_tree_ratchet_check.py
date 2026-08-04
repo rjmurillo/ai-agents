@@ -313,3 +313,149 @@ class TestMergeTreeRatchetCheck:
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
         assert rc == _m.EXIT_OK
+
+    def test_branch_lowering_a_baseline_below_the_merged_count_is_blocked(
+        self, tmp_path: Path
+    ) -> None:
+        """The issue #4538 shape: a branch installs a ceiling main cannot meet.
+
+        PR #4208 activated RUF100 and rewrote the ruff baseline 308 -> 126 in
+        one commit. Its own tree measured exactly 126. Between its base and its
+        merge, PR #4448 landed 14 more dead ``noqa`` directives, so the merged
+        tree measured 140. The old gate compared 140 against the BASE's 308 and
+        passed, and main merged red.
+
+        The ceiling must be the baseline the merge installs, not the one it
+        replaces.
+        """
+        repo = _make_repo_with_baselines(tmp_path, ruff=308, taste=10, ignore=10)
+
+        _git(repo, "checkout", "-b", "pr-branch")
+        (repo / "scripts" / "ci" / "ruff_count_baseline.txt").write_text(
+            "126\n", encoding="utf-8"
+        )
+        _commit_all(repo, "activate RUF100 and lower the ruff baseline to 126")
+
+        with (
+            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=140),
+            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+        ):
+            rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
+
+        assert rc == _m.EXIT_REGRESSION
+
+    def test_branch_lowering_a_baseline_the_merged_tree_meets_passes(
+        self, tmp_path: Path
+    ) -> None:
+        """Positive control for the gate above: a truthful lowering still lands.
+
+        Same branch shape, but the merged tree actually measures the number the
+        branch ships. Without this the gate could pass the test above by
+        refusing every baseline reduction, which would ban all cleanup work.
+        """
+        repo = _make_repo_with_baselines(tmp_path, ruff=308, taste=10, ignore=10)
+
+        _git(repo, "checkout", "-b", "pr-branch")
+        (repo / "scripts" / "ci" / "ruff_count_baseline.txt").write_text(
+            "126\n", encoding="utf-8"
+        )
+        _commit_all(repo, "lower the ruff baseline to 126")
+
+        with (
+            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=126),
+            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+        ):
+            rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
+
+        assert rc == _m.EXIT_OK
+
+    def test_branch_raising_a_baseline_cannot_buy_merged_tree_headroom(
+        self, tmp_path: Path
+    ) -> None:
+        """The opposite direction must stay closed.
+
+        Reading the merged tree's baseline alone would let a branch raise the
+        ceiling and walk merged-tree debt straight through. The base's value
+        still applies, so the lower of the two governs.
+        """
+        repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+
+        _git(repo, "checkout", "-b", "pr-branch")
+        (repo / "scripts" / "ci" / "ruff_count_baseline.txt").write_text(
+            "100\n", encoding="utf-8"
+        )
+        _commit_all(repo, "raise the ruff baseline to 100")
+
+        with (
+            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=50),
+            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+        ):
+            rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
+
+        assert rc == _m.EXIT_REGRESSION
+
+    def test_branch_deleting_a_baseline_is_a_config_error(self, tmp_path: Path) -> None:
+        """A baseline readable at base but absent from the merged tree blocks.
+
+        Deleting the file must not read as "no ceiling"; the check has to fail
+        loudly rather than fall open.
+        """
+        repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+
+        _git(repo, "checkout", "-b", "pr-branch")
+        _git(repo, "rm", "-q", "scripts/ci/ruff_count_baseline.txt")
+        _commit_all(repo, "delete the ruff baseline")
+
+        with (
+            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+        ):
+            rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
+
+        assert rc == _m.EXIT_CONFIG
+
+
+class TestEffectiveBaseline:
+    """Unit coverage for the ceiling rule itself (issue #4538)."""
+
+    def test_lower_of_the_two_wins_when_the_branch_lowers(self) -> None:
+        assert _m._effective_baseline(308, 126) == 126
+
+    def test_lower_of_the_two_wins_when_the_branch_raises(self) -> None:
+        assert _m._effective_baseline(10, 100) == 10
+
+    def test_equal_values_return_that_value(self) -> None:
+        assert _m._effective_baseline(126, 126) == 126
+
+    def test_unreadable_base_propagates_none(self) -> None:
+        assert _m._effective_baseline(None, 126) is None
+
+    def test_unreadable_merged_value_propagates_none(self) -> None:
+        assert _m._effective_baseline(308, None) is None
+
+    def test_both_unreadable_propagates_none(self) -> None:
+        assert _m._effective_baseline(None, None) is None
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+class TestReadBaselineInTree:
+    """The merged-tree reader must not fall back to the checked-out repo."""
+
+    def test_reads_an_integer_from_the_extracted_tree(self, tmp_path: Path) -> None:
+        rel = "scripts/ci/ruff_count_baseline.txt"
+        (tmp_path / "scripts" / "ci").mkdir(parents=True)
+        (tmp_path / rel).write_text("123\n", encoding="utf-8")
+        assert _m._read_baseline_in_tree(tmp_path, rel) == 123
+
+    def test_missing_file_returns_none(self, tmp_path: Path) -> None:
+        assert _m._read_baseline_in_tree(tmp_path, "scripts/ci/nope.txt") is None
+
+    def test_non_integer_returns_none(self, tmp_path: Path) -> None:
+        rel = "scripts/ci/ruff_count_baseline.txt"
+        (tmp_path / "scripts" / "ci").mkdir(parents=True)
+        (tmp_path / rel).write_text("not-a-number\n", encoding="utf-8")
+        assert _m._read_baseline_in_tree(tmp_path, rel) is None
