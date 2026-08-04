@@ -55,9 +55,20 @@ completion checks use only these values.
 | `[COMPLETE]` | Fix committed and pushed | Yes |
 | `[WONTFIX]` | Explicitly decided not to change | Yes |
 
-Non-terminal statuses (`[NEW]`, `[ACKNOWLEDGED]`) count as pending. Any unrecognized
-status also counts as pending (fail closed). Both counts use the same grep pattern:
-`grep -Ec "Status: \[NEW\]|Status: \[ACKNOWLEDGED\]|Status: pending"`.
+Comment map fields render as `**Status**: [NEW]`, so every status grep must match the
+bold field at line start. Dropping the `**` delimiters or the `^` anchor matches nothing
+and reports zero.
+
+Non-terminal statuses (`[NEW]`, `[ACKNOWLEDGED]`) count as pending. Gate 3 and Gate 5
+enumerate those two statuses. Phase 8.1 is the fail-closed backstop: it counts only the
+terminal statuses, so anything else, including a status outside this table, stays in the
+remaining count.
+
+```bash
+ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
+WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
+REMAINING=$((TOTAL - ADDRESSED - WONTFIX))
+```
 
 ## Prose Self-Check
 
@@ -1250,7 +1261,7 @@ EXIT_CODE=$?
 # Handle timeout (exit code 7)
 if [ "$EXIT_CODE" -eq 7 ]; then
   echo "[BLOCKED] Timeout waiting for CI checks to complete"
-  echo "  Pending: $(echo "$CHECKS" | jq '.PendingCount') check(s) still running"
+  echo "  Pending: $(echo "$CHECKS" | jq '.Data.PendingCount') check(s) still running"
   exit 1
 fi
 
@@ -1318,12 +1329,12 @@ echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
 CHECKS=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
-ALL_PASSING=$(echo "$CHECKS" | jq -r '.AllPassing')
+ALL_PASSING=$(echo "$CHECKS" | jq -r '.Data.AllPassing')
 if [ "$ALL_PASSING" = "true" ]; then
   CI_STATUS="PASS"
 else
-  FAILED=$(echo "$CHECKS" | jq '.FailedCount')
-  PENDING=$(echo "$CHECKS" | jq '.PendingCount')
+  FAILED=$(echo "$CHECKS" | jq '.Data.FailedCount')
+  PENDING=$(echo "$CHECKS" | jq '.Data.PendingCount')
   CI_STATUS="$FAILED failures, $PENDING pending"
 fi
 echo "[ ] CI checks: $CI_STATUS"

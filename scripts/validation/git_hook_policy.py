@@ -2450,6 +2450,31 @@ def _check_no_grafts(repo_root: Path) -> int:
     return 2
 
 
+def _shallow_file(repo_root: Path) -> Path:
+    """Path to `shallow`, which git keeps in the *common* directory.
+
+    `repo_root / ".git" / "shallow"` only resolves in a primary clone. In a
+    linked worktree `.git` is a pointer file, so that path names a child of a
+    file and never exists; in a submodule it points into `.git/modules/<name>`.
+    Asking git keeps all three shapes correct and leaves the shared-versus
+    per-worktree routing where it belongs, with git.
+
+    It matters here because `shallow` is shared: one depth-limited fetch in any
+    worktree grafts every worktree at once, and this repository routinely runs
+    dozens of them. That sharing is contractual, not incidental:
+    gitrepository-layout(5) states the file "is ignored if $GIT_COMMON_DIR is
+    set and $GIT_COMMON_DIR/shallow will be used instead."
+    """
+    result = _run_git(repo_root, ["rev-parse", "--git-path", "shallow"])
+    lines = result.stdout.splitlines()
+    if result.returncode != 0 or len(lines) != 1 or not lines[0]:
+        return repo_root / ".git" / "shallow"
+    shallow_path = Path(lines[0])
+    if not shallow_path.is_absolute():
+        shallow_path = repo_root / shallow_path
+    return shallow_path
+
+
 def _check_history_integrity(repo_root: Path) -> int:
     shallow_result = _run_git(repo_root, ["rev-parse", "--is-shallow-repository"])
     if shallow_result.returncode != 0:
@@ -2460,17 +2485,18 @@ def _check_history_integrity(repo_root: Path) -> int:
         print(f"ERROR: unexpected shallow repository state: {shallow_state}", file=sys.stderr)
         return 2
     if shallow_state == "true":
-        shallow_file = repo_root / ".git" / "shallow"
+        shallow_file = _shallow_file(repo_root)
         pin_sha = ""
         if shallow_file.is_file():
             first_line = shallow_file.read_text(encoding="utf-8").splitlines()
             pin_sha = first_line[0].strip() if first_line else ""
-        pin_detail = f"  .git/shallow pins history at {pin_sha}." if pin_sha else ""
+        pin_detail = f"{shallow_file} pins history at {pin_sha}." if pin_sha else ""
         print(
             "ERROR: push validation requires complete Git history."
             + (f"\n  {pin_detail}" if pin_detail else "")
             + "\n  A `git fetch --depth=<n>` made this clone shallow,"
             " most likely while reproducing a CI step locally."
+            "\n  Shared across every worktree, so the fetch may have been in another one."
             "\n  Fix: git fetch --unshallow origin",
             file=sys.stderr,
         )

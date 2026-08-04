@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -14,9 +15,22 @@ from scripts.validation.pre_pr import (
     _run_subprocess,
     build_parser,
     main,
+    run_all_validations,
     run_validation,
     validate_session_end,
 )
+
+
+def _sequence_with_passing_doc_interpreter() -> tuple[Any, ...]:
+    # pre_pr loads pre_pr_sequence as a flat module for direct script execution.
+    # Read through the function so the patch targets that exact module identity.
+    sequence = run_all_validations.__globals__["_SEQUENCE"]
+    return tuple(
+        replace(gate, run=lambda _repo_root, _args: True)
+        if gate.name == "Documented Interpreter Portability"
+        else gate
+        for gate in sequence
+    )
 
 
 class TestFindLatestSessionLog:
@@ -193,10 +207,17 @@ class TestMain:
     External tool calls are mocked to avoid requiring actual tools.
     """
 
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_doc_interpreter,
+    )
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_quick_mode_skips_slow_checks(
-        self, mock_which: Any, mock_run: Any
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
     ) -> None:
         mock_run.return_value.returncode = 0
         mock_run.return_value.stdout = ""
@@ -207,10 +228,17 @@ class TestMain:
         result = main(["--quick", "--skip-tests"])
         assert result == 0
 
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_doc_interpreter,
+    )
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_all_pass_returns_zero(
-        self, mock_which: Any, mock_run: Any
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
     ) -> None:
         mock_run.return_value.returncode = 0
         mock_run.return_value.stdout = ""
