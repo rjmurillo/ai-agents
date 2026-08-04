@@ -829,7 +829,7 @@ class TestMain:
     """Tests for main() entry point and CLI behavior."""
 
     def test_nonexistent_path_no_ci(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         exit_code = main(["--path", str(tmp_path / "missing")])
         assert exit_code == 0
@@ -839,7 +839,7 @@ class TestMain:
         assert exit_code == 2
 
     def test_empty_dir_passes(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         exit_code = main(["--path", str(tmp_path)])
         assert exit_code == 0
@@ -900,7 +900,6 @@ class TestMain:
 
     def test_markdown_format(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
-        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         create_memory_structure(tmp_path, {
             "skills-test-index.md": (
@@ -919,7 +918,7 @@ class TestMain:
         assert "# Memory Index Validation Report" in output
 
     def test_console_format(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         create_memory_structure(tmp_path, {
             "skills-test-index.md": (
@@ -936,7 +935,7 @@ class TestMain:
 class TestBuildParser:
     """Tests for argument parser construction."""
 
-    def test_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_defaults(self) -> None:
         parser = build_parser()
         args = parser.parse_args([])
         assert args.path == ".serena/memories"
