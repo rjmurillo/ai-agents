@@ -1,0 +1,40 @@
+{
+  "id": "episode-2026-08-04-session-9014-push-lock-merge",
+  "session": "2026-08-04-session-9014-push-lock-merge",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Finish PR 4443 conflict repair after main advanced and push hook validation required branch-local retrospective evidence.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "recovery",
+      "context": "",
+      "chosen": "Added branch-local session evidence after the pre-push retrospective-policy gate selected a different branch's session log.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T02:07:45+00:00",
+      "type": "milestone",
+      "content": "Added branch-local session evidence after the pre-push retrospective-policy gate selected a different branch's session log.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9014-push-lock-merge"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}
