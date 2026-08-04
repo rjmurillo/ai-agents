@@ -91,6 +91,13 @@ def _merge_tree_oid(repo_root: Path, base_ref: str) -> tuple[str | None, bool]:
         oid = lines[0] if lines else None
         return oid, True
     sys.stderr.write(f"git merge-tree failed (rc {proc.returncode}):\n{proc.stderr}\n")
+    if "unrelated histories" in proc.stderr:
+        sys.stderr.write(
+            "merge-tree-ratchet: no merge base was reachable. This is a shallow-fetch\n"
+            "regression, not a ratchet breach: a `git fetch --depth=1` writes\n"
+            ".git/shallow and cuts history traversal, so any branch behind the base\n"
+            "aborts here. Fetch the base ref at full depth (issue #4518).\n"
+        )
     return None, False
 
 
