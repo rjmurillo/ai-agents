@@ -1040,3 +1040,31 @@ class TestCheckNamingConvention:
     def test_empty_directory_passes(self, tmp_path: Path) -> None:
         result = check_naming_convention(tmp_path)
         assert result.passed is True
+
+
+# ---------------------------------------------------------------------------
+# Enforcement: orphan detection must fail validation (issue #4313)
+# ---------------------------------------------------------------------------
+
+
+class TestOrphanEnforcesFailure:
+    """Orphaned files must set report.passed = False."""
+
+    def test_orphan_sets_passed_false(self, tmp_path: Path) -> None:
+        """A skill-prefixed file not in any index makes validation fail."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": "| Keywords | File |\n|----------|------|\n",
+            "skills-orphaned.md": "content",  # skill-prefix, not in any index
+        })
+        report = run_validation(tmp_path, "json")
+        assert report.passed is False
+        assert len(report.orphans) > 0
+
+    def test_no_orphans_does_not_fail(self, tmp_path: Path) -> None:
+        """A directory with no orphans and a valid memory-index passes."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": "| Keywords | File |\n|----------|------|\n",
+        })
+        report = run_validation(tmp_path, "json")
+        assert report.passed is True
+        assert report.orphans == []
