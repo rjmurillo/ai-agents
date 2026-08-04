@@ -243,6 +243,64 @@ def _fetch_review_authors(owner: str, repo: str, pr: int) -> list[dict[str, Any]
             raise RuntimeError("Review pagination reported no end cursor")
 
 
+def _actor_type(actor: dict[str, Any], field: str) -> str:
+    value = actor.get(field, "User")
+    return value if isinstance(value, str) else "User"
+
+
+def _add_comments(
+    reviewer_map: dict[str, dict[str, Any]],
+    comments: list[dict[str, Any]],
+    count_field: str,
+) -> None:
+    for comment in comments:
+        user = comment.get("user") or {}
+        login = user.get("login", "")
+        if not login:
+            continue
+        key = _ensure_reviewer(
+            reviewer_map,
+            login,
+            _actor_type(user, "type"),
+            _account_id(user),
+        )
+        reviewer_map[key][count_field] += 1
+
+
+def _add_actors(
+    reviewer_map: dict[str, dict[str, Any]],
+    actors: list[dict[str, Any]],
+) -> None:
+    for actor in actors:
+        login = actor.get("login", "")
+        if not login:
+            continue
+        user_type = _actor_type(actor, "__typename")
+        key = _ensure_reviewer(reviewer_map, login, user_type, _account_id(actor))
+        reviewer_map[key]["is_bot"] = _is_bot(key, user_type)
+
+
+def _finalize_reviewers(
+    reviewer_map: dict[str, dict[str, Any]],
+    exclude_bots: bool,
+    exclude_author: bool,
+    pr_author: str,
+    pr_author_id: int | None,
+) -> list[dict[str, Any]]:
+    reviewers = list(reviewer_map.values())
+    for reviewer in reviewers:
+        reviewer["total_comments"] = (
+            reviewer["review_comments"] + reviewer["issue_comments"]
+        )
+    if exclude_bots:
+        reviewers = [reviewer for reviewer in reviewers if not reviewer["is_bot"]]
+    if exclude_author:
+        author_key = canonicalize_login(pr_author, pr_author_id)
+        reviewers = [reviewer for reviewer in reviewers if reviewer["login"] != author_key]
+    reviewers.sort(key=lambda reviewer: reviewer["total_comments"], reverse=True)
+    return reviewers
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -266,51 +324,18 @@ def main(argv: list[str] | None = None) -> int:
     reviewer_map: dict[str, dict[str, Any]] = {}
 
     review_comments = gh_api_paginated(f"repos/{owner}/{repo}/pulls/{pr}/comments")
-    for c in review_comments:
-        user = c.get("user") or {}
-        login = user.get("login", "")
-        if not login:
-            continue
-        user_type = user.get("type", "User")
-        key = _ensure_reviewer(reviewer_map, login, user_type, _account_id(user))
-        reviewer_map[key]["review_comments"] += 1
-
+    _add_comments(reviewer_map, review_comments, "review_comments")
     issue_comments = gh_api_paginated(f"repos/{owner}/{repo}/issues/{pr}/comments")
-    for c in issue_comments:
-        user = c.get("user") or {}
-        login = user.get("login", "")
-        if not login:
-            continue
-        user_type = user.get("type", "User")
-        key = _ensure_reviewer(reviewer_map, login, user_type, _account_id(user))
-        reviewer_map[key]["issue_comments"] += 1
-
-    for r in requested_reviewers:
-        login = r.get("login", "")
-        if login:
-            user_type = r.get("__typename", "User")
-            _ensure_reviewer(reviewer_map, login, user_type, _account_id(r))
-
-    for author in review_authors:
-        login = author.get("login", "")
-        if login:
-            user_type = author.get("__typename", "User")
-            key = _ensure_reviewer(reviewer_map, login, user_type, _account_id(author))
-            reviewer_map[key]["is_bot"] = _is_bot(key, user_type)
-
-    reviewers = list(reviewer_map.values())
-    for r in reviewers:
-        r["total_comments"] = r["review_comments"] + r["issue_comments"]
-
-    if args.exclude_bots:
-        reviewers = [r for r in reviewers if not r["is_bot"]]
-    if args.exclude_author:
-        # Compare canonical identities: an author who also reviews under an
-        # alias would otherwise survive the filter as a separate actor.
-        author_key = canonicalize_login(pr_author, pr_author_id)
-        reviewers = [r for r in reviewers if r["login"] != author_key]
-
-    reviewers.sort(key=lambda r: r["total_comments"], reverse=True)
+    _add_comments(reviewer_map, issue_comments, "issue_comments")
+    _add_actors(reviewer_map, requested_reviewers)
+    _add_actors(reviewer_map, review_authors)
+    reviewers = _finalize_reviewers(
+        reviewer_map,
+        args.exclude_bots,
+        args.exclude_author,
+        pr_author,
+        pr_author_id,
+    )
 
     bot_count = sum(1 for r in reviewers if r["is_bot"])
     human_count = len(reviewers) - bot_count
