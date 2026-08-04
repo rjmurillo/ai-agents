@@ -2524,6 +2524,48 @@ def check_pushed_suppressions(stream: TextIO, repo_root: Path) -> int:
     return 1
 
 
+def _report_suppression_violations(
+    updates: Sequence[PushUpdate],
+    repo_root: Path,
+) -> int:
+    """Scan each update's range and report every net-new suppression."""
+    violations: list[str] = []
+    for update in updates:
+        paths = _changed_commit_paths(update, repo_root)
+        if paths is None:
+            return 2
+        added_violations = _added_suppression_violations(update, paths, repo_root)
+        if added_violations is None:
+            return 2
+        violations.extend(added_violations)
+    if not violations:
+        return 0
+    print("ERROR: security suppression comments detected in pushed commits:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    return 1
+
+
+def check_range_suppressions(base: str, head: str, repo_root: Path) -> int:
+    """CI backstop for the no-net-new suppression policy."""
+    head_sha = _resolve_commit(repo_root, head)
+    if head_sha is None:
+        print(f"ERROR: could not resolve head revision: {head}", file=sys.stderr)
+        return 2
+    base_sha = _merge_base(repo_root, base, head_sha) or _resolve_commit(repo_root, base)
+    if base_sha is None:
+        print(f"ERROR: could not resolve base revision: {base}", file=sys.stderr)
+        return 2
+    update = PushUpdate(
+        source=PushRef("HEAD", head_sha, "HEAD", base_sha),
+        base=base_sha,
+        head=head_sha,
+        range_spec=f"{base_sha}..{head_sha}",
+        destination_branch=None,
+    )
+    return _report_suppression_violations([update], repo_root)
+
+
 def _added_suppression_violations(
     update: PushUpdate,
     paths: Sequence[str],
@@ -4944,6 +4986,13 @@ def _is_zero_sha(sha: str) -> bool:
     return len(sha) in ZERO_SHA_LENGTHS and not sha.strip("0")
 
 
+def _resolve_commit(repo_root: Path, ref: str) -> str | None:
+    result = _run_git(repo_root, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
 def _merge_base(repo_root: Path, base: str, head: str) -> str | None:
     result = _run_git(repo_root, ["merge-base", base, head])
     if result.returncode != 0:
@@ -6190,6 +6239,10 @@ def _handle_staged_suppressions(args: argparse.Namespace) -> int:
     return check_staged_suppressions(_repo_root(args))
 
 
+def _handle_suppressions_range(args: argparse.Namespace) -> int:
+    return check_range_suppressions(args.base, args.head, _repo_root(args))
+
+
 def _handle_suppression_diff(args: argparse.Namespace) -> int:
     return check_suppression_diff(args.base_ref, _repo_root(args))
 
@@ -6271,6 +6324,10 @@ def build_parser() -> argparse.ArgumentParser:
     generated = subparsers.add_parser("stage-generated")
     generated.add_argument("kind", choices=sorted(GENERATED_PATHS | GENERATED_GLOBS))
     generated.set_defaults(handler=_handle_stage_generated)
+    suppression_range = subparsers.add_parser("security-suppressions-range")
+    suppression_range.add_argument("--base", required=True)
+    suppression_range.add_argument("--head", default="HEAD")
+    suppression_range.set_defaults(handler=_handle_suppressions_range)
     suppression_diff = subparsers.add_parser(
         "security-suppressions-diff",
         help="CI backstop: check HEAD..base_ref range for new security suppressions",
