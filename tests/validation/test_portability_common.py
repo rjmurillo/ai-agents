@@ -75,7 +75,6 @@ def test_resolve_baseline_rejects_path_outside_repo(tmp_path: Path) -> None:
             root,
             outside,
             "default.json",
-            reject_outside_root=True,
         )
         is None
     )
@@ -192,7 +191,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
         link.symlink_to(target)
 
         resolved = common.resolve_baseline_path(
-            root, Path("scripts/validation/link.json"), "d.json", reject_outside_root=True
+            root, Path("scripts/validation/link.json"), "d.json"
         )
 
         assert resolved.name == "link.json"
@@ -208,7 +207,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
         outside.write_text("{}", encoding="utf-8")
 
         resolved = common.resolve_baseline_path(
-            root, outside, "d.json", reject_outside_root=True
+            root, outside, "d.json"
         )
 
         assert resolved is None
@@ -222,7 +221,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
         link.symlink_to(outside)
 
         resolved = common.resolve_baseline_path(
-            root, link, "d.json", reject_outside_root=True
+            root, link, "d.json"
         )
 
         assert resolved is None
@@ -233,7 +232,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
         (root / "scripts" / "validation").mkdir(parents=True)
 
         resolved = common.resolve_baseline_path(
-            root, Path("scripts/validation/b.json"), "d.json", reject_outside_root=True
+            root, Path("scripts/validation/b.json"), "d.json"
         )
 
         assert resolved == root / "scripts" / "validation" / "b.json"
@@ -257,7 +256,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
         override = Path("link/../victim.json")
 
         resolved = common.resolve_baseline_path(
-            root, override, "d.json", reject_outside_root=True
+            root, override, "d.json"
         )
 
         assert resolved.resolve() == (root / override).resolve()

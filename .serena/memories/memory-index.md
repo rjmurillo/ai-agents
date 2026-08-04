@@ -19,10 +19,11 @@
 |jq json parse filter select map array object string: [skills-jq-index](skills-jq-index.md) (356)
 |gh extension notify combine metrics milestone webhook grep sub-issue: [skills-gh-extensions-index](skills-gh-extensions-index.md) (346)
 |label milestone issue create tag priority: [project/project-labels-milestones](project/project-labels-milestones.md) (325)
-|copilot review false-positive triage response: [skills-copilot-index](skills-copilot-index.md) (316)
-|copilot cli agent frontmatter regression version pin auto-update diagnostic: [skills-copilot-index](skills-copilot-index.md) (316), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1875)
+|copilot review false-positive triage response: [skills-copilot-index](skills-copilot-index.md) (497)
+|copilot cli agent frontmatter regression version pin auto-update diagnostic: [skills-copilot-index](skills-copilot-index.md) (497), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1875)
 |triage stale closure verify history bot superseded duplicate: [pr-review/triage-001-verify-before-stale-closure](pr-review/triage-001-verify-before-stale-closure.md) (435), [pr-review/triage-002-bot-closure-verification](pr-review/triage-002-bot-closure-verification.md) (452)
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
+|pr checks read rollup truncation cancelled superseded severity required rerun get_pr_checks: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1483)
 |blocked pr mergeStateStatus ruleset required contexts thread resolution commit limit bypass diagnose: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (908)
 
 [Scripting and Testing]
@@ -64,6 +65,11 @@
 [CI/CD and Workflows]
 |spec coverage acceptance criteria checkbox observe signal non-blocking required check push-pr body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
 |count ratchet baseline branch freshness behind main stale higher baseline merge origin/main: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (822)
+|stale detached HEAD shared checkout verify wrong commit git show ref path worktree parse fresh input: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (654)
+|validate PR check red advisory blocking signal DESCRIPTION_RESULT TEMPLATE_STATUS exit code file mentioned but not in diff CRITICAL WARNING: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (2488)
+|linking an issue Closes Fixes Resolves Implements Refs arms AI spec validation acceptance criteria PARTIAL completeness trace check_spec_failures analyst critic: [ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff](ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff.md) (1302)
+|job name collision duplicate check name ambiguous red Validate budget Check Changed Paths Detect changes Aggregate Results gh pr checks json link run view job: [ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous](ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous.md) (1461)
+|copilot skill mirror two canonical sources generate_skills generate_commands bridged slash command push-pr collision abort: [copilot/copilot-skill-mirror-has-two-sources](copilot/copilot-skill-mirror-has-two-sources.md) (848)
 |mutation testing line swap stale bytecode __pycache__ false green coverage: [ci/ci-line-swap-mutations-reuse-stale-bytecode](ci/ci-line-swap-mutations-reuse-stale-bytecode.md) (834)
 |episode metrics commits zero endingCommit extract_session_episode preserve store predates: [ci/episode-ratchet-trips-because-the-episode-predates-the-commit](ci/episode-ratchet-trips-because-the-episode-predates-the-commit.md) (670)
 |CI CD workflow actions runner ARM: [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (845)

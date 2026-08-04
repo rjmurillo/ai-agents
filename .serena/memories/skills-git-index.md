@@ -10,3 +10,4 @@
 | branch switch file verification state reset uncommitted lost | [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) |
 | branch verify current show-current commit push reset mutating MUST | [git/git-004-branch-verification-before-commit](git/git-004-branch-verification-before-commit.md) |
 | unique commits discard ahead already-up-to-date destroy unpushed cherry-pick | [git/git-list-unique-commits-before-any-reset](git/git-list-unique-commits-before-any-reset.md) |
+| diff direction reversed minus lines predates misread restore | [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) |
