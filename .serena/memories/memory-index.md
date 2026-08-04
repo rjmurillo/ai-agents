@@ -14,6 +14,7 @@
 |new_pr create stale main ref session end validation failed opaque diff: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
 |git diff origin main direction stale branch deletion behind predates restore: [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) (496)
 |close_issue comment-file must stay under repo root git scratch verify-claims unmerged reason quoting: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (891)
+|pr autofix late merge live state base refresh closed branch recovery: [pr-autofix/pr-4323-late-base-refresh](pr-autofix/pr-4323-late-base-refresh.md) (144)
 |github pr issue cli gh api review comment batch response: [skills-github-cli-index](skills-github-cli-index.md) (552), [skills-pr-review-index](skills-pr-review-index.md) (1019), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object string: [skills-jq-index](skills-jq-index.md) (356)
@@ -74,6 +75,7 @@
 |workflow pattern composite matrix artifact verdict report: [skills-workflow-patterns-index](skills-workflow-patterns-index.md) (284)
 |dorny paths-filter checkout base ref PR changes: [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) (930)
 |lefthook group parallel serial summary sum arithmetic config authoritative derive: [decision-read-the-config-not-the-run-summary](decision-read-the-config-not-the-run-summary.md) (964)
+|doc-only repair prose shell snippet agent carrier no test does not survive merge executable guard pre-fix carriers failed passed split: [decision-doc-only-repairs-need-an-executable-guard](decision-doc-only-repairs-need-an-executable-guard.md) (620)
 
 [Documentation and Planning]
 |documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)
