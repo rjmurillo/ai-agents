@@ -961,14 +961,11 @@ def _declined_cell(system: str) -> dict[str, Any]:
 def _add_mechanism_metadata(
     mechanism_result: dict[str, Any],
     routing: dict[str, Any] | None,
-    metadata: dict[str, object],
+    fingerprint: str | None,
 ) -> None:
-    """Add optional routing and validated provider provenance."""
+    """Add optional routing and already-validated provider provenance."""
     if routing is not None:
         mechanism_result["routing"] = routing
-    fingerprint = require_str_or_none(
-        metadata.get("system_fingerprint"), "system_fingerprint"
-    )
     if fingerprint is not None:
         mechanism_result["system_fingerprint"] = fingerprint
 
@@ -1100,6 +1097,9 @@ def eval_one_scenario(
                 seed=seed,
                 metadata=metadata,
             )
+            fingerprint = require_str_or_none(
+                metadata.get("system_fingerprint"), "system_fingerprint"
+            )
         except MalformedProviderMetadataError:
             raise
         except RuntimeError as e:
@@ -1132,7 +1132,7 @@ def eval_one_scenario(
             "score_reducer": judge_reducer,
             "system_prompt_chars": len(system),
         }
-        _add_mechanism_metadata(mechanism_result, routing, metadata)
+        _add_mechanism_metadata(mechanism_result, routing, fingerprint)
         result["mechanisms"][mechanism] = mechanism_result
     return result
 

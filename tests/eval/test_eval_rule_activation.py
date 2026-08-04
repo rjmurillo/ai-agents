@@ -1077,6 +1077,7 @@ class TestJudgeSampleReduction:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        judge_calls = 0
 
         def fake_call_api(*args: object, **kwargs: object) -> str:
             metadata = kwargs["metadata"]
@@ -1084,17 +1085,18 @@ class TestJudgeSampleReduction:
             metadata["system_fingerprint"] = {"id": "fp"}
             return "response"
 
-        monkeypatch.setattr(eval_mod, "_call_api", fake_call_api)
-        monkeypatch.setattr(
-            eval_mod,
-            "score_response",
-            lambda *args, **kwargs: {
+        def fake_score(*args: object, **kwargs: object) -> dict[str, object]:
+            nonlocal judge_calls
+            judge_calls += 1
+            return {
                 "activation_score": 5,
                 "citation_score": 5,
                 "behavior_score": 5,
                 "judge_failed": False,
-            },
-        )
+            }
+
+        monkeypatch.setattr(eval_mod, "_call_api", fake_call_api)
+        monkeypatch.setattr(eval_mod, "score_response", fake_score)
 
         with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
             eval_mod.eval_one_scenario(
@@ -1108,6 +1110,7 @@ class TestJudgeSampleReduction:
                 judge_repeats=1,
                 judge_reducer="median",
             )
+        assert judge_calls == 0
 
     def test_eval_one_scenario_propagates_metadata_error_from_response_call(
         self, monkeypatch: pytest.MonkeyPatch
