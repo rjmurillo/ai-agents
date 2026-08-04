@@ -1,4 +1,4 @@
-# taste-lint: ignore file-size, validator fixture matrix belongs beside assertions.
+# taste-lint: ignore file-size, validator regression suite keeps shared fixtures.
 """Tests for validate_session_json module.
 
 These tests verify the session log validation functionality used for
@@ -2536,6 +2536,30 @@ class TestEndingCommitReachability:
         warnings = validate_session_log(log).warnings
         assert any("endingCommit is empty" in w for w in warnings)
         assert not any("issue #3618" in w for w in warnings)
+
+    def test_orphaned_ending_commit_message_names_squash_merge(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The error message names squash merge as a cause (issue #4312).
+
+        The most common cause in this repo is a squash merge: the branch is
+        merged and the branch commits disappear from the history, leaving the
+        logged endingCommit unreachable. The old message only mentioned amend
+        and rebase, sending users down a dead end.
+        """
+        from scripts import validate_session_json
+
+        repo, _, _ = self._make_repo(tmp_path)
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", repo)
+        log = _make_valid_log()
+        log["endingCommit"] = "0" * 40
+        errors = validate_session_log(log).errors
+        matching = [e for e in errors if "issue #3618" in e]
+        assert matching, "expected at least one error referencing issue #3618"
+        message = matching[0]
+        assert "squash" in message.lower(), (
+            f"error message should name squash merge as a cause (#4312); got: {message!r}"
+        )
 
 
 class TestARequiredItemCannotChooseItsOwnEnforcement:
