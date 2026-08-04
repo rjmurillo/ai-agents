@@ -71,6 +71,38 @@ The function's own docstring stated the real behavior accurately. Reading it wou
 
 This section binds any assertion about another component's behavior, whatever words carry it. The trigger is not a phrase like "mirrors"; the trigger is that you told the reader what some other code does.
 
+## True when you wrote it is not true at merge
+
+The rules above assume the thing you cite exists. In a repository worked through several worktrees at once, that assumption is the one most likely to be false, and it fails in a way no reviewer notices, because the citation was accurate on the machine where it was written.
+
+You write documentation on branch A naming a test, a constant, or a function that you added on branch B. Your shell finds it. Every reader of branch A does not. If A merges first it ships a pointer to nothing.
+
+Nothing in this repository catches that. Two gates look like they would and neither does:
+
+- `orphan-ref-validator` reports four kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-34` enumerates all of them:
+
+  ```python
+  Kind = Literal[
+      "skill_name",
+      "script_path",
+      "rule_path",
+      "instruction_path",
+      "scan_truncated",
+  ]
+  ```
+
+  Every pattern in `patterns.py` matches a file path or a skill name. A test function name and a module constant are neither, so they are invisible to it.
+
+- markdownlint never sees governance prose at all. `.markdownlint-cli2.yaml:131` lists `- ".agents/**"` under `ignores:`, so a PASS on any `.agents/` path means the file was not linted.
+
+To every gate in the repository, a citation to a symbol is ordinary prose. The only check is the one you run.
+
+Before you merge a document that names a test, a symbol, or a count, run `git grep -n "<name>"` **in the worktree of the branch that will merge**, not the one you did the work in. If it returns nothing, either move the documentation to the branch that owns the code or move the code.
+
+The same applies to numbers. A count is a measurement of a commit, not a permanent fact. Re-run it against the tree you are shipping.
+
+On 2026-08-03 both halves of this fired in one change. `TESTING-ANTI-PATTERNS.md` on `test/vacuous-assertion-anti-pattern` cited a test name and a `DID_NOT_RUN` constant that existed only on `fix/gate-aggregator-did-not-run`; `git grep` returned zero hits for both on the branch carrying the prose. Two review rounds on that branch had not reported it. The passing count in the same paragraph was stale for the same reason: it was measured when the file held 41 tests and the file had since grown to 42.
+
 ## The one place the mirror outranks the source: always-on membership
 
 Everything above says the canonical source is authoritative and a generated mirror is not. For one question that is backwards, and the inversion is easy to miss because it contradicts the rest of this file.
