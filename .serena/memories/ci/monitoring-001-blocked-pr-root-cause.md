@@ -60,6 +60,24 @@ gh pr checks $PR_NUMBER --repo $REPO | grep -E "(pending|fail|skipping)"
 | Check shows "skipping" | Conditional execution skipped | Check conditions |
 | Check shows "fail" | Actual failure | Fix code/config |
 
+## Superseded specifics (measured 2026-08-01)
+
+The principle above holds. Three of its specifics no longer match the repo:
+
+1. "Needs main merge" is wrong as a general unblock. The main ruleset sets
+   `strict_required_status_checks_policy: false`, so being behind main does not
+   block a merge. Merging main to unblock is cargo cult unless a workflow file
+   the PR needs actually changed on main.
+2. "Awaiting review" is rarely the answer. `required_approving_review_count`
+   is 0. What does block is `required_review_thread_resolution: true`, so an
+   unresolved thread, not a missing approval.
+3. `BLOCKED` with every gate clear does not mean the server refuses. Verified
+   on #4387 and #4328: both merged on the first call to the merge endpoint.
+
+Read `diagnosing-a-blocked-pr.md` for the measured ruleset, the API paths, and
+the three-outcome diagnosis. That file is authoritative for what gates a merge
+in this repo; this one is authoritative for the reasoning habit.
+
 ## Memory-First Requirement
 
 **BEFORE** marking any PR as "awaiting review", read:

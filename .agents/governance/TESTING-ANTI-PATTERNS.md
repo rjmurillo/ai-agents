@@ -159,7 +159,7 @@ Measured on `agent_signal` in `scripts/quality_gate/external_signal_gate.py` (is
 
 Where a warning is genuinely wrong, the other discriminators are a counter or a structured result that names which branch produced the value. Asserting on the return value alone is what does not work.
 
-**Related**: Anti-Pattern 7 (Self-Shape Assertions), `.claude/rules/testing.md` SHOULD 9 (pick an input the unfixed implementation gets wrong)
+**Related**: Anti-Pattern 7 (Self-Shape Assertions), `.claude/rules/testing.md` SHOULD 10 (pick an input the unfixed implementation gets wrong) and SHOULD 11 (catch-all fallback)
 
 ---
 

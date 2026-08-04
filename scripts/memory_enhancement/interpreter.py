@@ -25,6 +25,7 @@ from pathlib import Path
 
 REQUIRED_MODULE = "frontmatter"
 REENTRY_GUARD = "MEMORY_HOOK_VENV_REEXEC"
+VENV_DIRNAME = ".venv"
 
 _INTERPRETER_NAMES = ("bin/python3", "bin/python", "Scripts/python.exe")
 
@@ -45,12 +46,32 @@ def dependency_available(module_name: str = REQUIRED_MODULE) -> bool:
 
 def find_venv_interpreter(project_dir: Path) -> Path | None:
     """Interpreter inside ``project_dir/.venv``, or None when there is none."""
-    venv_dir = project_dir / ".venv"
+    venv_dir = project_dir / VENV_DIRNAME
     for relative in _INTERPRETER_NAMES:
         candidate = venv_dir / relative
         if candidate.is_file():
             return candidate
     return None
+
+
+def running_under_venv(venv_dir: Path) -> bool:
+    """True when the interpreter executing this call belongs to venv_dir.
+
+    ``sys.prefix`` is the virtualenv root while a virtualenv is active and the
+    base installation otherwise, so it separates the two cases directly.
+
+    Comparing interpreter paths does not, which is what issue #4468 reports.
+    A virtualenv's ``bin/python3`` is a symlink to the interpreter it was built
+    from, so ``os.path.realpath`` collapses the virtualenv path and the running
+    interpreter to the same file whenever both descend from that base install.
+    That holds for the system ``python3`` the hooks actually run under, so the
+    path comparison reported "already running here" for every invocation and
+    the re-exec never happened.
+    """
+    try:
+        return Path(sys.prefix).resolve() == venv_dir.resolve()
+    except OSError:
+        return False
 
 
 def reexec_under_project_venv(
@@ -60,9 +81,9 @@ def reexec_under_project_venv(
 
     Returns without doing anything when the dependency already imports, when
     the guard variable marks this process as the re-exec, when the project has
-    no virtualenv, or when the virtualenv interpreter is the running one. The
-    guard is set in ``os.environ`` before the exec so the child inherits it and
-    a broken virtualenv cannot loop.
+    no virtualenv, or when this process is already running under that
+    virtualenv. The guard is set in ``os.environ`` before the exec so the child
+    inherits it and a broken virtualenv cannot loop.
     """
     if os.environ.get(REENTRY_GUARD) == "1":
         return
@@ -72,7 +93,7 @@ def reexec_under_project_venv(
     interpreter = find_venv_interpreter(project_dir)
     if interpreter is None:
         return
-    if os.path.realpath(interpreter) == os.path.realpath(sys.executable):
+    if running_under_venv(project_dir / VENV_DIRNAME):
         return
 
     os.environ[REENTRY_GUARD] = "1"

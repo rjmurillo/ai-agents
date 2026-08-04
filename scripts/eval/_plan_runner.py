@@ -90,8 +90,7 @@ class PlanRunner:
         tokens_in, tokens_out = _estimate_tokens(planned_calls)
         basis = cost_basis(provider)
         cost_usd = (
-            None
-            if basis == "requests"
+            None if basis == "requests"
             else _estimate_cost_usd(model_id, tokens_in, tokens_out)
         )
 
@@ -110,14 +109,16 @@ class PlanRunner:
 
     @staticmethod
     def format_plan_lines(plan: ExecutionPlan) -> list[str]:
-        """Lines printed by --dry-run. Format is locked by the test suite.
+        """Lines printed by `--dry-run`. Format is locked by the test suite.
 
-        The USD line is unchanged for per-token providers. A quota-billed
-        provider gets a different line rather than a zero-dollar one: printing
-        cost_estimate_usd=0.00 would read as a free run.
+        The USD line is unchanged for every per-token provider. A quota-billed
+        provider gets a different line rather than a zero-dollar one, because
+        `cost_estimate_usd=0.00` would read as a free run.
         """
         if plan.estimated_cost_usd is None:
-            cost_line = f"cost_estimate_requests={plan.planned_calls} basis=requests"
+            cost_line = (
+                f"cost_estimate_requests={plan.planned_calls} basis=requests"
+            )
         else:
             cost_line = (
                 f"cost_estimate_usd={plan.estimated_cost_usd:.2f} "
