@@ -63,6 +63,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "fa57eb5cb, verified equal to origin/main immediately before push."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed SESSION-PROTOCOL.md and PROJECT-CONSTRAINTS.md at session start."
       }
     },
     "sessionEnd": {
