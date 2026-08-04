@@ -62,9 +62,7 @@ _BOOTSTRAP_FUNC = "ensure_plugin_paths"
 def _collect_python_files(directory: Path) -> list[Path]:
     """Collect all .py files recursively, excluding __pycache__ and tests."""
     return [
-        p
-        for p in directory.rglob("*.py")
-        if "__pycache__" not in str(p) and "tests" not in str(p)
+        p for p in directory.rglob("*.py") if "__pycache__" not in str(p) and "tests" not in str(p)
     ]
 
 
@@ -144,7 +142,8 @@ class TestPluginPathResolution:
         )
 
     def test_hooks_with_lib_imports_use_plugin_root(
-        self, hook_files: list[Path],
+        self,
+        hook_files: list[Path],
     ) -> None:
         """Hooks importing from lib must use CLAUDE_PLUGIN_ROOT for path resolution.
 
@@ -193,7 +192,8 @@ class TestSkillPluginPathResolution:
         return [s for s in scripts if _has_lib_import(s.read_text(encoding="utf-8"))]
 
     def test_skill_scripts_use_plugin_root(
-        self, skill_scripts_with_lib_imports: list[Path],
+        self,
+        skill_scripts_with_lib_imports: list[Path],
     ) -> None:
         """Skill scripts importing from lib must use CLAUDE_PLUGIN_ROOT."""
         violations = []
@@ -209,7 +209,8 @@ class TestSkillPluginPathResolution:
         )
 
     def test_skill_scripts_validate_lib_dir_exists(
-        self, skill_scripts_with_lib_imports: list[Path],
+        self,
+        skill_scripts_with_lib_imports: list[Path],
     ) -> None:
         """Skill scripts with CLAUDE_PLUGIN_ROOT must validate lib dir exists (ADR-047)."""
         violations = []
@@ -226,7 +227,7 @@ class TestSkillPluginPathResolution:
 
     def test_no_skip_on_missing_agents_dir(self) -> None:
         """No skill script should skip when .agents/ is missing (ADR-047)."""
-        skip_pattern = '[SKIP] .agents/ not found'
+        skip_pattern = "[SKIP] .agents/ not found"
         violations = []
         for script_path in _collect_python_files(SKILLS_DIR):
             content = script_path.read_text(encoding="utf-8")
@@ -236,5 +237,38 @@ class TestSkillPluginPathResolution:
 
         assert not violations, (
             "Scripts that skip on missing .agents/ (should create instead):\n"
+            + "\n".join(f"  - {v}" for v in violations)
+        )
+
+    def test_skill_scripts_do_not_blindly_trust_plugin_root(self) -> None:
+        """Skill scripts must not trust CLAUDE_PLUGIN_ROOT without verifying the
+        lib dir (issue #3897). Blind trust causes exit-2 when a different Copilot
+        extension sets CLAUDE_PLUGIN_ROOT to its own root.
+
+        The anti-pattern is ``if _plugin_root:`` followed immediately by path
+        construction, which commits to the path before checking existence.
+        The required pattern guards with
+        ``if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib"))``.
+
+        This test covers the five scripts where the fix was applied in this PR.
+        The remaining github skill scripts (issue #3897) are tracked separately.
+        """
+        fixed_scripts = [
+            SKILLS_DIR / "github/scripts/pr/get_pr_context.py",
+            SKILLS_DIR / "github/scripts/pr/get_pr_check_logs.py",
+            SKILLS_DIR / "github/scripts/pr/resolve_pr_review_thread.py",
+            SKILLS_DIR / "github/scripts/pr/add_pr_review_thread_reply.py",
+            SKILLS_DIR / "github/scripts/pr/test_pr_merge_ready.py",
+        ]
+        blind_trust_pattern = 'if _plugin_root:\n    _lib_dir = os.path.join(_plugin_root, "lib")'
+        violations = []
+        for script_path in fixed_scripts:
+            content = script_path.read_text(encoding="utf-8")
+            if blind_trust_pattern in content:
+                rel = script_path.relative_to(REPO_ROOT)
+                violations.append(str(rel))
+
+        assert not violations, (
+            "Scripts that regressed to blind CLAUDE_PLUGIN_ROOT trust (issue #3897):\n"
             + "\n".join(f"  - {v}" for v in violations)
         )
