@@ -19,7 +19,11 @@ from typing import Any
 
 import pytest
 
-from scripts.validation.checks_coverage import _as_advisory, validate_review_marker
+from scripts.validation.checks_coverage import (
+    _as_advisory,
+    _print_output,
+    validate_review_marker,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -121,3 +125,68 @@ def test_as_advisory_leaves_a_non_leading_token_alone() -> None:
 def test_as_advisory_leaves_unrelated_lines_alone() -> None:
     assert _as_advisory("[OK] marker binds HEAD") == "[OK] marker binds HEAD"
     assert _as_advisory("") == ""
+
+
+def _marker_line_count(captured: str) -> int:
+    """Count how many times the wrapped script's verdict line was forwarded."""
+    return sum(
+        1 for line in captured.splitlines() if "a review marker must be an empty commit" in line
+    )
+
+
+def test_advisory_failure_forwards_each_line_once(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: Any,  # noqa: ANN401
+) -> None:
+    """The verdict line is printed on the exit path only, never twice.
+
+    An earlier revision printed the wrapped output unconditionally before the
+    verdict was known, and then again from the branch that knew it. Both copies
+    were correct in isolation, so a severity-only assertion cannot see the
+    duplicate.
+    """
+    repo = _repo(tmp_path, with_script=True)
+    monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+
+    validate_review_marker(repo)
+
+    assert _marker_line_count(capsys.readouterr().out) == 1
+
+
+def test_enforced_failure_forwards_each_line_once(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: Any,  # noqa: ANN401
+) -> None:
+    repo = _repo(tmp_path, with_script=True)
+    monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
+
+    validate_review_marker(repo)
+
+    assert _marker_line_count(capsys.readouterr().out) == 1
+
+
+def test_print_output_downgrade_spares_a_non_leading_token(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Forwarding must reuse the leading-token rule, not a bare substring swap.
+
+    ``_as_advisory`` is unit-tested for this, but that proves nothing about the
+    forwarder unless the forwarder actually calls it. A ``str.replace`` here
+    passes every other test in this file and still rewrites a ``[FAIL]`` that
+    the wrapped script printed as content rather than as a verdict.
+    """
+    line = "grep for [FAIL] in the log"
+
+    _print_output(line, rewrite_fail_to_warn=True)
+
+    assert capsys.readouterr().out.strip() == line
+
+
+def test_print_output_downgrade_still_rewrites_a_leading_token(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _print_output("[FAIL] no marker", rewrite_fail_to_warn=True)
+
+    assert capsys.readouterr().out.strip() == "[WARN] no marker"
