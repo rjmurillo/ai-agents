@@ -86,6 +86,13 @@ jobs:
           # truncated trunk still reads as a trunk.
           fetch-depth: 0
 
+      # Must precede every `uv run` in this job. `Check PR commit count` below
+      # is the first one, and the runner has no preinstalled uv, so ordering
+      # this after it fails the step with `uv: command not found` (exit 127).
+      - name: Setup uv
+        if: steps.should-run.outputs.skip != 'true'
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
       - name: Setup PowerShell
         if: steps.should-run.outputs.skip != 'true'
         shell: pwsh
@@ -165,7 +172,7 @@ jobs:
         # live in the testable module. A transient GitHub API failure degrades
         # to status=UNKNOWN and exit 0 (issue #3262); the downstream Enforce
         # Blocking Issues step still enforces a real BLOCKED status.
-        run: python3 scripts/validation/pr_commit_count.py --pr-number "$PR_NUMBER"
+        run: uv run --frozen python scripts/validation/pr_commit_count.py --pr-number "$PR_NUMBER"
 
       - name: Apply needs-split label
         # Fixes #2557: this step is ADVISORY and must never fail the job.
@@ -249,7 +256,7 @@ jobs:
       # the actors who author workflow changes is weaker than the hook it
       # backstops, not equal to it.
       - name: Run ADR-006 run-block ratchet
-        run: python3 scripts/ci/adr006_run_block_scanner.py --max 58
+        run: python3 scripts/ci/adr006_run_block_scanner.py --max 0
 
       # Issue #3779: taste-lints emits severity="error" and nothing could fail
       # because of one. The linter itself is correct (it exits 10 on an error),
@@ -294,6 +301,31 @@ jobs:
           # CI-only: see taste-lint ratchet step above for the --depth=1 caveat.
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
+      # Issue #4398: the three count ratchets measure the branch head, not the
+      # merged result. A branch cut before main lowered a baseline can pass its
+      # own count check yet breach the ceiling once it lands. This step evaluates
+      # all three ratchets against the result of merging HEAD into base_ref, so
+      # the stale-branch hole is closed at merge time, not only at push time.
+      #
+      # The check is complementary to reserve-band enforcement (issue #4345),
+      # which closes the concurrent-admission hole. Neither subsumes the other.
+      #   - merge-tree ratchet: one stale PR merging green against old main.
+      #     PR #4272 is the canonical example (file grew past ceiling on old main).
+      #   - reserve band: three PRs each passing the SAME current main;
+      #     union breaches (measured: af27638a6 +891, 9a7bd1d93 +339,
+      #     7b5279967 +259; each passed alone, cumulative 82603 -> 83201
+      #     against 83000 ceiling).
+      #
+      # Conflict policy: a conflicting PR cannot merge anyway; skip with a
+      # message rather than blocking on a check that duplicates the merge gate.
+      - name: Run merge-tree ratchet
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # CI-only: --depth=1 keeps this disposable checkout shallow.
+          # See taste-lint ratchet step above for the caveat on working clones.
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen --extra dev python3 scripts/ci/merge_tree_ratchet_check.py --base-ref FETCH_HEAD
       # Issue #3770: `conflict-marker-policy` runs only at pre-commit over the
       # index. Every route that skips local hooks reached the remote unchecked:
       # a server-side merge from the "Update branch" button, `--no-verify`, a
@@ -316,6 +348,12 @@ jobs:
       # is clean today, so this is a ratchet at zero with no allowlist.
       - name: Check for conflict markers
         run: uv run --frozen python3 scripts/validation/git_hook_policy.py tracked-conflict-markers
+
+      # Issue #4068: scripts with a `main` entrypoint need tests that prove the
+      # CLI returns nonzero on failure. Helper-only assertions miss silent-pass
+      # regressions after shell logic moves into Python.
+      - name: Run CLI exit contract ratchet
+        run: uv run --frozen python3 scripts/ci/cli_exit_contract_ratchet.py
 
       # Issue #2840: ADR-080 requires an unjustified `model:` pin to fail CI.
       # `check_model_pins.py --mode enforce` exits 1 on a new or changed pin

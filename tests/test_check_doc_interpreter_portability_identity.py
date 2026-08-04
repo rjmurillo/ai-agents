@@ -6,6 +6,8 @@ same file at equal count must fire the ratchet. A count-only baseline misses thi
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -36,7 +38,6 @@ def test_same_count_swap_is_detected_with_identity_baseline(
     )
     baseline = write_baseline(repo, {"README.md": ["script_a.py"]})
     (repo / "README.md").write_text("Run `python3 script_b.py`.\n", encoding="utf-8")
-    import subprocess
 
     subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-m", "swap doc"], cwd=repo, check=True)
@@ -115,3 +116,54 @@ def test_diff_against_baseline_swap_detection() -> None:
     # script_b.py is present (count 1) and baseline has script_a.py (count 1).
     # cur == limit, so no improvement entry is generated.
     assert improvements == []
+
+
+# --- regression guard: make_repo must be hermetic ---------------------------
+
+
+def test_make_repo_commits_without_ambient_git_identity(tmp_path: Path) -> None:
+    """A repo from make_repo must commit with no global or system git config.
+
+    CI runners carry no global identity, so a `git commit` that relies on one
+    exits 128 there while passing on any developer machine. Scrubbing both
+    config scopes reproduces the runner and fails deterministically if the
+    local identity is ever dropped from make_repo.
+    """
+    repo = make_repo(tmp_path, {"README.md": "text\n"})
+    scrubbed = {
+        **os.environ,
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_SYSTEM": os.devnull,
+    }
+
+    result = subprocess.run(
+        ["git", "commit", "-q", "-m", "hermetic"],
+        cwd=repo,
+        env=scrubbed,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, f"commit needs ambient identity: {result.stderr}"
+
+
+def test_make_repo_identity_is_local_not_global(tmp_path: Path) -> None:
+    """Negative control: the identity must live in the repo, not leak outward.
+
+    `--local` never falls back to the global or system scope, so a non-empty
+    answer here proves make_repo wrote repo-scoped config rather than the
+    sibling test passing only because the developer has a global identity set.
+    The address itself is not asserted: pinning it would fail on a rename that
+    keeps the invariant intact.
+    """
+    repo = make_repo(tmp_path, {"README.md": "text\n"})
+
+    email = subprocess.run(
+        ["git", "config", "--local", "--get", "user.email"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "@" in email.stdout.strip()

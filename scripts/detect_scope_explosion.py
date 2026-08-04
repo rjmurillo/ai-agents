@@ -105,6 +105,42 @@ def get_merge_head_commit() -> str | None:
     return get_ref_commit("MERGE_HEAD")
 
 
+def is_ancestor(commit: str, ref: str) -> bool:
+    """Return True if ``commit`` is reachable from ``ref`` (i.e. an ancestor).
+
+    ``git merge-base --is-ancestor A B`` exits 0 when A is an ancestor of B
+    (or equal to B) and 1 otherwise.  Exit 2+ signals an error (unknown ref,
+    repository problems) and is treated as False so the caller falls through to
+    the safe non-MERGE_HEAD path.
+
+    Used to distinguish the two MERGE_HEAD cases:
+
+    * MERGE_HEAD is upstream of HEAD (e.g. ``git merge origin/main``).
+      MERGE_HEAD is *ahead* of the base branch; it is NOT an ancestor of
+      ``origin/main``.  Counting staged files against MERGE_HEAD gives the
+      correct PR-only delta.
+    * MERGE_HEAD is the branch's own remote tip, which is *behind* main
+      (e.g. a non-fast-forward recovery via ``git merge origin/<same-branch>``).
+      MERGE_HEAD IS an ancestor of ``origin/main``.  Counting staged files
+      against it inflates the count by every file main gained since that tip
+      (Issue #4418: 635 reported when 17 were real).
+
+    Args:
+        commit: A commit SHA or ref to test.
+        ref: The ref to test reachability against.
+
+    Returns:
+        True when ``commit`` is an ancestor-or-equal of ``ref``.
+    """
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", commit, ref],
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+    return result.returncode == 0
+
+
 def resolve_base_ref(base_branch: str) -> str | None:
     """Resolve the most accurate base ref for diff comparison.
 
@@ -199,18 +235,26 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         # During an in-progress merge, the staged index already contains every
         # file from the upstream branch being merged. Counting that against the
         # base ref would surface upstream files as if they were PR changes
-        # (Issue #2376 — observed 86 files reported when the real PR diff was
+        # (Issue #2376 -- observed 86 files reported when the real PR diff was
         # 13). Compare the staged result directly against MERGE_HEAD so we
         # only count files this PR actually touches relative to what is being
         # merged in.
-        files = sorted(set(get_index_files_against_ref(merge_head)))
-        base_commit = get_ref_commit(base_ref) or merge_head
-        return ScopeResult(
-            file_count=len(files),
-            merge_base=base_commit[:12],
-            current_branch=branch,
-            files=tuple(files),
-        )
+        #
+        # Exception (Issue #4418): when MERGE_HEAD is a proper ancestor of the
+        # base branch, the branch is merging its own old remote tip, not the
+        # upstream branch. MERGE_HEAD is behind main, so counting staged files
+        # against it inflates the count by every file main gained since that
+        # tip (observed: 635 reported when 17 were real). Fall through to the
+        # normal merge-base path in this case.
+        base_commit = get_ref_commit(base_ref)
+        if merge_head == base_commit or not is_ancestor(merge_head, base_ref):
+            files = sorted(set(get_index_files_against_ref(merge_head)))
+            return ScopeResult(
+                file_count=len(files),
+                merge_base=(base_commit or merge_head)[:12],
+                current_branch=branch,
+                files=tuple(files),
+            )
 
     merge_base = get_merge_base(base_branch)
     if not merge_base:
@@ -251,12 +295,14 @@ def format_bar(count: int, threshold: int) -> str:
     return f"[{bar}] {count}/{BLOCK_THRESHOLD} files"
 
 
-def report(result: ScopeResult, quiet: bool = False) -> int:
+def report(result: ScopeResult, quiet: bool = False, from_prepush: bool = False) -> int:
     """Report scope status and return exit code.
 
     Args:
         result: Detection result.
         quiet: Suppress non-error output.
+        from_prepush: True when invoked from the pre-push hook (files already
+            committed; bypass requires ``git push``, not ``git commit``).
 
     Returns:
         Exit code: 0 for pass/warn, 1 for block.
@@ -279,10 +325,13 @@ def report(result: ScopeResult, quiet: bool = False) -> int:
         print(f"  Branch: {result.current_branch}")
         print(f"  {count} files changed since diverging from main.")
         print("  Strongly consider splitting this into smaller PRs.")
-        print("  Remediation:")
-        print("    1. Commit current work")
-        print("    2. Create a PR for the current scope")
-        print("    3. Start a new branch for remaining work")
+        if not from_prepush:
+            print("  Remediation:")
+            print("    1. Commit current work")
+            print("    2. Create a PR for the current scope")
+            print("    3. Start a new branch for remaining work")
+        else:
+            print("  Remediation: split commits onto separate branches and push each.")
         return 0
 
     # Block: count exceeds the hard limit (50 is allowed; 51+ blocks).
@@ -291,13 +340,17 @@ def report(result: ScopeResult, quiet: bool = False) -> int:
     print(f"  {count} files changed (over the {BLOCK_THRESHOLD}-file hard limit).")
     print("  This PR is too large to review effectively.")
     print("")
-    print("  Remediation:")
-    print("    1. Split into smaller, focused PRs")
-    print("    2. Use 'git stash' to save uncommitted work")
-    print("    3. Create a PR for the current scope, then continue")
+    if not from_prepush:
+        print("  Remediation:")
+        print("    1. Split into smaller, focused PRs")
+        print("    2. Use 'git stash' to save uncommitted work")
+        print("    3. Create a PR for the current scope, then continue")
+    else:
+        print("  Remediation: split commits onto separate branches and push each.")
     print("")
     print("  Bypass (justified large PRs only):")
-    print("    SKIP_SCOPE_CHECK=1 git commit ...")
+    bypass_cmd = "git push" if from_prepush else "git commit"
+    print(f"    SKIP_SCOPE_CHECK=1 {bypass_cmd} ...")
     return 1
 
 
@@ -313,8 +366,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--base-branch",
-        default="main",
-        help="Base branch to compare against (default: main)",
+        default=None,
+        help="Base branch to compare against (default: main). When supplied, the"
+        " script treats itself as running from the pre-push hook and adjusts"
+        " bypass instructions accordingly.",
     )
     parser.add_argument(
         "--quiet",
@@ -338,12 +393,13 @@ def main() -> int:
             print("Scope check bypassed (SKIP_SCOPE_CHECK=1)")
             return 0
 
-        result = detect_scope(args.base_branch)
+        result = detect_scope(args.base_branch or "main")
         if result is None:
             # Not on a feature branch or no merge base found
             return 0
 
-        return report(result, args.quiet)
+        from_prepush = args.base_branch is not None
+        return report(result, args.quiet, from_prepush=from_prepush)
 
     except subprocess.TimeoutExpired:
         print("ERROR: Git command timed out during scope detection", file=sys.stderr)

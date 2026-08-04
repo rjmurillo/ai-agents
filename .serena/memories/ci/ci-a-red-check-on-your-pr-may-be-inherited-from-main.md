@@ -23,10 +23,10 @@ recomputes the cached `refs/pull/N/merge`; a rerun replays the stale ref.
 ## Red `main` blocks `git push`, not just CI
 
 The same defect surfaces locally, where there is no PR and no run to inspect.
-The pre-push hook runs `scripts/validation/pre_pr.py` and
-`scripts/validation/git_hook_policy.py pytest`, so a branch carrying a red
-`main` is rejected until it repairs every inherited failure. Each rejection
-costs about seventeen minutes.
+The pre-push hook runs `uv run --frozen python scripts/validation/pre_pr.py`
+and `uv run --frozen python scripts/validation/git_hook_policy.py pytest`, so a
+branch carrying a red `main` is rejected until it repairs every inherited
+failure. Each rejection costs about seventeen minutes.
 
 Read the rejection before assuming your own change caused it. It names the gate
 that failed, which is the same discriminator the `gh run list` recipe gives you

@@ -127,7 +127,7 @@ def _iter_hook_script_paths(hooks_data: dict[str, Any]) -> list[str]:
     return paths
 
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.windows_path]
 
 
 @pytest.fixture
