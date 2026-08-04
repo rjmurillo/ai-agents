@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size
+#
+# file-size suppression rationale: this module is a registration sequence, not
+# logic. It holds one function whose body is ordered ``run_validation`` calls,
+# so its line count tracks how many gates the project has, not how hard the
+# module is to read. The rule's own remediation (extract helpers) does not
+# apply: the docstring below records that this file was itself extracted from
+# ``pre_pr.py`` for the same ceiling. The real fix is a table-driven registry
+# (issue #4285), which is out of scope for the change that crossed the line.
 """Ordered pre-PR validation sequence (extracted from ``pre_pr.py``, Issue #3073).
 
 Holds ``run_all_validations``: the ordered list of gates that ``pre_pr.main()``
@@ -37,6 +45,7 @@ from check_doc_interpreter_portability import (  # noqa: E402
 )
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_nested_tests import validate_no_nested_tests
+from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
 from check_unreachable_code import validate_unreachable_code
 from checks_coverage import (  # noqa: E402
@@ -183,6 +192,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Nested Test Detection", _root_only(validate_no_nested_tests)),
     _Gate("Duplicate Test Helper Detection", _root_only(validate_duplicate_test_helpers)),
     _Gate("Unreachable Code Detection", _root_only(validate_unreachable_code)),
+    _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Session End Validation", _root_only(validate_session_end)),
     _Gate(

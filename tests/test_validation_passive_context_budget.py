@@ -337,7 +337,6 @@ class TestMain:
     def test_fail_non_ci_returns_zero(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.delenv("CI", raising=False)
         content = "x" * 40000
         (tmp_path / "AGENTS.md").write_text(content, encoding="utf-8")
         exit_code = main(["--path", str(tmp_path), "--budget", "AGENTS.md:100"])

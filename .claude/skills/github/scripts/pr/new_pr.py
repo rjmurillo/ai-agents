@@ -120,6 +120,67 @@ def _git_env() -> dict[str, str]:
     }
 
 
+def _tracking_remote() -> str | None:
+    """Return the remote whose tracking refs the base should resolve against.
+
+    ``origin`` wins when it exists. A repository with exactly one differently
+    named remote uses that one. With several remotes and no ``origin`` there is
+    no non-arbitrary answer, so the caller falls back to the literal base.
+    """
+    result = subprocess.run(
+        ["git", "remote"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        env=_git_env(),
+    )
+    if result.returncode != 0:
+        return None
+    remotes = result.stdout.split()
+    if "origin" in remotes:
+        return "origin"
+    return remotes[0] if len(remotes) == 1 else None
+
+
+def resolve_comparison_base(base: str) -> str:
+    """Return the ref to diff against, preferring the remote-tracking branch.
+
+    ``--base`` names the PR target on the server. The local branch of the same
+    name is usually stale, because nothing advances it while you work on feature
+    branches. Diffing against a stale ``main`` makes every file merged upstream
+    since look like part of this branch. Session End validation then picks the
+    newest session log out of that inflated set, which belongs to somebody else,
+    and fails the PR for a file this branch never touched.
+
+    The remote-tracking ref moves on every fetch and is what GitHub compares
+    against, so prefer it. The returned ref is fully qualified as
+    ``refs/remotes/<remote>/<base>`` rather than the ``<remote>/<base>``
+    shorthand, because the shorthand is resolved by search order: a local branch
+    or tag literally named ``origin/main`` would shadow the remote-tracking ref
+    and silently reintroduce the stale-base bug this function exists to remove.
+
+    Fall back to the given name when no such ref exists, which covers local-only
+    bases, a ``--base`` already given as ``origin/x``, and repositories with no
+    unambiguous remote.
+    """
+    remote = _tracking_remote()
+    if remote is None:
+        return base
+    candidate = f"refs/remotes/{remote}/{base}"
+    probe = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        env=_git_env(),
+    )
+    return candidate if probe.returncode == 0 else base
+
+
 def get_repo_root() -> str:
     """Get the current worktree root directory.
 
@@ -335,7 +396,19 @@ def run_validations(
                             timeout=60,
                         )
                         if vresult.returncode != 0:
-                            print("Session End validation failed", file=sys.stderr)
+                            print(
+                                f"Session End validation failed for {session_log}",
+                                file=sys.stderr,
+                            )
+                            print(
+                                f"  (selected as the newest log in 'git diff {base}...{head}'. "
+                                "If that log is not yours, the base is behind: "
+                                "run 'git fetch origin' and retry.)",
+                                file=sys.stderr,
+                            )
+                            detail = f"{vresult.stdout or ''}{vresult.stderr or ''}".strip()
+                            if detail:
+                                print(detail, file=sys.stderr)
                             raise SystemExit(1)
         elif not has_legacy_md:
             print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
@@ -585,7 +658,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             run_validations(
                 repo_root,
-                args.base,
+                resolve_comparison_base(args.base),
                 head,
                 title=args.title,
                 body=args.body,
