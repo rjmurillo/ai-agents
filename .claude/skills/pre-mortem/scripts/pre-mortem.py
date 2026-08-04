@@ -16,7 +16,6 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -47,8 +46,8 @@ class Risk:
     impact: int
     score: int
     has_mitigation: bool
-    owner: Optional[str] = None
-    status: Optional[str] = None
+    owner: str | None = None
+    status: str | None = None
 
 
 REQUIRED_SECTIONS = [
@@ -73,7 +72,7 @@ VALID_CATEGORIES = [
 VALID_STATUSES = ["Open", "Mitigating", "Accepted", "Resolved"]
 
 
-def parse_risk_entry(text: str) -> Optional[Risk]:
+def parse_risk_entry(text: str) -> Risk | None:
     """Parse a risk entry from markdown text."""
     # Extract risk ID and name from header
     header_match = re.search(r"###\s+R(\d+):\s+(.+)", text)

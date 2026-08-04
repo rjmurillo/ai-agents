@@ -28,9 +28,9 @@ for search_path in (LIB_DIR, HOOKS_DIR):
     if search_path not in sys.path:
         sys.path.insert(0, search_path)
 
-import claude_hook_dispatch as chd  # noqa: E402
-import claude_hook_protocol as protocol  # noqa: E402
-import invoke_dispatch_claude as entry  # noqa: E402
+import claude_hook_dispatch as chd
+import claude_hook_protocol as protocol
+import invoke_dispatch_claude as entry
 
 
 def test_module_bootstrap_adds_lib_directory(monkeypatch):

@@ -258,5 +258,3 @@ class TestValidateCiDependencyPinsSkipsBeforeImporting:
 # ---------------------------------------------------------------------------
 # Issue #3710: a markdown gate that selects nothing must not report success
 # ---------------------------------------------------------------------------
-
-

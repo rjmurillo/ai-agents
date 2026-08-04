@@ -42,7 +42,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 try:
-    import paths  # noqa: E402
+    import paths
 except ImportError as exc:  # pragma: no cover - guarded by explicit path check
     raise RuntimeError(f"Failed to import portability helper paths.py from {_LIB_DIR}") from exc
 
