@@ -3,16 +3,162 @@
   "session": "2026-08-03-session-9020",
   "timestamp": "2026-08-03T00:00:00+00:00",
   "causal_order_version": 2,
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Fix issues #4366 #4382 #4425 #4498: push lock docs, stale base ref, session log deadlock, worktree ref desync",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged issues #4366, #4382, #4425, #4498 against current origin/main code",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-9020"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4425: added --creation-mode for new logs in validate_branch_sessions and check_sessions",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-9020"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4425: added exclude_path to _test_uncommitted_changes in complete_session_log.py",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-9020"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4382: added upstream fallback in _gh_base_ref in checks_common.py",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-9020"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4366/#4498: updated GOTCHAS.md and Serena memories with canonical lock path and worktree desync warning",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-9020"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added SESSION_PATH_RE filter in validate_branch_sessions and check_sessions",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-9020"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Synced src/copilot-cli mirror of complete_session_log.py",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-9020"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed episode metrics for session-9020",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-9020"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-03T22:51:42+00:00",
+      "type": "commit",
+      "content": "Commit: 817a3f4",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-9020"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T01:05:30+00:00",
+      "type": "commit",
+      "content": "Commit: 6a0e4a5",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-03-session-9020"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-04T02:50:19+00:00",
+      "type": "commit",
+      "content": "Commit: e6d4bd6",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-03-session-9020"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-04T03:28:02+00:00",
+      "type": "commit",
+      "content": "Commit: 4cba2e03e",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9020"
+    }
+  ],
   "metrics": {
-    "duration_minutes": 0,
+    "duration_minutes": 120,
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 4,
     "files_changed": 8
   },
   "lessons": []
