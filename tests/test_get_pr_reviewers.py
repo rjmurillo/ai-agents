@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,13 +13,11 @@ import pytest
 
 from scripts.github_core.api import RepoInfo
 
-# ---------------------------------------------------------------------------
-# Import the script via importlib (not a package)
-# ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1]
     / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
+_MODULE = "get_pr_reviewers"
 
 
 def _import_script(name: str):
@@ -32,39 +30,102 @@ def _import_script(name: str):
     return mod
 
 
-_mod = _import_script("get_pr_reviewers")
+_mod = _import_script(_MODULE)
 main = _mod.main
 build_parser = _mod.build_parser
+_is_bot = _mod._is_bot
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def _actor(
+    login: str,
+    account_id: int | None = None,
+    actor_type: str = "User",
+) -> dict:
+    return {
+        "__typename": actor_type,
+        "login": login,
+        "databaseId": account_id,
+    }
 
 
-def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
-    return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
+def _comment(
+    login: str,
+    account_id: int | None = None,
+    actor_type: str = "User",
+) -> dict:
+    return {
+        "user": {
+            "login": login,
+            "id": account_id,
+            "type": actor_type,
+        }
+    }
 
 
-def _pr_json(
-    author: str = "alice",
-    review_requests=None,
-    reviews=None,
-    author_id: int | None = None,
+def _request_node(actor: dict | None) -> dict:
+    return {"requestedReviewer": actor}
+
+
+def _review_node(actor: dict | None) -> dict:
+    return {"author": actor}
+
+
+def _connection(nodes: list[dict], *, next_cursor: str | None = None) -> dict:
+    return {
+        "nodes": nodes,
+        "pageInfo": {
+            "hasNextPage": next_cursor is not None,
+            "endCursor": next_cursor,
+        },
+    }
+
+
+@contextmanager
+def _api(
+    *,
+    author: dict | None = None,
+    request_pages: list[dict] | None = None,
+    review_pages: list[dict] | None = None,
+    review_comments: list[dict] | None = None,
+    issue_comments: list[dict] | None = None,
+    graphql_error: RuntimeError | None = None,
 ):
-    author_data: dict[str, str | int] = {"login": author}
-    if author_id is not None:
-        author_data["databaseId"] = author_id
-    return json.dumps({
-        "author": author_data,
-        "reviewRequests": review_requests or [],
-        "reviews": reviews or [],
-    })
+    requests = list(request_pages or [_connection([])])
+    reviews = list(review_pages or [_connection([])])
+    request_index = 0
+    review_index = 0
+
+    def graphql(query: str, _variables: dict) -> dict:
+        nonlocal request_index, review_index
+        if graphql_error is not None:
+            raise graphql_error
+        if "reviewRequests" in query:
+            page = requests[request_index]
+            request_index += 1
+            pull_request = {"author": author, "reviewRequests": page}
+        else:
+            page = reviews[review_index]
+            review_index += 1
+            pull_request = {"reviews": page}
+        return {"repository": {"pullRequest": pull_request}}
+
+    def rest(endpoint: str, **_kwargs) -> list[dict]:
+        if "/pulls/" in endpoint:
+            return review_comments or []
+        return issue_comments or []
+
+    with patch(f"{_MODULE}.assert_gh_authenticated"), patch(
+        f"{_MODULE}.resolve_repo_params",
+        return_value=RepoInfo(owner="o", repo="r"),
+    ), patch(f"{_MODULE}.gh_graphql", side_effect=graphql), patch(
+        f"{_MODULE}.gh_api_paginated",
+        side_effect=rest,
+    ):
+        yield
 
 
-# ---------------------------------------------------------------------------
-# Tests: build_parser
-# ---------------------------------------------------------------------------
+def _output(capsys) -> dict:
+    return json.loads(capsys.readouterr().out)
 
 
 class TestBuildParser:
@@ -73,460 +134,163 @@ class TestBuildParser:
             build_parser().parse_args([])
 
     def test_flags(self):
-        args = build_parser().parse_args([
-            "--pull-request", "10", "--exclude-bots", "--exclude-author",
-        ])
+        args = build_parser().parse_args(
+            ["--pull-request", "10", "--exclude-bots", "--exclude-author"]
+        )
         assert args.pull_request == 10
         assert args.exclude_bots is True
         assert args.exclude_author is True
 
 
-# ---------------------------------------------------------------------------
-# Tests: main
-# ---------------------------------------------------------------------------
-
-
 class TestMain:
     def test_not_authenticated_exits_4(self):
         with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
+            f"{_MODULE}.assert_gh_authenticated",
             side_effect=SystemExit(4),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1"])
-            assert exc.value.code == 4
+        assert exc.value.code == 4
 
     def test_pr_not_found_exits_2(self):
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr="not found"),
+        with _api(author=None), patch(
+            f"{_MODULE}.gh_graphql",
+            return_value={"repository": {"pullRequest": None}},
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "999"])
-            assert exc.value.code == 2
+        assert exc.value.code == 2
 
-    def test_success_with_reviewers(self, capsys):
-        pr_data = _pr_json(
-            author="alice",
-            reviews=[{"author": {"login": "bob"}}],
-        )
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            return_value=[],
-        ):
-            rc = main(["--pull-request", "10"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert output["success"] is True
-        assert output["total_reviewers"] == 1
-
-    def test_exclude_bots_filters_bots(self, capsys):
-        pr_data = _pr_json(author="alice")
-        review_comments = [
-            {"user": {"login": "bot-user[bot]", "type": "Bot"}},
-            {"user": {"login": "human", "type": "User"}},
-        ]
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            side_effect=[review_comments, []],
-        ):
-            rc = main(["--pull-request", "10", "--exclude-bots"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert output["human_count"] == 1
-        logins = [r["login"] for r in output["reviewers"]]
-        assert "bot-user[bot]" not in logins
-
-    def test_exclude_author_filters_author(self, capsys):
-        pr_data = _pr_json(author="alice")
-        issue_comments = [
-            {"user": {"login": "alice", "type": "User"}},
-            {"user": {"login": "bob", "type": "User"}},
-        ]
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            side_effect=[[], issue_comments],
-        ):
-            rc = main(["--pull-request", "10", "--exclude-author"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        logins = [r["login"] for r in output["reviewers"]]
-        assert "alice" not in logins
-        assert "bob" in logins
-
-    def test_api_failure_exits_3(self):
-        """Generic API error (not 'not found') exits with code 3."""
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr="internal server error"),
-        ):
+    def test_graphql_failure_exits_3(self):
+        with _api(graphql_error=RuntimeError("server error")):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "10"])
-            assert exc.value.code == 3
+        assert exc.value.code == 3
 
-    def test_missing_user_in_comment_skipped(self, capsys):
-        """Comments with empty user login are skipped."""
-        pr_data = _pr_json(author="alice")
-        review_comments = [
-            {"user": {"login": "", "type": "User"}},
-            {"user": {"login": "bob", "type": "User"}},
+    def test_live_cli_shaped_actors_keep_database_ids(self, capsys):
+        author = _actor("copilot-swe-agent", 198982749, "Bot")
+        review = _actor("copilot-pull-request-reviewer", 175728472, "Bot")
+        with _api(author=author, review_pages=[_connection([_review_node(review)])]):
+            assert main(["--pull-request", "3235"]) == 0
+        output = _output(capsys)
+        assert output["pr_author"] == "copilot-swe-agent"
+        assert output["pr_author_id"] == 198982749
+        reviewer = output["reviewers"][0]
+        assert reviewer["login"] == "github-copilot[bot]"
+        assert reviewer["actor_ids"] == [175728472]
+
+    def test_exclude_bots_filters_bots(self, capsys):
+        with _api(
+            author=_actor("alice", 1),
+            review_comments=[_comment("dependabot[bot]", 2, "Bot")],
+        ):
+            assert main(["--pull-request", "10", "--exclude-bots"]) == 0
+        assert _output(capsys)["reviewers"] == []
+
+    def test_exclude_author_uses_database_id(self, capsys):
+        author = _actor("Copilot", 198982749, "Bot")
+        comments = [
+            _comment("Copilot", 198982749, "Bot"),
+            _comment("Copilot", 175728472, "Bot"),
         ]
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            side_effect=[review_comments, []],
-        ):
-            rc = main(["--pull-request", "10"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert output["total_reviewers"] == 1
-        assert output["reviewers"][0]["login"] == "bob"
-
-    def test_review_request_without_login_skipped(self, capsys):
-        """Review requests with empty login are skipped."""
-        pr_data = _pr_json(
-            author="alice",
-            review_requests=[{"login": ""}, {"login": "carol"}],
-        )
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            return_value=[],
-        ):
-            rc = main(["--pull-request", "10"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        logins = [r["login"] for r in output["reviewers"]]
-        assert "carol" in logins
-        assert "" not in logins
-
-    def test_review_with_missing_author(self, capsys):
-        """Reviews with empty author login are skipped."""
-        pr_data = _pr_json(
-            author="alice",
-            reviews=[{"author": {}}, {"author": {"login": "dan"}}],
-        )
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            return_value=[],
-        ):
-            rc = main(["--pull-request", "10"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        logins = [r["login"] for r in output["reviewers"]]
-        assert "dan" in logins
-        assert len(logins) == 1
-
-    def test_bot_detection_by_suffix(self, capsys):
-        """Bot detection works via [bot] suffix."""
-        pr_data = _pr_json(author="alice")
-        issue_comments = [
-            {"user": {"login": "dependabot[bot]", "type": "User"}},
+        with _api(author=author, review_comments=comments):
+            assert main(["--pull-request", "10", "--exclude-author"]) == 0
+        output = _output(capsys)
+        assert [reviewer["login"] for reviewer in output["reviewers"]] == [
+            "github-copilot[bot]"
         ]
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            side_effect=[[], issue_comments],
+
+    def test_missing_comment_user_is_skipped(self, capsys):
+        with _api(author=_actor("alice", 1), review_comments=[{"user": None}]):
+            assert main(["--pull-request", "10"]) == 0
+        assert _output(capsys)["total_reviewers"] == 0
+
+    def test_missing_requested_reviewer_is_skipped(self, capsys):
+        requests = _connection([_request_node(None)])
+        with _api(author=_actor("alice", 1), request_pages=[requests]):
+            assert main(["--pull-request", "10"]) == 0
+        assert _output(capsys)["total_reviewers"] == 0
+
+    def test_missing_review_author_is_skipped(self, capsys):
+        reviews = _connection([_review_node(None)])
+        with _api(author=_actor("alice", 1), review_pages=[reviews]):
+            assert main(["--pull-request", "10"]) == 0
+        assert _output(capsys)["total_reviewers"] == 0
+
+    def test_reviewers_are_sorted_by_comment_count(self, capsys):
+        comments = [_comment("bob", 2), _comment("alice", 1), _comment("alice", 1)]
+        with _api(author=_actor("author", 3), review_comments=comments):
+            assert main(["--pull-request", "10"]) == 0
+        reviewers = _output(capsys)["reviewers"]
+        assert [reviewer["login"] for reviewer in reviewers] == ["alice", "bob"]
+
+    def test_aliases_collapse_across_graphql_and_rest(self, capsys):
+        review = _actor("copilot-pull-request-reviewer", 175728472, "Bot")
+        comments = [_comment("Copilot", 175728472, "Bot")]
+        with _api(
+            author=_actor("alice", 1),
+            review_pages=[_connection([_review_node(review)])],
+            review_comments=comments,
         ):
-            rc = main(["--pull-request", "10"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert output["bot_count"] == 1
-        assert output["reviewers"][0]["is_bot"] is True
-
-    def test_reviewers_sorted_by_comment_count(self, capsys):
-        """Reviewers are sorted by total_comments descending."""
-        pr_data = _pr_json(author="alice")
-        review_comments = [
-            {"user": {"login": "bob", "type": "User"}},
-        ]
-        issue_comments = [
-            {"user": {"login": "carol", "type": "User"}},
-            {"user": {"login": "carol", "type": "User"}},
-            {"user": {"login": "carol", "type": "User"}},
-        ]
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            side_effect=[review_comments, issue_comments],
-        ):
-            rc = main(["--pull-request", "10"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert output["reviewers"][0]["login"] == "carol"
-        assert output["reviewers"][0]["total_comments"] == 3
-
-    def test_missing_author_field(self, capsys):
-        """PR with missing author field returns empty pr_author."""
-        pr_data = json.dumps({
-            "reviewRequests": [],
-            "reviews": [],
-        })
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            return_value=[],
-        ):
-            rc = main(["--pull-request", "10"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert output["pr_author"] == ""
-
-
-# ---------------------------------------------------------------------------
-# Tests: _is_bot helper
-# ---------------------------------------------------------------------------
-
-
-_is_bot = _mod._is_bot
-
-
-class TestAliasCanonicalization:
-    """One integration under several logins is one reviewer (issue #4378)."""
-
-    def test_copilot_aliases_collapse_to_one_reviewer(self, capsys):
-        pr_data = _pr_json(author="alice", reviews=[{"author": {"login": "Copilot"}}])
-        review_comments = [
-            {"user": {"login": "copilot-pull-request-reviewer[bot]", "type": "Bot"}},
-        ]
-        issue_comments = [
-            {"user": {"login": "copilot-pull-request-reviewer", "type": "Bot"}},
-        ]
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            side_effect=[review_comments, issue_comments],
-        ):
-            rc = main(["--pull-request", "10"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert output["total_reviewers"] == 1
-        assert output["bot_count"] == 1
-        entry = output["reviewers"][0]
-        assert entry["login"] == "github-copilot[bot]"
-        assert entry["total_comments"] == 2
-        assert entry["actor_ids"] == []
-        assert sorted(entry["aliases"]) == [
+            assert main(["--pull-request", "10"]) == 0
+        reviewer = _output(capsys)["reviewers"][0]
+        assert reviewer["login"] == "github-copilot[bot]"
+        assert sorted(reviewer["aliases"]) == [
             "Copilot",
             "copilot-pull-request-reviewer",
-            "copilot-pull-request-reviewer[bot]",
         ]
-
-    def test_the_coding_agent_does_not_collapse_into_the_code_reviewer(self, capsys):
-        """Two accounts, so a review of a Copilot-authored PR stays visible."""
-        pr_data = _pr_json(author="app/copilot-swe-agent")
-        review_comments = [
-            {"user": {"login": "copilot-pull-request-reviewer[bot]", "type": "Bot"}},
-        ]
-        issue_comments = [
-            {"user": {"login": "copilot-swe-agent[bot]", "type": "Bot"}},
-        ]
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            side_effect=[review_comments, issue_comments],
-        ):
-            rc = main(["--pull-request", "10", "--exclude-author"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert [r["login"] for r in output["reviewers"]] == ["github-copilot[bot]"]
+        assert reviewer["actor_ids"] == [175728472]
 
     def test_shared_copilot_login_is_separated_by_account_id(self, capsys):
-        """REST uses Copilot for both account ids 175728472 and 198982749."""
-        pr_data = _pr_json(author="alice")
-        review_comments = [
-            {"user": {"login": "Copilot", "id": 175728472, "type": "Bot"}},
+        comments = [
+            _comment("Copilot", 175728472, "Bot"),
+            _comment("Copilot", 198982749, "Bot"),
         ]
-        issue_comments = [
-            {"user": {"login": "Copilot", "id": 198982749, "type": "Bot"}},
-        ]
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            side_effect=[review_comments, issue_comments],
-        ):
-            rc = main(["--pull-request", "10"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        reviewers = {r["login"]: r for r in output["reviewers"]}
+        with _api(author=_actor("alice", 1), review_comments=comments):
+            assert main(["--pull-request", "10"]) == 0
+        reviewers = {r["login"]: r for r in _output(capsys)["reviewers"]}
         assert set(reviewers) == {
             "github-copilot[bot]",
             "copilot-swe-agent[bot]",
         }
-        assert reviewers["github-copilot[bot]"]["actor_ids"] == [175728472]
-        assert reviewers["copilot-swe-agent[bot]"]["actor_ids"] == [198982749]
 
-    def test_account_id_keeps_reviewer_visible_on_ambiguous_author_login(self, capsys):
-        """The PR author and reviewer can both arrive as Copilot."""
-        pr_data = _pr_json(author="Copilot", author_id=198982749)
-        review_comments = [
-            {"user": {"login": "Copilot", "id": 175728472, "type": "Bot"}},
+    def test_request_and_review_pagination(self, capsys):
+        request_pages = [
+            _connection([_request_node(_actor("alice", 1))], next_cursor="r2"),
+            _connection([_request_node(_actor("bob", 2))]),
         ]
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            side_effect=[review_comments, []],
+        review_pages = [
+            _connection([_review_node(_actor("carol", 3))], next_cursor="v2"),
+            _connection([_review_node(_actor("dave", 4))]),
+        ]
+        with _api(
+            author=_actor("author", 5),
+            request_pages=request_pages,
+            review_pages=review_pages,
         ):
-            rc = main(["--pull-request", "10", "--exclude-author"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert output["pr_author_id"] == 198982749
-        assert [r["login"] for r in output["reviewers"]] == ["github-copilot[bot]"]
+            assert main(["--pull-request", "10"]) == 0
+        assert {r["login"] for r in _output(capsys)["reviewers"]} == {
+            "alice",
+            "bob",
+            "carol",
+            "dave",
+        }
 
-    def test_distinct_humans_are_not_collapsed(self, capsys):
-        pr_data = _pr_json(author="alice")
-        review_comments = [
-            {"user": {"login": "bob", "type": "User"}},
-            {"user": {"login": "carol", "type": "User"}},
-        ]
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            side_effect=[review_comments, []],
-        ):
-            rc = main(["--pull-request", "10"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert output["total_reviewers"] == 2
-        for entry in output["reviewers"]:
-            assert entry["aliases"] == [entry["login"]]
-
-    def test_exclude_author_matches_an_aliased_author(self, capsys):
-        """gh reports the author as app/..., its own comments as ...[bot]."""
-        pr_data = _pr_json(author="app/copilot-swe-agent")
-        review_comments = [
-            {"user": {"login": "copilot-swe-agent[bot]", "type": "Bot"}},
-            {"user": {"login": "bob", "type": "User"}},
-        ]
-        with patch(
-            "get_pr_reviewers.assert_gh_authenticated",
-        ), patch(
-            "get_pr_reviewers.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=pr_data, rc=0),
-        ), patch(
-            "get_pr_reviewers.gh_api_paginated",
-            side_effect=[review_comments, []],
-        ):
-            rc = main(["--pull-request", "10", "--exclude-author"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        logins = [r["login"] for r in output["reviewers"]]
-        assert logins == ["bob"]
+    @pytest.mark.parametrize("connection", ["requests", "reviews"])
+    def test_missing_pagination_cursor_exits_3(self, connection):
+        bad_page = {
+            "nodes": [],
+            "pageInfo": {"hasNextPage": True, "endCursor": None},
+        }
+        kwargs = (
+            {"request_pages": [bad_page]}
+            if connection == "requests"
+            else {"review_pages": [bad_page]}
+        )
+        with _api(author=_actor("alice", 1), **kwargs):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "10"])
+        assert exc.value.code == 3
 
 
 class TestIsBot:

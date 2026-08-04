@@ -177,12 +177,6 @@
         2
       ]
     ],
-    "github/scripts/pr/get_pr_reviewers.py": [
-      [
-        "pr_result = subprocess.run(",
-        0
-      ]
-    ],
     "github/scripts/pr/get_pull_requests.py": [
       [
         "result = subprocess.run(",

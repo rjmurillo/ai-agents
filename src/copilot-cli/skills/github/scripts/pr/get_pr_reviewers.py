@@ -18,7 +18,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 from typing import Any
 
@@ -42,9 +41,62 @@ from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     error_and_exit,
     gh_api_paginated,
+    gh_graphql,
     resolve_repo_params,
 )
 from github_core.bot_config import canonicalize_login, is_bot  # noqa: E402
+
+_PR_AUTHOR_AND_REQUESTS_QUERY = """\
+query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      author {
+        __typename
+        login
+        ... on Bot { databaseId }
+        ... on User { databaseId }
+      }
+      reviewRequests(first: 100, after: $cursor) {
+        nodes {
+          requestedReviewer {
+            __typename
+            ... on User {
+              login
+              databaseId
+            }
+            ... on Team { slug }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+}"""
+
+_PR_REVIEWS_QUERY = """\
+query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviews(first: 100, after: $cursor) {
+        nodes {
+          author {
+            __typename
+            login
+            ... on Bot { databaseId }
+            ... on User { databaseId }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+}"""
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -115,6 +167,82 @@ def _ensure_reviewer(
     return canonical
 
 
+def _graphql_variables(
+    owner: str,
+    repo: str,
+    pr: int,
+    cursor: str | None,
+) -> dict[str, str | int]:
+    variables: dict[str, str | int] = {
+        "owner": owner,
+        "repo": repo,
+        "number": pr,
+    }
+    if cursor is not None:
+        variables["cursor"] = cursor
+    return variables
+
+
+def _pull_request_data(response: dict[str, Any], pr: int) -> dict[str, Any]:
+    repository = response.get("repository")
+    pull_request = repository.get("pullRequest") if isinstance(repository, dict) else None
+    if not isinstance(pull_request, dict):
+        error_and_exit(f"PR #{pr} not found", 2)
+    assert isinstance(pull_request, dict)
+    return pull_request
+
+
+def _fetch_author_and_review_requests(
+    owner: str,
+    repo: str,
+    pr: int,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    author: dict[str, Any] = {}
+    reviewers: list[dict[str, Any]] = []
+    cursor: str | None = None
+    while True:
+        response = gh_graphql(
+            _PR_AUTHOR_AND_REQUESTS_QUERY,
+            _graphql_variables(owner, repo, pr, cursor),
+        )
+        pull_request = _pull_request_data(response, pr)
+        if not author and isinstance(pull_request.get("author"), dict):
+            author = pull_request["author"]
+        connection = pull_request.get("reviewRequests") or {}
+        for node in connection.get("nodes") or []:
+            reviewer = node.get("requestedReviewer") if isinstance(node, dict) else None
+            if isinstance(reviewer, dict) and reviewer.get("login"):
+                reviewers.append(reviewer)
+        page_info = connection.get("pageInfo") or {}
+        if not page_info.get("hasNextPage"):
+            return author, reviewers
+        cursor = page_info.get("endCursor")
+        if not isinstance(cursor, str) or not cursor:
+            raise RuntimeError("Review request pagination reported no end cursor")
+
+
+def _fetch_review_authors(owner: str, repo: str, pr: int) -> list[dict[str, Any]]:
+    authors: list[dict[str, Any]] = []
+    cursor: str | None = None
+    while True:
+        response = gh_graphql(
+            _PR_REVIEWS_QUERY,
+            _graphql_variables(owner, repo, pr, cursor),
+        )
+        pull_request = _pull_request_data(response, pr)
+        connection = pull_request.get("reviews") or {}
+        for node in connection.get("nodes") or []:
+            author = node.get("author") if isinstance(node, dict) else None
+            if isinstance(author, dict) and author.get("login"):
+                authors.append(author)
+        page_info = connection.get("pageInfo") or {}
+        if not page_info.get("hasNextPage"):
+            return authors
+        cursor = page_info.get("endCursor")
+        if not isinstance(cursor, str) or not cursor:
+            raise RuntimeError("Review pagination reported no end cursor")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -123,26 +251,14 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
     pr = args.pull_request
 
-    pr_result = subprocess.run(
-        [
-            "gh", "pr", "view", str(pr),
-            "--repo", f"{owner}/{repo}",
-            "--json", "author,reviewRequests,reviews",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
+    try:
+        pr_author_data, requested_reviewers = _fetch_author_and_review_requests(
+            owner, repo, pr
+        )
+        review_authors = _fetch_review_authors(owner, repo, pr)
+    except RuntimeError as exc:
+        error_and_exit(f"Failed to get PR #{pr}: {exc}", 3)
 
-    if pr_result.returncode != 0:
-        err_msg = pr_result.stderr or pr_result.stdout
-        if "not found" in err_msg:
-            error_and_exit(f"PR #{pr} not found", 2)
-        error_and_exit(f"Failed to get PR: {err_msg}", 3)
-
-    pr_data = json.loads(pr_result.stdout)
-    pr_author_data = pr_data.get("author") or {}
     raw_pr_author = pr_author_data.get("login", "")
     pr_author = raw_pr_author if isinstance(raw_pr_author, str) else ""
     pr_author_id = _account_id(pr_author_data)
@@ -169,17 +285,18 @@ def main(argv: list[str] | None = None) -> int:
         key = _ensure_reviewer(reviewer_map, login, user_type, _account_id(user))
         reviewer_map[key]["issue_comments"] += 1
 
-    for r in pr_data.get("reviewRequests", []):
+    for r in requested_reviewers:
         login = r.get("login", "")
         if login:
-            _ensure_reviewer(reviewer_map, login, "User", _account_id(r))
+            user_type = r.get("__typename", "User")
+            _ensure_reviewer(reviewer_map, login, user_type, _account_id(r))
 
-    for r in pr_data.get("reviews", []):
-        author = r.get("author") or {}
+    for author in review_authors:
         login = author.get("login", "")
         if login:
-            key = _ensure_reviewer(reviewer_map, login, "User", _account_id(author))
-            reviewer_map[key]["is_bot"] = _is_bot(key, "User")
+            user_type = author.get("__typename", "User")
+            key = _ensure_reviewer(reviewer_map, login, user_type, _account_id(author))
+            reviewer_map[key]["is_bot"] = _is_bot(key, user_type)
 
     reviewers = list(reviewer_map.values())
     for r in reviewers:
