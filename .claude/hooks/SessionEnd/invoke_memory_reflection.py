@@ -62,6 +62,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception as exc:  # noqa: BLE001 - fail-open: session end must not error
+    except Exception as exc:
         print(f"[WARNING] {HOOK_NAME} error: {exc}", file=sys.stderr)
         sys.exit(0)
