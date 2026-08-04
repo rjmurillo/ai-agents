@@ -3,12 +3,12 @@ tier: builder
 description: Resolve git merge conflicts by analyzing commit history, code intent, and metadata. Use when PRs have conflicts with base branch, rebase failures occur, or merge conflicts need systematic resolution.
 argument-hint: Provide the PR number or branch name with conflicts to resolve
 tools_vscode:
-  - $toolset:editor
+  - $toolset:executor
   - $toolset:github-research
   - $toolset:research
   - $toolset:knowledge
 tools_copilot:
-  - $toolset:editor
+  - $toolset:executor
   - $toolset:github-research
   - $toolset:research
   - $toolset:knowledge

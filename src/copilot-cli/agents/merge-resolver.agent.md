@@ -3,6 +3,7 @@ name: merge-resolver
 description: Resolve git merge conflicts by analyzing commit history, code intent, and metadata. Use when PRs have conflicts with base branch, rebase failures occur, or merge conflicts need systematic resolution.
 argument-hint: Provide the PR number or branch name with conflicts to resolve
 tools:
+  - shell
   - read
   - edit
   - search

@@ -20,7 +20,7 @@ import pytest
 HOOK_DIR = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
 sys.path.insert(0, str(HOOK_DIR))
 
-import invoke_markdownlint_guard as guard  # noqa: E402
+import invoke_markdownlint_guard as guard
 
 
 def _stdin(command: str) -> str:

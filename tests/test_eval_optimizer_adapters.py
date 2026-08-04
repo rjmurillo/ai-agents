@@ -29,7 +29,7 @@ try:
     if _path_added:
         sys.path.insert(0, str(_EVAL_DIR))
 
-    from _optimizer_adapters import (  # noqa: E402
+    from _optimizer_adapters import (
         DEFAULT_MIN_ACTIVATION_SCORE,
         AdapterError,
         agent_results,
