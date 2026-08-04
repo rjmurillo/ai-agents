@@ -19,9 +19,9 @@ sys.path.insert(
     ),
 )
 
-import test_rate_limit  # noqa: E402  # must come after sys.path setup
+import test_rate_limit  # must come after sys.path setup
 
-from scripts.github_core.api import RateLimitResult  # noqa: E402
+from scripts.github_core.api import RateLimitResult
 
 
 def _make_result(
