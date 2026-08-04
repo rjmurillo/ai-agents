@@ -12,7 +12,15 @@ It is a METRIC by default (exit 0, prints the count + list). Pass ``--max N`` to
 turn it into a ratchet gate that exits 1 when the violation count exceeds N, so
 the burn-down cannot silently regress.
 
-Exit codes (AGENTS.md): 0 ok, 1 over --max, 2 config error.
+``--max`` alone leaves slack. The gate ran at ``--max 58`` while the real count
+was 45, so 13 fresh violations could land green, and the comment promising to
+lower the number after each extraction batch was the only thing enforcing it.
+``--exact N`` closes that: the count must equal N, so an unrecorded improvement
+fails just as loudly as a regression and the pinned number cannot go stale. This
+matches ``ruff_count_ratchet.py`` and ``taste_count_ratchet.py``, which already
+use equality for the same reason (#2967).
+
+Exit codes (AGENTS.md): 0 ok, 1 over --max or off --exact, 2 config error.
 """
 
 from __future__ import annotations
@@ -279,10 +287,31 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--max", type=int, default=None, dest="max_allowed",
-        help="Gate mode: exit 1 when the violation count exceeds MAX.",
+        help="Slack gate: exit 1 when the violation count exceeds MAX.",
+    )
+    parser.add_argument(
+        "--exact", type=int, default=None,
+        help="Ratchet gate: exit 1 unless the violation count equals EXACT.",
     )
     parser.add_argument("--format", choices=("json", "human"), default="human")
     return parser.parse_args(argv)
+
+
+def _exact_mismatch_message(count: int, expected: int, root: Path) -> str:
+    """Explain an ``--exact`` miss in the direction it actually failed."""
+    command = f"python3 scripts/ci/adr006_run_block_scanner.py --root {root}"
+    if count > expected:
+        return (
+            f"ADR-006 scanner: {count} violations exceeds --exact {expected} "
+            f"(+{count - expected}). Extract the new run: block into a tested "
+            f"module, or fix the logic that made an existing block grow."
+        )
+    return (
+        f"ADR-006 scanner: {count} violations is below --exact {expected} "
+        f"(-{expected - count}). Lower the number in "
+        f".github/workflows/pr-validation.yml so the improvement is recorded "
+        f"and cannot be spent later. Current count: {command}"
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -293,6 +322,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_CONFIG
     if args.threshold < 0:
         print("error: --threshold must be >= 0", file=sys.stderr)
+        return EXIT_CONFIG
+    if args.max_allowed is not None and args.exact is not None:
+        print("error: --max and --exact are mutually exclusive", file=sys.stderr)
         return EXIT_CONFIG
 
     violations = scan_repo(root, args.threshold)
@@ -311,6 +343,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"ADR-006 scanner: {count} violations exceeds --max {args.max_allowed}.",
             file=sys.stderr,
         )
+        return EXIT_OVER_MAX
+    if args.exact is not None and count != args.exact:
+        print(_exact_mismatch_message(count, args.exact, root), file=sys.stderr)
         return EXIT_OVER_MAX
     return EXIT_OK
 
