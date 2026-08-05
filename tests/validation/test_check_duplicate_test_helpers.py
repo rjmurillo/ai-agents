@@ -14,8 +14,8 @@ VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(VALIDATION_DIR))
 
-import check_duplicate_test_helpers as checker  # noqa: E402
-import pre_pr_sequence  # noqa: E402
+import check_duplicate_test_helpers as checker
+import pre_pr_sequence
 
 
 @pytest.fixture

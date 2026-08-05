@@ -51,7 +51,7 @@ from generate_hooks_emit import (  # noqa: E402
     _validate_event_target,
     _validate_matcher,
 )
-from generate_hooks_expand import _expand_dispatch_groups  # noqa: E402,F401
+from generate_hooks_expand import _expand_dispatch_groups  # noqa: E402
 from generate_hooks_transaction import HookGenerationTransaction  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError  # noqa: E402

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, eval CLI keeps one artifact path.
+# taste-lint: ignore complexity, render_table mirrors the output schema.
+# taste-lint: ignore naming, hyphenated CLI name is the shipped entrypoint.
 """Rule Activation Eval: measure whether rules and skill references actually fire.
 
 Tests how a rule or skill reference activates across loading mechanisms:
@@ -864,7 +867,7 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
     return False
 
 
-def _failed_judge(reason: str, raw_judge_response: str = "") -> dict[str, Any]:
+def _failed_judge(reason: str, *, raw_judge_response: str = "") -> dict[str, Any]:
     result: dict[str, Any] = {
         "activation_score": 0,
         "citation_score": 0,

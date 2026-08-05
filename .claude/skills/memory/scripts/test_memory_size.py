@@ -32,7 +32,7 @@ if not os.path.isdir(_LIB_DIR):
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from hook_utilities.path_safety import validate_path_no_traversal  # noqa: E402
+from hook_utilities.path_safety import validate_path_no_traversal
 
 
 _FENCE_OPEN_RE = re.compile(r"^[ \t]*(?P<fence>`{3,}|~{3,})[^\r\n]*$")

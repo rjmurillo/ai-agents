@@ -1,0 +1,537 @@
+# taste-lint: ignore file-size, this suite covers one ratchet end to end and its
+# fail-open cases are only meaningful next to the counts they contradict.
+"""Tests for the unindexed-memory count ratchet (issue #4313).
+
+The subprocess fake dispatches on the argument vector rather than on call
+order, per ``.claude/rules/testing.md`` SHOULD 10: ``_collect`` calls the
+validator and ``git ls-files``, and a call-order fake would keep passing if
+those two calls were ever reordered or one were dropped.
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from scripts.ci import count_ratchet
+from scripts.ci import memory_index_count_ratchet as ratchet
+
+ATOMIC_WARNING = "git/rebase-costs.md: not referenced by any domain index"
+INDEX_WARNING = "skills-copilot-index.md: not referenced by memory-index.md"
+UNTRACKED_WARNING = "scratch/draft.md: not referenced by any domain index"
+
+
+def _write_baseline(tmp_path: Path, value: str) -> Path:
+    path = tmp_path / "memory_index_count_baseline.txt"
+    path.write_text(value + "\n", encoding="utf-8")
+    return path
+
+
+def _repo(tmp_path: Path) -> Path:
+    """A tree with the validator present, so ``_warning_lines`` reaches it."""
+    validator = tmp_path / "scripts" / "validate_memory_tier.py"
+    validator.parent.mkdir(parents=True, exist_ok=True)
+    validator.write_text("", encoding="utf-8")
+    return tmp_path
+
+
+def _fake(
+    warnings: tuple[str, ...] = (ATOMIC_WARNING,),
+    tracked: tuple[str, ...] = ("git/rebase-costs.md",),
+    validator_rc: int = 0,
+    git_rc: int = 0,
+    extra_stdout: str = "",
+    leading_stdout: str = "",
+    declared: int | None = None,
+    omit_summary: bool = False,
+    warning_prefix: str = "WARNING: ",
+):
+    """subprocess.run stub dispatched on argv, never on call order.
+
+    ``declared``, ``omit_summary``, and ``warning_prefix`` exist to reproduce
+    the output-format drift that the summary cross-check guards against.
+    """
+
+    def _run(cmd, **kwargs):
+        argv = [str(part) for part in cmd]
+        if "ls-files" in argv:
+            # Assert the complete pathspec, not membership. Membership alone
+            # still passes when a mutation ADDS an exclusion pathspec
+            # (":(exclude).serena/memories/**"), which empties the tracked set
+            # and reports zero violations. Terra's adversarial review found both
+            # the missing-glob and the added-exclusion shapes of this hole.
+            assert argv[argv.index("--") + 1:] == [f"{ratchet._MEMORIES_DIR}/**"], (
+                f"git ls-files must scope to exactly the memories tree, got: {argv}"
+            )
+            stdout = "".join(f".serena/memories/{name}\0" for name in tracked)
+            return subprocess.CompletedProcess(cmd, git_rc, stdout=stdout, stderr="")
+        if str(ratchet._VALIDATOR) in argv:
+            body = leading_stdout + "".join(
+                f"{warning_prefix}{w}\n" for w in warnings
+            ) + extra_stdout
+            if not omit_summary:
+                total = len(warnings) if declared is None else declared
+                body += f"Memory tier validation passed. {total} warning(s).\n"
+            return subprocess.CompletedProcess(cmd, validator_rc, stdout=body, stderr="")
+        raise AssertionError(f"unexpected subprocess call: {argv}")
+
+    return _run
+
+
+class TestCurrentCount:
+    def test_counts_one_unindexed_atomic_memory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(subprocess, "run", _fake())
+        assert ratchet.current_count(_repo(tmp_path)) == 1
+
+    def test_counts_both_warning_shapes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An unreferenced domain index counts too, not only atomic files.
+
+        Discriminating input: an implementation that kept only subjects
+        containing a directory separator would return 1 here.
+        """
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(
+                warnings=(ATOMIC_WARNING, INDEX_WARNING),
+                tracked=("git/rebase-costs.md", "skills-copilot-index.md"),
+            ),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) == 2
+
+    def test_returns_zero_when_every_memory_is_indexed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(subprocess, "run", _fake(warnings=()))
+        assert ratchet.current_count(_repo(tmp_path)) == 0
+
+    def test_rejects_output_lines_that_are_neither_warning_nor_summary(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Unrecognized stdout is an external error, not a count.
+
+        Ignoring stray lines is the fail-open direction: it lets a partially
+        understood format produce a number the ratchet then trusts. Rejecting
+        names the drift instead.
+        """
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(extra_stdout="Scanned 896 files\nSummary: 1 warning\n"),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_rejects_summary_that_is_not_the_final_line(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A stale summary printed before the real one must not supply the count.
+
+        Searching stdout for the summary accepts the first match. A leading
+        ``0 warning(s).`` line then agrees with zero parsed warnings above it,
+        so the cross-check passes and the ratchet reports a false zero while the
+        real trailing summary is ignored.
+        """
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(leading_stdout="Memory tier validation passed. 0 warning(s).\n"),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_rejects_warning_body_containing_a_newline(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A wrapped warning must not silently halve the count.
+
+        The continuation line carries no prefix, so prefix counting sees one
+        warning and the summary declares one. The counts agree and the drift is
+        invisible to the cross-check alone.
+        """
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(warnings=("nested/\nfile.md: not referenced by any domain index",)),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_rejects_summary_text_embedded_in_a_warning_body(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The summary must be read from the final line, not found anywhere.
+
+        Searching all of stdout matches the summary wherever it appears,
+        including inside a warning body. The declared total then comes from
+        attacker- or drift-controlled text rather than the validator's own
+        result. Reading only the final line makes that unreachable.
+        """
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(
+                warnings=(
+                    "Memory tier validation passed. 0 warning(s).",
+                    ATOMIC_WARNING,
+                ),
+                declared=2,
+            ),
+        )
+        # Only the tracked memory survives the tracked-file filter, so the
+        # healthy answer is 1. Under a search-anywhere mutation the declared
+        # total is read as 0 from inside the first warning body, disagrees with
+        # the 2 parsed lines, and the scan is rejected as unreadable instead.
+        assert ratchet.current_count(_repo(tmp_path)) == 1
+
+    def test_untracked_memory_is_not_counted(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A scratch memory on one disk must not count against that contributor.
+
+        ``validate_orphan_atomics`` walks the tree with ``rglob``, so without
+        the tracked filter this returns 2 locally and 1 in CI, which is the
+        phantom-count failure ``ruff_count_ratchet.py`` was written to avoid.
+        """
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(
+                warnings=(ATOMIC_WARNING, UNTRACKED_WARNING),
+                tracked=("git/rebase-costs.md",),
+            ),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) == 1
+
+    def test_tracked_filter_is_load_bearing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The isolating control for the test above: track it and it counts."""
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(
+                warnings=(ATOMIC_WARNING, UNTRACKED_WARNING),
+                tracked=("git/rebase-costs.md", "scratch/draft.md"),
+            ),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) == 2
+
+    def test_returns_none_when_validator_reports_a_structural_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A non-zero exit is an error, not a warning count.
+
+        Returning 0 here would let ``--update`` write a zero baseline and
+        permanently disarm the gate.
+        """
+        monkeypatch.setattr(subprocess, "run", _fake(validator_rc=1))
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_returns_none_when_validator_is_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(subprocess, "run", _fake())
+        assert ratchet.current_count(tmp_path) is None
+
+    def test_returns_none_when_validator_cannot_be_launched(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def _boom(cmd, **kwargs):
+            raise OSError("no exec")
+
+        monkeypatch.setattr(subprocess, "run", _boom)
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_returns_none_when_git_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(subprocess, "run", _fake(git_rc=128))
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_scan_does_not_pass_ci_to_the_validator(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--ci collapses "many warnings" and "real error" into the same exit 1.
+
+        The counter distinguishes them by exit code, so the flag must stay off.
+        """
+        seen: list[list[str]] = []
+
+        def _record(cmd, **kwargs):
+            argv = [str(part) for part in cmd]
+            seen.append(argv)
+            return _fake()(cmd, **kwargs)
+
+        monkeypatch.setattr(subprocess, "run", _record)
+        ratchet.current_count(_repo(tmp_path))
+        validator_calls = [a for a in seen if str(ratchet._VALIDATOR) in a]
+        assert validator_calls, "the validator was never invoked"
+        assert all("--ci" not in argv for argv in validator_calls)
+
+
+class TestOutputFormatGuard:
+    """The silent-zero guard: a clean exit alone must not be trusted.
+
+    Raised as High severity by an adversarial review on a second model family.
+    A validator that renames its prefix or moves warnings to stderr still exits
+    0, prefix matching then finds nothing, and the ratchet reports a healthy 0
+    for a tree carrying 425 violations. ``--update`` would write that 0 into the
+    baseline and disarm the gate for good.
+    """
+
+    def test_renamed_warning_prefix_is_an_error_not_a_zero(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(warnings=(ATOMIC_WARNING, INDEX_WARNING), warning_prefix="WARN: "),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_warnings_moved_off_stdout_are_an_error_not_a_zero(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Warnings on stderr: stdout keeps the summary, the lines are gone."""
+        monkeypatch.setattr(subprocess, "run", _fake(warnings=(), declared=425))
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_missing_summary_line_is_an_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(subprocess, "run", _fake(omit_summary=True))
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_declared_total_below_the_parsed_lines_is_an_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Guards the other direction too, such as a multi-line warning body."""
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(warnings=(ATOMIC_WARNING, INDEX_WARNING), declared=1),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) is None
+
+    def test_a_genuinely_clean_tree_still_counts_zero(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The discriminating control: a real 0 must survive the guard.
+
+        Without this, the guard could be satisfied by rejecting every zero,
+        which would break the day the backlog is actually cleared.
+        """
+        monkeypatch.setattr(subprocess, "run", _fake(warnings=()))
+        assert ratchet.current_count(_repo(tmp_path)) == 0
+
+    def test_the_guard_names_the_cause_on_stderr(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            subprocess, "run", _fake(warnings=(ATOMIC_WARNING,), declared=99)
+        )
+        ratchet.current_count(_repo(tmp_path))
+        err = capsys.readouterr().err
+        assert "declared 99 warnings" in err
+        assert "memory_index_count_ratchet.py" in err
+
+
+class TestListViolations:
+    def test_branch_touched_violations_are_listed_first(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``run`` caps the printed list at 40 lines and the repo carries 425.
+
+        Emission order alone would bury the branch's own violation below the cap.
+        """
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(
+                warnings=(ATOMIC_WARNING, INDEX_WARNING),
+                tracked=("git/rebase-costs.md", "skills-copilot-index.md"),
+            ),
+        )
+        violations = ratchet.list_violations(
+            _repo(tmp_path),
+            frozenset({".serena/memories/skills-copilot-index.md"}),
+        )
+        assert violations == [INDEX_WARNING, ATOMIC_WARNING]
+
+    def test_order_is_unchanged_without_priority_paths(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(
+                warnings=(ATOMIC_WARNING, INDEX_WARNING),
+                tracked=("git/rebase-costs.md", "skills-copilot-index.md"),
+            ),
+        )
+        assert ratchet.list_violations(_repo(tmp_path)) == [ATOMIC_WARNING, INDEX_WARNING]
+
+    def test_returns_none_when_the_scan_failed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(subprocess, "run", _fake(validator_rc=2))
+        assert ratchet.list_violations(_repo(tmp_path)) is None
+
+
+class TestWindowsPathSeparators:
+    """``validate_memory_tier.py:171`` emits ``str(Path.relative_to(...))``.
+
+    On Windows that is ``git\\rebase-costs.md`` while ``git ls-files`` always
+    reports ``git/rebase-costs.md``. Before normalization every nested memory
+    looked untracked on Windows, so a contributor there counted 49 instead of
+    425. That direction is the dangerous one: a low count passes the ratchet
+    and ``--update`` would write it into the baseline permanently. Windows is a
+    supported platform (``.github/workflows/pytest.yml``), so this is reachable.
+    """
+
+    WINDOWS_WARNING = "git\\rebase-costs.md: not referenced by any domain index"
+
+    def test_nested_windows_subject_matches_a_posix_tracked_path(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(warnings=(self.WINDOWS_WARNING,), tracked=("git/rebase-costs.md",)),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) == 1
+
+    def test_windows_subject_still_honours_priority_paths(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A Windows-shaped subject must still sort into the priority band.
+
+        The non-priority warning is emitted FIRST and the complete order is
+        asserted. Pairing the Windows warning with a priority warning naming the
+        same file would not discriminate: both land in the same band whether or
+        not separators are normalized, so the order never changes and a lost
+        normalization passes.
+        """
+        other = "topic/unrelated.md: not referenced by any domain index"
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(
+                warnings=(other, self.WINDOWS_WARNING),
+                tracked=("git/rebase-costs.md", "topic/unrelated.md"),
+            ),
+        )
+        violations = ratchet.list_violations(
+            _repo(tmp_path),
+            frozenset({".serena/memories/git/rebase-costs.md"}),
+        )
+        assert violations == [self.WINDOWS_WARNING, other]
+
+    def test_untracked_windows_subject_is_still_excluded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Discriminating control: normalization must not match everything.
+
+        Without this, replacing ``_subject`` with one that returns a constant
+        would satisfy the two tests above.
+        """
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            _fake(warnings=(self.WINDOWS_WARNING,), tracked=("git/other-file.md",)),
+        )
+        assert ratchet.current_count(_repo(tmp_path)) == 0
+
+    def test_subject_normalizes_separators_without_touching_the_reason(self) -> None:
+        assert ratchet._subject(self.WINDOWS_WARNING) == "git/rebase-costs.md"
+        assert ratchet._subject(ATOMIC_WARNING) == "git/rebase-costs.md"
+
+
+class TestConstants:
+    def test_baseline_filename_is_canonical(self) -> None:
+        assert ratchet._BASELINE_PATH.name == "memory_index_count_baseline.txt"
+
+    def test_validator_path_matches_the_lefthook_job(self) -> None:
+        assert str(ratchet._VALIDATOR) == "scripts/validate_memory_tier.py"
+
+
+class TestMain:
+    def test_ok_when_count_equals_baseline(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        baseline = _write_baseline(tmp_path, "425")
+        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
+        monkeypatch.setattr(ratchet, "current_count", lambda _: 425)
+        assert ratchet.main([]) == count_ratchet.EXIT_OK
+        assert "OK" in capsys.readouterr().out
+
+    def test_regression_when_a_new_unindexed_memory_appears(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        baseline = _write_baseline(tmp_path, "425")
+        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
+        monkeypatch.setattr(ratchet, "current_count", lambda _: 426)
+        monkeypatch.setattr(ratchet, "list_violations", lambda *_: [ATOMIC_WARNING])
+        assert ratchet.main([]) == count_ratchet.EXIT_REGRESSION
+        err = capsys.readouterr().err
+        assert "REGRESSION" in err
+        assert ATOMIC_WARNING in err
+
+    def test_indexing_a_memory_passes_without_updating(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        baseline = _write_baseline(tmp_path, "425")
+        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
+        monkeypatch.setattr(ratchet, "current_count", lambda _: 424)
+        assert ratchet.main([]) == count_ratchet.EXIT_OK
+        assert baseline.read_text(encoding="utf-8").strip() == "425"
+
+    def test_update_lowers_the_baseline(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        baseline = _write_baseline(tmp_path, "425")
+        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
+        monkeypatch.setattr(ratchet, "current_count", lambda _: 400)
+        assert ratchet.main(["--update"]) == count_ratchet.EXIT_OK
+        assert baseline.read_text(encoding="utf-8").strip() == "400"
+
+    def test_update_never_raises_the_baseline(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        baseline = _write_baseline(tmp_path, "425")
+        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
+        monkeypatch.setattr(ratchet, "current_count", lambda _: 426)
+        monkeypatch.setattr(ratchet, "list_violations", lambda *_: [])
+        ratchet.main(["--update"])
+        assert baseline.read_text(encoding="utf-8").strip() == "425"
+
+    def test_config_error_when_baseline_missing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(ratchet, "_BASELINE_PATH", tmp_path / "absent.txt")
+        assert ratchet.main([]) == count_ratchet.EXIT_CONFIG
+
+    def test_external_error_when_the_scan_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        baseline = _write_baseline(tmp_path, "425")
+        monkeypatch.setattr(ratchet, "_BASELINE_PATH", baseline)
+        monkeypatch.setattr(ratchet, "current_count", lambda _: None)
+        assert ratchet.main([]) == count_ratchet.EXIT_EXTERNAL
+
+    def test_cli_entry_point_runs_against_the_real_repo(self) -> None:
+        """End to end, no fakes: the shipped baseline must match the real tree."""
+        repo_root = Path(__file__).resolve().parents[2]
+        proc = subprocess.run(
+            [sys.executable, "scripts/ci/memory_index_count_ratchet.py"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert proc.returncode == count_ratchet.EXIT_OK, proc.stdout + proc.stderr

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
 # ruff: noqa: E402
 """Narrow Git policies that Lefthook cannot express declaratively."""
 
@@ -998,23 +999,26 @@ def _today_session_log(sessions_dir: Path) -> Path | None:
 
 
 def _session_log_for_current_branch(sessions_dir: Path, repo_root: Path) -> Path | None:
-    """Return the session log for the current branch, falling back to mtime.
+    """Return the session log for the current branch, or None.
 
     Calls ``_current_branch`` to identify the active branch, then uses
-    ``_session_log_for_branch`` to find its log deterministically. Falls back
-    to ``_today_session_log`` (newest by mtime) so callers fail open rather
-    than hard-blocking when no branch-specific log exists yet.
+    ``_session_log_for_branch`` to find its log deterministically. Returns
+    ``None`` when the branch cannot be determined (detached HEAD, git
+    unavailable) or when no recent log carries a matching branch field.
 
-    This is the correct replacement for bare ``_today_session_log`` calls
-    in ADR and retrospective gates: concurrent agents on other branches
-    frequently own a newer mtime and the mtime winner names the wrong session.
+    Returning ``None`` rather than the mtime winner prevents the ADR and
+    retrospective gates from judging a commit against a different session's
+    evidence. A caller that needs fail-open behaviour should check the
+    returned value and decide whether to pass or fail on ``None`` itself.
+
+    ``_today_session_log`` (mtime fallback) is intentionally NOT used here;
+    it remains available for ``check_branch_context`` which relies on the
+    mtime ordering to detect co-mingling (issues #682, #3343).
     """
     branch = _current_branch(repo_root)
-    if branch is not None:
-        log = _session_log_for_branch(sessions_dir, branch)
-        if log is not None:
-            return log
-    return _today_session_log(sessions_dir)
+    if branch is None:
+        return None
+    return _session_log_for_branch(sessions_dir, branch)
 
 
 def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
@@ -2442,6 +2446,31 @@ def _check_no_grafts(repo_root: Path) -> int:
     return 2
 
 
+def _shallow_file(repo_root: Path) -> Path:
+    """Path to `shallow`, which git keeps in the *common* directory.
+
+    `repo_root / ".git" / "shallow"` only resolves in a primary clone. In a
+    linked worktree `.git` is a pointer file, so that path names a child of a
+    file and never exists; in a submodule it points into `.git/modules/<name>`.
+    Asking git keeps all three shapes correct and leaves the shared-versus
+    per-worktree routing where it belongs, with git.
+
+    It matters here because `shallow` is shared: one depth-limited fetch in any
+    worktree grafts every worktree at once, and this repository routinely runs
+    dozens of them. That sharing is contractual, not incidental:
+    gitrepository-layout(5) states the file "is ignored if $GIT_COMMON_DIR is
+    set and $GIT_COMMON_DIR/shallow will be used instead."
+    """
+    result = _run_git(repo_root, ["rev-parse", "--git-path", "shallow"])
+    lines = result.stdout.splitlines()
+    if result.returncode != 0 or len(lines) != 1 or not lines[0]:
+        return repo_root / ".git" / "shallow"
+    shallow_path = Path(lines[0])
+    if not shallow_path.is_absolute():
+        shallow_path = repo_root / shallow_path
+    return shallow_path
+
+
 def _check_history_integrity(repo_root: Path) -> int:
     shallow_result = _run_git(repo_root, ["rev-parse", "--is-shallow-repository"])
     if shallow_result.returncode != 0:
@@ -2452,17 +2481,18 @@ def _check_history_integrity(repo_root: Path) -> int:
         print(f"ERROR: unexpected shallow repository state: {shallow_state}", file=sys.stderr)
         return 2
     if shallow_state == "true":
-        shallow_file = repo_root / ".git" / "shallow"
+        shallow_file = _shallow_file(repo_root)
         pin_sha = ""
         if shallow_file.is_file():
             first_line = shallow_file.read_text(encoding="utf-8").splitlines()
             pin_sha = first_line[0].strip() if first_line else ""
-        pin_detail = f"  .git/shallow pins history at {pin_sha}." if pin_sha else ""
+        pin_detail = f"{shallow_file} pins history at {pin_sha}." if pin_sha else ""
         print(
             "ERROR: push validation requires complete Git history."
             + (f"\n  {pin_detail}" if pin_detail else "")
             + "\n  A `git fetch --depth=<n>` made this clone shallow,"
             " most likely while reproducing a CI step locally."
+            "\n  Shared across every worktree, so the fetch may have been in another one."
             "\n  Fix: git fetch --unshallow origin",
             file=sys.stderr,
         )
@@ -2519,6 +2549,48 @@ def check_pushed_suppressions(stream: TextIO, repo_root: Path) -> int:
     for violation in violations:
         print(f"  {violation}", file=sys.stderr)
     return 1
+
+
+def _report_suppression_violations(
+    updates: Sequence[PushUpdate],
+    repo_root: Path,
+) -> int:
+    """Scan each update's range and report every net-new suppression."""
+    violations: list[str] = []
+    for update in updates:
+        paths = _changed_commit_paths(update, repo_root)
+        if paths is None:
+            return 2
+        added_violations = _added_suppression_violations(update, paths, repo_root)
+        if added_violations is None:
+            return 2
+        violations.extend(added_violations)
+    if not violations:
+        return 0
+    print("ERROR: security suppression comments detected in pushed commits:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    return 1
+
+
+def check_range_suppressions(base: str, head: str, repo_root: Path) -> int:
+    """CI backstop for the no-net-new suppression policy."""
+    head_sha = _resolve_commit(repo_root, head)
+    if head_sha is None:
+        print(f"ERROR: could not resolve head revision: {head}", file=sys.stderr)
+        return 2
+    base_sha = _merge_base(repo_root, base, head_sha) or _resolve_commit(repo_root, base)
+    if base_sha is None:
+        print(f"ERROR: could not resolve base revision: {base}", file=sys.stderr)
+        return 2
+    update = PushUpdate(
+        source=PushRef("HEAD", head_sha, "HEAD", base_sha),
+        base=base_sha,
+        head=head_sha,
+        range_spec=f"{base_sha}..{head_sha}",
+        destination_branch=None,
+    )
+    return _report_suppression_violations([update], repo_root)
 
 
 def _added_suppression_violations(
@@ -4941,6 +5013,18 @@ def _is_zero_sha(sha: str) -> bool:
     return len(sha) in ZERO_SHA_LENGTHS and not sha.strip("0")
 
 
+# Documented escape for a maintainer deliberately reworking an unshared branch.
+# Not --no-verify, which .claude/rules/universal.md MUST NOT #2 forbids.
+FORCE_PUSH_ESCAPE_ENV = "FORCE_PUSH_OK"
+
+
+def _resolve_commit(repo_root: Path, ref: str) -> str | None:
+    result = _run_git(repo_root, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
 def _merge_base(repo_root: Path, base: str, head: str) -> str | None:
     result = _run_git(repo_root, ["merge-base", base, head])
     if result.returncode != 0:
@@ -5468,7 +5552,13 @@ def _skip_skillforge_path(path: str, repo_root: Path) -> bool:
     A mirror is not an authored skill, so the SkillForge schema (Triggers, Process,
     Verification) does not describe it and editing it is not how you fix it. The
     mirror set is derived from `.claude/commands/<name>.md`, the generator's own
-    input, so the two cannot drift. Do not restate the names here or in lefthook.yml.
+    input, so do not restate the names here or in lefthook.yml.
+
+    Derived is not the same as in sync. Nothing regenerates a mirror at commit
+    time, so a command edit that skips the generator ships a stale mirror; one
+    did, leaving the Copilot pr-autofix skill prescribing a push the pre-push
+    guard rejects. `test_committed_command_mirrors_match_the_generator` in
+    tests/build_scripts/test_generate_commands.py is what catches that.
     """
     if path.startswith("evals/"):
         return True
@@ -5750,7 +5840,7 @@ def run_pytest(repo_root: Path) -> int:
     # pre-push can block, or the hook outlives lefthook's own deadline and the
     # timeout looks nondeterministic.
     deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
-    for command in _pytest_commands(repo_root):
+    for index, command in enumerate(_pytest_commands(repo_root)):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             print(
@@ -5766,6 +5856,31 @@ def run_pytest(repo_root: Path) -> int:
             timeout_seconds=remaining,
         )
         _print_process_output(result)
+        if result.returncode == 3:
+            # `remaining` is always fractionally below the full budget, even on
+            # the first command, because the deadline and this subtraction call
+            # time.monotonic() at two different instants. Comparing the two
+            # floats therefore cannot tell "earlier commands ate the budget"
+            # from "the first command used all of it", and reporting the former
+            # for a first-command timeout sends the reader hunting for commands
+            # that never ran. The loop index is the exact signal, so use it.
+            if index == 0:
+                print(
+                    "ERROR: pytest suite timed out; the first command "
+                    f"{command} consumed the whole "
+                    f"{TEST_SUITE_TIMEOUT_SECONDS}s budget on its own",
+                    file=sys.stderr,
+                )
+            else:
+                consumed = TEST_SUITE_TIMEOUT_SECONDS - remaining
+                plural = "" if index == 1 else "s"
+                print(
+                    f"ERROR: pytest suite timed out with {remaining:g}s left of "
+                    f"the {TEST_SUITE_TIMEOUT_SECONDS}s budget "
+                    f"({consumed:g}s already consumed by {index} earlier "
+                    f"command{plural} in the suite)",
+                    file=sys.stderr,
+                )
         if result.returncode != 0:
             return result.returncode
     return 0
@@ -5890,7 +6005,52 @@ def additions_advisory(repo_root: Path) -> int:
     return 0
 
 
-def run_cli_e2e(test_file: str, repo_root: Path) -> int:
+def _branch_delta_files(repo_root: Path, base: str = "origin/main") -> set[str] | None:
+    """Return files changed in the true branch delta (``base...HEAD``).
+
+    Returns ``None`` when the base ref is unresolvable so callers can fall back
+    to running unconditionally rather than silently skipping.
+    """
+    result = _run_git(repo_root, ["diff", "--name-only", f"{base}...HEAD"])
+    if result.returncode != 0:
+        return None
+    return {line for line in result.stdout.splitlines() if line.strip()}
+
+
+def _push_files_are_genuine(
+    push_files: Sequence[str],
+    repo_root: Path,
+) -> bool:
+    """Return True when at least one push file exists in the branch delta.
+
+    When ``@{push}`` is unresolvable (new branch), lefthook may include files
+    from upstream commits in ``{push_files}``.  This function confirms that at
+    least one of those files is actually in ``origin/main...HEAD`` so the
+    caller can skip the expensive gate when none are.
+
+    Falls back to ``True`` (run unconditionally) when the delta cannot be
+    computed, so the gate is never weaker than before this guard.
+    """
+    if not push_files:
+        return False
+    delta = _branch_delta_files(repo_root)
+    if delta is None:
+        return True
+    return bool(delta.intersection(push_files))
+
+
+def run_cli_e2e(
+    test_file: str,
+    repo_root: Path,
+    push_files: Sequence[str] | None = None,
+) -> int:
+    if push_files is not None and not _push_files_are_genuine(push_files, repo_root):
+        print(
+            "CLI E2E skipped: none of the glob-matched push files exist in the "
+            "true branch delta (origin/main...HEAD); the file list is contaminated "
+            "by upstream commits the branch is behind"
+        )
+        return 0
     if os.environ.get("SKIP_CLI_E2E") == "true":
         print("CLI E2E skipped (SKIP_CLI_E2E=true)")
         return 0
@@ -6156,11 +6316,13 @@ def _handle_additions(args: argparse.Namespace) -> int:
 
 
 def _handle_cli_hook_e2e(args: argparse.Namespace) -> int:
-    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", _repo_root(args))
+    push_files = getattr(args, "files", None)
+    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", _repo_root(args), push_files)
 
 
 def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
-    return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", _repo_root(args))
+    push_files = getattr(args, "files", None)
+    return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", _repo_root(args), push_files)
 
 
 def _handle_sessions(args: argparse.Namespace) -> int:
@@ -6185,6 +6347,10 @@ def _handle_suppressions_push(args: argparse.Namespace) -> int:
 
 def _handle_staged_suppressions(args: argparse.Namespace) -> int:
     return check_staged_suppressions(_repo_root(args))
+
+
+def _handle_suppressions_range(args: argparse.Namespace) -> int:
+    return check_range_suppressions(args.base, args.head, _repo_root(args))
 
 
 def _handle_suppression_diff(args: argparse.Namespace) -> int:
@@ -6247,8 +6413,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("pytest", _handle_pytest),
         ("placeholder-identity", _handle_placeholder_identity),
         ("additions", _handle_additions),
-        ("cli-hook-e2e", _handle_cli_hook_e2e),
-        ("cli-plugin-e2e", _handle_cli_plugin_e2e),
         ("bot-cascade", _handle_bot_cascade),
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
@@ -6262,12 +6426,28 @@ def build_parser() -> argparse.ArgumentParser:
         _add_path_command(subparsers, name, handler)
     for name, handler in simple_commands:
         _add_simple_command(subparsers, name, handler)
+    for name, handler in (
+        ("cli-hook-e2e", _handle_cli_hook_e2e),
+        ("cli-plugin-e2e", _handle_cli_plugin_e2e),
+    ):
+        e2e_cmd = subparsers.add_parser(name)
+        e2e_cmd.add_argument(
+            "--files",
+            nargs="*",
+            default=None,
+            help="Files passed by lefthook {push_files}; used to detect contaminated file sets",
+        )
+        e2e_cmd.set_defaults(handler=handler)
     message = subparsers.add_parser("commit-message")
     message.add_argument("message_path")
     message.set_defaults(handler=_handle_commit_message)
     generated = subparsers.add_parser("stage-generated")
     generated.add_argument("kind", choices=sorted(GENERATED_PATHS | GENERATED_GLOBS))
     generated.set_defaults(handler=_handle_stage_generated)
+    suppression_range = subparsers.add_parser("security-suppressions-range")
+    suppression_range.add_argument("--base", required=True)
+    suppression_range.add_argument("--head", default="HEAD")
+    suppression_range.set_defaults(handler=_handle_suppressions_range)
     suppression_diff = subparsers.add_parser(
         "security-suppressions-diff",
         help="CI backstop: check HEAD..base_ref range for new security suppressions",

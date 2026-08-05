@@ -86,8 +86,13 @@ class TestSessionLogForCurrentBranch:
             f"Expected the branch-matching log {log_mine.name}, got {result}"
         )
 
-    def test_falls_back_to_mtime_when_no_branch_log_exists(self, tmp_path: Path) -> None:
-        """Falls back to mtime selection when no log for the current branch exists."""
+    def test_returns_none_when_no_branch_log_exists(self, tmp_path: Path) -> None:
+        """Returns None when no log for the current branch exists.
+
+        The previous behaviour was to fall back to the mtime winner; that
+        silently picked another session's log. Returning None lets the caller
+        fail with a clear message instead (issue #4288).
+        """
         sessions = tmp_path / "sessions"
         sessions.mkdir()
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
@@ -103,7 +108,10 @@ class TestSessionLogForCurrentBranch:
 
         result = policy._session_log_for_current_branch(sessions, repo)
 
-        assert result == log_new, "Should fall back to mtime winner when no branch log exists"
+        assert result is None, (
+            "Unmatched branch must return None, not the mtime winner. "
+            "Returning the mtime winner silently picks another session's log."
+        )
 
     def test_returns_none_when_no_logs_at_all(self, tmp_path: Path) -> None:
         """Returns None when the sessions directory is empty."""
@@ -126,8 +134,13 @@ class TestSessionLogForCurrentBranch:
 
         assert result is None
 
-    def test_falls_back_to_mtime_when_branch_unavailable(self, tmp_path: Path) -> None:
-        """Falls back to mtime if _current_branch returns None (detached HEAD etc.)."""
+    def test_returns_none_when_branch_unavailable(self, tmp_path: Path) -> None:
+        """Returns None when _current_branch returns None (detached HEAD etc.).
+
+        The previous behaviour was to fall back to mtime; that silently picked
+        another session's log. Returning None lets the caller fail with a clear
+        message instead of silently operating on the wrong log (issue #4288).
+        """
         sessions = tmp_path / "sessions"
         sessions.mkdir()
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
@@ -140,12 +153,15 @@ class TestSessionLogForCurrentBranch:
         def no_branch(r: Path) -> None:
             return None
 
-        import unittest.mock as mock  # noqa: PLC0415
+        import unittest.mock as mock
 
         with mock.patch.object(policy, "_current_branch", no_branch):
             result = policy._session_log_for_current_branch(sessions, repo)
 
-        assert result == log
+        assert result is None, (
+            "Detached HEAD must return None, not the mtime winner. "
+            "Returning the mtime winner silently picks another session's log."
+        )
 
 
 class TestAdrPolicyUsesBranchLog:

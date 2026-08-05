@@ -29,9 +29,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.validation import check_skill_md_exec_portability as cep  # noqa: E402
-from scripts.validation import check_skill_md_portability as cmp  # noqa: E402
-from scripts.validation.portability_common import (  # noqa: E402
+from scripts.validation import check_skill_md_exec_portability as cep
+from scripts.validation import check_skill_md_portability as cmp
+from scripts.validation.portability_common import (
     refuse_uncovered_scan,
     tracked_coverage_by_root,
 )

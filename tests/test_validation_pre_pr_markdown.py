@@ -69,7 +69,7 @@ class TestValidateMarkdownLint:
     def test_skip_autofix_runs_check_only(
         self,
         tmp_path: Path,
-        monkeypatch: Any,  # noqa: ANN401
+        monkeypatch: Any,
     ) -> None:
 
         monkeypatch.setenv("SKIP_AUTOFIX", "1")

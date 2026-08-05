@@ -1,6 +1,10 @@
 <!-- # taste-lint: ignore file-size, append-only trap index; split entries lose search locality. -->
 # Gotchas
 
+<!-- # taste-lint: ignore file-size, a trap catalog has to be readable in one
+pass. Splitting it by category would make you open several files to learn what
+will bite you, which is the one thing this file exists to prevent. -->
+
 Non-obvious repository behavior that cost real time to learn and cannot be
 inferred from reading the code. Each entry states the trap, the symptom you
 will actually see, and the fix.
@@ -307,6 +311,53 @@ commit. Amending `HEAD` is safe whenever the recorded commit stays reachable,
 which includes `HEAD~1` and anything older. It is unsafe only when the commit
 you are rewriting *is* the recorded one; there, add a follow-up commit instead.
 
+## One file crossing 500 lines fails four pre-push jobs with three messages
+
+`taste_lints.py` treats a file over 500 lines as an error and a file over 300
+as a warning. Only the error counts. Growing one file from 402 to 691 lines
+raised the whole-repo taste count by exactly one, and that single increment
+failed four jobs in the same push:
+
+| Job | What it printed |
+|---|---|
+| `taste-count-ratchet` | `REGRESSION. 585 > baseline 584 (+1)` |
+| `merge-tree-ratchet` | `BLOCKED. The merged result breaches a ratchet ceiling.` |
+| `pre-pr-validation` | `Error: Validation failed`, after 500-plus lines of unrelated file-size output |
+| `python-tests` | `FAILED tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree` |
+
+The fourth is the trap. It reads as an unrelated test failure buried in 23,058
+passes, and it is the one that costs you the 16-minute suite before you see it.
+All four clear together once the count returns to baseline.
+
+`merge-tree-ratchet`'s advice is also wrong for this case. It says to merge or
+rebase from `origin/main` and re-check, which is right for the behind-but-innocent
+case above and useless when the regression is genuinely yours. That job already
+computed the merged result, so if it still says `REGRESSION`, merging will not
+help. Read the number: `585 > baseline 584` means your tree added one.
+
+Find the offending file directly rather than by bisecting the push:
+
+```bash
+uv run --frozen python .claude/skills/taste-lints/scripts/taste_lints.py <changed files>
+```
+
+Note the path. The linter is not under `scripts/validation/`; it ships inside
+the `taste-lints` skill, which is where the plugin needs it.
+
+The fix is usually a split rather than a suppression. A test file that grew by
+appending a second, self-contained group of guards splits cleanly on the
+document or subject each group covers, and the halves keep the shared helpers
+by import rather than by copy. Confirm with the real gate before pushing again,
+which takes seconds against the suite's sixteen minutes:
+
+```bash
+git add <the split files>
+uv run --frozen python scripts/ci/taste_count_ratchet.py
+```
+
+It reads `git ls-files`, so an unstaged new file is invisible to it and the
+count looks fine right up until the push.
+
 ## Eval harness
 
 These matter only when running `scripts/eval/`. Full detail lives in
@@ -448,45 +499,10 @@ The field does not exist on that command and the error does not suggest the
 alternative. Use `gh api graphql` with a `reviewThreads` query on the pull
 request instead.
 
-## Workspace Budget Gotchas
+## Workspace byte-gate
 
-Non-obvious facts about the workspace byte-gate that save debugging time.
-
-## Byte-gate ceilings (always-on files)
-
-These files are measured by `scripts/validate_workspace_budget.py` on every CI
-run. Each file has a ceiling. Exceeding it blocks the push.
-
-| File | Ceiling | Ratchet? | Notes |
-|---|---|---|---|
-| `AGENTS.md` | 3000 bytes | no | Standard; 2999 bytes as of 2025-07-30 (one byte of headroom) |
-| `CLAUDE.md` | 3000 bytes | no | Standard |
-| `.claude/CLAUDE.md` | 3000 bytes | no | Standard |
-| `.github/copilot-instructions.md` | 6351 bytes | yes | Non-regression ratchet seeded at 6351 bytes (2025-07-30, issue #3991). Target: reduce to 3000 after moving the Gotchas section to `.agents/governance/` (issue #3952). |
-
-**Standard files** (no ratchet) also share a combined pool: `TOTAL_BUDGET_BYTES
-= 6600`. Files with a ratchet are measured only by their individual ceiling.
-
-**To lower a ratchet**: trim the file content, then update `FILE_CEILING_BYTES`
-in `scripts/validate_workspace_budget.py` to the new measured size. Never raise
-a ceiling without recording the reason in the same change.
-
-## The shared total only covers standard files
-
-`TOTAL_BUDGET_BYTES = 6600` applies to `AGENTS.md + CLAUDE.md + .claude/CLAUDE.md`
-only. Adding a ratchet file to that sum would yield a meaningless constraint
-because the ratchet file already has its own ceiling.
-
-## An empty WORKSPACE_FILES disables the gate silently
-
-`test_workspace_files_nonempty` guards this. If you see that test failing, the
-constant was emptied somewhere and every per-file assertion is vacuously true.
-
-## Gate location
-
-`tests/test_workspace_limits.py` runs via the standard `pytest` suite. It imports
-constants from `scripts/validate_workspace_budget.py` directly, so the test and
-the enforcer always agree (fixed by issue #3951).
+Moved to `.agents/governance/WORKSPACE-BUDGET.md`: per-file ceilings, the
+shared total, the silent-disable failure, and where the gate lives.
 
 ## Concurrent pushes: use a per-branch lock, not a global one
 
@@ -494,29 +510,246 @@ The race a push lock exists to prevent is a lost ref update: two writers push
 to the same remote ref and one overwrites the other. Git takes its lock per ref.
 Two pushes to two different branches cannot race for the same lock on the server.
 
-A global `flock /tmp/aiagents-push.lock` wrapping `git push` serializes the
-entire fleet including the 7 to 15 minute pre-push hook. Five concurrent pushes
-to five distinct branches costs 5 x 15 = 75 minutes instead of 15.
+A single global lock wrapping `git push` serializes the entire fleet including
+the 7 to 15 minute pre-push hook. Five concurrent pushes to five distinct
+branches costs 5 x 15 = 75 minutes instead of 15.
 
-Use a per-branch lock keyed on the exact branch name:
+Use the canonical per-branch lock, keyed on the exact branch name. The path is
+fixed by `.claude/rules/push-lock.md` and `scripts/validation/check_push_lock_paths.py`
+blocks any other spelling:
 
 ```bash
 BR=$(git branch --show-current)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/home/richard/src/GitHub/rjmurillo/ai-agents-pushpol2-push-${SLUG}.lock" \
-  git push --force-with-lease origin HEAD:"$BR"
+mkdir -p "$HOME/src/scratch/locks"
+flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" \
+  git push origin HEAD:"$BR"
 ```
 
 Notes:
 - `tr '/' '-'` is required: a branch like `fix/foo` would otherwise create a
   lock file with a `/` in its name, which the shell reads as a directory path.
-- Use an absolute path for the lock file and keep it outside `/tmp` (not durable
-  on this machine).
-- `--force-with-lease` already fails safely on a lost update. The lock prevents
-  the git-object-packing overhead of a concurrent same-branch push, not data loss.
+- `mkdir -p` first. `flock` fails when the parent directory is missing, and a
+  failed `flock` in a detached push says nothing.
+- Keep the lock outside `/tmp`. A wipe there splits one filename across two
+  inodes, and the two holders stop excluding each other (issue #4366).
+- The lock prevents the git-object-packing overhead of a concurrent same-branch
+  push. It is not a substitute for the pre-push non-fast-forward guard, and a
+  force push stays forbidden on a shared branch (issue #4293).
 - Two distinct branches never contend for the same lock file, so their pre-push
   hooks run in parallel. Measured throughput: four concurrent pushes to four
   distinct branches finish in approximately one hook duration, not four.
 
 Issue #4283 documents the measured 28-waiter convoy produced by the global lock
 and the first-principles analysis of why the race is per-ref.
+
+## A script under `scripts/ci/` needs a workflow caller, not just a lefthook job
+
+`tests/ci/test_ci_scripts_are_wired.py` parses `.github/workflows/**` and
+`.github/actions/**`, reads the `run:` body of every step that is not literally
+`if: false`, and fails for any `scripts/ci/*.py` it cannot find a live call for.
+Registering a new guard in `lefthook.yml` and in
+`scripts/validation/checks_ratchet.py` satisfies the push gate and the pre-PR
+gate, and still fails this test. Local hooks do not cover a push from a clone
+where `lefthook install` never ran, a bot push, or a cloud agent.
+
+The test exists because `ruff_count_ratchet.py` and `adr006_run_block_scanner.py`
+both shipped with green suites and no caller, and protected nothing for weeks
+(issue #3329). A unit test cannot catch a missing call site, so this checks the
+call site.
+
+Add the workflow step in the same change that adds the script. A ratchet with a
+fixed floor takes no `--base-ref` and needs no `git fetch --depth=1` preamble;
+copy the neighbouring step only if your guard actually diffs against a base.
+
+## An autofix is not a gate: pair every repair with a verifier
+
+`memory-token-update` (`lefthook.yml`) rewrites every `.serena/memories/`
+token count on pre-commit, and it is correct. It carries
+`skip: [merge, "test $SKIP_AUTOFIX = 1"]`, and nothing downstream checked its
+result, so a memory edited inside a merge commit reached `main` with the old
+count still recorded. Measured on pristine `main`: `skills-git-index` read 287
+against an actual 324, a 13% undercount (issue #4441).
+
+Two rules follow, and both are load-bearing:
+
+- **The verifier must reuse the repair's own computation.** If the gate derives
+  the expected value independently, the two can disagree, and the contributor is
+  trapped: the gate fails, they run the repair, the gate fails again on the
+  repaired file. `memory_index_token_ratchet.drifted_lines` calls the repair's
+  `update_line` directly for exactly this reason.
+- **"Cannot verify" must not exit zero.** The repair degrades to a warning when
+  `tiktoken` is missing. The verifier exits 2 instead. A gate that goes green
+  because it checked nothing is worse than no gate.
+
+## Grep the handler, not the job name
+
+A lefthook job name, its `git_hook_policy.py` subcommand string, and the Python
+function that implements it are three different identifiers. For the memory
+token repair they are `memory-token-update`, `memory-tokens`, and
+`update_memory_tokens`. Searching one spelling and finding nothing produces a
+confident, wrong "this is wired to no gate" conclusion. That mistake cost a full
+diagnostic cycle on issue #4441.
+
+Correct probe: `git grep -n "<function_name>"` to find the handler, read the
+`(subcommand, handler)` tuple near it, then grep that subcommand string in
+`lefthook.yml`.
+
+## "All validations passed" in a push log does not mean the branch reached the remote
+
+The repo's push wrapper runs `scripts/validation/pre_pr.py` first, and that
+script signs off with `RESULT: All validations passed` followed by
+`Ready to create pull request!`. Only then does it call `git push`, which fires
+the lefthook `pre-push` hook and runs the full suite a second time. Those two
+lines are therefore the *earliest* success message in the log, not the last one,
+and a log that ends on them usually means the push is still running.
+
+Two consequences:
+
+- Grepping the log for lefthook failures (`🥊 <job> (N seconds)`) and finding
+  none proves no job has failed **yet**. It does not prove the push finished.
+- The only proof a push landed is the remote itself:
+  `git ls-remote origin <branch>` against `git rev-parse HEAD`. Check the shas
+  match before opening a PR. Opening one against a branch the remote has never
+  heard of fails with a confusing 422 that names the base, not the head.
+
+Whether a commit made while a push is in flight lands with it is not
+predictable from the outside. The wrapper runs `pre_pr.py` first and only then
+calls `git push`, so a commit created during that window can be picked up, and
+one created after the transfer starts will not be. Measured both ways. Do not
+reason about it: read the sha off the remote and compare.
+
+## Never measure a gate from a detached HEAD
+
+`scripts/detect_scope_explosion.py` returns 0 on a detached `HEAD` for staged
+content that returns 1 on a branch. Same commit, same staged files, same tree;
+the only variable is whether `HEAD` is attached. It does not report that it
+skipped, it reports success (issue #4602).
+
+The direct cost is that `git bisect`, `git worktree add --detach`, a CI checkout
+of a SHA, and a rebase in progress all detach, so committing from any of those
+states skips the gate with no signal.
+
+The larger cost is to measurement. A probe run detached reports PASS on input the
+gate blocks, so the obvious way to test this check yields a false negative. That
+is how issue #4544 came to be closed as already-fixed while still reproducing,
+and the retraction had to be retracted. When you probe any gate, attach `HEAD`
+first with `git checkout -B probe/<name> <sha>` rather than
+`git worktree add --detach`, and treat a detached PASS as no result at all.
+
+## The CLI e2e pre-push jobs need a Copilot token, and fail fast without one
+
+`plugin-load-e2e` and `hook-anchoring-e2e` shell out to the real `copilot`
+binary. Each has its own `glob:` list in `lefthook.yml`, and the two lists are
+different: `hook-anchoring-e2e` watches the hook surface (`.claude/hooks/**`,
+`src/copilot-cli/hooks/**`, `.claude/settings.json`, `generate_hooks.py`, and
+its own e2e files), while `plugin-load-e2e` watches the plugin surface
+(`.claude/skills/**`, `.claude/commands/**`, both `plugin.json` manifests,
+`src/copilot-cli/skills/**`, `generate_commands.py`, `generate_skills.py`,
+`templates/platforms/copilot-cli.yaml`). Read `lefthook.yml` for the current
+lists rather than trusting a union of them; touching one surface arms one job,
+not both.
+
+The CLI reads its credential from `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, or
+`GITHUB_TOKEN`. A `gh auth login` alone does not set any of them. With none set,
+each invocation exits 1 with an authentication message and the job finishes in
+roughly 13 to 17 seconds. A run that actually reaches the CLI takes about 28
+seconds or more for two tests.
+
+Both jobs are siblings of `python-tests` inside one `parallel: true` group, so
+they race it rather than follow it. That does not make the failure cheap: the
+group only returns when its slowest member does, and `python-tests` takes about
+18 minutes. A 13-second auth failure still costs the full suite's wall time
+before the ref is rejected. Provision the token on the push instead:
+
+```bash
+COPILOT_GITHUB_TOKEN="$(gh auth token)" git push origin HEAD:"$(git branch --show-current)"
+```
+
+### Merging main arms both jobs even when your branch touches neither surface
+
+This is the part that reads as a contradiction. A branch can arm both e2e jobs
+while `git diff origin/main...HEAD` shows nothing in either glob list. The globs
+are not matched against the branch's diff versus main. Lefthook expands
+`{push_files}` over the **push range**, from the remote tip of the branch to the
+new `HEAD`. Merging `origin/main` into a branch puts every one of main's commits
+inside that range.
+
+Measured: pushing `test/vacuous-assertion-anti-pattern` right after merging main
+covered 367 files across `6eeeb8cac..35d87fd6b`, which hit both glob sets. The
+branch's own diff against main touched seven files, none of them gated. So the
+rule is: if you merged main, assume every glob-gated job is armed, whatever your
+branch changed.
+
+Two traps around diagnosing it:
+
+- A fast finish looks like a flake or a concurrency problem. It is neither. Read
+  the assertion message, which names `COPILOT_GITHUB_TOKEN` outright.
+  Serializing pushes to fix it is the wrong remedy and contradicts the
+  per-branch lock section above.
+- Running the two test files directly does not reproduce the failure. The suites
+  gate on `RUN_CLI_E2E=1`, which `scripts/validation/git_hook_policy.py` sets for
+  the hook. Without it the CLI cases skip and pytest reports the file as passing,
+  which proves nothing. Set both variables to reproduce.
+
+A third failure mode reads like the first two and is not. When the service
+rejects a token that is actually valid, the test fails with "Copilot auth token
+was rejected (expired or revoked); rotate COPILOT_GITHUB_TOKEN". That message
+names one cause and the service's own text in the same output contradicts it:
+"Your token may still be valid. Check your network connection and try again."
+Measured: a push failed both e2e jobs on that message, and the same test passed
+in 24.99 seconds a few minutes later with a token from the same `gh auth token`
+call. Reproduce before rotating anything:
+
+```bash
+RUN_CLI_E2E=1 COPILOT_GITHUB_TOKEN="$(gh auth token)" \
+  uv run --frozen python -m pytest \
+  tests/e2e/test_plugin_load_smoke.py::test_copilot_plugin_loads_expected_skills -q
+```
+
+That is 25 seconds against 18 minutes for a push, and it tells you whether you
+have a credential problem or a bad minute.
+
+Measured on that same push: `plugin-load-e2e` failed at 13.03 seconds and
+`hook-anchoring-e2e` at 16.73 seconds, while `python-tests` passed in 1071.94
+seconds. The same two tests passed in 27.92 seconds under `RUN_CLI_E2E=1` with
+`COPILOT_GITHUB_TOKEN` set, and skipped silently with the token set but
+`RUN_CLI_E2E` unset. Those four durations are author-reported from the push
+console; no log artifact is committed.
+
+## Editing any `.claude/rules/*.md` file changes a number the doctrine asserts
+
+`model-context-doctrine.md` states the shipped plugin tree's always-on size as
+a literal byte count, and `tests/validation/test_always_on_corpus_claims.py`
+measures the tree and asserts the prose matches. Editing a rule changes that
+measurement, so a one-paragraph clarification to an unrelated rule turns the
+guard red.
+
+The trap is where it fires. The guard lives in `python-tests`, so it costs the
+full suite before the ref is rejected. Nothing in the pre-commit set catches
+it, and the edit itself looks unrelated to any figure.
+
+Four rules are narrowly scoped in `.github/instructions` and always-on in the
+plugin tree: `governance`, `push-lock`, `secret-redaction`, and `session-logs`.
+Editing one of those moves the plugin figure while leaving the
+`.github/instructions` figure alone, which is why the two numbers in that
+paragraph drift independently.
+
+Check it in under a second before pushing:
+
+```bash
+uv run --frozen python -m pytest tests/validation/test_always_on_corpus_claims.py -q
+```
+
+When it fails, take the measured value from the assertion message, update the
+sentence in `.claude/skills/context-optimizer/references/model-context-doctrine.md`,
+and rerun `build/scripts/generate_skills.py` so the `src/copilot-cli/` mirror
+matches. Update the vendor-cost figure in the same sentence: it is the plugin
+count minus the `.github/instructions` count, and no test checks it.
+
+Two details the failure output does not explain. The at-source total is larger
+than the shipped total because `generate_rules.py` strips the `priority:` key on
+the way out, so the same rule is smaller in the plugin tree than on disk. And the
+two 8KB multipliers move independently: the `.py`-edit multiplier can hold steady
+while the always-on one shifts, so re-measure both rather than assuming one
+tracks the other.

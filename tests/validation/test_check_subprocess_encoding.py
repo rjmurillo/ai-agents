@@ -39,7 +39,7 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
-from check_subprocess_encoding import (  # noqa: E402
+from check_subprocess_encoding import (
     find_all_violations,
     find_violations,
     main,

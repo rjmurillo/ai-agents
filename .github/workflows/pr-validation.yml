@@ -246,9 +246,9 @@ jobs:
         run: uv run --frozen python3 scripts/validation/check_python3_entrypoints.py
 
       # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
-      # The burn-down count started at 93 at audit time. This freezes the
-      # current ratchet ceiling at 58: the scanner exits 1 when the count
-      # exceeds --max. Lower --max after each extraction.
+      # The burn-down count started at 93 at audit time and reached zero. The
+      # ratchet ceiling is now fixed at 0: the scanner exits 1 when the count
+      # exceeds --max, so any new run block fails the gate.
       #
       # Unconditional (Issue #4151): Renovate and Dependabot open workflow-only
       # PRs (action SHA bumps), which are exactly the PRs that could smuggle a
@@ -301,6 +301,31 @@ jobs:
           # CI-only: see taste-lint ratchet step above for the --depth=1 caveat.
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
+      # Issue #4313: 425 atomic memories are unreachable through the retrieval
+      # path AGENTS.md points at. The pre-push ratchet stops the count rising,
+      # but every route that skips local hooks reaches the remote unchecked:
+      # `--no-verify`, a clone where `lefthook install` was never run, a bot
+      # push, a cloud agent. The gate needs a server-side leg for the same
+      # reason the conflict-marker gate below does.
+      - name: Run unindexed-memory count ratchet
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          # CI-only: see taste-lint ratchet step above for the --depth=1 caveat.
+          git fetch --depth=1 origin "$BASE_REF"
+          uv run --frozen python3 scripts/ci/memory_index_count_ratchet.py --base-ref FETCH_HEAD
+      # Issue #4441: `memory-token-update` repairs every index token count on
+      # pre-commit, but it carries `skip: [merge, "test $SKIP_AUTOFIX = 1"]` and
+      # nothing verifies its result. An autofix with no verifier is not a gate.
+      # A memory edited inside a merge commit reached main with the old count
+      # still recorded: measured on pristine main, `skills-git-index` read 287
+      # against an actual 324, a 13% undercount. This needs the same server-side
+      # leg as the count ratchet above, and for the same reason: every route
+      # that skips local hooks reaches the remote unchecked. It takes no
+      # --base-ref because its floor is fixed at zero, so there is no baseline
+      # to compare against and nothing a contributor could raise to silence it.
+      - name: Run memory-index token ratchet
+        run: uv run --frozen python3 scripts/ci/memory_index_token_ratchet.py
       # Issue #4398: the three count ratchets measure the branch head, not the
       # merged result. A branch cut before main lowered a baseline can pass its
       # own count check yet breach the ceiling once it lands. This step evaluates
@@ -322,9 +347,15 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # CI-only: --depth=1 keeps this disposable checkout shallow.
-          # See taste-lint ratchet step above for the caveat on working clones.
-          git fetch --depth=1 origin "$BASE_REF"
+          # Issue #4518: this fetch MUST NOT be shallow. The two count ratchets
+          # above read a single baseline file at the base ref, so --depth=1 is
+          # enough for them. merge-tree needs a merge base, and a --depth=1
+          # fetch writes .git/shallow and cuts traversal at the fetched commit.
+          # git then aborts with "refusing to merge unrelated histories" (rc 128)
+          # on any branch behind the base, which is the only case this gate
+          # exists to evaluate. Measured: behind+shallow rc=128, behind+full
+          # rc=0, up-to-date+shallow rc=0.
+          git fetch origin "$BASE_REF"
           uv run --frozen --extra dev python3 scripts/ci/merge_tree_ratchet_check.py --base-ref FETCH_HEAD
       # Issue #3770: `conflict-marker-policy` runs only at pre-commit over the
       # index. Every route that skips local hooks reached the remote unchecked:
@@ -348,6 +379,12 @@ jobs:
       # is clean today, so this is a ratchet at zero with no allowlist.
       - name: Check for conflict markers
         run: uv run --frozen python3 scripts/validation/git_hook_policy.py tracked-conflict-markers
+
+      # Issue #4068: scripts with a `main` entrypoint need tests that prove the
+      # CLI returns nonzero on failure. Helper-only assertions miss silent-pass
+      # regressions after shell logic moves into Python.
+      - name: Run CLI exit contract ratchet
+        run: uv run --frozen python3 scripts/ci/cli_exit_contract_ratchet.py
 
       # Issue #2840: ADR-080 requires an unjustified `model:` pin to fail CI.
       # `check_model_pins.py --mode enforce` exits 1 on a new or changed pin

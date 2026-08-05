@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import Any, NoReturn, Self, cast
@@ -321,11 +321,13 @@ def _write_today_session(repo: Path, content: str) -> Path:
 def test_adr_review_policy_blocks_stale_debate_reference(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A debate log exists in the correct dir (.agents/critique/) but references
     # a DIFFERENT ADR (ADR-042), not the staged ADR (ADR-062). This exercises
     # the stale-reference branch, not the missing-log branch.
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     _write_lf(critique / "adr-042-debate.md", "ADR-042 review")
@@ -339,8 +341,12 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     assert "ADR-062" in capsys.readouterr().err
 
 
-def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(tmp_path: Path) -> None:
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     _write_lf(critique / "adr-062-debate.md", "ADR-062 review")
@@ -392,9 +398,11 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
 def test_adr_review_policy_missing_critique_dir_fails(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No .agents/critique/ directory at all means no debate logs: gate fails."""
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     # Only the old wrong dir exists; critique dir is absent.
     wrong = tmp_path / ".agents" / "analysis"
     wrong.mkdir(parents=True)
@@ -430,8 +438,10 @@ def test_retrospective_policy_blocks_missing_evidence(
 
 def test_retrospective_policy_allows_session_evidence_and_documentation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _write_today_session(tmp_path, '{"notes": "Learnings captured"}')
+    session = _write_today_session(tmp_path, '{"notes": "Learnings captured"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
 
     assert (
         policy.check_retrospective_evidence(
@@ -521,7 +531,9 @@ def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
     sessions = tmp_path / ".agents" / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
-    _write_lf(sessions / "2026-03-14-session-1.json", '{"notes": "Learnings captured"}')
+    session = sessions / "2026-03-14-session-1.json"
+    _write_lf(session, '{"notes": "Learnings captured"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
 
     # No retrospective file: the only passing path is the yesterday session log.
     assert (
@@ -5052,7 +5064,9 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
 ) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
-    # Use real commits so the non-fast-forward check can resolve the objects.
+    # Real objects, and remote an ancestor of head: the non-fast-forward guard
+    # added for issue #4293 blocks a remote tip the clone cannot resolve, so a
+    # synthetic SHA here would fail for a reason this test is not about.
     remote = _commit_file(repo, "tracked", "base\n")
     head = _commit_file(repo, "tracked", "head\n")
     destinations: list[str | None] = []
@@ -7235,6 +7249,32 @@ def test_graft_check_fails_closed_on_git_and_read_errors(
     assert policy._check_no_grafts(tmp_path) == 2
 
 
+def _git_fake(
+    shallow_path: str,
+    shallow: subprocess.CompletedProcess[str] | None = None,
+) -> Callable[..., subprocess.CompletedProcess[str]]:
+    """An arg-aware `_run_git` stand-in.
+
+    The arg-blind `lambda *_args: _completed(0, "true\\n")` these tests used
+    is what let issue #4576 through: it answered every query with the shallow
+    verdict, so a second query could not be observed to be wrong. Worse, it
+    fed that verdict to the path lookup as well, so `_shallow_file` resolved
+    `repo_root / "true"` and the tests passed only because `is_file()`
+    tolerates a path that does not exist.
+
+    `shallow_path` answers `rev-parse --git-path shallow`; `shallow` answers
+    `rev-parse --is-shallow-repository` and defaults to a shallow verdict.
+    """
+    verdict = _completed(0, "true\n") if shallow is None else shallow
+
+    def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "shallow" in args:
+            return _completed(0, f"{shallow_path}\n")
+        return verdict
+
+    return fake
+
+
 @pytest.mark.parametrize(
     ("result", "expected"),
     [
@@ -7250,7 +7290,7 @@ def test_history_integrity_rejects_shallow_or_unknown_state(
     result: subprocess.CompletedProcess[str],
     expected: int,
 ) -> None:
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: result)
+    monkeypatch.setattr(policy, "_run_git", _git_fake(".git/shallow", shallow=result))
     monkeypatch.setattr(policy, "_check_no_grafts", lambda _root: 0)
 
     assert policy._check_history_integrity(tmp_path) == expected
@@ -7262,11 +7302,7 @@ def test_history_integrity_shallow_message_names_remedy(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Shallow clone error must name the fix command (issue #4086)."""
-    monkeypatch.setattr(
-        policy,
-        "_run_git",
-        lambda *_args: _completed(0, "true\n"),
-    )
+    monkeypatch.setattr(policy, "_run_git", _git_fake(".git/shallow"))
 
     assert policy._check_history_integrity(tmp_path) == 2
 
@@ -7285,17 +7321,145 @@ def test_history_integrity_shallow_message_names_pin_sha(
     shallow_file.parent.mkdir(parents=True, exist_ok=True)
     shallow_file.write_text(f"{pin}\n", encoding="utf-8")
 
-    monkeypatch.setattr(
-        policy,
-        "_run_git",
-        lambda *_args: _completed(0, "true\n"),
-    )
+    monkeypatch.setattr(policy, "_run_git", _git_fake(".git/shallow"))
 
     assert policy._check_history_integrity(tmp_path) == 2
 
     err = capsys.readouterr().err
     assert pin in err
     assert "git fetch --unshallow origin" in err
+
+
+def test_history_integrity_names_pin_sha_from_a_linked_worktree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The pin SHA must survive the worktree shape (issue #4576).
+
+    In a linked worktree `<root>/.git` is a pointer file, not a directory, so
+    the old `repo_root / ".git" / "shallow"` named a child of a file and never
+    existed. The guard still blocked, but silently dropped the one line that
+    says where the graft is, in exactly the layout this repository runs dozens
+    of. `shallow` lives in the common directory, which is shared, so the graft
+    is usually not even from the worktree you are standing in.
+
+    Built on a real worktree with real git rather than a hand-made pointer
+    file, so the path resolution itself is under test. A hardcoded fake would
+    pass with the wrong `rev-parse` flag; this does not.
+    """
+    repo = tmp_path / "repo"
+    linked = tmp_path / "linked"
+    _init_repo(repo)
+    _commit_file(repo, "source.py", "value = 1\n")
+    _git(repo, "worktree", "add", "-q", "-b", "feature/linked", str(linked))
+    assert (linked / ".git").is_file(), "fixture must reproduce the pointer-file shape"
+
+    common_dir = Path(_git(linked, "rev-parse", "--git-common-dir").stdout.strip())
+    if not common_dir.is_absolute():
+        common_dir = (linked / common_dir).resolve()
+    pin = "b" * 40
+    _write_lf(common_dir / "shallow", f"{pin}\n")
+
+    real_run_git = policy._run_git
+
+    def fake(root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "--is-shallow-repository" in args:
+            return _completed(0, "true\n")
+        return real_run_git(root, args)
+
+    monkeypatch.setattr(policy, "_run_git", fake)
+
+    assert policy._check_history_integrity(linked) == 2
+
+    err = capsys.readouterr().err
+    assert pin in err, "pin SHA dropped in a worktree"
+    assert str(common_dir / "shallow") in err
+    assert "every worktree" in err
+    assert "git fetch --unshallow origin" in err
+
+
+def test_history_integrity_distrusts_stdout_when_the_path_lookup_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A non-zero rc makes stdout untrustworthy, so fall back to the clone shape.
+
+    Written as a discriminating input on purpose. An empty-stdout failure
+    cannot tell the rc guard apart from the malformed-output guard below it,
+    so such a test would pass with either one deleted. Garbage on stdout
+    separates them: without the rc check the guard reads `<root>/junk`, finds
+    nothing, and drops the pin line.
+    """
+    pin = "c" * 40
+    shallow_file = tmp_path / ".git" / "shallow"
+    shallow_file.parent.mkdir(parents=True)
+    shallow_file.write_text(f"{pin}\n", encoding="utf-8")
+
+    def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "shallow" in args:
+            return _completed(128, "junk\n", "fatal: not a git repository\n")
+        return _completed(0, "true\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake)
+
+    assert policy._check_history_integrity(tmp_path) == 2
+
+    err = capsys.readouterr().err
+    assert pin in err, "fallback dropped the pin when the lookup failed"
+    assert "git fetch --unshallow origin" in err
+
+
+def test_history_integrity_distrusts_malformed_path_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A zero rc with output that is not one path is still untrustworthy.
+
+    Discriminating on the line count specifically: rc is zero here, so only
+    the `len(lines) != 1` clause can produce the fallback that recovers the
+    pin. `_check_no_grafts` guards the same shape 30 lines above.
+    """
+    pin = "d" * 40
+    shallow_file = tmp_path / ".git" / "shallow"
+    shallow_file.parent.mkdir(parents=True)
+    shallow_file.write_text(f"{pin}\n", encoding="utf-8")
+
+    def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "shallow" in args:
+            return _completed(0, "junk/one\njunk/two\n")
+        return _completed(0, "true\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake)
+
+    assert policy._check_history_integrity(tmp_path) == 2
+
+    err = capsys.readouterr().err
+    assert pin in err, "fallback dropped the pin on malformed output"
+
+
+def test_history_integrity_survives_a_failed_path_lookup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A broken `rev-parse --git-path` must not stop the guard from blocking.
+
+    Degrading to the primary-clone path costs the pin line; swallowing the
+    verdict would let a shallow clone push.
+    """
+
+    def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "shallow" in args:
+            return _completed(128, "", "fatal: not a git repository\n")
+        return _completed(0, "true\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake)
+
+    assert policy._check_history_integrity(tmp_path) == 2
+    assert "git fetch --unshallow origin" in capsys.readouterr().err
 
 
 def test_push_update_defense_blocks_protected_destination(
@@ -9919,6 +10083,141 @@ def test_the_tracked_scan_reports_a_git_failure_as_a_config_error(
     assert policy.check_tracked_conflict_markers(not_a_repo) == 2
 
 
+class TestRangeSuppressionBackstop:
+    """CI backstop for the no-net-new suppression contract (issue #4061).
+
+    The policy shipped wired to lefthook only, so a clone without
+    `lefthook install`, a `--no-verify` push, a server-side "Update branch"
+    merge, or a bot push landed a fresh suppression with nothing failing.
+    These drive `check_range_suppressions`, the range-based entry point
+    pr-validation.yml calls, over the same scan functions the pre-push hook
+    uses.
+    """
+
+    NOSEC = "# no" + "sec"
+
+    def _repo(self, tmp_path: Path) -> Path:
+        repo = tmp_path / "repo"
+        _init_repo(repo)
+        return repo
+
+    def test_a_net_new_suppression_fails_and_names_path_and_line(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+        head = _commit_file(repo, "source.py", f"value = 1  {self.NOSEC}\n")
+
+        assert policy.check_range_suppressions(base, head, repo) == 1
+        assert f"{head[:12]}:source.py:1" in capsys.readouterr().err
+
+    def test_a_suppression_moved_within_one_file_passes(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", f"value = 1  {self.NOSEC}\nother = 2\n")
+        head = _commit_file(repo, "source.py", f"other = 2\nvalue = 1  {self.NOSEC}\n")
+
+        assert policy.check_range_suppressions(base, head, repo) == 0
+
+    def test_cross_file_removal_does_not_credit_another_file(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        _commit_file(repo, "clean.py", "value = 2\n")
+        base = _commit_file(repo, "donor.py", f"value = 1  {self.NOSEC}\n")
+        _write_file(repo, "donor.py", "value = 1\n")
+        _write_file(repo, "clean.py", f"value = 2  {self.NOSEC}\n")
+        _git(repo, "add", "--", "donor.py", "clean.py")
+        _git(repo, "commit", "-qm", "test: move suppression across files")
+        head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+        assert policy.check_range_suppressions(base, head, repo) == 1
+
+    def test_one_removal_cannot_pay_for_two_additions(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", f"a = 1  {self.NOSEC}\n")
+        head = _commit_file(
+            repo, "source.py", f"b = 2  {self.NOSEC}\nc = 3  {self.NOSEC}\n"
+        )
+
+        assert policy.check_range_suppressions(base, head, repo) == 1
+
+    def test_a_pure_rename_carrying_a_suppression_passes(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "old.py", f"value = 1  {self.NOSEC}\n")
+        _git(repo, "mv", "old.py", "new.py")
+        _git(repo, "commit", "-qm", "test: rename carrying a suppression")
+        head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+        assert policy.check_range_suppressions(base, head, repo) == 0
+
+    def test_an_unscanned_suffix_is_ignored(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "README.md", "docs\n")
+        head = _commit_file(repo, "README.md", f"docs\nUse {self.NOSEC} sparingly.\n")
+
+        assert policy.check_range_suppressions(base, head, repo) == 0
+
+    def test_an_unresolvable_base_is_a_config_error(self, tmp_path: Path, capsys) -> None:
+        repo = self._repo(tmp_path)
+        head = _commit_file(repo, "source.py", "value = 1\n")
+
+        assert policy.check_range_suppressions("no-such-ref", head, repo) == 2
+        assert "ERROR: could not resolve base revision" in capsys.readouterr().err
+
+    def test_an_unresolvable_head_is_a_config_error(self, tmp_path: Path, capsys) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+
+        assert policy.check_range_suppressions(base, "no-such-ref", repo) == 2
+        assert "ERROR: could not resolve head revision" in capsys.readouterr().err
+
+    def test_a_symbolic_head_is_labelled_with_the_commit_it_resolves_to(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        """`HEAD` in the label would name nothing a reader can check out."""
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+        head = _commit_file(repo, "source.py", f"value = 1  {self.NOSEC}\n")
+
+        assert policy.check_range_suppressions(base, "HEAD", repo) == 1
+        error = capsys.readouterr().err
+        assert f"{head[:12]}:source.py:1" in error
+        assert "HEAD:source.py" not in error
+
+    def test_the_cli_reports_both_verdicts(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        clean_base = _commit_file(repo, "source.py", "value = 1\n")
+        clean_head = _commit_file(repo, "source.py", "value = 2\n")
+        argv = ["--repo-root", str(repo), "security-suppressions-range"]
+
+        assert policy.main([*argv, "--base", clean_base, "--head", clean_head]) == 0
+
+        dirty_head = _commit_file(repo, "source.py", f"value = 2  {self.NOSEC}\n")
+        assert policy.main([*argv, "--base", clean_head, "--head", dirty_head]) == 1
+
+    def test_the_cli_defaults_head_to_the_working_head(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+        _commit_file(repo, "source.py", f"value = 1  {self.NOSEC}\n")
+
+        argv = ["--repo-root", str(repo), "security-suppressions-range", "--base", base]
+        assert policy.main(argv) == 1
+
+    def test_a_git_failure_is_a_config_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Mocked I/O: a broken `git diff` must not read as a clean range."""
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+        head = _commit_file(repo, "source.py", "value = 2\n")
+        real_run_git = policy._run_git
+
+        def failing_git(root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args and args[0] == "diff":
+                return _completed(1)
+            return real_run_git(root, args)
+
+        monkeypatch.setattr(policy, "_run_git", failing_git)
+
+        assert policy.check_range_suppressions(base, head, repo) == 2
 # ---------------------------------------------------------------------------
 # _semgrep_command excludes python36/37 compatibility families (#4217 unblock)
 # ---------------------------------------------------------------------------

@@ -334,7 +334,7 @@ def _metadata() -> dict[str, str]:
     return {
         "Script": SCRIPT,
         "Version": VERSION,
-        "Timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017 - Python 3.10
+        "Timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 

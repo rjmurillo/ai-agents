@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -190,10 +191,113 @@ def _contract_env(*, copilot_root: str | None, claude_root: str | None) -> dict[
     return env
 
 
+_WSL_LAUNCHER_MARKER = "Windows Subsystem for Linux".encode("utf-16-le").decode("utf-8")
+
+
+def _probe_failure(candidate: str) -> str | None:
+    """Return why ``candidate`` cannot run a bash command, or None on success."""
+    try:
+        proc = subprocess.run(
+            [candidate, "-c", 'printf "%s" ok'],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=20,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return f"{candidate}: probe timed out after 20 seconds"
+    except OSError as exc:
+        return f"{candidate}: could not start: {exc}"
+
+    output = proc.stdout + proc.stderr
+    if _WSL_LAUNCHER_MARKER in output:
+        return f"{candidate}: rejected the Windows WSL launcher stub; use Git Bash instead"
+    if proc.returncode != 0:
+        return (
+            f"{candidate}: probe exited {proc.returncode}; "
+            f"stdout={proc.stdout[:200]!r}; stderr={proc.stderr[:200]!r}"
+        )
+    if proc.stdout != "ok":
+        return f"{candidate}: probe did not execute the command; stdout={proc.stdout[:200]!r}"
+    return None
+
+
+def _probes_ok(candidate: str) -> bool:
+    """Return True when ``candidate`` actually runs a bash command.
+
+    Split out from ``_resolve_bash`` so the rejection behavior is testable: the
+    stub this exists to reject cannot be installed on a Linux runner, so the
+    only way to prove the guard has teeth is to hand this function a fake one.
+    """
+    return _probe_failure(candidate) is None
+
+
+def _bash_candidates(platform: str, on_path: str | None) -> tuple[str, ...]:
+    """Return ordered bash candidates for ``platform`` without duplicates."""
+    candidates: list[str] = []
+    if platform == "win32":
+        # Git for Windows ships a real bash in both bin layouts. Probe these
+        # before PATH, where windows-latest exposes the unusable WSL launcher.
+        candidates.extend(
+            [
+                r"C:\Program Files\Git\bin\bash.exe",
+                r"C:\Program Files\Git\usr\bin\bash.exe",
+                r"C:\Program Files (x86)\Git\bin\bash.exe",
+                r"C:\Program Files (x86)\Git\usr\bin\bash.exe",
+            ]
+        )
+    if on_path is not None:
+        candidates.append(on_path)
+    return tuple(dict.fromkeys(candidates))
+
+
+def _resolve_bash(candidates: tuple[str, ...]) -> tuple[str | None, tuple[str, ...]]:
+    """Return the first working bash plus diagnostics for rejected candidates.
+
+    On Windows ``bash`` on PATH is ``C:\\Windows\\System32\\bash.exe``, the WSL
+    launcher. With no distribution installed it exits non-zero and writes a
+    UTF-16LE notice to stdout without running anything. ``shutil.which("bash")``
+    finds that stub and reports bash present, so a which-based guard is not
+    enough: every candidate has to be probed.
+    """
+    failures: list[str] = []
+    for candidate in candidates:
+        failure = _probe_failure(candidate)
+        if failure is None:
+            return candidate, tuple(failures)
+        failures.append(failure)
+    return None, tuple(failures)
+
+
+_RESOLVED_BASH, _BASH_PROBE_FAILURES = _resolve_bash(
+    _bash_candidates(sys.platform, shutil.which("bash"))
+)
+
+
+def _require_bash() -> str:
+    """Return a working bash or fail closed without skipping contract tests."""
+    if _RESOLVED_BASH is not None:
+        return _RESOLVED_BASH
+
+    details = "\n".join(f"- {failure}" for failure in _BASH_PROBE_FAILURES)
+    if not details:
+        details = "- no bash candidates were found"
+    hint = (
+        "Install Git Bash or repair its installation."
+        if sys.platform == "win32"
+        else "Install bash or make it available on PATH."
+    )
+    raise AssertionError(
+        "no working bash resolved; refusing to skip the runtime contract. "
+        f"{hint}\nProbe results:\n{details}"
+    )
+
+
 def _bash_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
     """Expand a bash path expression under ``env`` and ``cwd``."""
     proc = subprocess.run(
-        ["bash", "-c", f'printf "%s" "{path_expr}"'],
+        [_require_bash(), "-c", f'printf "%s" "{path_expr}"'],
         env=env,
         cwd=cwd,
         capture_output=True,
@@ -212,8 +316,13 @@ def _slash(text: str) -> str:
     PowerShell echoes a root back with the separator it was handed and pathlib
     hands it native ones, so a raw string comparison fails on Windows for a
     reason that has nothing to do with the contract under test.
+
+    Runs of backslashes collapse to a single forward slash. CPython renders the
+    path in ``can't open file '...'`` with each separator doubled, so a
+    one-for-one replacement yields ``C://Users//runneradmin`` and the
+    comparison fails against a correctly resolved ``C:/Users/runneradmin``.
     """
-    return text.replace("\\", "/")
+    return re.sub(r"\\+", "/", text)
 
 
 def _pwsh_resolve(path_expr: str, env: dict[str, str], cwd: Path) -> str:
@@ -267,7 +376,7 @@ def test_direct_rollback_runs_silently_with_side_effects(
     marker = tmp_path / f"{event}-ran.txt"
     env["HOOK_MARKER"] = str(marker)
     proc = subprocess.run(
-        ["bash", "-c", _first_bash_command(doc, event)],
+        [_require_bash(), "-c", _first_bash_command(doc, event)],
         env=env,
         cwd=userland,
         capture_output=True,
@@ -290,7 +399,7 @@ def test_user_prompt_direct_failure_is_silent_and_nonzero(tmp_path: Path) -> Non
     env = _contract_env(copilot_root=plugin_root, claude_root=plugin_root)
 
     proc = subprocess.run(
-        ["bash", "-c", _first_bash_command(doc, "UserPromptSubmit")],
+        [_require_bash(), "-c", _first_bash_command(doc, "UserPromptSubmit")],
         env=env,
         cwd=userland,
         capture_output=True,
@@ -330,7 +439,7 @@ def test_negative_control_bare_relative_path_fails(tmp_path: Path) -> None:
     # Reconstruct the regression: strip the plugin-root anchor, keep the path.
     bare = 'python3 -u "./hooks/SessionStart/init.py"'
     proc = subprocess.run(
-        ["bash", "-c", bare],
+        [_require_bash(), "-c", bare],
         env=env,
         cwd=userland,
         capture_output=True,
@@ -341,6 +450,15 @@ def test_negative_control_bare_relative_path_fails(tmp_path: Path) -> None:
         check=False,
     )
     assert proc.returncode != 0, "bare relative path unexpectedly resolved"
+    # Positive limb. A non-zero exit alone cannot tell "the command ran and
+    # failed as designed" from "no shell ran at all": the Windows WSL launcher
+    # stub also exits non-zero, so this control passed on Windows for months
+    # while never invoking a shell. A shell that actually ran writes its
+    # diagnostic to stderr; the stub writes a notice to stdout and leaves
+    # stderr empty.
+    assert proc.stderr.strip(), (
+        f"no shell diagnostic on stderr, so the command may never have run. stdout={proc.stdout!r}"
+    )
 
 
 def test_anchor_is_load_bearing_when_no_plugin_root_var_set(tmp_path: Path) -> None:
@@ -435,7 +553,7 @@ def test_stale_plugin_root_failure_names_the_missing_path(tmp_path: Path) -> Non
 
     command = _first_bash_command(hooks_doc, "PreToolUse")
     proc = subprocess.run(
-        ["bash", "-c", command],
+        [_require_bash(), "-c", command],
         env=env,
         cwd=userland,
         input="{}",
@@ -487,7 +605,7 @@ def test_stale_plugin_root_powershell_failure_names_the_missing_path(
     # operands are strings from a subprocess, where str.replace is the only
     # tool; _slash keeps that in one place and makes it testable off Windows.
     expected_path = _slash(_pwsh_resolve(_path_arg(command), env, tmp_path))
-    normalized_stderr = _slash(proc.stderr.replace("\\\\", "\\"))
+    normalized_stderr = _slash(proc.stderr)
     assert stale_root.as_posix() in expected_path, expected_path
     assert expected_path in normalized_stderr, (
         "PowerShell interpreter error must name the missing path, otherwise the "
@@ -553,3 +671,253 @@ class TestSeparatorNormalization:
         root = PurePosixPath(PureWindowsPath(r"C:\Users\runneradmin\elsewhere").as_posix())
         resolved = r"C:\Users\runneradmin\moved-away\hooks\PreToolUse\x.py"
         assert str(root) not in _slash(resolved)
+
+    def test_doubled_separators_collapse_to_one(self) -> None:
+        """CPython doubles each separator inside ``can't open file '...'``.
+
+        A one-for-one replacement turned ``C:\\\\Users`` into ``C://Users`` and
+        the stale-root assertion failed on ``windows-latest`` while every POSIX
+        run stayed green. Run 30878223824 is the observed failure.
+        """
+        assert _slash(r"C:\\Users\\runneradmin") == "C:/Users/runneradmin"
+
+    def test_single_and_doubled_separators_agree(self) -> None:
+        """The invariant the fix rests on, stated directly."""
+        assert _slash(r"C:\Users\x.py") == _slash(r"C:\\Users\\x.py")
+
+    def test_the_observed_windows_stderr_names_the_expected_path(self) -> None:
+        """The verbatim failure from run 30878223824, as a regression test.
+
+        The interpreter prefix carries single separators and the quoted path
+        carries doubled ones, with a forward-slash tail from the launcher
+        argument. All three shapes appear in one string.
+        """
+        stderr = (
+            r"C:\hostedtoolcache\windows\Python\3.14.6\x64\python3.exe: "
+            r"can't open file 'C:\\Users\\runneradmin\\AppData\\Local\\Temp"
+            r"\\pytest-of-runneradmin\\pytest-0\\test_stale_plugin_root_failure0"
+            r"\\moved-away/hooks/PreToolUse/_dispatch.py': "
+            "[Errno 2] No such file or directory\n"
+        )
+        expected = (
+            "C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/"
+            "pytest-0/test_stale_plugin_root_failure0/moved-away/hooks/"
+            "PreToolUse/_dispatch.py"
+        )
+        assert expected in _slash(stderr)
+
+    def test_the_observed_stderr_rejects_a_path_it_does_not_name(self) -> None:
+        """Guard the guard on the real shape, not just the synthetic one."""
+        stderr = (
+            r"can't open file 'C:\\Users\\runneradmin\\moved-away"
+            r"/hooks/PreToolUse/_dispatch.py'"
+        )
+        absent = "C:/Users/runneradmin/still-here/hooks/PreToolUse/_dispatch.py"
+        assert absent not in _slash(stderr)
+
+
+class TestBashProbe:
+    """The bash guard must reject a launcher that never runs a command.
+
+    Issue #4516: on ``windows-latest`` ``bash`` resolves to the WSL launcher.
+    With no distribution installed it exits non-zero and writes a UTF-16LE
+    notice to stdout, so ``shutil.which("bash")`` reports bash present while
+    every command in this file silently fails to run. Eight assertions here
+    failed that way, and the negative control kept passing because a dead
+    launcher also returns non-zero.
+    """
+
+    _WSL_NOTICE = "Windows Subsystem for Linux has no installed distributions.\n"
+
+    def test_a_real_bash_probes_ok(self) -> None:
+        """Positive: the probe accepts the interpreter the suite actually uses."""
+        assert _probes_ok(_require_bash())
+
+    def test_the_wsl_launcher_stub_is_rejected(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Negative: a UTF-16LE writer that exits non-zero is not a bash."""
+        stub = r"C:\Windows\System32\bash.exe"
+        notice = self._WSL_NOTICE.encode("utf-16-le").decode("utf-8")
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda command, **_kwargs: subprocess.CompletedProcess(
+                command,
+                1,
+                stdout=notice,
+                stderr="",
+            ),
+        )
+        failure = _probe_failure(stub)
+        assert failure is not None
+        assert stub in failure
+        assert "Windows WSL launcher stub" in failure
+
+    def test_windows_candidates_prefer_git_bash_over_path(self) -> None:
+        """Windows probes Git Bash before the PATH WSL launcher."""
+        wsl = r"C:\Windows\System32\bash.exe"
+        candidates = _bash_candidates("win32", wsl)
+        assert candidates == (
+            r"C:\Program Files\Git\bin\bash.exe",
+            r"C:\Program Files\Git\usr\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\bin\bash.exe",
+            r"C:\Program Files (x86)\Git\usr\bin\bash.exe",
+            wsl,
+        )
+
+    def test_resolver_falls_through_a_rejected_candidate(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A dead launcher cannot prevent a later working bash from running."""
+        stub = r"C:\Windows\System32\bash.exe"
+        working = r"C:\Program Files\Git\bin\bash.exe"
+        notice = self._WSL_NOTICE.encode("utf-16-le").decode("utf-8")
+
+        def fake_run(
+            command: list[str],
+            **_kwargs: object,
+        ) -> subprocess.CompletedProcess[str]:
+            if command[0] == stub:
+                return subprocess.CompletedProcess(
+                    command,
+                    1,
+                    stdout=notice,
+                    stderr="",
+                )
+            return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        resolved, failures = _resolve_bash((stub, working))
+        assert resolved == working
+        assert len(failures) == 1
+        assert stub in failures[0]
+
+    def test_a_timeout_falls_through_to_the_next_candidate(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A hanging launcher is diagnosed without blocking a later bash."""
+        hanging = "hanging-bash"
+        working = "working-bash"
+
+        def fake_run(
+            command: list[str],
+            **_kwargs: object,
+        ) -> subprocess.CompletedProcess[str]:
+            if command[0] == hanging:
+                raise subprocess.TimeoutExpired(command, 20)
+            return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        resolved, failures = _resolve_bash((hanging, working))
+        assert resolved == working
+        assert failures == (f"{hanging}: probe timed out after 20 seconds",)
+
+    def test_a_zero_exit_that_runs_nothing_is_rejected(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Edge: exit 0 is not enough; the probe's output has to come back."""
+        stub = "no-op-bash"
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda command, **_kwargs: subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="",
+                stderr="",
+            ),
+        )
+        assert not _probes_ok(stub)
+
+    def test_ok_on_stdout_with_a_nonzero_exit_is_rejected(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Negative: stdout is half the contract, the exit code is the other half.
+
+        Adversarial review found that dropping ``proc.returncode == 0`` from the
+        probe survives every other test in this class. A launcher can echo the
+        probe text and still have failed.
+        """
+        stub = "failing-bash"
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda command, **_kwargs: subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="ok",
+                stderr="",
+            ),
+        )
+        assert not _probes_ok(stub)
+
+    def test_a_missing_binary_is_rejected(self, tmp_path: Path) -> None:
+        """Edge: a candidate path that does not exist must not raise."""
+        missing = str(tmp_path / "no-such-bash")
+        failure = _probe_failure(missing)
+        assert failure is not None
+        assert missing in failure
+
+    def test_missing_bash_fails_each_contract_instead_of_skipping(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """No candidate is a hard contract failure with actionable evidence."""
+        marker = (
+            r"C:\Windows\System32\bash.exe: rejected the Windows WSL launcher "
+            "stub; use Git Bash instead"
+        )
+        monkeypatch.setitem(globals(), "_RESOLVED_BASH", None)
+        monkeypatch.setitem(globals(), "_BASH_PROBE_FAILURES", (marker,))
+
+        with pytest.raises(AssertionError, match="refusing to skip") as exc_info:
+            _require_bash()
+
+        assert "Windows WSL launcher stub" in str(exc_info.value)
+
+    @pytest.mark.parametrize(
+        ("platform", "expected_hint"),
+        [
+            ("win32", "Install Git Bash or repair its installation."),
+            ("linux", "Install bash or make it available on PATH."),
+        ],
+    )
+    def test_missing_bash_hint_matches_the_platform(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        platform: str,
+        expected_hint: str,
+    ) -> None:
+        """A missing interpreter reports an actionable platform-specific hint."""
+        monkeypatch.setattr(sys, "platform", platform)
+        monkeypatch.setitem(globals(), "_RESOLVED_BASH", None)
+        monkeypatch.setitem(globals(), "_BASH_PROBE_FAILURES", ())
+
+        with pytest.raises(AssertionError, match=expected_hint):
+            _require_bash()
+
+    def test_the_negative_control_requires_a_shell_diagnostic(self) -> None:
+        """The control's stderr limb is what a dead launcher cannot satisfy.
+
+        Without it the control asserts only ``returncode != 0``, which the stub
+        satisfies. This pins the discriminator itself, so a future edit cannot
+        drop the limb and leave a control that passes without a shell.
+        """
+        source = Path(__file__).read_text(encoding="utf-8")
+        # Built from fragments on purpose. Spelled whole, this line would be a
+        # second occurrence in the file, so the assertion below would survive
+        # deletion of the limb it exists to protect.
+        marker = "no shell diagnostic" + " on stderr"
+        assert source.count(marker) == 1, (
+            "expected exactly one occurrence of the stderr limb, found "
+            f"{source.count(marker)}. Zero means "
+            "test_negative_control_bare_relative_path_fails lost its positive "
+            "limb and now passes under any launcher that exits non-zero. More "
+            "than one means this guard can no longer tell the difference."
+        )

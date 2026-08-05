@@ -33,7 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-import scripts.validation.instruction_budget as ib  # noqa: E402
+import scripts.validation.instruction_budget as ib
 
 MIRROR_DIR = REPO_ROOT / ".github" / "instructions"
 DOCTRINE = (
@@ -205,6 +205,7 @@ _FIG_MULTIPLIERS = re.compile(
     r"always-on corpus is (?P<always>[\d.]+)x that threshold and a Python edit "
     r"sees (?P<code>[\d.]+)x"
 )
+_FIG_LARGEST = re.compile(r"`voice\.md` at (?P<bytes>[\d,]+) bytes")
 
 
 def _int(raw: str) -> int:
@@ -232,6 +233,7 @@ def parse_doctrine_figures(text: str) -> dict[str, float]:
     source = _search(_FIG_SOURCE, text, "source-basis")
     plugin = _search(_FIG_PLUGIN, text, "plugin-tree")
     mult = _search(_FIG_MULTIPLIERS, text, "8KB multiplier")
+    largest = _search(_FIG_LARGEST, text, "largest always-on rule")
     return {
         "mirror_files": _int(mirror.group("files")),
         "mirror_bytes": _int(mirror.group("bytes")),
@@ -243,6 +245,7 @@ def parse_doctrine_figures(text: str) -> dict[str, float]:
         "plugin_bytes": _int(plugin.group("bytes")),
         "always_multiplier": float(mult.group("always")),
         "code_multiplier": float(mult.group("code")),
+        "largest_bytes": _int(largest.group("bytes")),
     }
 
 
@@ -315,7 +318,7 @@ def test_doctrine_source_basis_figure_and_delta_are_consistent() -> None:
 
 
 def test_doctrine_plugin_tree_figures_match_the_shipped_tree() -> None:
-    """The plugin tree diverges from `.github/instructions`; pin both sides."""
+    """The plugin tree must match `.github/instructions`; pin both sides."""
     figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
     plugin_tree = REPO_ROOT / "src" / "copilot-cli" / "instructions"
     files, total = _tree_always_on(plugin_tree)
@@ -325,9 +328,14 @@ def test_doctrine_plugin_tree_figures_match_the_shipped_tree() -> None:
         f"{files} / {total}"
     )
     repo_files, repo_total = _tree_always_on(MIRROR_DIR)
-    assert (files, total) != (repo_files, repo_total), (
-        "the two instruction trees no longer diverge, so the passage "
-        "explaining why they differ is obsolete"
+    assert (files, total) == (repo_files, repo_total), (
+        "the plugin tree diverged from `.github/instructions` "
+        f"({files} rules / {total} bytes versus {repo_files} / {repo_total}). "
+        "Before issue #4317 an internal-only glob was dropped rather than "
+        "skipped, leaving an empty scope that defaulted to `**`, so a "
+        "repository-internal rule shipped to every consumer as always-on. "
+        "A gap here means that failure direction has returned: find the rule "
+        "present in one tree and not the other, and check its source scope."
     )
 
 
@@ -345,6 +353,31 @@ def test_doctrine_8kb_multipliers_match_the_measured_source_sizes() -> None:
     )
 
 
+def test_doctrine_largest_always_on_rule_matches_the_source_tree() -> None:
+    """The doctrine names one rule as the biggest and states its size.
+
+    Both halves are checked. Asserting only the byte count would let the doc
+    keep naming `voice.md` after another rule overtook it; asserting only the
+    name would let the figure drift. This figure went stale while every
+    aggregate above stayed correct, precisely because no test read it.
+    """
+    figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
+    sizes = {
+        name.replace(".instructions.md", ".md"): len(
+            (REPO_ROOT / ".claude" / "rules" / name.replace(".instructions.md", ".md")).read_bytes()
+        )
+        for name in _budget(".md").matched_files
+    }
+    largest_name, largest_bytes = max(sizes.items(), key=lambda kv: kv[1])
+    assert largest_name == "voice.md", (
+        f"doctrine names `voice.md` as the biggest always-on rule; measured {largest_name}"
+    )
+    assert figures["largest_bytes"] == largest_bytes, (
+        f"doctrine states `voice.md` is {figures['largest_bytes']} bytes; "
+        f"measured {largest_bytes}"
+    )
+
+
 @pytest.mark.parametrize(
     ("pattern", "label"),
     [
@@ -353,6 +386,7 @@ def test_doctrine_8kb_multipliers_match_the_measured_source_sizes() -> None:
         (_FIG_SOURCE, "source-basis"),
         (_FIG_PLUGIN, "plugin-tree"),
         (_FIG_MULTIPLIERS, "8KB multiplier"),
+        (_FIG_LARGEST, "largest always-on rule"),
     ],
 )
 def test_figure_parser_rejects_prose_with_a_figure_removed(
