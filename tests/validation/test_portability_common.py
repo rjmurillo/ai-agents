@@ -80,26 +80,39 @@ def test_resolve_baseline_rejects_path_outside_repo(tmp_path: Path) -> None:
     )
 
 
-def test_git_lines_strips_git_overrides_case_insensitively(
+def test_git_lines_delegates_to_the_shared_hardened_git_runner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    captured_env: dict[str, str] = {}
+    calls: list[tuple[Path, tuple[str, ...]]] = []
 
-    def run_git(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        env = kwargs["env"]
-        assert isinstance(env, dict)
-        captured_env.update(env)
-        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+    def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+        calls.append((repo_root, args))
+        return subprocess.CompletedProcess(args, 0, stdout=b"one.py\0two.py\0", stderr=b"")
 
-    monkeypatch.setenv("git_index_file", "/wrong/index")
-    monkeypatch.setenv("Git_Dir", "/wrong/repo")
-    monkeypatch.setenv("PORTABILITY_TEST_SENTINEL", "kept")
-    monkeypatch.setattr(common.subprocess, "run", run_git)
+    monkeypatch.setattr(common, "run_git", run_git)
 
-    assert common._git_lines(tmp_path, ["status"]) == []
-    assert "git_index_file" not in captured_env
-    assert "Git_Dir" not in captured_env
-    assert captured_env["PORTABILITY_TEST_SENTINEL"] == "kept"
+    assert common._git_lines(tmp_path, ["ls-files", "-z"]) == ["one.py", "two.py"]
+    assert calls == [(tmp_path, ("ls-files", "-z"))]
+
+
+def test_git_lines_reports_none_when_the_shared_git_runner_cannot_answer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(common, "run_git", lambda _root, *_args: None)
+
+    assert common._git_lines(tmp_path, ["ls-files", "-z"]) is None
+
+
+def test_git_lines_reports_none_when_git_exits_nonzero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        common,
+        "run_git",
+        lambda _root, *_args: subprocess.CompletedProcess(_args, 128, stdout=b"", stderr=b"fatal"),
+    )
+
+    assert common._git_lines(tmp_path, ["ls-files", "-z"]) is None
 
 
 class TestTheGuardCannotBeSkippedByForgettingAnArgument:

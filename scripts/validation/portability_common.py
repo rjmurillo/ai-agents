@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import subprocess
 import sys
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
@@ -18,6 +16,7 @@ from scripts.validation.portability_baseline import (
     refuse_undiffable_baseline,
     write_baseline_json,
 )
+from scripts.validation.portability_git import run_git
 
 RegressionMessageFactory = Callable[[str, int, int], str]
 
@@ -227,45 +226,20 @@ def write_baseline(
     return 0
 
 
-_GIT_ENV_OVERRIDES = (
-    "GIT_INDEX_FILE",
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_COMMON_DIR",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_CEILING_DIRECTORIES",
-)
-
-
 def _git_lines(repo_root: Path, args: list[str]) -> list[str] | None:
     """Run a git plumbing command, None when git cannot answer.
 
-    The ambient environment is stripped of repository-discovery variables.
-    Inheriting GIT_INDEX_FILE lets a caller point the coverage probe at an
-    index that agrees with a truncated disk, which is the one input that makes
-    the probe confirm what it is supposed to test.
+    The shared portability Git runner strips every GIT_* environment variable
+    and disables replacement objects. Keep this helper as the text adapter so
+    coverage checks keep their current return contract without owning another
+    subprocess policy.
     """
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if key.upper() not in _GIT_ENV_OVERRIDES
-    }
-    try:
-        proc = subprocess.run(
-            ["git", "-C", str(repo_root), *args],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-            check=False,
-        )
-    except OSError:
+    proc = run_git(repo_root, *args)
+    if proc is None:
         return None
     if proc.returncode != 0:
         return None
-    return [line for line in proc.stdout.split("\0") if line]
+    return [line for line in proc.stdout.decode("utf-8", "replace").split("\0") if line]
 
 
 def tracked_coverage_by_root(
