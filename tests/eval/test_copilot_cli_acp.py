@@ -12,7 +12,7 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TextIO
+from typing import Any, TextIO, cast
 
 import pytest
 
@@ -348,6 +348,42 @@ def test_started_process_uses_a_bounded_stdout_queue(tmp_path: Path) -> None:
         acp_module._stop_process(streams)
 
 
+def test_reader_start_failure_cleans_up_the_child(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    fake = _write_fake_acp(tmp_path)
+    original_popen = subprocess.Popen
+    started: dict[str, subprocess.Popen[str]] = {}
+
+    def capture_popen(*args: Any, **kwargs: Any) -> subprocess.Popen[str]:
+        process = cast(Any, original_popen(*args, **kwargs))
+        started["process"] = process
+        return process
+
+    original_start = threading.Thread.start
+    start_calls = 0
+
+    def fail_second_start(thread: threading.Thread) -> None:
+        nonlocal start_calls
+        start_calls += 1
+        if start_calls == 2:
+            raise RuntimeError("reader start failed")
+        original_start(thread)
+
+    monkeypatch.setattr(acp_module.subprocess, "Popen", capture_popen)
+    monkeypatch.setattr(threading.Thread, "start", fail_second_start)
+
+    with pytest.raises(RuntimeError, match="reader start failed"):
+        acp_module._start_process(
+            _safe_argv(fake),
+            cwd=str(tmp_path),
+            env={"PATH": os.environ.get("PATH", os.defpath)},
+        )
+
+    assert started["process"].poll() is not None
+
+
 def test_protocol_character_budget_is_cumulative(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -507,6 +543,100 @@ def test_post_close_output_is_drained_before_waiting_for_exit(
     )
 
     assert completed.returncode == 0
+
+
+def test_parent_exit_waits_for_delayed_final_reader_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    fake = _write_fake_acp(tmp_path)
+    late = _FAKE_ACP.replace(
+        '    if method == "session/close":\n'
+        '        emit({"jsonrpc": "2.0", "id": request_id, "result": {}})\n'
+        "        continue\n",
+        '    if method == "session/close":\n'
+        '        emit({"jsonrpc": "2.0", "id": request_id, "result": {}})\n'
+        "        emit({\n"
+        '            "jsonrpc": "2.0",\n'
+        '            "method": "session/update",\n'
+        '            "params": {\n'
+        '                "update": {\n'
+        '                    "sessionUpdate": "agent_message_chunk",\n'
+        '                    "content": {"type": "text", "text": "late answer"},\n'
+        "                }\n"
+        "            },\n"
+        "        })\n"
+        "        continue\n",
+    )
+    fake.write_text(late, encoding="utf-8")
+    original_put = acp_module._put_stdout
+
+    def delayed_put(
+        lines: queue.Queue[str | BaseException | None],
+        item: str | BaseException | None,
+        stop_readers: threading.Event,
+    ) -> None:
+        if isinstance(item, str) and "late answer" in item:
+            time.sleep(0.5)
+        original_put(lines, item, stop_readers)
+
+    monkeypatch.setattr(acp_module, "_put_stdout", delayed_put)
+
+    completed = run_acp_completion(
+        _safe_argv(fake),
+        "WRITE_MARKER:/unused",
+        cwd=str(tmp_path),
+        env={"PATH": os.environ.get("PATH", os.defpath)},
+        timeout=10.0,
+    )
+
+    assert "late answer" in completed.stdout
+
+
+@pytest.mark.timeout(3)
+def test_stdin_write_obeys_the_session_deadline() -> None:
+    release_writer = threading.Event()
+
+    class BlockingStdin:
+        def write(self, text: str) -> int:
+            release_writer.wait(timeout=2.0)
+            return len(text)
+
+        def flush(self) -> None:
+            return None
+
+    class FakeTree:
+        terminated = False
+
+        def terminate(self, *, force: bool) -> None:
+            self.terminated = force
+
+    tree = FakeTree()
+    streams = cast(
+        Any,
+        SimpleNamespace(
+            process=SimpleNamespace(
+                stdin=BlockingStdin(),
+                args=["copilot"],
+            ),
+            process_tree=tree,
+        ),
+    )
+
+    try:
+        with pytest.raises(subprocess.TimeoutExpired):
+            acp_module._send_request(
+                streams,
+                1,
+                "initialize",
+                {},
+                deadline=time.monotonic() + 0.05,
+                timeout=0.05,
+            )
+    finally:
+        release_writer.set()
+
+    assert tree.terminated is True
 
 
 def test_timeout_exception_does_not_receive_prompt_in_command(

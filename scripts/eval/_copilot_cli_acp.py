@@ -185,8 +185,21 @@ def _start_process(
         args=(process.stderr, stderr_chunks),
         daemon=True,
     )
-    stdout_thread.start()
-    stderr_thread.start()
+    started_readers: list[threading.Thread] = []
+    try:
+        stdout_thread.start()
+        started_readers.append(stdout_thread)
+        stderr_thread.start()
+        started_readers.append(stderr_thread)
+    except BaseException:
+        stop_readers.set()
+        process_tree.terminate(force=True)
+        if process.poll() is None:
+            process.wait(timeout=_PROCESS_WAIT_SECONDS)
+        for reader in started_readers:
+            reader.join(timeout=_READER_JOIN_SECONDS)
+        process_tree.close()
+        raise
     return _ProcessStreams(
         process,
         process_tree,
@@ -200,21 +213,44 @@ def _start_process(
 
 
 def _send_request(
-    process: subprocess.Popen[str],
+    streams: _ProcessStreams,
     request_id: int,
     method: str,
     params: dict[str, object],
+    *,
+    deadline: float,
+    timeout: float,
 ) -> None:
+    process = streams.process
     if process.stdin is None:
         raise RuntimeError("Copilot ACP stdin was unavailable")
+    stdin = process.stdin
     payload = {
         "jsonrpc": "2.0",
         "id": request_id,
         "method": method,
         "params": params,
     }
-    process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
-    process.stdin.flush()
+    completed = threading.Event()
+    write_errors: queue.Queue[BaseException] = queue.Queue(maxsize=1)
+
+    def write_payload() -> None:
+        try:
+            stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
+            stdin.flush()
+        except (OSError, ValueError) as exc:
+            write_errors.put(exc)
+        finally:
+            completed.set()
+
+    writer = threading.Thread(target=write_payload, daemon=True)
+    writer.start()
+    remaining = deadline - time.monotonic()
+    if remaining <= 0 or not completed.wait(remaining):
+        streams.process_tree.terminate(force=True)
+        raise subprocess.TimeoutExpired(process.args, timeout) from None
+    if not write_errors.empty():
+        raise RuntimeError("Copilot ACP stdin write failed") from None
 
 
 def _consume_update(
@@ -372,7 +408,14 @@ def _request(
     timeout: float,
     answer_chunks: list[str],
 ) -> dict[str, object]:
-    _send_request(streams.process, request_id, method, params)
+    _send_request(
+        streams,
+        request_id,
+        method,
+        params,
+        deadline=deadline,
+        timeout=timeout,
+    )
     return _wait_for_response(
         streams,
         request_id,
@@ -392,6 +435,7 @@ def _drain_stdout_after_close(
     process = streams.process
     if process.stdin is not None and not process.stdin.closed:
         process.stdin.close()
+    terminated_descendants = False
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -401,8 +445,9 @@ def _drain_stdout_after_close(
                 timeout=min(remaining, _QUEUE_WAIT_SECONDS)
             )
         except queue.Empty:
-            if streams.process.poll() is not None:
-                return
+            if streams.process.poll() is not None and not terminated_descendants:
+                streams.process_tree.terminate(force=True)
+                terminated_descendants = True
             continue
         if raw_line is None:
             return
