@@ -199,10 +199,12 @@ def test_auth_rejected_ignores_a_bare_bad_credentials_mention() -> None:
     assert copilot_auth_failed(noisy) is False
 
 
-# Verbatim stderr of a rate-limited run, captured 2026-08-04 from a pre-push
-# `plugin-load-e2e` failure. The request id and timestamp are GitHub's standard
-# error footer. Note the auth-methods list: it is the SAME boilerplate a missing
-# token produces, which is why the absent detector used to claim this run had no
+# Excerpt of the stderr from a rate-limited run, captured 2026-08-04 from a
+# pre-push `plugin-load-e2e` failure. It starts mid-request-id and its first line
+# ends in an ellipsis, so treat this as a captured excerpt, not the full GitHub
+# error payload. The request id and timestamp are GitHub's standard error footer.
+# Note the auth-methods list: it is the SAME boilerplate a missing token
+# produces, which is why the absent detector used to claim this run had no
 # token. See issue #4504.
 _RATE_LIMITED_STDERR = (
     "FF7:14E4D001:1566914C:6A71CB91 and timestamp 2026-08-04 11:22:57 UTC. F\u2026\n\n"
@@ -270,6 +272,32 @@ def test_transient_failure_false_for_a_genuinely_rejected_token() -> None:
     assert not copilot_transient_failure(result)
     assert copilot_auth_rejected(result)
     assert copilot_auth_failed(result)
+
+
+def test_transient_failure_false_for_a_bare_5xx_or_socket_error() -> None:
+    """Pins the docstring: only the CLI's disclaimer fires, not 5xx text itself.
+
+    The predicate matches the CLI's own "token may still be valid" sentence. A
+    status code or a raw socket message that never reaches that sentence is out
+    of scope, and the docstring says so. Without this test the docstring could
+    silently regrow the claim that it covers 5xx in general.
+    """
+    undetected = (
+        "HTTP 502 Bad Gateway from api.github.com",
+        "Server Error: 503 Service Unavailable",
+        "dial tcp 140.82.113.6:443: connect: connection refused",
+    )
+    for stderr in undetected:
+        assert not copilot_transient_failure(_completed(stderr=stderr, returncode=1))
+
+    # Positive control: the same call shape DOES fire on the disclaimer, so the
+    # assertions above are meaningful silence rather than a dead predicate.
+    assert copilot_transient_failure(
+        _completed(
+            stderr="Your token may still be valid. Check your network connection and try again.",
+            returncode=1,
+        )
+    )
 
 
 def test_transient_failure_tolerates_none_streams() -> None:

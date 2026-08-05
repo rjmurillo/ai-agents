@@ -167,11 +167,17 @@ COPILOT_TRANSIENT_MARKERS = (
 
 
 def copilot_transient_failure(result: subprocess.CompletedProcess[str]) -> bool:
-    """True when the CLI aborted on a transient fault rather than at the auth gate.
+    """True when the CLI itself disclaimed the credential on an aborted run.
 
-    Rate limits, 5xx responses, and network faults all land here. The CLI itself
-    says the credential is not implicated, so this predicate believes that
-    disclaimer rather than the generic auth-methods list that follows it.
+    The only signal this reads is the CLI's own disclaimer sentence, the one
+    that says the token may still be valid and points at the network. Rate
+    limits reliably print it, which is the case this exists for. A bare 5xx or
+    a raw socket error that never reaches that message is NOT detected here:
+    measured, a stderr of "HTTP 502 Bad Gateway" or "dial tcp: connection
+    refused" returns False. Widening to those would mean matching status codes
+    or socket text, which this deliberately does not do, because the CLI's
+    disclaimer is what distinguishes a transient fault from the generic
+    auth-methods list that follows it.
 
     Callers must treat this as skip-worthy infrastructure latency, the same way
     :class:`subprocess.TimeoutExpired` is already treated, not as a test failure.
@@ -185,16 +191,18 @@ def copilot_transient_failure(result: subprocess.CompletedProcess[str]) -> bool:
 
 
 def copilot_transient_failure_headline(result: subprocess.CompletedProcess[str]) -> str:
-    """Skip reason for a run the CLI aborted on a transient fault.
+    """Skip reason for a run the CLI aborted after disclaiming the credential.
 
-    Names the real cause and the only useful remedy (wait and retry), and says
-    explicitly that the credential is fine, so nobody spends a cycle rotating a
-    working secret. See issue #4504.
+    Names what was actually observed (the CLI's own disclaimer), the usual
+    cause behind it (a rate limit), and the only useful remedy (wait and
+    retry), so nobody spends a cycle rotating a working secret. Does not
+    assert a cause the predicate did not measure. See issue #4504.
     """
     return (
-        "Copilot CLI aborted on a transient fault (rate limit, 5xx, or network); "
-        "the CLI reports the token may still be valid, so this is NOT an auth "
-        "failure and no diff can fix it. Wait for the GitHub rate-limit reset and "
+        "Copilot CLI aborted on a transient fault: it disclaimed the credential "
+        "(reports the token may still be valid), and a GitHub rate limit is the "
+        "usual cause. This is NOT an auth failure and no diff can fix it. Wait "
+        "for the rate-limit reset and "
         f"re-run. rc={result.returncode} "
         f"stderr={(result.stderr or '')[-400:]!r} "
         f"stdout={(result.stdout or '')[-400:]!r}"
