@@ -1,0 +1,103 @@
+{
+  "id": "episode-2026-08-05-session-10027-review-gate-hardening",
+  "session": "2026-08-05-session-10027-review-gate-hardening",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Address PR 4606 review comments for issues 4526 and 4527. Harden suppressed finding parsing, structural config tests, and ambiguous SHA state.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "triage",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-10027-review-gate-hardening"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implementation",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-10027-review-gate-hardening"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verification",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-10027-review-gate-hardening"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "reproduction",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-10027-review-gate-hardening"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "mutation",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-10027-review-gate-hardening"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T06:34:45+00:00",
+      "type": "commit",
+      "content": "Commit: 028a138b43",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10027-review-gate-hardening"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T06:36:15+00:00",
+      "type": "commit",
+      "content": "Commit: eca9155959",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-10027-review-gate-hardening"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 2
+  },
+  "lessons": []
+}
