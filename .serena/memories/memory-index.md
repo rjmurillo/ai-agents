@@ -14,7 +14,8 @@
 |new_pr create stale main ref session end validation failed opaque diff: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
 |git diff origin main direction stale branch deletion behind predates restore: [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) (496)
 |close_issue comment-file must stay under repo root git scratch verify-claims unmerged reason quoting: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (891)
-|github pr issue cli gh api review comment batch response: [skills-github-cli-index](skills-github-cli-index.md) (552), [skills-pr-review-index](skills-pr-review-index.md) (1019), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
+|pr autofix late merge live state base refresh closed branch recovery: [pr-autofix/pr-4323-late-base-refresh](pr-autofix/pr-4323-late-base-refresh.md) (144)
+|github pr issue cli gh api review comment batch response: [skills-github-cli-index](skills-github-cli-index.md) (552), [skills-pr-review-index](skills-pr-review-index.md) (1054), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object string: [skills-jq-index](skills-jq-index.md) (356)
 |gh extension notify combine metrics milestone webhook grep sub-issue: [skills-gh-extensions-index](skills-gh-extensions-index.md) (346)
@@ -74,6 +75,7 @@
 |workflow pattern composite matrix artifact verdict report: [skills-workflow-patterns-index](skills-workflow-patterns-index.md) (284)
 |dorny paths-filter checkout base ref PR changes: [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) (930)
 |lefthook group parallel serial summary sum arithmetic config authoritative derive: [decision-read-the-config-not-the-run-summary](decision-read-the-config-not-the-run-summary.md) (964)
+|doc-only repair prose shell snippet agent carrier no test does not survive merge executable guard pre-fix carriers failed passed split: [decision-doc-only-repairs-need-an-executable-guard](decision-doc-only-repairs-need-an-executable-guard.md) (620)
 
 [Documentation and Planning]
 |documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)
@@ -85,8 +87,10 @@
 |utility script markdown fence PathInfo security pattern: [skills-utilities-index](skills-utilities-index.md) (183)
 |edit file read search replace text operation: [patterns/edit-001-read-before-edit-pattern](patterns/edit-001-read-before-edit-pattern.md) (464), [patterns/edit-002-unique-context-for-edit-matching](patterns/edit-002-unique-context-for-edit-matching.md) (368)
 |git hook pre-commit autofix cross-language grep TOCTOU: [skills-git-hooks-index](skills-git-hooks-index.md) (368)
-|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (287)
-|git stash shared across worktrees pop takes another agent work switch abort commits to wrong branch: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (738)
+|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (369)
+|git stash shared across worktrees pop takes another agent work switch abort commits to wrong branch: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (965)
+|git shallow graft depth fetch unshallow blocks push every worktree common dir pin sha: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
+|agent steering system prompt renders from live checkout stale behind main detached superseded rule no gate catches: [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) (943)
 |git branch switch checkout file state verification lost: [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) (851)
 |lost code recovery investigation unmerged branch orphaned: [session/recovery-001-lost-code-investigation](session/recovery-001-lost-code-investigation.md) (552)
 |cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1251)
@@ -111,6 +115,7 @@
 |context engineering token optimization progressive disclosure just-in-time: [memory/context-engineering-principles](memory/context-engineering-principles.md) (594), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
 |passive context AGENTS.md skills decision-point retrieval-led compression: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (447), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (683), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (623)
 |instruction budget always-on ceiling applyTo scope headroom rule authoring: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1856)
+|memory index validator one direction unindexed orphan check non-recursive opt-in warn only passes clean: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (719)
 
 [Root Cause Patterns (PR #908)]
 |governance enforcement ADR limits commits files programmatic gate: [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (603)
