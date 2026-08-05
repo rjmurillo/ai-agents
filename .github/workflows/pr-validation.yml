@@ -314,6 +314,18 @@ jobs:
           # CI-only: see taste-lint ratchet step above for the --depth=1 caveat.
           git fetch --depth=1 origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/memory_index_count_ratchet.py --base-ref FETCH_HEAD
+      # Issue #4441: `memory-token-update` repairs every index token count on
+      # pre-commit, but it carries `skip: [merge, "test $SKIP_AUTOFIX = 1"]` and
+      # nothing verifies its result. An autofix with no verifier is not a gate.
+      # A memory edited inside a merge commit reached main with the old count
+      # still recorded: measured on pristine main, `skills-git-index` read 287
+      # against an actual 324, a 13% undercount. This needs the same server-side
+      # leg as the count ratchet above, and for the same reason: every route
+      # that skips local hooks reaches the remote unchecked. It takes no
+      # --base-ref because its floor is fixed at zero, so there is no baseline
+      # to compare against and nothing a contributor could raise to silence it.
+      - name: Run memory-index token ratchet
+        run: uv run --frozen python3 scripts/ci/memory_index_token_ratchet.py
       # Issue #4398: the three count ratchets measure the branch head, not the
       # merged result. A branch cut before main lowered a baseline can pass its
       # own count check yet breach the ceiling once it lands. This step evaluates
