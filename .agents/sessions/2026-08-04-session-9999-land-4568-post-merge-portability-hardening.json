@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and tests committed through ef9f1560a; this session log and memory update are the final staged artifacts"
+        "Evidence": "Implementation and tests committed through ac25f74f7; this session log update is the final staged artifact"
       },
       "validationPassed": {
         "level": "MUST",
@@ -143,9 +143,14 @@
       "time": "2026-08-05",
       "action": "Ran local quality review gates",
       "result": "Golden-principles and taste-lint scans passed; the heuristic quality scorer reported score regressions without a concrete Critical or High defect"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Fixed type errors found by the pre-push mypy gate",
+      "result": "Hook mypy passed on both files; 42 focused tests and Ruff passed"
     }
   ],
-  "endingCommit": "ef9f1560a",
+  "endingCommit": "ac25f74f7",
   "nextSteps": [
     "Run final exact-tip review and the exact pre-PR gate",
     "Push the recovery branch and create the replacement PR",
