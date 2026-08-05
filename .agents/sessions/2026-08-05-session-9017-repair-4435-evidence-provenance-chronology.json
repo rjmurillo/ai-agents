@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9017,
+    "date": "2026-08-05",
+    "branch": "fix/repair-pr-4435-evidence-4588",
+    "startingCommit": "4ce088f08",
+    "objective": "Repair PR 4435 evidence provenance and chronology"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools were preactivated for the repository; activate_project was not exposed, and initial_instructions plus memory reads succeeded."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions completed."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md. No handoff matched issue 4588 or PR 4435."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed 52 Python scripts under .claude/skills/github/scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena memory usage-mandatory."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index, session/session-validation-reconciliation, github/github-cli-pr-operations, github/github-pr-mergeable-unknown-is-not-indeterminate, and github/github-keywords-pr-etiquette."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/repair-pr-4435-evidence-4588"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/repair-pr-4435-evidence-4588"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Fresh worktree contained only this new session log."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "4ce088f08"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Required context, repair, generation, validation, and independent review completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remains unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new memory needed. Issue #4588 and PR #4622 already record the extractor defect and dependency."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped lint found zero changed Markdown files. git diff --check passed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repair committed as 11f7322e76f3bdfab0fa5d4540156ecebf4ba77a. After PR #4622 merged, main was merged as 3787354aa2de9b1a198416fc0cec871b420e5e38 and the final session episode was committed as 1923a88f37aa73c00807ae879aa4e04d8af90c22."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session validators passed. Episode validation and deterministic generation passed. Targeted pytest suites passed 278 and 297 tests. pre_pr.py exited 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SQL todo repair-pr-4435-evidence remains in_progress until PR merge and live-main verification."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-05T14:09:17+00:00",
+      "action": "Checked issue coordination",
+      "result": "Issue #4588 already has PR #4622. This repair remains complementary because #4622 changes extractor code while this session corrects committed evidence artifacts."
+    },
+    {
+      "timestamp": "2026-08-05T14:10:00+00:00",
+      "action": "Read required context",
+      "result": "Read issue #4588, merged PR #4435, linked PR #4622, session protocol, generated-artifact rules, and repository memories."
+    },
+    {
+      "timestamp": "2026-08-05T14:24:00+00:00",
+      "action": "Repaired canonical evidence",
+      "result": "Recorded PR #4435 final squash commit and merged outcome, cleared stale next steps, and regenerated both affected episodes with the canonical extractor."
+    },
+    {
+      "timestamp": "2026-08-05T14:28:00+00:00",
+      "action": "Validated repaired artifacts",
+      "result": "Session validation, episode validation, deterministic generation, 575 targeted tests, and pre_pr.py passed."
+    },
+    {
+      "timestamp": "2026-08-05T14:32:06+00:00",
+      "action": "Completed independent artifact review",
+      "result": "Separate code-review agent returned CLEAN with no correctness findings."
+    },
+    {
+      "timestamp": "2026-08-05T14:34:45+00:00",
+      "action": "Recorded repair commit",
+      "result": "Committed the five-file repair as 11f7322e76f3bdfab0fa5d4540156ecebf4ba77a. The pre-commit preserve path reproduced issue #4588 on the PR 4435 episode, so the canonical force generator restored it for the metadata follow-up."
+    },
+    {
+      "timestamp": "2026-08-05T15:57:03+00:00",
+      "action": "Landed extractor dependency",
+      "result": "PR #4622 merged at 2026-08-05T15:54:23+00:00. Merged current main as 3787354aa2de9b1a198416fc0cec871b420e5e38 and regenerated this episode with the corrected preserve path."
+    }
+  ],
+  "endingCommit": "1923a88f37aa73c00807ae879aa4e04d8af90c22",
+  "nextSteps": []
+}

@@ -103,7 +103,7 @@ def grade_fixture(fixture: Fixture, *, api_key: str, model: str) -> FixtureResul
         )
     except MalformedProviderMetadataError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # transport boundary, recorded not raised
         return FixtureResult(
             fixture_id=fixture.id,
             issue_number=fixture.issue_number,
@@ -120,7 +120,7 @@ def grade_fixture(fixture: Fixture, *, api_key: str, model: str) -> FixtureResul
         )
     except MalformedProviderMetadataError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # transport boundary, recorded not raised
         return FixtureResult(
             fixture_id=fixture.id,
             issue_number=fixture.issue_number,
@@ -271,7 +271,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         api_key = _load_api_key_for_selected_provider()
-    except Exception as exc:
+    except Exception as exc:  # surface auth/config as exit 2
         print(f"error: cannot load API key: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 

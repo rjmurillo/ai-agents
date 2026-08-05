@@ -217,6 +217,41 @@ class TestAggregateVerdicts:
             assert "judge_failure_cells" in mech_summary
             assert "judge_failure_samples" in mech_summary
 
+    @pytest.mark.parametrize(
+        ("sample_failures", "expected_cells", "expected_samples"),
+        [
+            pytest.param([(False, 0)], 0, 0, id="no-failures"),
+            pytest.param([(True, 1), (True, 1)], 2, 2, id="one-failure-per-cell"),
+            pytest.param([(True, 2)], 1, 2, id="multiple-failures-in-one-cell"),
+        ],
+    )
+    def test_judge_failure_cells_and_samples_are_counted_independently(
+        self,
+        sample_failures: list[tuple[bool, int]],
+        expected_cells: int,
+        expected_samples: int,
+    ):
+        pool = [
+            {
+                "mechanisms": {
+                    "baseline": {
+                        "scores": {
+                            "judge_failed": judge_failed,
+                            "graded": not judge_failed,
+                            "failed_sample_count": failed_sample_count,
+                        }
+                    }
+                }
+            }
+            for judge_failed, failed_sample_count in sample_failures
+        ]
+
+        summary = eval_mod._mechanism_summary(pool, "baseline")
+
+        assert summary["judge_failures"] == expected_cells
+        assert summary["judge_failure_cells"] == expected_cells
+        assert summary["judge_failure_samples"] == expected_samples
+
     def test_graded_count_present_in_mechanism_summary(self):
         scenarios = [
             _make_scenario(baseline=1, description=4, full=5),

@@ -61,7 +61,7 @@ from typing import Any
 # that job runs `actions/checkout` and nothing else.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.github_core.api import resolve_repo_params  # noqa: E402
+from scripts.github_core.api import resolve_repo_params
 
 logger = logging.getLogger(__name__)
 

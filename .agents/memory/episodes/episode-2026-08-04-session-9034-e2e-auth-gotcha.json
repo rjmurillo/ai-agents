@@ -1,0 +1,283 @@
+{
+  "id": "episode-2026-08-04-session-9034-e2e-auth-gotcha",
+  "session": "2026-08-04-session-9034-e2e-auth-gotcha",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record why the two CLI e2e pre-push jobs fail fast without a Copilot token, after that failure rejected a push whose full test suite had already passed",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced a rejected push to its real cause instead of the suspected one",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed no credential was exported",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Discarded a first probe that proved nothing",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the discriminating pair",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked for an existing entry before adding one",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Appended the entry to GOTCHAS.md",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T11:08:32+00:00",
+      "type": "commit",
+      "content": "Commit: 8494a1600",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016",
+        "e017",
+        "e019",
+        "e020",
+        "e021",
+        "e022"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Push rejected a second time, on a real test failure this time",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced the ratchet trip to this branch's own episode",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Set endingCommit to 8494a1600 and regenerated the episode",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected .claude/rules/session-logs.md rule 2",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated both rule mirrors",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran an adversarial review of the GOTCHAS section on grok-4.5, a different model family than the author.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified High 1 and High 2 against lefthook.yml rather than trusting the review.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Tested the hypothesis that the merge of origin/main, not the branch's own diff, armed both e2e jobs.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrote the GOTCHAS section around the verified mechanism and applied the two Medium findings to session-logs.md.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed why both in-flight pushes were rejected despite passing the full suite.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-04T12:20:52+00:00",
+      "type": "commit",
+      "content": "Commit: c6c61fbf5",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pushed both branches after merging main and hit two new failures, neither of which was the original one.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Investigated the other branch's e2e failure, which reported the Copilot token as expired or revoked.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded the rule-edit trap in GOTCHAS as its own section.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded the taste-count ratchet trap after a sibling branch tripped it.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-9034-e2e-auth-gotcha"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 60
+  },
+  "lessons": []
+}

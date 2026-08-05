@@ -34,7 +34,13 @@ from dataclasses import dataclass
 _BLOCKING = {"CRITICAL_FAIL", "REJECTED", "FAIL"}
 _WARNING = {"WARN", "NEEDS_REVIEW"}
 _PASSING = {"PASS"}
-_KNOWN = _BLOCKING | _WARNING | _PASSING | {"UNKNOWN"}
+# Public: the adapter in scripts/quality_gate/external_signal_gate.py reads
+# this to decide which repo verdict tokens still need aliasing before they
+# reach parse_signal. Adding a token here without teaching that adapter is
+# safe; adding one to the repo vocabulary without teaching either is not.
+KNOWN_VERDICTS = frozenset(_BLOCKING | _WARNING | _PASSING | {"UNKNOWN"})
+
+_KNOWN = KNOWN_VERDICTS
 
 _VALID_KINDS = {"external", "llm"}
 

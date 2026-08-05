@@ -1,0 +1,178 @@
+{
+  "id": "episode-2026-08-04-session-4435-reconcile-4435-4101-merged",
+  "session": "2026-08-04-session-4435-reconcile-4435-4101-merged",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Reconcile PR 4435 after PR 4101 merged",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Loaded PR and issue history",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created an isolated worktree",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current main without rewriting history",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed completed issue work",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retained unique safeguards",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the reconciled diff",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated GitHub state",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Attempted a normal push",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T10:26:49+00:00",
+      "type": "milestone",
+      "content": "Finalized closeout chronology",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T19:35:33+00:00",
+      "type": "milestone",
+      "content": "Recorded final merged outcome",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-04T05:43:14+00:00",
+      "type": "commit",
+      "content": "Commit: 6dc5a78ec",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-04T10:26:16+00:00",
+      "type": "commit",
+      "content": "Commit: 02d2f0da2",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-04T19:35:32+00:00",
+      "type": "commit",
+      "content": "Commit: 0fd1ea30f55193e0f833e498e3fc7db88e8c3f3a",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 548,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 532
+  },
+  "lessons": []
+}

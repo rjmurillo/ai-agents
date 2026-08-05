@@ -89,6 +89,15 @@ depend on remembering to fetch.
 This is the general two-dot and stale-base hazard with a concrete consequence:
 you cannot open a PR, and the error names a file unrelated to your work.
 
+**Fixed in PR for issues #4461 and #4489 (2026-08-03).** `new_pr.py` now calls
+`_resolve_validation_base(pr_base, explicit)` before running validations. It
+prefers `origin/<base>` when that remote-tracking ref exists, falling back to the
+bare branch name only when it does not. The `gh pr create --base` argument still
+receives the bare name (GitHub rejects `origin/main` there). The `--validation-base`
+flag lets callers pin the validation base explicitly. The stale-local-ref symptom
+no longer requires remembering to pass `--base origin/main`; it is resolved
+automatically.
+
 ### Gotcha: GraphQL and REST have separate rate-limit pools
 
 `gh pr create`, and therefore `new_pr.py`, creates the PR through GraphQL. The
