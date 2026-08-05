@@ -4,7 +4,7 @@
     "number": 2,
     "date": "2026-08-05",
     "branch": "fix/4572-shallow-fetch-merge-tree",
-    "startingCommit": "95ecfc3e9c",
+    "startingCommit": "b6b355c23e",
     "objective": "Break issue 4572 shallow fetch merge-tree CI deadlock"
   },
   "protocolCompliance": {
@@ -67,7 +67,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "95ecfc3e9c"
+        "Evidence": "b6b355c23e"
       }
     },
     "sessionEnd": {
@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Staged commit is in progress; hook requires session log completion before commit can finish."
+        "Evidence": "Work committed at 9ea5de87e2; session log completion committed separately."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen python scripts/validate_session_json.py passes after this update."
+        "Evidence": "uv run --frozen python scripts/validate_session_json.py passed after endingCommit update."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -131,6 +131,6 @@
       "evidence": "Mutation proof under ~/src/scratch/deadlock-mutations: M1, M2, M3 dead; M4 cosmetic survivor."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "9ea5de87e2",
   "nextSteps": []
 }

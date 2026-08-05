@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "triage",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-05-session-2-break-issue-4572-shallow-fetch"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "implementation",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-05-session-2-break-issue-4572-shallow-fetch"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "tests",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-05-session-2-break-issue-4572-shallow-fetch"
     },
     {
@@ -40,6 +46,22 @@
       "type": "milestone",
       "content": "mutation",
       "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-2-break-issue-4572-shallow-fetch"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T10:27:13+00:00",
+      "type": "commit",
+      "content": "Commit: 9ea5de87e2",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-2-break-issue-4572-shallow-fetch"
     }
@@ -49,7 +71,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 6
   },
   "lessons": []
