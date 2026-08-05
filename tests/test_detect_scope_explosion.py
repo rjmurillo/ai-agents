@@ -637,7 +637,7 @@ class TestMergeHeadRealGit:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         repo = tmp_path / "repo"
-        feature_tip, main_tip = _make_merge_scope_repo(repo)
+        _feature_tip, main_tip = _make_merge_scope_repo(repo)
         _check_git(repo, "checkout", "feature")
         _check_git(repo, "merge", "--no-commit", "--no-ff", main_tip)
 
@@ -654,7 +654,6 @@ class TestMergeHeadRealGit:
         assert result.file_count == 11
         assert set(result.files) == {f"feature/file_{index}.py" for index in range(11)}
         assert _run_main(repo, monkeypatch) == 0
-        assert feature_tip
 
     def test_attached_and_detached_merge_have_distinct_exit_codes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

@@ -159,8 +159,5 @@
     }
   ],
   "endingCommit": "83e1a45cb6fbfb3d0498bcf2d01e7b69be334944",
-  "nextSteps": [
-    "Commit this session-log follow-up.",
-    "Run pre_pr.py, push with push_any_slot.sh, verify ls-remote, and open the REST PR with Fixes #4544 and Fixes #4602."
-  ]
+  "nextSteps": []
 }

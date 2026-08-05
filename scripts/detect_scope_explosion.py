@@ -136,7 +136,7 @@ def resolve_base_ref(base_branch: str) -> str | None:
     return None
 
 
-def get_merge_base(base_branch: str) -> str | None:
+def get_merge_base(base_branch: str, base_ref: str | None = None) -> str | None:
     """Find the merge base between HEAD and the base branch.
 
     Prefers ``origin/<base_branch>`` over the local branch ref to avoid stale
@@ -145,11 +145,13 @@ def get_merge_base(base_branch: str) -> str | None:
 
     Args:
         base_branch: The branch to compare against (e.g. "main").
+        base_ref: The already-resolved ref to compare against.
 
     Returns:
         Merge base commit SHA, or None if not found.
     """
-    base_ref = resolve_base_ref(base_branch)
+    if base_ref is None:
+        base_ref = resolve_base_ref(base_branch)
     if base_ref is None:
         return None
     result = subprocess.run(
@@ -217,7 +219,7 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         raise ScopeDetectionError(f"could not resolve base branch {base_branch}")
 
     merge_head = get_merge_head_commit()
-    merge_base = get_merge_base(base_branch)
+    merge_base = get_merge_base(base_branch, base_ref)
     if not merge_base:
         raise ScopeDetectionError(f"could not determine merge base with {base_branch}")
 
