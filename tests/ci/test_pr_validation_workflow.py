@@ -1022,6 +1022,21 @@ def _strip_shell_comments(script: str) -> str:
     )
 
 
+def _shallow_checkout_offenders(job_id: str, steps: list[dict]) -> list[str]:
+    """Report checkout steps in one job that do not fetch complete history."""
+    offenders: list[str] = []
+    for step in steps:
+        uses = step.get("uses")
+        if not isinstance(uses, str) or not uses.startswith("actions/checkout"):
+            continue
+        depth = (step.get("with") or {}).get("fetch-depth")
+        if str(depth) != "0":
+            name = step.get("name") or uses
+            shown = "<default, depth 1>" if depth is None else repr(depth)
+            offenders.append(f"{job_id}: checkout {name!r} has fetch-depth {shown}")
+    return offenders
+
+
 def _history_offenders_for_merge_base_jobs(jobs: dict) -> tuple[list[str], list[str]]:
     offenders: list[str] = []
     checked: list[str] = []
@@ -1043,15 +1058,7 @@ def _history_offenders_for_merge_base_jobs(jobs: dict) -> tuple[list[str], list[
         if any("--depth" in block for block in run_blocks):
             offenders.append(f"{job_id}: depth-limited fetch in run block")
 
-        for step in steps:
-            uses = step.get("uses")
-            if not isinstance(uses, str) or not uses.startswith("actions/checkout"):
-                continue
-            depth = (step.get("with") or {}).get("fetch-depth")
-            if str(depth) != "0":
-                name = step.get("name") or uses
-                shown = "<default, depth 1>" if depth is None else repr(depth)
-                offenders.append(f"{job_id}: checkout {name!r} has fetch-depth {shown}")
+        offenders.extend(_shallow_checkout_offenders(job_id, steps))
 
     return offenders, checked
 
