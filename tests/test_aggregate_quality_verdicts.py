@@ -159,7 +159,7 @@ class TestMain:
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "WARN"
 
-    def test_security_infra_failure_is_not_ignorable_warn(self, tmp_path, monkeypatch):
+    def test_security_infra_failure_downgrades_to_warn_with_notice(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
         verdicts = {a: "PASS" for a in _AGENTS}
         verdicts["security"] = "CRITICAL_FAIL"
@@ -168,8 +168,8 @@ class TestMain:
         rc = main(_make_argv(verdicts, infra))
         assert rc == 0
         outputs = _read_outputs(output_file)
-        assert outputs["final_verdict"] == "DID_NOT_RUN"
-        assert outputs["final_verdict"] != "WARN"
+        assert outputs["final_verdict"] == "WARN"
+        assert outputs["security_review_ran"] == "false"
 
     def test_outputs_per_agent_verdicts_and_categories(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
@@ -263,7 +263,7 @@ class TestSecurityReviewRan:
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["security_review_ran"] == "false"
-        assert outputs["final_verdict"] == "DID_NOT_RUN"
+        assert outputs["final_verdict"] == "WARN"
         captured = capsys.readouterr()
         assert "::warning title=Security review did not run::" in captured.out
 
