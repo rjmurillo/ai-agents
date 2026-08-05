@@ -288,6 +288,9 @@ class AnthropicAPIAdapter:
         and `error_category`. Logs one structured line per attempt to
         stderr.
         """
+        if not isinstance(max_retries, int) or isinstance(max_retries, bool) or max_retries <= 0:
+            raise ValueError("max_retries must be a positive integer")
+
         resolve_start = self._clock()
         try:
             transport = self._resolve_transport()
@@ -330,7 +333,6 @@ class AnthropicAPIAdapter:
                 system_fingerprint=None,
             )
         attempt = 0
-        last_category: str | None = None
         start_total = self._clock()
 
         while attempt < max_retries:
@@ -375,7 +377,6 @@ class AnthropicAPIAdapter:
                 raw = transport(prompt, model_id, system)
             except Exception as exc:  # broad on purpose: categorize then decide
                 category = _categorize_error(exc)
-                last_category = category
                 latency_ms = (self._clock() - attempt_start) * 1000.0
                 _emit_log(
                     {
@@ -472,19 +473,7 @@ class AnthropicAPIAdapter:
                 system_fingerprint=getattr(transport, "system_fingerprint", None),
             )
 
-        # Unreachable for positive `max_retries`; the loop returns on both exit
-        # paths. Only `max_retries <= 0` lands here, having called nothing.
-        total_latency_ms = (self._clock() - start_total) * 1000.0
-        return APICallResult(
-            outcome="error",
-            raw_response=None,
-            tokens_in=0,
-            tokens_out=0,
-            latency_ms=round(total_latency_ms, 2),
-            error_category=last_category or ERR_UNKNOWN,
-            attempts=attempt,
-            system_fingerprint=None,
-        )
+        raise AssertionError("call_model retry loop exited without a result")
 
 
 def _estimate_tokens(text: str) -> int:

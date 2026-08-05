@@ -352,23 +352,44 @@ class TestAStatusOutranksATextHint:
         assert _eval_api_adapter._categorize_error(exc) == "rate_limit"
 
     def test_subprocess_auth_hint_is_narrow_and_status_still_wins(self) -> None:
-        exc = RuntimeError(
-            "Copilot CLI exited with code 1: authentication failed: token expired"
-        )
+        exc = RuntimeError("Copilot CLI exited with code 1: authentication failed: token expired")
 
         category = _eval_api_adapter._categorize_error(exc)
 
         assert category == "auth"
         assert not _eval_api_adapter._is_transient(category)
         status_exc = RuntimeError("Anthropic API returned HTTP 500: authentication failed")
-        unrelated_exc = RuntimeError(
-            "Copilot CLI exited with code 1: authorization cache failed"
-        )
+        unrelated_exc = RuntimeError("Copilot CLI exited with code 1: authorization cache failed")
         assert _eval_api_adapter._categorize_error(status_exc) == "server_error"
         assert _eval_api_adapter._categorize_error(unrelated_exc) == "server_error"
 
 
 class TestSubprocessAuthFailureIsPermanent:
+    @pytest.mark.parametrize("max_retries", [0, -1, False, True])
+    def test_call_model_rejects_invalid_max_retries(
+        self, max_retries: int | bool, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        calls: list[tuple[str, str, str]] = []
+
+        def _transport(prompt: str, model_id: str, system: str) -> str:
+            calls.append((prompt, model_id, system))
+            return "should not run"
+
+        adapter = _eval_api_adapter.AnthropicAPIAdapter(transport=_transport)
+
+        with pytest.raises(ValueError, match="max_retries must be a positive integer"):
+            adapter.call_model(
+                "prompt",
+                "model",
+                "fixture",
+                "variant",
+                0,
+                max_retries=max_retries,
+            )
+
+        assert calls == []
+        assert capsys.readouterr().err == ""
+
     def test_call_model_does_not_retry_a_subprocess_auth_failure(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -380,9 +401,7 @@ class TestSubprocessAuthFailureIsPermanent:
             attempts += 1
             raise RuntimeError("Copilot CLI exited with code 1: authentication failed")
 
-        monkeypatch.setattr(
-            _eval_api_adapter, "_backoff_delay_seconds", lambda attempt: 0.0
-        )
+        monkeypatch.setattr(_eval_api_adapter, "_backoff_delay_seconds", lambda attempt: 0.0)
         adapter = _eval_api_adapter.AnthropicAPIAdapter(
             transport=_raise_auth,
             sleep=sleeps.append,
