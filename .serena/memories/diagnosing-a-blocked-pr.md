@@ -27,14 +27,33 @@ Measured 2026-08-01, that returns: `deletion`, `non_fast_forward`,
 
 | Parameter | Value | Consequence |
 | --- | --- | --- |
-| `strict_required_status_checks_policy` | `false` | Being behind main does NOT block. Do not merge main into a branch to unblock it. |
+| `strict_required_status_checks_policy` | `true` | Being behind main DOES block. Merge `origin/main` into the branch to unblock it. Changed since 2026-08-01; this row read `false` until 2026-08-05. |
 | `required_review_thread_resolution` | `true` | Any unresolved review thread blocks. This is the dominant real cause. |
 | `required_approving_review_count` | `0` | No human approval needed. |
 | `required_status_checks` | 17 contexts | A required context that is missing blocks. SKIPPED and NEUTRAL do not. |
 
-Every open PR in the repo is behind main at any given moment, so "behind main"
-can never discriminate between a blocked PR and a mergeable one. It is a
-detector that cannot fail, which means it has not been run.
+Every open PR in the repo is behind main at any given moment, so under the old
+`strict: false` setting "behind main" could never discriminate between a blocked
+PR and a mergeable one. It was a detector that cannot fail, which means it had
+not been run.
+
+That reasoning expired on 2026-08-05, when the ruleset began enforcing
+`strict_required_status_checks_policy: true`. "Behind main" now discriminates
+precisely, because it is a merge blocker rather than ambient noise. Measured the
+same day across all open PRs: 41 BEHIND, 13 DIRTY, 1 BLOCKED, 0 CLEAN. Being
+behind is now the dominant blocking condition, not an unusable signal.
+
+There is still no merge queue, so nothing makes a branch current on its own.
+Each BEHIND PR needs an explicit update, and every merge returns the rest to
+BEHIND. Prefer the server-side update, which needs no local checkout and cannot
+collide with an in-flight push:
+
+```
+gh api -X PUT repos/rjmurillo/ai-agents/pulls/<n>/update-branch \
+  -f expected_head_sha=<full 40-char head sha>
+```
+
+A truncated SHA returns HTTP 422. The full 40 characters are required.
 
 ## The diagnosis that works
 

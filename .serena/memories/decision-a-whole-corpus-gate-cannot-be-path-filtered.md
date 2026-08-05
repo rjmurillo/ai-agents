@@ -98,6 +98,13 @@ touch the same file. The ceiling is a sum, so the breach exists only after both
 land. `strict_required_status_checks_policy: false` on ruleset 11104075 permits
 exactly this.
 
+**Update 2026-08-05: that policy now reads `true` on the same ruleset.** Strict
+checks narrow this hole but do not close it. They force each PR to be current
+before it merges, so the second PR re-measures against a base that already
+contains the first. They do nothing when a merge queue batches several PRs into
+one group, which is the case #4608 covers. The reserve band below remains the
+correct fix, because it does not depend on admission being serialized.
+
 Any absolute (non-diff-relative) ceiling has this property. A ratchet that
 compares against `origin/main` does not, which is why the count ratchets caught
 their own drift and the budget did not.
@@ -130,7 +137,9 @@ Running an absolute ceiling at 100.0 percent utilization under
 admission is not serialized. The capacity answer is a **reserve band**: fail or
 warn at PR time when the merged result would leave less than a threshold of
 headroom, so two concurrent PRs cannot each consume the last bytes. That works
-with non-strict checks instead of fighting them.
+with non-strict checks instead of fighting them, and it keeps working under the
+strict setting armed on 2026-08-05, which serializes admission for individual
+merges but not for a merge group.
 
 ## Mechanism three: a pending run is evicted regardless of cancel-in-progress
 

@@ -2,9 +2,14 @@
 
 ## Question
 
-`main`'s branch ruleset sets `strict_required_status_checks_policy: false`, so being
-behind `main` does not block a merge. Does that mean a stale branch can be merged
-without syncing?
+`main`'s branch ruleset set `strict_required_status_checks_policy: false` when this
+was written, so being behind `main` did not block a merge. Does that mean a stale
+branch can be merged without syncing?
+
+**Update 2026-08-05: the ruleset now sets this to `true`, so being behind main
+blocks the merge directly.** The finding below still matters, because it explains
+why syncing was already mandatory even when the ruleset did not demand it. The
+ruleset change adds a second, louder reason rather than replacing the first.
 
 ## Conventional answer
 

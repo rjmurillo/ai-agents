@@ -25,6 +25,15 @@ grep -rln merge_group .github/workflows/
   -> (nothing)
 ```
 
+**Update 2026-08-05: the first of those two now reads `true`.** The second is
+unchanged, so there is still no merge queue and no `merge_group` trigger. The
+conclusion below survives the change and gets sharper: PRs are now required to
+be current, but nothing makes them current automatically, so the queue still
+re-dirties itself behind every merge. What changed is the symptom. Under
+`false` a stale branch merged and broke main afterward; under `true` it cannot
+merge at all until someone updates it. Measured the day of the change: 41 of 56
+open PRs BEHIND, 13 DIRTY, 0 CLEAN. See issue #4646.
+
 The consequence is stronger than "branches go stale". The count ratchets compare
 a branch's whole tree against a baseline integer that main lowers whenever main
 clears violations. So **every merge invalidates every other open PR**, and a
