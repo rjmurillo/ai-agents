@@ -48,10 +48,10 @@ from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PAT
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROHIBITED_DASHES = ("\N{EN DASH}", "\N{EM DASH}")
-# Root files a contributor may add that HEAD does not carry yet (issue #4600).
-# Every root file already in HEAD is allowed by identity and every root dotfile
-# by prefix, so this only has to cover the rare new one. Keep it short: a long
-# allowlist is the per-filename .gitignore pattern this gate exists to replace.
+# Repo-root filenames that remain valid when HEAD cannot be read (issue #4600).
+# When HEAD is readable, existing root files pass by identity and root dotfiles
+# pass by prefix. This fallback list matters only for unborn or unreadable HEAD,
+# or for the rare newly introduced root filename.
 ROOT_SCRATCH_ALLOWLIST = frozenset(
     {
         "AGENTS.md",
