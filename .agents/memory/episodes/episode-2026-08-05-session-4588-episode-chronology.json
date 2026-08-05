@@ -139,23 +139,36 @@
     },
     {
       "id": "e011",
-      "timestamp": "2026-08-05T11:42:14+00:00",
-      "type": "commit",
-      "content": "Commit: 655dbbca14bf27393bbf4392e5ceb5a5d488112c",
+      "timestamp": "2026-08-05T10:48:00+00:00",
+      "type": "milestone",
+      "content": "Refactored causal edge validation to clear the taste and merge-tree ratchets.",
       "caused_by": [
         "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-05T12:16:23+00:00",
+      "type": "commit",
+      "content": "Commit: f409d93b69dc0ac1341c5ce6a037a5773822bf1e",
+      "caused_by": [
+        "e011"
       ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-4588-episode-chronology"
     }
   ],
   "metrics": {
-    "duration_minutes": 267,
+    "duration_minutes": 291,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 61
+    "files_changed": 65
   },
   "lessons": []
 }

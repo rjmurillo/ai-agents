@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit 655dbbca14bf27393bbf4392e5ceb5a5d488112c carries the corrected code, mirror, and tests."
+        "Evidence": "Commit f409d93b69dc0ac1341c5ce6a037a5773822bf1e carries the corrected code, mirror, tests, and complexity refactor."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pytest tests/skills/memory/test_extract_session_episode.py: 283 passed. ruff passed on changed Python files. Mutation proof completed before PR creation and re-run after correction."
+        "Evidence": "pytest tests/skills/memory/test_extract_session_episode.py: 283 passed. ruff passed on changed Python files. taste-count-ratchet and merge-tree-ratchet passed. Final mutation table: three behavioral mutants killed, cosmetic control survived."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -158,8 +158,13 @@
       "time": "2026-08-05T10:24:00+00:00",
       "entry": "Added direct causal graph validation regression test after porting PR #4617 logic.",
       "evidence": "Commit 655dbbca14 adds the test; extractor test file passed with 283 tests."
+    },
+    {
+      "time": "2026-08-05T10:48:00+00:00",
+      "entry": "Refactored causal edge validation to clear the taste and merge-tree ratchets.",
+      "evidence": "taste-count-ratchet OK, merge-tree-ratchet OK, and final mutation proof killed three behavioral mutants with the cosmetic control surviving."
     }
   ],
-  "endingCommit": "655dbbca14bf27393bbf4392e5ceb5a5d488112c",
+  "endingCommit": "f409d93b69dc0ac1341c5ce6a037a5773822bf1e",
   "nextSteps": []
 }
