@@ -1775,15 +1775,13 @@ def test_transcript_reader_requests_bounded_lines(
             sizes.append(size)
             return lines.pop(0)
 
-    original_open = Path.open
-
-    def bounded_open(path: Path, *args: Any, **kwargs: Any) -> Any:
-        if path == events:
-            return BoundedStream()
-        return original_open(path, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "open", bounded_open)
     transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+
+    def bounded_fdopen(descriptor: int, *args: Any, **kwargs: Any) -> Any:
+        os.close(descriptor)
+        return BoundedStream()
+
+    monkeypatch.setattr(transcript_module.os, "fdopen", bounded_fdopen)
     monkeypatch.setattr(transcript_module, "_MAX_TRANSCRIPT_LINE_CHARS", 512)
 
     result = transcript_module.read_session_transcript(
@@ -1810,6 +1808,76 @@ def test_transcript_candidate_count_is_bounded(
     monkeypatch.setattr(transcript_module, "_MAX_TRANSCRIPT_CANDIDATES", 2)
 
     with pytest.raises(RuntimeError, match="candidate limit exceeded"):
+        transcript_module.read_session_transcript(
+            tmp_path,
+            "sandbox",
+            since=0.0,
+            provider_label="Copilot CLI",
+            deadline=time.monotonic() + 1.0,
+        )
+
+
+def test_stale_transcripts_do_not_consume_the_candidate_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    since = time.time() - 10
+    for index in range(3):
+        session_dir = tmp_path / f"stale-{index}"
+        session_dir.mkdir()
+        events = session_dir / "events.jsonl"
+        events.write_text("", encoding="utf-8")
+        os.utime(events, (1_000_000, 1_000_000))
+    sandbox = str(tmp_path / "sandbox")
+    _write_session(
+        tmp_path,
+        sandbox,
+        model="model",
+        contents=["current answer"],
+    )
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(transcript_module, "_MAX_TRANSCRIPT_CANDIDATES", 1)
+
+    result = transcript_module.read_session_transcript(
+        tmp_path,
+        sandbox,
+        since=since,
+        provider_label="Copilot CLI",
+        deadline=time.monotonic() + 1.0,
+    )
+
+    assert result == ("current answer", "model")
+
+
+def test_non_regular_transcript_is_refused(tmp_path: Path) -> None:
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    (session_dir / "events.jsonl").mkdir()
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+
+    with pytest.raises(RuntimeError, match="not a regular file"):
+        transcript_module.read_session_transcript(
+            tmp_path,
+            "sandbox",
+            since=0.0,
+            provider_label="Copilot CLI",
+            deadline=time.monotonic() + 1.0,
+        )
+
+
+def test_symlinked_transcript_is_refused(tmp_path: Path) -> None:
+    target = tmp_path / "target.jsonl"
+    target.write_text("", encoding="utf-8")
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    link = session_dir / "events.jsonl"
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlink creation unavailable")
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+
+    with pytest.raises(RuntimeError, match="not a regular file"):
         transcript_module.read_session_transcript(
             tmp_path,
             "sandbox",

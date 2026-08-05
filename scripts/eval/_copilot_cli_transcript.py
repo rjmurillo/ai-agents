@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import time
 from pathlib import Path
 from typing import cast
@@ -119,9 +120,30 @@ def _read_matching_session(
     chunks: list[str] = []
     total_chars = 0
     try:
-        if path.stat().st_mtime < since:
+        metadata = path.lstat()
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISREG(metadata.st_mode)
+        ):
+            raise RuntimeError(
+                f"{provider_label} session transcript is not a regular file"
+            )
+        if metadata.st_mtime < since:
             return None
-        with path.open(encoding="utf-8", errors="replace") as stream:
+        flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        opened_metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(opened_metadata.st_mode):
+            os.close(descriptor)
+            raise RuntimeError(
+                f"{provider_label} session transcript is not a regular file"
+            )
+        with os.fdopen(
+            descriptor,
+            encoding="utf-8",
+            errors="replace",
+        ) as stream:
             while True:
                 if time.monotonic() >= deadline:
                     raise RuntimeError(
@@ -186,6 +208,19 @@ def read_session_transcript(
                 raise RuntimeError(
                     f"{provider_label} session transcript scan timed out"
                 )
+            try:
+                metadata = path.lstat()
+            except OSError:
+                continue
+            if (
+                stat.S_ISLNK(metadata.st_mode)
+                or not stat.S_ISREG(metadata.st_mode)
+            ):
+                raise RuntimeError(
+                    f"{provider_label} session transcript is not a regular file"
+                )
+            if metadata.st_mtime < since:
+                continue
             candidates.append(path)
             if len(candidates) > _MAX_TRANSCRIPT_CANDIDATES:
                 raise RuntimeError(
