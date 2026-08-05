@@ -56,6 +56,74 @@ def test_builds_full_pr_context(monkeypatch: pytest.MonkeyPatch):
     assert "diff --git" in context.text
 
 
+def test_run_gh_retries_rate_limit_before_returning_success(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A transient 403 during context build retries before declaring failure."""
+    calls: list[list[str]] = []
+    sleeps: list[float] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        if len(calls) == 1:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                1,
+                "",
+                "HTTP 403: API rate limit exceeded for user ID 6811113",
+            )
+        return _mod.subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "sleep", sleeps.append)
+
+    result = _mod.run_gh(["api", "repos/owner/repo/pulls/7"])
+
+    assert result.returncode == 0
+    assert result.stdout == "ok"
+    assert len(calls) == 2
+    assert sleeps == [_mod.GH_REFUSAL_BACKOFF_SECONDS[0]]
+
+
+def test_pr_diff_context_exhausted_rate_limit_records_infra_gap(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Retries that still 403 become indeterminate context, not a clean pass."""
+    calls: list[list[str]] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        if command[1:2] == ["api"]:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                0,
+                _pulls_payload(7, "Rate limited", ""),
+                "",
+            )
+        if command[1:3] == ["pr", "diff"]:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                1,
+                "",
+                "HTTP 403: API rate limit exceeded",
+            )
+        raise AssertionError(f"unexpected gh call: {command}")
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "sleep", lambda _seconds: None)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    diff_calls = [call for call in calls if call[1:3] == ["pr", "diff"]]
+    assert len(diff_calls) == len(_mod.GH_REFUSAL_BACKOFF_SECONDS) + 1
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert "INFRASTRUCTURE_FAILURE" in context.text
+    assert "rate limit" in context.text
+
+
 def test_marks_pr_number_mismatch_as_infrastructure_failure(
     monkeypatch: pytest.MonkeyPatch,
 ):

@@ -12,14 +12,20 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 GH_TIMEOUT_SECONDS = 60
+GH_REFUSAL_BACKOFF_SECONDS = (300.0, 600.0)
 MAX_FILE_PAGES = 5
 FILES_PER_PAGE = 100
 DIFF_TOO_LARGE = re.compile(
     r"(HTTP 406|too_large|exceeded the maximum number of files)",
+    re.IGNORECASE,
+)
+RETRYABLE_GH_REFUSAL = re.compile(
+    r"rate limit|secondary rate|abuse detection|\bHTTP\s+(429|500|502|503|504)\b",
     re.IGNORECASE,
 )
 
@@ -65,19 +71,39 @@ class ExternalGhError(RuntimeError):
 
 
 def run_gh(arguments: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> CommandResult:
-    try:
-        result = subprocess.run(
-            ["gh", *arguments],
-            capture_output=True,
-            check=False,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
+    attempts = len(GH_REFUSAL_BACKOFF_SECONDS) + 1
+    for attempt in range(attempts):
+        try:
+            result = subprocess.run(
+                ["gh", *arguments],
+                capture_output=True,
+                check=False,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+            )
+        except OSError as exc:
+            raise GhLaunchError(f"Failed to run gh: {exc}") from exc
+
+        command_result = CommandResult(result.stdout, result.stderr, result.returncode)
+        if result.returncode == 0:
+            return command_result
+
+        refusal_text = f"{result.stderr}\n{result.stdout}"
+        if attempt >= len(GH_REFUSAL_BACKOFF_SECONDS) or not RETRYABLE_GH_REFUSAL.search(
+            refusal_text
+        ):
+            return command_result
+
+        delay = GH_REFUSAL_BACKOFF_SECONDS[attempt]
+        print(
+            "::warning::GitHub API refusal while running gh. "
+            f"Retrying in {delay:.0f}s."
         )
-    except OSError as exc:
-        raise GhLaunchError(f"Failed to run gh: {exc}") from exc
-    return CommandResult(result.stdout, result.stderr, result.returncode)
+        time.sleep(delay)
+
+    raise RuntimeError("unreachable gh retry loop")
 
 
 def sanitize_title(title: str) -> str:
