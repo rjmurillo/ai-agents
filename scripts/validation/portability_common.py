@@ -16,7 +16,7 @@ from scripts.validation.portability_baseline import (
     refuse_undiffable_baseline,
     write_baseline_json,
 )
-from scripts.validation.portability_git import run_git
+from scripts.validation.portability_git import git_timeout_problem, run_git
 
 RegressionMessageFactory = Callable[[str, int, int], str]
 
@@ -234,6 +234,9 @@ def _git_lines(repo_root: Path, args: list[str]) -> list[str] | None:
     prevents the coverage probe from drifting behind the baseline reader.
     """
     proc = run_git(repo_root, *args)
+    if problem := git_timeout_problem(proc, f"running {' '.join(args)}"):
+        print(problem, file=sys.stderr)
+        return None
     if proc is None or proc.returncode != 0:
         return None
     stdout = proc.stdout.decode(errors="replace")

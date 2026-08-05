@@ -35,6 +35,16 @@ GIT_TIMEOUT_SECONDS = 30.0
 GIT_TIMEOUT_RETURN_CODE = 124
 
 
+def git_timeout_problem(
+    proc: subprocess.CompletedProcess[bytes] | None, action: str
+) -> str | None:
+    """Describe a timed-out Git probe without masking other failures."""
+    if proc is None or proc.returncode != GIT_TIMEOUT_RETURN_CODE:
+        return None
+    detail = proc.stderr.decode(errors="replace")
+    return f"git timed out while {action} ({detail})"
+
+
 def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
     """Run one git command with every local override stripped out.
 
@@ -126,6 +136,8 @@ def tree_entries(
     as untracked, which is the shrug that erases the floor.
     """
     listing = run_git(repo_root, "ls-tree", "-z", "--full-tree", treeish)
+    if problem := git_timeout_problem(listing, "listing the committed baseline directory"):
+        return None, problem
     if listing is None or listing.returncode != 0:
         return None, "git could not list the committed baseline directory"
 
@@ -257,6 +269,8 @@ def _no_commits_or_refuse(repo_root: Path) -> tuple[str | None, str | None]:
     only asked in the state no healthy repository reaches.
     """
     refs = run_git(repo_root, "for-each-ref", "--format=%(objectname)", "--count=1")
+    if problem := git_timeout_problem(refs, "listing repository refs"):
+        return None, problem
     if refs is None or refs.returncode != 0:
         return None, "git could not list the repository's refs to confirm it has no commits"
     if refs.stdout.strip():
@@ -267,6 +281,8 @@ def _no_commits_or_refuse(repo_root: Path) -> tuple[str | None, str | None]:
         )
 
     objects = run_git(repo_root, "cat-file", "--batch-check=%(objecttype)", "--batch-all-objects")
+    if problem := git_timeout_problem(objects, "enumerating the object database"):
+        return None, problem
     if objects is None or objects.returncode != 0:
         return None, (
             "git could not enumerate the object database to confirm the "
@@ -293,6 +309,8 @@ def committed_blob(repo_root: Path, path: Path) -> tuple[str | None, str | None]
     file at the wrong depth.
     """
     toplevel = run_git(repo_root, "rev-parse", "--show-toplevel")
+    if problem := git_timeout_problem(toplevel, "locating the repository root"):
+        return None, problem
     if toplevel is None or toplevel.returncode != 0:
         return None, (
             "the baseline is not inside a readable git repository, so the "
@@ -314,9 +332,8 @@ def committed_blob(repo_root: Path, path: Path) -> tuple[str | None, str | None]
     head = run_git(repo_root, "rev-parse", "--verify", "--quiet", "HEAD")
     if head is None:
         return None, "git could not be run to read the committed baseline"
-    if head.returncode == GIT_TIMEOUT_RETURN_CODE:
-        detail = head.stderr.decode(errors="replace")
-        return None, f"git timed out while reading the committed baseline ({detail})"
+    if problem := git_timeout_problem(head, "reading the committed baseline"):
+        return None, problem
     if head.returncode != 0:
         if head.stdout.strip():
             return None, "git could not identify HEAD"

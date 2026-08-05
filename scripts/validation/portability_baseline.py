@@ -35,7 +35,7 @@ from scripts.validation.portability_floor import (
     Sections,
     read_previous_sections,
 )
-from scripts.validation.portability_git import GIT_TIMEOUT_RETURN_CODE, run_git
+from scripts.validation.portability_git import git_timeout_problem, run_git
 
 
 def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
@@ -253,10 +253,9 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
     all, runs inside a checkout where this resolves and the guard is live.
     """
     toplevel = run_git(repo_root, "rev-parse", "--show-toplevel")
-    if toplevel is not None and toplevel.returncode == GIT_TIMEOUT_RETURN_CODE:
+    if problem := git_timeout_problem(toplevel, "locating the repository root"):
         print(
-            f"Refusing to trust the baseline {baseline_path}: "
-            f"{toplevel.stderr.decode(errors='replace')}. "
+            f"Refusing to trust the baseline {baseline_path}: {problem}. "
             "The guard cannot confirm that the baseline is diffable.",
             file=sys.stderr,
         )
@@ -298,6 +297,13 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
         return False
 
     proc = run_git(repo_root, "check-attr", "-z", "diff", "--", str(baseline_path))
+    if problem := git_timeout_problem(proc, "checking the baseline diff attribute"):
+        print(
+            f"Refusing to trust the baseline {baseline_path}: {problem}. "
+            "The guard cannot confirm that the baseline is diffable.",
+            file=sys.stderr,
+        )
+        return True
     if proc is None or proc.returncode != 0:
         print(
             f"Refusing to trust the baseline {baseline_path}: git could not report "
@@ -333,18 +339,20 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
     return False
 
 
-def _diff_attribute(repo_root: Path, path: Path) -> str | None:
-    """Return the git diff attribute for path, None if git cannot answer."""
+def _diff_attribute(repo_root: Path, path: Path) -> tuple[str | None, str | None]:
+    """Return the git diff attribute and any timeout-specific failure."""
     try:
         rel = str(path.resolve().relative_to(repo_root.resolve()))
     except (OSError, ValueError):
-        return None
+        return None, None
     proc = _run_git(repo_root, "check-attr", "diff", "--", rel)
+    if problem := git_timeout_problem(proc, "checking the baseline diff attribute"):
+        return None, problem
     if proc is None or proc.returncode != 0:
-        return None
+        return None, None
     # Output: "<path>: diff: <value>" where value is set/unset/unspecified/<driver>
     parts = proc.stdout.decode(errors="replace").strip().split(": ", 2)
-    return parts[2] if len(parts) == 3 else None
+    return (parts[2], None) if len(parts) == 3 else (None, None)
 
 
 def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> bool:
@@ -360,7 +368,13 @@ def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> boo
     suppress diffs is to also break every --update-baseline run, making the
     suppression observable before it can be exploited.
     """
-    attr = _diff_attribute(repo_root, baseline_path)
+    attr, problem = _diff_attribute(repo_root, baseline_path)
+    if problem:
+        print(
+            f"Refusing to write baseline {baseline_path}: {problem}.",
+            file=sys.stderr,
+        )
+        return True
     if attr is None:
         print(
             f"Refusing to write a baseline: git check-attr failed for {baseline_path}. "
