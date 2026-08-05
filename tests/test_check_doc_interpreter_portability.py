@@ -647,6 +647,7 @@ def test_update_baseline_refuses_symlinked_parent(
     assert "through a symlink" in capsys.readouterr().err
 
 
+@pytest.mark.windows_path
 @pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
 def test_update_baseline_rechecks_symlinked_parent_inside_lock(
     tmp_path: Path,
@@ -951,6 +952,7 @@ def test_validation_refuses_missing_tracked_file(
     assert "tracked file is missing or not a regular file: missing.md" in capsys.readouterr().err
 
 
+@pytest.mark.windows_path
 @pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
 def test_validation_refuses_tracked_symlinked_file(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -968,6 +970,7 @@ def test_validation_refuses_tracked_symlinked_file(
     assert "tracked file is reached through a symlink" in capsys.readouterr().err
 
 
+@pytest.mark.windows_path
 @pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
 def test_third_party_imports_refuses_symlinked_script(tmp_path: Path) -> None:
     repo = make_repo(tmp_path / "repo", {"README.md": "No command.\n"})
@@ -980,6 +983,7 @@ def test_third_party_imports_refuses_symlinked_script(tmp_path: Path) -> None:
         third_party_imports("tool.py", repo, {"tool.py"})
 
 
+@pytest.mark.windows_path
 @pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
 def test_validation_refuses_symlinked_parent_directory(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -998,6 +1002,7 @@ def test_validation_refuses_symlinked_parent_directory(
     assert "tracked file is reached through a symlink" in capsys.readouterr().err
 
 
+@pytest.mark.windows_path
 @pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
 def test_validation_refuses_parent_symlink_resolving_to_repo_root(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -1014,6 +1019,7 @@ def test_validation_refuses_parent_symlink_resolving_to_repo_root(
     assert "tracked file is reached through a symlink" in capsys.readouterr().err
 
 
+@pytest.mark.windows_path
 @pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
 def test_validation_refuses_dangling_tracked_symlink(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
