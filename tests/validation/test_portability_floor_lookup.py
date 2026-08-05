@@ -21,12 +21,16 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.validation import portability_floor
+from scripts.validation import portability_floor, portability_git
 from scripts.validation.portability_floor import (
     Sections,
     read_previous_sections,
 )
-from scripts.validation.portability_git import GIT_TIMEOUT_RETURN_CODE, tracked_blob
+from scripts.validation.portability_git import (
+    GIT_TIMEOUT_RETURN_CODE,
+    tracked_blob,
+    was_recorded,
+)
 
 
 def _git(root: Path, *args: str) -> None:
@@ -75,6 +79,51 @@ def test_committed_object_timeout_names_the_failed_probe(
 
     assert previous is None
     assert problem is not None and "reading the committed baseline object" in problem
+
+
+def test_commit_history_timeout_names_the_failed_probe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _repo(tmp_path)
+    baseline = root / "scripts" / "validation" / "b.json"
+    timed_out = subprocess.CompletedProcess(
+        ["git", "log"],
+        GIT_TIMEOUT_RETURN_CODE,
+        stdout=b"",
+        stderr=b"git command timed out after 30s",
+    )
+    monkeypatch.setattr(portability_git, "run_git", lambda *_args: timed_out)
+
+    recorded, problem = was_recorded(root, baseline)
+
+    assert recorded is None
+    assert problem is not None and "checking commit history for the baseline" in problem
+
+
+def test_ref_timeout_names_the_failed_probe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _repo(tmp_path)
+    baseline = root / "scripts" / "validation" / "b.json"
+
+    def dispatch(_repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+        if args and args[0] == "log":
+            return subprocess.CompletedProcess(args, 128, stdout=b"", stderr=b"")
+        if args and args[0] == "show-ref":
+            return subprocess.CompletedProcess(
+                args,
+                GIT_TIMEOUT_RETURN_CODE,
+                stdout=b"",
+                stderr=b"git command timed out after 30s",
+            )
+        raise AssertionError(f"unexpected git command: {args}")
+
+    monkeypatch.setattr(portability_git, "run_git", dispatch)
+
+    recorded, problem = was_recorded(root, baseline)
+
+    assert recorded is None
+    assert problem is not None and "checking repository refs" in problem
 
 
 class TestAnUnresolvableHeadIsNotProofOfAnEmptyRepository:

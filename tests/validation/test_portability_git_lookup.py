@@ -438,38 +438,6 @@ class TestAPathThatCannotBeResolvedIsNotProofNothingWasRecorded:
         _commit(root, root, {"files": {"a/b.py": 5}})
         assert was_recorded(root, baseline) == (True, None)
 
-    def test_commit_history_timeout_names_the_failed_probe(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        root = _repo(tmp_path / "repo")
-        baseline = root / REL
-        monkeypatch.setattr(portability_git, "run_git", lambda *_args: _timed_out("log"))
-
-        recorded, problem = was_recorded(root, baseline)
-
-        assert recorded is None
-        assert problem is not None and "checking commit history for the baseline" in problem
-
-    def test_ref_timeout_names_the_failed_probe(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        root = _repo(tmp_path / "repo")
-        baseline = root / REL
-
-        def dispatch(_repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
-            if args and args[0] == "log":
-                return subprocess.CompletedProcess(args, 128, stdout=b"", stderr=b"")
-            if args and args[0] == "show-ref":
-                return _timed_out("show-ref")
-            raise AssertionError(f"unexpected git command: {args}")
-
-        monkeypatch.setattr(portability_git, "run_git", dispatch)
-
-        recorded, problem = was_recorded(root, baseline)
-
-        assert recorded is None
-        assert problem is not None and "checking repository refs" in problem
-
     def test_the_caller_refuses_before_it_ever_asks(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
