@@ -62,7 +62,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "git status checked in /home/richard/src/scratch/doc-wrapper-portability-final"
+        "Evidence": "git status checked in the recovery worktree"
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and review fixes committed through 40bec3c2a; this session log update is the final staged artifact"
+        "Evidence": "Implementation and review fixes committed through f35ffffb6; this session log update is the final staged artifact"
       },
       "validationPassed": {
         "level": "MUST",
@@ -158,9 +158,14 @@
       "time": "2026-08-05",
       "action": "Preserved partial Git stderr and calibrated the shared timeout",
       "result": "Twenty runs across 169611 Git objects peaked at 179.915 ms; timeout tests, Ruff, and mypy passed"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Closed final review evidence gaps",
+      "result": "HEAD timeout names the exact probe; calibration is reproducible; machine-local session evidence was removed"
     }
   ],
-  "endingCommit": "40bec3c2a",
+  "endingCommit": "f35ffffb6",
   "nextSteps": [
     "Run the final exact-tip review and exact pre-PR gate",
     "Push the reviewed recovery tip to PR #4670",
