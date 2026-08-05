@@ -106,6 +106,45 @@ This fired every few minutes with about ten concurrent agents. Prefer one wide
 query over several narrow ones, avoid parallel API reads across agents, and
 budget for the backoff rather than treating each refusal as a new problem.
 
+## It takes the AI quality gate down, and the PR does not say so
+
+A refusal during the AI review workflow does not surface as a rate limit
+anywhere a reader looks first. The chain, observed on PR #4471 at
+`2026-08-03T18:15:49Z`:
+
+1. The context build step shells out to `gh` to fetch PR data and takes a 403.
+   The log line is a `##[warning]`, not an error: `PR fetch failed: gh: API
+   rate limit exceeded for user ID 6811113`.
+2. `scripts/ci/check_ai_review_infra_gate.py` sets `CONTEXT_INFRA_FAILURE:
+   true` and every agent skips its Copilot CLI invocation.
+3. All ten agents report `DID_NOT_RUN (infra: true)`: security, qa, analyst,
+   architect, devops, roadmap, reliability, observability, agent-safety,
+   decision-rigor.
+4. `Aggregate Results` exits 1. That single red check is the only thing visible
+   on the PR, and its own log says nothing about rate limits.
+
+`gh pr checks` makes it worse: the individual agent jobs report **pass**,
+because skipping cleanly is a successful job. Only `Aggregate Results` is red.
+The natural reading, that the aggregation logic is broken or the diff failed
+review, is wrong both times.
+
+Diagnose it by opening any one agent job's log and grepping for `INFRA` or
+`rate limit`, not by reading the aggregate job. A uniform `DID_NOT_RUN` across
+all ten agents is the tell: a real review failure never hits every agent at
+once.
+
+The fix is a **full** re-run, `gh run rerun <run-id>`, once the bucket resets.
+`gh run rerun <run-id> --failed` does not work and the reason is the same
+asymmetry: the agent jobs are green, so `--failed` re-runs only `Aggregate
+Results`, which re-downloads the identical stale `DID_NOT_RUN` artifacts and
+fails identically. Measured on PR #4471: the `--failed` rerun aggregated at
+`18:44:56` against agent verdicts still stamped `18:15:49`, with core quota
+recovered to 4894/5000 at the time. Quota headroom is not the variable; which
+jobs re-run is.
+
+Nothing in the diff needs to change. Check `gh api rate_limit` for the reset
+timestamp first, keeping in mind that a healthy payload does not prove the API
+is serving, per the measurement above.
 ## There are two refusal modes, and the failing response tells you which
 
 The guidance above ("the numbers will look fine", "treat it as a 60 second
@@ -152,3 +191,64 @@ fetch `statusCheckRollup` per pull request only for the ones you need.
 mergeability lazily. The first query enqueues the computation. Wait about a
 minute and query again rather than treating `UNKNOWN` as a state. In one reading
 48 of 55 were `UNKNOWN` on the first pass and 0 on the second.
+
+## The blast radius reaches other people's CI
+
+Measured 2026-08-04. The AI PR quality gate builds each agent's review context
+by fetching the PR diff, and it authenticates as `user ID 6811113`, which is
+`rjmurillo`. An interactive agent session authenticates as the same account.
+They share one REST budget and one GraphQL budget.
+
+On PR #4567, run `30929337949`, every one of the ten review agents failed at the
+context step:
+
+```
+##[error]Failed to fetch PR diff for #4567 ... HTTP 403: API rate limit
+exceeded for user ID 6811113
+PR diff has 0 lines
+##[error]Process completed with exit code 3.
+```
+
+`scripts/ci/build_ai_review_context.py` has no retry, so one 403 ends the job.
+The remaining steps skip, `INFRA_FAILURE` is written as `false`, the verdict
+comes back empty, and the required `Aggregate Results` check goes red while
+every underlying job reports success. Issue #4547 tracks both halves.
+
+The consequence that is easy to miss: this is not confined to the PR the agent
+is working on. Ten agents fetch a diff per run, so an agent polling `gh` across
+a queue can drain the shared budget and turn *unrelated* PRs red. Nine or ten
+identical `NEEDS_REVIEW` verdicts across independent agents is that signature,
+not nine findings.
+
+So throttle polling when a queue is in flight, prefer one paginated REST call
+over repeated `gh pr checks`, and read a uniform verdict sweep as infrastructure
+before reading it as review feedback.
+
+## Re-running the failed jobs does not clear it
+
+The obvious recovery is `gh run rerun <id> --failed`, and on this workflow it
+cannot work. GitHub replays the jobs that already succeeded instead of running
+them again, and the ten review jobs *did* succeed: the 403 poisoned their
+output, not their exit status. So the aggregate re-reads the same empty
+verdicts and fails identically.
+
+Measured on run `30929337949` (PR #4567, 2026-08-04). Attempt 1 failed with
+nine `NEEDS_REVIEW`. Attempt 2 failed with the same nine. The tell is in
+`started_at`: the review rows still read 16:30 while the aggregate ran at
+17:09, a 39 minute gap that no re-execution would produce.
+
+Re-run the whole workflow instead:
+
+```bash
+gh run rerun <run_id>          # no --failed
+```
+
+Two traps around that command:
+
+- **It prints nothing on success.** An empty response is not a failure. Confirm
+  with `gh api repos/<owner>/<repo>/actions/runs/<id> --jq .run_attempt` and
+  look for the number to increase.
+- **Check the budget first.** Re-running into a drained budget just spends ten
+  more agent jobs to reproduce the same red. Read
+  `.resources.graphql.remaining` and, when it is low,
+  `(.reset - now)` for the seconds to wait, before triggering anything.

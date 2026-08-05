@@ -983,7 +983,7 @@ def test_run_pytest_budget_exhaustion_emits_clear_message(
 
     rc = git_hook_policy.run_pytest(tmp_path)
 
-    assert rc == 1
+    assert rc == 3
     err = capsys.readouterr().err
     assert "exhausted" in err
     assert "budget exhaustion" in err
