@@ -996,6 +996,38 @@ def test_expired_request_still_force_kills_and_reaps_the_child() -> None:
     assert process.reaped is True
 
 
+def test_stop_process_refuses_live_reader_leaks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FinishedProcess:
+        def poll(self) -> int:
+            return 0
+
+    class FakeTree:
+        def terminate(self, *, force: bool) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    streams = cast(
+        Any,
+        SimpleNamespace(
+            process=FinishedProcess(),
+            process_tree=FakeTree(),
+            stop_readers=threading.Event(),
+        ),
+    )
+    monkeypatch.setattr(acp_module, "_join_readers", lambda *args, **kwargs: False)
+
+    with pytest.raises(RuntimeError, match="reader cleanup timed out"):
+        acp_module._stop_process(
+            streams,
+            deadline=time.monotonic() + 1.0,
+            timeout=1.0,
+        )
+
+
 def test_timeout_exception_does_not_receive_prompt_in_command(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

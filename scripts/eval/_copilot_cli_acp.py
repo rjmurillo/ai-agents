@@ -494,13 +494,15 @@ def _stop_process(
                 raise RuntimeError("Copilot ACP child cleanup timed out") from None
     cleanup_deadline = time.monotonic() + _FORCE_REAP_SECONDS
     try:
-        _join_readers(
+        readers_joined = _join_readers(
             streams,
             deadline=cleanup_deadline,
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        pass
+        raise RuntimeError("Copilot ACP reader cleanup timed out") from None
+    if not readers_joined:
+        raise RuntimeError("Copilot ACP reader cleanup timed out")
     streams.process_tree.close()
 
 
