@@ -210,6 +210,30 @@ def test_code_quality_argument_values_require_exact_tokens(
     assert any(v.kind == "arguments" for v in violations)
 
 
+@pytest.mark.parametrize("option", ["--base", "--gate-mode"])
+def test_duplicate_code_quality_options_are_flagged(
+    fake_repo: Path,
+    option: str,
+) -> None:
+    duplicate = (
+        "--base wrong"
+        if option == "--base"
+        else "--gate-mode absolute"
+    )
+    bad = _VALID_BUILD_MD.replace(
+        "--changed-only --base origin/main --gate-mode regression",
+        (
+            "--changed-only --base origin/main --gate-mode regression "
+            f"{duplicate}"
+        ),
+    )
+    _write_build_md(fake_repo, bad)
+
+    violations = cbg.collect_violations(fake_repo)
+
+    assert any(v.kind == "arguments" for v in violations)
+
+
 def test_missing_taste_lints_flagged(fake_repo: Path) -> None:
     """Dropping taste-lints is a violation."""
     bad = _VALID_BUILD_MD.replace(

@@ -71,10 +71,12 @@ class GateViolation:
 
 
 def _option_value(arguments: list[str], option: str) -> str | None:
-    try:
-        option_index = arguments.index(option)
-    except ValueError:
+    option_indexes = [
+        index for index, argument in enumerate(arguments) if argument == option
+    ]
+    if len(option_indexes) != 1:
         return None
+    option_index = option_indexes[0]
     value_index = option_index + 1
     return arguments[value_index] if value_index < len(arguments) else None
 
