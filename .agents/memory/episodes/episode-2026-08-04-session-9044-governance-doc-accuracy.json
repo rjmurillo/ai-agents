@@ -1,0 +1,79 @@
+{
+  "id": "episode-2026-08-04-session-9044-governance-doc-accuracy",
+  "session": "2026-08-04-session-9044-governance-doc-accuracy",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Audit always-on governance documents for stale claims and correct false documentation",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Enumerate governance claims",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify corpus and generator claims",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct false always-on steering claims",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T05:10:22+00:00",
+      "type": "commit",
+      "content": "Commit: 5ec85be51aad",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T08:34:12+00:00",
+      "type": "commit",
+      "content": "Commit: e5758b4930d4d5cca0fefc10f601e8616f94917e",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 6
+  },
+  "lessons": []
+}
