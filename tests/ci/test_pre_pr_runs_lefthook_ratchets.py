@@ -30,6 +30,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -204,6 +205,7 @@ class TestValidatorBehaviour:
             checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
         )
         monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", lambda *_a, **_k: (0, "ok", ""))
         assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
 
@@ -214,6 +216,8 @@ class TestValidatorBehaviour:
             checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
         )
         monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        base_oid = "a" * 40
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: base_oid)
 
         def record(args: list[str], **_k: object) -> tuple[int, str, str]:
             seen.append(args)
@@ -221,7 +225,11 @@ class TestValidatorBehaviour:
 
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", record)
         checks_ratchet.validate_count_ratchets(REPO_ROOT)
-        assert [" ".join(a) for a in seen] == list(_declared_commands().values())
+        expected = [
+            " ".join(checks_ratchet.build_command(ratchet, base_oid))
+            for ratchet in checks_ratchet.RATCHETS
+        ]
+        assert [" ".join(a) for a in seen] == expected
 
     def test_fails_when_one_ratchet_exits_nonzero(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -232,6 +240,7 @@ class TestValidatorBehaviour:
             checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
         )
         monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
 
         def selective(args: list[str], **_k: object) -> tuple[int, str, str]:
             if target.script in args:
@@ -260,16 +269,17 @@ class TestValidatorBehaviour:
         with pytest.raises(checks_ratchet.MissingScriptSkip):
             checks_ratchet.validate_count_ratchets(REPO_ROOT)
 
-    def test_stale_base_ref_refresh_failure_warns_and_continues(
+    def test_stale_base_ref_refresh_failure_fails_closed(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Edge: offline is not a policy breach, so warn and use the local ref."""
+        """Negative: a failed refresh cannot authorize stale-base evaluation."""
         monkeypatch.setattr(
             checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
         )
         monkeypatch.setattr(
             checks_ratchet, "_refresh_remote_base", lambda *_a: "network unreachable"
         )
-        monkeypatch.setattr(checks_ratchet, "_run_subprocess", lambda *_a, **_k: (0, "", ""))
-        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
+        with patch.object(checks_ratchet, "_run_subprocess") as run:
+            assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is False
+        run.assert_not_called()
         assert "could not refresh origin/main" in capsys.readouterr().err

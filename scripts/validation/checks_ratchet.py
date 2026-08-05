@@ -120,6 +120,27 @@ def _print_output(label: str, stdout: str, stderr: str) -> None:
         print(f"  {line}")
 
 
+def _resolve_base_oid(repo_root: Path, base_ref: str) -> str | None:
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            f"{base_ref}^{{commit}}",
+        ],
+        timeout=10,
+    )
+    oid = str(stdout).strip()
+    if exit_code == 0 and oid:
+        return oid
+    detail = stderr.strip() or f"git rev-parse exit {exit_code}"
+    print(f"[ERROR] count ratchets: cannot pin {base_ref}: {detail}", file=sys.stderr)
+    return None
+
+
 def validate_count_ratchets(repo_root: Path) -> bool:
     """Run every ratchet in :data:`RATCHETS`; return True when all pass.
 
@@ -156,19 +177,23 @@ def validate_count_ratchets(repo_root: Path) -> bool:
         )
         return False
 
-    # Issue #2453: a stale local origin/<branch> lets a ratchet compare against
-    # an old baseline and false-PASS. Best-effort; a failed fetch warns only.
+    # A stale local origin/<branch> false-PASSes aggregate checks. Refresh first
+    # and pin one OID so every base-aware ratchet evaluates the same commit.
     fetch_result = _refresh_remote_base(base_ref, repo_root)
     if fetch_result:
         print(
-            f"[WARN] count ratchets: could not refresh {base_ref} "
-            f"({fetch_result}); continuing with the local ref.",
+            f"[ERROR] count ratchets: could not refresh {base_ref} "
+            f"({fetch_result}); refusing to evaluate a stale base.",
             file=sys.stderr,
         )
+        return False
+    base_oid = _resolve_base_oid(repo_root, base_ref)
+    if base_oid is None:
+        return False
 
     failures: list[str] = []
     for ratchet in RATCHETS:
-        cmd = build_command(ratchet, base_ref)
+        cmd = build_command(ratchet, base_oid)
         exit_code, stdout, stderr = _run_subprocess(cmd, cwd=repo_root)
         if exit_code != 0:
             failures.append(ratchet.job_name)

@@ -10,7 +10,9 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.ci import merge_tree_materialization as _mat
 from scripts.ci import merge_tree_ratchet_check as _m
+from scripts.ci import type_ignore_count_ratchet as _type_ignore
 from tests.ci.test_merge_tree_ratchet_check import (
     _commit_all,
     _git,
@@ -19,7 +21,23 @@ from tests.ci.test_merge_tree_ratchet_check import (
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-@pytest.mark.usefixtures("_zero_memory_index_count")
+def test_remote_refresh_failure_stops_before_merge_tree(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _make_repo_with_baselines(tmp_path, ruff=5, taste=10, ignore=10)
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", head)
+
+    with patch.object(_m, "_merge_tree_oid") as merge_tree:
+        rc = _m.main(["--repo-root", str(repo), "--base-ref", "origin/main"])
+
+    assert rc == _m.EXIT_EXTERNAL
+    merge_tree.assert_not_called()
+    assert "failed to refresh origin/main" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+@pytest.mark.usefixtures("_zero_non_target_aggregate_counts")
 def test_moving_base_ref_does_not_change_pinned_merge_or_baseline(
     tmp_path: Path,
 ) -> None:
@@ -49,6 +67,7 @@ def test_moving_base_ref_does_not_change_pinned_merge_or_baseline(
         return result
 
     with (
+        patch.object(_m, "_refresh_base_ref", return_value=True),
         patch.object(_m, "_merge_tree_oid", side_effect=move_ref_after_merge) as merge,
         patch.object(
             _m, "_read_baseline_at_ref", wraps=_m._read_baseline_at_ref
@@ -90,8 +109,8 @@ def test_scratch_repo_uses_resolved_git_and_preserves_platform_path(
         return subprocess.CompletedProcess(argv, 0, b"", b"")
 
     with (
-        patch.object(_m, "resolve_executable", return_value=resolved_git) as resolve,
-        patch.object(_m.subprocess, "run", side_effect=fake_run),
+        patch.object(_mat, "resolve_executable", return_value=resolved_git) as resolve,
+        patch.object(_mat.subprocess, "run", side_effect=fake_run),
     ):
         assert _m._init_scratch_repo(scratch)
 
@@ -113,7 +132,7 @@ def test_scratch_environment_scrubs_injected_git_configuration(
     monkeypatch.setenv("LEFTHOOK", "0")
 
     isolated_home = tmp_path / "isolated-home"
-    env = _m._scratch_git_environment(isolated_home)
+    env = _mat.isolated_git_environment(isolated_home)
 
     assert env["HOME"] == str(isolated_home)
     assert env["USERPROFILE"] == str(isolated_home)
@@ -153,7 +172,7 @@ def test_scratch_repo_ignores_hostile_home_git_config(
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(hostile_config))
 
     inherited = os.environ.copy()
-    git = _m.resolve_executable("git", env=inherited)
+    git = _mat.resolve_executable("git", env=inherited)
     control = subprocess.run(
         [git, "config", "--global", "--get", "commit.gpgsign"],
         capture_output=True,
@@ -171,3 +190,40 @@ def test_scratch_repo_ignores_hostile_home_git_config(
     (scratch / "payload.txt").write_text("safe\n", encoding="utf-8")
 
     assert _m._init_scratch_repo(scratch)
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_linked_worktree_real_counter_sees_merged_addition_and_deletion(
+    tmp_path: Path,
+) -> None:
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=1)
+    (repo / "deleted.py").write_text("x = value  # type: ignore\n", encoding="utf-8")
+    _commit_all(repo, "add type ignore that branch deletes")
+
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", "-q", "-b", "pr-branch", str(linked), "main")
+    _git(linked, "rm", "-q", "deleted.py")
+    _commit_all(linked, "delete old type ignore")
+    (repo / "added.py").write_text("y = value  # type: ignore\n", encoding="utf-8")
+    _commit_all(repo, "add target-side type ignore")
+
+    real_counter = _type_ignore.current_count
+
+    def observe_merged_tree(root: Path) -> int | None:
+        assert (root / "added.py").is_file()
+        assert not (root / "deleted.py").exists()
+        return real_counter(root)
+
+    with (
+        patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+        patch(
+            "scripts.ci.type_ignore_count_ratchet.current_count",
+            side_effect=observe_merged_tree,
+        ),
+        patch("scripts.ci.memory_index_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
+    ):
+        rc = _m.main(["--repo-root", str(linked), "--base-ref", "main"])
+
+    assert rc == _m.EXIT_OK

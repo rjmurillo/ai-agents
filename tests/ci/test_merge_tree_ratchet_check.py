@@ -69,6 +69,7 @@ def _make_repo_with_baselines(
     (ci / "memory_index_count_baseline.txt").write_text(
         f"{memory}\n", encoding="utf-8"
     )
+    (ci / "cli_exit_contract_baseline.txt").write_text("10\n", encoding="utf-8")
     (repo / "hello.py").write_text("x = 1\n", encoding="utf-8")
     _commit_all(repo, "main baseline")
     return repo
@@ -85,7 +86,7 @@ def _run(repo: Path, base_ref: str = "HEAD") -> int:
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-@pytest.mark.usefixtures("_zero_memory_index_count")
+@pytest.mark.usefixtures("_zero_non_target_aggregate_counts")
 class TestMergeTreeRatchetCheck:
     def test_clean_merge_passes(self, tmp_path: Path) -> None:
         """All counters under baseline -> EXIT_OK."""
