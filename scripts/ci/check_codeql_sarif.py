@@ -146,16 +146,29 @@ def load_documents(sarif_dir: Path) -> list[tuple[str, dict[str, object]]]:
     return documents
 
 
+def find_sarif_files(sarif_dir: Path) -> list[Path]:
+    """Find SARIF files under a directory."""
+    if not sarif_dir.is_dir():
+        return []
+    return sorted(sarif_dir.rglob("*.sarif"))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sarif-dir", required=True, type=Path)
     args = parser.parse_args(argv)
 
-    if not args.sarif_dir.is_dir() or not any(args.sarif_dir.rglob("*.sarif")):
+    sarif_files = find_sarif_files(args.sarif_dir)
+    if not sarif_files:
         print("No SARIF files found - analysis may have failed")
-        return 0
+        return 1
 
-    tally = grade(load_documents(args.sarif_dir))
+    documents = load_documents(args.sarif_dir)
+    if len(documents) != len(sarif_files):
+        print("::error::One or more SARIF files could not be parsed")
+        return 1
+
+    tally = grade(documents)
     for line in tally.lines:
         print(line)
 
