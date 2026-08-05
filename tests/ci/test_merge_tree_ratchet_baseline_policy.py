@@ -6,6 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.ci import cli_exit_contract_ratchet as _cli_exit
+from scripts.ci import memory_index_count_ratchet as _memory_index
 from scripts.ci import merge_tree_ratchet_check as _m
 from tests.ci.test_merge_tree_ratchet_check import (
     _commit_all,
@@ -43,12 +45,12 @@ def test_memory_index_counter_reads_synthetic_merged_tree_not_worktree(
         patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
         patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
         patch.object(
-            _m._memory_index, "_collect", side_effect=collect_from_synthetic_tree
+            _memory_index, "_collect", side_effect=collect_from_synthetic_tree
         ),
         patch.object(
-            _m._memory_index,
+            _memory_index,
             "current_count",
-            wraps=_m._memory_index.current_count,
+            wraps=_memory_index.current_count,
         ) as memory_counter,
     ):
         rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
@@ -63,7 +65,28 @@ def test_memory_index_counter_reads_synthetic_merged_tree_not_worktree(
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-@pytest.mark.usefixtures("_zero_memory_index_count")
+def test_cli_exit_counter_receives_materialized_merged_tree(tmp_path: Path) -> None:
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+    with (
+        patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.memory_index_count_ratchet.current_count", return_value=0),
+        patch.object(
+            _cli_exit,
+            "current_count",
+            wraps=_cli_exit.current_count,
+        ) as cli_counter,
+    ):
+        rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
+
+    assert rc == _m.EXIT_OK
+    cli_counter.assert_called_once()
+    assert cli_counter.call_args.args[0] != repo
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+@pytest.mark.usefixtures("_zero_non_target_aggregate_counts")
 class TestMergeTreeBaselinePolicy:
     def test_branch_lowering_below_merged_count_is_blocked(
         self, tmp_path: Path
@@ -142,6 +165,29 @@ class TestMergeTreeBaselinePolicy:
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
 
         assert rc == _m.EXIT_CONFIG
+
+    def test_branch_can_add_new_baseline_atomically(self, tmp_path: Path) -> None:
+        repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+        _git(repo, "rm", "-q", "scripts/ci/cli_exit_contract_baseline.txt")
+        _commit_all(repo, "base has no cli exit baseline")
+
+        _git(repo, "checkout", "-b", "pr-branch")
+        (repo / "scripts" / "ci" / "cli_exit_contract_baseline.txt").write_text(
+            "5\n", encoding="utf-8"
+        )
+        _commit_all(repo, "add cli exit ratchet baseline")
+
+        with (
+            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch(
+                "scripts.ci.cli_exit_contract_ratchet.current_count", return_value=5
+            ),
+        ):
+            rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
+
+        assert rc == _m.EXIT_OK
 
     def test_baseline_is_read_from_merged_tree_not_head_or_worktree(
         self, tmp_path: Path
