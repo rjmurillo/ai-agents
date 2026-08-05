@@ -1168,6 +1168,20 @@ def test_no_common_ancestor_uses_the_resolved_base() -> None:
         assert _mod.resolve_comparison_base("main") == "abc123"
 
 
+def test_regression_mode_handles_unrelated_histories(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "base.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "--orphan", "feature")
+    _run_git(tmp_path, "rm", "-f", "base.py")
+    _commit(tmp_path, "new.py", _FOCUSED, "unrelated head")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 0
+
+
 @pytest.mark.parametrize(
     "result",
     [
@@ -1430,6 +1444,21 @@ def test_a_source_file_that_is_not_utf8_at_base_is_gated_absolutely(
     _run_git(tmp_path, "commit", "-m", "base")
     _run_git(tmp_path, "checkout", "-b", "feature")
     _commit(tmp_path, "legacy.py", "# added note\n" + _SPRAWLING, "head")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 11
+
+
+def test_a_new_supported_source_that_is_not_utf8_fails_the_absolute_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    (tmp_path / "new.py").write_bytes(b"# caf\xe9 latin-1\n")
+    _run_git(tmp_path, "add", "new.py")
+    _run_git(tmp_path, "commit", "-m", "add unreadable source")
     monkeypatch.chdir(tmp_path)
 
     assert main(_regression_argv()) == 11

@@ -493,6 +493,8 @@ def _parse_changed_files(raw: bytes) -> list[ChangedFile]:
 def get_changed_files(
     base: str | None,
     head: str = "HEAD",
+    *,
+    base_is_comparison: bool = False,
 ) -> list[ChangedFile]:
     """Return rename-aware changed paths between *base* and *head*."""
     import subprocess
@@ -500,7 +502,8 @@ def get_changed_files(
     if base is not None:
         _reject_option_like_revision(base)
     _reject_option_like_revision(head)
-    revision_range = f"{base}...{head}" if base else head
+    separator = ".." if base_is_comparison else "..."
+    revision_range = f"{base}{separator}{head}" if base else head
     result = subprocess.run(
         [
             "git",
@@ -922,7 +925,12 @@ def check_regression(
 
     # New files and files whose base revision scored nothing have no comparable
     # base. Absolute thresholds are the only policy that can apply to them.
-    new_file_code = check_thresholds(new_file_assessments, config, context)
+    new_file_code = check_thresholds(
+        new_file_assessments,
+        config,
+        context,
+        fail_unscored_supported=True,
+    )
 
     if degraded:
         return 10
@@ -1322,7 +1330,11 @@ def generate_json_report(
 
 
 def check_thresholds(
-    assessments: list[FileAssessment], config: dict[str, Any], context: str
+    assessments: list[FileAssessment],
+    config: dict[str, Any],
+    context: str,
+    *,
+    fail_unscored_supported: bool = False,
 ) -> int:
     """
     Check if quality scores meet configured thresholds.
@@ -1339,6 +1351,18 @@ def check_thresholds(
         thresholds = {**thresholds, **context_thresholds}
 
     for assessment in assessments:
+        if (
+            fail_unscored_supported
+            and assessment.category != "generated"
+            and detect_language(Path(assessment.file_path)) is not None
+            and not _has_scored_quality(assessment)
+        ):
+            print(
+                f"❌ {assessment.file_path}: supported authored source could not be scored",
+                file=sys.stderr,
+            )
+            return 11
+
         if (
             assessment.cohesion.confidence > 0.0
             and assessment.cohesion.value < thresholds["cohesion"]["min"]
@@ -1490,11 +1514,23 @@ def main(argv: list[str] | None = None) -> int:
     try:
         gate_mode = resolve_gate_mode(args.gate_mode, args.changed_only, args.base)
         target_path = _resolve_target_path(args.target)
-        changed_files = get_changed_files(args.base) if args.changed_only else None
+        comparison_base = args.base
+        base_is_comparison = False
+        if args.changed_only and gate_mode == "regression" and args.base is not None:
+            comparison_base = resolve_comparison_base(args.base)
+            base_is_comparison = True
+        changed_files = (
+            get_changed_files(
+                comparison_base,
+                base_is_comparison=base_is_comparison,
+            )
+            if args.changed_only
+            else None
+        )
         files = get_files_to_assess(
             target_path,
             args.changed_only,
-            args.base,
+            comparison_base,
             changed_files,
         )
     except (RuntimeError, ValueError) as e:
@@ -1513,7 +1549,7 @@ def main(argv: list[str] | None = None) -> int:
         comparisons, new_file_assessments = _build_regression_inputs(
             assessments,
             gate_mode,
-            args.base,
+            comparison_base,
             args.regression_tolerance,
             changed_files,
         )
