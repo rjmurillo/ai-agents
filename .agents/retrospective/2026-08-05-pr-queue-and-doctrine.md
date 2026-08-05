@@ -7,6 +7,24 @@
 - **Task Type**: Feature
 - **Outcome**: Partial
 
+### Provenance of figures
+
+An adversarial pass by GPT-5.6 Sol separated the numbers here into two classes,
+and this file now labels them accordingly.
+
+**Verifiable from the repository**: the sign-test result and its eight archived
+runs, `baseline_health` having no production caller, the 62 workflow files with
+zero `merge_group` triggers, the 22 call sites passing `secrets.BOT_PAT`, the
+worktree count, and every cited memory path.
+
+**Self-reported from the session, not reconstructible from the repository**:
+agent counts, issue and PR tallies, elapsed times, cycle counts, and the impact
+and atomicity scores, which are judgments rather than measurements. Treat them
+as attestation. The audit also corrected two false claims before publication: a
+transposed `4928` for the measured `core=4948`, and the framing of
+`gh api rate_limit` as an empty result when it was a falsely reassuring
+non-empty one.
+
 ## Phase 0: Data Gathering
 
 ### 4-Step Debrief
@@ -31,8 +49,8 @@ issues filed for defects the session proved rather than guessed.
 | Stage | Result | Cost |
 |---|---|---|
 | Built Copilot CLI eval provider, ran 8 variance runs | Conclusion reversed | Delivered |
-| 55 adversarial rounds to convergence, PR #4124 | Objective complete | Delivered |
-| Fleet mode, 21 parallel agents | 50+ PRs merged | Delivered |
+| Adversarial rounds to convergence, PR #4124 | Objective complete | Delivered |
+| Fleet mode, 21 parallel agents (self-reported) | PR queue drained | Delivered |
 | Agent polling exhausted the shared API budget | CI went red | Outage |
 | 13 pushes rejected on drift or local defects | Rework | ~3 hours |
 | BOT_PAT identity traced to root cause | Issue #4607 | Delivered |
@@ -83,7 +101,7 @@ the three cheapest gates before the push, which takes about 20 seconds.
 issue #4607 with a runnable acceptance criterion: `gh api user --jq .id`
 returns 250269933 inside CI.
 
-### Fishbone: 43 self-introduced defects
+### Fishbone: self-introduced defects (43 by session tally, no repo ledger)
 
 | Category | Contributing factor |
 |---|---|
@@ -91,16 +109,19 @@ returns 250269933 inside CI.
 | Method | Writing a patch script whose self-check was wrong, not the file |
 | Measurement | Reading an empty grep as absence with no positive control |
 | Measurement | Reading an empty `ls-remote` as failure with no liveness probe |
-| Environment | 160 worktrees, so stale state is the default, not the exception |
+| Environment | `git worktree list` reported 174 on 2026-08-05, so stale state is the default, not the exception |
 | Environment | Concurrent agents pushing, so contention stretches every cycle |
 
 ### Patterns and Shifts
 
-The dominant pattern is one shape wearing different clothes: **a negative
-result that I cannot distinguish from a broken instrument.** An empty grep, an
-empty `ls-remote`, a `rate_limit` payload reporting 4928 remaining while every
-call is refused, and `unresolved_count: 0` from a query that failed. Four
-instruments, one failure mode.
+The dominant pattern is one shape wearing different clothes: **a reading that
+cannot separate the state I care about from a broken instrument.** Three were
+ambiguous negatives: an empty grep, an empty `ls-remote`, and
+`unresolved_count: 0` from a query that failed. The fourth was the mirror
+image, a falsely reassuring positive: `gh api rate_limit` reported `core=4948`
+of 5000 while every non-exempt call was refused, because that endpoint is
+itself exempt from the limit it reports on. Four instruments, one failure mode,
+two signs.
 
 The shift that worked: pairing each negative with a positive control. That
 caught two false conclusions in the final segment alone.
@@ -114,7 +135,7 @@ caught two false conclusions in the final segment alone.
 | Pair every negative result with a positive control | Caught the empty `ls-remote` misread and the `merge_group` grep | 9 | 95% |
 | Verify an adversarial reviewer's premise before conceding | Sol's ADR-084 rule 3 citation was wrong; rules 1 and 2 carried it | 8 | 90% |
 | Search existing memories and issues before writing | Avoided two duplicate memories and ten duplicate issues | 8 | 92% |
-| Publish only what was measured | Caught my own false "44 open PRs" (real: 37) | 9 | 88% |
+| Publish only what was measured | Caught my own open-PR count before publishing; the listing was capped and I had counted the cap | 9 | 88% |
 | Let the eval overturn the hypothesis | p = 0.0703125 shipped unchanged | 10 | 85% |
 
 ### Failures (Tag: harmful)
@@ -165,18 +186,21 @@ the moment you cite the constant.
 
 1. Fix `BOT_PAT` (issue #4607). Everything else gets cheaper once the budget
    stops being shared.
-2. Add `merge_group` triggers to the 12 workflows before any merge queue is
-   enabled. Enabling first wedges every merge permanently.
+2. Add `merge_group` triggers before any merge queue is enabled. The set is
+   every workflow emitting one of the 17 required checks in ruleset
+   `11104075`, which is 12 of the 62 workflow files; none of the 62 declares
+   `merge_group` today. Enabling first wedges every merge permanently.
 3. Recalibrate `MAX_BASELINE_SLACK` (issue #4608), which depends on step 2.
 
 ## Phase 4: Extracted Learnings
 
 ### Learning 1
 
-- **Statement**: An empty result and a broken instrument look identical.
+- **Statement**: A reading that cannot separate absence from failure is not evidence.
 - **Atomicity Score**: 95%
-- **Evidence**: Four instruments failed this way: grep, `ls-remote`,
-  `rate_limit`, and a failed thread query returning `unresolved_count: 0`.
+- **Evidence**: grep, `ls-remote`, and a failed thread query returning
+  `unresolved_count: 0` gave ambiguous empties; `gh api rate_limit` gave a
+  falsely reassuring `core=4948` while every non-exempt call was refused.
 - **Skill Operation**: ADD
 - **Target Skill ID**: n/a
 
@@ -223,10 +247,10 @@ the moment you cite the constant.
 
 ```json
 {
-  "skill_id": "measurement-empty-result-needs-positive-control",
-  "statement": "An empty result and a broken instrument look identical.",
-  "context": "Before concluding absence from any query, grep, or API probe.",
-  "evidence": "2026-08-05: grep, ls-remote, rate_limit, and a failed thread query all returned falsely reassuring empties.",
+  "skill_id": "measurement-a-reading-needs-a-positive-control",
+  "statement": "A reading that cannot separate absence from failure is not evidence.",
+  "context": "Before concluding absence or health from any query, grep, or API probe.",
+  "evidence": "2026-08-05: grep, ls-remote, and a failed thread query returned ambiguous empties; gh api rate_limit returned core=4948 while every non-exempt call was refused.",
   "atomicity": 95
 }
 ```
@@ -281,7 +305,7 @@ the moment you cite the constant.
 
 | Skill ID | Tag | Evidence | Impact |
 |----------|-----|----------|--------|
-| ci/github-rate-limit-payload-does-not-predict-service | confirmed | Third confirmation already recorded in the memory at line 258, written 2026-08-05. No edit needed. | High |
+| ci/github-rate-limit-payload-does-not-predict-service | confirmed | A repeat confirmation is already recorded in the memory at line 258, written 2026-08-05. No edit needed. | High |
 
 ### REMOVE
 
@@ -293,7 +317,7 @@ the moment you cite the constant.
 
 | New Skill | Most Similar | Similarity | Decision |
 |-----------|--------------|------------|----------|
-| measurement-empty-result-needs-positive-control | ci-a-truncated-job-log-greps-exactly-like-a-clean-one | High | Keep both; that one is log-specific, this one is general |
+| measurement-a-reading-needs-a-positive-control | ci-a-truncated-job-log-greps-exactly-like-a-clean-one | High | Keep both; that one is log-specific, this one is general |
 | ci-threshold-constant-needs-a-production-caller | ci-count-ratchets-require-branch-freshness | Low | Keep; different failure |
 | git-run-push-checks-before-the-push | git-rebase-after-push-costs-two-cycles | Medium | Keep; that one is about rebase, this about check ordering |
 | memory-search-the-error-string-before-debugging | episode-ratchet-trips-because-the-episode-predates-the-commit | Low | Keep; that one is the answer, this is the habit of looking |

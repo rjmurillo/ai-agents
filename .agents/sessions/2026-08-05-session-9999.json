@@ -133,6 +133,14 @@
     {
       "action": "Ran the pre-push preflight before pushing PR #4598 instead of after",
       "detail": "Baseline compare (583 local, 583 on main), then 312 tests across test_no_duplicate_module_level_defs, test_check_duplicate_test_helpers, test_extract_session_episode, and the new test_memory_index_token_ratchet that main had just introduced. All passed in 11.61 seconds. The new memory index ratchet was worth running because this branch edits memory-index.md."
+    },
+    {
+      "action": "Resolved PR #4587 merge conflict",
+      "detail": "lefthook.yml and scripts/validation/checks_ratchet.py both had add/add conflicts with an empty merge base. Kept both ratchet entries. 66 tests pass; a negative control removing one entry produced exactly 2 parity failures, so the pass is evidence. Merge commit f96e6b832, pushed and SHA verified."
+    },
+    {
+      "action": "Acted on the Sol adversarial audit of the retrospective",
+      "detail": "Sol raised 2 CRITICAL and 8 HIGH findings. Verified each against the cited files before conceding. Both CRITICAL findings were real: a transposed 4928 for the measured core=4948, and rate_limit framed as an empty result when it was a falsely reassuring non-empty. Applied 11 corrections plus a provenance section separating repo-verifiable figures from session-attested ones."
     }
   ],
   "endingCommit": "758f343430581bd3cbfd4f7d779bf045fb5fb1aa",

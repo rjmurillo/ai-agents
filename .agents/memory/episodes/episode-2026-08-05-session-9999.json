@@ -17,7 +17,9 @@
         "e003",
         "e004",
         "e005",
-        "e006"
+        "e006",
+        "e007",
+        "e008"
       ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-9999"
@@ -71,6 +73,28 @@
       "timestamp": "2026-08-05T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran the pre-push preflight before pushing PR #4598 instead of after",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved PR #4587 merge conflict",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Acted on the Sol adversarial audit of the retrospective",
       "caused_by": [],
       "leads_to": [
         "e001"
