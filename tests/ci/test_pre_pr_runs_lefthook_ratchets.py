@@ -277,10 +277,15 @@ class TestValidatorBehaviour:
             "_normalize_remote_head",
             lambda _root, _ref: "origin/main",
         )
+
+        def fail_refresh(ref: str, _root: Path) -> str:
+            seen.append(ref)
+            return "offline"
+
         monkeypatch.setattr(
             checks_ratchet,
             "_refresh_remote_base",
-            lambda ref, _root: seen.append(ref) or "offline",
+            fail_refresh,
         )
         assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is False
         assert seen == ["origin/main"]
