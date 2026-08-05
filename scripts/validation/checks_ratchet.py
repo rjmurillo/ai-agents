@@ -79,6 +79,12 @@ RATCHETS: tuple[Ratchet, ...] = (
         True,
     ),
     Ratchet(
+        "memory-index-token-ratchet",
+        "scripts/ci/memory_index_token_ratchet.py",
+        False,
+        False,
+    ),
+    Ratchet(
         "merge-tree-ratchet",
         "scripts/ci/merge_tree_ratchet_check.py",
         True,
