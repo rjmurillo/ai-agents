@@ -15,7 +15,9 @@ Outputs:
   spec_file - absolute path to the spec content markdown file
 
 EXIT CODES (ADR-035):
-  0 - content loaded (or no content found; still 0)
+  0 - content loaded
+  2 - referenced spec file could not be loaded
+  3 - referenced GitHub issue could not be loaded
 """
 
 from __future__ import annotations
@@ -24,6 +26,10 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+
+
+class SpecContentExternalError(RuntimeError):
+    """Raised when external issue content cannot be loaded."""
 
 
 def write_github_output(key: str, value: str) -> None:
@@ -63,7 +69,10 @@ def _gh_issue_body(issue_ref: str, default_repo: str) -> str:
         errors="replace",
         check=False,
     )
-    return result.stdout.strip() if result.returncode == 0 else ""
+    if result.returncode != 0:
+        detail = result.stderr.strip() if result.stderr else "no stderr"
+        raise SpecContentExternalError(f"gh issue view failed for {repo}#{num}: {detail}")
+    return result.stdout.strip()
 
 
 def run(_argv: list[str] | None = None) -> int:
@@ -77,12 +86,15 @@ def run(_argv: list[str] | None = None) -> int:
     issue_refs = issue_refs_raw.split() if issue_refs_raw.strip() else []
 
     parts: list[str] = []
+    missing_specs: list[str] = []
 
     for ref in spec_refs:
         if ref.endswith(".md"):
             p = Path(ref)
             if p.is_file():
                 parts.append(f"## Spec: {ref}\n\n{p.read_text(encoding='utf-8')}")
+            else:
+                missing_specs.append(ref)
         else:
             # Search for spec file by ID
             import glob as glob_module
@@ -93,14 +105,30 @@ def run(_argv: list[str] | None = None) -> int:
                 parts.append(
                     f"## Spec: {matched_path}\n\n{Path(matched_path).read_text(encoding='utf-8')}"
                 )
+            else:
+                missing_specs.append(ref)
+
+    if missing_specs:
+        print(
+            f"::error::Could not load referenced spec content: {', '.join(missing_specs)}",
+            file=sys.stderr,
+        )
+        return 2
 
     for issue in issue_refs:
-        body = _gh_issue_body(issue, repository)
+        try:
+            body = _gh_issue_body(issue, repository)
+        except SpecContentExternalError as exc:
+            print(f"::error::{exc}", file=sys.stderr)
+            return 3
         if body:
             display = f"#{issue}" if "/" not in issue else issue
             parts.append(f"## Issue {display}\n\n{body}")
 
     spec_content = "\n\n".join(parts)
+    if not spec_content and (spec_refs or issue_refs):
+        print("::error::Referenced specs or issues produced no content", file=sys.stderr)
+        return 2
     if not spec_content:
         print("Warning: Could not load any spec content")
         spec_content = f"No spec content found for references: {spec_refs_raw} {issue_refs_raw}"

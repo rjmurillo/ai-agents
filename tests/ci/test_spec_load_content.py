@@ -7,8 +7,10 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from scripts.ci.spec_load_content import _gh_issue_body, main, run
+from scripts.ci.spec_load_content import SpecContentExternalError, _gh_issue_body, main, run
 
 
 class TestGhIssueBody:
@@ -18,11 +20,11 @@ class TestGhIssueBody:
             result = _gh_issue_body("42", "owner/repo")
         assert "Body text" in result
 
-    def test_returns_empty_on_failure(self) -> None:
-        mock = MagicMock(returncode=1, stdout="")
+    def test_raises_on_failure(self) -> None:
+        mock = MagicMock(returncode=1, stdout="", stderr="not found")
         with patch("scripts.ci.spec_load_content.subprocess.run", return_value=mock):
-            result = _gh_issue_body("999", "owner/repo")
-        assert result == ""
+            with pytest.raises(SpecContentExternalError):
+                _gh_issue_body("999", "owner/repo")
 
     def test_parses_cross_repo_ref(self) -> None:
         mock = MagicMock(returncode=0, stdout="cross-repo content")
@@ -98,6 +100,38 @@ class TestRun:
             run()
         written = (tmp_path / "spec-content-0.md").read_text()
         assert "No spec content found" in written
+
+    def test_missing_referenced_spec_file_returns_config_error(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_REFS": str(tmp_path / "missing.md"),
+            "ISSUE_REFS": "",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "0",
+        }
+        with patch.dict(os.environ, env):
+            rc = run()
+        assert rc == 2
+        assert not (tmp_path / "spec-content-0.md").exists()
+
+    def test_issue_fetch_failure_returns_external_error(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_REFS": "",
+            "ISSUE_REFS": "42",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "0",
+        }
+        mock = MagicMock(returncode=1, stdout="", stderr="not found")
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=mock):
+                rc = run()
+        assert rc == 3
+        assert not (tmp_path / "spec-content-0.md").exists()
 
 
 class TestMain:

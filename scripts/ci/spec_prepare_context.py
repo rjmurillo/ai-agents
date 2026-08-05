@@ -18,6 +18,7 @@ Outputs:
 
 EXIT CODES (ADR-035):
   0 - context written
+  2 - spec content file missing or unreadable
 """
 
 from __future__ import annotations
@@ -41,27 +42,36 @@ def run(_argv: list[str] | None = None) -> int:
     incremental_scope = os.environ.get("INCREMENTAL_SCOPE", "")
     github_output = os.environ.get("GITHUB_OUTPUT", "")
 
-    spec_file = Path(spec_file_path) if spec_file_path else None
+    if not spec_file_path:
+        print("::error::SPEC_FILE is required when spec validation runs", file=sys.stderr)
+        return 2
 
-    if spec_file and spec_file.is_file():
+    spec_file = Path(spec_file_path)
+    if not spec_file.is_file():
+        print(f"::error::SPEC_FILE does not exist: {spec_file}", file=sys.stderr)
+        return 2
+
+    try:
         spec_content = spec_file.read_text(encoding="utf-8")
-        context_parts = ["## Specification Content", "", spec_content]
+    except OSError as exc:
+        print(f"::error::Could not read SPEC_FILE {spec_file}: {exc}", file=sys.stderr)
+        return 2
 
-        if incremental_scope:
-            context_parts += [
-                "",
-                "## Incremental Scope Declaration",
-                "",
-                f"This PR explicitly declares it implements: {incremental_scope}",
-                "Evaluate coverage ONLY against the acceptance criteria",
-                "relevant to this declared scope. Criteria belonging to",
-                "other phases or future PRs are NOT expected to be covered",
-                "and must be treated as N/A for this evaluation.",
-            ]
+    context_parts = ["## Specification Content", "", spec_content]
 
-        context_value = "\n".join(context_parts)
-    else:
-        context_value = "No spec content loaded"
+    if incremental_scope:
+        context_parts += [
+            "",
+            "## Incremental Scope Declaration",
+            "",
+            f"This PR explicitly declares it implements: {incremental_scope}",
+            "Evaluate coverage ONLY against the acceptance criteria",
+            "relevant to this declared scope. Criteria belonging to",
+            "other phases or future PRs are NOT expected to be covered",
+            "and must be treated as N/A for this evaluation.",
+        ]
+
+    context_value = "\n".join(context_parts)
 
     if github_output:
         _write_multiline_output("spec_context", context_value, github_output)
