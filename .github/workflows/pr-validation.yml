@@ -235,6 +235,11 @@ jobs:
       - name: Checkout repository for workflow validation
         if: steps.should-run.outputs.skip == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Run merge-tree ratchet is unconditional, so the bot-skip leg shares
+          # this checkout. Default depth 1 creates .git/shallow, and a later
+          # full fetch does not remove that graft.
+          fetch-depth: 0
 
       - name: Setup uv for workflow validation
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
@@ -283,13 +288,10 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # CI-only: --depth=1 keeps this disposable checkout shallow to save
-          # bandwidth. Do NOT copy these two lines into a working clone; the
-          # fetch writes .git/shallow and every subsequent push will fail with
-          # "push validation requires complete Git history". In a working clone
-          # use: git fetch origin && uv run --frozen python3
-          # scripts/ci/taste_count_ratchet.py --base-ref origin/"$BASE_REF"
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1 here. This job already checked out full history, and
+          # a depth-limited fetch writes .git/shallow for the later merge-tree
+          # step.
+          git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/taste_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4039: type: ignore suppressions bypass the mypy ratchet by inflating
       # allowed violations without the ratchet noticing. Counting them separately
@@ -298,8 +300,8 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # CI-only: see taste-lint ratchet step above for the --depth=1 caveat.
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the taste-lint ratchet step above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4313: 425 atomic memories are unreachable through the retrieval
       # path AGENTS.md points at. The pre-push ratchet stops the count rising,
@@ -311,8 +313,8 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # CI-only: see taste-lint ratchet step above for the --depth=1 caveat.
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the taste-lint ratchet step above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/memory_index_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4441: `memory-token-update` repairs every index token count on
       # pre-commit, but it carries `skip: [merge, "test $SKIP_AUTOFIX = 1"]` and
@@ -347,10 +349,10 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # Issue #4518: this fetch MUST NOT be shallow. The two count ratchets
-          # above read a single baseline file at the base ref, so --depth=1 is
-          # enough for them. merge-tree needs a merge base, and a --depth=1
-          # fetch writes .git/shallow and cuts traversal at the fetched commit.
+          # Issue #4518: this fetch MUST NOT be shallow. The count ratchets
+          # above do not need ancestry for their own baseline reads, but
+          # merge-tree needs a merge base, and a --depth=1 fetch writes
+          # .git/shallow and cuts traversal at the fetched commit.
           # git then aborts with "refusing to merge unrelated histories" (rc 128)
           # on any branch behind the base, which is the only case this gate
           # exists to evaluate. Measured: behind+shallow rc=128, behind+full

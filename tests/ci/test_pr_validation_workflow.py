@@ -1008,6 +1008,20 @@ def _pr_validation_steps() -> list[dict]:
     return steps
 
 
+def _validate_pr_steps() -> list[dict]:
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    return data["jobs"]["validate-pr"]["steps"]
+
+
+def _active_run_lines(step: dict) -> list[str]:
+    run = step.get("run") or ""
+    return [
+        line.strip()
+        for line in run.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+
 def test_merge_tree_ratchet_fetches_base_at_full_depth() -> None:
     """Issue #4518: the merge-tree step's base fetch must not be shallow.
 
@@ -1039,3 +1053,48 @@ def test_merge_tree_ratchet_fetches_base_at_full_depth() -> None:
                 f"step {step.get('name')!r} fetches the base shallowly ({line!r}); "
                 "merge-tree needs a merge base. See issue #4518."
             )
+
+
+def test_merge_tree_host_checkouts_fetch_full_history() -> None:
+    """Issue #4572: every checkout in validate-pr must keep full history.
+
+    `Run merge-tree ratchet` is unconditional, so it shares the job with both
+    checkout legs. A default checkout is depth 1 and creates `.git/shallow`;
+    a later full fetch does not remove that graft.
+    """
+    checkout_steps = [
+        step for step in _validate_pr_steps() if "actions/checkout" in str(step.get("uses"))
+    ]
+    assert checkout_steps, "validate-pr must check out the repository"
+    for step in checkout_steps:
+        assert step.get("with", {}).get("fetch-depth") == 0, (
+            f"checkout step {step.get('name')!r} can share a job with merge-tree "
+            "and must use fetch-depth: 0"
+        )
+
+
+def test_steps_before_merge_tree_do_not_shallow_fetch() -> None:
+    """Issue #4572: earlier validate-pr fetches must not poison merge-tree.
+
+    The count ratchets only need a file at the base ref, but their shell runs in
+    the same working tree as the later merge-tree step. A depth-limited fetch
+    writes `.git/shallow` for the rest of the job.
+    """
+    steps = _validate_pr_steps()
+    merge_indexes = [
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Run merge-tree ratchet"
+    ]
+    assert len(merge_indexes) == 1, "expected exactly one merge-tree step"
+
+    offenders: list[str] = []
+    for step in steps[: merge_indexes[0]]:
+        for line in _active_run_lines(step):
+            if line.startswith("git fetch") and "--depth" in line:
+                offenders.append(f"{step.get('name')}: {line}")
+
+    assert offenders == [], (
+        "validate-pr fetches before merge-tree must not be shallow: "
+        + "; ".join(offenders)
+    )
