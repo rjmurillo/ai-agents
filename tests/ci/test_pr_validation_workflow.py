@@ -1022,37 +1022,59 @@ def _strip_shell_comments(script: str) -> str:
     )
 
 
+def _step_dicts(job: dict) -> list[dict]:
+    return [step for step in job.get("steps", []) if isinstance(step, dict)]
+
+
+def _run_blocks(steps: list[dict]) -> list[str]:
+    return [
+        _strip_shell_comments(step["run"])
+        for step in steps
+        if isinstance(step.get("run"), str)
+    ]
+
+
+def _uses_merge_base(run_blocks: list[str]) -> bool:
+    return any(
+        consumer in block
+        for consumer in _MERGE_BASE_CONSUMERS
+        for block in run_blocks
+    )
+
+
+def _depth_limited_fetch_offenders(job_id: str, run_blocks: list[str]) -> list[str]:
+    if any("--depth" in block for block in run_blocks):
+        return [f"{job_id}: depth-limited fetch in run block"]
+    return []
+
+
+def _checkout_depth_offenders(job_id: str, steps: list[dict]) -> list[str]:
+    offenders: list[str] = []
+    for step in steps:
+        uses = step.get("uses")
+        if not isinstance(uses, str) or not uses.startswith("actions/checkout"):
+            continue
+        depth = (step.get("with") or {}).get("fetch-depth")
+        if str(depth) == "0":
+            continue
+        name = step.get("name") or uses
+        shown = "<default, depth 1>" if depth is None else repr(depth)
+        offenders.append(f"{job_id}: checkout {name!r} has fetch-depth {shown}")
+    return offenders
+
+
 def _history_offenders_for_merge_base_jobs(jobs: dict) -> tuple[list[str], list[str]]:
     offenders: list[str] = []
     checked: list[str] = []
     for job_id, job in jobs.items():
-        steps = [step for step in job.get("steps", []) if isinstance(step, dict)]
-        run_blocks = [
-            _strip_shell_comments(step["run"])
-            for step in steps
-            if isinstance(step.get("run"), str)
-        ]
-        if not any(
-            consumer in block
-            for consumer in _MERGE_BASE_CONSUMERS
-            for block in run_blocks
-        ):
+        steps = _step_dicts(job)
+        run_blocks = _run_blocks(steps)
+        if not _uses_merge_base(run_blocks):
             continue
 
         checked.append(job_id)
-        if any("--depth" in block for block in run_blocks):
-            offenders.append(f"{job_id}: depth-limited fetch in run block")
-
-        for step in steps:
-            uses = step.get("uses")
-            if not isinstance(uses, str) or not uses.startswith("actions/checkout"):
-                continue
-            depth = (step.get("with") or {}).get("fetch-depth")
-            if str(depth) != "0":
-                name = step.get("name") or uses
-                shown = "<default, depth 1>" if depth is None else repr(depth)
-                offenders.append(f"{job_id}: checkout {name!r} has fetch-depth {shown}")
-
+        offenders.extend(_depth_limited_fetch_offenders(job_id, run_blocks))
+        offenders.extend(_checkout_depth_offenders(job_id, steps))
     return offenders, checked
 
 

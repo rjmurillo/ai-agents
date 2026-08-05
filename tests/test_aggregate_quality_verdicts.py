@@ -8,9 +8,6 @@ from pathlib import Path
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Import the consumer script via importlib (not a package)
-# ---------------------------------------------------------------------------
 _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 
 
@@ -28,10 +25,6 @@ _mod = _import_script("aggregate_quality_verdicts")
 main = _mod.main
 build_parser = _mod.build_parser
 get_category = _mod.get_category
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 _AGENTS = _mod._AGENTS
 
@@ -64,11 +57,6 @@ def _read_outputs(output_file: Path) -> dict[str, str]:
     return result
 
 
-# ---------------------------------------------------------------------------
-# Tests: get_category
-# ---------------------------------------------------------------------------
-
-
 class TestGetCategory:
     def test_fail_verdict_with_infra_flag(self):
         assert get_category("CRITICAL_FAIL", True) == "INFRASTRUCTURE"
@@ -94,11 +82,6 @@ class TestGetCategory:
         assert get_category(verdict, True) == "INFRASTRUCTURE"
 
 
-# ---------------------------------------------------------------------------
-# Tests: build_parser
-# ---------------------------------------------------------------------------
-
-
 class TestBuildParser:
     def test_parses_all_agents(self):
         argv = _make_argv(
@@ -116,11 +99,6 @@ class TestBuildParser:
             monkeypatch.delenv(f"{_mod.agent_env_name(agent)}_INFRA", raising=False)
         args = build_parser().parse_args([])
         assert args.security_verdict == ""
-
-
-# ---------------------------------------------------------------------------
-# Tests: main
-# ---------------------------------------------------------------------------
 
 
 class TestMain:
@@ -256,11 +234,6 @@ class TestMain:
         outputs = _read_outputs(output_file)
         # Real WARN outranks UNKNOWN per merge_verdicts severity order.
         assert outputs["final_verdict"] == "WARN"
-
-
-# ---------------------------------------------------------------------------
-# Tests: security_review_ran output (issue #2821 option c)
-# ---------------------------------------------------------------------------
 
 
 class TestSecurityReviewRan:
