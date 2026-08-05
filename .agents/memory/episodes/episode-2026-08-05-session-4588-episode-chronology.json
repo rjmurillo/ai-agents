@@ -1,0 +1,187 @@
+{
+  "id": "episode-2026-08-05-session-4588-episode-chronology",
+  "session": "2026-08-05-session-4588-episode-chronology",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4588 episode chronology preserve verifier",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T05:57:00+00:00",
+      "type": "milestone",
+      "content": "Created worktree fix/4588-episode-chronology and claimed issue #4588.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T06:15:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced preserve chronology bug on real episode store.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T07:05:00+00:00",
+      "type": "milestone",
+      "content": "Implemented preserve timestamp upgrade and causal edge timestamp validation.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004",
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T07:25:00+00:00",
+      "type": "milestone",
+      "content": "Validated tests and mutation proof.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T07:25:00+00:00",
+      "type": "test",
+      "content": "pytest tests/skills/memory/test_extract_session_episode.py: 282 passed. Mutation table: three behavioral mutants DEAD, cosmetic control SURVIVED.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T07:50:00+00:00",
+      "type": "milestone",
+      "content": "Completed bounded episode pipeline audit and filed follow-up issue.",
+      "caused_by": [
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T07:55:00+00:00",
+      "type": "milestone",
+      "content": "Committed code fix.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T09:34:38+00:00",
+      "type": "milestone",
+      "content": "Compared current main, PR #4617, and this branch on the exact #4588 reproduction.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T10:05:13+00:00",
+      "type": "milestone",
+      "content": "Merged current main and ported PR #4617 causal order validation into this branch.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T10:24:00+00:00",
+      "type": "milestone",
+      "content": "Added direct causal graph validation regression test after porting PR #4617 logic.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-05T10:48:00+00:00",
+      "type": "milestone",
+      "content": "Refactored causal edge validation to clear the taste and merge-tree ratchets.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-05T12:58:00+00:00",
+      "type": "milestone",
+      "content": "Addressed PR review feedback for invalid causal refs.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-05T13:24:48+00:00",
+      "type": "commit",
+      "content": "Commit: 1b177000180e56e7c3cab514ba5218d7559c1193",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 421,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 65
+  },
+  "lessons": []
+}

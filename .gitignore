@@ -114,6 +114,10 @@ ENV/
 # Scheduled-task runtime lock (held while ScheduleWakeup-managed loops run)
 .claude/scheduled_tasks.lock
 
+# Portability-baseline advisory write-locks (created by portability_baseline.py --update-baseline)
+scripts/validation/.skill_md_portability_baseline.json.write-lock
+scripts/validation/.skill_md_exec_portability_baseline.json.write-lock
+
 # IDE settings
 .idea/
 *.DotSettings.user
