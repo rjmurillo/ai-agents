@@ -3,26 +3,26 @@
   "session": {
     "number": 9999,
     "date": "2026-08-05",
-    "branch": "fix/root-hygiene-and-agents-carveout",
+    "branch": "fix/4519-4520-coupling-diffbase",
     "startingCommit": "5ec85be51a",
-    "objective": "Fix issues 4600 and 4580: add root staged scratch gate, correct implementer .agents scaffold predicate, test and mutation prove"
+    "objective": "Fix issues 4519 and 4520 coupling threshold and diff-base gates"
   },
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena activate_project tool was not exposed; loaded Serena initial_instructions and tool schemas before code navigation."
+        "Evidence": "Serena activate_project tool was unavailable in Copilot; initial_instructions loaded and symbolic overview worked on doc_accuracy.py."
       },
       "serenaInstructions": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "serena-initial_instructions returned the Serena manual."
+        "Evidence": "serena-initial_instructions returned manual before code work."
       },
       "handoffRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read .agents/HANDOFF.md as read-only reference."
+        "Evidence": ".agents/HANDOFF.md read at session start."
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -32,37 +32,37 @@
       "skillScriptsListed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Invoked autoplan and analyze; used session-init script to create this log."
+        "Evidence": "find .claude/skills/github/scripts listed GitHub scripts."
       },
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read AGENTS.md, .agents/SESSION-PROTOCOL.md, GOTCHAS.md, TESTING-RIGOR.md, and path-scoped instructions before edits."
+        "Evidence": ".serena/memories/usage-mandatory.md read."
       },
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read project constraints through AGENTS.md and path-scoped instruction files for scripts, tests, generated artifacts, agent prompts, and session logs."
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read."
       },
       "memoriesLoaded": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read memory-index plus skills-git-hooks-index, skills-validation-index, testing-exit-code-interpretation, skills-github-cli-index, validation-pr-gates, and git branch verification memory."
+        "Evidence": "memory-index and usage-mandatory loaded for GitHub, testing, and validation context."
       },
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "fix/root-hygiene-and-agents-carveout"
+        "Evidence": "fix/4519-4520-coupling-diffbase"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On fix/root-hygiene-and-agents-carveout"
+        "Evidence": "On fix/4519-4520-coupling-diffbase"
       },
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "git status --short checked before and after edits."
+        "Evidence": "git status checked in fix worktree before edits."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -74,69 +74,69 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implemented both issue fixes and ran targeted tests, lint, generated-agent validation, and mutation proof."
+        "Evidence": "Session log updated before commit."
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md was read only and not modified."
+        "Evidence": ".agents/HANDOFF.md was not modified."
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No durable new cross-session convention beyond the code and tests; no Serena memory added."
+        "Evidence": "No new durable memory needed; issue-specific evidence is in PR and scratch cache."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "npx markdownlint-cli2 --fix scoped to changed Markdown prompts returned 0 issues in 5 linted files."
+        "Evidence": "No Markdown files changed in the authored diff."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation commits d787a19595 and 991c655246 are on this branch; endingCommit records 991c6552468aa23c6447a2397124399cec3c927e."
+        "Evidence": "One implementation commit: 6e88bf71c23a8cac2ac38fa2f8d0e3002f7f8688. This follow-up records the amended SHA."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "44 targeted pytest cases passed; ruff passed for changed Python tests and script; build/generate_agents.py --validate passed; mutation proof table passed with 3 DEAD and 1 SURVIVED control."
+        "Evidence": "pytest doc_accuracy 51 passed, ruff changed Python passed, mutation table passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "No external todo tracker used; issues #4600 and #4580 are fixed by this branch."
+        "Evidence": "Todos tracked in session SQL and marked through validation phase."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "No retrospective required for this bounded fix; task evidence is in this session log and PR body."
+        "Evidence": "Not invoked because this was a small bug fix with no new workflow learning."
       }
     }
   },
   "workLog": [
     {
-      "time": "2026-08-05T06:20:00Z",
-      "entry": "Triage #4600: reproduced current gap by staging root-hygiene-probe.txt. Existing staged-dashes and staged-conflict-markers gates returned 0. Reference clone root listing had 25 nontracked root entries, including wt_drift/ and wt_encoding/."
+      "step": "triage",
+      "evidence": "Issue 4519 unmerited on origin/main. Coupling 10 returns rc 0, coupling 6 returns rc 11, unscored shell returns rc 0."
     },
     {
-      "time": "2026-08-05T06:35:00Z",
-      "entry": "Triage #4580: read #1908 discussion and implementer prompt. Current predicate had no SESSION-PROTOCOL.md or consumer-owned check and blocked when .agents/HANDOFF.md was absent."
+      "step": "triage",
+      "evidence": "Issue 4520 reproduced on origin/main. Clean diff-base scan reported 4092 docs, 23588 claims, 35538 findings, rc 10."
     },
     {
-      "time": "2026-08-05T07:05:00Z",
-      "entry": "Implemented root-hygiene pre-commit command keyed to an allowlist of 48 tracked root entries, with MERGE_HEAD skip and deletion allowance."
+      "step": "harvest",
+      "evidence": "Relevant dirty worktrees were older than 60 minutes. Kept reviewthreads root cause shape, discarded incomplete ghrobust duplicate rel_path patch."
     },
     {
-      "time": "2026-08-05T07:20:00Z",
-      "entry": "Updated implementer prompts to key scaffold gates on .agents/SESSION-PROTOCOL.md ownership rather than .agents directory presence, then regenerated agent mirrors."
+      "step": "fix",
+      "evidence": "doc_accuracy diff-base now passes base before path separator, filters doc inventory to changed docs, and preserves empty changed_files as []"
     },
     {
-      "time": "2026-08-05T07:40:00Z",
-      "entry": "Validation: targeted pytest 44 passed, ruff passed, generate_agents validate passed, root-hygiene live probe returned rc=1 for staged root scratch file, mutation proof passed."
+      "step": "mutation",
+      "evidence": "Three behavioral mutants died. Cosmetic docstring mutant survived."
     }
   ],
-  "endingCommit": "991c6552468aa23c6447a2397124399cec3c927e",
+  "endingCommit": "6e88bf71c23a8cac2ac38fa2f8d0e3002f7f8688",
   "nextSteps": [
-    "Open PR and monitor CI."
+    "Push branch and create PR with Fixes #4519 and Fixes #4520."
   ]
 }
