@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import json
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +19,59 @@ from scripts.new_validated_pr import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Runs the dispatch target far enough to reach its parser, captures the flags
+# argparse itself agreed to accept, and exits before the target does any work.
+#
+# Asking argparse rather than reading --help text is the whole point. Help
+# output interleaves option declarations with prose, so any pattern over it
+# counts a flag named inside a description ("replaces the deprecated
+# --body-file") as accepted, and the contract test passes after that flag is
+# gone. `_actions[].option_strings` is argparse's own registry of what parses.
+#
+# Intercepting parse_args rather than importing build_parser() pins the parser
+# main() actually runs. A build_parser() left behind as dead code after main()
+# started building its own would still answer a direct call, and the contract
+# would break at runtime with the suite green.
+#
+# A subprocess rather than an in-process import: new_pr.py's top level inserts
+# its own directory onto sys.path and imports `validate_pr_description` under
+# that bare name. Two modules carry that name, one under .claude/ and one under
+# src/copilot-cli/, so an in-process import pins one in sys.modules for the
+# rest of the session and hands any later importer the wrong tree's copy.
+# Restoring sys.path does not undo that. In a repo whose premise is those trees
+# staying in sync, a leak that substitutes one for the other is worse than the
+# drift this test exists to catch.
+_PARSER_PROBE = r"""
+import argparse, json, runpy, subprocess, sys
+
+target = sys.argv[1]
+
+
+def _capture(self, args=None, namespace=None):
+    flags = sorted({s for action in self._actions for s in action.option_strings})
+    sys.stdout.write("FLAGS_JSON:" + json.dumps(flags) + "\n")
+    raise SystemExit(0)
+
+
+def _blocked(*args, **kwargs):
+    raise SystemExit(f"probe blocked a subprocess call before parse_args: {args[:1]!r}")
+
+
+# main() parses before it does anything else, so the capture below fires first.
+# If that ever stops being true, fail loudly here instead of running `gh pr
+# create` from a test.
+subprocess.run = _blocked
+subprocess.Popen = _blocked
+subprocess.check_output = _blocked
+subprocess.check_call = _blocked
+argparse.ArgumentParser.parse_args = _capture
+
+sys.argv = [target]
+runpy.run_path(target, run_name="__main__")
+raise SystemExit("target finished without calling parse_args")
+"""
+_FLAGS_SENTINEL = "FLAGS_JSON:"
 
 
 def _fake_repo_with_skill(root: Path) -> Path:
@@ -253,40 +306,35 @@ class TestFlagContractWithRealTarget:
 
     @staticmethod
     def _target_accepted_flags(cwd: Path) -> frozenset[str]:
-        """Return the options the real target accepts, read from its own --help.
+        """Return the options the real target's parser accepts.
 
-        Deliberately a subprocess. Importing new_pr.py in this process would run
-        its top level, which inserts its own directory onto sys.path and imports
-        `validate_pr_description` under that bare name. Two different modules
-        carry that name, `.claude/skills/github/scripts/pr/` and
-        `src/copilot-cli/skills/github/scripts/pr/`, so the import would pin one
-        of them in sys.modules for the rest of the session and hand any later
-        importer the wrong tree's copy. Restoring sys.path does not undo that.
-        In a repo whose premise is those two trees staying in sync, a leak that
-        silently substitutes one for the other is worse than the drift this
-        class exists to catch.
-
-        Reading --help rather than calling build_parser() also pins the parser
-        the script actually runs. A build_parser() left behind as dead code
-        after main() starts building its own would still answer an in-process
-        call, and the contract would break at runtime with the suite green.
-
-        argparse answers --help and exits before the script does any work, so
-        this cannot reach `gh pr create` or touch the repository.
+        Reads argparse's own action registry through _PARSER_PROBE rather than
+        parsing --help text; see that constant for why each of those three
+        choices (argparse over text, interception over build_parser, subprocess
+        over import) is load-bearing.
         """
         target = REPO_ROOT / SKILL_RELPATH
         result = subprocess.run(
-            [sys.executable, str(target), "--help"],
+            [sys.executable, "-c", _PARSER_PROBE, str(target)],
             capture_output=True,
             text=True,
             check=False,
             cwd=cwd,
         )
-        assert result.returncode == 0, (
-            f"{SKILL_RELPATH} could not answer --help "
-            f"(exit {result.returncode}): {result.stderr}"
+        line = next(
+            (
+                one
+                for one in result.stdout.splitlines()
+                if one.startswith(_FLAGS_SENTINEL)
+            ),
+            None,
         )
-        return frozenset(re.findall(r"--[a-z][a-z0-9-]*", result.stdout))
+        assert line is not None, (
+            f"parser probe did not reach {SKILL_RELPATH}'s parse_args "
+            f"(exit {result.returncode}). stdout: {result.stdout!r} "
+            f"stderr: {result.stderr!r}"
+        )
+        return frozenset(json.loads(line[len(_FLAGS_SENTINEL) :]))
 
     @staticmethod
     def _emitted_flags(argv: list[str]) -> list[str]:
@@ -294,14 +342,14 @@ class TestFlagContractWithRealTarget:
         args = _build_parser().parse_args(argv)
         return _build_skill_args(Path("unused.py"), args)[2:]
 
-    def test_help_extraction_finds_the_targets_flags(self, tmp_path: Path) -> None:
+    def test_probe_reaches_the_targets_real_parser(self, tmp_path: Path) -> None:
         """Guards the check itself.
 
-        The two contract tests below compare against whatever this extraction
-        returns. If --help stopped listing options, or the pattern stopped
-        matching, they would report every emitted flag as unknown rather than
-        passing on an empty set, so the failure is loud either way. This test
-        exists to say which of the two broke.
+        The two contract tests below compare against whatever this probe
+        returns. If the probe stopped reaching parse_args it would assert on the
+        missing sentinel, and if it reached a parser with no options the two
+        tests would report every emitted flag as unknown, so the failure is loud
+        either way. This test exists to say which of the two broke.
         """
         accepted = self._target_accepted_flags(tmp_path)
         assert "--help" in accepted
@@ -323,11 +371,11 @@ class TestFlagContractWithRealTarget:
 
     @staticmethod
     def _assert_all_accepted(emitted: list[str], accepted: frozenset[str]) -> None:
-        """Compare by set membership, never by substring.
+        """Compare by set membership against argparse's registry, never by text.
 
-        `--body` is a substring of `--body-file`. A containment check against
-        the raw help text would keep passing after `--body` was removed, which
-        is the same silent pass this class exists to prevent.
+        `--body` is a substring of `--body-file`, so a containment check against
+        raw help output would keep passing after `--body` was removed. Set
+        membership over option_strings has no such hole.
         """
         unknown = [a for a in emitted if a.startswith("--") and a not in accepted]
         assert not unknown, (
