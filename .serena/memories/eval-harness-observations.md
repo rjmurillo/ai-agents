@@ -110,6 +110,15 @@
 - Start ACP children in an isolated process group. Descendants can retain
   inherited stdout and stderr after the direct child exits, so reader joins
   must be bounded and cleanup must terminate the process tree.
+- Enforce protocol bytes before enqueueing, bound the queue, carry protocol
+  and answer counters across the full ACP session, and cap prompt bytes before
+  process launch. Stdin writes and process shutdown share the session deadline.
+- On Windows, create the child suspended, attach a kill-on-close Job Object,
+  then resume. Use reparse-safe handles and final-path containment for the
+  transcript root, session directory, and events file.
+- Enumerate every session directory entry under a deadline. Apply the entry
+  cap to all entries, the candidate cap only to fresh regular transcripts, and
+  read JSONL with bounded `readline` calls.
 - The default home-derived session root must be absolute, just like explicit
   session and Copilot home overrides. A relative home resolves differently in
   the parent checkout and the isolated child working directory.

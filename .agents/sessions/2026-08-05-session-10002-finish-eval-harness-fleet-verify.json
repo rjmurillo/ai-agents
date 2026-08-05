@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation, review-fix, generator, and memory changes committed through e349e5317; this session log is the final artifact commit."
+        "Evidence": "All implementation and review-fix changes committed through 1d584dbd3; the final memory and session evidence are the closing artifact commit."
       },
       "validationPassed": {
         "level": "MUST",
@@ -133,7 +133,7 @@
     },
     {
       "action": "Ran mutation and inverted controls",
-      "outcome": "Seventeen defect mutations died and five cosmetic controls survived. Controls covered retry validation, malformed fingerprints, prompt argv leakage, tools, environment, redaction, reader joins, model IDs, absolute roots, and test isolation. Every source file restored byte-identically."
+      "outcome": "Every focused defect mutation died and cosmetic controls survived. Controls covered retry validation, malformed fingerprints, prompt and process isolation, stream budgets, deadlines, process trees, transcript safety, redaction, and test isolation. Every source file restored byte-identically."
     },
     {
       "action": "Completed security review",
@@ -141,17 +141,17 @@
     },
     {
       "action": "Completed recursive GPT-5.6 Sol artifact reviews",
-      "outcome": "Four review rounds found six defects: boolean and non-integer retry budgets, launch error leakage, descendant pipe hangs, relative default home, and isolated-test absence. All were fixed. The fifth fresh review returned ZERO FINDINGS."
+      "outcome": "Nineteen fresh artifact-only review rounds found and fixed 31 defects across retry types, error leakage, process trees, stream memory, deadlines, Windows handles, transcript enumeration, model metadata, and test isolation. The final review at 1d584dbd3 returned ZERO FINDINGS."
     },
     {
       "action": "Ran full validation",
-      "outcome": "2316 passed and 4 skipped across full eval suites. Ruff passed 32 changed Python files. Mypy passed 30 canonical files plus both retry mirrors. Plugin sync, build_all --check, and final pre_pr.py exited 0."
+      "outcome": "2357 passed and 4 skipped across full eval suites. Ruff passed 34 changed Python files. Mypy passed 32 canonical files plus both retry mirrors. Plugin sync, build_all --check, security scan, and pre_pr.py exited 0."
     },
     {
       "action": "Filed the observed process defect",
       "outcome": "Issue #4671 records commit-file-count incorrectly treating generated mirrors as authored files after searches found no existing issue."
     }
   ],
-  "endingCommit": "e349e5317",
+  "endingCommit": "1d584dbd3",
   "nextSteps": []
 }
