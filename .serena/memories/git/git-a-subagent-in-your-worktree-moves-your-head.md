@@ -1,15 +1,15 @@
-# A sub-agent pointed at a worktree moves your HEAD, and your next push publishes its commit
+# A sub-agent pointed at a worktree can move your HEAD, and your next push can publish its commit
 
 ## The trap
 
-Give a sub-agent a worktree path and it will run git there. Not a copy, the
-worktree you are standing in. Checkout and switch land on your `HEAD`, your
-index, and your working tree, and so does a merge that completes. A merge that
-stops short leaves `HEAD` alone: a conflicted merge exits 1 with `MERGE_HEAD`
-set and `HEAD` unmoved, and `--no-commit` does the same by request. Your files
-are still rewritten either way. Branch creation alone is milder: it writes a
-shared ref under `refs/heads/`, which every worktree sees, but it does not move
-the current worktree's `HEAD`.
+Give a sub-agent a worktree path and it may run git there. Not a copy, the
+worktree you are standing in. If it runs checkout or switch, that command lands
+on your `HEAD`, your index, and your working tree, and so does a merge that
+completes. A merge that stops short leaves `HEAD` alone: a conflicted merge
+exits 1 with `MERGE_HEAD` set and `HEAD` unmoved, and `--no-commit` does the
+same by request. Your files are still rewritten either way. Branch creation
+alone is milder: it writes a shared ref under `refs/heads/`, which every
+worktree sees, but it does not move the current worktree's `HEAD`.
 
 Once `HEAD` has moved, a later `git push origin HEAD:refs/heads/<your-branch>`
 resolves `HEAD` to whatever the agent left checked out and publishes that
