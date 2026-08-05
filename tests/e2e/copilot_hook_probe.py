@@ -175,16 +175,29 @@ def _head_tail_excerpt(text: str | None, head: int = 300, tail: int = 300) -> st
 
 
 def copilot_rate_limited(result: subprocess.CompletedProcess[str]) -> bool:
-    """True when the Copilot CLI was refused for rate limiting, not bad auth.
-
-    A rate-limited run is blocked but its auth is fine. The token must not be
-    rotated; the caller should retry after the ``X-Ratelimit-Reset`` window.
-    Takes precedence over both auth predicates (issue #4504).
-    """
+    """True when the Copilot CLI was refused for rate limiting, not bad auth."""
     if result.returncode == 0:
         return False
     haystack = _copilot_haystack(result)
     return any(marker in haystack for marker in COPILOT_RATE_LIMIT_MARKERS)
+
+
+def copilot_transient_failure(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when the CLI disclaimed the credential on an aborted run."""
+    return copilot_rate_limited(result)
+
+
+def copilot_transient_failure_headline(result: subprocess.CompletedProcess[str]) -> str:
+    """Skip reason for a run the CLI aborted after disclaiming the credential."""
+    return (
+        "Copilot CLI aborted on a transient fault: it disclaimed the credential "
+        "(reports the token may still be valid), and a GitHub rate limit is the "
+        "usual cause. This is NOT an auth failure and no diff can fix it. Wait "
+        "for the rate-limit reset and "
+        f"re-run. rc={result.returncode} "
+        f"stderr={_head_tail_excerpt(result.stderr, head=300, tail=300)} "
+        f"stdout={_head_tail_excerpt(result.stdout, head=300, tail=300)}"
+    )
 
 
 def copilot_auth_rejected(result: subprocess.CompletedProcess[str]) -> bool:
@@ -200,7 +213,7 @@ def copilot_auth_rejected(result: subprocess.CompletedProcess[str]) -> bool:
     """
     if result.returncode == 0:
         return False
-    if copilot_rate_limited(result):
+    if copilot_transient_failure(result):
         return False
     haystack = _copilot_haystack(result)
     return any(marker in haystack for marker in COPILOT_AUTH_REJECTED_MARKERS)
@@ -230,9 +243,7 @@ def copilot_auth_absent(result: subprocess.CompletedProcess[str]) -> bool:
     """
     if result.returncode == 0:
         return False
-    if copilot_rate_limited(result):
-        return False
-    if copilot_auth_rejected(result):
+    if copilot_transient_failure(result) or copilot_auth_rejected(result):
         return False
     haystack = _copilot_haystack(result)
     return any(marker in haystack for marker in COPILOT_AUTH_ABSENT_MARKERS)
@@ -246,7 +257,9 @@ def copilot_run_blocked(result: subprocess.CompletedProcess[str]) -> bool:
     can be diagnosed via the individual predicates.
     """
     return (
-        copilot_rate_limited(result) or copilot_auth_rejected(result) or copilot_auth_absent(result)
+        copilot_transient_failure(result)
+        or copilot_auth_rejected(result)
+        or copilot_auth_absent(result)
     )
 
 
