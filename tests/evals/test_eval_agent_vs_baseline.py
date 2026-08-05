@@ -4247,12 +4247,25 @@ class TestEveryRegisteredProviderIsClassified:
         added = str(EVAL_DIR) not in sys.path
         if added:
             sys.path.insert(0, str(EVAL_DIR))
+        module_name = "_providers_registry_audit"
+        previous = sys.modules.get(module_name)
         try:
-            providers_mod = _load_module("_providers.py", "_providers")
+            providers_mod = _load_module("_providers.py", module_name)
         finally:
+            if previous is None:
+                sys.modules.pop(module_name, None)
+            else:
+                sys.modules[module_name] = previous
             if added and str(EVAL_DIR) in sys.path:
                 sys.path.remove(str(EVAL_DIR))
         return set(providers_mod._REGISTRY)
+
+    def test_registry_audit_preserves_the_provider_module(self):
+        existing = sys.modules["_providers"]
+
+        self._registry_names()
+
+        assert sys.modules["_providers"] is existing
 
     def test_registry_and_classification_cover_the_same_names(self):
         """Adding a provider without classifying how it bills fails here."""
