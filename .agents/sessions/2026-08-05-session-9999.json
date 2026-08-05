@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This session log is staged with the implementation commit; endingCommit is recorded in the follow-up session-log commit."
+        "Evidence": "Implementation commits d787a19595 and 991c655246 are on this branch; endingCommit records 991c6552468aa23c6447a2397124399cec3c927e."
       },
       "validationPassed": {
         "level": "MUST",
@@ -135,8 +135,8 @@
       "entry": "Validation: targeted pytest 44 passed, ruff passed, generate_agents validate passed, root-hygiene live probe returned rc=1 for staged root scratch file, mutation proof passed."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "991c6552468aa23c6447a2397124399cec3c927e",
   "nextSteps": [
-    "Commit work, run pre-PR validation, push branch, verify remote SHA, open PR with closing refs and mutation table."
+    "Open PR and monitor CI."
   ]
 }
