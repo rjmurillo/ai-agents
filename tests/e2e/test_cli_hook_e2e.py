@@ -94,24 +94,6 @@ def _skip_on_auth_failure(result: subprocess.CompletedProcess[str]) -> None:
         pytest.skip(_copilot_auth_failure_headline(result))
 
 
-
-def _skip_on_auth_failure(result: subprocess.CompletedProcess[str]) -> None:
-    """Skip the test (not fail) when Copilot auth is absent or rejected.
-
-    In the pre-push context no valid Copilot token is expected, so an auth gate
-    is an infrastructure condition, not a branch defect. Skipping lets the push
-    proceed. The nightly workflow provisions a real token and uses
-    assert_smoke_ran.py to detect skipped smokes, so the nightly still fails red
-    when the secret is missing or revoked (issues #4483, #3275).
-
-    Using pytest.skip rather than pytest.fail here is the contractual choice:
-    fail would block every pre-push on branches that lack Copilot auth. The
-    existing timeout paths in this file already follow the same pattern.
-    """
-    if _copilot_auth_failed(result):
-        pytest.skip(_copilot_auth_failure_headline(result))
-
-
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 
 _DIAGNOSTIC_MAX_FILE_CHARS = 4000
