@@ -1,0 +1,186 @@
+{
+  "id": "episode-2026-08-04-session-9999-land-4568-post-merge-portability-hardening",
+  "session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Land PR 4568 post-merge portability hardening",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replayed four reviewed commits that merged PR #4568 did not contain",
+      "caused_by": [],
+      "leads_to": [
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added Windows skips for six symlink tests",
+      "caused_by": [],
+      "leads_to": [
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Centralized Git timeout detection and added operation-specific diagnostics",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran focused tests, Ruff, mypy, and independent code reviews",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed reviewer tool-output injection issue #4653 and updated rate-limit issue #4326",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran local quality review gates",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed type errors found by the pre-push mypy gate",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved the main-branch memory-index conflict and closed Windows CI review gaps",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Preserved partial Git stderr and calibrated the shared timeout",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed final review evidence gaps",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-05T21:54:01+00:00",
+      "type": "commit",
+      "content": "Commit: f35ffffb6",
+      "caused_by": [
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 1440,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 187
+  },
+  "lessons": []
+}
