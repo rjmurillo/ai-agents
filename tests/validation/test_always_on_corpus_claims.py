@@ -283,9 +283,10 @@ def test_corpus_prose_table_matches_both_measured_trees(doc: str, path: Path) ->
     figures = parse_corpus_prose(path.read_text(encoding="utf-8"), doc)
     for tree, key in ((MIRROR_DIR, "mirror"), (PLUGIN_DIR, "plugin")):
         measured = _tree_always_on(tree)
+        tree_label = tree.relative_to(REPO_ROOT).as_posix()
         assert (figures[f"{key}_files"], figures[f"{key}_bytes"]) == measured, (
             f"{doc} states {figures[f'{key}_files']} rules / "
-            f"{figures[f'{key}_bytes']} bytes for {tree.name}; measured {measured}"
+            f"{figures[f'{key}_bytes']} bytes for {tree_label}; measured {measured}"
         )
 
 
