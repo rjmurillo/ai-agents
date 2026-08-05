@@ -495,3 +495,89 @@ Notes:
 
 Issue #4283 documents the measured 28-waiter convoy produced by the global lock
 and the first-principles analysis of why the race is per-ref.
+
+## A script under `scripts/ci/` needs a workflow caller, not just a lefthook job
+
+`tests/ci/test_ci_scripts_are_wired.py` parses `.github/workflows/**` and
+`.github/actions/**`, reads the `run:` body of every step that is not literally
+`if: false`, and fails for any `scripts/ci/*.py` it cannot find a live call for.
+Registering a new guard in `lefthook.yml` and in
+`scripts/validation/checks_ratchet.py` satisfies the push gate and the pre-PR
+gate, and still fails this test. Local hooks do not cover a push from a clone
+where `lefthook install` never ran, a bot push, or a cloud agent.
+
+The test exists because `ruff_count_ratchet.py` and `adr006_run_block_scanner.py`
+both shipped with green suites and no caller, and protected nothing for weeks
+(issue #3329). A unit test cannot catch a missing call site, so this checks the
+call site.
+
+Add the workflow step in the same change that adds the script. A ratchet with a
+fixed floor takes no `--base-ref` and needs no `git fetch --depth=1` preamble;
+copy the neighbouring step only if your guard actually diffs against a base.
+
+## An autofix is not a gate: pair every repair with a verifier
+
+`memory-token-update` (`lefthook.yml`) rewrites every `.serena/memories/`
+token count on pre-commit, and it is correct. It carries
+`skip: [merge, "test $SKIP_AUTOFIX = 1"]`, and nothing downstream checked its
+result, so a memory edited inside a merge commit reached `main` with the old
+count still recorded. Measured on pristine `main`: `skills-git-index` read 287
+against an actual 324, a 13% undercount (issue #4441).
+
+Two rules follow, and both are load-bearing:
+
+- **The verifier must reuse the repair's own computation.** If the gate derives
+  the expected value independently, the two can disagree, and the contributor is
+  trapped: the gate fails, they run the repair, the gate fails again on the
+  repaired file. `memory_index_token_ratchet.drifted_lines` calls the repair's
+  `update_line` directly for exactly this reason.
+- **"Cannot verify" must not exit zero.** The repair degrades to a warning when
+  `tiktoken` is missing. The verifier exits 2 instead. A gate that goes green
+  because it checked nothing is worse than no gate.
+
+## Grep the handler, not the job name
+
+A lefthook job name, its `git_hook_policy.py` subcommand string, and the Python
+function that implements it are three different identifiers. For the memory
+token repair they are `memory-token-update`, `memory-tokens`, and
+`update_memory_tokens`. Searching one spelling and finding nothing produces a
+confident, wrong "this is wired to no gate" conclusion. That mistake cost a full
+diagnostic cycle on issue #4441.
+
+Correct probe: `git grep -n "<function_name>"` to find the handler, read the
+`(subcommand, handler)` tuple near it, then grep that subcommand string in
+`lefthook.yml`.
+
+## Editing an always-on rule moves the doctrine figures
+
+`tests/validation/test_always_on_corpus_claims.py` pins the byte totals quoted in
+`.claude/skills/context-optimizer/references/model-context-doctrine.md` against
+figures it measures live. Any edit to a `.claude/rules/*.md` whose `applyTo` is
+`**` shifts all of them by the same delta and turns that suite red.
+
+Five figures move together: the always-on mirror total, the effective `.py`-edit
+total, the at-source total (larger, because `generate_rules.py` strips the
+`priority:` key), and the two 8KB multipliers. Re-measure from the failure
+output rather than adjusting by hand, and round the multipliers to one decimal.
+The `.py` multiplier can hold steady while the always-on one moves.
+
+## "All validations passed" in a push log does not mean the branch reached the remote
+
+The repo's push wrapper runs `scripts/validation/pre_pr.py` first, and that
+script signs off with `RESULT: All validations passed` followed by
+`Ready to create pull request!`. Only then does it call `git push`, which fires
+the lefthook `pre-push` hook and runs the full suite a second time. Those two
+lines are therefore the *earliest* success message in the log, not the last one,
+and a log that ends on them usually means the push is still running.
+
+Two consequences:
+
+- Grepping the log for lefthook failures (`🥊 <job> (N seconds)`) and finding
+  none proves no job has failed **yet**. It does not prove the push finished.
+- The only proof a push landed is the remote itself:
+  `git ls-remote origin <branch>` against `git rev-parse HEAD`. Check the shas
+  match before opening a PR. Opening one against a branch the remote has never
+  heard of fails with a confusing 422 that names the base, not the head.
+
+Commits added while a push is in flight are not included in it. `git push`
+resolves the ref when it starts, so a follow-up push is required.

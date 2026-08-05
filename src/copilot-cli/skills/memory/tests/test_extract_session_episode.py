@@ -818,6 +818,156 @@ class TestJsonMetrics:
         assert m["files_changed"] == 7
 
 
+class TestJsonMetricsDuration:
+    """Duration must read the timestamp under either spelling workLog entries use.
+
+    Issue #3972 reported duration_minutes stuck at 0. The stated cause was the
+    regex line-scanning in ``parse_metrics``, but that function is the markdown
+    fallback and never runs for a JSON session log. The live path is
+    ``json_metrics``, and it read zero because ``_duration_from_worklogs``
+    accepted only the key ``time`` while the majority spelling in the tree is
+    ``timestamp``. Measured over the 40 most recent session logs: 14 use
+    ``timestamp``, 9 use ``time``, 17 carry neither.
+    """
+
+    def test_duration_from_time_key(self):
+        m = json_metrics(
+            _json_log(
+                [
+                    {"time": "2026-05-31T10:00:00+00:00", "action": "start"},
+                    {"time": "2026-05-31T10:45:00+00:00", "action": "end"},
+                ]
+            )
+        )
+        assert m["duration_minutes"] == 45
+
+    def test_duration_from_timestamp_key(self):
+        """The #3972 regression: this shape read 0 before the fix."""
+        m = json_metrics(
+            _json_log(
+                [
+                    {"timestamp": "2026-05-31T10:00:00+00:00", "action": "start"},
+                    {"timestamp": "2026-05-31T12:30:00+00:00", "action": "end"},
+                ]
+            )
+        )
+        assert m["duration_minutes"] == 150
+
+    def test_duration_from_mixed_spellings(self):
+        m = json_metrics(
+            _json_log(
+                [
+                    {"time": "2026-05-31T10:00:00+00:00", "action": "start"},
+                    {"timestamp": "2026-05-31T10:20:00+00:00", "action": "end"},
+                ]
+            )
+        )
+        assert m["duration_minutes"] == 20
+
+    def test_duration_uses_span_not_first_to_last_entry(self):
+        """Entries are not guaranteed chronological, so span must be max minus min."""
+        m = json_metrics(
+            _json_log(
+                [
+                    {"time": "2026-05-31T11:00:00+00:00", "action": "middle"},
+                    {"time": "2026-05-31T12:00:00+00:00", "action": "latest"},
+                    {"time": "2026-05-31T10:00:00+00:00", "action": "earliest"},
+                ]
+            )
+        )
+        assert m["duration_minutes"] == 120
+
+    def test_duration_none_when_single_timestamp(self):
+        m = json_metrics(_json_log([{"time": "2026-05-31T10:00:00+00:00", "action": "only"}]))
+        assert m["duration_minutes"] is None
+
+    def test_duration_none_when_no_timestamps(self):
+        """Unmeasured must stay distinguishable from a measured zero."""
+        m = json_metrics(_json_log([{"action": "x"}, {"action": "y"}]))
+        assert m["duration_minutes"] is None
+
+    def test_duration_none_when_timestamps_unparseable(self):
+        m = json_metrics(
+            _json_log([{"time": "not-a-date"}, {"timestamp": "also-not-a-date"}])
+        )
+        assert m["duration_minutes"] is None
+
+    def test_duration_falls_back_to_metrics_block_text(self):
+        log = _json_log([{"action": "x"}])
+        log["metrics"] = {"duration": "~20 minutes"}
+        assert json_metrics(log)["duration_minutes"] == 20
+
+    def test_duration_prefers_worklogs_over_metrics_block(self):
+        log = _json_log(
+            [
+                {"time": "2026-05-31T10:00:00+00:00"},
+                {"time": "2026-05-31T10:05:00+00:00"},
+            ]
+        )
+        log["metrics"] = {"duration": "999 minutes"}
+        assert json_metrics(log)["duration_minutes"] == 5
+
+    def test_duration_zero_when_timestamps_identical(self):
+        """A real measured zero stays 0, not None. The two states are different."""
+        m = json_metrics(
+            _json_log(
+                [
+                    {"time": "2026-05-31T10:00:00+00:00"},
+                    {"time": "2026-05-31T10:00:00+00:00"},
+                ]
+            )
+        )
+        assert m["duration_minutes"] == 0
+
+
+class TestJsonMetricsToolCalls:
+    """tool_calls must be null when unrecorded, not zero.
+
+    Modern session logs carry no machine-readable tool count. Emitting 0 made an
+    unpopulated field indistinguishable from a session that really made no tool
+    calls, and 0 reads as "nothing happened here" (issue #3972).
+    """
+
+    def test_tool_calls_none_when_metrics_block_absent(self):
+        assert json_metrics(_json_log([{"action": "x"}]))["tool_calls"] is None
+
+    def test_tool_calls_none_when_key_absent(self):
+        log = _json_log([{"action": "x"}])
+        log["metrics"] = {"duration": "5 minutes"}
+        assert json_metrics(log)["tool_calls"] is None
+
+    def test_tool_calls_int_when_recorded(self):
+        log = _json_log([{"action": "x"}])
+        log["metrics"] = {"toolCalls": 42}
+        assert json_metrics(log)["tool_calls"] == 42
+
+    def test_tool_calls_zero_preserved_when_explicitly_recorded(self):
+        """An explicit 0 is a measurement and must survive as 0, not become None."""
+        log = _json_log([{"action": "x"}])
+        log["metrics"] = {"toolCalls": 0}
+        assert json_metrics(log)["tool_calls"] == 0
+
+
+class TestEpisodeSchemaAcceptsUnmeasuredMetrics:
+    def test_schema_allows_null_duration_and_tool_calls(self):
+        schema_path = (
+            Path(__file__).resolve().parents[1] / "resources" / "schemas" / "episode.schema.json"
+        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        metrics_props = schema["properties"]["metrics"]["properties"]
+        assert "null" in metrics_props["duration_minutes"]["type"]
+        assert "null" in metrics_props["tool_calls"]["type"]
+
+    def test_schema_still_rejects_a_string_duration(self):
+        schema_path = (
+            Path(__file__).resolve().parents[1] / "resources" / "schemas" / "episode.schema.json"
+        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        assert "string" not in schema["properties"]["metrics"]["properties"]["duration_minutes"][
+            "type"
+        ]
+
+
 class TestExtractFromJsonEndToEnd:
     def test_bundle_shape(self):
         bundle = extract_from_json(

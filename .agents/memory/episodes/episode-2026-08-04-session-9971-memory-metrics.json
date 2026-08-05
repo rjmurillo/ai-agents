@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-08-04-session-9971-memory-metrics",
+  "session": "2026-08-04-session-9971-memory-metrics",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix the memory metrics cluster: issue 3972 (episode duration and tool call counts recorded as zero when they were never measured) and issue 4441 (memory-index token counts drift because the pre-commit repair is skipped on merge commits and nothing verifies its result). Add a pre-push verifier, wire it into CI, and record the durable gotchas.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced both issues against current main before changing anything.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9971-memory-metrics"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote the verifier so it reuses the repair's computation rather than deriving its own.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9971-memory-metrics"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation tested the verifier.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9971-memory-metrics"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Exercised the finished gate end to end by adding a real memory with a (0) placeholder.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9971-memory-metrics"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T05:07:51+00:00",
+      "type": "commit",
+      "content": "Commit: 13648493fabd7b3046362b7f44b3c08f72c863e4",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9971-memory-metrics"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
