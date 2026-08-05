@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit 65bc1ffc804e20cd2b34242ddb3044fa349f86a3 carries the corrected code, mirror, and tests."
+        "Evidence": "Commit 655dbbca14bf27393bbf4392e5ceb5a5d488112c carries the corrected code, mirror, and tests."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pytest tests/skills/memory/test_extract_session_episode.py: 282 passed. ruff passed on changed Python files. Mutation proof completed before PR creation."
+        "Evidence": "pytest tests/skills/memory/test_extract_session_episode.py: 283 passed. ruff passed on changed Python files. Mutation proof completed before PR creation and re-run after correction."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -153,8 +153,13 @@
       "time": "2026-08-05T10:05:13+00:00",
       "entry": "Merged current main and ported PR #4617 causal order validation into this branch.",
       "evidence": "Marker counts after merge are _WORKLOG_TIME_KEYS=2, #3972=3, int | None=5; commit 65bc1ffc80 combines duplicate timestamp upgrade with causal order validation."
+    },
+    {
+      "time": "2026-08-05T10:24:00+00:00",
+      "entry": "Added direct causal graph validation regression test after porting PR #4617 logic.",
+      "evidence": "Commit 655dbbca14 adds the test; extractor test file passed with 283 tests."
     }
   ],
-  "endingCommit": "65bc1ffc804e20cd2b34242ddb3044fa349f86a3",
+  "endingCommit": "655dbbca14bf27393bbf4392e5ceb5a5d488112c",
   "nextSteps": []
 }

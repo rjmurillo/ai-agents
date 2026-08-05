@@ -126,23 +126,36 @@
     },
     {
       "id": "e010",
-      "timestamp": "2026-08-05T10:19:31+00:00",
-      "type": "commit",
-      "content": "Commit: 65bc1ffc804e20cd2b34242ddb3044fa349f86a3",
+      "timestamp": "2026-08-05T10:24:00+00:00",
+      "type": "milestone",
+      "content": "Added direct causal graph validation regression test after porting PR #4617 logic.",
       "caused_by": [
         "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-05T11:42:14+00:00",
+      "type": "commit",
+      "content": "Commit: 655dbbca14bf27393bbf4392e5ceb5a5d488112c",
+      "caused_by": [
+        "e010"
       ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-4588-episode-chronology"
     }
   ],
   "metrics": {
-    "duration_minutes": 248,
+    "duration_minutes": 267,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 3
+    "files_changed": 61
   },
   "lessons": []
 }
