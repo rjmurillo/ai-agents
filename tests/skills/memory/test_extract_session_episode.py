@@ -1053,11 +1053,11 @@ class TestMergePreserving:
         assert merged["metrics"]["errors"] == 3
         assert merged["metrics"]["files_changed"] == 7
 
-    def test_event_timestamps_normalized_to_session_midnight(self):
+    def test_event_timestamps_keep_explicit_source_time(self):
         merged = extract_session_episode.merge_preserving(
             self._stub(), self._rich(), session_id="2026-01-08-session-807"
         )
-        assert merged["events"][0]["timestamp"] == "2026-01-08T00:00:00+00:00"
+        assert merged["events"][0]["timestamp"] == "2026-01-08T12:20:10.93-06:00"
 
     def test_placeholder_task_yields_but_real_new_task_wins(self):
         new = self._stub()
@@ -1129,13 +1129,7 @@ class TestMergePreserving:
         assert merged["events"][0]["timestamp"] == "garbage"
 
     def test_commit_events_keep_real_committer_timestamp(self):
-        """Commit events must not have their timestamp overwritten with midnight.
-
-        Issue #4071: _dedupe_events() applied the midnight stamp to ALL event
-        types, including commit events that already carry the real committer
-        timestamp from _git_commit_timestamp(). After the fix, only non-commit
-        events get the midnight stamp.
-        """
+        """Commit events must not have their timestamp overwritten with midnight."""
         commit_ts = "2026-01-08T23:47:12+00:00"
         existing = {
             "timestamp": "2026-01-08T00:00:00+00:00",
@@ -1198,11 +1192,77 @@ class TestMergePreserving:
         )
         commit_ev = next(e for e in events if e["type"] == "commit")
         milestone_ev = next(e for e in events if e["type"] == "milestone")
-        # Commit keeps its real timestamp; milestone gets midnight.
+        # Commit and milestone both keep their explicit timestamps.
         assert commit_ev["timestamp"] == commit_ts
-        assert milestone_ev["timestamp"] == midnight
+        assert milestone_ev["timestamp"] == "2026-01-08T10:00:00+00:00"
         # Timestamps differ, so ordering is well-defined.
         assert commit_ev["timestamp"] != milestone_ev["timestamp"]
+
+    def test_preserve_links_already_sorted_explicit_chronology(self):
+        early = dict(self._rich()["events"][0])
+        later = {
+            "id": "e002",
+            "timestamp": "2026-01-08T13:00:00-06:00",
+            "type": "test",
+            "content": "validation passed",
+            "caused_by": [],
+            "leads_to": [],
+        }
+        existing = self._rich()
+        existing["events"] = [early, later]
+
+        merged = extract_session_episode.merge_preserving(
+            self._stub(), existing, session_id="2026-01-08-session-807"
+        )
+        extract_session_episode._link_sequential_events(merged["events"])
+
+        by_content = {event["content"]: event for event in merged["events"]}
+        assert by_content["did the thing"]["leads_to"] == [by_content["validation passed"]["id"]]
+        assert by_content["validation passed"]["caused_by"] == [by_content["did the thing"]["id"]]
+
+    def test_preserve_links_reverse_sorted_explicit_chronology(self):
+        early = dict(self._rich()["events"][0])
+        later = {
+            "id": "e002",
+            "timestamp": "2026-01-08T13:00:00-06:00",
+            "type": "test",
+            "content": "validation passed",
+            "caused_by": [],
+            "leads_to": [],
+        }
+        existing = self._rich()
+        existing["events"] = [later, early]
+
+        merged = extract_session_episode.merge_preserving(
+            self._stub(), existing, session_id="2026-01-08-session-807"
+        )
+        extract_session_episode._link_sequential_events(merged["events"])
+
+        by_content = {event["content"]: event for event in merged["events"]}
+        assert by_content["did the thing"]["leads_to"] == [by_content["validation passed"]["id"]]
+        assert by_content["validation passed"]["caused_by"] == [by_content["did the thing"]["id"]]
+
+    def test_preserve_keeps_identical_timestamp_ties_stable(self):
+        first = dict(self._rich()["events"][0])
+        second = dict(first)
+        second["id"] = "e002"
+        second["content"] = "same instant follow-up"
+        existing = self._rich()
+        existing["events"] = [first, second]
+
+        merged = extract_session_episode.merge_preserving(
+            self._stub(), existing, session_id="2026-01-08-session-807"
+        )
+        extract_session_episode._link_sequential_events(merged["events"])
+
+        assert [event["content"] for event in merged["events"]] == [
+            "did the thing",
+            "same instant follow-up",
+        ]
+        assert all(
+            event["caused_by"] == [] and event["leads_to"] == []
+            for event in merged["events"]
+        )
     """--preserve end-to-end and flag exclusivity (#2170)."""
 
     def _write_log(self, tmp_path, sha="bbbbbbb1234"):
@@ -1535,6 +1595,22 @@ class TestSequentialEventLinks:
         by_id = {e["id"]: e for e in events}
         assert by_id["e002"]["leads_to"] == ["e001"]
         assert by_id["e001"]["caused_by"] == ["e002"]
+
+    def test_backward_milestone_to_commit_edge_is_invalid(self):
+        events = [
+            self._evt("e001", "milestone", "later review"),
+            self._evt("e002", "commit", "Commit: abc1234"),
+        ]
+        events[0]["timestamp"] = "2026-07-19T10:00:00+00:00"
+        events[0]["leads_to"] = ["e002"]
+        events[1]["timestamp"] = "2026-07-19T09:00:00+00:00"
+        events[1]["caused_by"] = ["e001"]
+
+        with pytest.raises(extract_session_episode.EpisodeValidationError) as exc_info:
+            extract_session_episode.validate_episode_causal_graph(events)
+
+        assert exc_info.value.exit_code == 1
+        assert "leads to earlier event" in str(exc_info.value)
 
     def test_duplicate_id_is_invalid_causal_logic(self):
         events = [self._evt("e001"), self._evt("e001", "commit")]
