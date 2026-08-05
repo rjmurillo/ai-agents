@@ -106,6 +106,7 @@ jobs:
     name: Run Python Tests
     needs: check-paths
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       checks: write
