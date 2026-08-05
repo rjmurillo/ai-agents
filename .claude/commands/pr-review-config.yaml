@@ -105,6 +105,16 @@ completion_criteria:
     command: "python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {pr}"
     pass_when: "stdout-json.unresolved_count == 0 AND stdout-json.fetched_pages_complete == true"
     fail_open: false
+  - name: "No suppressed Copilot review findings"
+    verification: "command"
+    command: "python3 .claude/skills/github/scripts/pr/check_suppressed_review_findings.py --pull-request {pr}"
+    pass_when: "stdout-json.suppressed_count == 0 AND stdout-json.fetched_pages_complete == true"
+    fail_open: false
+  - name: "Resolved thread commit references are reachable"
+    verification: "command"
+    command: "python3 .claude/skills/github/scripts/pr/check_review_thread_resolution_shas.py --pull-request {pr}"
+    pass_when: "stdout-json.unreachable_count == 0 AND stdout-json.invalid_count == 0 AND stdout-json.fetched_pages_complete == true"
+    fail_open: false
   - name: "PR is ready to merge (CI green, no conflicts)"
     verification: "command"
     command: "python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr}"
