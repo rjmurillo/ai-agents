@@ -172,6 +172,22 @@ In the exhaustion reading above, the reset epoch decoded to 11:32:46 PDT, two
 and a half minutes out. Sleeping to that timestamp and issuing one call returned
 `rjmurillo` on the first try. No polling, no retry loop, no re-auth.
 
+The two instruments can contradict each other on the same named bucket, not
+merely describe different ones. Measured 2026-08-05, 94 seconds apart:
+
+```text
+10:13:48Z  gh api rate_limit   ->  core: remaining=4829/5000
+10:15:22Z  gh api user -i      ->  403, X-Ratelimit-Resource: core
+                                        X-Ratelimit-Remaining: 0
+                                        X-Ratelimit-Used: 5001
+```
+
+Both readings name `core`. One reports the bucket 96 percent free, the other
+reports it over-drained by one call. So the payload is not lagging by a few
+hundred calls, it is accounting for something other than the caller's own
+budget. Treat a healthy `core` figure in that payload as carrying no
+information about a `core` call, not as a stale version of the truth.
+
 So the earlier advice not to reconcile against `rate_limit` still stands, and for
 the reason already given: that endpoint is exempt and reports a bucket state that
 does not describe your call. It is the wrong instrument, not a broken one. The
@@ -213,6 +229,22 @@ PR diff has 0 lines
 The remaining steps skip, `INFRA_FAILURE` is written as `false`, the verdict
 comes back empty, and the required `Aggregate Results` check goes red while
 every underlying job reports success. Issue #4547 tracks both halves.
+
+Half of that landed. Re-measured 2026-08-05 on PR #4598, run `30988215939`:
+the classification half is fixed and the retry half is not. The file grew from
+424 to 515 lines, line 325 names issue #4547, and lines 247 to 252 match the
+`rate limit|secondary rate|abuse detection` signature, so the 403 is now
+classified as an infrastructure failure. The run recorded `INFRA_FAILURE: true`
+and added the `infrastructure-failure` label. Re-running the issue's own grep,
+`grep -nE "retry|retries|sleep|backoff|403|rate.?limit"`, still returns no
+retry logic: all five hits are the rate-limit signature and its comments.
+
+So the outcome is unchanged for the author. All ten agents logged
+`retries: 0` and the PR is still blocked, because the step named "Invoke
+Copilot CLI (with retry for infrastructure failures)" is *skipped* by the
+infra gate rather than retried. A retry attached to the invocation cannot fire
+for a failure that happens before the invocation. Check `retries: 0` in the
+aggregate log to tell "retried and failed" from "never retried".
 
 The consequence that is easy to miss: this is not confined to the PR the agent
 is working on. Ten agents fetch a diff per run, so an agent polling `gh` across
@@ -292,8 +324,10 @@ $ gh api users/rjmurillo-bot --jq .id  # 250269933
 ```
 
 `.github/actions/ai-review/action.yml` "Build context" (lines 183 to 190) sets
-`GH_TOKEN` from `inputs.bot-pat` and nothing else, and all 22 caller sites pass
-`secrets.BOT_PAT`. That step's 403 named `6811113`.
+`GH_TOKEN` from `inputs.bot-pat` and nothing else, and 22 sites match
+`bot-pat: ${{ secrets.BOT_PAT }}`. Name that pattern when citing the count: a
+bare grep for `secrets.BOT_PAT` returns 56 hits across 12 files. That step's
+403 named `6811113`.
 
 So the isolation ADR-026 describes is configured but not effective, and the
 "shared budget" measurements above are its symptom rather than an intrinsic

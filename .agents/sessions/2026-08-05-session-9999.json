@@ -153,6 +153,14 @@
     {
       "action": "Corrected an unreproducible number in the section about rigor",
       "detail": "The retrospective Provenance block listed 22 call sites passing secrets.BOT_PAT as repo-verifiable. A bare grep returns 56 across 12 files; only bot-pat pass-through sites are 22. Named the pattern in both the retrospective and the PR body."
+    },
+    {
+      "action": "Proved the shared-budget chain end to end from a CI log, and found half of issue 4547 fixed",
+      "detail": "PR 4598 run 30988215939: the AI review context build took HTTP 403 API rate limit exceeded for user ID 6811113, the human account, so all ten agents skipped the Copilot invocation and emitted DID_NOT_RUN, which check_critical_failures.py treats as blocking. That settles the open question in 4487. Classification is fixed and retry is not: the issue own grep now returns five hits, all signature code, and every agent logged retries 0 because the retry guards the invocation that gets skipped."
+    },
+    {
+      "action": "Read the response header instead of the rate_limit payload, and they contradicted",
+      "detail": "At 10:13:48Z gh api rate_limit reported core remaining 4829 of 5000. At 10:15:22Z the header on a refused core call reported remaining 0 and used 5001. Same bucket name, opposite readings, 94 seconds apart. The header put it in exhaustion mode with an 18 minute window, so a short fixed backoff would have failed three times. Recorded in the existing memory rather than a new one."
     }
   ],
   "endingCommit": "758f343430581bd3cbfd4f7d779bf045fb5fb1aa",
