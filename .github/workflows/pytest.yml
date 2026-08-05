@@ -106,6 +106,7 @@ jobs:
     name: Run Python Tests
     needs: check-paths
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       checks: write
@@ -335,7 +336,7 @@ jobs:
           always() &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@d1ba80a13dd99fba24a470575428917156a28b43  # v4
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3  # v4
         with:
           sarif_file: bandit.sarif
           category: bandit
