@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The first commit carries PROJECT-CONSTRAINTS.md, copilot-instructions.md, and this session log; endingCommit is repointed in the follow-up log-only commit per issue #3618."
+        "Evidence": "Documentation corrections committed in e5758b4930d4d5cca0fefc10f601e8616f94917e; this follow-up log commit records the reachable endingCommit per issue #3618."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen python -m pytest tests/validation/test_always_on_corpus_claims.py -q returned 20 passed; post-fix checks confirmed the stale lines are gone; prohibited dash scan returned zero."
+        "Evidence": "uv run --frozen python -m pytest tests/validation/test_always_on_corpus_claims.py -q returned 20 passed; post-fix checks confirmed the stale lines are gone; prohibited dash scan returned zero. Session log validated after setting endingCommit to e5758b4930d4d5cca0fefc10f601e8616f94917e."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -139,6 +139,6 @@
       ]
     }
   ],
-  "endingCommit": "5ec85be51aad",
+  "endingCommit": "e5758b4930d4d5cca0fefc10f601e8616f94917e",
   "nextSteps": []
 }

@@ -50,6 +50,19 @@
         "e002",
         "e003"
       ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T08:34:12+00:00",
+      "type": "commit",
+      "content": "Commit: e5758b4930d4d5cca0fefc10f601e8616f94917e",
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
     }
@@ -59,8 +72,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 4
+    "commits": 2,
+    "files_changed": 6
   },
   "lessons": []
 }
