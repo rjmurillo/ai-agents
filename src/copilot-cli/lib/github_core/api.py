@@ -8,7 +8,8 @@ public import surface ``from .api import ...`` stays stable
 - ``log_safety``: ``safe_log_str`` (CWE-117 log-forging defense).
 - ``review_threads``: review-thread shape, predicates, paginated fetch,
   ``FetchStatus``, ``get_unresolved_review_threads``.
-- ``rate_limit``: ``RateLimitResult``, ``DEFAULT_RATE_THRESHOLDS``,
+- ``rate_limit``: ``RateLimitResult``, ``RateLimitStatus``,
+  ``DEFAULT_RATE_THRESHOLDS``,
   ``check_workflow_rate_limit``.
 """
 
@@ -34,6 +35,7 @@ from .log_safety import safe_log_str
 from .rate_limit import (  # noqa: F401
     DEFAULT_RATE_THRESHOLDS,
     RateLimitResult,
+    RateLimitStatus,
     check_workflow_rate_limit,
 )
 from .review_threads import (  # noqa: F401
