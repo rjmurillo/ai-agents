@@ -45,9 +45,6 @@ _ANY_NONZERO_COMPARISON = re.compile(r"==\s*[1-9]|!=\s*0|EXIT_|_ERROR")
 
 # An identifier that nothing qualifies, so `widget` counts and `pkg.widget`
 # does not.
-_UNQUALIFIED_NAME = re.compile(r"(?<![\w.])([A-Za-z_]\w*)")
-
-
 def defines_main(source: str) -> bool:
     """True when the module body defines a ``main`` function.
 
@@ -73,6 +70,14 @@ def defines_main(source: str) -> bool:
 _FROM_IMPORT = re.compile(r"^[ \t]*from\s+([\w.]+)\s+import\s+(.+)$", re.MULTILINE)
 _PLAIN_IMPORT = re.compile(r"^[ \t]*import\s+([\w.]+)(?:\s+as\s+(\w+))?", re.MULTILINE)
 _LOADER_ALIAS = re.compile(r"^[ \t]*(\w+)\s*=\s*_load_module\(\s*[\"'](\w+)[\"']", re.MULTILINE)
+_SPEC_FROM_FILE_LOCATION_ALIAS = re.compile(
+    r"^[ \t]*(\w+)\s*=\s*importlib\.util\.spec_from_file_location\(\s*[\"'](\w+)[\"']",
+    re.MULTILINE,
+)
+_MODULE_FROM_SPEC_ALIAS = re.compile(
+    r"^[ \t]*(\w+)\s*=\s*importlib\.util\.module_from_spec\(\s*(\w+)\s*\)",
+    re.MULTILINE,
+)
 # A hand-rolled spec_from_file_location block registers the module by name:
 #   sys.modules["check_ai_review_infra_gate"] = mod
 _SYS_MODULES_ALIAS = re.compile(
@@ -88,6 +93,7 @@ _SCRIPT_FILE_NAME = re.compile(r"(\w+)\.py")
 # invocation; the same string inside an ``assert "... x.py" in workflow`` is a
 # wiring assertion and proves nothing about the exit code.
 _PROCESS_CALLEES = frozenset({"run", "check_output", "check_call", "call", "Popen"})
+_UNQUALIFIED_NAME = re.compile(r"(?<![\w.])([A-Za-z_]\w*)")
 
 
 def _imported_names(clause: str) -> list[tuple[str, str]]:
@@ -116,6 +122,21 @@ def _from_import_aliases(source: str, stems: frozenset[str]) -> dict[str, str]:
     return aliases
 
 
+def _spec_from_file_aliases(source: str, stems: frozenset[str]) -> dict[str, str]:
+    """Module aliases created through importlib spec loaders."""
+    spec_aliases = {
+        alias: stem
+        for alias, stem in _SPEC_FROM_FILE_LOCATION_ALIAS.findall(source)
+        if stem in stems
+    }
+    aliases: dict[str, str] = {}
+    for alias, spec_name in _MODULE_FROM_SPEC_ALIAS.findall(source):
+        stem = spec_aliases.get(spec_name)
+        if stem is not None:
+            aliases[alias] = stem
+    return aliases
+
+
 def _module_aliases(source: str, stems: frozenset[str]) -> dict[str, str]:
     """Names bound to a ``scripts/ci`` module in this test file, alias -> stem."""
     aliases = _from_import_aliases(source, stems)
@@ -126,6 +147,7 @@ def _module_aliases(source: str, stems: frozenset[str]) -> dict[str, str]:
     for alias, stem in _LOADER_ALIAS.findall(source):
         if stem in stems:
             aliases[alias] = stem
+    aliases.update(_spec_from_file_aliases(source, stems))
     for stem, alias in _SYS_MODULES_ALIAS.findall(source):
         if stem in stems:
             aliases[alias] = stem
@@ -146,6 +168,14 @@ def _bare_main_stems(source: str, stems: frozenset[str]) -> set[str]:
         if stem in stems:
             bound.add(stem)
     return bound
+
+
+def _has_local_main_definition(tree: ast.Module) -> bool:
+    """Return True when this test file defines its own function named main."""
+    return any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "main"
+        for node in ast.walk(tree)
+    )
 
 
 def _test_functions(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
@@ -180,7 +210,7 @@ class _Bindings:
     aliases: dict[str, str]  # module alias -> stem
     bare: frozenset[str]  # stems whose `main` is bound under that bare name
     paths: dict[str, set[str]]  # local name holding a script path -> stems
-    sole: str | None  # the only stem the file names, when it names one
+    sole: str | None  # the only stem the file names, when no local main shadows it
     stems: frozenset[str]
 
 
@@ -233,10 +263,9 @@ def _path_names(tree: ast.Module, stems: frozenset[str]) -> dict[str, set[str]]:
 def _main_target(func: ast.expr, binding: _Bindings) -> set[str]:
     """Stems a ``main`` call belongs to.
 
-    ``sole`` is the file's only referenced stem, when it has exactly one. It
-    covers the bindings no alias matcher reaches: a hand-rolled
-    ``spec_from_file_location`` block binds ``mod``, and ``main = _mod.main``
-    binds nothing at all. Naming one script and calling ``main`` is unambiguous.
+    A bare ``main`` call only counts when the test imports or assigns the
+    target module's ``main`` into that exact name, or when the file names one
+    script and does not define a local ``main`` that could shadow the script.
     """
     if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
         stem = binding.aliases.get(func.value.id)
@@ -246,6 +275,26 @@ def _main_target(func: ast.expr, binding: _Bindings) -> set[str]:
     if binding.sole is not None:
         targets.add(binding.sole)
     return targets
+
+
+def _assigned_main_stems(tree: ast.Module, aliases: dict[str, str]) -> set[str]:
+    """Stems whose module ``main`` is assigned to a bare local ``main`` name."""
+    bound: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(isinstance(target, ast.Name) and target.id == "main" for target in node.targets):
+            continue
+        value = node.value
+        if (
+            isinstance(value, ast.Attribute)
+            and value.attr == "main"
+            and isinstance(value.value, ast.Name)
+        ):
+            stem = aliases.get(value.value.id)
+            if stem is not None:
+                bound.add(stem)
+    return bound
 
 
 def _invocation_stems(
@@ -320,12 +369,19 @@ def _proves_failure(segment: str, results: set[str]) -> bool:
 
 
 def _bindings(test_source: str, tree: ast.Module, stems: frozenset[str]) -> _Bindings:
+    aliases = _module_aliases(test_source, stems)
+    bare = set(_bare_main_stems(test_source, stems))
+    bare.update(_assigned_main_stems(tree, aliases))
     referenced = _referenced_stems(test_source, stems)
     return _Bindings(
-        aliases=_module_aliases(test_source, stems),
-        bare=frozenset(_bare_main_stems(test_source, stems)),
+        aliases=aliases,
+        bare=frozenset(bare),
         paths=_path_names(tree, stems),
-        sole=next(iter(referenced)) if len(referenced) == 1 else None,
+        sole=(
+            next(iter(referenced))
+            if len(referenced) == 1 and not _has_local_main_definition(tree)
+            else None
+        ),
         stems=stems,
     )
 
