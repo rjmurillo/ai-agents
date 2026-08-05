@@ -60,7 +60,10 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e007",
+        "e008",
+        "e009"
       ],
       "leads_to": [
         "e006"
@@ -75,6 +78,52 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-10028-active-suppressed-findings"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "copilot-config-packaging",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-10028-active-suppressed-findings"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "schema-contract-update",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-10028-active-suppressed-findings"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "schema-validation",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-10028-active-suppressed-findings"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T10:50:17+00:00",
+      "type": "commit",
+      "content": "Commit: d926ae53c7",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-10028-active-suppressed-findings"
     }
@@ -84,8 +133,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 2
+    "commits": 3,
+    "files_changed": 5
   },
   "lessons": []
 }

@@ -182,7 +182,7 @@ Verification (per-artifact, not universal):
 |---|---|
 | agents | Output count under `src/copilot-cli/agents/*.agent.md` equals source count under `.claude/agents/*.md` |
 | skills | Output count under `src/copilot-cli/skills/*/SKILL.md` equals source count under `.claude/skills/*/SKILL.md` |
-| commands | Output count under `src/copilot-cli/skills/<name>/SKILL.md` (with `user-invocable: true`) equals source count under `.claude/commands/*.md` |
+| commands | Output count under `src/copilot-cli/skills/<name>/SKILL.md` (with `user-invocable: true`) equals source count under `.claude/commands/*.md`; configured command resources copy to `src/copilot-cli/commands/` |
 | rules | Output count under `.github/instructions/*.instructions.md` equals source count under `.claude/rules/*.md` (unscoped rules emit with `applyTo: "**"`) |
 | hooks | Output `src/copilot-cli/hooks/hooks.json` contains every mapped source event. Safe events use one dispatcher entry. Stop and SubagentStop retain one host entry per structured decision hook. |
 
@@ -207,6 +207,8 @@ artifacts:
   commands:
     sourceDir: ".claude/commands"
     outputDir: "src/copilot-cli/skills"
+    resourceOutputDir: "src/copilot-cli/commands"
+    resourceSuffixes: [".yaml"]
     transform: "command-to-skill"
     appendFrontmatter:
       user-invocable: true
