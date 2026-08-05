@@ -360,7 +360,8 @@ class FileAssessment:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description="Assess code quality across 5 foundational qualities"
+        description="Assess code quality across 5 foundational qualities",
+        allow_abbrev=False,
     )
     parser.add_argument(
         "--target", required=True, help="File, directory, or glob pattern to assess"

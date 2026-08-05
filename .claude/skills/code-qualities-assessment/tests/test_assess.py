@@ -52,6 +52,7 @@ generate_json_report = _mod.generate_json_report
 generate_markdown_report = _mod.generate_markdown_report
 load_config = _mod.load_config
 _parse_changed_files = _mod._parse_changed_files
+parse_args = _mod.parse_args
 
 
 def _write(tmp_path: Path, name: str, body: str) -> Path:
@@ -498,6 +499,12 @@ def test_changed_only_rejects_option_like_base() -> None:
     """CWE-88: an option-like --base is rejected before git runs."""
     with pytest.raises(ValueError):
         get_files_to_assess(".", True, "--output=/tmp/should_not_be_written")
+
+
+@pytest.mark.parametrize("abbreviation", ["--bas=main", "--gate-m=regression"])
+def test_cli_rejects_abbreviated_options(abbreviation: str) -> None:
+    with pytest.raises(SystemExit):
+        parse_args(["--target", ".", abbreviation])
 
 
 def test_changed_only_passes_end_of_options_guard(
