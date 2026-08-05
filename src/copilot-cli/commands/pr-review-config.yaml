@@ -1,0 +1,223 @@
+# PR Review Configuration
+# Structured data extracted from pr-review skill prompt.
+# Referenced by .claude/commands/pr-review.md and .github/prompts/pr-review.prompt.md
+
+scripts:
+  claude_code:
+    get_pr_context: "python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request {number}"
+    test_pr_merged: "python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}"
+    get_review_threads: "python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request {number}"
+    get_unresolved_threads: "python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {number}"
+    cluster_threads: "python3 .claude/skills/pr-comment-responder/scripts/cluster_threads.py --pull-request {number}"
+    # Settling gate. The one-shot get_unresolved_threads snapshot can read
+    # unresolved_count == 0 in the window between an agent resolving the last
+    # thread and the next bot (Copilot, Devin) scan landing 30-120s later. That
+    # window is exactly the PR #1965 "0 unresolved" lie. wait_for_unresolved_zero
+    # requires THREE consecutive complete-and-zero readings 180s apart before it
+    # exits 0, so a momentarily-true zero between bot scans does not pass. Run it
+    # before the completion gate when the PR has live bot reviewers. No copilot
+    # (PowerShell) equivalent exists; this settling step is Claude-only.
+    wait_for_settled_zero: "python3 .claude/skills/github/scripts/pr/wait_for_unresolved_zero.py --pull-request {number}"
+    get_unaddressed_comments: "python3 .claude/skills/github/scripts/pr/get_unaddressed_comments.py --pull-request {number}"
+    get_pr_checks: "python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {number}"
+    add_thread_reply: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --thread-id {thread_id} --body {body}"
+    add_thread_reply_resolve: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --thread-id {thread_id} --body {body} --resolve"
+    resolve_thread: "python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --thread-id {thread_id}"
+  copilot:
+    get_pr_context: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}"
+    test_pr_merged: "pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}"
+    get_review_threads: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewThreads.ps1 -PullRequest {number}"
+    get_unresolved_threads: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest {number}"
+    cluster_threads: 'pwsh -NoProfile -Command "python3 .claude/skills/pr-comment-responder/scripts/cluster_threads.py --pull-request {number}"'
+    get_unaddressed_comments: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest {number}"
+    get_pr_checks: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest {number}"
+    add_thread_reply: "pwsh -NoProfile .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest {number} -ThreadId {thread_id} -Body {body}"
+    resolve_thread: "pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId {thread_id}"
+
+check_failure_actions:
+  - check_type: "Session validation"
+    action: "Invoke session-log-fixer skill"
+  - check_type: "AI reviewer (infra)"
+    action: "May be transient; note and continue"
+  - check_type: "AI reviewer (code quality)"
+    action: "Address findings or acknowledge"
+  - check_type: "Tests (Pester/pytest)"
+    action: "Run locally, fix failures"
+  - check_type: "Markdown lint"
+    action: "Run npx markdownlint-cli2 --fix"
+  - check_type: "PR title validation"
+    action: "Update title to conventional commit format"
+
+error_recovery:
+  - scenario: "PR not found"
+    action: "Log warning, skip PR, continue"
+  - scenario: "Branch conflict"
+    action: "Log error, skip PR, continue"
+  - scenario: "Agent timeout"
+    action: "Log partial status, force cleanup"
+  - scenario: "Push rejection"
+    action: "Detect concurrent updates (fetch and compare remote). If no concurrent changes, retry with --force-with-lease; otherwise, log rejection and require manual resolution."
+  - scenario: "Merge conflict"
+    action: "Log conflict, skip cleanup, report for manual resolution"
+
+# Completion criteria are dispatchable.
+#
+# Each criterion runs an external command. The command's stdout JSON is
+# the source of truth; the criterion passes only when its `pass_when`
+# expression evaluates true against that JSON. A criterion fails closed
+# (passed=false) on any of:
+#   - command failed to run (FileNotFoundError, timeout)
+#   - command exited non-zero (any non-zero status, regardless of stdout)
+#   - command stdout is not a JSON object
+#   - pass_when evaluating false
+# `fail_open: true` flips the dispatch-error cases (command/timeout,
+# non-zero exit, non-JSON stdout) to pass. It does NOT flip the
+# pass_when-false case, and a *broken* pass_when expression (DSL syntax
+# error or pass_when_python lambda exception) always fails closed; that
+# is a config bug, not a verifier outage.
+#
+# This replaces the prior narrative criteria (e.g. "0 unresolved threads")
+# whose verdict was claimed by the agent. The agent now dispatches and
+# reports; the verifier's output IS the verdict.
+#
+# pass_when DSL (handled by run_completion_gate.py):
+#   * dotted path access:    stdout-json.field, stdout-json.nested.field
+#   * literals:              integers, true, false, null, "double-quoted"
+#   * comparison operators:  ==, !=
+#   * boolean composition:   AND, OR (left-to-right; no parens)
+#
+# Fields:
+#   name           Human-readable criterion title.
+#   verification   Currently only "command" is supported.
+#   command        Shell command template; {pr} is substituted with the PR number.
+#   pass_when      DSL expression evaluated against the parsed stdout JSON.
+#   pass_when_python  (Optional) Python lambda escape hatch when DSL is too narrow.
+#   fail_open      (Optional, default false) Treat dispatch errors as a pass.
+completion_criteria:
+  # NOTE: Security threads (CWE, OWASP, CVE) are EXEMPT from the "all resolved"
+  # requirement per failure_handling policy. When this criterion fails due to
+  # unresolved security threads, agents MUST verify: (1) each security thread
+  # has a tracking issue logged, (2) the underlying vulnerability is not yet
+  # fixed. Security threads with tracking issues are allowed to remain open;
+  # the agent may proceed if ONLY security threads are unresolved.
+  - name: "All review threads resolved (security threads exempt with tracking)"
+    verification: "command"
+    command: "python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {pr}"
+    pass_when: "stdout-json.unresolved_count == 0 AND stdout-json.fetched_pages_complete == true"
+    fail_open: false
+  - name: "No suppressed Copilot review findings"
+    verification: "command"
+    command: "python3 .claude/skills/github/scripts/pr/check_suppressed_review_findings.py --pull-request {pr}"
+    pass_when: "stdout-json.active_suppressed_count == 0 AND stdout-json.unknown_suppressed_count == 0 AND stdout-json.fetched_pages_complete == true"
+    fail_open: false
+  - name: "Resolved thread commit references are reachable"
+    verification: "command"
+    command: "python3 .claude/skills/github/scripts/pr/check_review_thread_resolution_shas.py --pull-request {pr}"
+    pass_when: "stdout-json.unreachable_count == 0 AND stdout-json.invalid_count == 0 AND stdout-json.ambiguous_count == 0 AND stdout-json.fetched_pages_complete == true"
+    fail_open: false
+  - name: "PR is ready to merge (CI green, no conflicts)"
+    verification: "command"
+    command: "python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr}"
+    # pr-autofix readiness is a four-condition gate: GitHub says the PR can
+    # merge, required checks pass, review threads are resolved, and the merge
+    # state is CLEAN or UNSTABLE. Keep these fields explicit here so a future
+    # upstream CanMerge regression cannot make this completion gate fail open.
+    #
+    # fetched_pages_complete is a separate data-integrity guard: a truncated
+    # GraphQL page can hide a failing required check, so the gate fails closed
+    # on partial fetches per the PR #1887 retrospective.
+    pass_when_python: "lambda d: d.get('CanMerge') is True and d.get('CIPassing') is True and d.get('fetched_pages_complete') is True and d.get('UnresolvedThreads') == 0 and d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE')"
+    fail_open: false
+  - name: "PR is not already merged"
+    verification: "command"
+    command: "python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {pr}"
+    pass_when: "stdout-json.merged == false"
+    fail_open: false
+
+failure_handling:
+  - type: "Session validation fails"
+    action: "Use session-log-fixer skill to diagnose and fix"
+  - type: "AI reviewer fails (infra)"
+    action: "Note as infrastructure issue; may be transient"
+  - type: "AI reviewer fails (code quality)"
+    action: "Address findings or document acknowledgment"
+  - type: "Security finding (CWE, OWASP, CVE)"
+    action: "BLOCKING. Fix the underlying code vulnerability before resolving the thread. Do NOT resolve security threads without a code fix. Log a tracking issue. Security threads with tracking issues are exempt from completion_criteria thread-resolution requirements. Ref: .claude/rules/security.md (canonical security file rule), AGENTS.md NEVER list."
+  - type: "Merge conflicts"
+    action: "Resolve conflicts or merge base branch"
+  - type: "Behind base branch"
+    action: "Merge base or rebase as appropriate"
+
+worktree_constraints:
+  - "ALL changes MUST be contained within the assigned worktree"
+  - "Agents MUST set working directory to their worktree before file operations"
+  - "All file paths MUST be relative to worktree root"
+  - "Git commands MUST be executed from within the worktree directory"
+  - "Before cleanup, verify no files were written outside worktrees"
+
+related_memories:
+  - name: "pr-review-007-merge-state-verification"
+    purpose: "GraphQL source of truth for merge state"
+  - name: "pr-review-004-thread-resolution-single"
+    purpose: "Single thread resolution via GraphQL"
+  - name: "pr-review-005-thread-resolution-batch"
+    purpose: "Batch thread resolution efficiency"
+  - name: "pr-review-008-session-state-continuity"
+    purpose: "Session context for multi-round reviews"
+  - name: "ai-quality-gate-failure-categorization"
+    purpose: "Infrastructure vs code quality failures"
+  - name: "session-log-fixer"
+    purpose: "Diagnose and fix session protocol failures"
+
+thread_resolution:
+  note: "Replying to a review comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation."
+  batch_graphql_template: |
+    mutation {
+      t1: resolveReviewThread(input: {threadId: "THREAD_ID_1"}) { thread { id isResolved } }
+      t2: resolveReviewThread(input: {threadId: "THREAD_ID_2"}) { thread { id isResolved } }
+    }
+
+invocation_limits:
+  all_open_max_prs: 5
+  all_open_overflow_action: "Report the PR numbers of the remaining open PRs and instruct the user to process them by specifying those numbers explicitly in a new command (re-running with all-open will re-process the same first N PRs)"
+  # The completion gate is no longer retried in a loop. A failing
+  # criterion produces the same wrong answer when looped, by definition;
+  # the workflow halts and surfaces the failing command's output instead.
+  # These fields are retained for backward compatibility with the schema
+  # validator but are not consulted by the new dispatchable gate.
+  completion_gate_max_retries: 0
+  completion_gate_overflow_action: "Halt and surface failing criterion output; do not loop"
+
+output_constraints:
+  per_pr_max_response_tokens: 4096
+  # Only "table" is supported today. To add another value, update pr-review.md Step 6 in the same change.
+  summary_format: "table"
+  summary_format_allowed_values: ["table"]
+  summary_required_columns: ["PR", "Branch", "Comments", "Acknowledged", "Implemented", "Commit", "Status"]
+
+dry_run:
+  description: "Preview planned actions without executing any GitHub mutations"
+  behavior:
+    - "Parse and validate PR numbers (same as normal)"
+    - "Gather PR context, comments, and check status (read-only API calls)"
+    - "Analyze what actions would be taken"
+    - "Output planned actions as JSON to stdout"
+  constraints:
+    - "No comments are posted"
+    - "No reactions are added"
+    - "No labels are applied"
+    - "No threads are resolved"
+    - "No commits are made"
+    - "No git push operations"
+    - "Exit after outputting JSON, do not proceed to execution"
+  output_schema:
+    root_keys:
+      - "dry_run: true"
+      - "timestamp: ISO 8601"
+      - "prs: array of per-PR planned action objects"
+      - "summary: totals for prs, comments, replies, threads"
+    per_pr_keys:
+      - "number, branch, state, mergeable"
+      - "planned_actions: comments_to_post, reactions_to_add, labels_to_apply, status_updates"
+      - "unaddressed_comments: id, author, body, domain, priority"
+      - "failing_checks: name, conclusion, suggested_action"
