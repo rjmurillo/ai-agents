@@ -1,0 +1,166 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10002,
+    "date": "2026-08-04",
+    "branch": "fix/scope-merge-check",
+    "startingCommit": "5ec85be51a",
+    "objective": "Fix #4602 detached HEAD false pass and #4544 merge-brought file counting in detect_scope_explosion"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial_instructions already loaded in this session; activate_project tool is not exposed."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial_instructions returned the tool manual earlier in this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md head into /home/richard/src/scratch/scope_merge_handoff_head.txt."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This JSON session log created before edits."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Invoked autoplan and analyze skills for routing and diagnosis."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used autoplan and analyze skill flow."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reused loaded Python, CI, testing, session-log, and scripts instructions from this session; task targets the same files."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read ci/measure-main-before-blaming-the-pr earlier in this session; issue context fetched live for #4544 and #4602."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/scope-merge-check"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/scope-merge-check."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree created clean from origin/main before edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "5ec85be51a"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, tests, measurement, mutation proof, and first commit are complete; pre-PR, push, and PR creation remain as external ship gates."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained read only."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable memory update warranted; issues, PR, tests, and this session log carry the defect evidence."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown file authored; JSON session log and Python files changed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation and tests committed as 83e1a45cb6fbfb3d0498bcf2d01e7b69be334944. This follow-up commit records the reachable endingCommit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "TMPDIR=$PWD/.pytest_tmp uv run --frozen pytest tests/test_detect_scope_explosion.py -q passed 57 tests. uv run --frozen ruff check and ruff format --check passed for changed Python files."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issues #4544 and #4602 advanced from reproduced to fixed locally with mutation proof."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-05T05:10:00Z",
+      "action": "Reopened #4544 and new #4602 were re-triaged against current code with cached issue discourse and the supplied attached versus detached reproduction.",
+      "files": [
+        "scripts/detect_scope_explosion.py",
+        "tests/test_detect_scope_explosion.py"
+      ],
+      "result": "Confirmed #4602 was a fail-open detached HEAD path and #4544 was an attached branch merge path where staged main files inflated the scope count."
+    },
+    {
+      "timestamp": "2026-08-05T05:55:00Z",
+      "action": "Changed scope detection to fail loudly when branch or base scope cannot be determined and to count committed branch files during in-progress merges.",
+      "files": [
+        "scripts/detect_scope_explosion.py"
+      ],
+      "result": "Detached HEAD now returns exit 2 through main. MERGE_HEAD now counts HEAD against the merge base instead of counting the staged merge result."
+    },
+    {
+      "timestamp": "2026-08-05T06:05:00Z",
+      "action": "Added real git regression coverage for attached merge scope, detached merge false pass, and helper command shape.",
+      "files": [
+        "tests/test_detect_scope_explosion.py"
+      ],
+      "result": "Attached synthetic merge has 11 authored files and 97 staged merge-brought files. Detector exits 0 at 11. Detached HEAD exits 2."
+    },
+    {
+      "timestamp": "2026-08-05T06:20:00Z",
+      "action": "Mutation-proved both fixes and the inverted cosmetic control after formatting.",
+      "files": [
+        "scripts/detect_scope_explosion.py",
+        "tests/test_detect_scope_explosion.py"
+      ],
+      "result": "Counting get_index_files_against_ref in MERGE_HEAD failed TestMergeHeadRealGit::test_attached_merge_counts_authored_files_not_merge_brought_files. Returning None on detached HEAD failed TestMergeHeadRealGit::test_attached_and_detached_merge_have_distinct_exit_codes. Cosmetic docstring reword survived 57 tests."
+    },
+    {
+      "timestamp": "2026-08-05T06:31:00Z",
+      "action": "Ran final targeted validation and measured the fixed attached and detached merge behavior.",
+      "files": [
+        "scripts/detect_scope_explosion.py",
+        "tests/test_detect_scope_explosion.py"
+      ],
+      "result": "57 tests passed, ruff check passed, ruff format check passed. Measurement: attached authored_count=11, staged_count=97, rc=0; detached rc=2."
+    }
+  ],
+  "endingCommit": "83e1a45cb6fbfb3d0498bcf2d01e7b69be334944",
+  "nextSteps": [
+    "Commit this session-log follow-up.",
+    "Run pre_pr.py, push with push_any_slot.sh, verify ls-remote, and open the REST PR with Fixes #4544 and Fixes #4602."
+  ]
+}
