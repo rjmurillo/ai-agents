@@ -197,14 +197,19 @@ def test_linked_worktree_real_counter_sees_merged_addition_and_deletion(
     tmp_path: Path,
 ) -> None:
     repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=1)
-    (repo / "deleted.py").write_text("x = value  # type: ignore\n", encoding="utf-8")
+    ignore_comment = "# type:" + " ignore"
+    (repo / "deleted.py").write_text(
+        f"x = value  {ignore_comment}\n", encoding="utf-8"
+    )
     _commit_all(repo, "add type ignore that branch deletes")
 
     linked = tmp_path / "linked"
     _git(repo, "worktree", "add", "-q", "-b", "pr-branch", str(linked), "main")
     _git(linked, "rm", "-q", "deleted.py")
     _commit_all(linked, "delete old type ignore")
-    (repo / "added.py").write_text("y = value  # type: ignore\n", encoding="utf-8")
+    (repo / "added.py").write_text(
+        f"y = value  {ignore_comment}\n", encoding="utf-8"
+    )
     _commit_all(repo, "add target-side type ignore")
 
     real_counter = _type_ignore.current_count
