@@ -94,17 +94,17 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Previous PR tip was d9e4f7d54e47de86ed58b7158f727f6099c05247. Follow-up document changes are split into atomic commits with generated mirrors and this session log."
+        "Evidence": "Follow-up document changes committed through 20e1e2d3854f1c94270110a84c653e13b05a68bb: testing and CI rules, skill purpose rule, governance evidence rule, and generated mirrors."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pre-commit validation: always-on corpus guard returned 20 passed; markdown lint returned 0; prohibited dash scan reported dash_violations 0; build_all --check regenerated mirrors and reported the expected uncommitted regen drift before the atomic commit split."
+        "Evidence": "Final validation after follow-up commits: uv run --frozen python -m pytest tests/validation/test_always_on_corpus_claims.py -q returned 20 passed; uv run --frozen python build/scripts/build_all.py --check returned 0; uv run --frozen python scripts/validation/pre_pr.py --markdown-lint-only returned 0; prohibited dash scan reported dash_violations 0."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Follow-up todos crosscheck-true-gates, rewrite-unfalsifiable, extend-cheap-harness, and validate-push-followup tracked through scratch TSV updates and validation commands."
+        "Evidence": "Follow-up split, TRUE-gate recheck, unfalsifiable rewrites, cheap harness extension, validation, and atomic commits are complete."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -164,6 +164,6 @@
       ]
     }
   ],
-  "endingCommit": "d9e4f7d54e47de86ed58b7158f727f6099c05247",
+  "endingCommit": "20e1e2d3854f1c94270110a84c653e13b05a68bb",
   "nextSteps": []
 }
