@@ -132,7 +132,8 @@
         "e007",
         "e008",
         "e009",
-        "e010"
+        "e010",
+        "e013"
       ],
       "leads_to": [
         "e012"
@@ -147,6 +148,43 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-05-session-4020-4377-worktree-autofix"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed pre-push mutation harness failure",
+      "caused_by": [],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-05-session-4020-4377-worktree-autofix"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-05T09:04:12+00:00",
+      "type": "commit",
+      "content": "Commit: f8128c64ea",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-05-session-4020-4377-worktree-autofix"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-05T09:48:18+00:00",
+      "type": "commit",
+      "content": "Commit: 24bbe15845be228ca36e694e823f03be5e0b83fc",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-4020-4377-worktree-autofix"
     }
@@ -156,7 +194,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 4,
     "files_changed": 2
   },
   "lessons": []

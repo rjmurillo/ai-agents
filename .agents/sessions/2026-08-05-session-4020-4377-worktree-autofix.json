@@ -99,12 +99,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code committed in 0a844f4d93 and f8128c64ea. Session log committed separately after validation."
+        "Evidence": "Code committed in 0a844f4d93 and f8128c64ea. Mutation-harness regression test committed in 24bbe15845. Session log committed separately after validation."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Targeted pytest passed: 59 passed in 0.94s. Ruff passed on touched Python. pre_pr.py exited 0."
+        "Evidence": "Targeted pytest passed: 62 passed in 10.39s, including the mutation harness. Custom mutation proof killed four behavioral mutants and kept two cosmetic controls. Ruff passed on touched Python. pre_pr.py exited 0."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -149,7 +149,7 @@
     },
     {
       "action": "Validated changes",
-      "detail": "Targeted pytest passed with 59 tests. Ruff passed on touched Python. pre_pr.py exited 0 with only existing warnings."
+      "detail": "Targeted pytest passed with 62 tests, including tests/mutation/test_mutate_validate_findings_scope.py. Ruff passed on touched Python. pre_pr.py exited 0 with only existing warnings."
     },
     {
       "action": "Ran mutation proof",
@@ -157,12 +157,16 @@
     },
     {
       "action": "Committed code changes",
-      "detail": "Committed #4020 as 0a844f4d93 and #4377 as f8128c64ea."
+      "detail": "Committed #4020 as 0a844f4d93, #4377 as f8128c64ea, and mutation coverage as 24bbe15845."
+    },
+    {
+      "action": "Fixed pre-push mutation harness failure",
+      "detail": "pre-push exposed that the existing bold-location mutant survived after free-form path extraction. Added an extensionless bold-location test so the intended mutant dies again."
     }
   ],
-  "endingCommit": "f8128c64ea563c1acd665bdd77856df43f24cce9",
+  "endingCommit": "24bbe15845be228ca36e694e823f03be5e0b83fc",
   "nextSteps": [
-    "Commit this session log.",
+    "Commit this updated session log.",
     "Push fix/4020-4377-worktree-and-autofix-race after verifying the remote head matches local HEAD.",
     "Create a REST PR that fixes #4020 and #4377."
   ]
