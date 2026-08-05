@@ -61,6 +61,7 @@ def _is_excluded_rework_path(path: str) -> bool:
 _GIT_LOG_ARGV = (
     "git",
     "log",
+    "--no-merges",
     "--name-status",
     "-M",
     "{base_ref}",
@@ -163,12 +164,23 @@ def compute_rework_warning(
     return _filter_over_threshold(_count_paths(stdout), threshold)
 
 
+_EVIDENCE_CAP = 20
+
+
 def emit_rework_warning_lines(items: list[tuple[str, int]]) -> list[str]:
     """Render rework-warning output lines (REQ-012-07, REQ-012-08).
 
     Returns at least one line. Empty input yields ``["rework-warning: none"]``
     so absence of a warning is positive evidence the check ran, not silence.
+
+    Output is capped at ``_EVIDENCE_CAP`` entries. When the list exceeds the
+    cap a trailing summary line reports the omitted count so the reader knows
+    the output is truncated, not complete (issue #4469).
     """
     if not items:
         return ["rework-warning: none"]
-    return [f"rework-warning: {path} edited {count} times" for path, count in items]
+    lines = [f"rework-warning: {path} edited {count} times" for path, count in items[:_EVIDENCE_CAP]]
+    if len(items) > _EVIDENCE_CAP:
+        omitted = len(items) - _EVIDENCE_CAP
+        lines.append(f"rework-warning: ... and {omitted} more path(s) omitted (cap {_EVIDENCE_CAP})")
+    return lines
