@@ -38,53 +38,42 @@ def _make_completed(
 
 
 class TestBudgetExhaustionMessage:
-    """run_pytest emits a budget-exhaustion message when a command times out
-    after the budget was partially consumed by earlier commands."""
+    """run_pytest must attribute a timeout to the right consumer.
 
-    def _run_pytest_with_timeout(
+    The earlier implementation decided "earlier commands ate the budget" by
+    testing ``remaining < TEST_SUITE_TIMEOUT_SECONDS``. That comparison is true
+    on the first command too, because the deadline and the subtraction read
+    ``time.monotonic()`` at two different instants. Measured against the real
+    clock, a first-and-only command that timed out printed "timed out after
+    1740s remaining of the 1740s budget (budget exhausted by earlier commands
+    in the suite)", which is self-contradictory and points the reader at
+    commands that never ran.
+
+    These tests drive the real clock rather than a fake one. A fake clock can
+    hand the code ``remaining == full_budget`` exactly, and production never
+    can, so a test built on that equality passes while the shipped message
+    lies.
+    """
+
+    def _run_pytest(
         self,
-        remaining: float,
-        full_budget: float,
+        returncodes: list[int],
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> tuple[int, str]:
-        """Call run_pytest with one command that times out at `remaining`."""
-        monkeypatch.setattr(
-            "scripts.validation.git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS",
-            full_budget,
-        )
-
-        deadline_value = [0.0]
-
-        def fake_monotonic() -> float:
-            return deadline_value[0]
-
-        # First call: set deadline; subsequent calls: advance clock so
-        # `remaining` = full_budget - (time elapsed)
-        call_count = [0]
-
-        def monotonic_side_effect() -> float:
-            call_count[0] += 1
-            if call_count[0] == 1:
-                # Initial call that sets deadline
-                deadline_value[0] = 0.0
-                return 0.0
-            # After first command runs: simulate that (full_budget - remaining) elapsed
-            return full_budget - remaining
-
-        monkeypatch.setattr("time.monotonic", monotonic_side_effect)
-
-        timeout_result = _make_completed(3)
-        timeout_result.stdout = b""
-        timeout_result.stderr = b""
-
+        """Run run_pytest over len(returncodes) commands on the REAL clock."""
+        commands = [
+            ["uv", "run", "python", "-m", "pytest", f"slice{i}"]
+            for i in range(len(returncodes))
+        ]
+        calls = iter(returncodes)
         monkeypatch.setattr(
             "scripts.validation.git_hook_policy._run_command",
-            lambda *a, **kw: timeout_result,
+            lambda *a, **kw: _make_completed(next(calls)),
         )
         monkeypatch.setattr(
             "scripts.validation.git_hook_policy._pytest_commands",
-            lambda root: [["uv", "run", "python", "-m", "pytest"]],
+            lambda root: commands,
         )
         monkeypatch.setattr(
             "scripts.validation.git_hook_policy._print_process_output",
@@ -103,30 +92,63 @@ class TestBudgetExhaustionMessage:
         rc = policy.run_pytest(tmp_path)
         return rc, captured.getvalue()
 
-    def test_budget_exhausted_emits_exhaustion_message(
+    def test_first_command_timeout_does_not_blame_earlier_commands(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        """Timeout with remaining < full budget -> budget-exhaustion message."""
-        full_budget = 1740.0
-        remaining = 200.0  # earlier commands consumed most of the budget
-
-        rc, stderr = self._run_pytest_with_timeout(remaining, full_budget, monkeypatch, tmp_path)
+        """A first-command timeout must not cite earlier commands (none ran)."""
+        rc, stderr = self._run_pytest([3], monkeypatch, tmp_path)
 
         assert rc == 3
-        assert "budget exhausted" in stderr.lower() or "budget" in stderr
+        assert "earlier command" not in stderr.lower()
+        assert "first command" in stderr.lower()
+        assert str(policy.TEST_SUITE_TIMEOUT_SECONDS) in stderr
 
-    def test_full_budget_timeout_no_exhaustion_message(
+    def test_later_command_timeout_quantifies_what_earlier_commands_used(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        """Timeout when full budget remains -> plain timeout, no budget-exhaustion claim."""
-        full_budget = 1740.0
-        remaining = full_budget  # first command, budget untouched
+        """A later timeout names the budget, what is left, and how many ran.
 
-        rc, stderr = self._run_pytest_with_timeout(remaining, full_budget, monkeypatch, tmp_path)
+        Asserts the structure the message promises rather than the bare word
+        "budget", which the previous assertion accepted from any sentence.
+        """
+        rc, stderr = self._run_pytest([0, 0, 3], monkeypatch, tmp_path)
 
         assert rc == 3
-        # No budget-exhaustion message when remaining == full_budget
-        assert "budget exhausted" not in stderr.lower()
+        lowered = stderr.lower()
+        assert "2 earlier commands" in lowered
+        assert "already consumed" in lowered
+        assert "left of the" in lowered
+        assert str(policy.TEST_SUITE_TIMEOUT_SECONDS) in stderr
+        assert "first command" not in lowered
+
+    def test_second_command_timeout_uses_the_singular(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Exactly one earlier command reads as "1 earlier command", not "commands"."""
+        rc, stderr = self._run_pytest([0, 3], monkeypatch, tmp_path)
+
+        assert rc == 3
+        assert "1 earlier command " in stderr.lower()
+
+    def test_no_budget_message_when_nothing_times_out(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Negative control: a clean run emits no timeout attribution at all."""
+        rc, stderr = self._run_pytest([0, 0], monkeypatch, tmp_path)
+
+        assert rc == 0
+        assert "timed out" not in stderr.lower()
+        assert "budget" not in stderr.lower()
+
+    def test_nonzero_that_is_not_a_timeout_gets_no_budget_message(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Only rc=3 is a timeout; a plain test failure must not cite the budget."""
+        rc, stderr = self._run_pytest([1], monkeypatch, tmp_path)
+
+        assert rc == 1
+        assert "budget" not in stderr.lower()
+        assert "timed out" not in stderr.lower()
 
     def test_zero_remaining_exits_before_running(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

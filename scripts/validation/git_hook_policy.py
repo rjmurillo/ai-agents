@@ -5814,7 +5814,7 @@ def run_pytest(repo_root: Path) -> int:
     # pre-push can block, or the hook outlives lefthook's own deadline and the
     # timeout looks nondeterministic.
     deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
-    for command in _pytest_commands(repo_root):
+    for index, command in enumerate(_pytest_commands(repo_root)):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             print(
@@ -5830,14 +5830,31 @@ def run_pytest(repo_root: Path) -> int:
             timeout_seconds=remaining,
         )
         _print_process_output(result)
-        if result.returncode == 3 and remaining < TEST_SUITE_TIMEOUT_SECONDS:
-            print(
-                "ERROR: pytest suite timed out after "
-                f"{remaining:g}s remaining of the "
-                f"{TEST_SUITE_TIMEOUT_SECONDS}s budget "
-                f"(budget exhausted by earlier commands in the suite)",
-                file=sys.stderr,
-            )
+        if result.returncode == 3:
+            # `remaining` is always fractionally below the full budget, even on
+            # the first command, because the deadline and this subtraction call
+            # time.monotonic() at two different instants. Comparing the two
+            # floats therefore cannot tell "earlier commands ate the budget"
+            # from "the first command used all of it", and reporting the former
+            # for a first-command timeout sends the reader hunting for commands
+            # that never ran. The loop index is the exact signal, so use it.
+            if index == 0:
+                print(
+                    "ERROR: pytest suite timed out; the first command "
+                    f"{command} consumed the whole "
+                    f"{TEST_SUITE_TIMEOUT_SECONDS}s budget on its own",
+                    file=sys.stderr,
+                )
+            else:
+                consumed = TEST_SUITE_TIMEOUT_SECONDS - remaining
+                plural = "" if index == 1 else "s"
+                print(
+                    f"ERROR: pytest suite timed out with {remaining:g}s left of "
+                    f"the {TEST_SUITE_TIMEOUT_SECONDS}s budget "
+                    f"({consumed:g}s already consumed by {index} earlier "
+                    f"command{plural} in the suite)",
+                    file=sys.stderr,
+                )
         if result.returncode != 0:
             return result.returncode
     return 0
