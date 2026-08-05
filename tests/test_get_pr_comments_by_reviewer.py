@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 from unittest.mock import patch
 
@@ -20,6 +22,7 @@ _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1]
     / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
+_SCRIPT = _SCRIPTS_DIR / "get_pr_comments_by_reviewer.py"
 
 
 def _import_script(name: str):
@@ -141,6 +144,24 @@ class TestBuildParser:
 
 
 class TestMain:
+    def test_foreign_github_workspace_uses_bundled_library(self):
+        env = os.environ.copy()
+        env.pop("COPILOT_PLUGIN_ROOT", None)
+        env.pop("CLAUDE_PLUGIN_ROOT", None)
+        env["GITHUB_WORKSPACE"] = str(Path(__file__).resolve().parent / "foreign-workspace")
+
+        result = subprocess.run(
+            [sys.executable, str(_SCRIPT), "--help"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=Path(__file__).resolve().parents[1],
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "grouped by reviewer" in result.stdout
+
     def test_not_authenticated_exits_4(self):
         with patch(
             f"{_MODULE}.assert_gh_authenticated",
@@ -149,6 +170,42 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1"])
             assert exc.value.code == 4
+
+    @pytest.mark.parametrize("failing_endpoint", ["pulls", "issues"])
+    def test_partial_pagination_exits_3(
+        self,
+        failing_endpoint: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        pr_view = _completed(stdout=json.dumps({"author": {"login": "author1"}}))
+
+        def rest(endpoint: str, **_kwargs) -> list[dict]:
+            if f"/{failing_endpoint}/" in endpoint:
+                warnings.warn(
+                    "GitHub API page 2 failed. Returning partial results.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                return [_make_review_comment()]
+            return []
+
+        with patch(
+            f"{_MODULE}.assert_gh_authenticated",
+        ), patch(
+            f"{_MODULE}.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            f"{_MODULE}.subprocess.run",
+            return_value=pr_view,
+        ), patch(
+            f"{_MODULE}.gh_api_paginated",
+            side_effect=rest,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "42"])
+
+        assert exc.value.code == 3
+        assert '"success": true' not in capsys.readouterr().out.lower()
 
     def test_no_comments(self, capsys):
         pr_view = _completed(stdout=json.dumps({"author": {"login": "author1"}}))

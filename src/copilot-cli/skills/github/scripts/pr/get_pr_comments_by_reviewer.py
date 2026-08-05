@@ -20,15 +20,13 @@ import json
 import os
 import subprocess
 import sys
+import warnings
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
@@ -71,6 +69,16 @@ def _account_id(actor: dict[str, Any]) -> int | None:
     if not isinstance(account_id, int):
         account_id = actor.get("databaseId")
     return account_id if isinstance(account_id, int) else None
+
+
+def _fetch_complete_comments(endpoint: str) -> list[dict[str, Any]]:
+    """Reject the pagination helper's documented partial result."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        try:
+            return cast(list[dict[str, Any]], gh_api_paginated(endpoint))
+        except UserWarning as exc:
+            raise RuntimeError(f"Incomplete pagination for {endpoint}: {exc}") from exc
 
 
 def _fetch_pr_author(owner: str, repo: str, pr_number: int) -> tuple[str, int | None]:
@@ -142,7 +150,7 @@ def get_pr_comments_by_reviewer(
         comments: list[dict[str, Any]] = []
 
         if comment_type in ("review", "all"):
-            review_comments = gh_api_paginated(
+            review_comments = _fetch_complete_comments(
                 f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
             )
             for c in review_comments:
@@ -161,7 +169,7 @@ def get_pr_comments_by_reviewer(
                 })
 
         if comment_type in ("issue", "all"):
-            issue_comments = gh_api_paginated(
+            issue_comments = _fetch_complete_comments(
                 f"repos/{owner}/{repo}/issues/{pr_number}/comments"
             )
             for c in issue_comments:
@@ -315,17 +323,20 @@ def main(argv: list[str] | None = None) -> int:
     owner = resolved.owner
     repo = resolved.repo
 
-    result = get_pr_comments_by_reviewer(
-        owner,
-        repo,
-        args.pull_request,
-        include_reviewers=args.include_reviewer,
-        exclude_reviewers=args.exclude_reviewer,
-        since=args.since,
-        until=args.until,
-        comment_type=args.comment_type,
-        exclude_self_comments=not args.include_self_comments,
-    )
+    try:
+        result = get_pr_comments_by_reviewer(
+            owner,
+            repo,
+            args.pull_request,
+            include_reviewers=args.include_reviewer,
+            exclude_reviewers=args.exclude_reviewer,
+            since=args.since,
+            until=args.until,
+            comment_type=args.comment_type,
+            exclude_self_comments=not args.include_self_comments,
+        )
+    except RuntimeError as exc:
+        error_and_exit(f"Failed to get PR comments: {exc}", 3)
 
     print(json.dumps(result, indent=2))
     return 0
