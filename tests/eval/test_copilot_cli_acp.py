@@ -345,7 +345,11 @@ def test_started_process_uses_a_bounded_stdout_queue(tmp_path: Path) -> None:
     try:
         assert streams.stdout_lines.maxsize == acp_module._STDOUT_QUEUE_LINES
     finally:
-        acp_module._stop_process(streams)
+        acp_module._stop_process(
+            streams,
+            deadline=time.monotonic() + 1.0,
+            timeout=1.0,
+        )
 
 
 def test_reader_start_failure_cleans_up_the_child(
@@ -382,6 +386,42 @@ def test_reader_start_failure_cleans_up_the_child(
         )
 
     assert started["process"].poll() is not None
+
+
+@pytest.mark.timeout(3)
+def test_parent_exit_during_request_kills_pipe_holding_descendant(
+    tmp_path: Path,
+) -> None:
+    fake = tmp_path / "exit_with_descendant.py"
+    fake.write_text(
+        "\n".join(
+            [
+                "import os",
+                "import subprocess",
+                "import sys",
+                "sys.stdin.readline()",
+                "subprocess.Popen(",
+                '    [sys.executable, \"-c\", \"import time; time.sleep(60)\"],',
+                "    stdout=sys.stdout,",
+                "    stderr=sys.stderr,",
+                ")",
+                "os._exit(1)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    started = time.monotonic()
+
+    with pytest.raises(ACPProcessError):
+        run_acp_completion(
+            _safe_argv(fake),
+            "PRIVATE PROMPT",
+            cwd=str(tmp_path),
+            env={"PATH": os.environ.get("PATH", os.defpath)},
+            timeout=10.0,
+        )
+
+    assert time.monotonic() - started < 2.0
 
 
 def test_protocol_character_budget_is_cumulative(
@@ -637,6 +677,42 @@ def test_stdin_write_obeys_the_session_deadline() -> None:
         release_writer.set()
 
     assert tree.terminated is True
+
+
+@pytest.mark.timeout(3)
+def test_process_shutdown_obeys_the_session_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    fake = _write_fake_acp(tmp_path)
+    sleeping = _FAKE_ACP.replace(
+        '    if method == "session/close":\n'
+        '        emit({"jsonrpc": "2.0", "id": request_id, "result": {}})\n'
+        "        continue\n",
+        '    if method == "session/close":\n'
+        '        emit({"jsonrpc": "2.0", "id": request_id, "result": {}})\n'
+        "        import time\n"
+        "        time.sleep(60)\n"
+        "        continue\n",
+    )
+    fake.write_text(sleeping, encoding="utf-8")
+    monkeypatch.setattr(
+        acp_module,
+        "_drain_stdout_after_close",
+        lambda *args, **kwargs: None,
+    )
+    started = time.monotonic()
+
+    with pytest.raises(subprocess.TimeoutExpired):
+        run_acp_completion(
+            _safe_argv(fake),
+            "WRITE_MARKER:/unused",
+            cwd=str(tmp_path),
+            env={"PATH": os.environ.get("PATH", os.defpath)},
+            timeout=0.3,
+        )
+
+    assert time.monotonic() - started < 2.0
 
 
 def test_timeout_exception_does_not_receive_prompt_in_command(

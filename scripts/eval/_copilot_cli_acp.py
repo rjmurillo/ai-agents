@@ -315,16 +315,26 @@ def _wait_for_response(
     timeout: float,
     answer_chunks: list[str],
 ) -> dict[str, object]:
+    terminated_descendants = False
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise subprocess.TimeoutExpired(streams.process.args, timeout) from None
         try:
-            raw_line = streams.stdout_lines.get(timeout=remaining)
+            raw_line = streams.stdout_lines.get(
+                timeout=min(remaining, _QUEUE_WAIT_SECONDS)
+            )
         except queue.Empty:
-            raise subprocess.TimeoutExpired(streams.process.args, timeout) from None
+            if streams.process.poll() is not None and not terminated_descendants:
+                streams.process_tree.terminate(force=True)
+                terminated_descendants = True
+            continue
         if raw_line is None:
-            returncode = _close_process(streams)
+            returncode = _close_process(
+                streams,
+                deadline=deadline,
+                timeout=timeout,
+            )
             raise ACPProcessError(
                 returncode,
                 "".join(streams.stderr_chunks),
@@ -345,56 +355,114 @@ def _wait_for_response(
             _consume_update(message, answer_chunks, streams)
 
 
-def _join_readers(streams: _ProcessStreams) -> bool:
-    deadline = time.monotonic() + _READER_JOIN_SECONDS
+def _join_readers(
+    streams: _ProcessStreams,
+    *,
+    deadline: float,
+    timeout: float,
+) -> bool:
+    phase_deadline = min(
+        deadline,
+        time.monotonic() + _READER_JOIN_SECONDS,
+    )
     for reader in (streams.stdout_thread, streams.stderr_thread):
-        reader.join(max(0.0, deadline - time.monotonic()))
+        reader.join(max(0.0, phase_deadline - time.monotonic()))
     if not streams.stdout_thread.is_alive() and not streams.stderr_thread.is_alive():
         return True
 
     streams.stop_readers.set()
     streams.process_tree.terminate(force=True)
-    deadline = time.monotonic() + _READER_JOIN_SECONDS
+    if deadline <= time.monotonic():
+        raise subprocess.TimeoutExpired(streams.process.args, timeout) from None
+    phase_deadline = min(
+        deadline,
+        time.monotonic() + _READER_JOIN_SECONDS,
+    )
     for reader in (streams.stdout_thread, streams.stderr_thread):
-        reader.join(max(0.0, deadline - time.monotonic()))
+        reader.join(max(0.0, phase_deadline - time.monotonic()))
     return not streams.stdout_thread.is_alive() and not streams.stderr_thread.is_alive()
 
 
-def _wait_for_process(streams: _ProcessStreams) -> int:
+def _remaining_process_wait(
+    streams: _ProcessStreams,
+    deadline: float,
+    timeout: float,
+) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        streams.process_tree.terminate(force=True)
+        raise subprocess.TimeoutExpired(streams.process.args, timeout) from None
+    return min(_PROCESS_WAIT_SECONDS, remaining)
+
+
+def _wait_for_process(
+    streams: _ProcessStreams,
+    *,
+    deadline: float,
+    timeout: float,
+) -> int:
     process = streams.process
     try:
-        return process.wait(timeout=_PROCESS_WAIT_SECONDS)
+        return process.wait(
+            timeout=_remaining_process_wait(streams, deadline, timeout)
+        )
     except subprocess.TimeoutExpired:
         streams.process_tree.terminate(force=False)
     try:
-        return process.wait(timeout=_PROCESS_WAIT_SECONDS)
+        return process.wait(
+            timeout=_remaining_process_wait(streams, deadline, timeout)
+        )
     except subprocess.TimeoutExpired:
         streams.process_tree.terminate(force=True)
-        return process.wait(timeout=_PROCESS_WAIT_SECONDS)
+        return process.wait(
+            timeout=_remaining_process_wait(streams, deadline, timeout)
+        )
 
 
-def _close_process(streams: _ProcessStreams) -> int:
+def _close_process(
+    streams: _ProcessStreams,
+    *,
+    deadline: float,
+    timeout: float,
+) -> int:
     process = streams.process
     if process.stdin is not None and not process.stdin.closed:
         process.stdin.close()
-    returncode = _wait_for_process(streams)
-    if not _join_readers(streams):
+    returncode = _wait_for_process(
+        streams,
+        deadline=deadline,
+        timeout=timeout,
+    )
+    if not _join_readers(streams, deadline=deadline, timeout=timeout):
         raise RuntimeError("Copilot ACP reader cleanup timed out")
     streams.process_tree.close()
     return returncode
 
 
-def _stop_process(streams: _ProcessStreams) -> None:
+def _stop_process(
+    streams: _ProcessStreams,
+    *,
+    deadline: float,
+    timeout: float,
+) -> None:
     process = streams.process
     streams.stop_readers.set()
     streams.process_tree.terminate(force=False)
     if process.poll() is None:
+        remaining = max(0.0, deadline - time.monotonic())
         try:
-            process.wait(timeout=_PROCESS_WAIT_SECONDS)
+            process.wait(timeout=min(_PROCESS_WAIT_SECONDS, remaining))
         except subprocess.TimeoutExpired:
             streams.process_tree.terminate(force=True)
-            process.wait(timeout=_PROCESS_WAIT_SECONDS)
-    _join_readers(streams)
+            remaining = max(0.0, deadline - time.monotonic())
+            try:
+                process.wait(timeout=min(_PROCESS_WAIT_SECONDS, remaining))
+            except subprocess.TimeoutExpired:
+                pass
+    try:
+        _join_readers(streams, deadline=deadline, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        pass
     streams.process_tree.close()
 
 
@@ -545,9 +613,13 @@ def run_acp_completion(
             deadline=deadline,
             timeout=timeout,
         )
-        returncode = _close_process(streams)
+        returncode = _close_process(
+            streams,
+            deadline=deadline,
+            timeout=timeout,
+        )
     except BaseException:
-        _stop_process(streams)
+        _stop_process(streams, deadline=deadline, timeout=timeout)
         raise
     stderr = "".join(streams.stderr_chunks)
     if returncode != 0:
