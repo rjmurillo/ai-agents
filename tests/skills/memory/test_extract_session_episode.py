@@ -1053,11 +1053,11 @@ class TestMergePreserving:
         assert merged["metrics"]["errors"] == 3
         assert merged["metrics"]["files_changed"] == 7
 
-    def test_event_timestamps_normalized_to_session_midnight(self):
+    def test_event_timestamps_keep_explicit_source_time(self):
         merged = extract_session_episode.merge_preserving(
             self._stub(), self._rich(), session_id="2026-01-08-session-807"
         )
-        assert merged["events"][0]["timestamp"] == "2026-01-08T00:00:00+00:00"
+        assert merged["events"][0]["timestamp"] == "2026-01-08T12:20:10.93-06:00"
 
     def test_placeholder_task_yields_but_real_new_task_wins(self):
         new = self._stub()
@@ -1164,13 +1164,7 @@ class TestMergePreserving:
         )
 
     def test_commit_timestamp_difference_enables_causal_ordering(self):
-        """A commit at 23:47 after a milestone at midnight must be orderable.
-
-        When _dedupe_events() stamps the commit with midnight, both events share
-        the same timestamp and _event_order_relation() returns None
-        (incomparable), producing no causal edge. After the fix the timestamps
-        differ, enabling strict ordering.
-        """
+        """A commit and timestamped milestone must keep distinct source times."""
         commit_ts = "2026-01-08T23:47:12+00:00"
         midnight = "2026-01-08T00:00:00+00:00"
         events = extract_session_episode._dedupe_events(
@@ -1198,9 +1192,9 @@ class TestMergePreserving:
         )
         commit_ev = next(e for e in events if e["type"] == "commit")
         milestone_ev = next(e for e in events if e["type"] == "milestone")
-        # Commit keeps its real timestamp; milestone gets midnight.
+        # Both events keep source timestamps.
         assert commit_ev["timestamp"] == commit_ts
-        assert milestone_ev["timestamp"] == midnight
+        assert milestone_ev["timestamp"] == "2026-01-08T10:00:00+00:00"
         # Timestamps differ, so ordering is well-defined.
         assert commit_ev["timestamp"] != milestone_ev["timestamp"]
     """--preserve end-to-end and flag exclusivity (#2170)."""
@@ -3400,6 +3394,152 @@ class TestValidateMetricsConsistency:
             encoding="utf-8",
         )
         assert extract_session_episode.validate_episode_file(ep) == []
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestPreserveChronology:
+    @staticmethod
+    def _repo(tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        return repo
+
+    @staticmethod
+    def _event(episode, content):
+        return next(evt for evt in episode["events"] if evt["content"] == content)
+
+    def test_preserve_keeps_timestamped_milestone_after_commit(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        repo = self._repo(tmp_path)
+        first = _commit(repo, "first.txt", "first", when="2026-08-04T05:00:00+00:00")
+        second = _commit(repo, "second.txt", "second", when="2026-08-04T10:00:00+00:00")
+        monkeypatch.chdir(repo)
+        monkeypatch.setattr(extract_session_episode, "_repo_root", lambda: repo)
+
+        session = _json_log(
+            [
+                {
+                    "time": "2026-08-04T10:30:00+00:00",
+                    "task": "Finalized closeout chronology",
+                }
+            ],
+            committed=f"Commit {first}",
+        )
+        session["session"]["date"] = "2026-08-04"
+        session["session"]["startingCommit"] = "0" * 40
+        session["endingCommit"] = second
+        session_file = tmp_path / "2026-08-04-session-4435-chronology.json"
+        session_file.write_text(json.dumps(session), encoding="utf-8")
+        episodes = tmp_path / "episodes"
+        episode_file = episodes / "episode-2026-08-04-session-4435-chronology.json"
+
+        assert extract_session_episode.main(
+            [str(session_file), "--output-path", str(episodes), "--force"]
+        ) == 0
+        corrupted = json.loads(episode_file.read_text(encoding="utf-8"))
+        milestone = self._event(corrupted, "Finalized closeout chronology")
+        first_commit = self._event(corrupted, f"Commit: {first}")
+        second_commit = self._event(corrupted, f"Commit: {second}")
+        milestone["timestamp"] = "2026-08-04T00:00:00+00:00"
+        milestone["caused_by"] = []
+        milestone["leads_to"] = [first_commit["id"]]
+        first_commit["caused_by"].append(milestone["id"])
+        second_commit["leads_to"] = []
+        episode_file.write_text(json.dumps(corrupted, indent=2) + "\n", encoding="utf-8")
+
+        assert extract_session_episode.main(
+            [str(session_file), "--output-path", str(episodes), "--preserve", "--pending-stage"]
+        ) == 0
+
+        episode = json.loads(episode_file.read_text(encoding="utf-8"))
+        milestone = self._event(episode, "Finalized closeout chronology")
+        first_commit = self._event(episode, f"Commit: {first}")
+        second_commit = self._event(episode, f"Commit: {second}")
+        assert milestone["timestamp"] == "2026-08-04T10:30:00+00:00"
+        assert milestone["caused_by"] == [second_commit["id"]]
+        assert second_commit["leads_to"] == [milestone["id"]]
+        assert first_commit["leads_to"] == [second_commit["id"]]
+
+    def test_causal_edge_order_rejects_scrambled_store(self) -> None:
+        events = [
+            {
+                "id": "e001",
+                "timestamp": "2026-08-04T10:00:00+00:00",
+                "type": "commit",
+                "content": "Commit: older",
+                "caused_by": ["e002"],
+                "leads_to": [],
+            },
+            {
+                "id": "e002",
+                "timestamp": "2026-08-04T10:30:00+00:00",
+                "type": "milestone",
+                "content": "post-commit closeout",
+                "caused_by": [],
+                "leads_to": ["e001"],
+            },
+        ]
+
+        problems = extract_session_episode.validate_causal_edge_order(events)
+
+        assert any("causal edge e002 -> e001 runs backwards" in p for p in problems)
+
+    def test_validate_mode_rejects_scrambled_causal_edges(self, tmp_path, capsys) -> None:
+        episode = tmp_path / "episode-scrambled.json"
+        episode.write_text(
+            json.dumps(
+                {
+                    "events": [
+                        {
+                            "id": "e001",
+                            "timestamp": "2026-08-04T10:00:00+00:00",
+                            "type": "commit",
+                            "content": "Commit: older",
+                            "caused_by": ["e002"],
+                            "leads_to": [],
+                        },
+                        {
+                            "id": "e002",
+                            "timestamp": "2026-08-04T10:30:00+00:00",
+                            "type": "milestone",
+                            "content": "post-commit closeout",
+                            "caused_by": [],
+                            "leads_to": ["e001"],
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+        assert "causal edge e002 -> e001 runs backwards" in capsys.readouterr().err
+
+    def test_causal_edge_order_allows_equal_timestamps(self) -> None:
+        events = [
+            {
+                "id": "e001",
+                "timestamp": "2026-08-04T10:00:00+00:00",
+                "type": "milestone",
+                "content": "work",
+                "caused_by": [],
+                "leads_to": ["e002"],
+            },
+            {
+                "id": "e002",
+                "timestamp": "2026-08-04T10:00:00+00:00",
+                "type": "test",
+                "content": "tests passed",
+                "caused_by": ["e001"],
+                "leads_to": [],
+            },
+        ]
+
+        assert extract_session_episode.validate_causal_edge_order(events) == []
 
 
 class TestDurationFromWorklogs:
