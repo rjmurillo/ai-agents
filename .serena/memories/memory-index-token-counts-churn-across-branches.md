@@ -1,4 +1,4 @@
-# The memory index token updater rewrites every row, so branches collide on it
+# The memory index token updater recounts every row, so branches collide on it
 
 ## The trap
 
@@ -8,6 +8,13 @@ pre-commit job (`lefthook.yml:260`). That job runs
 `memory-index.md` and recounts it, not just the file you staged. The next job,
 `stage-memory-index` (`lefthook.yml:268`), auto-stages the rewrite into your
 commit.
+
+It recounts every row but rewrites only the rows whose count changed
+(`update_line` replaces a row only `if new_count != old_count`). So the diff is
+quiet when `main` is accurate and noisy when it is not, and you cannot predict
+which from your own change. On a tree where every count is already correct the
+script prints `Token counts in memory-index.md already current` and touches
+nothing, which is why a clean run is not evidence that the hazard is absent.
 
 So a one-memory change can silently carry corrections to rows you never
 touched. Two branches that each add one memory will both rewrite the same
