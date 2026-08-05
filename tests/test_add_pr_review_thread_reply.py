@@ -34,6 +34,18 @@ build_parser = _mod.build_parser
 query_thread_state = _mod.query_thread_state
 
 _UNRESOLVED_STATE: dict = {"id": "PRRT_abc", "isResolved": False}
+_ARMED_AUTO_MERGE_STATE: dict = {
+    "id": "PRRT_abc",
+    "isResolved": False,
+    "pullRequest": {
+        "id": "PR_armed",
+        "number": 4377,
+        "autoMergeRequest": {
+            "enabledAt": "2026-08-03T01:40:00Z",
+            "mergeMethod": "SQUASH",
+        },
+    },
+}
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +179,75 @@ class TestMain:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["thread_resolved"] is True
+
+    def test_resolve_disables_armed_auto_merge_before_reply(self, capsys):
+        disable_data = {
+            "disablePullRequestAutoMerge": {
+                "pullRequest": {
+                    "id": "PR_armed",
+                    "number": 4377,
+                    "autoMergeRequest": None,
+                },
+            },
+        }
+        reply_data = {
+            "addPullRequestReviewThreadReply": {
+                "comment": {
+                    "id": "node123",
+                    "databaseId": 456,
+                    "url": "https://example.com",
+                    "createdAt": "2026-08-03T01:40:28Z",
+                    "author": {"login": "user1"},
+                },
+            },
+        }
+        resolve_data = {
+            "resolveReviewThread": {
+                "thread": {"id": "PRRT_abc", "isResolved": True},
+            },
+        }
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=_ARMED_AUTO_MERGE_STATE,
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                side_effect=[disable_data, reply_data, resolve_data],
+            ) as mock_gql,
+        ):
+            rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
+        assert rc == 0
+        calls = mock_gql.call_args_list
+        assert calls[0].args[0] == _mod._DISABLE_AUTO_MERGE_MUTATION
+        assert calls[1].args[0] == _mod._REPLY_MUTATION
+        assert calls[2].args[0] == _mod._RESOLVE_MUTATION
+        output = json.loads(capsys.readouterr().out)
+        assert output["thread_resolved"] is True
+        assert output["auto_merge_disabled_before_resolve"] is True
+
+    def test_resolve_stops_before_reply_when_auto_merge_disable_fails(self):
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=_ARMED_AUTO_MERGE_STATE,
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                side_effect=RuntimeError("disable failed"),
+            ) as mock_gql,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
+        assert exc.value.code == 3
+        assert len(mock_gql.call_args_list) == 1
+        assert mock_gql.call_args_list[0].args[0] == _mod._DISABLE_AUTO_MERGE_MUTATION
 
     def test_thread_not_found_returns_skip(self, capsys):
         with (

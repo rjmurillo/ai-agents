@@ -4,7 +4,10 @@
 Posts a reply to a review thread using the thread ID (PRRT_...) rather than
 comment ID. Required for proper thread management with branch protection rules.
 
-Optionally resolves the thread after posting the reply.
+Optionally resolves the thread after posting the reply. When resolving, the
+script disables any armed auto-merge on the owning PR before the reply and
+resolve mutations. That closes the race where resolving the final thread lets
+GitHub merge before the completion gate runs.
 
 Exit codes follow ADR-035:
     0 - Success
@@ -72,12 +75,33 @@ mutation($threadId: ID!) {
     }
 }"""
 
+_DISABLE_AUTO_MERGE_MUTATION = """\
+mutation($pullRequestId: ID!) {
+    disablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId}) {
+        pullRequest {
+            id
+            number
+            autoMergeRequest {
+                enabledAt
+            }
+        }
+    }
+}"""
+
 _THREAD_QUERY = """\
 query($threadId: ID!) {
     node(id: $threadId) {
         ... on PullRequestReviewThread {
             id
             isResolved
+            pullRequest {
+                id
+                number
+                autoMergeRequest {
+                    enabledAt
+                    mergeMethod
+                }
+            }
         }
     }
 }"""
@@ -118,16 +142,67 @@ def query_thread_state(thread_id: str) -> dict[str, Any] | None:
 
 
 def _thread_is_actionable(thread_id: str) -> bool:
+    return _actionable_thread_state(thread_id) is not None
+
+
+def _actionable_thread_state(thread_id: str) -> dict[str, Any] | None:
     try:
         thread = query_thread_state(thread_id)
     except RuntimeError as exc:
         error_and_exit(f"Failed to query thread state: {exc}", 3)
     if thread is None:
         print(json.dumps({"action": "SKIP", "reason": "not_found"}, indent=2))
-        return False
+        return None
     if thread.get("isResolved"):
         print(json.dumps({"action": "SKIP", "reason": "thread_resolved"}, indent=2))
+        return None
+    return thread
+
+
+def _disable_armed_auto_merge_before_resolve(thread: dict[str, Any]) -> bool:
+    """Disable armed auto-merge before resolving a review thread.
+
+    Resolving the final thread can satisfy branch protection and fire an
+    already-armed auto-merge before the completion gate runs. Disarm first;
+    if that fails, do not post the reply or resolve the thread.
+    """
+    pull_request = thread.get("pullRequest")
+    if not isinstance(pull_request, dict):
         return False
+    if pull_request.get("autoMergeRequest") is None:
+        return False
+
+    pull_request_id = pull_request.get("id")
+    if not isinstance(pull_request_id, str) or not pull_request_id:
+        error_and_exit(
+            "Thread belongs to an armed auto-merge PR, but the PR node id is missing",
+            3,
+        )
+
+    try:
+        data = gh_graphql(
+            _DISABLE_AUTO_MERGE_MUTATION,
+            {"pullRequestId": pull_request_id},
+        )
+    except RuntimeError as exc:
+        pr_number = pull_request.get("number", "unknown")
+        error_and_exit(
+            f"Failed to disable auto-merge for PR #{pr_number} before resolving "
+            f"thread: {exc}",
+            3,
+        )
+
+    auto_merge = (
+        data.get("disablePullRequestAutoMerge", {})
+        .get("pullRequest", {})
+        .get("autoMergeRequest")
+    )
+    if auto_merge is not None:
+        pr_number = pull_request.get("number", "unknown")
+        error_and_exit(
+            f"Auto-merge remains armed for PR #{pr_number}; refusing to resolve thread",
+            3,
+        )
     return True
 
 
@@ -144,8 +219,13 @@ def main(argv: list[str] | None = None) -> int:
 
     assert_gh_authenticated()
 
-    if not _thread_is_actionable(args.thread_id):
+    thread = _actionable_thread_state(args.thread_id)
+    if thread is None:
         return 0
+
+    auto_merge_disabled = False
+    if args.resolve:
+        auto_merge_disabled = _disable_armed_auto_merge_before_resolve(thread)
 
     try:
         reply_data = gh_graphql(
@@ -193,6 +273,7 @@ def main(argv: list[str] | None = None) -> int:
         "created_at": comment.get("createdAt"),
         "author": author.get("login") if author else None,
         "thread_resolved": thread_resolved,
+        "auto_merge_disabled_before_resolve": auto_merge_disabled,
     }
 
     print(json.dumps(output, indent=2))
