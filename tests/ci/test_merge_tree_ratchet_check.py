@@ -7,7 +7,7 @@ with monkeypatched counter functions to keep tests fast and hermetic.
 Coverage:
 - clean merge: all counters under baseline -> EXIT_OK
 - regression: one counter over baseline -> EXIT_REGRESSION
-- conflict: merge-tree exits 1 -> EXIT_OK with skip message
+- conflict: merge-tree exits 1 -> distinct nonzero conflict exit
 - git failure: merge-tree exits 2 -> EXIT_EXTERNAL
 - counter returns None: -> EXIT_EXTERNAL
 - baseline unreadable at base ref: -> EXIT_CONFIG
@@ -142,8 +142,9 @@ class TestMergeTreeRatchetCheck:
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
         assert rc == _m.EXIT_REGRESSION
 
-    def test_conflict_skips_with_ok(self, tmp_path: Path) -> None:
-        """Merge conflict -> EXIT_OK; counters are NOT invoked."""
+    def test_conflict_fails_closed_without_running_counters(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
 
         # Create a branch that conflicts with main on hello.py
@@ -187,8 +188,11 @@ class TestMergeTreeRatchetCheck:
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
 
-        assert rc == _m.EXIT_OK
-        # None of the counters should run - conflict was detected and skipped
+        assert rc == _m.EXIT_CONFLICT
+        error = capsys.readouterr().err
+        assert "merge has conflicts" in error
+        assert "resolve the conflicts and rerun the ratchet" in error
+        assert "breaches a ratchet ceiling" not in error
         assert call_counts == {"ruff": 0, "taste": 0, "ignore": 0, "memory": 0}, (
             f"Counters ran despite conflict: {call_counts}"
         )

@@ -35,9 +35,9 @@ Timing (measured on this repo, 7925 tracked files):
     four ratchets:   sub-second each
     total:           ~1-2 s vs 13.5 min p50 CI critical path
 
-Conflict policy: when the merge conflicts, the PR cannot land anyway, so
-blocking here would duplicate the mergeability check. Skip with a clear
-message; let the merge-conflict gate handle it.
+Conflict policy: fail closed with a distinct exit because no complete merged
+tree exists to evaluate. The diagnostic tells the caller to resolve conflicts
+and rerun the ratchet.
 
 Scratch cleanup: always, on every exit path including exceptions.
 
@@ -46,12 +46,14 @@ Exit codes (AGENTS.md contract):
     1 - regression (at least one count > baseline)
     2 - config error (baseline missing, bad args)
     3 - external error (git, ruff, or taste-lints could not run)
+    100 - merge conflict (ratchets were not evaluated)
 """
 
 from __future__ import annotations
 
 import argparse
 import io
+import os
 import shutil
 import subprocess
 import sys
@@ -70,16 +72,18 @@ from scripts.ci import ruff_count_ratchet as _ruff
 from scripts.ci import taste_count_ratchet as _taste
 from scripts.ci import type_ignore_count_ratchet as _type_ignore
 from scripts.ci.count_ratchet import read_baseline
+from scripts.cli_exec import resolve_executable
 
 EXIT_OK = 0
 EXIT_REGRESSION = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
+EXIT_CONFLICT = 100
 
 
 def _git(cwd: Path, *argv: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["git", "-C", str(cwd), *argv],
+        [resolve_executable("git"), "-C", str(cwd), *argv],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -88,14 +92,33 @@ def _git(cwd: Path, *argv: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _merge_tree_oid(repo_root: Path, base_ref: str) -> tuple[str | None, bool]:
+def _resolve_base_oid(repo_root: Path, base_ref: str) -> str | None:
+    """Resolve the mutable base ref once, or report why it cannot be pinned."""
+    proc = _git(
+        repo_root,
+        "rev-parse",
+        "--verify",
+        "--end-of-options",
+        f"{base_ref}^{{commit}}",
+    )
+    oid = proc.stdout.strip()
+    if proc.returncode == 0 and oid:
+        return oid
+    sys.stderr.write(
+        f"merge-tree-ratchet: cannot resolve base ref {base_ref!r} to a commit OID.\n"
+        f"{proc.stderr}\n"
+    )
+    return None
+
+
+def _merge_tree_oid(repo_root: Path, base_oid: str) -> tuple[str | None, bool]:
     """Return (tree-oid, conflicts). oid is None on git failure.
 
     Every None return writes its own explanation to stderr, so callers must not
     add a second generic one. Two messages for one failure make the specific
     diagnosis read like a guess (PR #4567 review).
     """
-    proc = _git(repo_root, "merge-tree", "--write-tree", base_ref, "HEAD")
+    proc = _git(repo_root, "merge-tree", "--write-tree", base_oid, "HEAD")
     if proc.returncode in (0, 1):
         # exit 1 means conflicts; stdout still has the partial tree oid on line 1
         lines = proc.stdout.strip().splitlines()
@@ -165,7 +188,7 @@ def _extract_tree(repo_root: Path, tree_oid: str, dest: Path) -> bool:
     """Extract git tree into dest. Returns True on success."""
     dest.mkdir(parents=True, exist_ok=True)
     archive_proc = subprocess.run(
-        ["git", "-C", str(repo_root), "archive", tree_oid],
+        [resolve_executable("git"), "-C", str(repo_root), "archive", tree_oid],
         capture_output=True,
         check=False,
     )
@@ -189,36 +212,82 @@ def _extract_tree(repo_root: Path, tree_oid: str, dest: Path) -> bool:
     return True
 
 
+def _scratch_git_environment(isolated_home: Path) -> dict[str, str]:
+    """Build a cross-platform Git environment isolated from user configuration."""
+    isolated_home.mkdir(parents=True, exist_ok=True)
+    xdg_home = isolated_home / "xdg"
+    gnupg_home = isolated_home / "gnupg"
+    template_dir = isolated_home / "templates"
+    for directory in (xdg_home, gnupg_home, template_dir):
+        directory.mkdir()
+    global_config = isolated_home / "gitconfig"
+    global_config.write_text("", encoding="utf-8")
+
+    env = os.environ.copy()
+    for name in tuple(env):
+        normalized = name.upper()
+        isolates_home = normalized in {
+            "GNUPGHOME",
+            "HOME",
+            "USERPROFILE",
+            "XDG_CONFIG_HOME",
+        }
+        if normalized.startswith("GIT_") or isolates_home:
+            env.pop(name)
+    env.update(
+        {
+            "GIT_ATTR_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": str(global_config),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_TEMPLATE_DIR": str(template_dir),
+            "GNUPGHOME": str(gnupg_home),
+            "HOME": str(isolated_home),
+            "LEFTHOOK": "0",
+            "USERPROFILE": str(isolated_home),
+            "XDG_CONFIG_HOME": str(xdg_home),
+        }
+    )
+    return env
+
+
 def _init_scratch_repo(scratch: Path) -> bool:
     """Init a minimal git repo in scratch so tracked_files() works.
 
-    LEFTHOOK=0 and GIT_CONFIG_NOSYSTEM=1 prevent hooks from firing during the
-    scratch commit. --no-verify skips any other hook system (e.g. husky).
-    Without these guards, git commit triggers the repo's pre-commit lefthook
-    suite, which fails because pyproject.toml in the scratch tree triggers a
-    package build.
+    The isolated home and config prevent user signing, hooks, templates, and
+    filters from changing the synthetic commit. The environment retains the
+    caller's PATH, and each subprocess receives the resolved Git executable.
     """
-    _env = {
-        "HOME": str(Path.home()),
-        "PATH": "/usr/bin:/bin:/usr/local/bin",
-        "LEFTHOOK": "0",
-        "GIT_CONFIG_NOSYSTEM": "1",
-    }
-    for cmd in (
-        ["git", "init", "-q", "-b", "main", str(scratch)],
-        ["git", "-C", str(scratch), "config", "user.email", "ci@example.com"],
-        ["git", "-C", str(scratch), "config", "user.name", "ci"],
-        ["git", "-C", str(scratch), "add", "-A"],
-        ["git", "-C", str(scratch), "commit", "--no-verify", "-qm", "merge-tree snapshot"],
-    ):
-        proc = subprocess.run(cmd, capture_output=True, check=False, env=_env)
-        if proc.returncode != 0:
-            sys.stderr.write(
-                f"git init step failed: {cmd}\n"
-                f"{proc.stderr.decode('utf-8', errors='replace')}\n"
-            )
+    isolated_home = scratch.parent / f".{scratch.name}-git-home"
+    shutil.rmtree(isolated_home, ignore_errors=True)
+    try:
+        env = _scratch_git_environment(isolated_home)
+        try:
+            git = resolve_executable("git", env=env)
+        except FileNotFoundError as exc:
+            sys.stderr.write(f"git executable resolution failed: {exc}\n")
             return False
-    return True
+        for cmd in (
+            [git, "init", "-q", "-b", "main", str(scratch)],
+            [git, "-C", str(scratch), "config", "user.email", "ci@example.com"],
+            [git, "-C", str(scratch), "config", "user.name", "ci"],
+            [git, "-C", str(scratch), "add", "-A"],
+            [git, "-C", str(scratch), "commit", "--no-verify", "-qm", "merge-tree snapshot"],
+        ):
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                env=env,
+            )
+            if proc.returncode != 0:
+                sys.stderr.write(f"git init step failed: {cmd}\n{proc.stderr}\n")
+                return False
+        return True
+    finally:
+        shutil.rmtree(isolated_home, ignore_errors=True)
 
 
 def _read_baseline_at_ref(repo_root: Path, ref: str, rel_path: str) -> int | None:
@@ -307,17 +376,21 @@ def _check_one(
 
 def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
     """Extract merged tree, run counters, compare. Returns an EXIT_* code."""
-    tree_oid, conflicts = _merge_tree_oid(repo_root, base_ref)
+    base_oid = _resolve_base_oid(repo_root, base_ref)
+    if base_oid is None:
+        return EXIT_EXTERNAL
+    tree_oid, conflicts = _merge_tree_oid(repo_root, base_oid)
     if tree_oid is None:
         # _merge_tree_oid already named the specific reason on stderr. A generic
         # line here would contradict it (PR #4567 review).
         return EXIT_EXTERNAL
     if conflicts:
-        print(
-            f"merge-tree-ratchet: merge into {base_ref} has conflicts; "
-            "skipping (the PR cannot merge until conflicts are resolved)."
+        sys.stderr.write(
+            f"merge-tree-ratchet: merge has conflicts against {base_ref} "
+            f"({base_oid[:12]}). Ratchets were not evaluated; resolve the conflicts "
+            "and rerun the ratchet.\n"
         )
-        return EXIT_OK
+        return EXIT_CONFLICT
 
     _ci_rel = "scripts/ci"
     _baseline_map = {
@@ -336,7 +409,7 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
 
         baseline_values = {
             label: (
-                _read_baseline_at_ref(repo_root, base_ref, rel),
+                _read_baseline_at_ref(repo_root, base_oid, rel),
                 _read_baseline_in_tree(scratch_root, rel),
             )
             for label, rel in _baseline_map.items()
