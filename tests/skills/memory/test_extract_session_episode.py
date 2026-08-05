@@ -3544,6 +3544,29 @@ class TestPreserveChronology:
         assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
         assert "event e002 leads to earlier event e001" in capsys.readouterr().err
 
+    def test_validate_mode_reports_invalid_causal_ref_value(self, tmp_path, capsys) -> None:
+        episode = tmp_path / "episode-invalid-ref.json"
+        episode.write_text(
+            json.dumps(
+                {
+                    "events": [
+                        {
+                            "id": "e001",
+                            "timestamp": "2026-08-04T10:00:00+00:00",
+                            "type": "milestone",
+                            "content": "work",
+                            "caused_by": [],
+                            "leads_to": [42],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+        assert "event e001 field leads_to contains invalid ref 42" in capsys.readouterr().err
+
     def test_causal_edge_order_allows_equal_timestamps(self) -> None:
         events = [
             {

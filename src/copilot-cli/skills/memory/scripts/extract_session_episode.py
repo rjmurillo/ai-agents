@@ -1793,7 +1793,7 @@ def _event_refs(evt: dict[str, Any], key: str) -> list[str]:
     refs: list[str] = []
     for ref in raw:
         if not isinstance(ref, str) or not ref:
-            msg = f"event {event_id} field {key} contains a non-string ref"
+            msg = f"event {event_id} field {key} contains invalid ref {ref!r}"
             raise EpisodeValidationError(msg, 2)
         refs.append(ref)
     return refs
@@ -2276,7 +2276,12 @@ def validate_causal_edge_order(events: Any) -> list[str]:
     problems: list[str] = []
     checked: set[tuple[str, str]] = set()
     for evt in events:
-        for source, target in _event_causal_edges(evt):
+        try:
+            edges = _event_causal_edges(evt)
+        except EpisodeValidationError as exc:
+            problems.append(str(exc))
+            continue
+        for source, target in edges:
             if (source, target) in checked:
                 continue
             checked.add((source, target))
