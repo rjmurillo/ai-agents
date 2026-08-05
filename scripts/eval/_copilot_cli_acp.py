@@ -245,10 +245,20 @@ def _send_request(
 
     writer = threading.Thread(target=write_payload, daemon=True)
     writer.start()
-    remaining = deadline - time.monotonic()
-    if remaining <= 0 or not completed.wait(remaining):
-        streams.process_tree.terminate(force=True)
-        raise subprocess.TimeoutExpired(process.args, timeout) from None
+    while not completed.is_set():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            streams.process_tree.terminate(force=True)
+            raise subprocess.TimeoutExpired(process.args, timeout) from None
+        if completed.wait(min(remaining, _QUEUE_WAIT_SECONDS)):
+            break
+        returncode = process.poll()
+        if returncode is not None:
+            streams.process_tree.terminate(force=True)
+            raise ACPProcessError(
+                returncode,
+                "".join(streams.stderr_chunks),
+            )
     if not write_errors.empty():
         raise RuntimeError("Copilot ACP stdin write failed") from None
 

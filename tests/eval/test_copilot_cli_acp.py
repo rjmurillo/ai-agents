@@ -658,6 +658,7 @@ def test_stdin_write_obeys_the_session_deadline() -> None:
             process=SimpleNamespace(
                 stdin=BlockingStdin(),
                 args=["copilot"],
+                poll=lambda: None,
             ),
             process_tree=tree,
         ),
@@ -676,6 +677,58 @@ def test_stdin_write_obeys_the_session_deadline() -> None:
     finally:
         release_writer.set()
 
+    assert tree.terminated is True
+
+
+@pytest.mark.timeout(3)
+def test_stdin_writer_stops_when_the_parent_has_exited() -> None:
+    release_writer = threading.Event()
+
+    class BlockingStdin:
+        def write(self, text: str) -> int:
+            release_writer.wait(timeout=2.0)
+            return len(text)
+
+        def flush(self) -> None:
+            return None
+
+    class ExitedProcess:
+        stdin = BlockingStdin()
+        args = ["copilot"]
+
+        def poll(self) -> int:
+            return 7
+
+    class FakeTree:
+        terminated = False
+
+        def terminate(self, *, force: bool) -> None:
+            self.terminated = force
+
+    tree = FakeTree()
+    streams = cast(
+        Any,
+        SimpleNamespace(
+            process=ExitedProcess(),
+            process_tree=tree,
+            stderr_chunks=[],
+        ),
+    )
+
+    try:
+        with pytest.raises(ACPProcessError) as exc_info:
+            acp_module._send_request(
+                streams,
+                1,
+                "initialize",
+                {},
+                deadline=time.monotonic() + 10.0,
+                timeout=10.0,
+            )
+    finally:
+        release_writer.set()
+
+    assert exc_info.value.returncode == 7
     assert tree.terminated is True
 
 
