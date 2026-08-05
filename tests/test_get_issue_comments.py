@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ from scripts.github_core.api import RepoInfo
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
+_SCRIPT = _SCRIPTS_DIR / "get_issue_comments.py"
 
 
 def _import_script(name: str):
@@ -72,6 +74,24 @@ class TestBuildParser:
 
 
 class TestMain:
+    def test_foreign_github_workspace_uses_bundled_library(self):
+        env = os.environ.copy()
+        env.pop("COPILOT_PLUGIN_ROOT", None)
+        env.pop("CLAUDE_PLUGIN_ROOT", None)
+        env["GITHUB_WORKSPACE"] = str(Path(__file__).resolve().parent / "foreign-workspace")
+
+        result = subprocess.run(
+            [sys.executable, str(_SCRIPT), "--help"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=Path(__file__).resolve().parents[1],
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "comment thread" in result.stdout
+
     def test_not_authenticated_exits_4(self):
         with patch("get_issue_comments.assert_gh_authenticated", side_effect=SystemExit(4)):
             with pytest.raises(SystemExit) as exc:
