@@ -75,3 +75,52 @@ When a `gh` command reports a rate limit:
 
 Note that `/repos/OWNER/REPO/issues` returns pull requests as well as issues.
 Discriminate on the `pull_request` key rather than issuing two calls.
+
+## Correction: `gh search` is on GraphQL, not the search budget
+
+The claim above that "`gh search` draws on the **search** budget, 30 per minute"
+is wrong for `gh search issues`. Measured twice on 2026-08-04 with GraphQL at
+zero and the search budget untouched:
+
+```text
+$ gh api /rate_limit --jq '...'
+graphql=0 search=30
+
+$ gh search issues --repo rjmurillo/ai-agents "duplicate probe" --limit 1
+GraphQL: API rate limit already exceeded for user ID 6811113.
+
+$ gh api "search/issues?q=repo:rjmurillo/ai-agents+duplicate+probe&per_page=1" --jq .total_count
+218
+```
+
+The search budget was full and refused nothing. `gh search issues` is
+implemented over GraphQL, so it dies with GraphQL. Only the REST path
+`gh api search/issues?q=...` actually spends the search budget.
+
+This matters more than a naming detail. Searching for an existing issue before
+filing is a required step here, and it is exactly the step that fails when a
+fleet has drained GraphQL. An agent that reads the failure as "I cannot search"
+either files the duplicate or stalls. Neither is necessary: REST search works.
+
+## Writes fall on the same split
+
+The mapping above covers reads and PR creation but not comments, which is the
+write most agents reach for next.
+
+| intent | GraphQL path that dies | REST path that works |
+|---|---|---|
+| search issues | `gh search issues ...` | `gh api "search/issues?q=..."` |
+| comment on an issue | `gh issue comment N --body-file f.md` | `gh api repos/O/R/issues/N/comments -X POST --input p.json` |
+| comment on a PR | `gh pr comment N --body-file f.md` | `gh api repos/O/R/issues/N/comments -X POST --input p.json` |
+
+The REST comment endpoint takes JSON, not a raw file, so build the payload
+first rather than passing the markdown directly:
+
+```python
+import json, pathlib
+body = pathlib.Path("comment.md").read_text()
+pathlib.Path("payload.json").write_text(json.dumps({"body": body}))
+```
+
+PR comments post to the `issues` path, not `pulls`. The `pulls` comments
+endpoint is for review comments bound to a diff line and rejects a plain body.

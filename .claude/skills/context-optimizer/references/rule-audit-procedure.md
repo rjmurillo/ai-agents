@@ -417,24 +417,37 @@ A single tie is the third row, not the first. Replication is what separates
 them: one run cannot distinguish a real equivalence from noise, and the noise
 floor here spans most of the usable range.
 
-The last row is the common case and the easy one to skip. As of 2026-07-29,
-`code-quality.md` (14,152 bytes) and `pragmatic-programmer.md` (12,219 bytes)
-have no scenario file at all. They are the two largest **book-derived**
-always-on rules, ranks 2 and 3 in the corpus; `voice.md` (19,624 bytes) is
-larger than either. They cannot be audited until someone writes scenarios for
-them.
+The last row is the common case and the easy one to skip. As of 2026-08-04,
+`code-quality.md` (14,152 bytes) already has a scenario file carrying four
+scenarios, added by PR #4017, and no scored result anywhere in
+`evals/reports/`. It is the only **book-derived** always-on rule left, rank 2
+in the corpus behind `voice.md` (17,527 bytes). `pragmatic-programmer.md`
+(11,375 bytes) sits on the same footing with four scenarios of its own, and was
+itself always-on until PR #4424 narrowed its `applyTo` to source files, so it
+now loads on a code edit and not otherwise.
+
+Written scenarios are not the missing piece for either rule. A scored run is.
+`check_rule_activation_coverage.py` lists both as uncovered and still exits 0,
+because the uncovered set is inside its recorded baseline. Nothing goes red
+while the gap stays open, which is why reading the scenario directory is a
+worse signal than reading `evals/reports/`.
 
 Note that always-on status is declared **three** different ways: `applyTo:
-'**'` (six rules), `alwaysApply: true` (two), and `paths: ["**"]` (one,
-`knowledge-persistence.md`). A survey that greps for one convention misses the
-others. That is how an earlier draft got the ranking wrong and then, after a
-correction that added only the second form, still reported 8 rules instead of
-9. Enumerate by parsing frontmatter.
+'**'` (six rules), `alwaysApply: true` (one, `code-quality.md`), and `paths:`
+carrying `**` (one, `knowledge-persistence.md`, which uses the block-list form
+rather than the inline `paths: ["**"]`). A survey that greps for one convention
+misses the others, and a regex written for the inline form misses the block
+list. That is how an earlier draft got the ranking wrong and then, after a
+correction that added only the second form, still undercounted. Enumerate by
+parsing frontmatter.
 
-Nine rules is the corpus. Do not hardcode its size; it changes on every rule
+Eight rules is the corpus. Do not hardcode its size; it changes on every rule
 edit. Regenerate it below, and say which basis you mean: this gate reads the
-generated `.github/instructions/` mirrors, which total 139 bytes less than the
-`.claude/rules/` sources because `generate_rules.py` strips `priority:`.
+generated `.github/instructions/` mirrors, which total 135 bytes less than the
+`.claude/rules/` sources. Two separate frontmatter rewrites produce that delta,
+not one. `generate_rules.py` strips `priority:` from the seven rules that carry
+it, worth 131 bytes, and it converts `code-quality.md` from `alwaysApply: true`
+to `applyTo: '**'`, worth the remaining 4 bytes.
 
 ```bash
 uv run --frozen python scripts/validation/instruction_budget.py --format table
