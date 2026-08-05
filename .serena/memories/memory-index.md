@@ -10,6 +10,7 @@
 |merge invalidates open PRs stale baseline ratchet strict status checks merge queue thread non-monotonic sweep turns main red green inputs do not compose global invariant: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (1994)
 |gh graphql rest rate limit budget separate exhaustion pr list api repos: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity exhaustion statusCheckRollup 504 mergeStateStatus UNKNOWN lazy: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (3014)
+|agent fleet api budget shared CI DID_NOT_RUN aggregate results required check blocked self dos gh pr diff graphql quota transient rerun green: [ci/agent-api-spend-fails-the-required-review-check](ci/agent-api-spend-fails-the-required-review-check.md) (881)
 |rebase after push non-fast-forward force-push forbidden merge remote tip scope explosion miscount: [git/git-rebase-after-push-costs-two-cycles](git/git-rebase-after-push-costs-two-cycles.md) (1350)
 |new_pr create stale main ref session end validation failed opaque diff: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
 |git diff origin main direction stale branch deletion behind predates restore: [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) (496)
@@ -110,6 +111,7 @@
 |analysis gap root-cause trade-off git blame investigation: [skills-analysis-index](skills-analysis-index.md) (223)
 
 [Governance]
+|phantom enforcement doc names gate that does not exist bash script rule unenforced EXISTS vs WIRED dead gate mutation perfect tests only caller PROJECT-CONSTRAINTS enforcement column: [governance/a-governance-doc-can-name-a-gate-that-does-not-exist](governance/a-governance-doc-can-name-a-gate-that-does-not-exist.md) (736)
 |governance agent consolidation design principle overlap: [governance/governance-001-8question-agent-interview-94](governance/governance-001-8question-agent-interview-94.md) (172), [governance/governance-002-five-consolidation-triggers-90](governance/governance-002-five-consolidation-triggers-90.md) (156)
 |process workflow gap missing capability root cause: [orchestration/orchestration-process-workflow-gaps](orchestration/orchestration-process-workflow-gaps.md) (1571)
 
