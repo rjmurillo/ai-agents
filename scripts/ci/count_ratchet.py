@@ -473,6 +473,10 @@ def run(
                 f"{label}: improved {baseline} -> {count} (-{baseline - count}). Baseline lowered."
             )
             return EXIT_OK
+        problem = baseline_health(count, baseline)
+        if problem is not None:
+            print(f"{label}: STALE BASELINE. {problem}", file=sys.stderr)
+            return EXIT_REGRESSION
         print(
             f"{label}: OK. {count} violations <= baseline {baseline} (-{baseline - count} slack)."
         )

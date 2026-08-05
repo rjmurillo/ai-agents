@@ -67,10 +67,10 @@ def test_count_above_baseline_is_regression(tmp_path, monkeypatch):
 
 
 def test_count_below_baseline_passes_without_update(tmp_path, monkeypatch):
-    # Issue #4171: an improvement is safe against the ceiling and must not
+    # Issue #4171: a small improvement is safe against the ceiling and must not
     # force every cleanup PR to rewrite the same baseline line.
     baseline = _write_baseline(tmp_path, "408")
-    monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400))
+    monkeypatch.setattr(subprocess, "run", _fake_scan(1, 405))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
     assert rc == ratchet.EXIT_OK
     assert baseline.read_text(encoding="utf-8").strip() == "408"
@@ -84,16 +84,17 @@ def test_count_below_baseline_with_update_lowers_baseline(tmp_path, monkeypatch)
     assert baseline.read_text(encoding="utf-8").strip() == "400"
 
 
-def test_count_below_baseline_reports_slack_without_remedy(tmp_path, monkeypatch, capsys):
-    # Issue #4171: this is now a passing ceiling check, not a required write.
+def test_count_far_below_baseline_blocks_as_stale(tmp_path, monkeypatch, capsys):
+    # The stale-high guard is blocking once the unrecorded improvement exceeds
+    # MAX_BASELINE_SLACK. Otherwise the next regression can pass silently.
     baseline = _write_baseline(tmp_path, "408")
     monkeypatch.setattr(subprocess, "run", _fake_scan(1, 400))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
-    assert rc == ratchet.EXIT_OK
+    assert rc == ratchet.EXIT_REGRESSION
     captured = capsys.readouterr()
-    assert "<= baseline" in captured.out
-    assert "--update" not in captured.out
-    assert "BASELINE STALE" not in captured.err
+    assert captured.out == ""
+    assert "STALE BASELINE" in captured.err
+    assert "write 400 into the baseline file" in captured.err
 
 
 def test_clean_tree_zero_count_passes(tmp_path, monkeypatch):

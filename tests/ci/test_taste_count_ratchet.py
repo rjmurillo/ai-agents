@@ -97,10 +97,10 @@ def test_count_above_baseline_is_a_regression(tmp_path, monkeypatch):
 
 
 def test_count_below_baseline_passes_without_update(tmp_path, monkeypatch):
-    # Issue #4171: an improvement is safe against the ceiling and must not
+    # Issue #4171: a small improvement is safe against the ceiling and must not
     # force every cleanup PR to rewrite the same baseline line.
     baseline = _write_baseline(tmp_path, "615")
-    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 600))
+    monkeypatch.setattr(subprocess, "run", _fake_scan(10, 612))
     rc = ratchet.main(["--baseline", str(baseline), "--repo-root", str(tmp_path)])
     assert rc == ratchet.EXIT_OK
     assert baseline.read_text(encoding="utf-8").strip() == "615"  # baseline unchanged

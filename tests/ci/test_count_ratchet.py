@@ -120,6 +120,27 @@ def test_lister_not_called_on_ok(tmp_path, capsys):
     assert called == [], "lister must not be invoked when there is no regression"
 
 
+def test_run_blocks_a_baseline_with_too_much_slack(tmp_path, capsys):
+    """Wiring: run() must reject a stale-high baseline, not only regressions."""
+    actual = 10
+    baseline = 16
+    args = _make_args(tmp_path, baseline_value=baseline)
+
+    rc = count_ratchet.run(
+        args,
+        label="test",
+        counter=lambda _root: actual,
+        scan_error="scan failed",
+        regression_advice="fix it",
+        lister=None,
+    )
+
+    assert rc == count_ratchet.EXIT_REGRESSION
+    err = capsys.readouterr().err
+    assert "STALE BASELINE" in err
+    assert "write 10 into the baseline file" in err
+
+
 def test_no_lister_regression_has_no_violation_list(tmp_path, capsys):
     """When lister is None, a regression message appears but no violation lines."""
     args = _make_args(tmp_path, baseline_value=5)
