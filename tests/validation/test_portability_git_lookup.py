@@ -40,6 +40,15 @@ LOW = {"files": {"victim": 0}}
 REL = Path("scripts/validation/baseline.json")
 
 
+def _timed_out(*args: str) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.CompletedProcess(
+        args,
+        GIT_TIMEOUT_RETURN_CODE,
+        stdout=b"",
+        stderr=b"git command timed out after 30s",
+    )
+
+
 def test_run_git_bounds_and_reports_timeout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -107,6 +116,61 @@ def test_committed_blob_refuses_when_head_probe_times_out(
 
     assert oid is None
     assert problem is not None and "timed out" in problem
+
+
+def test_committed_blob_names_repository_root_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(portability_git, "run_git", lambda *_args: _timed_out("rev-parse"))
+
+    oid, problem = portability_git.committed_blob(tmp_path, tmp_path / REL)
+
+    assert oid is None
+    assert problem is not None and "locating the repository root" in problem
+    assert "timed out" in problem
+
+
+def test_tree_entries_names_listing_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(portability_git, "run_git", lambda *_args: _timed_out("ls-tree"))
+
+    entries, problem = tree_entries(tmp_path, "HEAD")
+
+    assert entries is None
+    assert problem is not None and "listing the committed baseline directory" in problem
+    assert "timed out" in problem
+
+
+def test_no_commit_probe_names_ref_listing_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(portability_git, "run_git", lambda *_args: _timed_out("for-each-ref"))
+
+    state, problem = portability_git._no_commits_or_refuse(tmp_path)
+
+    assert state is None
+    assert problem is not None and "listing repository refs" in problem
+    assert "timed out" in problem
+
+
+def test_no_commit_probe_names_object_enumeration_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def dispatch(_repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+        if args and args[0] == "for-each-ref":
+            return subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
+        if args and args[0] == "cat-file":
+            return _timed_out("cat-file")
+        raise AssertionError(f"unexpected git command: {args}")
+
+    monkeypatch.setattr(portability_git, "run_git", dispatch)
+
+    state, problem = portability_git._no_commits_or_refuse(tmp_path)
+
+    assert state is None
+    assert problem is not None and "enumerating the object database" in problem
+    assert "timed out" in problem
 
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:

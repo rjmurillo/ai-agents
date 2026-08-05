@@ -97,7 +97,9 @@ def test_git_lines_delegates_to_the_shared_git_runner(
 
 
 def test_git_lines_refuses_when_the_shared_git_runner_times_out(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     timed_out = subprocess.CompletedProcess(
         ["git"],
@@ -108,6 +110,9 @@ def test_git_lines_refuses_when_the_shared_git_runner_times_out(
     monkeypatch.setattr(common, "run_git", lambda *_args: timed_out)
 
     assert common._git_lines(tmp_path, ["ls-files", "-z"]) is None
+    error = capsys.readouterr().err
+    assert "git timed out while running ls-files -z" in error
+    assert "git command timed out after 30s" in error
 
 
 class TestTheGuardCannotBeSkippedByForgettingAnArgument:
