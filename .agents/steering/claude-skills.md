@@ -58,18 +58,7 @@ license: MIT
 ```
 
 Required fields: `name`, `version`, `description`.
-Optional fields: `model`, `license`, `disable-model-invocation`.
-
-In Claude Code, `disable-model-invocation: true` makes a skill user-invoked
-only. Set it when Claude Code should require direct human invocation. Do not
-set it to save context. Measured on Claude Code 2.1.220, the standing
-description cost saturates near +17,000 tokens at roughly 24 skills, so the
-marginal saving past that is zero while automatic invocation is lost. Copilot
-CLI 1.0.78-3 shows no inventory effect: both a default fixture and a fixture
-carrying the field remained enabled with full descriptions. Do not claim
-user-only behavior there from this field. The methods and negative controls
-are in the `agent-harness-reference` skill, section "Skill Trigger Axis" (issue
-#4381).
+Optional fields: `model`, `license`.
 
 ### Language Policy
 

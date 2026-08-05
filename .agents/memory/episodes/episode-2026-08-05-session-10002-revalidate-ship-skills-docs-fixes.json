@@ -1,0 +1,127 @@
+{
+  "id": "episode-2026-08-05-session-10002-revalidate-ship-skills-docs-fixes",
+  "session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Revalidate and ship skills docs P2 fixes",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge current main",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read linked discourse and assess merit",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify reported fixes",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolve independent review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run validation",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Complete independent artifact review",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T20:58:51+00:00",
+      "type": "commit",
+      "content": "Commit: 9b6448814",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e008"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split closed trigger-axis documentation",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T21:40:29+00:00",
+      "type": "commit",
+      "content": "Commit: e01160836",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 3
+  },
+  "lessons": []
+}
