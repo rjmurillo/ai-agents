@@ -121,7 +121,7 @@
     },
     {
       "time": "2026-08-04",
-      "action": "Added Windows skips for five symlink tests",
+      "action": "Added Windows skips for six symlink tests",
       "result": "Tests no longer assume Windows link privileges"
     },
     {
