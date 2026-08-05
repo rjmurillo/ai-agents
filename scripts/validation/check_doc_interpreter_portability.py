@@ -51,7 +51,8 @@ Scope:
     decided or done, not instructions to follow. Rewriting a session log or an
     ADR body to change a command it quotes would falsify the record.
   * **Generated mirrors** (``src/copilot-cli/``, ``src/vs-code-agents/``,
-    ``.github/instructions/``, ``.github/prompts/``).
+    ``.github/instructions/``, and generated
+    ``.github/prompts/pr-quality-gate-*.md`` files).
     ``.agents/governance/GENERATOR-FILES.md`` names a generator for each. The
     fix belongs in the canonical source and arrives here by regeneration.
     ``src/claude/`` is deliberately NOT on that list. It looks like a mirror and
