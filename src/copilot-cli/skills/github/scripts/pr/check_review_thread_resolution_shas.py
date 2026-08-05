@@ -12,15 +12,21 @@ import sys
 from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
-    _lib_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-    )
+    _lib_dir = ""
+    _here = os.path.abspath(os.path.dirname(__file__))
+    _ancestor = _here
+    while True:
+        _candidate = os.path.join(_ancestor, "lib", "github_core")
+        if os.path.isdir(_candidate):
+            _lib_dir = os.path.dirname(_candidate)
+            break
+        _parent = os.path.dirname(_ancestor)
+        if _parent == _ancestor:
+            break
+        _ancestor = _parent
 if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
     sys.exit(2)
