@@ -69,9 +69,12 @@ The principle above holds. Three of its specifics no longer match the repo:
    block a merge. Merging main to unblock is cargo cult unless a workflow file
    the PR needs actually changed on main.
 
-   **Reversed 2026-08-05.** The ruleset now sets that policy to `true`. Being
-   behind main blocks the merge, and merging main is the correct unblock, not
-   cargo cult. Measured the same day: 41 of 56 open PRs BEHIND, 0 CLEAN.
+   **Current measurement, 2026-08-05.** The ruleset sets that policy to `true`.
+   Being behind main blocks the merge. Updating the branch clears that
+   freshness blocker, but other gates may remain. Measured across the 56 open
+   PRs that day: 41
+   BEHIND, 13 DIRTY, 1 BLOCKED, 0 CLEAN. Those sum to 55, so one PR held a
+   state I did not record.
 2. "Awaiting review" is rarely the answer. `required_approving_review_count`
    is 0. What does block is `required_review_thread_resolution: true`, so an
    unresolved thread, not a missing approval.

@@ -5,7 +5,7 @@ in one session merged cleanly through the REST endpoint while reporting
 BLOCKED. Treating the field as a verdict sends you looking for a gate that is
 not holding anything.
 
-## `UNKNOWN` in a bulk PR query is a recompute, not an answer, and not a defect
+## `UNKNOWN` in a bulk PR query is not an answer
 
 A repo-wide GraphQL query for `mergeStateStatus` across every open PR can come
 back almost entirely `UNKNOWN`. Measured 2026-08-05: 53 of 55 open PRs returned
@@ -19,14 +19,13 @@ command, so no time passed between them: bulk and per-PR agreed exactly, both
 `BEHIND` for both PRs. Re-running the bulk query a few minutes later returned a
 fully resolved distribution with no `UNKNOWN` at all.
 
-`UNKNOWN` means GitHub is recomputing mergeability across the repository, which
-happens whenever `main` moves. It resolves on its own.
+GitHub documents `UNKNOWN` as "not computed yet." In this observation it later
+resolved without per-PR fallback calls. Treat it as incomplete data. Wait and
+re-query rather than inventing a cause.
 
 This matters because acting on the wrong inference is expensive. Falling back to
-one REST call per PR turns a single query into 55, and the REST and GraphQL
-budgets are shared with the CI workflows, which authenticate as the same user ID
-(6811113). Exhausting them makes the AI review agents report `DID_NOT_RUN`,
-which blocks the very PRs being diagnosed. Wait and re-query instead.
+one REST call per PR turns a single query into 55 and burns a separate API
+budget. Wait and re-query instead.
 
 ```
 gh api repos/rjmurillo/ai-agents/branches/main/protection
@@ -48,33 +47,34 @@ Measured 2026-08-01, that returns: `deletion`, `non_fast_forward`,
 
 | Parameter | Value | Consequence |
 | --- | --- | --- |
-| `strict_required_status_checks_policy` | `true` | Being behind main DOES block. Merge `origin/main` into the branch to unblock it. Changed since 2026-08-01; this row read `false` until 2026-08-05. |
-| `required_review_thread_resolution` | `true` | Any unresolved review thread blocks. This is the dominant real cause. |
+| `strict_required_status_checks_policy` | `true` | Being behind main blocks. Updating the branch clears this freshness blocker, but other gates may remain. Measured `false` on 2026-08-03 and `true` on 2026-08-05; the flip is not timestamped by any API, so do not infer a date. |
+| `required_review_thread_resolution` | `true` | Any unresolved review thread blocks. |
 | `required_approving_review_count` | `0` | No human approval needed. |
 | `required_status_checks` | 17 contexts | A required context that is missing blocks. SKIPPED and NEUTRAL do not. |
 
-Every open PR in the repo is behind main at any given moment, so under the old
-`strict: false` setting "behind main" could never discriminate between a blocked
-PR and a mergeable one. It was a detector that cannot fail, which means it had
-not been run.
+Under the old `strict: false` setting, being behind was not itself a merge gate
+and therefore could not explain `BLOCKED`.
 
-That reasoning expired on 2026-08-05, when the ruleset began enforcing
-`strict_required_status_checks_policy: true`. "Behind main" now discriminates
-precisely, because it is a merge blocker rather than ambient noise. Measured the
-same day across all open PRs: 41 BEHIND, 13 DIRTY, 1 BLOCKED, 0 CLEAN. Being
-behind is now the dominant blocking condition, not an unusable signal.
+That reasoning has expired. The ruleset now enforces
+`strict_required_status_checks_policy: true`. A `BEHIND` result now proves a
+freshness blocker. Measured across the 56 open PRs on 2026-08-05: 41 BEHIND,
+13 DIRTY, 1 BLOCKED, 0 CLEAN. Those sum to 55, so one PR held a state I did not
+record.
 
-There is still no merge queue, so nothing makes a branch current on its own.
-Each BEHIND PR needs an explicit update, and every merge returns the rest to
-BEHIND. Prefer the server-side update, which needs no local checkout and cannot
-collide with an in-flight push:
+There is still no merge queue. In the measured queue, no automatic updater kept
+branches current. Prefer the server-side update, which needs no local checkout:
 
 ```
 gh api -X PUT repos/rjmurillo/ai-agents/pulls/<n>/update-branch \
   -f expected_head_sha=<full 40-char head sha>
 ```
 
-A truncated SHA returns HTTP 422. The full 40 characters are required.
+`expected_head_sha` is optional. When supplied, it must exactly match the full
+head SHA. A truncated SHA mismatches and returns HTTP 422.
+
+This is optimistic concurrency, not collision prevention. If a local push wins
+first, the update rejects the stale expected SHA. If the update wins first, the
+local push rejects as non-fast-forward.
 
 The update creates a merge commit on the remote branch, so any local clone or
 worktree tracking that branch is immediately one commit stale. A local push
@@ -82,18 +82,21 @@ after this is rejected as non-fast-forward. That rejection is the expected
 result of your own update, not a sign that a sibling agent pushed. Pull before
 committing anything further to that branch.
 
-The state after a successful update is BLOCKED, not CLEAN. BEHIND is replaced
-by a wait on the 17 required contexts, which re-run against the new head.
+After an update, required contexts must report on the new head before it can
+merge. Do not promise a transient `mergeStateStatus` value.
 
 ## The diagnosis that works
 
-Cross-tab the ruleset's required contexts against the contexts GitHub recorded
-on the PR head, and count unresolved threads. Three outcomes, three fixes:
+Check freshness first. Then cross-tab the ruleset's required contexts against
+the contexts GitHub recorded on the PR head, and count unresolved threads.
+Four outcomes, four fixes:
 
-1. Unresolved threads greater than zero. Answer the threads.
-2. A required context missing or FAILURE. Read that check's log.
-3. Nothing missing, nothing failing, zero threads. Nothing is holding it.
-   Call the merge endpoint. It is the authority:
+1. `mergeStateStatus: BEHIND`. Update the branch. This value proves a freshness
+   blocker under the current strict policy.
+2. Unresolved threads greater than zero. Answer the threads.
+3. A required context missing or FAILURE. Read that check's log.
+4. The branch contains current `main`, nothing is missing or failing, and
+   unresolved threads are zero. Call the merge endpoint. It is the authority:
 
    ```
    SHA=$(gh pr view N --repo rjmurillo/ai-agents --json headRefOid -q .headRefOid)
