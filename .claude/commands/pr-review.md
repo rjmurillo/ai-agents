@@ -10,7 +10,10 @@ ultrathink
 
 Respond to PR review comments for: $ARGUMENTS
 
-Load configuration from `.claude/commands/pr-review-config.yaml` for scripts, completion criteria, error recovery, and failure handling tables.
+Load configuration from `pr-review-config.yaml` for scripts, completion criteria,
+error recovery, and failure handling tables. In this repository it lives at
+`.claude/commands/pr-review-config.yaml`; installed Copilot CLI plugins resolve
+the bundled `commands/pr-review-config.yaml`.
 
 ## Context
 
