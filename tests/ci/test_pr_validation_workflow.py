@@ -971,8 +971,8 @@ class TestBotSkipGuardClassification:
             f"ADR-006 ratchet must be unconditional, found: if: {step.get('if')!r}"
         )
 
-    def test_unguarded_uv_consumers_have_an_unguarded_install(self) -> None:
-        """`Setup uv` is allowlisted only while the unguarded half self-serves.
+    def _assert_unguarded_uv_consumers_have_an_unguarded_install(self) -> None:
+        """Assert `Setup uv` self-serves the unguarded half of the job.
 
         The job installs uv twice on purpose. The guarded install serves the
         guarded prefix; a second, unguarded install serves the unguarded
@@ -1004,10 +1004,14 @@ class TestBotSkipGuardClassification:
         )
         first_install = min(installs)
         orphans = [name for i, name in consumers if i < first_install]
-        assert orphans == [], (
+        assert not orphans, (
             f"unguarded uv steps run before the first unguarded uv install: {orphans!r}. "
             "They inherit the guarded install and break on bot PRs."
         )
+
+    def test_unguarded_uv_consumers_have_an_unguarded_install(self) -> None:
+        """`Setup uv` is allowlisted only while the unguarded half self-serves."""
+        self._assert_unguarded_uv_consumers_have_an_unguarded_install()
 
     def test_unguarded_uv_install_must_precede_its_consumers(
         self, monkeypatch: pytest.MonkeyPatch
@@ -1024,7 +1028,7 @@ class TestBotSkipGuardClassification:
         monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: steps))
 
         with pytest.raises(AssertionError, match="Early consumer"):
-            self.test_unguarded_uv_consumers_have_an_unguarded_install()
+            self._assert_unguarded_uv_consumers_have_an_unguarded_install()
 
     def test_unguarded_uv_check_requires_a_consumer_to_protect(
         self, monkeypatch: pytest.MonkeyPatch
@@ -1045,7 +1049,7 @@ class TestBotSkipGuardClassification:
         monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: steps))
 
         with pytest.raises(AssertionError, match="at least one unguarded uv consumer"):
-            self.test_unguarded_uv_consumers_have_an_unguarded_install()
+            self._assert_unguarded_uv_consumers_have_an_unguarded_install()
 
     def test_no_security_gate_is_skip_guarded(self) -> None:
         """Negative: every skip-guarded step must be throughput-motivated.
