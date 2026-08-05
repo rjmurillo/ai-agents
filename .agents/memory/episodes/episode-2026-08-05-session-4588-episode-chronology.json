@@ -152,18 +152,31 @@
     },
     {
       "id": "e012",
-      "timestamp": "2026-08-05T12:16:23+00:00",
-      "type": "commit",
-      "content": "Commit: f409d93b69dc0ac1341c5ce6a037a5773822bf1e",
+      "timestamp": "2026-08-05T12:58:00+00:00",
+      "type": "milestone",
+      "content": "Addressed PR review feedback for invalid causal refs.",
       "caused_by": [
         "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-05T13:24:48+00:00",
+      "type": "commit",
+      "content": "Commit: 1b177000180e56e7c3cab514ba5218d7559c1193",
+      "caused_by": [
+        "e012"
       ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-4588-episode-chronology"
     }
   ],
   "metrics": {
-    "duration_minutes": 291,
+    "duration_minutes": 421,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,

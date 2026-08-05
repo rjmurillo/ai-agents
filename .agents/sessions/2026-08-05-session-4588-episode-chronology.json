@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit f409d93b69dc0ac1341c5ce6a037a5773822bf1e carries the corrected code, mirror, tests, and complexity refactor."
+        "Evidence": "Commit 1b177000180e56e7c3cab514ba5218d7559c1193 carries the corrected code, mirror, tests, complexity refactor, and invalid-ref diagnostic fix."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pytest tests/skills/memory/test_extract_session_episode.py: 283 passed. ruff passed on changed Python files. taste-count-ratchet and merge-tree-ratchet passed. Final mutation table: three behavioral mutants killed, cosmetic control survived."
+        "Evidence": "pytest tests/skills/memory/test_extract_session_episode.py: 284 passed. ruff passed on changed Python files. taste-count-ratchet and merge-tree-ratchet passed. Final mutation table after review fix: three behavioral mutants killed, cosmetic control survived."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -163,8 +163,13 @@
       "time": "2026-08-05T10:48:00+00:00",
       "entry": "Refactored causal edge validation to clear the taste and merge-tree ratchets.",
       "evidence": "taste-count-ratchet OK, merge-tree-ratchet OK, and final mutation proof killed three behavioral mutants with the cosmetic control surviving."
+    },
+    {
+      "time": "2026-08-05T12:58:00+00:00",
+      "entry": "Addressed PR review feedback for invalid causal refs.",
+      "evidence": "Validate mode now reports the invalid ref value, extractor tests passed with 284 tests, and mutation proof still killed all behavioral mutants."
     }
   ],
-  "endingCommit": "f409d93b69dc0ac1341c5ce6a037a5773822bf1e",
+  "endingCommit": "1b177000180e56e7c3cab514ba5218d7559c1193",
   "nextSteps": []
 }
