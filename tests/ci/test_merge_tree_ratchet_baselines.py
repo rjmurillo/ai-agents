@@ -28,7 +28,7 @@ class TestEffectiveBaseline:
 
 
 class TestCheckOne:
-    """Verdicts retain both baseline sources in their diagnostics."""
+    """Failure diagnostics identify unreadable sources or effective ceilings."""
 
     def test_unreadable_base_reports_merged_value(self) -> None:
         code, message = _m._check_one("ruff", 0, None, 126)

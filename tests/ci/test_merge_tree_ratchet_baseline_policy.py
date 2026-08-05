@@ -14,13 +14,56 @@ from tests.ci.test_merge_tree_ratchet_check import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _zero_memory_index_count():
-    with patch("scripts.ci.memory_index_count_ratchet.current_count", return_value=0):
-        yield
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_memory_index_counter_reads_synthetic_merged_tree_not_worktree(
+    tmp_path: Path,
+) -> None:
+    repo = _make_repo_with_baselines(
+        tmp_path, ruff=10, taste=10, ignore=10, memory=10
+    )
+    _git(repo, "checkout", "-b", "pr-branch")
+    (repo / "branch.py").write_text("branch = True\n", encoding="utf-8")
+    _commit_all(repo, "branch change")
+
+    _git(repo, "checkout", "main")
+    merged_only = Path("merged-only.txt")
+    (repo / merged_only).write_text("from target branch\n", encoding="utf-8")
+    _commit_all(repo, "target branch change")
+    _git(repo, "checkout", "pr-branch")
+
+    observed: dict[str, Path | str] = {}
+
+    def collect_from_synthetic_tree(scratch_root: Path) -> list[str]:
+        observed["root"] = scratch_root
+        observed["content"] = (scratch_root / merged_only).read_text(encoding="utf-8")
+        return []
+
+    with (
+        patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+        patch.object(
+            _m._memory_index, "_collect", side_effect=collect_from_synthetic_tree
+        ),
+        patch.object(
+            _m._memory_index,
+            "current_count",
+            wraps=_m._memory_index.current_count,
+        ) as memory_counter,
+    ):
+        rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
+
+    assert rc == _m.EXIT_OK
+    memory_counter.assert_called_once()
+    scratch_root = memory_counter.call_args.args[0]
+    assert scratch_root == observed["root"]
+    assert scratch_root != repo
+    assert observed["content"] == "from target branch\n"
+    assert not (repo / merged_only).exists()
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+@pytest.mark.usefixtures("_zero_memory_index_count")
 class TestMergeTreeBaselinePolicy:
     def test_branch_lowering_below_merged_count_is_blocked(
         self, tmp_path: Path
@@ -103,7 +146,6 @@ class TestMergeTreeBaselinePolicy:
     def test_baseline_is_read_from_merged_tree_not_head_or_worktree(
         self, tmp_path: Path
     ) -> None:
-        """A base-side baseline change must be read from the synthetic merge."""
         repo = _make_repo_with_baselines(tmp_path, ruff=3, taste=10, ignore=10)
 
         _git(repo, "checkout", "-b", "pr-branch")

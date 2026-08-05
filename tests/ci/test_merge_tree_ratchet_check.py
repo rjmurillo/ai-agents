@@ -84,13 +84,8 @@ def _run(repo: Path, base_ref: str = "HEAD") -> int:
         return _m.main(["--repo-root", str(repo), "--base-ref", base_ref])
 
 
-@pytest.fixture(autouse=True)
-def _zero_memory_index_count():
-    with patch("scripts.ci.memory_index_count_ratchet.current_count", return_value=0):
-        yield
-
-
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+@pytest.mark.usefixtures("_zero_memory_index_count")
 class TestMergeTreeRatchetCheck:
     def test_clean_merge_passes(self, tmp_path: Path) -> None:
         """All counters under baseline -> EXIT_OK."""
@@ -114,7 +109,9 @@ class TestMergeTreeRatchetCheck:
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
         assert rc == _m.EXIT_OK
 
-    def test_regression_blocks(self, tmp_path: Path) -> None:
+    def test_regression_blocks(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """One counter above baseline -> EXIT_REGRESSION."""
         repo = _make_repo_with_baselines(tmp_path, ruff=5, taste=10, ignore=10)
         with (
@@ -123,7 +120,11 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
+
         assert rc == _m.EXIT_REGRESSION
+        error = capsys.readouterr().err
+        assert "BLOCKED. The merged result breaches a ratchet ceiling." in error
+        assert "Merge or rebase from HEAD and re-check." in error
 
     def test_memory_index_regression_blocks(self, tmp_path: Path) -> None:
         """The merge-tree gate covers the memory-index count ratchet too."""
@@ -200,7 +201,9 @@ class TestMergeTreeRatchetCheck:
         )
         assert rc == _m.EXIT_EXTERNAL
 
-    def test_counter_returns_none_is_external(self, tmp_path: Path) -> None:
+    def test_counter_returns_none_is_external(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """Counter returning None -> EXIT_EXTERNAL."""
         repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
         with (
@@ -209,9 +212,15 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
-        assert rc == _m.EXIT_EXTERNAL
 
-    def test_missing_baseline_returns_config(self, tmp_path: Path) -> None:
+        assert rc == _m.EXIT_EXTERNAL
+        error = capsys.readouterr().err
+        assert "counter returned None" in error
+        assert "BLOCKED. The merged result breaches a ratchet ceiling." not in error
+
+    def test_missing_baseline_returns_config(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """Missing baseline at base ref -> EXIT_CONFIG."""
         repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
         _git(repo, "rm", "scripts/ci/ruff_count_baseline.txt")
@@ -225,6 +234,9 @@ class TestMergeTreeRatchetCheck:
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
 
         assert rc == _m.EXIT_CONFIG
+        error = capsys.readouterr().err
+        assert "CONFIG ERROR" in error
+        assert "BLOCKED. The merged result breaches a ratchet ceiling." not in error
 
     def test_scratch_dir_cleaned_on_success(self, tmp_path: Path) -> None:
         """Scratch dir must be removed on a clean run."""
@@ -446,143 +458,3 @@ class TestMergeTreeRatchetCheck:
             rc = _run(work, "FETCH_HEAD")
         assert rc == _m.EXIT_OK
         assert writes.call_args_list == []
-
-
-class TestMergeTreeInstalledBaseline:
-    """Integration coverage for branch-installed baseline ceilings."""
-
-    def test_branch_lowering_a_baseline_below_the_merged_count_is_blocked(
-        self, tmp_path: Path
-    ) -> None:
-        """The issue #4538 shape: a branch installs a ceiling main cannot meet.
-
-        PR #4208 activated RUF100 and rewrote the ruff baseline 308 -> 126 in
-        one commit. Its own tree measured exactly 126. Between its base and its
-        merge, PR #4448 landed 14 more dead ``noqa`` directives, so the merged
-        tree measured 140. The old gate compared 140 against the BASE's 308 and
-        passed, and main merged red.
-
-        The ceiling must be the baseline the merge installs, not the one it
-        replaces.
-        """
-        repo = _make_repo_with_baselines(tmp_path, ruff=308, taste=10, ignore=10)
-
-        _git(repo, "checkout", "-b", "pr-branch")
-        (repo / "scripts" / "ci" / "ruff_count_baseline.txt").write_text(
-            "126\n", encoding="utf-8"
-        )
-        _commit_all(repo, "activate RUF100 and lower the ruff baseline to 126")
-
-        with (
-            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=140),
-            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
-            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
-        ):
-            rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
-
-        assert rc == _m.EXIT_REGRESSION
-
-    def test_branch_lowering_a_baseline_the_merged_tree_meets_passes(
-        self, tmp_path: Path
-    ) -> None:
-        """Positive control for the gate above: a truthful lowering still lands.
-
-        Same branch shape, but the merged tree actually measures the number the
-        branch ships. Without this the gate could pass the test above by
-        refusing every baseline reduction, which would ban all cleanup work.
-        """
-        repo = _make_repo_with_baselines(tmp_path, ruff=308, taste=10, ignore=10)
-
-        _git(repo, "checkout", "-b", "pr-branch")
-        (repo / "scripts" / "ci" / "ruff_count_baseline.txt").write_text(
-            "126\n", encoding="utf-8"
-        )
-        _commit_all(repo, "lower the ruff baseline to 126")
-
-        with (
-            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=126),
-            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
-            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
-        ):
-            rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
-
-        assert rc == _m.EXIT_OK
-
-    def test_branch_raising_a_baseline_cannot_buy_merged_tree_headroom(
-        self, tmp_path: Path
-    ) -> None:
-        """The opposite direction must stay closed.
-
-        Reading the merged tree's baseline alone would let a branch raise the
-        ceiling and walk merged-tree debt straight through. The base's value
-        still applies, so the lower of the two governs.
-        """
-        repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
-
-        _git(repo, "checkout", "-b", "pr-branch")
-        (repo / "scripts" / "ci" / "ruff_count_baseline.txt").write_text(
-            "100\n", encoding="utf-8"
-        )
-        _commit_all(repo, "raise the ruff baseline to 100")
-
-        with (
-            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=50),
-            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
-            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
-        ):
-            rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
-
-        assert rc == _m.EXIT_REGRESSION
-
-    def test_branch_deleting_a_baseline_is_a_config_error(self, tmp_path: Path) -> None:
-        """A baseline readable at base but absent from the merged tree blocks.
-
-        Deleting the file must not read as "no ceiling"; the check has to fail
-        loudly rather than fall open.
-        """
-        repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
-
-        _git(repo, "checkout", "-b", "pr-branch")
-        _git(repo, "rm", "-q", "scripts/ci/ruff_count_baseline.txt")
-        _commit_all(repo, "delete the ruff baseline")
-
-        with (
-            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
-            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
-            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
-        ):
-            rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
-
-        assert rc == _m.EXIT_CONFIG
-
-    def test_baseline_is_read_from_merged_tree_not_head_or_worktree(
-        self, tmp_path: Path
-    ) -> None:
-        """A base-side baseline change must be read from the synthetic merge.
-
-        The branch is cut while the baseline is 3. Main then raises it to 5,
-        while the branch only changes code. The merged tree records 5, but
-        both HEAD and the checked-out worktree still record 3. A count of 4
-        therefore passes only when the reader uses the extracted merged tree.
-        """
-        repo = _make_repo_with_baselines(tmp_path, ruff=3, taste=10, ignore=10)
-
-        _git(repo, "checkout", "-b", "pr-branch")
-        (repo / "pr_change.py").write_text("# branch-only change\n", encoding="utf-8")
-        _commit_all(repo, "branch code change")
-
-        _git(repo, "checkout", "main")
-        (repo / "scripts" / "ci" / "ruff_count_baseline.txt").write_text(
-            "5\n", encoding="utf-8"
-        )
-        _commit_all(repo, "raise ruff baseline on main")
-        _git(repo, "checkout", "pr-branch")
-
-        with (
-            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=4),
-            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
-            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
-        ):
-            rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
-
-        assert rc == _m.EXIT_OK

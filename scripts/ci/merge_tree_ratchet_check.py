@@ -3,7 +3,7 @@
 
 Issue #4398. Closes the stale-branch hole: a PR branch can pass every ratchet
 individually, yet the merged result still breaches the ceiling, because the
-branch is measured against an old main that held a looser baseline.
+branch is measured against an old target branch that held a looser baseline.
 
 PR #4272 is the canonical example: it grew a file past the taste-lint 500-line
 ceiling and merged green because strict_required_status_checks_policy is false
@@ -235,9 +235,10 @@ def _read_baseline_at_ref(repo_root: Path, ref: str, rel_path: str) -> int | Non
 def _read_baseline_in_tree(tree_root: Path, rel_path: str) -> int | None:
     """Read an integer baseline from an extracted tree, or None on failure.
 
-    The merged tree carries the baseline file the merge would install on main.
-    Reading it from the extracted snapshot (rather than from either input ref)
-    is what makes the ceiling reflect the post-merge repository.
+    The merged tree carries the baseline file the merge would install on the
+    target branch identified by the base ref. Reading it from the extracted
+    snapshot (rather than from either input ref) is what makes the ceiling
+    reflect the post-merge repository.
     """
     return read_baseline(tree_root / rel_path)
 
@@ -359,17 +360,20 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
         else:
             print(f"merge-tree-ratchet: {msg}")
 
-    if exit_code != EXIT_OK:
+    if exit_code == EXIT_REGRESSION:
         print(
             "\nmerge-tree-ratchet: BLOCKED. The merged result breaches a ratchet ceiling.\n"
-            "This means your branch is measured against a stale main, or your changes\n"
-            "genuinely exceed the baseline. Merge or rebase from origin/main and re-check.\n"
+            f"This means your branch is measured against a stale base ref ({base_ref}), "
+            "or your changes\n"
+            f"genuinely exceed the baseline. Merge or rebase from {base_ref} and re-check.\n"
             "If the ceiling is still breached after rebasing, fix the violations\n"
             "rather than raising the baseline: the ceiling here is the LOWER of the\n"
             "base's baseline and the one this branch would install.\n"
             "(See issues #4398 and #4538 for context.)",
             file=sys.stderr,
         )
+
+    if exit_code != EXIT_OK:
         return exit_code
 
     print(f"merge-tree-ratchet: OK. Merged tree passes all four ratchets (base: {base_ref}).")
