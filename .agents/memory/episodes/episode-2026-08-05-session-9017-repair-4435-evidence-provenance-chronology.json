@@ -79,7 +79,7 @@
         "e008"
       ],
       "leads_to": [
-        "e007"
+        "e009"
       ],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     },
@@ -89,9 +89,11 @@
       "type": "milestone",
       "content": "Landed extractor dependency",
       "caused_by": [
-        "e006"
+        "e009"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     },
     {
@@ -106,6 +108,30 @@
         "e006"
       ],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T15:55:14+00:00",
+      "type": "commit",
+      "content": "Commit: 3787354aa2de9b1a198416fc0cec871b420e5e38",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T15:57:29+00:00",
+      "type": "commit",
+      "content": "Commit: 1923a88f37aa73c00807ae879aa4e04d8af90c22",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     }
   ],
   "metrics": {
@@ -113,8 +139,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 5
+    "commits": 3,
+    "files_changed": 32
   },
   "lessons": []
 }

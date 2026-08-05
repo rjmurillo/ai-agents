@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Repair committed as 11f7322e76f3bdfab0fa5d4540156ecebf4ba77a. This follow-up records endingCommit and restores generator output altered by the known preserve defect in issue #4588."
+        "Evidence": "Repair committed as 11f7322e76f3bdfab0fa5d4540156ecebf4ba77a. After PR #4622 merged, main was merged as 3787354aa2de9b1a198416fc0cec871b420e5e38 and the final session episode was committed as 1923a88f37aa73c00807ae879aa4e04d8af90c22."
       },
       "validationPassed": {
         "level": "MUST",
@@ -150,6 +150,6 @@
       "result": "PR #4622 merged at 2026-08-05T15:54:23+00:00. Merged current main as 3787354aa2de9b1a198416fc0cec871b420e5e38 and regenerated this episode with the corrected preserve path."
     }
   ],
-  "endingCommit": "11f7322e76f3bdfab0fa5d4540156ecebf4ba77a",
+  "endingCommit": "1923a88f37aa73c00807ae879aa4e04d8af90c22",
   "nextSteps": []
 }
