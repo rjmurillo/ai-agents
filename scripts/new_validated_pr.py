@@ -105,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     skill_script = repo_root / SKILL_RELPATH
-    if not skill_script.exists():
+    if not skill_script.is_file():
         print(f"ERROR: PR creation skill not found: {skill_script}", file=sys.stderr)
         return 2
 
