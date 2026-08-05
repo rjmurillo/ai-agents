@@ -17,7 +17,7 @@ Use `git_timeout_problem(proc, action)` at every fail-closed Git call site that 
 
 ## Evidence
 
-The follow-up to PR #4568 applied this pattern to tree listing, ref listing, object enumeration, repository-root lookup, HEAD lookup, baseline attributes, and shared Git-line reads. The focused portability selection passed 185 tests. Ruff and targeted mypy passed. Two independent reviews found no Critical or High issue.
+The follow-up to PR #4568 applied this pattern to tree listing, ref listing, object enumeration, repository-root lookup, HEAD lookup, baseline attributes, shared Git-line reads, history lookup, and committed-object reads. The focused portability selection passed 204 tests. The full suite passed 23,320 tests with 33 skips. Ruff and targeted mypy passed. Final observability review found no Critical or High issue.
 
 ## Files
 

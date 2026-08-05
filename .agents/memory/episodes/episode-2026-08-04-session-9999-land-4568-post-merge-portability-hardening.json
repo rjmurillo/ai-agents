@@ -14,9 +14,7 @@
       "content": "Replayed four reviewed commits that merged PR #4568 did not contain",
       "caused_by": [],
       "leads_to": [
-        "e003",
-        "e004",
-        "e005"
+        "e006"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -27,21 +25,16 @@
       "content": "Added Windows skips for five symlink tests",
       "caused_by": [],
       "leads_to": [
-        "e003",
-        "e004",
-        "e005"
+        "e006"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
     {
       "id": "e003",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Centralized Git timeout detection and added operation-specific diagnostics",
-      "caused_by": [
-        "e001",
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e006"
       ],
@@ -49,13 +42,10 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran focused tests, Ruff, mypy, and independent code reviews",
-      "caused_by": [
-        "e001",
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e006"
       ],
@@ -63,13 +53,10 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Filed reviewer tool-output injection issue #4653 and updated rate-limit issue #4326",
-      "caused_by": [
-        "e001",
-        "e002"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e006"
       ],
@@ -81,9 +68,36 @@
       "type": "commit",
       "content": "Commit: eb5c54760",
       "caused_by": [
+        "e001",
+        "e002",
         "e003",
         "e004",
-        "e005"
+        "e005",
+        "e007"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran local quality review gates",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T17:05:44+00:00",
+      "type": "commit",
+      "content": "Commit: ef9f1560a",
+      "caused_by": [
+        "e006"
       ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
@@ -94,8 +108,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 2
+    "commits": 2,
+    "files_changed": 13
   },
   "lessons": []
 }
