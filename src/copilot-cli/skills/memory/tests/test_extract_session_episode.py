@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 
 from ..scripts.extract_session_episode import (
+    EpisodeValidationError,
     _chronological,
     _commit_datetime,
     _link_sequential_events,
@@ -30,6 +31,7 @@ from ..scripts.extract_session_episode import (
     parse_lessons,
     parse_metrics,
     parse_session_metadata,
+    validate_episode_causal_graph,
 )
 
 SAMPLE_SESSION_LOG = """\
@@ -394,6 +396,52 @@ class TestMainFunction:
             "--preserve must keep both curated and freshly extracted decisions"
         )
 
+    def test_preserve_keeps_explicit_event_chronology(self, tmp_path: Path) -> None:
+        session_file = tmp_path / "2026-01-15-session-001.json"
+        session_file.write_text(json.dumps(_json_log([
+            {
+                "timestamp": "2026-01-15T09:00:00+00:00",
+                "task": "fresh extraction",
+                "outcome": "done",
+            }
+        ])))
+
+        output_dir = tmp_path / "episodes"
+        output_dir.mkdir()
+        episode_file = output_dir / "episode-2026-01-15-session-001.json"
+        episode_file.write_text(json.dumps({
+            "id": "episode-2026-01-15-session-001",
+            "timestamp": "2026-01-15T00:00:00+00:00",
+            "task": "Existing task",
+            "outcome": "partial",
+            "decisions": [],
+            "events": [
+                {
+                    "id": "e001",
+                    "timestamp": "2026-01-15T10:26:49+00:00",
+                    "type": "milestone",
+                    "content": "Curated later milestone",
+                    "caused_by": [],
+                    "leads_to": [],
+                }
+            ],
+            "lessons": [],
+            "metrics": {},
+        }))
+
+        result = main([
+            str(session_file),
+            "--output-path", str(output_dir),
+            "--preserve",
+            "--pending-stage",
+        ])
+
+        assert result == 0
+        merged = json.loads(episode_file.read_text())
+        timestamps = {event["content"]: event["timestamp"] for event in merged["events"]}
+        assert timestamps["Curated later milestone"] == "2026-01-15T10:26:49+00:00"
+        assert timestamps["fresh extraction"] == "2026-01-15T09:00:00+00:00"
+
     def test_force_and_preserve_are_mutually_exclusive(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -660,6 +708,32 @@ class TestCausalEventLinks:
         assert commit["caused_by"] == [pre_code["id"]]
         assert commit["leads_to"] == [post_code["id"]]
         assert post_code["caused_by"] == [commit["id"]]
+
+    def test_backward_milestone_to_commit_edge_is_invalid(self):
+        events = [
+            {
+                "id": "e001",
+                "timestamp": "2026-05-31T11:00:00+00:00",
+                "type": "milestone",
+                "content": "Later review",
+                "caused_by": [],
+                "leads_to": ["e002"],
+            },
+            {
+                "id": "e002",
+                "timestamp": "2026-05-31T10:00:00+00:00",
+                "type": "commit",
+                "content": "Commit: abc1234",
+                "caused_by": ["e001"],
+                "leads_to": [],
+            },
+        ]
+
+        with pytest.raises(EpisodeValidationError) as exc_info:
+            validate_episode_causal_graph(events)
+
+        assert exc_info.value.exit_code == 1
+        assert "leads to earlier event" in str(exc_info.value)
 
     def test_rank_only_timestamp_ties_do_not_emit_causal_edges(self):
         events = [
