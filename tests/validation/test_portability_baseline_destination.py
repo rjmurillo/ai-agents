@@ -12,6 +12,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -192,3 +193,15 @@ class TestTheWriteCannotBeRedirectedOffThePathGitTracks:
             path /= f"level-{index}"
 
         assert refuse_symlinked_baseline(root, path)
+
+    def test_windows_junction_component_is_refused(self, tmp_path: Path) -> None:
+        root = _repo(tmp_path)
+        junction = root / "scripts"
+        path = junction / "validation" / "b.json"
+        real_is_junction = Path.is_junction
+
+        def is_junction(component: Path) -> bool:
+            return component == junction or real_is_junction(component)
+
+        with patch.object(Path, "is_junction", is_junction):
+            assert refuse_symlinked_baseline(root, path)

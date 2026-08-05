@@ -145,16 +145,16 @@ def _resolved(path: Path) -> Path | None:
 
 
 def find_symlinked_component(path: Path, repo_root: Path) -> Path | None:
-    """Return the first symlink between the repository root and ``path``.
+    """Return the first redirecting link between the repository root and ``path``.
 
-    Checking only the leaf misses the cheaper attack. A symlinked *directory*
-    anywhere on the way down redirects the write just as effectively, and it
-    leaves the leaf looking like an ordinary file.
+    Checking only the leaf misses the cheaper attack. A symlinked or junction
+    directory anywhere on the way down redirects access just as effectively,
+    and it leaves the leaf looking like an ordinary file.
     """
     root = _resolved(repo_root)
     current = path
     while True:
-        if current.is_symlink():
+        if _is_redirecting_link(current):
             return current
         parent = current.parent
         if parent == current:
@@ -165,8 +165,13 @@ def find_symlinked_component(path: Path, repo_root: Path) -> Path | None:
             # the root resolves to the root and would end the walk clean, while
             # still sending the write to a path git does not track under that
             # name. Test it before stopping.
-            return parent if parent.is_symlink() else None
+            return parent if _is_redirecting_link(parent) else None
         current = parent
+
+
+def _is_redirecting_link(path: Path) -> bool:
+    """Return whether a path component redirects filesystem access."""
+    return path.is_symlink() or path.is_junction()
 
 
 def _escaping_parent(baseline_path: Path, repo_root: Path) -> Path | None:
