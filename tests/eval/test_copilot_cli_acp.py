@@ -173,6 +173,30 @@ def test_invalid_session_timeout_is_rejected_before_process_start(
     assert started is False
 
 
+def test_oversized_prompt_is_rejected_before_process_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = False
+
+    def fail_start(*args: object, **kwargs: object) -> None:
+        nonlocal started
+        started = True
+        raise AssertionError("process must not start")
+
+    monkeypatch.setattr(acp_module, "_start_process", fail_start)
+
+    with pytest.raises(ValueError, match="prompt exceeded the size limit"):
+        run_acp_completion(
+            ["copilot"],
+            "x" * (acp_module._MAX_PROMPT_BYTES + 1),
+            cwd=".",
+            env={},
+            timeout=1.0,
+        )
+
+    assert started is False
+
+
 def test_unsafe_negative_control_exposes_secret_and_executes_fixture(
     tmp_path: Path,
 ) -> None:

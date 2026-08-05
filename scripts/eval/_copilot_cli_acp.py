@@ -15,6 +15,7 @@ from typing import Literal, TextIO, cast
 from _copilot_process_tree import ProcessTree, windows_creation_flags
 
 _PROTOCOL_VERSION = 1
+_MAX_PROMPT_BYTES = 1024 * 1024
 _MAX_CAPTURE_CHARS = 4 * 1024 * 1024
 _MAX_PROTOCOL_LINE_CHARS = 1024 * 1024
 _MAX_PROTOCOL_CHARS = 4 * 1024 * 1024
@@ -635,6 +636,8 @@ def run_acp_completion(
 ) -> subprocess.CompletedProcess[str]:
     """Send ``prompt`` over ACP stdin and return the text response."""
     timeout = validate_timeout(timeout)
+    if len(prompt.encode("utf-8")) > _MAX_PROMPT_BYTES:
+        raise ValueError("Copilot ACP prompt exceeded the size limit")
     streams = _start_process(argv, cwd=cwd, env=env)
     deadline = time.monotonic() + timeout
     try:

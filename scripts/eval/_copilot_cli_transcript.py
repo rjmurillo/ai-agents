@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
+from _copilot_windows_files import open_windows_transcript
 from _eval_common import MalformedProviderMetadataError, require_str_or_none
 
 _COPILOT_HOME_ENV = "COPILOT_HOME"
@@ -126,16 +127,10 @@ def _open_transcript(
     directory_flags |= getattr(os, "O_NOFOLLOW", 0)
 
     if os.name == "nt":
-        session_path = root / session_name
-        session_metadata = session_path.lstat()
-        if (
-            stat.S_ISLNK(session_metadata.st_mode)
-            or not stat.S_ISDIR(session_metadata.st_mode)
-        ):
-            raise RuntimeError(
-                f"{provider_label} session directory is not a regular directory"
-            )
-        descriptor = os.open(session_path / "events.jsonl", file_flags)
+        return cast(
+            tuple[int, os.stat_result],
+            open_windows_transcript(root, session_name, provider_label),
+        )
     else:
         root_descriptor = os.open(root, directory_flags)
         try:
