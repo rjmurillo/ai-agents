@@ -23,8 +23,8 @@ _CONSUMER_OWNED_NOTICE = (
     "proceeding without session-protocol gates"
 )
 _TOOLKIT_SIGNAL = (
-    "If `.agents/` has `.agents/HANDOFF.md` or "
-    "`.agents/AGENT-INSTRUCTIONS.md`, it is the toolkit session scaffold"
+    "If `.agents/` has HANDOFF.md or AGENT-INSTRUCTIONS.md, "
+    "it is the toolkit session scaffold"
 )
 _UNKNOWN_OWNERSHIP_BLOCK = "[BLOCKED] Cannot determine .agents scaffold ownership"
 _STALE_EXISTS_ONLY_RULE = (
@@ -73,11 +73,11 @@ def test_implementer_prompts_keep_partial_toolkit_scaffold_blocking(
 
     assert (
         "stop and report `[BLOCKED] Toolkit session scaffold incomplete: "
-        ".agents/HANDOFF.md missing`"
+        "HANDOFF.md missing`"
     ) in text
     assert (
         "stop and report `[BLOCKED] Toolkit session scaffold incomplete: "
-        ".agents/AGENT-INSTRUCTIONS.md missing`"
+        "AGENT-INSTRUCTIONS.md missing`"
     ) in text
     assert (
         "stop and report `[BLOCKED] Toolkit session scaffold incomplete: "

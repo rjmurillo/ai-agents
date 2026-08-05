@@ -63,7 +63,7 @@
         "BLOCKED",
         "ASK"
       ],
-      "expected_reason_contains": "Toolkit session scaffold incomplete: .agents/AGENT-INSTRUCTIONS.md missing",
+      "expected_reason_contains": "Toolkit session scaffold incomplete: AGENT-INSTRUCTIONS.md missing",
       "rationale": "Fallback rule: missing AGENT-INSTRUCTIONS.md must halt with the exact reason string from the BLOCKING section"
     },
     {
@@ -77,7 +77,7 @@
         "BLOCKED",
         "ASK"
       ],
-      "expected_reason_contains": "Toolkit session scaffold incomplete: .agents/HANDOFF.md missing",
+      "expected_reason_contains": "Toolkit session scaffold incomplete: HANDOFF.md missing",
       "rationale": "Fallback rule: missing HANDOFF.md must halt with the exact reason string from the BLOCKING section"
     },
     {
