@@ -427,6 +427,7 @@ def write_baseline_json(
                 return 2
 
             replace_baseline_atomically(
+                repo_root,
                 baseline_path,
                 json.dumps(payload, indent=2) + "\n",
             )

@@ -563,7 +563,7 @@ def _update_baseline_locked(
         return 1
 
     payload = json.dumps({"files": dict(sorted(current.items()))}, indent=2) + "\n"
-    replace_baseline_atomically(baseline_path, payload)
+    replace_baseline_atomically(repo_root, baseline_path, payload)
     print(f"check-doc-interpreter-portability: wrote {baseline_path} ({len(current)} files)")
     return 0
 

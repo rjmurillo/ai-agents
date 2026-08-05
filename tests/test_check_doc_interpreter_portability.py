@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -792,12 +793,17 @@ def test_update_baseline_preserves_original_when_replace_fails(
     baseline = write_baseline(repo, {"README.md": 1})
     original = baseline.read_text(encoding="utf-8")
 
-    def fail_replace(source: Path, target: Path) -> Path:
-        if target == baseline:
-            raise OSError("replace failed")
-        return source
+    def fail_replace(
+        source: str,
+        target: str,
+        *,
+        src_dir_fd: int | None = None,
+        dst_dir_fd: int | None = None,
+    ) -> None:
+        del source, target, src_dir_fd, dst_dir_fd
+        raise OSError("replace failed")
 
-    monkeypatch.setattr(Path, "replace", fail_replace)
+    monkeypatch.setattr(os, "replace", fail_replace)
 
     exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
 
@@ -805,6 +811,62 @@ def test_update_baseline_preserves_original_when_replace_fails(
     assert baseline.read_text(encoding="utf-8") == original
     assert list(baseline.parent.glob(f".{baseline.name}.*.tmp")) == []
     assert "replace failed" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires POSIX directory descriptors")
+def test_update_baseline_parent_swap_cannot_redirect_replace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n"})
+    checked_parent = repo / "config"
+    checked_parent.mkdir()
+    baseline = checked_parent / "baseline.json"
+    baseline.write_text('{"files": {"README.md": 1}}', encoding="utf-8")
+    moved_parent = repo / "checked-parent"
+    attacker_parent = repo / "attacker-parent"
+    attacker_parent.mkdir()
+    victim = attacker_parent / "baseline.json"
+    victim.write_text("DO NOT OVERWRITE", encoding="utf-8")
+    original_replace = os.replace
+    swap_complete = False
+
+    def swap_parent_before_replace(
+        source: str,
+        destination: str,
+        *,
+        src_dir_fd: int | None = None,
+        dst_dir_fd: int | None = None,
+    ) -> None:
+        nonlocal swap_complete
+        if not swap_complete and src_dir_fd is not None:
+            checked_parent.rename(moved_parent)
+            checked_parent.symlink_to(attacker_parent, target_is_directory=True)
+            swap_complete = True
+        original_replace(
+            source,
+            destination,
+            src_dir_fd=src_dir_fd,
+            dst_dir_fd=dst_dir_fd,
+        )
+
+    monkeypatch.setattr(os, "replace", swap_parent_before_replace)
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(repo),
+            "--baseline",
+            str(baseline),
+            "--update-baseline",
+        ]
+    )
+
+    assert exit_code == 0
+    assert victim.read_text(encoding="utf-8") == "DO NOT OVERWRITE"
+    assert json.loads((moved_parent / "baseline.json").read_text(encoding="utf-8")) == {
+        "files": {}
+    }
 
 
 def test_update_baseline_preserves_replace_error_when_cleanup_fails(
@@ -816,18 +878,22 @@ def test_update_baseline_preserves_replace_error_when_cleanup_fails(
     baseline = write_baseline(repo, {"README.md": 1})
     original = baseline.read_text(encoding="utf-8")
 
-    def fail_replace(source: Path, target: Path) -> Path:
-        if target == baseline:
-            raise OSError("replace failed")
-        return source
+    def fail_replace(
+        source: str,
+        target: str,
+        *,
+        src_dir_fd: int | None = None,
+        dst_dir_fd: int | None = None,
+    ) -> None:
+        del source, target, src_dir_fd, dst_dir_fd
+        raise OSError("replace failed")
 
-    def fail_cleanup(path: Path, missing_ok: bool = False) -> None:
-        del missing_ok
-        if path.name.startswith(f".{baseline.name}."):
-            raise OSError("cleanup failed")
+    def fail_cleanup(path: str, *, dir_fd: int | None = None) -> None:
+        del path, dir_fd
+        raise OSError("cleanup failed")
 
-    monkeypatch.setattr(Path, "replace", fail_replace)
-    monkeypatch.setattr(Path, "unlink", fail_cleanup)
+    monkeypatch.setattr(os, "replace", fail_replace)
+    monkeypatch.setattr(os, "unlink", fail_cleanup)
 
     exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
 
@@ -846,12 +912,11 @@ def test_update_baseline_reports_cleanup_only_failure(
     repo = make_repo(tmp_path, {"README.md": "No command.\n"})
     baseline = write_baseline(repo, {"README.md": 1})
 
-    def fail_cleanup(path: Path, missing_ok: bool = False) -> None:
-        del missing_ok
-        if path.name.startswith(f".{baseline.name}."):
-            raise OSError("cleanup failed")
+    def fail_cleanup(path: str, *, dir_fd: int | None = None) -> None:
+        del path, dir_fd
+        raise OSError("cleanup failed")
 
-    monkeypatch.setattr(Path, "unlink", fail_cleanup)
+    monkeypatch.setattr(os, "unlink", fail_cleanup)
 
     exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
 

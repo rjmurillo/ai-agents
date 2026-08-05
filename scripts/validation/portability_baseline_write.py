@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 import sys
 import tempfile
 import time
@@ -68,8 +69,76 @@ def baseline_write_lock(
         os.close(file_descriptor)
 
 
-def replace_baseline_atomically(baseline_path: Path, text: str) -> None:
-    """Replace a baseline without letting cleanup hide the write failure."""
+def _write_all(file_descriptor: int, payload: bytes) -> None:
+    """Write a complete payload to an open file descriptor."""
+    offset = 0
+    while offset < len(payload):
+        offset += os.write(file_descriptor, payload[offset:])
+
+
+def _replace_baseline_relative_to_parent(
+    repo_root: Path,
+    baseline_path: Path,
+    text: str,
+) -> None:
+    """Replace through a pinned parent directory without following links."""
+    root = Path(os.path.abspath(repo_root))
+    target = Path(os.path.abspath(baseline_path))
+    try:
+        relative = target.relative_to(root)
+    except ValueError as exc:
+        raise OSError(f"baseline path leaves repository root: {target}") from exc
+
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    parent_descriptor = os.open(root, directory_flags)
+    temporary_name: str | None = None
+    first_error: OSError | None = None
+    try:
+        for component in relative.parent.parts:
+            next_descriptor = os.open(
+                component,
+                directory_flags,
+                dir_fd=parent_descriptor,
+            )
+            os.close(parent_descriptor)
+            parent_descriptor = next_descriptor
+
+        temporary_name = f".{target.name}.{secrets.token_hex(8)}.tmp"
+        temporary_descriptor = os.open(
+            temporary_name,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+            0o600,
+            dir_fd=parent_descriptor,
+        )
+        try:
+            _write_all(temporary_descriptor, text.encode("utf-8"))
+            os.fsync(temporary_descriptor)
+        finally:
+            os.close(temporary_descriptor)
+        os.replace(
+            temporary_name,
+            target.name,
+            src_dir_fd=parent_descriptor,
+            dst_dir_fd=parent_descriptor,
+        )
+    except OSError as write_error:
+        first_error = write_error
+    finally:
+        if temporary_name is not None:
+            try:
+                os.unlink(temporary_name, dir_fd=parent_descriptor)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                if first_error is None:
+                    raise
+        os.close(parent_descriptor)
+    if first_error is not None:
+        raise first_error
+
+
+def _replace_baseline_by_path(baseline_path: Path, text: str) -> None:
+    """Use the portable path API where directory descriptors are unavailable."""
     temporary_path: Path | None = None
     first_error: OSError | None = None
     try:
@@ -95,3 +164,15 @@ def replace_baseline_atomically(baseline_path: Path, text: str) -> None:
                     raise
     if first_error is not None:
         raise first_error
+
+
+def replace_baseline_atomically(
+    repo_root: Path,
+    baseline_path: Path,
+    text: str,
+) -> None:
+    """Replace a baseline without allowing a checked parent to be swapped."""
+    if os.name == "posix":
+        _replace_baseline_relative_to_parent(repo_root, baseline_path, text)
+        return
+    _replace_baseline_by_path(baseline_path, text)
