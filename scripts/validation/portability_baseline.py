@@ -153,7 +153,7 @@ def find_symlinked_component(path: Path, repo_root: Path) -> Path | None:
     """
     root = _resolved(repo_root)
     current = path
-    for _ in range(64):
+    while True:
         if current.is_symlink():
             return current
         parent = current.parent
@@ -167,7 +167,6 @@ def find_symlinked_component(path: Path, repo_root: Path) -> Path | None:
             # name. Test it before stopping.
             return parent if parent.is_symlink() else None
         current = parent
-    return None
 
 
 def _escaping_parent(baseline_path: Path, repo_root: Path) -> Path | None:

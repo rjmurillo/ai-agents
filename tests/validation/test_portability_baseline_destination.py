@@ -178,3 +178,17 @@ class TestTheWriteCannotBeRedirectedOffThePathGitTracks:
         path = root / "link" / ".." / "victim.json"
 
         assert refuse_symlinked_baseline(root, path)
+
+    def test_symlink_beyond_sixty_four_components_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        root = _repo(tmp_path)
+        target = root / "target"
+        target.mkdir()
+        linked = root / "linked"
+        linked.symlink_to(target, target_is_directory=True)
+        path = linked
+        for index in range(65):
+            path /= f"level-{index}"
+
+        assert refuse_symlinked_baseline(root, path)
