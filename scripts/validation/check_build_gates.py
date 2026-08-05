@@ -71,14 +71,18 @@ class GateViolation:
 
 
 def _option_value(arguments: list[str], option: str) -> str | None:
-    option_indexes = [
-        index for index, argument in enumerate(arguments) if argument == option
-    ]
-    if len(option_indexes) != 1:
+    values: list[str | None] = []
+    for index, argument in enumerate(arguments):
+        if argument == option:
+            value_index = index + 1
+            values.append(
+                arguments[value_index] if value_index < len(arguments) else None
+            )
+        elif argument.startswith(f"{option}="):
+            values.append(argument.partition("=")[2])
+    if len(values) != 1:
         return None
-    option_index = option_indexes[0]
-    value_index = option_index + 1
-    return arguments[value_index] if value_index < len(arguments) else None
+    return values[0]
 
 
 def _has_regression_arguments(line: str) -> bool:

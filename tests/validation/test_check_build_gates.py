@@ -210,16 +210,19 @@ def test_code_quality_argument_values_require_exact_tokens(
     assert any(v.kind == "arguments" for v in violations)
 
 
-@pytest.mark.parametrize("option", ["--base", "--gate-mode"])
+@pytest.mark.parametrize(
+    "duplicate",
+    [
+        "--base wrong",
+        "--base=wrong",
+        "--gate-mode absolute",
+        "--gate-mode=absolute",
+    ],
+)
 def test_duplicate_code_quality_options_are_flagged(
     fake_repo: Path,
-    option: str,
+    duplicate: str,
 ) -> None:
-    duplicate = (
-        "--base wrong"
-        if option == "--base"
-        else "--gate-mode absolute"
-    )
     bad = _VALID_BUILD_MD.replace(
         "--changed-only --base origin/main --gate-mode regression",
         (
