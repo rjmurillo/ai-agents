@@ -1209,14 +1209,31 @@ def test_copilot_timeout_traceback_does_not_contain_prompt(
     assert exc_info.value.__cause__ is None
 
 
-def test_copilot_complete_missing_executable_names_the_binary(
+@pytest.mark.parametrize(
+    ("error", "category"),
+    [
+        (FileNotFoundError("private executable path"), "executable_not_found"),
+        (OSError("private operating system detail"), "os_error"),
+    ],
+)
+def test_copilot_complete_redacts_process_launch_errors(
     monkeypatch: pytest.MonkeyPatch,
+    error: OSError,
+    category: str,
 ) -> None:
-    _capture_run(monkeypatch, FileNotFoundError("no such file"))
-    provider = _providers._CopilotCLIProvider(executable="copilot-nope")
+    private_path = "/home/private/copilot-secret"
+    _capture_run(monkeypatch, error)
+    provider = _providers._CopilotCLIProvider(executable=private_path)
 
-    with pytest.raises(RuntimeError, match="copilot-nope"):
+    with pytest.raises(RuntimeError) as exc_info:
         provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    message = str(exc_info.value)
+    assert category in message
+    assert "process details redacted" in message
+    assert private_path not in message
+    assert str(error) not in message
+    assert exc_info.value.__cause__ is None
 
 
 def test_copilot_complete_blank_stdout_raises(

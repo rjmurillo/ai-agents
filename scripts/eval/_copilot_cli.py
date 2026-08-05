@@ -298,17 +298,16 @@ class _CopilotCLIProvider:
                 f"{self._provider_label} API request timed out after "
                 f"{self._timeout:.0f}s. The service may be slow or unreachable."
             ) from None
-        except FileNotFoundError as exc:
+        except FileNotFoundError:
             raise RuntimeError(
-                f"{self._provider_label} network error: executable "
-                f"{self._executable!r} not found on PATH. Install the "
-                "GitHub Copilot CLI or pass a different executable."
-            ) from exc
-        except OSError as exc:
+                f"{self._provider_label} process launch failed: "
+                "error=executable_not_found; process details redacted"
+            ) from None
+        except OSError:
             raise RuntimeError(
-                f"{self._provider_label} API network error: {type(exc).__name__}. "
-                "Check that the Copilot CLI is installed and authenticated."
-            ) from exc
+                f"{self._provider_label} process launch failed: "
+                "error=os_error; process details redacted"
+            ) from None
         if completed.returncode != 0:
             stderr = completed.stderr or completed.stdout or ""
             raise _safe_process_error(completed.returncode, stderr)
