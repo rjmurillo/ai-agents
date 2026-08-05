@@ -68,3 +68,10 @@ class TestMemoryTierGateEnforcement:
         job = self._find_job("memory-index")
         run = job.get("run", "")
         assert "--ci" in run, f"memory-index is missing --ci: {run!r}"
+
+    def test_memory_token_repair_has_pre_push_verifier(self) -> None:
+        job = self._find_job("memory-token-check")
+        run = job.get("run", "")
+        assert "scripts/update_memory_index_tokens.py" in run
+        assert "--check" in run
+        assert job.get("glob") == ".serena/memories/**/*.md"
