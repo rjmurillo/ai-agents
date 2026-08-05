@@ -199,15 +199,10 @@ def test_m3_scan_all_roots_is_dead(tmp_path: Path) -> None:
     that caused DID-NOT-APPLY when the single-line anchor matched twice (#4493).
     """
     target = SCRIPTS / "check_skill_md_exec_portability.py"
-    # The two-line anchor exists only in scan_all, not in scan_dangling_skill_relative_scripts.
-    old = (
-        "    for parts in SCAN_ROOTS:\n"
-        '        root_name = "/".join(parts)\n'
-    )
-    new = (
-        "    for parts in []:\n"
-        '        root_name = "/".join(parts)\n'
-    )
+    # Use the two-line context unique to scan_all. Another helper also loops
+    # over SCAN_ROOTS, so a single-line anchor is ambiguous.
+    old = "    repo_resolved = repo_root.resolve()\n    for parts in SCAN_ROOTS:"
+    new = "    repo_resolved = repo_root.resolve()\n    for parts in []:"
     count = _count_occurrences(target, old)
     assert count > 0, f"M3-scan-all-roots DID-NOT-APPLY: two-line anchor absent in {target}"
     assert count == 1, f"M3-scan-all-roots PATTERN-AMBIGUOUS: {count} occurrences"
