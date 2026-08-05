@@ -20,8 +20,11 @@ Usage:
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import sys
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from shlex import quote
@@ -62,6 +65,7 @@ class Result:
 
 
 def _run_tests(test_filter: str) -> subprocess.CompletedProcess[str]:
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     return subprocess.run(
         [
             "uv",
@@ -80,11 +84,43 @@ def _run_tests(test_filter: str) -> subprocess.CompletedProcess[str]:
         encoding="utf-8",
         errors="replace",
         cwd=REPO_ROOT,
+        env=env,
     )
 
 
 def _recovery_checkout_hint(target: Path) -> str:
     return f"git checkout -- {quote(str(target))}"
+
+
+def _write_bytes_by_sibling_replace(target: Path, data: bytes, purpose: str) -> None:
+    scratch = target.with_name(
+        f".{target.name}.mutation-harness-{purpose}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+    )
+    try:
+        scratch.write_bytes(data)
+        scratch.replace(target)
+    except OSError:
+        try:
+            if scratch.exists():
+                scratch.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _purge_pycache(target: Path) -> None:
+    pycache = target.parent / "__pycache__"
+    if pycache.exists():
+        shutil.rmtree(pycache)
+
+
+def _exit_restore_failed(target: Path, detail: str) -> None:
+    print(
+        f"ERROR: could not restore {target.name}: {detail}\n"
+        f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
 
 
 def apply_mutation(mutation: Mutation) -> Result:
@@ -116,42 +152,35 @@ def apply_mutation(mutation: Mutation) -> Result:
     if mutated == backup:
         return Result(mutation, DID_NOT_APPLY, "file byte-identical after patch")
 
-    target.write_bytes(mutated)
+    try:
+        _write_bytes_by_sibling_replace(target, mutated, "mutant")
+    except OSError as exc:
+        return Result(mutation, DID_NOT_APPLY, f"could not write mutant: {exc}")
+
+    try:
+        if target.read_bytes() != mutated:
+            return Result(mutation, DID_NOT_APPLY, "mutant bytes differed after write")
+    except OSError as exc:
+        return Result(mutation, DID_NOT_APPLY, f"could not verify mutant write: {exc}")
+
     note = ""
     try:
+        _purge_pycache(target)
         proc = _run_tests(mutation.test_filter)
         outcome, note = _classify(proc)
     finally:
-        # Always restore. Wrap the write so an OSError exits 2 (tree dirty,
-        # emergency) rather than propagating as an uncaught exception that
-        # exits 1 (indistinguishable from a surviving mutant).
         try:
-            target.write_bytes(backup)
+            _write_bytes_by_sibling_replace(target, backup, "restore")
         except OSError as exc:
-            print(
-                f"ERROR: could not restore {target.name}: {exc}\n"
-                f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
-                file=sys.stderr,
-            )
-            raise SystemExit(2) from exc
+            _exit_restore_failed(target, str(exc))
 
     # Verify restore: write_bytes returned but bytes differ (external race).
     try:
         restored = target.read_bytes()
     except OSError as exc:
-        print(
-            f"ERROR: could not verify restore of {target.name}: {exc}\n"
-            f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
-            file=sys.stderr,
-        )
-        raise SystemExit(2) from exc
+        _exit_restore_failed(target, f"could not verify restored bytes: {exc}")
     if restored != backup:
-        print(
-            f"ERROR: restore of {target.name} failed (bytes differ after write)!\n"
-            f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
-            file=sys.stderr,
-        )
-        sys.exit(2)
+        _exit_restore_failed(target, "bytes differ after write")
 
     return Result(mutation, outcome, note)
 
@@ -183,13 +212,10 @@ def build_mutations() -> list[Mutation]:
         "tests/workflows/test_workflow_job_permissions.py"
         "::test_no_job_silently_inherits_a_new_write_scope"
     )
-    guard_class = (
-        "tests/ci/test_pr_validation_workflow.py::TestBotSkipGuardClassification"
-    )
+    guard_class = "tests/ci/test_pr_validation_workflow.py::TestBotSkipGuardClassification"
 
     return [
         # --- Permissions ratchet mutations (test_workflow_job_permissions.py) ---
-
         # M1: Remove one job from _GRANDFATHERED. The live scan still finds it,
         # so found > grandfathered -> test must fail.
         Mutation(
@@ -199,7 +225,6 @@ def build_mutations() -> list[Mutation]:
             new_bytes=b"",
             test_filter=perms_gate,
         ),
-
         # M2: Add a fake entry to _GRANDFATHERED. The live scan won't find it,
         # so grandfathered > found -> test must fail (fixed-but-not-removed path).
         Mutation(
@@ -212,7 +237,6 @@ def build_mutations() -> list[Mutation]:
             ),
             test_filter=perms_gate,
         ),
-
         # M3: Make write_scopes miss the write-all shorthand.
         Mutation(
             description="M3: corrupt write_scopes to miss the write-all shorthand",
@@ -222,7 +246,6 @@ def build_mutations() -> list[Mutation]:
             test_filter="tests/workflows/test_workflow_job_permissions.py"
             "::TestWriteScopes::test_write_all_shorthand_reports_all",
         ),
-
         # M4: Make jobs_inheriting_write bail before it reports anything.
         Mutation(
             description="M4: corrupt jobs_inheriting_write to report nothing",
@@ -232,20 +255,17 @@ def build_mutations() -> list[Mutation]:
             test_filter="tests/workflows/test_workflow_job_permissions.py"
             "::TestJobsInheritingWrite::test_a_job_with_no_block_inherits",
         ),
-
         # M5: Remove the job-has-own-block guard from jobs_inheriting_write.
         Mutation(
             description="M5: remove own-block exclusion from jobs_inheriting_write",
             target_file=wf_perms_test,
-            old_bytes=b'    return {name: inherited for name, job in _jobs(doc).items() '
+            old_bytes=b"    return {name: inherited for name, job in _jobs(doc).items() "
             b'if "permissions" not in job}\n',
             new_bytes=b"    return {name: inherited for name, job in _jobs(doc).items()}\n",
             test_filter="tests/workflows/test_workflow_job_permissions.py"
             "::TestJobsInheritingWrite::test_a_job_with_its_own_block_is_clean",
         ),
-
         # --- Bot-skip classification mutations (test_pr_validation_workflow.py) ---
-
         # M6: Put a phantom name in the allowlist. No step carries it, so the
         # stale-entry test must fail.
         Mutation(
@@ -255,7 +275,6 @@ def build_mutations() -> list[Mutation]:
             new_bytes=b'            "Enforce Blocking Issues",\n            "No Such Step",\n',
             test_filter=f"{guard_class}::test_all_allowed_guarded_steps_are_present",
         ),
-
         # M7: Put the ADR-006 correctness gate back behind the skip guard.
         Mutation(
             description="M7: re-add bot-skip guard to the ADR-006 ratchet step",
@@ -271,7 +290,6 @@ def build_mutations() -> list[Mutation]:
             ),
             test_filter=f"{guard_class}::test_adr006_ratchet_is_unconditional",
         ),
-
         # M8: Drop a throughput step from the allowlist while it stays guarded.
         # It then reads as an unjustified gate behind the skip guard.
         Mutation(
@@ -281,7 +299,6 @@ def build_mutations() -> list[Mutation]:
             new_bytes=b"",
             test_filter=f"{guard_class}::test_no_security_gate_is_skip_guarded",
         ),
-
         # M9: Put a security gate behind the skip guard in the workflow itself.
         Mutation(
             description="M9: add bot-skip guard to Validate workflow YAML (security gate)",
