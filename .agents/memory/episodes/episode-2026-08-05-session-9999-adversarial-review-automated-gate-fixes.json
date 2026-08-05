@@ -1,0 +1,165 @@
+{
+  "id": "episode-2026-08-05-session-9999-adversarial-review-automated-gate-fixes",
+  "session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Adversarial review of automated gate fixes",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reviewed the latest automated gate campaign from an attached branch",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced duplicate documentation invocation collapse",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced required CLI E2E false passes",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced incomplete tracked-source scans",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Exercised nested unreachable-code branches",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran negative controls and direct repository scans",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Exercised reviewed paths that resisted breakage",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T10:30:53+00:00",
+      "type": "commit",
+      "content": "Commit: c0d74520da",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e011"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T10:33:34+00:00",
+      "type": "commit",
+      "content": "Commit: f5598c6685",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T11:15:07+00:00",
+      "type": "commit",
+      "content": "Commit: 6d61e15e92",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a42159476a",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-05T11:19:10+00:00",
+      "type": "commit",
+      "content": "Commit: 8677da2c3f",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 2
+  },
+  "lessons": []
+}
