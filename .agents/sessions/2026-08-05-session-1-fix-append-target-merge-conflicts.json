@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Correction changes staged for a follow-up commit; endingCommit will be recorded in the next commit."
+        "Evidence": "6690e54c0c90bdc309c4031dee4295b3f0e2b83c"
       },
       "validationPassed": {
         "level": "MUST",
@@ -160,8 +160,8 @@
       ]
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "6690e54c0c90bdc309c4031dee4295b3f0e2b83c",
   "nextSteps": [
-    "Commit correction, update endingCommit in a follow-up commit, push, and update PR #4618."
+    "Push branch update and update PR #4618."
   ]
 }
