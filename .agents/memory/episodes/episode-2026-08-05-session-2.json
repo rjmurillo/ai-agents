@@ -1,0 +1,107 @@
+{
+  "id": "episode-2026-08-05-session-2",
+  "session": "2026-08-05-session-2",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Split build_ai_review_context for issue 4597",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T07:22:41+00:00",
+      "type": "milestone",
+      "content": "Issue coordination check hit GitHub API 403 secondary/rate limiter, so duplicate PR state could not be verified through the GitHub skill at session start.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T07:30:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced issue 4597 locally: build_ai_review_context.py was 515 lines and carried a file-size suppression. The guard reported no error only because the suppression hid the cap breach.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T07:41:00+00:00",
+      "type": "milestone",
+      "content": "Captured pre-split session-log context output under ~/src/scratch/ai-agents-smokesplit-4597 for byte comparison.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T07:55:00+00:00",
+      "type": "milestone",
+      "content": "Moved GitHub Actions output writing to scripts/ai_review_outputs.py and kept build_ai_review_context.py as the context orchestration entrypoint.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T08:12:00+00:00",
+      "type": "milestone",
+      "content": "Verified moved tests fail against origin/main in scratch worktree: tests/test_build_ai_review_context_split.py failed 3 of 3 before the split.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T08:20:00+00:00",
+      "type": "milestone",
+      "content": "Validated split: ruff passed, 255 pytest cases passed with 5 skipped, output diff was byte-identical, mutation controls killed required mutants and preserved cosmetic control.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T09:53:16+00:00",
+      "type": "commit",
+      "content": "Commit: 5b9ea144bd",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-2"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 57,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 19
+  },
+  "lessons": []
+}
