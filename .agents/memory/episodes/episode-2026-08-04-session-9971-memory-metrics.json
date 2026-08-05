@@ -60,7 +60,44 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e006",
+        "e007"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9971-memory-metrics"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Probed the scope-explosion gate to settle whether issue 4544 was already fixed on main.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9971-memory-metrics"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Varied one thing in that probe after a first run disagreed with a first-hand observation.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9971-memory-metrics"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T05:16:01+00:00",
+      "type": "commit",
+      "content": "Commit: 8835cb7cfc053fd6e79a3f7ddd7197afd9f3066f",
+      "caused_by": [
+        "e005"
       ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9971-memory-metrics"
@@ -71,7 +108,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 5
   },
   "lessons": []

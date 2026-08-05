@@ -579,5 +579,26 @@ Two consequences:
   match before opening a PR. Opening one against a branch the remote has never
   heard of fails with a confusing 422 that names the base, not the head.
 
-Commits added while a push is in flight are not included in it. `git push`
-resolves the ref when it starts, so a follow-up push is required.
+Whether a commit made while a push is in flight lands with it is not
+predictable from the outside. The wrapper runs `pre_pr.py` first and only then
+calls `git push`, so a commit created during that window can be picked up, and
+one created after the transfer starts will not be. Measured both ways. Do not
+reason about it: read the sha off the remote and compare.
+
+## Never measure a gate from a detached HEAD
+
+`scripts/detect_scope_explosion.py` returns 0 on a detached `HEAD` for staged
+content that returns 1 on a branch. Same commit, same staged files, same tree;
+the only variable is whether `HEAD` is attached. It does not report that it
+skipped, it reports success (issue #4602).
+
+The direct cost is that `git bisect`, `git worktree add --detach`, a CI checkout
+of a SHA, and a rebase in progress all detach, so committing from any of those
+states skips the gate with no signal.
+
+The larger cost is to measurement. A probe run detached reports PASS on input the
+gate blocks, so the obvious way to test this check yields a false negative. That
+is how issue #4544 came to be closed as already-fixed while still reproducing,
+and the retraction had to be retracted. When you probe any gate, attach `HEAD`
+first with `git checkout -B probe/<name> <sha>` rather than
+`git worktree add --detach`, and treat a detached PASS as no result at all.

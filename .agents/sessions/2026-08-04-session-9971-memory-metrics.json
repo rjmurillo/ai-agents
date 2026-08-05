@@ -129,9 +129,17 @@
     {
       "step": "Exercised the finished gate end to end by adding a real memory with a (0) placeholder.",
       "result": "The gate rejected the placeholder and named the repair; the repair fixed it; the gate went green. Recorded 750 tokens."
+    },
+    {
+      "step": "Probed the scope-explosion gate to settle whether issue 4544 was already fixed on main.",
+      "result": "It is not fixed. An 11-file branch that merges origin/main is counted at 105 files and blocked at the 50 limit. Reopened 4544 with the reproduction."
+    },
+    {
+      "step": "Varied one thing in that probe after a first run disagreed with a first-hand observation.",
+      "result": "Found the detector returns 0 on a detached HEAD for input that blocks on a branch. Filed as issue 4602 and recorded the measurement trap in GOTCHAS."
     }
   ],
-  "endingCommit": "13648493fabd7b3046362b7f44b3c08f72c863e4",
+  "endingCommit": "8835cb7cfc053fd6e79a3f7ddd7197afd9f3066f",
   "nextSteps": [
     "Open the PR once git ls-remote confirms the branch reached the remote. The push log's 'All validations passed' is the pre-PR result, not push completion.",
     "Consider a .claude/rules entry for 'add the missing state instead of overloading a sentinel'. This cluster is its fourth instance."
