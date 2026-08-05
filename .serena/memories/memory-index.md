@@ -64,6 +64,7 @@
 
 [CI/CD and Workflows]
 |spec coverage acceptance criteria checkbox observe signal non-blocking required check push-pr body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
+|mutation harness restore failure truncate empty target sibling replace scratch pycache: [ci/mutation-harness-restore-failure-safe-writes](ci/mutation-harness-restore-failure-safe-writes.md) (360)
 |count ratchet baseline branch freshness behind main stale higher baseline merge origin/main: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (822)
 |stale detached HEAD shared checkout verify wrong commit git show ref path worktree parse fresh input: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (654)
 |validate PR check red advisory blocking signal DESCRIPTION_RESULT TEMPLATE_STATUS exit code file mentioned but not in diff CRITICAL WARNING: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (2488)
