@@ -8,7 +8,8 @@ public import surface ``from scripts.github_core.api import ...`` stays stable
 - ``log_safety``: ``safe_log_str`` (CWE-117 log-forging defense).
 - ``review_threads``: review-thread shape, predicates, paginated fetch,
   ``FetchStatus``, ``get_unresolved_review_threads``.
-- ``rate_limit``: ``RateLimitResult``, ``DEFAULT_RATE_THRESHOLDS``,
+- ``rate_limit``: ``RateLimitResult``, ``RateLimitStatus``,
+  ``DEFAULT_RATE_THRESHOLDS``,
   ``check_workflow_rate_limit``.
 """
 
@@ -34,6 +35,7 @@ from scripts.github_core.log_safety import safe_log_str
 from scripts.github_core.rate_limit import (  # noqa: F401
     DEFAULT_RATE_THRESHOLDS,
     RateLimitResult,
+    RateLimitStatus,
     check_workflow_rate_limit,
 )
 from scripts.github_core.review_threads import (  # noqa: F401
