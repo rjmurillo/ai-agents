@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10026,
+    "date": "2026-08-04",
+    "branch": "fix/revthreads-completion-gate",
+    "startingCommit": "f36f1ed72b6f",
+    "objective": "Fix issues 4526 and 4527 by adding completion-gate checks for suppressed Copilot review findings and unreachable commit references in resolved review-thread replies."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools available; initial instructions loaded through MCP."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions called."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill loaded and used for issue and PR operations."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Git workflow, GitHub, agent-harness-reference, and portability campaign skills loaded."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF, SESSION-PROTOCOL, Python, testing, CI script, generated artifact, and plugin rules read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index, skills-github-cli-index, skills-pr-review-index, and validation-pr-gates loaded."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/revthreads-completion-gate."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work performed in ai-agents-revthreads worktree."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked before and after commits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Starting commit f36f1ed72b6f recorded."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted tests, mutation proof, pre_pr, and mirror checks passed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable codebase convention required a memory write; memory-index was user-held for this task."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr Markdown Linting passed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code commits 0d0a785655 and ed5350a919 created."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr result passed 46 validations, 0 failed, 4 skipped."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todo rows updated."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No retrospective requested for this task."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "ownership",
+      "evidence": "Corrected discriminator applied. ai-agents-reviewthreads-3946407 harvested; ai-agents-mergerace-3483113 avoided as live."
+    },
+    {
+      "step": "triage",
+      "evidence": "REST issue and PR discourse traversal visited linked issues and PRs from 4526 and 4527 through PR 4277, 4484, 4378, 4465, 4445, and 4054."
+    },
+    {
+      "step": "implementation",
+      "evidence": "Added check_suppressed_review_findings.py and check_review_thread_resolution_shas.py, then wired both into pr-review completion criteria."
+    },
+    {
+      "step": "verification",
+      "evidence": "17 targeted tests passed; PR 4277 measured 28 suppressed findings and 4 unreachable commit references; completion gate reported both criteria as failed."
+    },
+    {
+      "step": "mutation",
+      "evidence": "Five behavioral mutants died and one cosmetic control survived in /home/richard/src/scratch/mut_revthreads.log."
+    }
+  ],
+  "endingCommit": "ed5350a919",
+  "nextSteps": [],
+  "tasks": [
+    {
+      "issue": "4526",
+      "disposition": "fixed",
+      "evidence": "check_suppressed_review_findings.py reports suppressed_count=28 and parsed_finding_count=28 on PR 4277."
+    },
+    {
+      "issue": "4527",
+      "disposition": "fixed",
+      "evidence": "check_review_thread_resolution_shas.py reports sha_reference_count=4, unreachable_count=4, invalid_count=0 on PR 4277."
+    }
+  ]
+}
