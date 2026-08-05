@@ -263,6 +263,28 @@ class TestValidatorBehaviour:
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", lambda *_a, **_k: (0, "", ""))
         assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is False
 
+    def test_remote_head_is_normalized_before_refresh(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: list[str] = []
+        monkeypatch.setattr(
+            checks_ratchet,
+            "_resolve_default_base_ref",
+            lambda _root: "refs/remotes/origin/HEAD",
+        )
+        monkeypatch.setattr(
+            checks_ratchet,
+            "_normalize_remote_head",
+            lambda _root, _ref: "origin/main",
+        )
+        monkeypatch.setattr(
+            checks_ratchet,
+            "_refresh_remote_base",
+            lambda ref, _root: seen.append(ref) or "offline",
+        )
+        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is False
+        assert seen == ["origin/main"]
+
     def test_skips_when_uv_is_absent(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Edge: SKIP, not FAIL. The gate cannot reproduce the push command."""
         monkeypatch.setattr(checks_ratchet.shutil, "which", lambda _name: None)

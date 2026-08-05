@@ -141,6 +141,51 @@ def _resolve_base_oid(repo_root: Path, base_ref: str) -> str | None:
     return None
 
 
+def _normalize_remote_head(repo_root: Path, base_ref: str) -> str | None:
+    if base_ref != "refs/remotes/origin/HEAD":
+        return base_ref
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "symbolic-ref",
+            "--short",
+            base_ref,
+        ],
+        timeout=10,
+    )
+    resolved = str(stdout).strip()
+    if exit_code == 0 and resolved.startswith("origin/"):
+        return resolved
+    detail = str(stderr).strip() or f"git symbolic-ref exit {exit_code}"
+    print(f"[ERROR] count ratchets: cannot resolve remote HEAD: {detail}", file=sys.stderr)
+    return None
+
+
+def _prepare_base_oid(repo_root: Path) -> str | None:
+    base_ref = _resolve_default_base_ref(repo_root)
+    if not base_ref:
+        print(
+            "[ERROR] count ratchets: base ref could not be resolved; refusing "
+            "to invoke a ratchet without an explicit --base-ref.",
+            file=sys.stderr,
+        )
+        return None
+    base_ref = _normalize_remote_head(repo_root, base_ref)
+    if base_ref is None:
+        return None
+    fetch_result = _refresh_remote_base(base_ref, repo_root)
+    if fetch_result:
+        print(
+            f"[ERROR] count ratchets: could not refresh {base_ref} "
+            f"({fetch_result}); refusing to evaluate a stale base.",
+            file=sys.stderr,
+        )
+        return None
+    return _resolve_base_oid(repo_root, base_ref)
+
+
 def validate_count_ratchets(repo_root: Path) -> bool:
     """Run every ratchet in :data:`RATCHETS`; return True when all pass.
 
@@ -168,26 +213,7 @@ def validate_count_ratchets(repo_root: Path) -> bool:
             )
         return False
 
-    base_ref = _resolve_default_base_ref(repo_root)
-    if not base_ref:
-        print(
-            "[ERROR] count ratchets: base ref could not be resolved; refusing "
-            "to invoke a ratchet without an explicit --base-ref.",
-            file=sys.stderr,
-        )
-        return False
-
-    # A stale local origin/<branch> false-PASSes aggregate checks. Refresh first
-    # and pin one OID so every base-aware ratchet evaluates the same commit.
-    fetch_result = _refresh_remote_base(base_ref, repo_root)
-    if fetch_result:
-        print(
-            f"[ERROR] count ratchets: could not refresh {base_ref} "
-            f"({fetch_result}); refusing to evaluate a stale base.",
-            file=sys.stderr,
-        )
-        return False
-    base_oid = _resolve_base_oid(repo_root, base_ref)
+    base_oid = _prepare_base_oid(repo_root)
     if base_oid is None:
         return False
 
