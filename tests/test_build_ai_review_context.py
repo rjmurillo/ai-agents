@@ -77,6 +77,96 @@ def test_marks_pr_number_mismatch_as_infrastructure_failure(
     assert "Could not fetch PR #7" in context.text
 
 
+def test_marks_rate_limited_empty_diff_as_infrastructure_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A 403 that empties the diff must take the DID_NOT_RUN infra path.
+
+    Issue #4547: the rate-limit 403 raised ExternalGhError, which exits 3 and
+    fails the composite step. Every later step, including the infra gate that
+    writes the DID_NOT_RUN verdict, was then skipped, so the verdict file was
+    never written. Downstream read an empty verdict and defaulted to
+    NEEDS_REVIEW with INFRA_FAILURE recorded as false, which is
+    indistinguishable from a real finding and blocked the PR on a transient
+    error.
+    """
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[:1] == ["api"]:
+            return CommandResult(_pulls_payload(7, "Rate limited", ""), "", 0)
+        if arguments[:2] == ["pr", "diff"]:
+            return CommandResult(
+                "",
+                "could not find pull request diff: HTTP 403: API rate limit "
+                "exceeded for user ID 6811113.",
+                1,
+            )
+        raise AssertionError(f"unexpected gh call: {arguments}")
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert context.infrastructure_failure is True
+    assert context.mode == "error"
+    assert "INFRASTRUCTURE_FAILURE" in context.text
+    # The observed error must survive into the context so a reader can tell a
+    # rate limit apart from a permissions problem without opening the raw log.
+    assert "403" in context.text
+    assert "rate limit" in context.text
+
+
+def test_marks_empty_diff_with_no_stderr_as_infrastructure_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """An empty diff with a silent gh failure still fails closed, not exit 3."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[:1] == ["api"]:
+            return CommandResult(_pulls_payload(7, "Silent", ""), "", 0)
+        if arguments[:2] == ["pr", "diff"]:
+            return CommandResult("", "", 0)
+        raise AssertionError(f"unexpected gh call: {arguments}")
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert context.infrastructure_failure is True
+    assert "Failed to fetch PR diff" in context.text
+
+
+def test_empty_diff_no_longer_raises_external_gh_error(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Pin the regression directly: exit 3 bypasses the infra gate entirely.
+
+    This is the vacuity guard for the two tests above. If the raise is ever
+    restored, those tests would error out rather than fail on an assertion, so
+    this test names the exception type explicitly.
+    """
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[:1] == ["api"]:
+            return CommandResult(_pulls_payload(7, "NoRaise", ""), "", 0)
+        if arguments[:2] == ["pr", "diff"]:
+            return CommandResult("", "boom", 1)
+        raise AssertionError(f"unexpected gh call: {arguments}")
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    try:
+        _mod.build_pr_diff_context("7", "owner/repo", 100)
+    except _mod.ExternalGhError as exc:  # pragma: no cover - regression guard
+        raise AssertionError(
+            "an empty diff must not raise ExternalGhError; exit 3 skips the "
+            f"infra gate and no verdict file is written (issue #4547): {exc}"
+        ) from exc
+
+
 def test_large_pr_uses_file_list_summary(monkeypatch: pytest.MonkeyPatch):
     """Diff size failures degrade to a file-list summary."""
 
@@ -503,6 +593,44 @@ def test_main_maps_external_gh_error_to_external_exit(
     assert "::error::gh unavailable" in capsys.readouterr().err
 
 
+def test_main_exits_zero_and_flags_infra_when_the_diff_is_rate_limited(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """End to end: a 403 must leave the composite step green and set the flag.
+
+    This is the claim the fix for issue #4547 rests on. Exit 0 keeps the later
+    steps running, and ``context_infra_failure=true`` is what the infra gate
+    reads to skip the model invocation and write the DID_NOT_RUN verdict. If
+    this regressed to exit 3, the gate would never run and the verdict file
+    would never be written.
+    """
+
+    output_path = tmp_path / "github-output.txt"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "runner"))
+    monkeypatch.setenv("CONTEXT_TYPE", "pr-diff")
+    monkeypatch.setenv("PR_NUMBER", "7")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("MAX_DIFF_LINES", "100")
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[:1] == ["api"]:
+            return CommandResult(_pulls_payload(7, "Rate limited", ""), "", 0)
+        if arguments[:2] == ["pr", "diff"]:
+            return CommandResult("", "HTTP 403: API rate limit exceeded", 1)
+        raise AssertionError(f"unexpected gh call: {arguments}")
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    assert _mod.main() == 0
+
+    output = output_path.read_text(encoding="utf-8")
+    assert "context_infra_failure=true" in output
+    assert "context_mode=error" in output
+
+
 def test_spec_file_pr_context_requires_repository(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -761,6 +889,71 @@ def test_permission_failure_still_names_fork_permissions(
 
     assert context.infrastructure_failure is True
     assert "first-time contributor" in context.text
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "HTTP 403: API rate limit exceeded for user ID 6811113",
+        "HTTP 403: You have exceeded a secondary rate limit",
+        "HTTP 403: You have triggered an abuse detection mechanism",
+    ],
+)
+def test_rate_limited_403_is_not_reported_as_a_permission_problem(
+    monkeypatch: pytest.MonkeyPatch,
+    stderr: str,
+):
+    """A rate-limit 403 must not be blamed on token permissions.
+
+    FORK_PERMISSION_SIGNAL matches the bare `HTTP 403` status, so every
+    REST-transport rate-limit refusal used to collect the fork hint. That is the
+    #4333 misdiagnosis arriving through a transport it was never fixed for.
+    """
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        return CommandResult("", stderr, 1)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("4575", "owner/repo", 100)
+
+    assert context.infrastructure_failure is True
+    assert "INFRASTRUCTURE_FAILURE" in context.text
+    assert stderr in context.text
+    assert "first-time contributor" not in context.text
+
+
+def test_fork_hint_survives_when_no_rate_limit_wording_is_present():
+    """Negative control: the suppression is specific, not a blanket disable.
+
+    Without this, deleting the hint outright would still pass the test above
+    while silently dropping a real diagnostic.
+    """
+    real_fork_failure = "HTTP 403: Resource not accessible by integration"
+
+    assert _mod.FORK_PERMISSION_SIGNAL.search(real_fork_failure)
+    assert not _mod.RATE_LIMIT_SIGNAL.search(real_fork_failure)
+
+    context = _mod._pr_fetch_failure_context("4575", real_fork_failure)
+
+    assert "first-time contributor" in context.text
+
+
+def test_graphql_rate_limit_never_matched_the_permission_signal():
+    """Edge: the GraphQL form carries no HTTP status, so it never matched.
+
+    Records why dropping the unconditional hint sufficed for GraphQL, and why
+    the REST form needed the second condition.
+    """
+    graphql_failure = "GraphQL: API rate limit already exceeded for user ID 6811113."
+
+    assert not _mod.FORK_PERMISSION_SIGNAL.search(graphql_failure)
+    assert _mod.RATE_LIMIT_SIGNAL.search(graphql_failure)
+
+    context = _mod._pr_fetch_failure_context("4575", graphql_failure)
+
+    assert "first-time contributor" not in context.text
 
 
 def test_name_only_falls_back_to_rest_file_list(monkeypatch: pytest.MonkeyPatch):
