@@ -341,6 +341,16 @@ def main(argv: list[str] | None = None) -> int:
     if not skills_dir.is_dir():
         print(f"Skills dir not found: {skills_dir}", file=sys.stderr)
         return 2
+    root_resolved = root.resolve()
+    resolved = skills_dir.resolve()
+    if not resolved.is_relative_to(root_resolved):
+        print(
+            f"Skills dir {skills_dir} resolves to {resolved}, "
+            "which is outside the repository. "
+            "A symlinked skills dir scans files git does not track.",
+            file=sys.stderr,
+        )
+        return 2
     baseline_path = _resolve_baseline_path(root, args.baseline)
     if baseline_path is None:
         return 2

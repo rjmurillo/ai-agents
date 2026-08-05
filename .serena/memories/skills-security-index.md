@@ -14,3 +14,4 @@
 | path anchoring anchor base resolve containment CWE-22 path-traversal | [security/security-path-anchoring-pattern](security/security-path-anchoring-pattern.md) |
 | no blind suppression lgtm nosec root cause suppression understand documented | [security/security-no-blind-suppression](security/security-no-blind-suppression.md) |
 
+| security review PR 4247 comment restoration skip-guard classifier pr-validation workflow | [security/pr4247-review](security/pr4247-review.md) |

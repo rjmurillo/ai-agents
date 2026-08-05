@@ -197,7 +197,7 @@ elif [ "$failed_count" -gt 0 ]; then
     echo "$checks" | jq -r '.Data.Checks[] | select(.Conclusion != "SUCCESS" and .Conclusion != "NEUTRAL" and .Conclusion != "SKIPPED" and .Conclusion != null) | "  - \(.Name): \(.DetailsUrl)"'
     exit 1
 else
-    pending=$(echo "$checks" | jq '.PendingCount')
+    pending=$(echo "$checks" | jq '.Data.PendingCount')
     echo "Pending: $pending check(s) still running"
 fi
 
@@ -209,7 +209,7 @@ if [ $? -eq 7 ]; then
     exit 1
 fi
 
-all_passing=$(echo "$checks" | jq -r '.AllPassing')
+all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
 if [ "$all_passing" = "true" ]; then
     python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
 fi
@@ -230,7 +230,7 @@ if [ "$success" != "true" ]; then
 fi
 
 checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait)
-all_passing=$(echo "$checks" | jq -r '.AllPassing')
+all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
 if [ "$all_passing" = "true" ]; then
     python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash
 fi

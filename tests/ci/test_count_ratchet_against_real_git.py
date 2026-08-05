@@ -85,27 +85,37 @@ def test_baseline_absence_is_discriminated_against_real_git(tmp_path):
     )
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
-def test_the_shipped_baseline_matches_the_tracked_tree():
+@pytest.mark.parametrize(
+    ("baseline_name", "counter"),
+    [
+        ("taste_count_baseline.txt", ratchet.current_count),
+    ],
+)
+def test_the_shipped_baseline_describes_the_tracked_tree(baseline_name, counter):
     """The baseline must describe this repository, not a stale snapshot.
 
-    A baseline above the real count is dead allowance: violations could be
-    added up to the gap without the gate noticing. A baseline below it means
-    main is already red.
+    It may sit slightly above the tree. Issue #4057 recorded why: two branches
+    can each remove a violation and each write the same lowered baseline, git
+    merges the identical edits cleanly, and the tree improves twice while the
+    scalar falls once. PR #4214 accepted that slack so the default branch does
+    not go red on a change none of the merging branches made.
 
-    The assertion uses a descriptive message so a failure identifies the
-    ratchet involved. Run ``python scripts/ci/taste_count_ratchet.py``
-    directly (1-2 seconds) to see the per-file detail instead of waiting
-    for the full test suite.
+    Demanding equality here would override that decision, and did. This test
+    asserted ``actual == baseline`` from 2026-07-30 (PR #3824) until the
+    concurrent-merge policy landed on 2026-08-03 (PR #4214) without removing
+    it, so every collision reddened main for every contributor. Two such
+    outages were root-caused on 2026-08-03 alone, at baselines 595 and 593.
+
+    What is still enforced: the tree may never exceed the baseline, and the
+    baseline may not drift more than ``MAX_BASELINE_SLACK`` above it. Run
+    ``python scripts/ci/taste_count_ratchet.py`` for per-file detail.
     """
     repo_root = Path(__file__).resolve().parents[2]
-    baseline_path = repo_root / "scripts" / "ci" / "taste_count_baseline.txt"
-    baseline = int(baseline_path.read_text(encoding="utf-8").strip())
-    actual = ratchet.current_count(repo_root)
-    assert actual == baseline, (
-        f"taste count ratchet: baseline is {baseline} but current tree has "
-        f"{actual} violations. "
-        f"Run 'python scripts/ci/taste_count_ratchet.py' for per-file detail."
-    )
+    baseline_path = repo_root / "scripts" / "ci" / baseline_name
+    baseline = count_ratchet.read_baseline(baseline_path)
+    assert baseline is not None, f"{baseline_name} is missing or not an integer"
+    problem = count_ratchet.baseline_health(counter(repo_root), baseline)
+    assert problem is None, f"{baseline_name}: {problem}"
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 def test_a_baseline_outside_the_repo_is_not_bootstrap_against_real_git(tmp_path):

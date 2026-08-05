@@ -8,6 +8,7 @@ baseline (the CI ratchet that blocks new upstream-path references).
 
 from __future__ import annotations
 
+import inspect
 import json
 import subprocess
 import sys
@@ -379,3 +380,10 @@ class TestRepoRatchet:
         inside.write_text('{"files": {"skills/delta/scripts/run.py": 0}}\n', encoding="utf-8")
 
         assert csp.main(["--repo-root", str(root), "--baseline", str(inside)]) == 0
+
+    def test_main_reuses_the_resolved_root_for_the_symlink_guard(self) -> None:
+        """The repo root is invariant inside main, so resolve it once."""
+        source = inspect.getsource(csp.main)
+
+        assert "root_resolved = root.resolve()" in source
+        assert "is_relative_to(root_resolved)" in source

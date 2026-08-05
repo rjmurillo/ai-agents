@@ -67,7 +67,7 @@ def _clear_ci_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     Tests that need CI set must do so explicitly via monkeypatch.setenv.
     Mirrors the same fixture in tests/validation/conftest.py, which only
-    covers files under that package. The twelve test_validation_*.py files
+    covers files under that package. The test_validation_*.py files
     in tests/ root and any other file in this directory that reads CI
     inherit ambient CI from the caller's environment without this fixture.
     See issue #4380.
