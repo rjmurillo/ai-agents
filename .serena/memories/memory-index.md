@@ -11,7 +11,7 @@
 |gh graphql rest rate limit budget separate exhaustion pr list api repos: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity exhaustion statusCheckRollup 504 mergeStateStatus UNKNOWN lazy: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (3589)
 |rebase after push non-fast-forward force-push forbidden merge remote tip scope explosion miscount: [git/git-rebase-after-push-costs-two-cycles](git/git-rebase-after-push-costs-two-cycles.md) (1350)
-|push takes 15 minutes lefthook pre-push empty ls-remote means not yet vs failed liveness probe ps grep detached HEAD empty range no matching push files Ready to create pull request tail on live log: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (1289)
+|push takes 15 minutes lefthook pre-push empty ls-remote means not yet vs failed liveness probe ps grep detached HEAD empty range no matching push files Ready to create pull request tail on live log: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2435)
 |new_pr create stale main ref session end validation failed opaque diff: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
 |git diff origin main direction stale branch deletion behind predates restore: [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) (496)
 |close_issue comment-file must stay under repo root git scratch verify-claims unmerged reason quoting: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (891)
@@ -51,6 +51,7 @@
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
 |quality qa DoD definition-of-done test strategy critique: [skills-quality-index](skills-quality-index.md) (290)
+|sentinel zero None unknown unmeasured tri-state exit code fail open overload: [quality/add-missing-state-not-sentinel](quality/add-missing-state-not-sentinel.md) (599)
 |code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1118)
 |prompt engineering quality gate AI assessment template: [quality/quality-prompt-engineering-gates](quality/quality-prompt-engineering-gates.md) (1419)
 |validation quality lint false-positive gate test: [skills-validation-index](skills-validation-index.md) (422)
@@ -61,13 +62,14 @@
 |agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (378)
 |autonomous execution guardrails circuit breaker patch signal trust metric: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (150)
 |fleet contention stop order renice congestion collapse two copilot sessions kill treadmill scheduler semaphore: [decision-stop-orders-are-not-a-control-plane](decision-stop-orders-are-not-a-control-plane.md) (876)
+|worktree abandoned live agent fleet stale dirty harvest ownership squash ahead: [agent-workflow/fleet-worktree-live-versus-abandoned](agent-workflow/fleet-worktree-live-versus-abandoned.md) (750)
 |phase3 agent skill session handoff template verification: [agent-workflow/agentworkflow-004-proactive-template-sync-verification-95](agent-workflow/agentworkflow-004-proactive-template-sync-verification-95.md) (485), [agent-workflow/agentworkflow-005-structured-handoff-formats-88](agent-workflow/agentworkflow-005-structured-handoff-formats-88.md) (474)
 
 [CI/CD and Workflows]
 |spec coverage acceptance criteria checkbox observe signal non-blocking required check push-pr body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
 |count ratchet baseline branch freshness behind main stale higher baseline merge origin/main: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (822)
 |taste baseline slack MAX_BASELINE_SLACK drift enforced by pytest not ratchet baseline_health no production caller merge queue batch collision: [ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet](ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet.md) (847)
-|stale detached HEAD shared checkout verify wrong commit git show ref path worktree parse fresh input: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (654)
+|stale detached HEAD shared checkout verify wrong commit git show ref path worktree parse fresh input stale tooling already fixed upstream script version skew session end validation failed inflated diff base resolve_comparison_base: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (1497)
 |validate PR check red advisory blocking signal DESCRIPTION_RESULT TEMPLATE_STATUS exit code file mentioned but not in diff CRITICAL WARNING: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (2488)
 |linking an issue Closes Fixes Resolves Implements Refs arms AI spec validation acceptance criteria PARTIAL completeness trace check_spec_failures analyst critic: [ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff](ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff.md) (1302)
 |job name collision duplicate check name ambiguous red Validate budget Check Changed Paths Detect changes Aggregate Results gh pr checks json link run view job: [ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous](ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous.md) (1461)
@@ -94,6 +96,7 @@
 |git shallow graft depth fetch unshallow blocks push every worktree common dir pin sha: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
 |agent steering system prompt renders from live checkout stale behind main detached superseded rule no gate catches: [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) (943)
 |git branch switch checkout file state verification lost: [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) (851)
+|push skips every hook empty range detached HEAD no commits between ls-remote absence not failure slow push still running concurrent lefthook bogus yaml duplicate key exit status not remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2435)
 |lost code recovery investigation unmerged branch orphaned: [session/recovery-001-lost-code-investigation](session/recovery-001-lost-code-investigation.md) (552)
 |cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1251)
 
