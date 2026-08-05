@@ -32,6 +32,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .url_validation import validate_http_url
+
 logger = logging.getLogger(__name__)
 
 
@@ -217,9 +219,6 @@ def invoke_serena_search(
 
     logger.debug("Serena search returned %d results", len(results))
     return results
-
-
-from .url_validation import validate_http_url
 
 
 def invoke_forgetful_search(
