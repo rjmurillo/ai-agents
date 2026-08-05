@@ -41,6 +41,7 @@ _SUPPRESSED_SUMMARY_RE = re.compile(
     re.IGNORECASE,
 )
 _LOCATION_RE = re.compile(r"^\*\*(?P<path>[^*\n]+):(?P<line>\d+)\*\*\s*$")
+_COPILOT_REVIEWERS = {"copilot-pull-request-reviewer[bot]"}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -69,20 +70,29 @@ def _flatten_pages(payload: object) -> list[dict[str, Any]]:
     return reviews
 
 
+def _run_gh_api(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            ["gh", "api", *args],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("gh executable not found") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"gh api timed out after {timeout} seconds") from exc
+
+
 def fetch_reviews(owner: str, repo: str, pull_request: int) -> list[dict[str, Any]]:
-    result = subprocess.run(
+    result = _run_gh_api(
         [
-            "gh",
-            "api",
             f"repos/{owner}/{repo}/pulls/{pull_request}/reviews?per_page=100",
             "--paginate",
             "--slurp",
-        ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=60,
-        check=False,
+        ]
     )
     if result.returncode != 0:
         message = result.stderr.strip() or result.stdout.strip()
@@ -92,6 +102,21 @@ def fetch_reviews(owner: str, repo: str, pull_request: int) -> list[dict[str, An
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"failed to parse review payload: {exc}") from exc
     return _flatten_pages(payload)
+
+
+def fetch_pr_head(owner: str, repo: str, pull_request: int) -> str:
+    result = _run_gh_api([f"repos/{owner}/{repo}/pulls/{pull_request}"])
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(message)
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"failed to parse PR payload: {exc}") from exc
+    head = payload.get("head")
+    if not isinstance(head, dict) or not isinstance(head.get("sha"), str):
+        raise RuntimeError("PR head sha missing from response")
+    return head["sha"]
 
 
 def _section_end(lines: list[str], start: int) -> int:
@@ -156,24 +181,43 @@ def build_report(
     repo: str,
     pull_request: int,
     reviews: list[dict[str, Any]],
+    head_sha: str = "",
 ) -> dict[str, Any]:
     suppressed_reviews: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
     mismatches: list[dict[str, Any]] = []
+    active_suppressed_count = 0
+    stale_suppressed_count = 0
+    unknown_suppressed_count = 0
 
     for review in reviews:
+        if _review_author(review) not in _COPILOT_REVIEWERS:
+            continue
         sections = parse_suppressed_sections(str(review.get("body") or ""))
         if not sections:
             continue
         review_id = review.get("id")
+        commit_id = review.get("commit_id")
+        active_state = "unknown"
+        if isinstance(commit_id, str) and head_sha:
+            active_state = "active" if commit_id == head_sha else "stale"
+        declared_count = sum(s["declared_count"] for s in sections)
+        if active_state == "active":
+            active_suppressed_count += declared_count
+        elif active_state == "stale":
+            stale_suppressed_count += declared_count
+        else:
+            unknown_suppressed_count += declared_count
         review_summary = {
             "id": review_id,
             "node_id": review.get("node_id"),
             "author": _review_author(review),
             "state": review.get("state"),
+            "commit_id": commit_id if isinstance(commit_id, str) else "",
+            "active_state": active_state,
             "submitted_at": review.get("submitted_at"),
             "url": review.get("html_url"),
-            "declared_count": sum(s["declared_count"] for s in sections),
+            "declared_count": declared_count,
             "parsed_count": sum(s["parsed_count"] for s in sections),
         }
         suppressed_reviews.append(review_summary)
@@ -193,6 +237,8 @@ def build_report(
                     "review_id": review_id,
                     "review_node_id": review.get("node_id"),
                     "review_author": _review_author(review),
+                    "review_commit_id": commit_id if isinstance(commit_id, str) else "",
+                    "review_active_state": active_state,
                     "review_submitted_at": review.get("submitted_at"),
                     "review_url": review.get("html_url"),
                 }
@@ -203,9 +249,13 @@ def build_report(
         "pull_request": pull_request,
         "owner": owner,
         "repo": repo,
+        "head_sha": head_sha,
         "review_count": len(reviews),
         "suppressed_review_count": len(suppressed_reviews),
         "suppressed_count": sum(r["declared_count"] for r in suppressed_reviews),
+        "active_suppressed_count": active_suppressed_count,
+        "stale_suppressed_count": stale_suppressed_count,
+        "unknown_suppressed_count": unknown_suppressed_count,
         "parsed_finding_count": len(findings),
         "fetched_pages_complete": True,
         "count_mismatches": mismatches,
@@ -226,11 +276,17 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         reviews = fetch_reviews(owner, repo, args.pull_request)
+        head_sha = fetch_pr_head(owner, repo, args.pull_request)
     except RuntimeError as exc:
         print(f"Failed to fetch PR reviews: {exc}", file=sys.stderr)
         return 3
 
-    print(json.dumps(build_report(owner, repo, args.pull_request, reviews), indent=2))
+    print(
+        json.dumps(
+            build_report(owner, repo, args.pull_request, reviews, head_sha),
+            indent=2,
+        )
+    )
     return 0
 
 

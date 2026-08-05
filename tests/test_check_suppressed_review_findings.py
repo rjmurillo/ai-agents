@@ -27,20 +27,30 @@ def _import_script(name: str):
 
 _mod = _import_script("check_suppressed_review_findings")
 parse_suppressed_sections = _mod.parse_suppressed_sections
+fetch_reviews = _mod.fetch_reviews
+fetch_pr_head = _mod.fetch_pr_head
 build_report = _mod.build_report
 main = _mod.main
 
 
-def _review(review_id: int, body: str) -> dict:
-    return {
+def _review(
+    review_id: int,
+    body: str,
+    author: str = "copilot-pull-request-reviewer[bot]",
+    commit_id: str = "head",
+) -> dict:
+    review = {
         "id": review_id,
         "node_id": f"PRR_{review_id}",
-        "user": {"login": "copilot-pull-request-reviewer[bot]"},
+        "user": {"login": author},
         "state": "COMMENTED",
         "body": body,
         "submitted_at": "2026-08-03T00:00:00Z",
         "html_url": f"https://github.test/review/{review_id}",
     }
+    if commit_id:
+        review["commit_id"] = commit_id
+    return review
 
 
 def test_parses_suppressed_findings_with_file_line_and_text() -> None:
@@ -114,12 +124,110 @@ def test_multiple_reviews_are_aggregated() -> None:
     assert report["parsed_finding_count"] == 2
 
 
-def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
-    page = [_review(1, "<summary>Suppressed comments (1)</summary>\n**a.py:1**\n* A")]
+def test_classifies_suppressed_findings_by_head_sha() -> None:
+    report = build_report(
+        "o",
+        "r",
+        7,
+        [
+            _review(
+                1,
+                "<summary>Suppressed comments (1)</summary>\n**a.py:1**\n* A",
+                commit_id="head",
+            ),
+            _review(
+                2,
+                "<summary>Suppressed comments (2)</summary>\n**b.py:2**\n* B",
+                commit_id="old",
+            ),
+            _review(
+                3,
+                "<summary>Suppressed comments (3)</summary>\n**c.py:3**\n* C",
+                commit_id="",
+            ),
+        ],
+        head_sha="head",
+    )
+    assert report["suppressed_count"] == 6
+    assert report["active_suppressed_count"] == 1
+    assert report["stale_suppressed_count"] == 2
+    assert report["unknown_suppressed_count"] == 3
+
+
+def test_ignores_non_copilot_suppressed_sections() -> None:
+    report = build_report(
+        "o",
+        "r",
+        7,
+        [
+            _review(
+                1,
+                "<summary>Suppressed comments (1)</summary>\n**a.py:1**\n* A",
+                author="human-reviewer",
+            )
+        ],
+    )
+    assert report["suppressed_count"] == 0
+    assert report["parsed_finding_count"] == 0
+
+
+def test_fetch_reviews_reports_missing_gh_as_runtime_error() -> None:
+    with patch("subprocess.run", side_effect=FileNotFoundError):
+        try:
+            fetch_reviews("o", "r", 1)
+        except RuntimeError as exc:
+            assert str(exc) == "gh executable not found"
+        else:
+            raise AssertionError("expected RuntimeError")
+
+
+def test_fetch_reviews_reports_timeout_as_runtime_error() -> None:
+    with patch(
+        "subprocess.run",
+        side_effect=subprocess.TimeoutExpired(cmd=["gh"], timeout=60),
+    ):
+        try:
+            fetch_reviews("o", "r", 1)
+        except RuntimeError as exc:
+            assert str(exc) == "gh api timed out after 60 seconds"
+        else:
+            raise AssertionError("expected RuntimeError")
+
+
+def test_fetch_pr_head_reports_missing_sha() -> None:
     completed = subprocess.CompletedProcess(
         args=[],
         returncode=0,
+        stdout=json.dumps({"head": {}}),
+        stderr="",
+    )
+    with patch("subprocess.run", return_value=completed):
+        try:
+            fetch_pr_head("o", "r", 1)
+        except RuntimeError as exc:
+            assert str(exc) == "PR head sha missing from response"
+        else:
+            raise AssertionError("expected RuntimeError")
+
+
+def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
+    page = [
+        _review(
+            1,
+            "<summary>Suppressed comments (1)</summary>\n**a.py:1**\n* A",
+            commit_id="head",
+        )
+    ]
+    reviews_completed = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
         stdout=json.dumps([page]),
+        stderr="",
+    )
+    pr_completed = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout=json.dumps({"head": {"sha": "head"}}),
         stderr="",
     )
     with (
@@ -128,13 +236,14 @@ def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
             "check_suppressed_review_findings.resolve_repo_params",
             return_value=type("Repo", (), {"owner": "o", "repo": "r"})(),
         ),
-        patch("subprocess.run", return_value=completed),
+        patch("subprocess.run", side_effect=[reviews_completed, pr_completed]),
     ):
         rc = main(["--pull-request", "99"])
 
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
     assert output["suppressed_count"] == 1
+    assert output["active_suppressed_count"] == 1
     assert output["fetched_pages_complete"] is True
 
 
@@ -149,5 +258,7 @@ def test_pr_review_config_contains_suppressed_gate() -> None:
         "check_suppressed_review_findings.py --pull-request {pr}"
     )
     assert suppressed_gate["pass_when"] == (
-        "stdout-json.suppressed_count == 0 AND stdout-json.fetched_pages_complete == true"
+        "stdout-json.active_suppressed_count == 0 AND "
+        "stdout-json.unknown_suppressed_count == 0 AND "
+        "stdout-json.fetched_pages_complete == true"
     )
