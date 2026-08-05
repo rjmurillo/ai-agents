@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9999,
+    "date": "2026-08-05",
+    "branch": "fix/adversarial-review-agent-machinery",
+    "startingCommit": "5ec85be51a",
+    "objective": "Adversarial review of agent-facing hooks generators skills templates and lefthook"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project activation completed at session start. The server disconnected later."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded at session start."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and preserved its read-only state."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded repository skills for session setup, GitHub operations, portability, testing, review, and security scanning."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used GitHub skill Python scripts for issue and PR operations instead of raw gh."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and path-scoped instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Requested quality/add-missing-state-not-sentinel.md. Serena reported that the memory did not exist."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/adversarial-review-agent-machinery"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/adversarial-review-agent-machinery"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified branch status before edits, commits, validation, and session close."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "5ec85be51a"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session items carry evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new memory needed. Durable findings are recorded in issues #2806, #2796, #4632, #4633, and #4634."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "NOT LINTED: no Markdown files were authored."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation commits c7138c0701, 3a806b382b, 0a7cfa9203, and 36cba6dea6."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pytest exited 0 with 395 passes. Ruff, security scan, memory token check, build_all.py --check, and pre_pr.py exited 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Attacked generator drift checks with unavailable Git and unreadable owned outputs.",
+      "result": "Fixed fail-open Git inventory and unsafe partial snapshot restoration. Filed #4632."
+    },
+    {
+      "action": "Attacked Markdown push verification in consumer repositories and across infrastructure failure paths.",
+      "result": "Made the customer hook run in consumers, fail closed, and ship its runtime companion. Reopened #2806."
+    },
+    {
+      "action": "Attacked the memory token autofix for missing pre-push verification.",
+      "result": "Added a shared read-only verifier that blocks stale counts, missing dependencies, missing memories, and empty indexes. Filed #4633."
+    },
+    {
+      "action": "Audited lefthook job activation and skill-local file references.",
+      "result": "Filed #4634 for duplicate staleness jobs and updated #2796 with current dead skill references."
+    },
+    {
+      "action": "Mutation-tested behavioral fixes with bytecode caches moved before each mutant.",
+      "result": "Ten behavioral mutants failed their tests. Cosmetic message mutations survived as controls."
+    }
+  ],
+  "endingCommit": "36cba6dea6",
+  "nextSteps": [
+    "Resolve duplicate push-ref-staleness job in #4634.",
+    "Repair remaining dead skill references tracked by #2796."
+  ]
+}
