@@ -12,8 +12,69 @@
       "timestamp": "2026-08-05T06:34:13+00:00",
       "type": "commit",
       "content": "Commit: 758f343430581bd3cbfd4f7d779bf045fb5fb1aa",
-      "caused_by": [],
+      "caused_by": [
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified the memory branch push landed by SHA rather than by elapsed time",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Opened PR #4616 for the session record branch",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved review thread PRRT_kwDOQoWRls6Wh-Ig on PR #4598, then corrected my own reply",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote the session retrospective",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the pre-push preflight before pushing PR #4598 instead of after",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
       "_source_session": "2026-08-05-session-9999"
     }
   ],
