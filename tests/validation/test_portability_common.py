@@ -207,6 +207,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
             root, Path("scripts/validation/link.json"), "d.json"
         )
 
+        assert resolved is not None
         assert resolved.name == "link.json"
         assert resolved.is_symlink()
 
@@ -272,5 +273,6 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
             root, override, "d.json"
         )
 
+        assert resolved is not None
         assert resolved.resolve() == (root / override).resolve()
         assert "link" in resolved.parts

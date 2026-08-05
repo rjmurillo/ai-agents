@@ -58,7 +58,7 @@ def test_run_git_bounds_and_reports_timeout(
         timeout = kwargs["timeout"]
         assert isinstance(timeout, float)
         captured_timeout.append(timeout)
-        raise subprocess.TimeoutExpired(args[0], timeout)
+        raise subprocess.TimeoutExpired("git", timeout)
 
     monkeypatch.setattr(portability_git.subprocess, "run", time_out)
 
