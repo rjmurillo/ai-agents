@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Triage, fixes, tests, mutation proof, merge from origin/main, and commits completed."
+        "Evidence": "Triage, fixes, tests, mutation proof, merge from origin/main, rate-limit status follow-up, and commits completed."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Four authored commits plus origin/main merge are on the feature branch."
+        "Evidence": "Authored commits plus origin/main merges are on the feature branch through d7cb61ea5c8069b6f841721516c1188e3ef967ef."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "114 targeted tests passed after mutation proof and after merging origin/main; ruff passed on all changed Python files."
+        "Evidence": "161 targeted tests passed after the final origin/main merge; ruff passed on branch Python diff; sync_plugin_lib.py --check and build_all.py --platform copilot-cli --check passed; pre_pr.py passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -145,11 +145,27 @@
     {
       "step": "Merged current origin/main before final validation.",
       "result": "Merged origin/main into the branch and reran targeted tests and ruff successfully."
+    },
+    {
+      "step": "Verified the rate-limit status finding after the first PR update.",
+      "result": "Current code no longer uses /rate_limit as the sole input: check_workflow_rate_limit also probes REST meta and GraphQL viewer. The remaining defect was that non-refusal probe failures still returned success=True."
+    },
+    {
+      "step": "Fixed the rate-limit gate third state.",
+      "result": "RateLimitStatus now distinguishes verified_healthy, verified_limited, and could_not_determine. Probe unknowns and missing resources no longer report success=True."
+    },
+    {
+      "step": "Updated rate-limit callers.",
+      "result": "invoke_pr_maintenance, .github/scripts/invoke_pr_maintenance.py, .github/scripts/test_rate_limit.py, and update_reviewer_signal_stats.py now branch on RateLimitStatus and print the indeterminate status."
+    },
+    {
+      "step": "Mutation-proved the rate-limit status fix.",
+      "result": "Killed mutants for unknown-as-healthy, secondary-refusal-as-indeterminate, caller ignoring indeterminate, and success property treating indeterminate as pass. Cosmetic docstring control survived."
     }
   ],
-  "endingCommit": "a97222a480cf33535e0d4f2c5c0f77dca3bab3eb",
+  "endingCommit": "d7cb61ea5c8069b6f841721516c1188e3ef967ef",
   "nextSteps": [
-    "Run pre_pr.py, push the branch with push_any_slot.sh, verify ls-remote, and open the PR through REST once the API accepts writes."
+    "Push fix/api-resilience-4547-4537-4536 and update PR #4621 with the final mutation table and rate-limit status evidence."
   ],
   "tasks": [
     {
@@ -171,6 +187,11 @@
       "issue": "GitHub issue fetch",
       "disposition": "still-open-with-reason",
       "evidence": "REST issue fetch was attempted through gh api with cache files under /home/richard/src/scratch. GitHub returned HTTP 403; a 300s retry was attempted and also returned HTTP 403 before issue 4536 could be cached. Work continued from direct reproduction and the user's first-hand campaign evidence."
+    },
+    {
+      "issue": "rate-limit status follow-up",
+      "disposition": "fixed",
+      "evidence": "The exact claim that /rate_limit is the sole input is false on current main because live REST and GraphQL probes are present. GitHub docs state there is not a way to check secondary rate-limit status, so the live probe remains necessary. Measured defect: healthy quota plus non-refusal probe failure returned success=True. Fixed with RateLimitStatus.COULD_NOT_DETERMINE and caller handling."
     }
   ]
 }
