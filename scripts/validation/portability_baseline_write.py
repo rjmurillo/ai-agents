@@ -5,11 +5,12 @@ from __future__ import annotations
 import os
 import secrets
 import sys
-import tempfile
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+
+_HAS_SECURE_DIR_FD = os.name == "posix"
 
 if sys.platform == "win32":
     import msvcrt
@@ -137,42 +138,14 @@ def _replace_baseline_relative_to_parent(
         raise first_error
 
 
-def _replace_baseline_by_path(baseline_path: Path, text: str) -> None:
-    """Use the portable path API where directory descriptors are unavailable."""
-    temporary_path: Path | None = None
-    first_error: OSError | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            dir=baseline_path.parent,
-            prefix=f".{baseline_path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            temporary_path = Path(handle.name)
-            handle.write(text)
-        temporary_path.replace(baseline_path)
-    except OSError as write_error:
-        first_error = write_error
-    finally:
-        if temporary_path is not None:
-            try:
-                temporary_path.unlink(missing_ok=True)
-            except OSError:
-                if first_error is None:
-                    raise
-    if first_error is not None:
-        raise first_error
-
-
 def replace_baseline_atomically(
     repo_root: Path,
     baseline_path: Path,
     text: str,
 ) -> None:
     """Replace a baseline without allowing a checked parent to be swapped."""
-    if os.name == "posix":
-        _replace_baseline_relative_to_parent(repo_root, baseline_path, text)
-        return
-    _replace_baseline_by_path(baseline_path, text)
+    if not _HAS_SECURE_DIR_FD:
+        raise OSError(
+            "secure baseline replacement requires POSIX directory descriptor support"
+        )
+    _replace_baseline_relative_to_parent(repo_root, baseline_path, text)

@@ -15,6 +15,7 @@ from unittest.mock import Mock
 import pytest
 
 import scripts.validation.check_doc_interpreter_portability as portability_checker
+import scripts.validation.portability_baseline_write as baseline_write
 from scripts.validation.check_doc_interpreter_portability import (
     INVOCATION_PATTERN,
     ScanError,
@@ -867,6 +868,31 @@ def test_update_baseline_parent_swap_cannot_redirect_replace(
     assert json.loads((moved_parent / "baseline.json").read_text(encoding="utf-8")) == {
         "files": {}
     }
+
+
+def test_update_baseline_fails_closed_without_descriptor_relative_replace(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n"})
+    baseline = write_baseline(repo, {"README.md": 1})
+    original = baseline.read_text(encoding="utf-8")
+    monkeypatch.setattr(baseline_write, "_HAS_SECURE_DIR_FD", False)
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(repo),
+            "--baseline",
+            str(baseline),
+            "--update-baseline",
+        ]
+    )
+
+    assert exit_code == 2
+    assert baseline.read_text(encoding="utf-8") == original
+    assert "requires POSIX directory descriptor support" in capsys.readouterr().err
 
 
 def test_update_baseline_preserves_replace_error_when_cleanup_fails(
