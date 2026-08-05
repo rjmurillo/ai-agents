@@ -48,6 +48,8 @@ from scripts.github_core import (
 )
 from scripts.github_core.api import (
     _403_PATTERN,
+    REST_PAGE_PACE_SECONDS,
+    REST_REFUSAL_BACKOFF_SECONDS,
     _retry_after_delay,
 )
 from scripts.github_core.bot_config import _DEFAULT_BOTS
@@ -483,9 +485,36 @@ class TestGhApiPaginated:
             data = page1 if call_count == 1 else page2
             return _completed(stdout=json.dumps(data))
 
-        with patch("subprocess.run", side_effect=_side_effect):
+        with patch("subprocess.run", side_effect=_side_effect), patch(
+            "scripts.github_core.api.time.sleep"
+        ) as sleep:
             result = gh_api_paginated("repos/o/r/issues", page_size=100)
         assert len(result) == 101
+        sleep.assert_called_once_with(REST_PAGE_PACE_SECONDS)
+
+    def test_rate_limit_refusal_retries_page_before_success(self):
+        items = [{"id": 1}]
+        calls: list[list[str]] = []
+        sleeps: list[float] = []
+
+        def _side_effect(command, **kwargs):
+            del kwargs
+            calls.append(command)
+            if len(calls) == 1:
+                return _completed(
+                    rc=1,
+                    stderr="HTTP 403: API rate limit exceeded for user ID 6811113",
+                )
+            return _completed(stdout=json.dumps(items))
+
+        with patch("subprocess.run", side_effect=_side_effect), patch(
+            "scripts.github_core.api.time.sleep", sleeps.append
+        ), pytest.warns(UserWarning, match="GitHub REST page request refused"):
+            result = gh_api_paginated("repos/o/r/issues")
+
+        assert result == items
+        assert len(calls) == 2
+        assert sleeps == [REST_REFUSAL_BACKOFF_SECONDS[0]]
 
     def test_empty_response(self):
         with patch("subprocess.run", return_value=_completed(stdout="[]")):
@@ -510,7 +539,9 @@ class TestGhApiPaginated:
                 return _completed(stdout=json.dumps(page1))
             return _completed(rc=1, stderr="rate limited")
 
-        with patch("subprocess.run", side_effect=_side_effect):
+        with patch("subprocess.run", side_effect=_side_effect), patch(
+            "scripts.github_core.api.time.sleep"
+        ):
             with pytest.warns(UserWarning, match="Returning partial results"):
                 result = gh_api_paginated("repos/o/r/issues")
         assert len(result) == 100
@@ -533,7 +564,9 @@ class TestGhApiPaginated:
                 return _completed(stdout=json.dumps(page1))
             return _completed(stdout="not json")
 
-        with patch("subprocess.run", side_effect=_side_effect):
+        with patch("subprocess.run", side_effect=_side_effect), patch(
+            "scripts.github_core.api.time.sleep"
+        ):
             with pytest.warns(UserWarning, match="Invalid JSON"):
                 result = gh_api_paginated("repos/o/r/issues")
         assert len(result) == 100

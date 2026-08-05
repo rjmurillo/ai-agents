@@ -164,6 +164,7 @@ def main(argv: list[str] | None = None) -> int:
         "files": None,
         "owner": owner,
         "repo": repo,
+        "context_fetch_failures": [],
     }
 
     if args.include_diff:
@@ -179,6 +180,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         if diff_result.returncode == 0:
             data["diff"] = diff_result.stdout
+        else:
+            failures = data["context_fetch_failures"]
+            assert isinstance(failures, list)
+            failures.append({
+                "field": "diff",
+                "message": (diff_result.stderr or diff_result.stdout).strip(),
+            })
 
     if args.include_changed_files:
         files_result = subprocess.run(
@@ -190,12 +198,19 @@ def main(argv: list[str] | None = None) -> int:
         )
         if files_result.returncode == 0:
             data["files"] = [f for f in files_result.stdout.splitlines() if f.strip()]
+        else:
+            failures = data["context_fetch_failures"]
+            assert isinstance(failures, list)
+            failures.append({
+                "field": "files",
+                "message": (files_result.stderr or files_result.stdout).strip(),
+            })
 
     write_skill_output(
         data,
         output_format=fmt,
         human_summary=f"PR #{pr}: {pr_data.get('title', '')} ({pr_data.get('state', '')})",
-        status="PASS",
+        status="WARNING" if data["context_fetch_failures"] else "PASS",
         script_name="get_pr_context.py",
     )
     return 0

@@ -416,6 +416,7 @@ class TestMainDiffAndFiles:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["diff"] == "diff output"
+        assert output["Data"]["context_fetch_failures"] == []
 
     def test_include_diff_with_stat(self, capsys):
         """--diff-stat appends --stat to the diff command."""
@@ -439,7 +440,7 @@ class TestMainDiffAndFiles:
         assert "--stat" in calls[1]
 
     def test_include_diff_failure(self, capsys):
-        """Diff fetch failure leaves diff as None."""
+        """Diff fetch failure records an explicit context gap."""
         call_count = 0
 
         def _side_effect(*args, **kwargs):
@@ -458,6 +459,9 @@ class TestMainDiffAndFiles:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["diff"] is None
+        assert output["Data"]["context_fetch_failures"] == [
+            {"field": "diff", "message": "diff failed"}
+        ]
 
     def test_include_changed_files(self, capsys):
         call_count = 0
@@ -478,6 +482,7 @@ class TestMainDiffAndFiles:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["files"] == ["file1.py", "file2.py"]
+        assert output["Data"]["context_fetch_failures"] == []
 
     def test_include_changed_files_filters_blanks(self, capsys):
         """Blank lines in name-only output are filtered."""
@@ -501,7 +506,7 @@ class TestMainDiffAndFiles:
         assert output["Data"]["files"] == ["a.py", "b.py"]
 
     def test_include_changed_files_failure(self, capsys):
-        """Changed-files fetch failure leaves files as None."""
+        """Changed-files fetch failure records an explicit context gap."""
         call_count = 0
 
         def _side_effect(*args, **kwargs):
@@ -520,6 +525,9 @@ class TestMainDiffAndFiles:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["files"] is None
+        assert output["Data"]["context_fetch_failures"] == [
+            {"field": "files", "message": "files failed"}
+        ]
 
     def test_both_diff_and_files(self, capsys):
         """Both flags trigger two additional subprocess calls."""
