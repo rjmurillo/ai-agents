@@ -98,6 +98,7 @@ import re
 import stat
 import subprocess
 import sys
+from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -200,9 +201,7 @@ TOKEN_PATTERN = re.compile(r"(?<![\w./-])[\w./-]+(?![\w./-])")
 
 def _run_git(repo_root: Path, *args: str) -> str:
     """Return stdout of a git command run at ``repo_root``."""
-    env = {
-        key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")
-    }
+    env = {key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")}
     try:
         result = subprocess.run(
             ["git", "--no-replace-objects", *args],
@@ -378,7 +377,7 @@ def scan(
             continue
         scripts = _scan_file(repo_root, rel, tracked_py, details, stats)
         if scripts:
-            counts[rel] = sorted(set(scripts))
+            counts[rel] = sorted(scripts)
     return counts
 
 
@@ -450,11 +449,9 @@ def diff_against_baseline(
     regressions: list[str] = []
     for rel, scripts in sorted(current.items()):
         baseline_value = baseline.get(rel)
-        offense_details = (
-            f" Offenses: {'; '.join(details.get(rel, []))}" if details else ""
-        )
+        offense_details = f" Offenses: {'; '.join(details.get(rel, []))}" if details else ""
         if isinstance(baseline_value, list):
-            new_scripts = sorted(set(scripts) - set(baseline_value))
+            new_scripts = sorted((Counter(scripts) - Counter(baseline_value)).elements())
             if new_scripts:
                 regressions.append(
                     f"{rel}: new invocation(s): {', '.join(new_scripts)} "
@@ -472,13 +469,9 @@ def diff_against_baseline(
     improvements: list[str] = []
     for rel, baseline_value in sorted(baseline.items()):
         current_count = len(current.get(rel, []))
-        allowed = (
-            len(baseline_value) if isinstance(baseline_value, list) else int(baseline_value)
-        )
+        allowed = len(baseline_value) if isinstance(baseline_value, list) else int(baseline_value)
         if current_count < allowed:
-            improvements.append(
-                f"{rel}: {current_count} invocations (baseline {allowed})"
-            )
+            improvements.append(f"{rel}: {current_count} invocations (baseline {allowed})")
     return regressions, improvements
 
 
