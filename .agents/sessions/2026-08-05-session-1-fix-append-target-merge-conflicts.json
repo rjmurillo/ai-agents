@@ -144,10 +144,8 @@
       ]
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "918ba5c4fda5e3792a05fb61bba94e98d083c411",
   "nextSteps": [
-    "Commit staged work.",
-    "Record endingCommit in a follow-up session-log commit.",
     "Push branch and open PR for issue #4605."
   ]
 }
