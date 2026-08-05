@@ -253,3 +253,52 @@ Two traps around that command:
   `.resources.graphql.remaining` and, when it is low,
   `(.reset - now)` for the seconds to wait, before triggering anything.
 
+## Git keeps working when the API does not
+
+Measured 2026-08-05. Three consecutive `gh api` calls were refused with "API
+rate limit exceeded for user ID 6811113" while `core` read 4785. In the same
+window, against the same remote:
+
+```
+$ git fetch origin main        # exit 0, refs updated
+$ git ls-remote origin main    # 5ec85be51aad2245...
+$ git push origin HEAD:<branch>  # exit 0, new branch created
+```
+
+REST and GraphQL exhaustion does not touch the git transport. They are separate
+services with separate limits.
+
+So a rate limit does not stop work. Commit, merge, fetch, push, and run tests
+during the outage. Only issue and pull request metadata is blocked. Do not idle
+waiting for the bucket, and do not treat a refused `gh` call as a signal to
+stop.
+
+One trap that follows: `git ls-remote` reads the server, so it is the right
+instrument for "did my push land". A push in this repository runs the full
+Lefthook pre-push suite and takes 15 minutes or more. An empty `ls-remote`
+during that window means "not yet", not "failed". Re-check before re-pushing.
+Tailing the push log has the same hazard, because the file is still being
+written and the tail lands in the middle of hook output.
+
+## The shared budget has a root cause, and it is one secret
+
+`BOT_PAT` authenticates as `rjmurillo` (user ID `6811113`), not the
+`rjmurillo-bot` service account (`250269933`) that ADR-026 Decision 5
+specifies. Verified 2026-08-05:
+
+```
+$ gh api user --jq .id              # 6811113   (interactive session)
+$ gh api users/rjmurillo-bot --jq .id  # 250269933
+```
+
+`.github/actions/ai-review/action.yml` "Build context" (lines 183 to 190) sets
+`GH_TOKEN` from `inputs.bot-pat` and nothing else, and all 22 caller sites pass
+`secrets.BOT_PAT`. That step's 403 named `6811113`.
+
+So the isolation ADR-026 describes is configured but not effective, and the
+"shared budget" measurements above are its symptom rather than an intrinsic
+constraint. Do not design around the shared budget as if it were permanent, and
+do not propose a throttling hook to work around it. Re-issuing the secret from
+the bot account gives CI its own buckets. Tracked as issue #4607.
+
+

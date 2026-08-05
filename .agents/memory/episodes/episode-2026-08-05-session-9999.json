@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-05-session-9999",
+  "session": "2026-08-05-session-9999",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record BOT_PAT identity defect and git-transport-survives-rate-limit findings as memory; file issues 4607 and 4608",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
