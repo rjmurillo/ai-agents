@@ -9,65 +9,75 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T14:09:17+00:00",
       "type": "milestone",
       "content": "Checked issue coordination",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e002"
       ],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T14:10:00+00:00",
       "type": "milestone",
       "content": "Read required context",
-      "caused_by": [],
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": [
-        "e007"
+        "e003"
       ],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     },
     {
       "id": "e003",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T14:24:00+00:00",
       "type": "milestone",
       "content": "Repaired canonical evidence",
-      "caused_by": [],
+      "caused_by": [
+        "e002"
+      ],
       "leads_to": [
-        "e007"
+        "e004"
       ],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T14:28:00+00:00",
       "type": "milestone",
       "content": "Validated repaired artifacts",
-      "caused_by": [],
+      "caused_by": [
+        "e003"
+      ],
       "leads_to": [
-        "e007"
+        "e005"
       ],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     },
     {
       "id": "e005",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T14:32:06+00:00",
       "type": "milestone",
       "content": "Completed independent artifact review",
-      "caused_by": [],
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": [
-        "e007"
+        "e008"
       ],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     },
     {
       "id": "e006",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T14:34:45+00:00",
       "type": "milestone",
       "content": "Recorded repair commit",
-      "caused_by": [],
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [
         "e007"
       ],
@@ -75,23 +85,31 @@
     },
     {
       "id": "e007",
-      "timestamp": "2026-08-05T14:34:06+00:00",
-      "type": "commit",
-      "content": "Commit: 11f7322e76f3bdfab0fa5d4540156ecebf4ba77a",
+      "timestamp": "2026-08-05T15:57:03+00:00",
+      "type": "milestone",
+      "content": "Landed extractor dependency",
       "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
         "e006"
       ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T14:34:06+00:00",
+      "type": "commit",
+      "content": "Commit: 11f7322e76f3bdfab0fa5d4540156ecebf4ba77a",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     }
   ],
   "metrics": {
-    "duration_minutes": 25,
+    "duration_minutes": 107,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,

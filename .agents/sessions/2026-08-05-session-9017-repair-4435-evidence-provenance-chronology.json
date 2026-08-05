@@ -143,6 +143,11 @@
       "timestamp": "2026-08-05T14:34:45+00:00",
       "action": "Recorded repair commit",
       "result": "Committed the five-file repair as 11f7322e76f3bdfab0fa5d4540156ecebf4ba77a. The pre-commit preserve path reproduced issue #4588 on the PR 4435 episode, so the canonical force generator restored it for the metadata follow-up."
+    },
+    {
+      "timestamp": "2026-08-05T15:57:03+00:00",
+      "action": "Landed extractor dependency",
+      "result": "PR #4622 merged at 2026-08-05T15:54:23+00:00. Merged current main as 3787354aa2de9b1a198416fc0cec871b420e5e38 and regenerated this episode with the corrected preserve path."
     }
   ],
   "endingCommit": "11f7322e76f3bdfab0fa5d4540156ecebf4ba77a",
