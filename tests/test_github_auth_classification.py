@@ -29,7 +29,7 @@ from scripts.github_core.api import (
     gh_graphql,
     is_gh_authenticated,
 )
-from scripts.github_core.rate_limit import check_workflow_rate_limit
+from scripts.github_core.rate_limit import RateLimitStatus, check_workflow_rate_limit
 
 # Captured refusal bodies (issue #4326 Observations A, B, and the third
 # observation; issue #4335 workflow log).
@@ -358,6 +358,7 @@ class TestRateLimitGateProbe:
         with patch("subprocess.run", side_effect=calls):
             result = check_workflow_rate_limit({"core": 100, "graphql": 50})
         assert result.success is True
+        assert result.status == RateLimitStatus.VERIFIED_HEALTHY
         assert result.probe_error == ""
 
     def test_graphql_only_refusal_closes_the_gate(self):
@@ -376,6 +377,7 @@ class TestRateLimitGateProbe:
             result = check_workflow_rate_limit({"core": 100, "graphql": 50})
 
         assert result.success is False
+        assert result.status == RateLimitStatus.VERIFIED_LIMITED
         assert "GraphQL" in result.probe_error
         assert "REFUSED" in result.summary_markdown
 
@@ -385,6 +387,7 @@ class TestRateLimitGateProbe:
             result = check_workflow_rate_limit({"core": 100})
 
         assert result.success is True
+        assert result.status == RateLimitStatus.VERIFIED_HEALTHY
         assert run.call_count == 2
 
     def test_healthy_payload_with_refused_probe_fails(self):
@@ -395,6 +398,7 @@ class TestRateLimitGateProbe:
         with patch("subprocess.run", side_effect=calls):
             result = check_workflow_rate_limit({"core": 100, "graphql": 50})
         assert result.success is False
+        assert result.status == RateLimitStatus.VERIFIED_LIMITED
         assert "API rate limit exceeded" in result.probe_error
         assert "REFUSED" in result.summary_markdown
 
@@ -411,21 +415,18 @@ class TestRateLimitGateProbe:
         with patch("subprocess.run", side_effect=calls):
             result = check_workflow_rate_limit({"core": 100, "graphql": 50})
         assert result.success is False
+        assert result.status == RateLimitStatus.VERIFIED_LIMITED
         assert result.probe_error == ""
 
     @pytest.mark.parametrize("body", [REST_503, GH_CONNECT_FAILURE])
-    def test_a_transport_wobble_does_not_close_the_gate(self, body):
-        """The probe catches refusals, not outages.
-
-        Failing on every nonzero probe would abort work the payload-only gate
-        used to allow, which is the "transient 5xx read as fatal" shape issue
-        #3139 exists to remove. The evidence is still reported.
-        """
+    def test_a_transport_wobble_is_indeterminate_not_success(self, body):
+        """The probe reports unknowns without treating them as healthy."""
         calls = [_completed(stdout=_HEALTHY_PAYLOAD, rc=0), _completed(stderr=body, rc=1)]
         with patch("subprocess.run", side_effect=calls):
             result = check_workflow_rate_limit({"core": 100, "graphql": 50})
 
-        assert result.success is True
+        assert result.success is False
+        assert result.status == RateLimitStatus.COULD_NOT_DETERMINE
         assert result.probe_error != ""
         assert "REFUSED" not in result.summary_markdown
-        assert "did not complete" in result.summary_markdown
+        assert "INDETERMINATE" in result.summary_markdown

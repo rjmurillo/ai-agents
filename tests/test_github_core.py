@@ -17,6 +17,7 @@ from scripts.github_core import (
     REPO_ROOT_OK,
     FetchStatus,
     RateLimitResult,
+    RateLimitStatus,
     RepoInfo,
     assert_gh_authenticated,
     assert_valid_body_file,
@@ -1613,23 +1614,27 @@ class TestCheckWorkflowRateLimit:
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_ALL_OK)):
             result = check_workflow_rate_limit()
         assert result.success is True
+        assert result.status == RateLimitStatus.VERIFIED_HEALTHY
         assert result.core_remaining == 5000
 
     def test_failure_core_below_threshold(self):
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_CORE_LOW)):
             result = check_workflow_rate_limit()
         assert result.success is False
+        assert result.status == RateLimitStatus.VERIFIED_LIMITED
         assert result.resources["core"]["Passed"] is False
 
     def test_custom_thresholds_pass(self):
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_CORE_LOW)):
             result = check_workflow_rate_limit(resource_thresholds={"core": 10})
         assert result.success is True
+        assert result.status == RateLimitStatus.VERIFIED_HEALTHY
 
     def test_custom_thresholds_fail(self):
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_CORE_LOW)):
             result = check_workflow_rate_limit(resource_thresholds={"core": 100})
         assert result.success is False
+        assert result.status == RateLimitStatus.VERIFIED_LIMITED
 
     def test_markdown_summary(self):
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_ALL_OK)):
@@ -1643,6 +1648,7 @@ class TestCheckWorkflowRateLimit:
             with pytest.warns(UserWarning, match="code_search"):
                 result = check_workflow_rate_limit()
         assert result.success is False
+        assert result.status == RateLimitStatus.COULD_NOT_DETERMINE
 
     def test_raises_on_api_failure(self):
         with patch("subprocess.run", return_value=_completed(rc=1, stderr="API error")):
@@ -1668,6 +1674,7 @@ class TestCheckWorkflowRateLimit:
             with pytest.warns(UserWarning):
                 result = check_workflow_rate_limit()
         assert result.success is False
+        assert result.status == RateLimitStatus.COULD_NOT_DETERMINE
         assert result.core_remaining == 0
 
 
