@@ -31,7 +31,12 @@ def session_state_root(env_name: str, provider_label: str) -> Path:
             f"{provider_label} needs {_COPILOT_HOME_ENV} to be absolute; "
             f"got {copilot_home!r}"
         )
-    return Path.home() / ".copilot" / "session-state"
+    home = Path.home()
+    if not home.is_absolute():
+        raise RuntimeError(
+            f"{provider_label} needs the home directory to be absolute"
+        )
+    return home / ".copilot" / "session-state"
 
 
 def _read_candidate(path: Path, since: float) -> str | None:

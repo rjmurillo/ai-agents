@@ -1625,6 +1625,26 @@ def test_copilot_refuses_a_relative_copilot_home(
     assert "argv" not in seen
 
 
+def test_copilot_refuses_a_relative_default_home(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="answer\n"))
+    monkeypatch.delenv("COPILOT_SESSION_STATE_DIR", raising=False)
+    monkeypatch.delenv("COPILOT_HOME", raising=False)
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(
+        transcript_module.Path,
+        "home",
+        classmethod(lambda cls: Path("relative-home")),
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError, match="home directory.*absolute"):
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert "argv" not in seen
+
+
 def test_copilot_falls_back_to_stdout_when_session_root_is_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
