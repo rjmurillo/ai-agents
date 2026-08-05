@@ -99,6 +99,7 @@ def test_scratch_repo_uses_resolved_git_and_preserves_platform_path(
     assert resolved_env["PATH"] == nix_path
     assert all(argv[0] == resolved_git for argv in calls)
     assert subprocess_paths == [nix_path] * len(calls)
+    assert all("--no-verify" not in argv for argv in calls)
 
 
 def test_scratch_environment_scrubs_injected_git_configuration(
@@ -109,6 +110,7 @@ def test_scratch_environment_scrubs_injected_git_configuration(
     monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.hooksPath")
     monkeypatch.setenv("GIT_CONFIG_VALUE_0", str(tmp_path / "hostile-hooks"))
     monkeypatch.setenv("GIT_TEMPLATE_DIR", str(tmp_path / "hostile-template"))
+    monkeypatch.setenv("LEFTHOOK", "0")
 
     isolated_home = tmp_path / "isolated-home"
     env = _m._scratch_git_environment(isolated_home)
@@ -124,6 +126,7 @@ def test_scratch_environment_scrubs_injected_git_configuration(
     assert "GIT_CONFIG_KEY_0" not in env
     assert "GIT_CONFIG_VALUE_0" not in env
     assert env["GIT_TEMPLATE_DIR"] == str(isolated_home / "templates")
+    assert "LEFTHOOK" not in env
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")

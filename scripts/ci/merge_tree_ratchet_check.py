@@ -226,13 +226,14 @@ def _scratch_git_environment(isolated_home: Path) -> dict[str, str]:
     env = os.environ.copy()
     for name in tuple(env):
         normalized = name.upper()
-        isolates_home = normalized in {
+        isolates_user_state = normalized in {
             "GNUPGHOME",
             "HOME",
+            "LEFTHOOK",
             "USERPROFILE",
             "XDG_CONFIG_HOME",
         }
-        if normalized.startswith("GIT_") or isolates_home:
+        if normalized.startswith("GIT_") or isolates_user_state:
             env.pop(name)
     env.update(
         {
@@ -242,7 +243,6 @@ def _scratch_git_environment(isolated_home: Path) -> dict[str, str]:
             "GIT_TEMPLATE_DIR": str(template_dir),
             "GNUPGHOME": str(gnupg_home),
             "HOME": str(isolated_home),
-            "LEFTHOOK": "0",
             "USERPROFILE": str(isolated_home),
             "XDG_CONFIG_HOME": str(xdg_home),
         }
@@ -271,7 +271,7 @@ def _init_scratch_repo(scratch: Path) -> bool:
             [git, "-C", str(scratch), "config", "user.email", "ci@example.com"],
             [git, "-C", str(scratch), "config", "user.name", "ci"],
             [git, "-C", str(scratch), "add", "-A"],
-            [git, "-C", str(scratch), "commit", "--no-verify", "-qm", "merge-tree snapshot"],
+            [git, "-C", str(scratch), "commit", "-qm", "merge-tree snapshot"],
         ):
             proc = subprocess.run(
                 cmd,
