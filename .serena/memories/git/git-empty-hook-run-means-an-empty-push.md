@@ -69,10 +69,73 @@ the wrongly pushed commit is an ancestor of the real one, a plain
 git merge-base --is-ancestor "$WRONG_SHA" HEAD && echo fast-forward-safe
 ```
 
+## The converse: absence from the remote is not failure
+
+The trap above is a push that finished carrying nothing. The mirror image is a
+push that is carrying something and has not finished yet.
+
+Because every pre-push step runs against the full suite, a real push here takes
+minutes, not seconds. The 660 second figure above is the reference point. So
+for the first ten-plus minutes of any genuine push, the branch is absent from
+the remote, and that absence looks exactly like a failure.
+
+Measured 2026-08-05. An async push of a two file memory branch was still
+running. `git ls-remote origin refs/heads/docs/stale-checkout-tooling` returned
+empty. Reading that as failure, a second push of the same ref was launched from
+the same worktree while the first was still in flight. The second one died on:
+
+```text
+Error: yaml: unmarshal errors:
+  line 424: mapping key "timeout" already defined at line 417
+  line 425: mapping key "run" already defined at line 418
+  line 426: mapping key "glob" already defined at line 421
+error: failed to push some refs
+```
+
+That error is not real. `lefthook.yml` is byte identical across worktrees
+(`md5 ddf7726679a84c0c09d3de3c39504b99`) and parses clean under a loader that
+rejects duplicate mapping keys. So does the shared checkout's different copy.
+No production script writes `lefthook.yml`, it is absent from
+`GENERATOR-FILES.md`, and the tests that do write one are all scoped to
+`tmp_path`. The concrete writer behind the torn read stays unidentified; what
+is established is that the failure only appears when a second lefthook run
+overlaps a first, and that the config it complains about is valid.
+
+The first push then completed normally, `* [new branch] 191a73dd13e... ->
+docs/stale-checkout-tooling`, `PUSH_EXIT=0`. Roughly eight tool calls went into
+investigating a config bug that did not exist.
+
+The check is the shell's own exit status, not the remote:
+
+```bash
+# right: ask the process that is doing the work
+read_bash <shellId>          # wait for PUSH_EXIT
+
+# wrong while a push is in flight: absence here proves nothing
+git ls-remote origin refs/heads/"$BR"
+```
+
+Never start a second push of a ref while the first is unresolved. Overlapping
+lefthook runs produce failures that describe the wrong subsystem.
+
 ## Generalization
+
+Three different measurements get confused for one another, and the workflow
+supplies them in the least useful order.
+
+| Question | Signal that answers it | Signal that does not |
+|---|---|---|
+| Has the push finished? | the shell's exit status | the remote ref, absent until it lands |
+| Did the push succeed? | `PUSH_EXIT=0` | elapsed time |
+| What did the push carry? | the hook summary, `rev-list --count` | `PUSH_EXIT=0` |
 
 `REAL_EXIT=0` answers whether the push finished, never what it carried.
 Completion and content are different measurements, and the push workflow
 supplies only the first. The hook summary is the cheapest content signal
 available for free: a run where nothing matched is a run where nothing was
 sent.
+
+Symmetrically, the remote answers what landed, never whether the work is still
+running. Polling a side channel for a result the primary channel has not
+produced yet invents failures, and acting on those invented failures creates
+real ones.
