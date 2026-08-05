@@ -76,6 +76,15 @@ gh api -X PUT repos/rjmurillo/ai-agents/pulls/<n>/update-branch \
 
 A truncated SHA returns HTTP 422. The full 40 characters are required.
 
+The update creates a merge commit on the remote branch, so any local clone or
+worktree tracking that branch is immediately one commit stale. A local push
+after this is rejected as non-fast-forward. That rejection is the expected
+result of your own update, not a sign that a sibling agent pushed. Pull before
+committing anything further to that branch.
+
+The state after a successful update is BLOCKED, not CLEAN. BEHIND is replaced
+by a wait on the 17 required contexts, which re-run against the new head.
+
 ## The diagnosis that works
 
 Cross-tab the ruleset's required contexts against the contexts GitHub recorded
