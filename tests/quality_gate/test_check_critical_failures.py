@@ -140,6 +140,18 @@ class TestMain:
         rc = main([])
         assert rc == 0
 
+    def test_warn_final_passes_with_infra_agent_verdicts(self, monkeypatch) -> None:
+        """Infra-only agent failures are advisory once aggregate says WARN."""
+        env = _all_pass_env("WARN")
+        env["SECURITY_VERDICT"] = "NEEDS_REVIEW"
+        env["ANALYST_VERDICT"] = "NEEDS_REVIEW"
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+
+        rc = main([])
+
+        assert rc == 0
+
     def test_blocking_final_verdict_returns_one(self, monkeypatch, capsys) -> None:
         env = _all_pass_env("CRITICAL_FAIL")
         env["SECURITY_VERDICT"] = "CRITICAL_FAIL"
