@@ -89,7 +89,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Changes are prepared for commit on fix/fail-open-audit with this session log included."
+        "Evidence": "Committed branch work as 55b557922c6ea9bf43b0000a9e0a44f070c1bc94, 27e2a81156a07f0565270c96c5f0a15cdf796217, fa4f40e3f85ec9f94c5e80e38493f506daf197c1, and 4139b1c06e92bdf0a76e5c3cf1f930c6563198a1."
       },
       "validationPassed": {
         "level": "MUST",
@@ -129,7 +129,7 @@
       "detail": "Targeted pytest passed 77 tests, ruff passed changed files, and mutation checks killed seven fail-open mutants while the cosmetic control survived."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "4139b1c06e92bdf0a76e5c3cf1f930c6563198a1",
   "nextSteps": [
     "Open the PR from fix/fail-open-audit after push verification."
   ]
