@@ -84,7 +84,7 @@ def search_serena(
     results: list[dict[str, Any]] = []
     for md_file in sorted(memory_path.rglob("*.md")):
         rel = md_file.relative_to(memory_path).with_suffix("")
-        name = str(rel).lower()
+        name = rel.as_posix().lower()
         matching = [kw for kw in keywords if kw in name]
         if not matching:
             continue
@@ -95,7 +95,7 @@ def search_serena(
             content = ""
         preview = re.sub(r"\s+", " ", content).strip()
         results.append({
-            "Name": str(rel),
+            "Name": rel.as_posix(),
             "Source": "Serena",
             "Score": round(score, 2),
             "Path": str(md_file),
