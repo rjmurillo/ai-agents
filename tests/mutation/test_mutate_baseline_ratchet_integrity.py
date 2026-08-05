@@ -141,7 +141,9 @@ def mutant_m2b_diff_attr_none_guard(tmp_path: Path) -> str:
 def mutant_m3_scan_all_roots(tmp_path: Path) -> str:
     """M3: drop the SCAN_ROOTS loop in scan_all (empty all result dicts)."""
     target = SCRIPTS / "check_skill_md_exec_portability.py"
-    pattern = "    for parts in SCAN_ROOTS:"
+    # Use the two-line context unique to scan_all (scan_dangling_skill_relative_scripts
+    # also loops over SCAN_ROOTS, so a single-line anchor is ambiguous).
+    pattern = "    repo_resolved = repo_root.resolve()\n    for parts in SCAN_ROOTS:"
     count = _count_occurrences(target, pattern)
     if count == 0:
         return "DID-NOT-APPLY: pattern absent"
@@ -149,7 +151,12 @@ def mutant_m3_scan_all_roots(tmp_path: Path) -> str:
         return f"DID-NOT-APPLY: ambiguous, {count} occurrences"
 
     backup = tmp_path / "check_skill_md_exec.py.bak"
-    applied = _apply_mutation(target, pattern, "    for parts in []:", backup)
+    applied = _apply_mutation(
+        target,
+        pattern,
+        "    repo_resolved = repo_root.resolve()\n    for parts in []:",
+        backup,
+    )
     if not applied:
         return "DID-NOT-APPLY: replace had no effect"
 
