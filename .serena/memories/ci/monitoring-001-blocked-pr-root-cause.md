@@ -82,7 +82,7 @@ The principle above holds. Three of its specifics no longer match the repo:
    on #4387 and #4328: both merged on the first call to the merge endpoint.
 
 Read `diagnosing-a-blocked-pr.md` for the measured ruleset, the API paths, and
-the three-outcome diagnosis. That file is authoritative for what gates a merge
+the four-outcome diagnosis. That file is authoritative for what gates a merge
 in this repo; this one is authoritative for the reasoning habit.
 
 ## Memory-First Requirement

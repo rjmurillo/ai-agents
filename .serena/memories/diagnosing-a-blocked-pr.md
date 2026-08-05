@@ -19,9 +19,9 @@ command, so no time passed between them: bulk and per-PR agreed exactly, both
 `BEHIND` for both PRs. Re-running the bulk query a few minutes later returned a
 fully resolved distribution with no `UNKNOWN` at all.
 
-GitHub documents `UNKNOWN` as "not computed yet." In this observation it later
-resolved without per-PR fallback calls. Treat it as incomplete data. Wait and
-re-query rather than inventing a cause.
+GitHub defines `UNKNOWN` as "The state cannot currently be determined." In this
+observation it later resolved without per-PR fallback calls. Treat it as
+incomplete data. Wait and re-query rather than inventing a cause.
 
 This matters because acting on the wrong inference is expensive. Falling back to
 one REST call per PR turns a single query into 55 and burns a separate API
@@ -47,7 +47,7 @@ Measured 2026-08-01, that returns: `deletion`, `non_fast_forward`,
 
 | Parameter | Value | Consequence |
 | --- | --- | --- |
-| `strict_required_status_checks_policy` | `true` | Being behind main blocks. Updating the branch clears this freshness blocker, but other gates may remain. Measured `false` on 2026-08-03 and `true` on 2026-08-05; the flip is not timestamped by any API, so do not infer a date. |
+| `strict_required_status_checks_policy` | `true` | Being behind main blocks. Updating the branch clears this freshness blocker, but other gates may remain. Measured `false` on 2026-08-03 and `true` on 2026-08-05. |
 | `required_review_thread_resolution` | `true` | Any unresolved review thread blocks. |
 | `required_approving_review_count` | `0` | No human approval needed. |
 | `required_status_checks` | 17 contexts | A required context that is missing blocks. SKIPPED and NEUTRAL do not. |
@@ -94,7 +94,9 @@ Four outcomes, four fixes:
 1. `mergeStateStatus: BEHIND`. Update the branch. This value proves a freshness
    blocker under the current strict policy.
 2. Unresolved threads greater than zero. Answer the threads.
-3. A required context missing or FAILURE. Read that check's log.
+3. `get_pr_checks.py` reports a required context missing, or its selected result
+   is not SUCCESS, SKIPPED, or NEUTRAL. Read that check's log or wait for the
+   run to finish.
 4. The branch contains current `main`, nothing is missing or failing, and
    unresolved threads are zero. Call the merge endpoint. It is the authority:
 
@@ -106,11 +108,12 @@ Four outcomes, four fixes:
 Verified on #4387 and #4328: both reported BLOCKED with all three conditions
 clear, and both merged on the first call.
 
-When rolling `statusCheckRollup` into a name-to-conclusion map, never let a
-later row overwrite a SUCCESS. One workflow emits one row per trigger, so a
-context can appear twice with different conclusions. Collapsing naively kept
-the SKIPPED row and hid the SUCCESS, which produced a false report of a failing
-required check earlier in the same session.
+Do not reduce `statusCheckRollup` by hand. One workflow emits one row per
+trigger, so a context can appear twice with different conclusions. Use
+`.claude/skills/github/scripts/pr/get_pr_checks.py`; it paginates and applies
+its duplicate-context policy, using the latest workflow run when provenance is
+available. Direct merge requires every required context to be present with an
+accepted terminal result.
 
 ## The commit ceiling is a separate gate with its own escape hatch
 
