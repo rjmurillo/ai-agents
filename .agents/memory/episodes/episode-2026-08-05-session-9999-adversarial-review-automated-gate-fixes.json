@@ -97,7 +97,8 @@
         "e005",
         "e006",
         "e007",
-        "e011"
+        "e011",
+        "e014"
       ],
       "leads_to": [
         "e009"
@@ -162,7 +163,44 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recovered from the first full pre-push suite failure",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-05T13:42:13+00:00",
+      "type": "commit",
+      "content": "Commit: db785c31d42f241da8fe8376f93762b3ad380d1a",
+      "caused_by": [
+        "e016"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-05T11:59:29+00:00",
+      "type": "commit",
+      "content": "Commit: b68c7cde8a",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
       "_source_session": "2026-08-05-session-9999-adversarial-review-automated-gate-fixes"
     }
   ],
@@ -171,8 +209,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
-    "files_changed": 54
+    "commits": 8,
+    "files_changed": 55
   },
   "lessons": []
 }

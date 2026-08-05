@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Fix commits c0d74520da, f5598c6685, 6d61e15e92, a42159476a, memory commit 8677da2c3f, and session commit b68c7cde8a"
+        "Evidence": "Fix commits c0d74520da, f5598c6685, 6d61e15e92, a42159476a, memory commit 8677da2c3f, session commit b68c7cde8a, and test harness commit db785c31d4"
       },
       "validationPassed": {
         "level": "MUST",
@@ -146,8 +146,12 @@
     {
       "action": "Exercised reviewed paths that resisted breakage",
       "outcome": "AI review DID_NOT_RUN propagation, merge-tree shallow-history behavior, shallow ref lookup, and portability write locks passed 21 focused tests"
+    },
+    {
+      "action": "Recovered from the first full pre-push suite failure",
+      "outcome": "Two pre-PR runner tests mocked git with empty output, which now correctly means the corpus was not scanned; isolated the three corpus gates in those orchestration tests and verified both tests pass"
     }
   ],
-  "endingCommit": "b68c7cde8acc528bc6c826093761600abb61f1e6",
+  "endingCommit": "db785c31d42f241da8fe8376f93762b3ad380d1a",
   "nextSteps": []
 }
