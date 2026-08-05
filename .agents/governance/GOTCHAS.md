@@ -311,6 +311,53 @@ commit. Amending `HEAD` is safe whenever the recorded commit stays reachable,
 which includes `HEAD~1` and anything older. It is unsafe only when the commit
 you are rewriting *is* the recorded one; there, add a follow-up commit instead.
 
+## One file crossing 500 lines fails four pre-push jobs with three messages
+
+`taste_lints.py` treats a file over 500 lines as an error and a file over 300
+as a warning. Only the error counts. Growing one file from 402 to 691 lines
+raised the whole-repo taste count by exactly one, and that single increment
+failed four jobs in the same push:
+
+| Job | What it printed |
+|---|---|
+| `taste-count-ratchet` | `REGRESSION. 585 > baseline 584 (+1)` |
+| `merge-tree-ratchet` | `BLOCKED. The merged result breaches a ratchet ceiling.` |
+| `pre-pr-validation` | `Error: Validation failed`, after 500-plus lines of unrelated file-size output |
+| `python-tests` | `FAILED tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree` |
+
+The fourth is the trap. It reads as an unrelated test failure buried in 23,058
+passes, and it is the one that costs you the 16-minute suite before you see it.
+All four clear together once the count returns to baseline.
+
+`merge-tree-ratchet`'s advice is also wrong for this case. It says to merge or
+rebase from `origin/main` and re-check, which is right for the behind-but-innocent
+case above and useless when the regression is genuinely yours. That job already
+computed the merged result, so if it still says `REGRESSION`, merging will not
+help. Read the number: `585 > baseline 584` means your tree added one.
+
+Find the offending file directly rather than by bisecting the push:
+
+```bash
+uv run --frozen python .claude/skills/taste-lints/scripts/taste_lints.py <changed files>
+```
+
+Note the path. The linter is not under `scripts/validation/`; it ships inside
+the `taste-lints` skill, which is where the plugin needs it.
+
+The fix is usually a split rather than a suppression. A test file that grew by
+appending a second, self-contained group of guards splits cleanly on the
+document or subject each group covers, and the halves keep the shared helpers
+by import rather than by copy. Confirm with the real gate before pushing again,
+which takes seconds against the suite's sixteen minutes:
+
+```bash
+git add <the split files>
+uv run --frozen python scripts/ci/taste_count_ratchet.py
+```
+
+It reads `git ls-files`, so an unstaged new file is invisible to it and the
+count looks fine right up until the push.
+
 ## Eval harness
 
 These matter only when running `scripts/eval/`. Full detail lives in
@@ -581,3 +628,113 @@ Two consequences:
 
 Commits added while a push is in flight are not included in it. `git push`
 resolves the ref when it starts, so a follow-up push is required.
+
+## The CLI e2e pre-push jobs need a Copilot token, and fail fast without one
+
+`plugin-load-e2e` and `hook-anchoring-e2e` shell out to the real `copilot`
+binary. Each has its own `glob:` list in `lefthook.yml`, and the two lists are
+different: `hook-anchoring-e2e` watches the hook surface (`.claude/hooks/**`,
+`src/copilot-cli/hooks/**`, `.claude/settings.json`, `generate_hooks.py`, and
+its own e2e files), while `plugin-load-e2e` watches the plugin surface
+(`.claude/skills/**`, `.claude/commands/**`, both `plugin.json` manifests,
+`src/copilot-cli/skills/**`, `generate_commands.py`, `generate_skills.py`,
+`templates/platforms/copilot-cli.yaml`). Read `lefthook.yml` for the current
+lists rather than trusting a union of them; touching one surface arms one job,
+not both.
+
+The CLI reads its credential from `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, or
+`GITHUB_TOKEN`. A `gh auth login` alone does not set any of them. With none set,
+each invocation exits 1 with an authentication message and the job finishes in
+roughly 13 to 17 seconds. A run that actually reaches the CLI takes about 28
+seconds or more for two tests.
+
+Both jobs are siblings of `python-tests` inside one `parallel: true` group, so
+they race it rather than follow it. That does not make the failure cheap: the
+group only returns when its slowest member does, and `python-tests` takes about
+18 minutes. A 13-second auth failure still costs the full suite's wall time
+before the ref is rejected. Provision the token on the push instead:
+
+```bash
+COPILOT_GITHUB_TOKEN="$(gh auth token)" git push origin HEAD:"$(git branch --show-current)"
+```
+
+### Merging main arms both jobs even when your branch touches neither surface
+
+This is the part that reads as a contradiction. A branch can arm both e2e jobs
+while `git diff origin/main...HEAD` shows nothing in either glob list. The globs
+are not matched against the branch's diff versus main. Lefthook expands
+`{push_files}` over the **push range**, from the remote tip of the branch to the
+new `HEAD`. Merging `origin/main` into a branch puts every one of main's commits
+inside that range.
+
+Measured: pushing `test/vacuous-assertion-anti-pattern` right after merging main
+covered 367 files across `6eeeb8cac..35d87fd6b`, which hit both glob sets. The
+branch's own diff against main touched seven files, none of them gated. So the
+rule is: if you merged main, assume every glob-gated job is armed, whatever your
+branch changed.
+
+Two traps around diagnosing it:
+
+- A fast finish looks like a flake or a concurrency problem. It is neither. Read
+  the assertion message, which names `COPILOT_GITHUB_TOKEN` outright.
+  Serializing pushes to fix it is the wrong remedy and contradicts the
+  per-branch lock section above.
+- Running the two test files directly does not reproduce the failure. The suites
+  gate on `RUN_CLI_E2E=1`, which `scripts/validation/git_hook_policy.py` sets for
+  the hook. Without it the CLI cases skip and pytest reports the file as passing,
+  which proves nothing. Set both variables to reproduce.
+
+A third failure mode reads like the first two and is not. When the service
+rejects a token that is actually valid, the test fails with "Copilot auth token
+was rejected (expired or revoked); rotate COPILOT_GITHUB_TOKEN". That message
+names one cause and the service's own text in the same output contradicts it:
+"Your token may still be valid. Check your network connection and try again."
+Measured: a push failed both e2e jobs on that message, and the same test passed
+in 24.99 seconds a few minutes later with a token from the same `gh auth token`
+call. Reproduce before rotating anything:
+
+```bash
+RUN_CLI_E2E=1 COPILOT_GITHUB_TOKEN="$(gh auth token)" \
+  uv run --frozen python -m pytest \
+  tests/e2e/test_plugin_load_smoke.py::test_copilot_plugin_loads_expected_skills -q
+```
+
+That is 25 seconds against 18 minutes for a push, and it tells you whether you
+have a credential problem or a bad minute.
+
+Measured on that same push: `plugin-load-e2e` failed at 13.03 seconds and
+`hook-anchoring-e2e` at 16.73 seconds, while `python-tests` passed in 1071.94
+seconds. The same two tests passed in 27.92 seconds under `RUN_CLI_E2E=1` with
+`COPILOT_GITHUB_TOKEN` set, and skipped silently with the token set but
+`RUN_CLI_E2E` unset. Those four durations are author-reported from the push
+console; no log artifact is committed.
+
+## Editing any `.claude/rules/*.md` file changes a number the doctrine asserts
+
+`model-context-doctrine.md` states the shipped plugin tree's always-on size as
+a literal byte count, and `tests/validation/test_always_on_corpus_claims.py`
+measures the tree and asserts the prose matches. Editing a rule changes that
+measurement, so a one-paragraph clarification to an unrelated rule turns the
+guard red.
+
+The trap is where it fires. The guard lives in `python-tests`, so it costs the
+full suite before the ref is rejected. Nothing in the pre-commit set catches
+it, and the edit itself looks unrelated to any figure.
+
+Four rules are narrowly scoped in `.github/instructions` and always-on in the
+plugin tree: `governance`, `push-lock`, `secret-redaction`, and `session-logs`.
+Editing one of those moves the plugin figure while leaving the
+`.github/instructions` figure alone, which is why the two numbers in that
+paragraph drift independently.
+
+Check it in under a second before pushing:
+
+```bash
+uv run --frozen python -m pytest tests/validation/test_always_on_corpus_claims.py -q
+```
+
+When it fails, take the measured value from the assertion message, update the
+sentence in `.claude/skills/context-optimizer/references/model-context-doctrine.md`,
+and rerun `build/scripts/generate_skills.py` so the `src/copilot-cli/` mirror
+matches. Update the vendor-cost figure in the same sentence: it is the plugin
+count minus the `.github/instructions` count, and no test checks it.
