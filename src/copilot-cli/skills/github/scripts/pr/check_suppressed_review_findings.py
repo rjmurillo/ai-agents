@@ -50,7 +50,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     return parser
 
@@ -124,7 +127,7 @@ def parse_suppressed_sections(body: str) -> list[dict[str, Any]]:
                 break
             findings.append(
                 {
-                    "path": location.group("path"),
+                    "path": location.group("path").strip(),
                     "line": int(location.group("line")),
                     "text": text,
                 }
@@ -149,7 +152,10 @@ def _review_author(review: dict[str, Any]) -> str:
 
 
 def build_report(
-    owner: str, repo: str, pull_request: int, reviews: list[dict[str, Any]],
+    owner: str,
+    repo: str,
+    pull_request: int,
+    reviews: list[dict[str, Any]],
 ) -> dict[str, Any]:
     suppressed_reviews: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
