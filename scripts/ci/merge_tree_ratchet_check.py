@@ -58,9 +58,9 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.ci import ruff_count_ratchet as _ruff  # noqa: E402
-from scripts.ci import taste_count_ratchet as _taste  # noqa: E402
-from scripts.ci import type_ignore_count_ratchet as _type_ignore  # noqa: E402
+from scripts.ci import ruff_count_ratchet as _ruff
+from scripts.ci import taste_count_ratchet as _taste
+from scripts.ci import type_ignore_count_ratchet as _type_ignore
 
 EXIT_OK = 0
 EXIT_REGRESSION = 1
@@ -80,17 +80,32 @@ def _git(cwd: Path, *argv: str) -> subprocess.CompletedProcess[str]:
 
 
 def _merge_tree_oid(repo_root: Path, base_ref: str) -> tuple[str | None, bool]:
-    """Return (tree-oid, conflicts). oid is None on git failure."""
+    """Return (tree-oid, conflicts). oid is None on git failure.
+
+    Every None return writes its own explanation to stderr, so callers must not
+    add a second generic one. Two messages for one failure make the specific
+    diagnosis read like a guess (PR #4567 review).
+    """
     proc = _git(repo_root, "merge-tree", "--write-tree", base_ref, "HEAD")
-    if proc.returncode == 0:
-        oid = proc.stdout.strip().splitlines()[0] if proc.stdout.strip() else None
-        return oid, False
-    if proc.returncode == 1:
+    if proc.returncode in (0, 1):
         # exit 1 means conflicts; stdout still has the partial tree oid on line 1
         lines = proc.stdout.strip().splitlines()
-        oid = lines[0] if lines else None
-        return oid, True
+        conflicts = proc.returncode == 1
+        if not lines:
+            sys.stderr.write(
+                f"merge-tree-ratchet: git merge-tree exited {proc.returncode} but wrote\n"
+                "no tree OID, so there is no merged tree to evaluate.\n"
+            )
+            return None, conflicts
+        return lines[0], conflicts
     sys.stderr.write(f"git merge-tree failed (rc {proc.returncode}):\n{proc.stderr}\n")
+    if "unrelated histories" in proc.stderr:
+        sys.stderr.write(
+            "merge-tree-ratchet: no merge base was reachable. This is a shallow-fetch\n"
+            "regression, not a ratchet breach: a `git fetch --depth=1` writes\n"
+            ".git/shallow and cuts history traversal, so any branch behind the base\n"
+            "aborts here. Fetch the base ref at full depth (issue #4518).\n"
+        )
     return None, False
 
 
@@ -230,7 +245,8 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
     """Extract merged tree, run counters, compare. Returns an EXIT_* code."""
     tree_oid, conflicts = _merge_tree_oid(repo_root, base_ref)
     if tree_oid is None:
-        sys.stderr.write("merge-tree-ratchet: git merge-tree did not produce a tree OID.\n")
+        # _merge_tree_oid already named the specific reason on stderr. A generic
+        # line here would contradict it (PR #4567 review).
         return EXIT_EXTERNAL
     if conflicts:
         print(

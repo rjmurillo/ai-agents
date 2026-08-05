@@ -134,7 +134,8 @@ lockfile, keyed on the branch:
 ```bash
 BR=$(git rev-parse --abbrev-ref HEAD)
 SLUG=$(printf '%s' "$BR" | tr '/' '-')
-flock "/tmp/push-lock-$SLUG.lock" git push -u origin "$BR"
+mkdir -p "$HOME/src/scratch/locks"
+flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push -u origin "$BR"
 ```
 
 `flock` waits for the lock rather than failing, so a queued push runs when the
@@ -144,20 +145,23 @@ Key the lock on the branch, not on the repo. The collision that actually
 happens is two agents pushing the SAME ref; two pushes to different refs never
 contended. A single global lock (`/tmp/aiagents-push.lock`) serializes every
 push behind an 11 minute pre-push hook it did not need to wait for. See
-`git/git-lock-pushes-per-branch-not-globally.md` for the measurement.
+`.serena/memories/git/git-lock-pushes-per-branch-not-globally.md` for the measurement.
 
 Every agent must name the lock identically or it excludes nothing. Measured
 2026-08-02: three schemes were live at once (`/tmp/aiagents-push.lock`,
 `/tmp/aiagents-push-$SLOT.lock` hashed into four slots, and the per branch
 path above), and one branch had two concurrent pushes running under two
 different lock names. `flock` only excludes processes that agree on the path,
-so the extra schemes bought nothing and hid the race.
+so the extra schemes bought nothing and hid the race. The path above is now the
+only sanctioned one: `.claude/rules/push-lock.md` states it and
+`scripts/validation/check_push_lock_paths.py` fails a tracked prescription that
+names anything else (issue #4366).
 
 The lock file currently lives under `/tmp`. The requirement is that every agent
 names it identically, since `flock` excludes only processes that agree on the
 path; `/tmp` is just the one absolute path every agent here can already name.
 The push *log* must not go there: use `~/src/scratch`. See
-`git-lock-pushes-per-branch-not-globally` for the `/tmp`-wipe hazard this
+`.serena/memories/git/git-lock-pushes-per-branch-not-globally.md` for the `/tmp`-wipe hazard this
 carries and how to detect it.
 
 ## Evidence

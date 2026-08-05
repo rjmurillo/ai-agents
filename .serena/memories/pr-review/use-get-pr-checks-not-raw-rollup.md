@@ -82,6 +82,76 @@ I nearly filed an issue against that file on a blanket "unpaginated call" scan.
 Reading the docstring stopped it. A truncated read is only a defect where the
 dropped rows could change the answer.
 
+## The second truncation is per-name, and pagination does not fix it
+
+The row count is only half of it. Those 133 rows carried 103 distinct names, so
+about 30 names appear more than once, and a reduction keyed on the name alone
+silently keeps one row and discards its twin.
+
+Two causes, both live in this repo:
+
+1. **One workflow, several triggers.** `Run Python Tests` reported twice on one
+   SHA, one row SKIPPED and one SUCCESS. Reducing to a `{name: conclusion}`
+   dict kept the SKIPPED one. That produced a report of a failing required
+   check on a PR whose `mergeStateStatus` was already `CLEAN`.
+2. **Different workflows publishing the same check name.** Measured on
+   `d7b9c8837`, 2026-08-04: `Aggregate Results` appears twice, from
+   `AI PR Quality Gate` (run `30929337949`, failure) and from
+   `Session Protocol Validation` (run `30929338237`, success). Nothing in the
+   check name distinguishes them.
+
+Case 2 is the worse one, because the two rows are not two attempts at the same
+question. They are unrelated checks that happen to share a label, so "did
+Aggregate Results pass" has no single answer.
+
+Disambiguate with fields that are actually unique, not with the name:
+
+```bash
+# every row, with the workflow that owns it
+gh api --paginate "repos/rjmurillo/ai-agents/commits/<sha>/check-runs?per_page=100" \
+  --jq '.check_runs[] | "\(.conclusion)\t\(.started_at)\t\(.name)"'
+# then resolve a specific row's owning workflow
+gh api "repos/rjmurillo/ai-agents/actions/runs/<run_id>" --jq '.name'
+```
+
+`started_at` is the cheap tell. When rows sharing a name are minutes apart,
+they are different workflows or different attempts, and you have to decide
+which one your question is about before you read the conclusion.
+## Pagination is the least important of the three things a reader gets wrong
+
+Measured 2026-08-03. Across one session I wrote three bespoke check readers.
+Each one fixed the previous defect and introduced a new one.
+
+| Attempt | What it fixed | What it broke |
+|---|---|---|
+| `gh pr view --json statusCheckRollup` reduced to a `{name: conclusion}` dict | nothing | two rows share one name, so the dict kept SKIPPED and dropped SUCCESS; reported a green required check as skipped |
+| `gh api --paginate --jq` | truncation | `--jq` runs once per page, so the reduction saw a partial list |
+| `--paginate --slurp` plus my own reducer | truncation and per-page reduction | counted `cancelled` as a hard failure; reported two clean PRs as FAILURE |
+
+`get_pr_checks.py` already had all three properties before I started.
+
+- It paginates.
+- It groups rows by name and lets a passing re-run supersede a prior failure,
+  the "OK if any SUCCESS exists" rule from the PR #1887 retrospective.
+- Its severity map puts CANCELLED in the failing set so a CANCELLED-only group
+  still surfaces, while a CANCELLED row with a sibling SUCCESS does not.
+
+It also returns `IsRequired` per check plus `FailedRequiredChecks` and
+`PendingRequiredChecks`. None of my three readers reported required status at
+all, so none of them could answer the only question that decides a merge.
+
+The order of danger is the reverse of the order of visibility. Truncation is
+the defect you notice, because the row count looks wrong. Severity mapping and
+re-run supersession are the ones that hand you a confident, complete-looking
+answer with the sign flipped.
+
+A `cancelled` row with a sibling `success` on the same check name means superseded
+by a re-run, not broken. The group passes because the `success` supersedes the
+`cancelled`. A `cancelled`-only group, with no sibling success, still surfaces as a
+failure: the script puts it in the failing set intentionally so it stays visible.
+Treating every `cancelled` as a hard failure (no sibling check) costs a re-run of
+a green suite at best, and a false defect report against working CI at worst.
+
 ## Related
 
 - `pr-review/mergestatestatus-blocked-can-be-stale.md`. The BLOCKED field is

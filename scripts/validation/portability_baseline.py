@@ -22,13 +22,14 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
-import time
-from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from scripts.validation.portability_baseline_write import (
+    baseline_write_lock,
+    replace_baseline_atomically,
+)
 from scripts.validation.portability_floor import (
     COUNTED_SECTIONS,
     Sections,
@@ -44,12 +45,18 @@ def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] 
 __all__ = [
     "COUNTED_SECTIONS",
     "Sections",
+    "baseline_write_lock",
     "read_previous_sections",
+    "replace_baseline_atomically",
     "refuse_dropped_entries",
+    "refuse_oversized_baseline",
     "refuse_symlinked_baseline",
     "refuse_undiffable_baseline",
     "write_baseline_json",
 ]
+
+# Compatibility alias for tests and callers that still use the former private name.
+_baseline_write_lock = baseline_write_lock
 
 # Variables that run_git strips from the environment before calling git.
 # Their presence means run_git may have hidden a real repository from git.
@@ -363,87 +370,6 @@ def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> boo
     return True
 
 
-@contextmanager
-def _baseline_write_lock(lock_path: Path) -> Iterator[None]:
-    """Serialize baseline writes with an fcntl advisory lock.
-
-    The lock file is created (not truncated) with O_CREAT|O_RDWR so it
-    survives a crash intact and flock() still acquires on the next run.
-    A stale directory left by a SIGKILL is removed on entry so a single
-    prior crash does not permanently wedge the lock path.
-    """
-    if lock_path.is_dir():
-        # Stale directory left by a process that was killed before rmdir ran.
-        # Remove it so the fcntl path can create the lock file.
-        try:
-            lock_path.rmdir()
-        except OSError:
-            pass
-
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
-    try:
-        deadline = time.monotonic() + 10.0
-        if sys.platform == "win32":
-            import msvcrt
-
-            while True:
-                try:
-                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-                    break
-                except OSError:
-                    if time.monotonic() >= deadline:
-                        raise TimeoutError(
-                            f"timed out waiting for baseline lock {lock_path}"
-                        ) from None
-                    time.sleep(0.05)
-            try:
-                yield
-            finally:
-                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-        else:
-            import fcntl
-
-            while True:
-                try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except BlockingIOError:
-                    if time.monotonic() >= deadline:
-                        raise TimeoutError(
-                            f"timed out waiting for baseline lock {lock_path}"
-                        ) from None
-                    time.sleep(0.05)
-            try:
-                yield
-            finally:
-                fcntl.flock(fd, fcntl.LOCK_UN)
-    finally:
-        os.close(fd)
-
-
-def _replace_atomically(baseline_path: Path, text: str) -> None:
-    fd: int | None = None
-    tmp: Path | None = None
-    try:
-        fd, tmp_name = tempfile.mkstemp(
-            dir=baseline_path.parent,
-            prefix=f".{baseline_path.name}.",
-            suffix=".tmp",
-        )
-        tmp = Path(tmp_name)
-        handle = os.fdopen(fd, "w", encoding="utf-8")
-        fd = None
-        with handle:
-            handle.write(text)
-        os.replace(tmp, baseline_path)
-    finally:
-        if fd is not None:
-            os.close(fd)
-        if tmp is not None:
-            tmp.unlink(missing_ok=True)
-
-
 def write_baseline_json(
     repo_root: Path,
     baseline_path: Path,
@@ -466,7 +392,7 @@ def write_baseline_json(
     """
     lock_path = baseline_path.with_name(f".{baseline_path.name}.write-lock")
     try:
-        with _baseline_write_lock(lock_path):
+        with baseline_write_lock(lock_path):
             if refuse_symlinked_baseline(repo_root, baseline_path):
                 return 2
 
@@ -477,7 +403,10 @@ def write_baseline_json(
             if refuse_dropped_entries(previous, counted, unit, allow_shrink, problem):
                 return 2
 
-            _replace_atomically(baseline_path, json.dumps(payload, indent=2) + "\n")
+            replace_baseline_atomically(
+                baseline_path,
+                json.dumps(payload, indent=2) + "\n",
+            )
     except OSError as exc:
         print(f"Could not write baseline {baseline_path}: {exc}", file=sys.stderr)
         return 2

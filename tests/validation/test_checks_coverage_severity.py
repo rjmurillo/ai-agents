@@ -66,7 +66,7 @@ def _repo(tmp_path: Path, *, with_script: bool) -> Path:
 def test_advisory_failure_prints_warn_and_never_fail(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     repo = _repo(tmp_path, with_script=True)
     monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
@@ -83,7 +83,7 @@ def test_advisory_failure_prints_warn_and_never_fail(
 def test_enforced_failure_keeps_the_fail_token(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     repo = _repo(tmp_path, with_script=True)
     monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
@@ -98,7 +98,7 @@ def test_enforced_failure_keeps_the_fail_token(
 def test_missing_script_advisory_still_warns(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     repo = _repo(tmp_path, with_script=False)
     monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
@@ -134,10 +134,34 @@ def _marker_line_count(captured: str) -> int:
     )
 
 
+def _pass_line_count(captured: str) -> int:
+    """Count how many times the wrapped script's success verdict was forwarded."""
+    return sum(1 for line in captured.splitlines() if "reviewed: /review@" in line)
+
+
+def _add_valid_marker(repo: Path) -> str:
+    """Append an empty review-marker commit binding the current HEAD.
+
+    The marker contract in ``validate_review_marker`` binds a commit's parent,
+    so the marker must be an empty commit whose trailer names the SHA it sits
+    on top of. Returns the reviewed SHA.
+    """
+    reviewed = _git(repo, "rev-parse", "HEAD")
+    _git(
+        repo,
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        f"chore: review marker\n\nReviewed-By: /review@correctness on {reviewed}",
+    )
+    return reviewed
+
+
 def test_advisory_failure_forwards_each_line_once(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     """The verdict line is printed on the exit path only, never twice.
 
@@ -157,7 +181,7 @@ def test_advisory_failure_forwards_each_line_once(
 def test_enforced_failure_forwards_each_line_once(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: Any,  # noqa: ANN401
+    monkeypatch: Any,
 ) -> None:
     repo = _repo(tmp_path, with_script=True)
     monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
@@ -165,6 +189,86 @@ def test_enforced_failure_forwards_each_line_once(
     validate_review_marker(repo)
 
     assert _marker_line_count(capsys.readouterr().out) == 1
+
+
+def test_success_forwards_each_line_once(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: Any,
+) -> None:
+    """The success path forwards its verdict once, same as both failure paths.
+
+    Both failure paths carry a forwards-once test; the exit-zero path did not,
+    so duplicating its ``_print_output`` call survived the whole suite. The
+    duplicate is invisible to a severity assertion because both copies read
+    ``[PASS]``.
+    """
+    repo = _repo(tmp_path, with_script=True)
+    _add_valid_marker(repo)
+    monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+
+    passed = validate_review_marker(repo)
+
+    captured = capsys.readouterr().out
+    assert passed is True
+    assert _pass_line_count(captured) == 1
+
+
+@pytest.mark.parametrize("enforced", [False, True], ids=["advisory", "enforced"])
+def test_success_severity_token_stays_pass_in_both_modes(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: Any,
+    enforced: bool,
+) -> None:
+    """A passing run prints ``[PASS]`` and never a lower verdict, in either mode.
+
+    Kills two mutations: emitting the success line under a ``[WARN]`` or
+    ``[FAIL]`` token, and dropping the success print entirely. It deliberately
+    does not claim to catch the success path being routed through
+    ``_as_advisory``. That rewrite only touches a leading ``[FAIL]``, so a
+    ``[PASS]`` line survives it unchanged and no assertion here could tell.
+    ``test_print_output_downgrade_spares_a_non_leading_token`` covers the
+    forwarder's use of that rewrite instead.
+    """
+    repo = _repo(tmp_path, with_script=True)
+    reviewed = _add_valid_marker(repo)
+    if enforced:
+        monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
+    else:
+        monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+
+    passed = validate_review_marker(repo)
+
+    captured = capsys.readouterr().out
+    assert passed is True
+    assert "[PASS]" in captured
+    assert "[WARN]" not in captured
+    assert "[FAIL]" not in captured
+    assert reviewed[:12] in captured
+
+
+def test_success_forwards_each_line_once_when_enforced(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: Any,
+) -> None:
+    """Enforcement changes the failure verdict, never the success one."""
+    repo = _repo(tmp_path, with_script=True)
+    _add_valid_marker(repo)
+    monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
+
+    passed = validate_review_marker(repo)
+
+    captured = capsys.readouterr().out
+    assert passed is True
+    assert _pass_line_count(captured) == 1
+
+
+def test_pass_line_counter_is_not_vacuous() -> None:
+    """A counter that matched nothing would make the forwards-once tests green."""
+    assert _pass_line_count("[PASS] reviewed: /review@correctness binds abc123 (1 axis/axes)") == 1
+    assert _pass_line_count("[PASS] something else entirely") == 0
 
 
 def test_print_output_downgrade_spares_a_non_leading_token(

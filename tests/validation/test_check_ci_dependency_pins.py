@@ -10,7 +10,7 @@ import pytest
 _validation_path = str(Path(__file__).resolve().parents[2] / "scripts" / "validation")
 sys.path.insert(0, _validation_path)
 try:
-    import check_ci_dependency_pins as gate  # noqa: E402
+    import check_ci_dependency_pins as gate
 finally:
     sys.path.remove(_validation_path)
 

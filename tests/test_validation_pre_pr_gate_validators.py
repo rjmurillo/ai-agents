@@ -152,35 +152,35 @@ class TestValidateReviewMarker:
         )
 
     def test_missing_script_advisory_returns_true(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         repo = self._make_repo(tmp_path, with_script=False)
         monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
         assert validate_review_marker(repo) is True
 
     def test_missing_script_enforced_returns_false(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         repo = self._make_repo(tmp_path, with_script=False)
         monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
         assert validate_review_marker(repo) is False
 
     def test_no_marker_advisory_returns_true(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         repo = self._make_repo(tmp_path, with_script=True)
         monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
         assert validate_review_marker(repo) is True
 
     def test_no_marker_enforced_returns_false(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         repo = self._make_repo(tmp_path, with_script=True)
         monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
         assert validate_review_marker(repo) is False
 
     def test_valid_marker_passes_advisory(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         repo = self._make_repo(tmp_path, with_script=True)
         self._add_marker(repo)
@@ -188,7 +188,7 @@ class TestValidateReviewMarker:
         assert validate_review_marker(repo) is True
 
     def test_valid_marker_passes_enforced(
-        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         repo = self._make_repo(tmp_path, with_script=True)
         self._add_marker(repo)
@@ -206,7 +206,7 @@ class TestValidateCiDependencyPinsSkipsBeforeImporting:
     """
 
     @staticmethod
-    def _block_import(monkeypatch: Any) -> None:  # noqa: ANN401
+    def _block_import(monkeypatch: Any) -> None:
 
         # A None entry makes ``import check_ci_dependency_pins`` raise
         # ImportError, which is what a missing ``packaging`` looks like from
@@ -216,7 +216,7 @@ class TestValidateCiDependencyPinsSkipsBeforeImporting:
     def test_an_absent_github_tree_skips_without_importing(
         self,
         tmp_path: Path,
-        monkeypatch: Any,  # noqa: ANN401
+        monkeypatch: Any,
     ) -> None:
         from checks_tooling import validate_ci_dependency_pins
 
@@ -230,7 +230,7 @@ class TestValidateCiDependencyPinsSkipsBeforeImporting:
     def test_an_absent_pyproject_skips_without_importing(
         self,
         tmp_path: Path,
-        monkeypatch: Any,  # noqa: ANN401
+        monkeypatch: Any,
     ) -> None:
         from checks_tooling import validate_ci_dependency_pins
 
@@ -258,5 +258,3 @@ class TestValidateCiDependencyPinsSkipsBeforeImporting:
 # ---------------------------------------------------------------------------
 # Issue #3710: a markdown gate that selects nothing must not report success
 # ---------------------------------------------------------------------------
-
-
