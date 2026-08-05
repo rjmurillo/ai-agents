@@ -913,6 +913,62 @@ def test_process_shutdown_obeys_the_session_deadline(
     assert time.monotonic() - started < 2.0
 
 
+def test_expired_request_still_force_kills_and_reaps_the_child() -> None:
+    waits: list[float] = []
+
+    class FakeProcess:
+        stdin = None
+        args = ["copilot"]
+        reaped = False
+
+        def poll(self) -> int | None:
+            return 0 if self.reaped else None
+
+        def wait(self, timeout: float) -> int:
+            waits.append(timeout)
+            self.reaped = True
+            return 0
+
+    class FakeTree:
+        terminations: list[bool] = []
+
+        def terminate(self, *, force: bool) -> None:
+            self.terminations.append(force)
+
+        def close(self) -> None:
+            return None
+
+    class FinishedReader:
+        def join(self, timeout: float | None = None) -> None:
+            return None
+
+        def is_alive(self) -> bool:
+            return False
+
+    process = FakeProcess()
+    tree = FakeTree()
+    streams = cast(
+        Any,
+        SimpleNamespace(
+            process=process,
+            process_tree=tree,
+            stop_readers=threading.Event(),
+            stdout_thread=FinishedReader(),
+            stderr_thread=FinishedReader(),
+        ),
+    )
+
+    acp_module._stop_process(
+        streams,
+        deadline=time.monotonic() - 1.0,
+        timeout=0.1,
+    )
+
+    assert tree.terminations == [False, True]
+    assert waits == [acp_module._FORCE_REAP_SECONDS]
+    assert process.reaped is True
+
+
 def test_timeout_exception_does_not_receive_prompt_in_command(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -920,10 +976,13 @@ def test_timeout_exception_does_not_receive_prompt_in_command(
     fake = _write_fake_acp(tmp_path)
     prompt = "PRIVATE PROMPT FRAGMENT"
 
-    def timeout(*args: object, **kwargs: object) -> None:
+    def timeout_session(
+        *args: object,
+        **kwargs: object,
+    ) -> None:
         raise subprocess.TimeoutExpired(cmd=_safe_argv(fake), timeout=1)
 
-    monkeypatch.setattr(subprocess.Popen, "wait", timeout)
+    monkeypatch.setattr(acp_module, "_run_session", timeout_session)
     with pytest.raises(subprocess.TimeoutExpired) as exc_info:
         run_acp_completion(
             _safe_argv(fake),

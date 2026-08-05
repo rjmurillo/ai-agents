@@ -21,6 +21,7 @@ _MAX_PROTOCOL_CHARS = 4 * 1024 * 1024
 _STDOUT_QUEUE_LINES = 64
 _STDERR_CLASSIFICATION_CHARS = 4096
 _PROCESS_WAIT_SECONDS = 5.0
+_FORCE_REAP_SECONDS = 1.0
 _READER_JOIN_SECONDS = 5.0
 _QUEUE_WAIT_SECONDS = 0.1
 _TOOL_UPDATE_NAMES = frozenset({"tool_call", "tool_call_update"})
@@ -474,17 +475,24 @@ def _stop_process(
     streams.process_tree.terminate(force=False)
     if process.poll() is None:
         remaining = max(0.0, deadline - time.monotonic())
-        try:
-            process.wait(timeout=min(_PROCESS_WAIT_SECONDS, remaining))
-        except subprocess.TimeoutExpired:
-            streams.process_tree.terminate(force=True)
-            remaining = max(0.0, deadline - time.monotonic())
+        if remaining > 0:
             try:
                 process.wait(timeout=min(_PROCESS_WAIT_SECONDS, remaining))
             except subprocess.TimeoutExpired:
                 pass
+        if process.poll() is None:
+            streams.process_tree.terminate(force=True)
+            try:
+                process.wait(timeout=_FORCE_REAP_SECONDS)
+            except subprocess.TimeoutExpired:
+                raise RuntimeError("Copilot ACP child cleanup timed out") from None
+    cleanup_deadline = time.monotonic() + _FORCE_REAP_SECONDS
     try:
-        _join_readers(streams, deadline=deadline, timeout=timeout)
+        _join_readers(
+            streams,
+            deadline=cleanup_deadline,
+            timeout=timeout,
+        )
     except subprocess.TimeoutExpired:
         pass
     streams.process_tree.close()
