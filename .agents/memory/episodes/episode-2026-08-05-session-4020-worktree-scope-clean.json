@@ -70,7 +70,9 @@
       "caused_by": [
         "e007"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
     },
     {
@@ -83,11 +85,34 @@
         "e002",
         "e003",
         "e004",
-        "e005"
+        "e005",
+        "e008"
       ],
       "leads_to": [
         "e006"
       ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated clean branch",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T11:44:28+00:00",
+      "type": "commit",
+      "content": "Commit: fe66089b25f0087afa4e2feef260851c564328c1",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
       "_source_session": "2026-08-05-session-4020-worktree-scope-clean"
     }
   ],
@@ -96,7 +121,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 2
   },
   "lessons": []
