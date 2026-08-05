@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
+import queue
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TextIO
 
 import pytest
@@ -301,6 +305,102 @@ def test_descendant_holding_pipes_cannot_hang_reader_cleanup(
 
     assert completed.returncode == 0
     assert time.monotonic() - started < 2.0
+
+
+def test_stdout_reader_applies_queue_backpressure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(acp_module, "_QUEUE_WAIT_SECONDS", 0.01)
+    lines: queue.Queue[str | BaseException | None] = queue.Queue(maxsize=1)
+    stop_readers = threading.Event()
+    reader = threading.Thread(
+        target=acp_module._read_stdout,
+        args=(io.StringIO("first\nsecond\n"), lines, stop_readers),
+    )
+
+    reader.start()
+    deadline = time.monotonic() + 1.0
+    while lines.qsize() < 1 and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    assert lines.qsize() == 1
+    assert reader.is_alive()
+    stop_readers.set()
+    reader.join(timeout=1.0)
+    assert not reader.is_alive()
+
+
+def test_started_process_uses_a_bounded_stdout_queue(tmp_path: Path) -> None:
+    fake = _write_fake_acp(tmp_path)
+    streams = acp_module._start_process(
+        _safe_argv(fake),
+        cwd=str(tmp_path),
+        env={"PATH": os.environ.get("PATH", os.defpath)},
+    )
+    try:
+        assert streams.stdout_lines.maxsize == acp_module._STDOUT_QUEUE_LINES
+    finally:
+        acp_module._stop_process(streams)
+
+
+def test_protocol_character_budget_is_cumulative(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(acp_module, "_MAX_PROTOCOL_CHARS", 100)
+    lines: queue.Queue[str | BaseException | None] = queue.Queue()
+    update = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "method": "session/update",
+            "params": {"update": {"sessionUpdate": "plan"}},
+        }
+    )
+    lines.put(update + "\n")
+    lines.put(update + "\n")
+    streams = SimpleNamespace(
+        process=SimpleNamespace(args=[]),
+        stdout_lines=lines,
+        stderr_chunks=[],
+    )
+
+    with pytest.raises(RuntimeError, match="protocol exceeded the size limit"):
+        acp_module._wait_for_response(
+            streams,
+            99,
+            deadline=time.monotonic() + 1.0,
+            timeout=1.0,
+            answer_chunks=[],
+        )
+
+
+def test_newline_free_protocol_output_has_a_line_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(acp_module, "_MAX_PROTOCOL_LINE_CHARS", 64)
+    fake = tmp_path / "oversized_line.py"
+    fake.write_text(
+        "\n".join(
+            [
+                "import sys",
+                "import time",
+                "sys.stdin.readline()",
+                'sys.stdout.write("x" * 65)',
+                "sys.stdout.flush()",
+                "time.sleep(60)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="protocol line exceeded the size limit"):
+        run_acp_completion(
+            _safe_argv(fake),
+            "PRIVATE PROMPT",
+            cwd=str(tmp_path),
+            env={"PATH": os.environ.get("PATH", os.defpath)},
+            timeout=10.0,
+        )
 
 
 def test_timeout_exception_does_not_receive_prompt_in_command(

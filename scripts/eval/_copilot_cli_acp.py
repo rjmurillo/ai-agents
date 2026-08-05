@@ -5,18 +5,23 @@ from __future__ import annotations
 import json
 import os
 import queue
-import signal
 import subprocess
 import threading
 import time
 from dataclasses import dataclass
 from typing import Literal, TextIO, cast
 
+from _copilot_process_tree import ProcessTree
+
 _PROTOCOL_VERSION = 1
 _MAX_CAPTURE_CHARS = 4 * 1024 * 1024
+_MAX_PROTOCOL_LINE_CHARS = 1024 * 1024
+_MAX_PROTOCOL_CHARS = 4 * 1024 * 1024
+_STDOUT_QUEUE_LINES = 64
 _STDERR_CLASSIFICATION_CHARS = 4096
 _PROCESS_WAIT_SECONDS = 5.0
 _READER_JOIN_SECONDS = 5.0
+_QUEUE_WAIT_SECONDS = 0.1
 _TOOL_UPDATE_NAMES = frozenset({"tool_call", "tool_call_update"})
 _AUTH_HINTS = (
     "auth",
@@ -60,20 +65,49 @@ class ACPProviderError(RuntimeError):
 @dataclass
 class _ProcessStreams:
     process: subprocess.Popen[str]
-    stdout_lines: queue.Queue[str | None]
+    process_tree: ProcessTree
+    stdout_lines: queue.Queue[str | BaseException | None]
     stderr_chunks: list[str]
+    stop_readers: threading.Event
     stdout_thread: threading.Thread
     stderr_thread: threading.Thread
 
 
-def _read_stdout(stream: TextIO, lines: queue.Queue[str | None]) -> None:
+def _put_stdout(
+    lines: queue.Queue[str | BaseException | None],
+    item: str | BaseException | None,
+    stop_readers: threading.Event,
+) -> None:
+    while not stop_readers.is_set():
+        try:
+            lines.put(item, timeout=_QUEUE_WAIT_SECONDS)
+            return
+        except queue.Full:
+            continue
+
+
+def _read_stdout(
+    stream: TextIO,
+    lines: queue.Queue[str | BaseException | None],
+    stop_readers: threading.Event,
+) -> None:
     try:
-        for line in stream:
-            lines.put(line)
+        while not stop_readers.is_set():
+            line = stream.readline(_MAX_PROTOCOL_LINE_CHARS + 1)
+            if not line:
+                return
+            if len(line) > _MAX_PROTOCOL_LINE_CHARS:
+                _put_stdout(
+                    lines,
+                    RuntimeError("Copilot ACP protocol line exceeded the size limit"),
+                    stop_readers,
+                )
+                return
+            _put_stdout(lines, line, stop_readers)
     except (OSError, ValueError):
         pass
     finally:
-        lines.put(None)
+        _put_stdout(lines, None, stop_readers)
 
 
 def _read_stderr(stream: TextIO, chunks: list[str]) -> None:
@@ -113,14 +147,24 @@ def _start_process(
             else 0
         ),
     )
-    if process.stdout is None or process.stderr is None:
+    try:
+        process_tree = ProcessTree(process)
+    except BaseException:
         process.kill()
+        process.wait()
+        raise
+    if process.stdout is None or process.stderr is None:
+        process_tree.terminate(force=True)
+        process_tree.close()
         raise RuntimeError("Copilot ACP process pipes were unavailable")
-    stdout_lines: queue.Queue[str | None] = queue.Queue()
+    stdout_lines: queue.Queue[str | BaseException | None] = queue.Queue(
+        maxsize=_STDOUT_QUEUE_LINES
+    )
     stderr_chunks: list[str] = []
+    stop_readers = threading.Event()
     stdout_thread = threading.Thread(
         target=_read_stdout,
-        args=(process.stdout, stdout_lines),
+        args=(process.stdout, stdout_lines, stop_readers),
         daemon=True,
     )
     stderr_thread = threading.Thread(
@@ -132,8 +176,10 @@ def _start_process(
     stderr_thread.start()
     return _ProcessStreams(
         process,
+        process_tree,
         stdout_lines,
         stderr_chunks,
+        stop_readers,
         stdout_thread,
         stderr_thread,
     )
@@ -214,6 +260,7 @@ def _wait_for_response(
     timeout: float,
     answer_chunks: list[str],
 ) -> dict[str, object]:
+    protocol_chars = 0
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -228,6 +275,11 @@ def _wait_for_response(
                 returncode,
                 "".join(streams.stderr_chunks),
             )
+        if isinstance(raw_line, BaseException):
+            raise raw_line
+        protocol_chars += len(raw_line)
+        if protocol_chars > _MAX_PROTOCOL_CHARS:
+            raise RuntimeError("Copilot ACP protocol exceeded the size limit")
         message = _parse_message(raw_line)
         if message.get("id") == request_id:
             if "error" in message:
@@ -242,39 +294,6 @@ def _wait_for_response(
             _consume_update(message, answer_chunks)
 
 
-def _terminate_process_tree(
-    process: subprocess.Popen[str],
-    *,
-    force: bool,
-) -> None:
-    if os.name == "nt":
-        if not force:
-            try:
-                os.kill(
-                    process.pid,
-                    getattr(signal, "CTRL_BREAK_EVENT", signal.SIGTERM),
-                )
-                return
-            except (OSError, ValueError):
-                pass
-        try:
-            subprocess.run(
-                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                check=False,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except OSError:
-            if process.poll() is None:
-                process.kill()
-        return
-
-    try:
-        os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-
-
 def _join_readers(streams: _ProcessStreams) -> bool:
     deadline = time.monotonic() + _READER_JOIN_SECONDS
     for reader in (streams.stdout_thread, streams.stderr_thread):
@@ -282,7 +301,8 @@ def _join_readers(streams: _ProcessStreams) -> bool:
     if not streams.stdout_thread.is_alive() and not streams.stderr_thread.is_alive():
         return True
 
-    _terminate_process_tree(streams.process, force=True)
+    streams.stop_readers.set()
+    streams.process_tree.terminate(force=True)
     deadline = time.monotonic() + _READER_JOIN_SECONDS
     for reader in (streams.stdout_thread, streams.stderr_thread):
         reader.join(max(0.0, deadline - time.monotonic()))
@@ -294,11 +314,11 @@ def _wait_for_process(streams: _ProcessStreams) -> int:
     try:
         return process.wait(timeout=_PROCESS_WAIT_SECONDS)
     except subprocess.TimeoutExpired:
-        _terminate_process_tree(process, force=False)
+        streams.process_tree.terminate(force=False)
     try:
         return process.wait(timeout=_PROCESS_WAIT_SECONDS)
     except subprocess.TimeoutExpired:
-        _terminate_process_tree(process, force=True)
+        streams.process_tree.terminate(force=True)
         return process.wait(timeout=_PROCESS_WAIT_SECONDS)
 
 
@@ -309,19 +329,22 @@ def _close_process(streams: _ProcessStreams) -> int:
     returncode = _wait_for_process(streams)
     if not _join_readers(streams):
         raise RuntimeError("Copilot ACP reader cleanup timed out")
+    streams.process_tree.close()
     return returncode
 
 
 def _stop_process(streams: _ProcessStreams) -> None:
     process = streams.process
-    _terminate_process_tree(process, force=False)
+    streams.stop_readers.set()
+    streams.process_tree.terminate(force=False)
     if process.poll() is None:
         try:
             process.wait(timeout=_PROCESS_WAIT_SECONDS)
         except subprocess.TimeoutExpired:
-            _terminate_process_tree(process, force=True)
+            streams.process_tree.terminate(force=True)
             process.wait(timeout=_PROCESS_WAIT_SECONDS)
     _join_readers(streams)
+    streams.process_tree.close()
 
 
 def _request(

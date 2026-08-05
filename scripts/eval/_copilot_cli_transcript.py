@@ -10,6 +10,8 @@ from typing import cast
 from _eval_common import require_str_or_none
 
 _COPILOT_HOME_ENV = "COPILOT_HOME"
+_MAX_TRANSCRIPT_LINE_CHARS = 1024 * 1024
+_MAX_TRANSCRIPT_CHARS = 4 * 1024 * 1024
 
 
 def session_state_root(env_name: str, provider_label: str) -> Path:
@@ -37,15 +39,6 @@ def session_state_root(env_name: str, provider_label: str) -> Path:
             f"{provider_label} needs the home directory to be absolute"
         )
     return home / ".copilot" / "session-state"
-
-
-def _read_candidate(path: Path, since: float) -> str | None:
-    try:
-        if path.stat().st_mtime < since:
-            return None
-        return path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
 
 
 def _parse_event(
@@ -106,37 +99,53 @@ def _model_that_spoke(
 
 
 def _read_matching_session(
-    raw: str,
+    path: Path,
     sandbox: str,
     provider_label: str,
+    since: float,
 ) -> tuple[str, str | None] | None:
     matched = False
     message_models: list[str] = []
     unattributed = False
     chunks: list[str] = []
-    for raw_line in raw.splitlines():
-        parsed = _parse_event(raw_line.strip())
-        if parsed is None:
-            continue
-        kind, data, event = parsed
-        if kind == "session.start":
-            context = data.get("context")
-            cwd = context.get("cwd") if isinstance(context, dict) else None
-            if cwd != sandbox:
-                return None
-            matched = True
-            continue
-        if kind != "assistant.message" or not matched:
-            continue
-        accepted = _read_assistant_message(event, data, provider_label)
-        if accepted is None:
-            continue
-        content, model = accepted
-        chunks.append(content)
-        if model and model not in message_models:
-            message_models.append(model)
-        if not model:
-            unattributed = True
+    total_chars = 0
+    try:
+        if path.stat().st_mtime < since:
+            return None
+        with path.open(encoding="utf-8", errors="replace") as stream:
+            for raw_line in stream:
+                total_chars += len(raw_line)
+                if (
+                    len(raw_line) > _MAX_TRANSCRIPT_LINE_CHARS
+                    or total_chars > _MAX_TRANSCRIPT_CHARS
+                ):
+                    raise RuntimeError(
+                        f"{provider_label} session transcript exceeded the size limit"
+                    )
+                parsed = _parse_event(raw_line.strip())
+                if parsed is None:
+                    continue
+                kind, data, event = parsed
+                if kind == "session.start":
+                    context = data.get("context")
+                    cwd = context.get("cwd") if isinstance(context, dict) else None
+                    if cwd != sandbox:
+                        return None
+                    matched = True
+                    continue
+                if kind != "assistant.message" or not matched:
+                    continue
+                accepted = _read_assistant_message(event, data, provider_label)
+                if accepted is None:
+                    continue
+                content, model = accepted
+                chunks.append(content)
+                if model and model not in message_models:
+                    message_models.append(model)
+                if not model:
+                    unattributed = True
+    except OSError:
+        return None
     if not matched:
         return None
     return "\n\n".join(chunks), _model_that_spoke(
@@ -158,10 +167,12 @@ def read_session_transcript(
     except OSError:
         return None
     for path in candidates:
-        raw = _read_candidate(path, since)
-        if raw is None:
-            continue
-        transcript = _read_matching_session(raw, sandbox, provider_label)
+        transcript = _read_matching_session(
+            path,
+            sandbox,
+            provider_label,
+            since,
+        )
         if transcript is not None:
             return transcript
     return None

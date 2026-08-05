@@ -1645,6 +1645,82 @@ def test_copilot_refuses_a_relative_default_home(
     assert "argv" not in seen
 
 
+def test_unrelated_transcript_is_not_loaded_in_full(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    sandbox = str(tmp_path / "sandbox")
+    unrelated = tmp_path / "0-unrelated"
+    unrelated.mkdir()
+    unrelated_events = unrelated / "events.jsonl"
+    unrelated_events.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "session.start",
+                        "data": {"context": {"cwd": "other-sandbox"}},
+                    }
+                ),
+                "x" * 10_000,
+            ]
+        ),
+        encoding="utf-8",
+    )
+    _write_session(
+        tmp_path,
+        sandbox,
+        model="claude-opus-5",
+        contents=["matching answer"],
+    )
+    original_read_text = Path.read_text
+
+    def refuse_full_read(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        if path == unrelated_events:
+            raise AssertionError("unrelated transcript was loaded in full")
+        return original_read_text(path, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", refuse_full_read)
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+
+    result = transcript_module.read_session_transcript(
+        tmp_path,
+        sandbox,
+        since=0.0,
+        provider_label="Copilot CLI",
+    )
+
+    assert result == ("matching answer", "claude-opus-5")
+
+
+def test_matching_oversized_transcript_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    sandbox = str(tmp_path / "sandbox")
+    _write_session(
+        tmp_path,
+        sandbox,
+        model="claude-opus-5",
+        contents=["x" * 500],
+    )
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(transcript_module, "_MAX_TRANSCRIPT_LINE_CHARS", 200)
+    monkeypatch.setattr(transcript_module, "_MAX_TRANSCRIPT_CHARS", 400)
+
+    with pytest.raises(RuntimeError, match="transcript exceeded the size limit"):
+        transcript_module.read_session_transcript(
+            tmp_path,
+            sandbox,
+            since=0.0,
+            provider_label="Copilot CLI",
+        )
+
+
 def test_copilot_falls_back_to_stdout_when_session_root_is_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
