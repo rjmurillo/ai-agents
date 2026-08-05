@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1,
+    "date": "2026-08-05",
+    "branch": "fix/4597-3275-split-and-smoke",
+    "startingCommit": "95ecfc3e9c",
+    "objective": "Split build_ai_review_context for issue 4597"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Attempted serena initial_instructions; MCP transport closed, so Serena was unavailable in this session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Attempted serena initial_instructions; MCP transport closed before instructions could load."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read-only reference at session start."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts Python files with find; GitHub skill inventory in transcript."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md fallback because Serena MCP transport closed."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and relevant path instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index.md and usage-mandatory.md from .serena/memories fallback."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4597-3275-split-and-smoke"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4597-3275-split-and-smoke"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified branch fix/4597-3275-split-and-smoke and git status before edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "95ecfc3e9c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session start and end checklist completed for issue 4597 slice."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Did not edit .agents/HANDOFF.md."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable. No memory update needed for local split mechanics."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files changed in issue 4597 slice."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code split committed as 5b9ea144bd after rebasing onto current origin/main."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted validation passed: ruff check, mypy, pytest for build_ai_review_context, context mode enforcement, CI script wiring. Byte-identical proof passed for session-log context output."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Todo issue-4597-split tracked in session SQL and marked in progress during implementation."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Not invoked; no new durable learning beyond issue 4597 implementation."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-05T00:22:41-07:00",
+      "entry": "Issue coordination check hit GitHub API 403 secondary/rate limiter, so duplicate PR state could not be verified through the GitHub skill at session start."
+    },
+    {
+      "timestamp": "2026-08-05T00:30:00-07:00",
+      "entry": "Reproduced issue 4597 locally: build_ai_review_context.py was 515 lines and carried a file-size suppression. The guard reported no error only because the suppression hid the cap breach."
+    },
+    {
+      "timestamp": "2026-08-05T00:41:00-07:00",
+      "entry": "Captured pre-split session-log context output under ~/src/scratch/ai-agents-smokesplit-4597 for byte comparison."
+    },
+    {
+      "timestamp": "2026-08-05T00:55:00-07:00",
+      "entry": "Moved GitHub Actions output writing to scripts/ai_review_outputs.py and kept build_ai_review_context.py as the context orchestration entrypoint."
+    },
+    {
+      "timestamp": "2026-08-05T01:12:00-07:00",
+      "entry": "Verified moved tests fail against origin/main in scratch worktree: tests/test_build_ai_review_context_split.py failed 3 of 3 before the split."
+    },
+    {
+      "timestamp": "2026-08-05T01:20:00-07:00",
+      "entry": "Validated split: ruff passed, 255 pytest cases passed with 5 skipped, output diff was byte-identical, mutation controls killed required mutants and preserved cosmetic control."
+    }
+  ],
+  "endingCommit": "5b9ea144bd",
+  "nextSteps": [
+    "Push issue 4597 branch and open PR with REST once GitHub API limiter allows mutation.",
+    "Start separate issue 3275 branch after issue 4597 PR is opened."
+  ]
+}
