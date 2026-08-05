@@ -2233,6 +2233,37 @@ def validate_commit_order(events: Any) -> list[str]:
     return problems
 
 
+def _event_causal_edges(evt: Any) -> list[tuple[str, str]]:
+    if not isinstance(evt, dict) or not isinstance(evt.get("id"), str):
+        return []
+    event_id = str(evt["id"])
+    return [(event_id, ref) for ref in _event_refs(evt, "leads_to")] + [
+        (ref, event_id) for ref in _event_refs(evt, "caused_by")
+    ]
+
+
+def _causal_order_problem(
+    source: str,
+    target: str,
+    by_id: dict[str, dict[str, Any]],
+) -> str | None:
+    source_event = by_id.get(source)
+    target_event = by_id.get(target)
+    if source_event is None or target_event is None:
+        return f"causal edge {source} -> {target} references unknown event"
+    try:
+        timestamps = {
+            source: _parse_causal_timestamp(source_event),
+            target: _parse_causal_timestamp(target_event),
+        }
+        relation = _event_order_relation(source_event, target_event, timestamps)
+    except (EpisodeValidationError, KeyError) as exc:
+        return f"causal edge {source} -> {target} cannot be ordered: {exc}"
+    if relation == 1:
+        return f"event {source} leads to earlier event {target}"
+    return None
+
+
 def validate_causal_edge_order(events: Any) -> list[str]:
     """Return one message when a causal edge runs backward by event ordering."""
     if not isinstance(events, list):
@@ -2245,32 +2276,13 @@ def validate_causal_edge_order(events: Any) -> list[str]:
     problems: list[str] = []
     checked: set[tuple[str, str]] = set()
     for evt in events:
-        if not isinstance(evt, dict) or not isinstance(evt.get("id"), str):
-            continue
-        event_id = str(evt["id"])
-        candidate_edges = [
-            (event_id, ref) for ref in _event_refs(evt, "leads_to")
-        ] + [(ref, event_id) for ref in _event_refs(evt, "caused_by")]
-        for source, target in candidate_edges:
+        for source, target in _event_causal_edges(evt):
             if (source, target) in checked:
                 continue
             checked.add((source, target))
-            source_event = by_id.get(source)
-            target_event = by_id.get(target)
-            if source_event is None or target_event is None:
-                problems.append(f"causal edge {source} -> {target} references unknown event")
-                continue
-            try:
-                timestamps = {
-                    source: _parse_causal_timestamp(source_event),
-                    target: _parse_causal_timestamp(target_event),
-                }
-                relation = _event_order_relation(source_event, target_event, timestamps)
-            except (EpisodeValidationError, KeyError) as exc:
-                problems.append(f"causal edge {source} -> {target} cannot be ordered: {exc}")
-                continue
-            if relation == 1:
-                problems.append(f"event {source} leads to earlier event {target}")
+            problem = _causal_order_problem(source, target, by_id)
+            if problem:
+                problems.append(problem)
     return problems
 
 
