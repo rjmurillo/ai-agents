@@ -68,6 +68,48 @@ This applies to any automation that gates on CI state, and to every manual triag
 of a red pull request. Treat a `gh pr checks` failure as a hypothesis to confirm
 against the head SHA, never as a finding.
 
+## Correction, 2026-08-04: the blanket "never `gh pr checks`" was too strong
+
+The reasoning above is sound about superseded runs. The prescription that
+followed from it is not, and following it cost three false "no failing checks"
+readings in one session.
+
+`gh pr checks <n> --json name,state,bucket` paginates internally. A hand-rolled
+GraphQL reduction does not. Measured on this repo: one head SHA carries **131
+check contexts** (two triggers times roughly 65 jobs), so a
+`contexts(last:60)` selection silently drops rows. On PRs 4402, 4525, and 4531
+that window returned no failing rows while the server's own
+`statusCheckRollup.state` said `FAILURE`. The dropped row was `Validate PR` on
+all three. Even `first:100` truncates here.
+
+Two rules follow, and they outrank the "resolve the head SHA first" recipe above
+whenever they conflict with it:
+
+1. **Ask the server for the aggregate; do not rebuild it.**
+   `statusCheckRollup.state` is the authoritative verdict. Any local reduction,
+   including the REST recipe above, is a hypothesis about that verdict.
+2. **Compare any window to `totalCount` before filtering it.** REST exposes
+   `total_count`; GraphQL exposes `totalCount`. A filter that returns nothing
+   over a truncated window is indistinguishable from a filter that returns
+   nothing over a complete one, and it announces no loss.
+
+The head-SHA point survives: superseded runs are real. Get both properties by
+letting a paginating client do the reading, then cross-checking the count.
+
+```bash
+gh pr checks "$PR" --json name,state,bucket \
+  --jq '.[] | select(.bucket=="fail") | .name'
+```
+
+Validated against a known answer: this found `Validate PR` on 4402 across 116
+rows, the row the 60-wide window had dropped.
+
+The two amendments below were measured independently on other pull requests.
+They reach the same conclusion by a different route and give a cheaper form of
+it: ask the server for `statusCheckRollup.state` instead of listing rows at all.
+Use the rollup first. Fall back to the paginating `gh pr checks` listing above
+only once the rollup says `FAILURE` and you need to know which row.
+
 ## Amendment 2026-08-04: reduce to the latest run per name, and count skipped as passing
 
 Measured on PR #4539 (head `8aed3408f`), which carried 153 check runs on one

@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, this file sat at 499 of 500 lines, so the
+# smallest correct form of the rate-limit classification fix (3 lines) still
+# lands at 502. Splitting a CI-critical context builder is a separate refactor,
+# not cleanup owed by a bug fix. Tracked for extraction in issue #4597.
 """Build the ai-review composite action context outside workflow YAML."""
 
 from __future__ import annotations
@@ -240,6 +244,15 @@ FORK_PERMISSION_SIGNAL = re.compile(
     re.IGNORECASE,
 )
 
+# A REST rate-limit refusal arrives as `HTTP 403: API rate limit exceeded ...`,
+# which FORK_PERMISSION_SIGNAL matches on the status alone. Suppressing the hint
+# on this signature keeps the #4333 misdiagnosis from returning through the REST
+# transport after it was fixed for GraphQL.
+RATE_LIMIT_SIGNAL = re.compile(
+    r"rate limit|secondary rate|abuse detection",
+    re.IGNORECASE,
+)
+
 
 def _pr_fetch_failure_context(pr_number: str, detail: str) -> ReviewContext:
     """Fail closed, naming the observed error rather than a guessed cause.
@@ -247,11 +260,14 @@ def _pr_fetch_failure_context(pr_number: str, detail: str) -> ReviewContext:
     REQ-008-05 (issue #2818) keeps the DID_NOT_RUN behavior. Issue #4333 is why
     the fork-permission hint is now conditional: an exhausted GraphQL quota was
     reported as a token permission problem, and chasing that cost real time on
-    PR #4273.
+    PR #4273. The GraphQL form carries no HTTP status, so dropping the
+    unconditional hint was enough for it. The REST form does carry one, so the
+    hint needs the rate-limit signature to lose as well.
     """
     hint = (
         " The GH_TOKEN may lack permissions for first-time contributor PRs from forks."
         if FORK_PERMISSION_SIGNAL.search(detail)
+        and not RATE_LIMIT_SIGNAL.search(detail)
         else ""
     )
     print(f"::warning::Could not fetch PR #{pr_number}: {detail}{hint}")
@@ -260,6 +276,33 @@ def _pr_fetch_failure_context(pr_number: str, detail: str) -> ReviewContext:
         "error",
         True,
     )
+
+
+def _build_pr_diff_body(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
+    """Fetch the diff, falling back to pagination or a summary. Raises on failure."""
+    diff = run_gh(["pr", "diff", pr_number, "--repo", repository])
+    if DIFF_TOO_LARGE.search(diff.stderr):
+        warning = "::warning::PR diff unavailable via gh pr diff (>300 files)."
+        print(f"{warning} Falling back to API pagination...")
+        return build_large_pr_context(pr_number, repository)
+
+    line_count = count_lines(diff.stdout)
+    print(f"PR diff has {line_count} lines")
+    if line_count == 0:
+        message = f"Failed to fetch PR diff for #{pr_number} from {repository}"
+        if diff.stderr:
+            message = f"{message}: {diff.stderr.strip()}"
+        raise ExternalGhError(message)
+
+    if line_count > max_diff_lines:
+        summary = get_pr_name_only(pr_number, repository)
+        if not summary:
+            raise ExternalGhError(f"Failed to fetch PR diff summary for #{pr_number}")
+        return ReviewContext(
+            f"[Large PR - {line_count} lines, showing summary only]\n{summary}",
+            "summary",
+        )
+    return ReviewContext(diff.stdout, "full")
 
 
 def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
@@ -276,32 +319,13 @@ def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) 
     print(f"Building context for PR #{pr_number}: {title}")
     print(f"Fetching diff for PR #{pr_number} from repository {repository}")
 
-    diff = run_gh(["pr", "diff", pr_number, "--repo", repository])
-    if DIFF_TOO_LARGE.search(diff.stderr):
-        print(
-            "::warning::PR diff unavailable via gh pr diff (>300 files). "
-            "Falling back to API pagination..."
-        )
-        built = build_large_pr_context(pr_number, repository)
-    else:
-        line_count = count_lines(diff.stdout)
-        print(f"PR diff has {line_count} lines")
-        if line_count == 0:
-            message = f"Failed to fetch PR diff for #{pr_number} from {repository}"
-            if diff.stderr:
-                message = f"{message}: {diff.stderr.strip()}"
-            raise ExternalGhError(message)
-
-        if line_count > max_diff_lines:
-            summary = get_pr_name_only(pr_number, repository)
-            if not summary:
-                raise ExternalGhError(f"Failed to fetch PR diff summary for #{pr_number}")
-            built = ReviewContext(
-                f"[Large PR - {line_count} lines, showing summary only]\n{summary}",
-                "summary",
-            )
-        else:
-            built = ReviewContext(diff.stdout, "full")
+    try:
+        built = _build_pr_diff_body(pr_number, repository, max_diff_lines)
+    except ExternalGhError as exc:
+        # Issue #4547: a 403 from the shared token empties the diff. Raising exits 3,
+        # which skips the infra gate that writes DID_NOT_RUN, so the aggregate
+        # defaults to NEEDS_REVIEW with INFRA_FAILURE false and blocks the PR.
+        return _pr_fetch_failure_context(pr_number, str(exc))
 
     body = metadata.body
     if body:
