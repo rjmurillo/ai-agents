@@ -22,6 +22,7 @@ EXIT CODES (ADR-035):
 
 from __future__ import annotations
 
+import glob as glob_module
 import os
 import subprocess
 import sys
@@ -30,6 +31,10 @@ from pathlib import Path
 
 class SpecContentExternalError(RuntimeError):
     """Raised when external issue content cannot be loaded."""
+
+
+class SpecContentConfigError(RuntimeError):
+    """Raised when referenced local spec content cannot be loaded."""
 
 
 def write_github_output(key: str, value: str) -> None:
@@ -75,6 +80,39 @@ def _gh_issue_body(issue_ref: str, default_repo: str) -> str:
     return result.stdout.strip()
 
 
+def _read_spec_file(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SpecContentConfigError(f"could not read {path}: {exc}") from exc
+
+
+def _spec_part_for_ref(ref: str) -> tuple[str | None, str | None]:
+    if ref.endswith(".md"):
+        path = Path(ref)
+        if not path.is_file():
+            return None, ref
+        return f"## Spec: {ref}\n\n{_read_spec_file(path)}", None
+
+    matches = glob_module.glob(f".agents/specs/*{ref}*")
+    if not matches:
+        return None, ref
+    matched_path = matches[0]
+    return f"## Spec: {matched_path}\n\n{_read_spec_file(Path(matched_path))}", None
+
+
+def _load_spec_parts(spec_refs: list[str]) -> tuple[list[str], list[str]]:
+    parts: list[str] = []
+    missing_specs: list[str] = []
+    for ref in spec_refs:
+        part, missing = _spec_part_for_ref(ref)
+        if part:
+            parts.append(part)
+        if missing:
+            missing_specs.append(missing)
+    return parts, missing_specs
+
+
 def run(_argv: list[str] | None = None) -> int:
     """Load spec content and write to temp file."""
     spec_refs_raw = os.environ.get("SPEC_REFS", "")
@@ -85,28 +123,11 @@ def run(_argv: list[str] | None = None) -> int:
     spec_refs = spec_refs_raw.split() if spec_refs_raw.strip() else []
     issue_refs = issue_refs_raw.split() if issue_refs_raw.strip() else []
 
-    parts: list[str] = []
-    missing_specs: list[str] = []
-
-    for ref in spec_refs:
-        if ref.endswith(".md"):
-            p = Path(ref)
-            if p.is_file():
-                parts.append(f"## Spec: {ref}\n\n{p.read_text(encoding='utf-8')}")
-            else:
-                missing_specs.append(ref)
-        else:
-            # Search for spec file by ID
-            import glob as glob_module
-
-            matches = glob_module.glob(f".agents/specs/*{ref}*")
-            if matches:
-                matched_path = matches[0]
-                parts.append(
-                    f"## Spec: {matched_path}\n\n{Path(matched_path).read_text(encoding='utf-8')}"
-                )
-            else:
-                missing_specs.append(ref)
+    try:
+        parts, missing_specs = _load_spec_parts(spec_refs)
+    except SpecContentConfigError as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        return 2
 
     if missing_specs:
         print(
