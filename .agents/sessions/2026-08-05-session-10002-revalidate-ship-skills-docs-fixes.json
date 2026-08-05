@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation and scope changes committed through e01160836."
+        "Evidence": "All implementation and scope changes committed through 22a5fe95a."
       },
       "validationPassed": {
         "level": "MUST",
@@ -133,22 +133,22 @@
     },
     {
       "task": "Resolve independent review findings",
-      "result": "Fixed hostile workspace fallbacks, partial pagination, incomplete GraphQL connections, merge-base failures, duplicate and equals-form build options, unrelated histories, unreadable new source gating, and argparse abbreviations in commits b0ba0c600 through 9b6448814."
+      "result": "Fixed hostile workspace fallbacks, pagination completeness, actor shapes, legacy author compatibility, merge-base failures, build option overrides, unrelated histories, unreadable new sources, path containment, deletion-only changes, and tolerance validation in commits b0ba0c600 through 22a5fe95a."
     },
     {
       "task": "Run validation",
-      "result": "Focused suite passed 546 tests. Final full relevant suite passed 23,691 tests with 33 skipped. Ruff, mypy, generators, drift, install parity, portability, plugin version, live GraphQL probes, 14 killing mutations, four surviving controls, and pre_pr passed."
+      "result": "Final boundary suite passed 225 tests. Final full relevant suite passed 23,708 tests with 33 skipped. Ruff, mypy, generators, drift, install parity, portability, plugin version, live GraphQL probes, 21 killing mutations, five surviving controls, and pre_pr 46 of 46 passed."
     },
     {
       "task": "Complete independent artifact review",
-      "result": "GPT-5.6 Sol reviewed the final artifact and returned ZERO FINDINGS."
+      "result": "GPT-5.6 Sol reviewed the final committed code artifact after every remediation pass and returned ZERO FINDINGS."
     },
     {
       "task": "Split closed trigger-axis documentation",
       "result": "Restored the five #4381 trigger-axis documentation files to origin/main in commit e01160836 and preserved their patch for a separate focused PR."
     }
   ],
-  "endingCommit": "e01160836",
+  "endingCommit": "22a5fe95a",
   "nextSteps": [
     "Ship the focused #4381 trigger-axis documentation patch.",
     "Issue #4498 remains open for correction-queue worktree ref safety.",

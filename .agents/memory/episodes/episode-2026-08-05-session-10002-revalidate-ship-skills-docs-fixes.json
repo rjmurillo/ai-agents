@@ -85,7 +85,8 @@
         "e004",
         "e005",
         "e006",
-        "e008"
+        "e008",
+        "e010"
       ],
       "leads_to": [
         "e009"
@@ -111,6 +112,30 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "test",
+      "content": "Run validation       Final boundary suite passed 225 tests. Final full relevant suite passed 23,708 tests with 33 skipped. Ruff, mypy, generators, drift, install parity, portability, plugin version, live GraphQL probes, 21 killing mutations, five surviving controls, and pre_pr 46 of 46 passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-05T22:33:01+00:00",
+      "type": "commit",
+      "content": "Commit: 22a5fe95a",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
     }
@@ -120,7 +145,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 3
   },
   "lessons": []
