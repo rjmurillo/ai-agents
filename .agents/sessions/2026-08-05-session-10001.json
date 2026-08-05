@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit sequence active. endingCommit is recorded in the required follow-up commit per issue #3618."
+        "Evidence": "Work committed at 046a1b9466dfdb63c6ef9387949187d355bc8d78. This follow-up commit records that SHA per issue #3618."
       },
       "validationPassed": {
         "level": "MUST",
@@ -131,6 +131,6 @@
       "summary": "Before fix, corrupt literal-backslash-n body exited 0. After fix it exits 1. Targeted pytest passed, ruff passed, and mutation proof killed the call-removal and guard-bypass mutants while the cosmetic control survived."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "046a1b9466dfdb63c6ef9387949187d355bc8d78",
   "nextSteps": []
 }
