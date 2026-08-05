@@ -48,7 +48,10 @@
       "caused_by": [
         "e001",
         "e002",
-        "e003"
+        "e003",
+        "e006",
+        "e007",
+        "e008"
       ],
       "leads_to": [
         "e005"
@@ -63,6 +66,52 @@
       "caused_by": [
         "e004"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Classify unverifiable audit rows",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recheck TRUE rows that claimed gate wiring",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Rewrite high-value unfalsifiable clauses",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T08:43:55+00:00",
+      "type": "commit",
+      "content": "Commit: d9e4f7d54e47de86ed58b7158f727f6099c05247",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
     }
@@ -72,7 +121,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 6
   },
   "lessons": []

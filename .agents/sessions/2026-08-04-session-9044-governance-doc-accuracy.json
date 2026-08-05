@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Audited 241 falsifiable rows in ~/src/scratch/docaudit_results.tsv: 80 TRUE, 5 FALSE, 156 UNVERIFIABLE. Four repository-document false claims were corrected; the remaining false row is the user-supplied missing path, not a tracked file claim."
+        "Evidence": "Initial audit plus follow-up split completed. Scratch results now hold 241 rows with 156 unverifiable rows classified: 92 harness_gap, 23 unfalsifiable, 40 not_a_claim, 1 out_of_scope. Seven rows are FALSE after gate-wire recheck."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -89,22 +89,22 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen python scripts/validation/pre_pr.py --markdown-lint-only -- .agents/governance/PROJECT-CONSTRAINTS.md .github/copilot-instructions.md returned 0. It checked 1 of 2 files because .agents paths are ignored by markdownlint config."
+        "Evidence": "uv run --frozen python scripts/validation/pre_pr.py --markdown-lint-only -- .agents/governance/TESTING-RIGOR.md .claude/rules/ci-scripts.md .claude/rules/claude-agents.md .claude/rules/governance.md .github/instructions/ci-scripts.instructions.md .github/instructions/claude-agents.instructions.md .github/instructions/governance.instructions.md src/copilot-cli/instructions/ci-scripts.instructions.md src/copilot-cli/instructions/claude-agents.instructions.md returned 0; reported 8 of 9 checked because .agents/governance is ignored by markdownlint config."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Documentation corrections committed in e5758b4930d4d5cca0fefc10f601e8616f94917e; this follow-up log commit records the reachable endingCommit per issue #3618."
+        "Evidence": "Previous PR tip was d9e4f7d54e47de86ed58b7158f727f6099c05247. Follow-up document changes are split into atomic commits with generated mirrors and this session log."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen python -m pytest tests/validation/test_always_on_corpus_claims.py -q returned 20 passed; post-fix checks confirmed the stale lines are gone; prohibited dash scan returned zero. Session log validated after setting endingCommit to e5758b4930d4d5cca0fefc10f601e8616f94917e."
+        "Evidence": "Pre-commit validation: always-on corpus guard returned 20 passed; markdown lint returned 0; prohibited dash scan reported dash_violations 0; build_all --check regenerated mirrors and reported the expected uncommitted regen drift before the atomic commit split."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Session todo rows setup-worktree, enumerate-claims, verify-claims, and fix-docs are done; validation and PR rows remain active until push and PR creation."
+        "Evidence": "Follow-up todos crosscheck-true-gates, rewrite-unfalsifiable, extend-cheap-harness, and validate-push-followup tracked through scratch TSV updates and validation commands."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -137,8 +137,33 @@
         ".agents/governance/PROJECT-CONSTRAINTS.md",
         ".github/copilot-instructions.md"
       ]
+    },
+    {
+      "task": "Classify unverifiable audit rows",
+      "outcome": "Added unverifiable_reason and unverifiable_justification to ~/src/scratch/docaudit_results.tsv. Pre-fix split: 92 harness_gap, 23 unfalsifiable, 40 not_a_claim, 1 out_of_scope.",
+      "artifacts": [
+        "~/src/scratch/docaudit_results.tsv"
+      ]
+    },
+    {
+      "task": "Recheck TRUE rows that claimed gate wiring",
+      "outcome": "Found two presence-only false positives: Phase 1.5 skill gate and workflow 100-line lint gate. Both were already corrected in PROJECT-CONSTRAINTS.md; scratch results now mark them FALSE.",
+      "artifacts": [
+        "~/src/scratch/docaudit_results.tsv",
+        ".agents/governance/PROJECT-CONSTRAINTS.md"
+      ]
+    },
+    {
+      "task": "Rewrite high-value unfalsifiable clauses",
+      "outcome": "Rewrote four clauses into observable evidence requirements: testing rigor, CI logging shape, skill purpose, and governance evidence anchors. Regenerated rule mirrors.",
+      "artifacts": [
+        ".agents/governance/TESTING-RIGOR.md",
+        ".claude/rules/ci-scripts.md",
+        ".claude/rules/claude-agents.md",
+        ".claude/rules/governance.md"
+      ]
     }
   ],
-  "endingCommit": "e5758b4930d4d5cca0fefc10f601e8616f94917e",
+  "endingCommit": "d9e4f7d54e47de86ed58b7158f727f6099c05247",
   "nextSteps": []
 }
