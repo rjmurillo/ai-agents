@@ -117,7 +117,7 @@ round before. It also declined to guess on three claims it could not check from
 the repository, marking them UNVERIFIED rather than inventing a verdict, which
 is the behavior the anti-fabrication framing is supposed to produce.
 
-Two sentences of prompt bought the difference. Write the conventions the
+Three sentences of prompt bought the difference. Write the conventions the
 reviewer cannot see into every dispatch, and name the worktree path explicitly,
 because a reviewer that runs `ls` in the wrong directory reports real output
 about the wrong tree.
