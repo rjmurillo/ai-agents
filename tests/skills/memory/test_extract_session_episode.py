@@ -3488,6 +3488,31 @@ class TestPreserveChronology:
 
         assert any("event e002 leads to earlier event e001" in p for p in problems)
 
+    def test_causal_graph_validation_rejects_backward_order(self) -> None:
+        events = [
+            {
+                "id": "e001",
+                "timestamp": "2026-08-04T10:00:00+00:00",
+                "type": "commit",
+                "content": "Commit: older",
+                "caused_by": ["e002"],
+                "leads_to": [],
+            },
+            {
+                "id": "e002",
+                "timestamp": "2026-08-04T10:30:00+00:00",
+                "type": "milestone",
+                "content": "post-commit closeout",
+                "caused_by": [],
+                "leads_to": ["e001"],
+            },
+        ]
+
+        with pytest.raises(extract_session_episode.EpisodeValidationError) as error:
+            extract_session_episode.validate_episode_causal_graph(events)
+
+        assert str(error.value) == "event e002 leads to earlier event e001"
+
     def test_validate_mode_rejects_scrambled_causal_edges(self, tmp_path, capsys) -> None:
         episode = tmp_path / "episode-scrambled.json"
         episode.write_text(
