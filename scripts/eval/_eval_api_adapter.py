@@ -294,11 +294,13 @@ class AnthropicAPIAdapter:
         configuration mistake, not a provider failure, and the two must not
         arrive in the same shape: a returned record saying `outcome="error"`
         with `error_category="unknown"` counts toward the provider error
-        total for a call the provider never received (issue #4121). `False`
-        is rejected for the same reason, since `False < 1`.
+        total for a call the provider never received (issue #4121). Booleans
+        are also rejected because they are flags, not retry budgets.
         """
-        if max_retries < 1:
-            raise ValueError(f"max_retries must be >= 1, got {max_retries!r}")
+        if isinstance(max_retries, bool) or max_retries < 1:
+            raise ValueError(
+                f"max_retries must be an integer >= 1, got {max_retries!r}"
+            )
         resolve_start = self._clock()
         try:
             transport = self._resolve_transport()

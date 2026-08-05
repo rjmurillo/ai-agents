@@ -3275,7 +3275,7 @@ class TestAdapterNonPositiveMaxRetries:
     record was not.
     """
 
-    @pytest.mark.parametrize("max_retries", [0, -1, False])
+    @pytest.mark.parametrize("max_retries", [0, -1, False, True])
     def test_non_positive_max_retries_is_rejected(
         self, max_retries: int, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -3286,7 +3286,7 @@ class TestAdapterNonPositiveMaxRetries:
             raise AssertionError("transport must not be called")
 
         adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
-        with pytest.raises(ValueError, match="max_retries must be >= 1"):
+        with pytest.raises(ValueError, match="max_retries must be an integer >= 1"):
             adapter.call_model(
                 prompt="x",
                 model_id="claude-sonnet-4-6",
