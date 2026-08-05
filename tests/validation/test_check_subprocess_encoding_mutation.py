@@ -124,16 +124,20 @@ def main() -> int:
         # Mutation 1: disable the text= check (replace True with False in _uses_text_mode)
         (
             "mutation-1-disable-text-check",
-            'return "text" in keywords or "encoding" in keywords',
-            'return "encoding" in keywords',
+            'text_enabled = _is_true_literal(_keyword_value(call, "text")) or _is_true_literal(\n'
+            '        _keyword_value(call, "capture_output")\n'
+            '    )',
+            "text_enabled = False",
             True,  # must_kill
             "test_text_only_flagged: text= check disabled but test did not catch it",
         ),
         # Mutation 2: disable the errors= detection (always claim errors= present)
         (
             "mutation-2-disable-errors-detection",
-            'return "errors" in keywords',
-            "return True  # mutation: pretend errors= is always present",
+            'if _has_keyword(call, "errors"):\n'
+            "        return False",
+            "if False:\n"
+            "        return False",
             True,
             (
                 "test_known_bad_input_exits_nonzero: errors= detection disabled"
@@ -143,16 +147,16 @@ def main() -> int:
         # Mutation 3: invert the violation condition (flag compliant calls instead of bad ones)
         (
             "mutation-3-invert-violation-condition",
-            "if _uses_text_mode(keywords) and not _has_errors_kwarg(keywords):",
-            "if _uses_text_mode(keywords) and _has_errors_kwarg(keywords):",
+            "if not unconditional and not text_enabled:",
+            "if not unconditional and text_enabled:",
             True,
             "inverted condition: flags compliant calls instead of bad ones",
         ),
         # Cosmetic mutation (negative control): must SURVIVE
         (
             "cosmetic-no-kill",
-            "uses text mode but omits errors=; ",
-            "uses text-mode but omits errors=; ",
+            "text-mode UTF-8 must pair",
+            "text mode UTF-8 must pair",
             False,
             None,
         ),

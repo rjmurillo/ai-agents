@@ -180,8 +180,24 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
     )
 
 
-def _collect_sources(repo_root: Path) -> list[Path]:
-    """Return tracked Python files under ``scripts/`` that are not in cache dirs."""
+def _is_scannable_source(repo_root: Path, path: Path) -> bool:
+    """Return True when ``path`` is a safe Python file inside ``repo_root``."""
+    try:
+        relative = path.resolve().relative_to(repo_root.resolve())
+    except ValueError:
+        return False
+    return (
+        path.is_file()
+        and path.suffix == ".py"
+        and not any(part in _SKIP_DIRS for part in relative.parts)
+    )
+
+
+def _collect_sources(repo_root: Path, explicit_paths: list[Path] | None = None) -> list[Path]:
+    """Return Python sources to scan."""
+    if explicit_paths is not None:
+        return sorted(path for path in explicit_paths if _is_scannable_source(repo_root, path))
+
     try:
         completed = subprocess.run(
             ["git", "-C", str(repo_root), "ls-files", "scripts/*.py", "scripts/**/*.py"],
@@ -194,7 +210,7 @@ def _collect_sources(repo_root: Path) -> list[Path]:
         )
         if completed.returncode == 0:
             rels = [line for line in completed.stdout.splitlines() if line.strip()]
-            return [repo_root / r for r in rels if r.endswith(".py")]
+            return [repo_root / r for r in rels if _is_scannable_source(repo_root, repo_root / r)]
     except (OSError, subprocess.SubprocessError):
         pass
     # Fallback: walk the tree
@@ -206,10 +222,12 @@ def _collect_sources(repo_root: Path) -> list[Path]:
     return sorted(found)
 
 
-def find_all_violations(repo_root: Path) -> list[tuple[Path, int]]:
+def find_all_violations(
+    repo_root: Path, explicit_paths: list[Path] | None = None
+) -> list[tuple[Path, int]]:
     """Return ``(path, lineno)`` pairs for every flagged call site."""
     results: list[tuple[Path, int]] = []
-    for path in _collect_sources(repo_root):
+    for path in _collect_sources(repo_root, explicit_paths):
         if not path.is_file():
             continue
         try:
@@ -221,13 +239,15 @@ def find_all_violations(repo_root: Path) -> list[tuple[Path, int]]:
     return results
 
 
-def validate_subprocess_encoding(repo_root: Path) -> bool:
+def validate_subprocess_encoding(
+    repo_root: Path, explicit_paths: list[Path] | None = None
+) -> bool:
     """Return True when no violation is found.
 
     Entry point matching the ``validate_*(repo_root) -> bool`` contract used
     by ``pre_pr_sequence.py``.
     """
-    violations = find_all_violations(repo_root)
+    violations = find_all_violations(repo_root, explicit_paths)
     if not violations:
         return True
     count = len(violations)
@@ -257,11 +277,22 @@ def validate_subprocess_encoding(repo_root: Path) -> bool:
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns an ADR-035 exit code."""
     args = argv if argv is not None else sys.argv[1:]
-    repo_root = Path(args[0]).resolve() if args else Path(__file__).resolve().parents[2]
+    repo_root = Path(__file__).resolve().parents[2]
+    explicit_paths: list[Path] | None = None
+    if len(args) == 1:
+        single_arg = Path(args[0]).resolve()
+        if single_arg.is_dir():
+            repo_root = single_arg
+        elif single_arg.suffix == ".py":
+            explicit_paths = [single_arg]
+        else:
+            repo_root = single_arg
+    elif args:
+        explicit_paths = [Path(arg) if Path(arg).is_absolute() else repo_root / arg for arg in args]
     if not repo_root.is_dir():
         print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)
         return 2
-    return 0 if validate_subprocess_encoding(repo_root) else 1
+    return 0 if validate_subprocess_encoding(repo_root, explicit_paths) else 1
 
 
 if __name__ == "__main__":

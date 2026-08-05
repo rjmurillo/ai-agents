@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 from scripts.ci import subprocess_encoding_count_ratchet as ratchet
+
+
+def _git(repo_root: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo_root), *args], check=True)
 
 
 def _write_baseline(tmp_path: Path, value: str) -> Path:
@@ -33,8 +38,26 @@ def test_missing_baseline_is_config_error(tmp_path, monkeypatch):
     assert rc == ratchet.EXIT_CONFIG
 
 
+def test_current_count_counts_checker_findings(tmp_path: Path) -> None:
+    _git(tmp_path, "init")
+    script_dir = tmp_path / "scripts"
+    script_dir.mkdir()
+    (script_dir / "bad.py").write_text(
+        "import subprocess\n"
+        "subprocess.run(['x'], capture_output=True, encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    (script_dir / "good.py").write_text(
+        "import subprocess\n"
+        "subprocess.run(['x'], capture_output=True, encoding='utf-8', errors='replace')\n",
+        encoding="utf-8",
+    )
+    _git(tmp_path, "add", "scripts/bad.py", "scripts/good.py")
+
+    assert ratchet.current_count(tmp_path) == 1
+
+
 if __name__ == "__main__":
     import pytest
 
     raise SystemExit(pytest.main([__file__, "-q"]))
-

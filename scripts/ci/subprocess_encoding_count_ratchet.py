@@ -17,7 +17,6 @@ Exit codes (AGENTS.md contract):
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -33,6 +32,7 @@ from scripts.ci.count_ratchet import (
     run,
     tracked_files,
 )
+from scripts.validation.check_subprocess_encoding import find_all_violations
 
 __all__ = [
     "EXIT_CONFIG",
@@ -44,7 +44,6 @@ __all__ = [
 ]
 
 _BASELINE_PATH = Path(__file__).with_name("subprocess_encoding_count_baseline.txt")
-_CHECKER = Path("scripts/validation/check_subprocess_encoding.py")
 _FIXTURE_PREFIX = "tests/hooks/fixtures/"
 
 
@@ -62,31 +61,11 @@ def current_count(repo_root: Path) -> int | None:
     if not py_files:
         return 0
 
-    checker = repo_root / _CHECKER
-    if not checker.is_file():
-        sys.stderr.write(f"Checker not found: {checker}\n")
+    try:
+        return len(find_all_violations(repo_root, [repo_root / f for f in py_files]))
+    except OSError as error:
+        sys.stderr.write(f"Checker failed: {error}\n")
         return None
-
-    result = subprocess.run(
-        [sys.executable, str(checker), *[str(repo_root / f) for f in py_files]],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        cwd=repo_root,
-    )
-    # Exit 0 = clean, exit 1 = violations found (both are valid counts)
-    if result.returncode not in (0, 1):
-        sys.stderr.write(
-            f"Checker exited {result.returncode}:\n{result.stderr}\n"
-        )
-        return None
-
-    # Count lines containing "uses text mode but omits errors="
-    return sum(
-        1 for line in result.stdout.splitlines()
-        if "uses text mode but omits errors=" in line
-    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -110,4 +89,3 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
