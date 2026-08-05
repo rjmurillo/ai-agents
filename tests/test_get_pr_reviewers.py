@@ -326,14 +326,42 @@ class TestMain:
             "nodes": [],
             "pageInfo": {"hasNextPage": True, "endCursor": None},
         }
-        kwargs = (
-            {"request_pages": [bad_page]}
-            if connection == "requests"
-            else {"review_pages": [bad_page]}
-        )
-        with _api(author=_actor("alice", 1), **kwargs):
+        request_pages = [bad_page] if connection == "requests" else None
+        review_pages = [bad_page] if connection == "reviews" else None
+        with _api(
+            author=_actor("alice", 1),
+            request_pages=request_pages,
+            review_pages=review_pages,
+        ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "10"])
+        assert exc.value.code == 3
+
+    @pytest.mark.parametrize("connection", ["requests", "reviews"])
+    @pytest.mark.parametrize(
+        "bad_page",
+        [
+            {},
+            {"nodes": [], "pageInfo": {}},
+            {"nodes": None, "pageInfo": {"hasNextPage": False}},
+            {"nodes": [], "pageInfo": {"hasNextPage": None}},
+        ],
+    )
+    def test_incomplete_graphql_connection_exits_3(
+        self,
+        connection: str,
+        bad_page: dict,
+    ) -> None:
+        request_pages = [bad_page] if connection == "requests" else None
+        review_pages = [bad_page] if connection == "reviews" else None
+        with _api(
+            author=_actor("alice", 1),
+            request_pages=request_pages,
+            review_pages=review_pages,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "10"])
+
         assert exc.value.code == 3
 
 

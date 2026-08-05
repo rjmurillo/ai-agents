@@ -192,6 +192,25 @@ def _pull_request_data(response: dict[str, Any], pr: int) -> dict[str, Any]:
     return pull_request
 
 
+def _connection_data(
+    pull_request: dict[str, Any],
+    field: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Return a complete GraphQL connection or reject a partial payload."""
+    connection = pull_request.get(field)
+    if not isinstance(connection, dict):
+        raise RuntimeError(f"GraphQL response missing {field} connection")
+    nodes = connection.get("nodes")
+    page_info = connection.get("pageInfo")
+    if not isinstance(nodes, list):
+        raise RuntimeError(f"GraphQL response missing {field}.nodes")
+    if not isinstance(page_info, dict):
+        raise RuntimeError(f"GraphQL response missing {field}.pageInfo")
+    if not isinstance(page_info.get("hasNextPage"), bool):
+        raise RuntimeError(f"GraphQL response missing {field}.pageInfo.hasNextPage")
+    return nodes, page_info
+
+
 def _fetch_author_and_review_requests(
     owner: str,
     repo: str,
@@ -208,12 +227,11 @@ def _fetch_author_and_review_requests(
         pull_request = _pull_request_data(response, pr)
         if not author and isinstance(pull_request.get("author"), dict):
             author = pull_request["author"]
-        connection = pull_request.get("reviewRequests") or {}
-        for node in connection.get("nodes") or []:
+        nodes, page_info = _connection_data(pull_request, "reviewRequests")
+        for node in nodes:
             reviewer = node.get("requestedReviewer") if isinstance(node, dict) else None
             if isinstance(reviewer, dict) and reviewer.get("login"):
                 reviewers.append(reviewer)
-        page_info = connection.get("pageInfo") or {}
         if not page_info.get("hasNextPage"):
             return author, reviewers
         cursor = page_info.get("endCursor")
@@ -230,12 +248,11 @@ def _fetch_review_authors(owner: str, repo: str, pr: int) -> list[dict[str, Any]
             _graphql_variables(owner, repo, pr, cursor),
         )
         pull_request = _pull_request_data(response, pr)
-        connection = pull_request.get("reviews") or {}
-        for node in connection.get("nodes") or []:
+        nodes, page_info = _connection_data(pull_request, "reviews")
+        for node in nodes:
             author = node.get("author") if isinstance(node, dict) else None
             if isinstance(author, dict) and author.get("login"):
                 authors.append(author)
-        page_info = connection.get("pageInfo") or {}
         if not page_info.get("hasNextPage"):
             return authors
         cursor = page_info.get("endCursor")
