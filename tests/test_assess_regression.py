@@ -195,12 +195,16 @@ class TestCheckThresholdsStillAbsolute:
         monkeypatch.setattr("assess.get_files_to_assess", lambda *_args: [Path("new/file.py")])
         monkeypatch.setattr(
             "assess.get_changed_files",
-            lambda *_args: [ChangedFile("A", None, Path("new/file.py"))],
+            lambda *_args, **_kwargs: [ChangedFile("A", None, Path("new/file.py"))],
         )
+        monkeypatch.setattr("assess.resolve_comparison_base", lambda base: base)
         monkeypatch.setattr("assess.assess_file", lambda *_args: new_file)
 
         def fake_check_thresholds(
-            assessments: list[FileAssessment], _config: dict[str, object], _context: str
+            assessments: list[FileAssessment],
+            _config: dict[str, object],
+            _context: str,
+            **_kwargs: object,
         ) -> int:
             seen.append(assessments)
             return 11
