@@ -52,6 +52,7 @@ generate_json_report = _mod.generate_json_report
 generate_markdown_report = _mod.generate_markdown_report
 load_config = _mod.load_config
 _parse_changed_files = _mod._parse_changed_files
+_resolve_target_path = _mod._resolve_target_path
 parse_args = _mod.parse_args
 
 
@@ -434,12 +435,16 @@ def test_web_indented_local_var_not_counted_as_global(tmp_path: Path) -> None:
     assert local_score.value > global_score.value
 
 
-def test_directory_scan_includes_all_supported_suffixes(tmp_path: Path) -> None:
+def test_directory_scan_includes_all_supported_suffixes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Directory assessment must pick up every suffix detect_language supports,
     including .go, .tsx, .jsx, .mjs, .cjs (previously omitted)."""
     for name in ("a.go", "b.tsx", "c.jsx", "d.mjs", "e.cjs", "f.py"):
         _write(tmp_path, name, "x = 1\n")
-    found = {p.name for p in get_files_to_assess(str(tmp_path), False)}
+    monkeypatch.chdir(tmp_path)
+    found = {p.name for p in get_files_to_assess(".", False)}
     assert {"a.go", "b.tsx", "c.jsx", "d.mjs", "e.cjs", "f.py"} <= found
 
 
@@ -505,6 +510,41 @@ def test_changed_only_rejects_option_like_base() -> None:
 def test_cli_rejects_abbreviated_options(abbreviation: str) -> None:
     with pytest.raises(SystemExit):
         parse_args(["--target", ".", abbreviation])
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf", "-0.1"])
+def test_cli_rejects_invalid_regression_tolerance(value: str) -> None:
+    with pytest.raises(SystemExit):
+        parse_args(["--target", ".", "--regression-tolerance", value])
+
+
+def test_target_rejects_a_sibling_prefix_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "repo"
+    sibling = tmp_path / "repo-other"
+    workspace.mkdir()
+    sibling.mkdir()
+    monkeypatch.chdir(workspace)
+
+    with pytest.raises(ValueError, match="escapes the workspace"):
+        _resolve_target_path(str(sibling))
+
+
+def test_candidate_rejects_a_symlink_escape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    outside = tmp_path / "outside.py"
+    outside.write_text(_FOCUSED, encoding="utf-8")
+    (workspace / "escaped.py").symlink_to(outside)
+    monkeypatch.chdir(workspace)
+
+    with pytest.raises(ValueError, match="escapes the workspace"):
+        get_files_to_assess(".", False)
 
 
 def test_changed_only_passes_end_of_options_guard(
@@ -1009,6 +1049,22 @@ def test_regression_mode_passes_an_improved_legacy_file(
     _repo_with_change(tmp_path, monkeypatch, _SPRAWLING, _FOCUSED)
 
     assert main(_regression_argv()) == 0
+
+
+def test_regression_mode_passes_a_deletion_only_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "deleted.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _run_git(tmp_path, "rm", "deleted.py")
+    _run_git(tmp_path, "commit", "-m", "delete")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 0
+    assert json.loads(capsys.readouterr().out)["summary"]["file_count"] == 0
 
 
 def test_regression_mode_fails_a_degraded_file_and_names_the_quality(

@@ -24,6 +24,7 @@ Exit codes:
 
 import argparse
 import json
+import math
 import re
 import sys
 from dataclasses import asdict, dataclass
@@ -357,6 +358,14 @@ class FileAssessment:
         return sum(scored_values) / len(scored_values)
 
 
+def _non_negative_finite_float(value: str) -> float:
+    """Parse a finite, non-negative floating-point option."""
+    parsed = float(value)
+    if not math.isfinite(parsed) or parsed < 0:
+        raise argparse.ArgumentTypeError("must be a finite number greater than or equal to 0")
+    return parsed
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
@@ -391,7 +400,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--regression-tolerance",
-        type=float,
+        type=_non_negative_finite_float,
         default=_DEFAULT_REGRESSION_TOLERANCE,
         help=(
             "Score drop tolerated before a quality counts as regressed "
@@ -543,7 +552,24 @@ def get_files_to_assess(
             # Glob pattern
             files = [Path(f) for f in glob(target, recursive=True)]
 
-    return [f for f in files if f.exists()]
+    existing_files: list[Path] = []
+    for file_path in files:
+        if not file_path.exists():
+            continue
+        _resolve_in_workspace(file_path, "assessment candidate")
+        existing_files.append(file_path)
+    return existing_files
+
+
+def _resolve_in_workspace(path: Path, label: str) -> Path:
+    """Resolve *path* and require it to remain inside the current workspace."""
+    workspace = Path.cwd().resolve()
+    resolved = path.resolve()
+    try:
+        resolved.relative_to(workspace)
+    except ValueError as exc:
+        raise ValueError(f"{label} escapes the workspace: {path}") from exc
+    return resolved
 
 
 def _reject_option_like_revision(revision: str) -> None:
@@ -1428,13 +1454,7 @@ def check_thresholds(
 
 def _resolve_target_path(target: str) -> str:
     """Return an absolute target path inside the current working directory."""
-    import os
-
-    allowed_base = os.path.abspath(".")
-    target_path = os.path.abspath(target)
-    if not target_path.startswith(allowed_base):
-        raise ValueError(f"Path traversal attempt detected in --target: {target}")
-    return target_path
+    return str(_resolve_in_workspace(Path(target), "--target"))
 
 
 def _assess_files(
@@ -1542,6 +1562,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if not files:
+        if (
+            gate_mode == "regression"
+            and changed_files
+            and all(change.head_path is None for change in changed_files)
+        ):
+            report = _render_report(args.format, [], [], config, gate_mode)
+            _write_report(report, args.output)
+            return 0
         print("No files to assess", file=sys.stderr)
         return 1
 
