@@ -143,17 +143,30 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-05T20:55:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review of the PR #4669 body rejected three of five cited re-derivations as uncorroborated by session artifacts, and flagged the fifth as resting on an unstated harness premise. Corrected the body down to the three the retrospective records, and logged the rule that produced the miss.",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-4656-absence-claims"
     }
   ],
   "metrics": {
-    "duration_minutes": 52,
+    "duration_minutes": 255,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
     "commits": 5,
-    "files_changed": 3
+    "files_changed": 5
   },
   "lessons": []
 }

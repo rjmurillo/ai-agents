@@ -143,6 +143,11 @@
       "time": "2026-08-05T17:32:00+00:00",
       "entry": "Committed the branch in three atomic commits, each within the five-file limit.",
       "evidence": "98526f68b rule plus two generated mirrors; b55e2e1d2 four memories plus the index; the retrospective artifact with this log. No plugin manifest touched, per ADR-092."
+    },
+    {
+      "time": "2026-08-05T20:55:00+00:00",
+      "entry": "Adversarial review of the PR #4669 body rejected three of five cited re-derivations as uncorroborated by session artifacts, and flagged the fifth as resting on an unstated harness premise. Corrected the body down to the three the retrospective records, and logged the rule that produced the miss.",
+      "evidence": "grok-4.5 review returned 2 HIGH, 2 MEDIUM, 1 LOW; each verified independently before acting. Retro lines 138 and 147 corroborate two instances; line 147 names the third. New memory .serena/memories/pr-review/pr-body-session-claims-need-artifacts.md, 2,747 chars, size test PASS. Index count moved 321 to 322 as a positive control; count ratchet 424 <= 425."
     }
   ],
   "endingCommit": "82abfbf460f782026f85279921622ebe39c4c61d",
