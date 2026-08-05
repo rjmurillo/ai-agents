@@ -6077,7 +6077,11 @@ def run_cli_e2e(
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
-    session_paths = [p for p in paths if SESSION_PATH_RE.fullmatch(p)]
+    session_paths = [
+        path
+        for raw_path in paths
+        if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
+    ]
     new_logs = new_session_logs(session_paths, repo_root)
     for path in session_paths:
         command = [sys.executable, "scripts/validate_session_json.py", path]

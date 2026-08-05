@@ -6800,16 +6800,27 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
 ) -> None:
     validator_results = iter([_completed(0), _completed(1)])
 
+    commands: list[list[str]] = []
+
     def _dispatch(command, *_args, **_kwargs):
         if command[0] == "git":
             return _completed(0, stdout="deadbee\n")
+        commands.append(command)
         return next(validator_results)
 
     monkeypatch.setattr(policy, "_run_command", _dispatch)
-    assert policy.validate_branch_sessions([
-        ".agents/sessions/2026-01-01-session-1.json",
-        ".agents/sessions/2026-01-02-session-2.json",
-    ], tmp_path) == 1
+    assert (
+        policy.validate_branch_sessions(
+            [
+                ".agents/sessions/2026-01-01-session-1.json",
+                ".agents/sessions/2026-01-01-session-1../../x.json",
+                ".agents/sessions/2026-01-02-session-2.json",
+            ],
+            tmp_path,
+        )
+        == 1
+    )
+    assert all("../" not in " ".join(command) for command in commands)
 
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
     assert policy.sync_observations(["memory-observations.md"], tmp_path) == 0

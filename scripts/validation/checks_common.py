@@ -135,7 +135,7 @@ def _gh_base_ref(repo_root: Path) -> str | None:
     checked out as ``pr-4294`` tracking ``origin/fix/gc-report-time-budget``),
     ``gh pr view`` without ``--head`` fails to find the PR. This function
     detects that case and retries using the configured upstream branch name
-    (``branch.<name>.merge`` via ``git rev-parse --abbrev-ref @{u}``).
+    (``branch.<name>.merge`` via ``git config --get``).
 
     Behavior:
     - If gh is not on PATH, return None.

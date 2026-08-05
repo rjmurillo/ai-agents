@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits 817a3f4, 2fe21a2, 6a0e4a5, e6d4bd6, 4cba2e0"
+        "Evidence": "Commits 817a3f4, 6a0e4a5, e6d4bd6, 4cba2e0"
       },
       "validationPassed": {
         "level": "MUST",
