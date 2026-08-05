@@ -1,0 +1,56 @@
+{
+  "id": "episode-2026-08-05-session-1-fix-append-target-merge-conflicts",
+  "session": "2026-08-05-session-1-fix-append-target-merge-conflicts",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix append target merge conflicts for governance files",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify built-in union driver",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-1-fix-append-target-merge-conflicts"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "File and claim issue",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-1-fix-append-target-merge-conflicts"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implement append-target merge repair",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-1-fix-append-target-merge-conflicts"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate and mutation prove",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-1-fix-append-target-merge-conflicts"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 6
+  },
+  "lessons": []
+}
