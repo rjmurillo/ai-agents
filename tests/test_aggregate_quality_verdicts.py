@@ -85,7 +85,10 @@ class TestGetCategory:
     def test_warn_verdict_returns_na(self):
         assert get_category("WARN", False) == "N/A"
 
-    @pytest.mark.parametrize("verdict", ["REJECTED", "FAIL", "NEEDS_REVIEW"])
+    @pytest.mark.parametrize(
+        "verdict",
+        ["REJECTED", "FAIL", "NEEDS_REVIEW", "UNKNOWN", "DID_NOT_RUN"],
+    )
     def test_all_fail_verdicts_classified(self, verdict):
         assert get_category(verdict, False) == "CODE_QUALITY"
         assert get_category(verdict, True) == "INFRASTRUCTURE"
@@ -169,6 +172,21 @@ class TestMain:
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "WARN"
+        assert outputs["security_review_ran"] == "false"
+
+    def test_did_not_run_infra_failures_downgrade_to_warn(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "DID_NOT_RUN" for a in _AGENTS}
+        verdicts["qa"] = "PASS"
+        infra = {a: "true" for a in _AGENTS}
+        infra["qa"] = "false"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "WARN"
+        assert outputs["security_category"] == "INFRASTRUCTURE"
         assert outputs["security_review_ran"] == "false"
 
     def test_outputs_per_agent_verdicts_and_categories(self, tmp_path, monkeypatch):

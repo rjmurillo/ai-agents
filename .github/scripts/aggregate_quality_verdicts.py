@@ -42,11 +42,12 @@ from scripts.ai_review_common import (  # noqa: E402
 )
 
 _AGENTS = QUALITY_GATE_AGENTS
+ATTENTION_VERDICTS = FAIL_VERDICTS | {"UNKNOWN", "DID_NOT_RUN"}
 
 
 def get_category(verdict: str, infra_flag: bool) -> str:
     """Categorize a verdict as INFRASTRUCTURE, CODE_QUALITY, or N/A."""
-    if verdict in FAIL_VERDICTS:
+    if verdict in ATTENTION_VERDICTS:
         return "INFRASTRUCTURE" if infra_flag else "CODE_QUALITY"
     return "N/A"
 
@@ -103,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     final = merge_verdicts([verdicts[agent] for agent in _AGENTS])
     write_log(f"Final verdict: {final}")
 
-    if final in FAIL_VERDICTS and not code_quality_failures:
+    if final in ATTENTION_VERDICTS and not code_quality_failures:
         write_log("All failures are INFRASTRUCTURE - downgrading to WARN")
         final = "WARN"
 
