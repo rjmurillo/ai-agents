@@ -2,19 +2,20 @@
 """Fail when ``.serena/memories/memory-index.md`` records a stale token count.
 
 ``scripts/update_memory_index_tokens.py`` repairs the counts, and lefthook runs
-it at ``pre-commit`` as the ``memory-token-update`` autofix. Nothing verifies the
-result, and the autofix carries ``skip: merge`` plus a ``SKIP_AUTOFIX`` escape,
-so a memory whose body changes inside a merge commit reaches ``main`` with the
-old count still recorded. Issue #4441 reported the symptom.
+it at ``pre-commit`` as the ``memory-token-update`` autofix. This verifier imports
+the repair script's own count and coverage functions so repair and verification
+cannot drift apart. Issue #4441 reported the token-count symptom. Issue #4313
+reported the matching coverage symptom: a memory file missing from the root
+index was invisible to retrieval, and every gate still exited zero.
 
 Measured on pristine ``main`` at 3dbf3a381a: running the repair rewrote two
 lines, because ``skills-git-index.md`` recorded ``(287)`` against an actual
 ``324``. An autofix with no verifier is not a gate; it is a suggestion.
 
-This is a count ratchet whose baseline is fixed at zero: the count being
-ratcheted is the number of drifted entries, and it may never rise above none.
-A fixed floor needs no baseline file, so unlike the sibling ratchets there is
-nothing here a contributor can raise to make a failure go away.
+This is two ratchets. Token-count drift has a fixed baseline of zero. Unindexed
+memory files have a measured backlog baseline of 839 on clean ``origin/main`` at
+95ecfc3e9c, so the gate fails only when that count increases. That avoids
+blocking every push while still preventing new invisible memories.
 
 Exit codes per ADR-035:
   0 - Every recorded count matches the file it points at
@@ -32,7 +33,14 @@ _SCRIPTS = _REPO_ROOT / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-from update_memory_index_tokens import HAS_TIKTOKEN, update_line  # noqa: E402
+from update_memory_index_tokens import (  # noqa: E402
+    HAS_TIKTOKEN,
+    UNINDEXED_MEMORY_BASELINE,
+    coverage_errors,
+    index_coverage,
+    print_coverage_errors,
+    update_line,
+)
 
 
 def drifted_lines(index_text: str, memories_dir: Path) -> list[tuple[int, str, str]]:
@@ -75,20 +83,34 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     drifted = drifted_lines(index_path.read_text(encoding="utf-8"), memories_dir)
-    if not drifted:
-        print("memory-index.md token counts are current")
+    coverage = index_coverage(index_path, memories_dir)
+    coverage_failures = coverage_errors(coverage, UNINDEXED_MEMORY_BASELINE)
+
+    if not drifted and not coverage_failures:
+        print(
+            "memory-index.md token counts are current; "
+            f"{len(coverage.unindexed_files)} unindexed file(s) <= baseline "
+            f"{UNINDEXED_MEMORY_BASELINE}; "
+            f"{len(coverage.stale_index_references)} stale reference(s)"
+        )
         return 0
 
-    print(
-        f"ERROR: {len(drifted)} memory-index.md token count(s) are stale. "
-        "A stale count misroutes retrieval: a reader budgeting context trusts "
-        "the recorded number, and (0) reads as 'this memory is empty, skip it'.",
-        file=sys.stderr,
-    )
-    for number, recorded, expected in drifted:
-        print(f"  line {number}:", file=sys.stderr)
-        print(f"    recorded: {recorded}", file=sys.stderr)
-        print(f"    actual:   {expected}", file=sys.stderr)
+    if drifted:
+        print(
+            f"ERROR: {len(drifted)} memory-index.md token count(s) are stale. "
+            "A stale count misroutes retrieval: a reader budgeting context "
+            "trusts the recorded number, and (0) reads as 'this memory is "
+            "empty, skip it'.",
+            file=sys.stderr,
+        )
+        for number, recorded, expected in drifted:
+            print(f"  line {number}:", file=sys.stderr)
+            print(f"    recorded: {recorded}", file=sys.stderr)
+            print(f"    actual:   {expected}", file=sys.stderr)
+
+    if coverage_failures:
+        print_coverage_errors(coverage, UNINDEXED_MEMORY_BASELINE)
+
     print(
         "\nFix: uv run --frozen python scripts/update_memory_index_tokens.py",
         file=sys.stderr,

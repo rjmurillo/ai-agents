@@ -16,6 +16,7 @@ Exit codes per ADR-035:
 
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 # Graceful tiktoken import
@@ -34,6 +35,122 @@ LINK_WITH_COUNT = re.compile(
 LINK_WITHOUT_COUNT = re.compile(
     r'\[([^\]]+)\]\(([^)]+\.md)\)(?!\s*\(\d+\))'
 )
+INDEX_LINK_TARGET = re.compile(r'\[[^\]]+\]\(([^)]+\.md)\)')
+SPECIAL_MEMORY_FILENAMES = frozenset({
+    "CLAUDE.md",
+    "README.md",
+    "memory-index.md",
+})
+UNINDEXED_MEMORY_BASELINE = 839
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryIndexCoverage:
+    """Coverage of memory files by the root memory index."""
+
+    memory_files: tuple[str, ...]
+    index_references: tuple[str, ...]
+    unindexed_files: tuple[str, ...]
+    stale_index_references: tuple[str, ...]
+
+    @property
+    def memory_file_count(self) -> int:
+        """Return the number of memory files that should be indexed."""
+        return len(self.memory_files)
+
+    @property
+    def index_reference_count(self) -> int:
+        """Return the number of file references in memory-index.md."""
+        return len(self.index_references)
+
+
+def collect_memory_files(memories_dir: Path) -> tuple[str, ...]:
+    """Return memory files that should have a root index row."""
+    files = {
+        path.relative_to(memories_dir).as_posix()
+        for path in memories_dir.rglob("*.md")
+        if path.name not in SPECIAL_MEMORY_FILENAMES
+    }
+    return tuple(sorted(files))
+
+
+def collect_index_references(index_text: str) -> tuple[str, ...]:
+    """Return markdown link targets recorded in memory-index.md."""
+    references = {
+        match.group(1)
+        for match in INDEX_LINK_TARGET.finditer(index_text)
+    }
+    return tuple(sorted(references))
+
+
+def index_coverage(index_path: Path, memories_dir: Path) -> MemoryIndexCoverage:
+    """Compare memory files to the root memory index references."""
+    memory_files = collect_memory_files(memories_dir)
+    index_references = collect_index_references(
+        index_path.read_text(encoding="utf-8")
+    )
+    memory_file_set = set(memory_files)
+    index_reference_set = set(index_references)
+
+    return MemoryIndexCoverage(
+        memory_files=memory_files,
+        index_references=index_references,
+        unindexed_files=tuple(sorted(memory_file_set - index_reference_set)),
+        stale_index_references=tuple(sorted(index_reference_set - memory_file_set)),
+    )
+
+
+def coverage_errors(
+    coverage: MemoryIndexCoverage,
+    unindexed_baseline: int = UNINDEXED_MEMORY_BASELINE,
+) -> list[str]:
+    """Return fail-closed coverage errors for the root index."""
+    errors: list[str] = []
+    if coverage.stale_index_references:
+        errors.append(
+            f"{len(coverage.stale_index_references)} stale "
+            "memory-index reference(s)"
+        )
+    if len(coverage.unindexed_files) > unindexed_baseline:
+        errors.append(
+            "unindexed memory file count increased: "
+            f"{len(coverage.unindexed_files)} > {unindexed_baseline}"
+        )
+    return errors
+
+
+def print_coverage_errors(
+    coverage: MemoryIndexCoverage,
+    unindexed_baseline: int = UNINDEXED_MEMORY_BASELINE,
+) -> None:
+    """Print actionable coverage errors to stderr."""
+    for error in coverage_errors(coverage, unindexed_baseline):
+        print(f"ERROR: {error}", file=sys.stderr)
+
+    if coverage.stale_index_references:
+        print("Stale memory-index reference(s):", file=sys.stderr)
+        for reference in coverage.stale_index_references[:20]:
+            print(f"  {reference}", file=sys.stderr)
+        if len(coverage.stale_index_references) > 20:
+            remaining = len(coverage.stale_index_references) - 20
+            print(f"  ... {remaining} more", file=sys.stderr)
+
+    if len(coverage.unindexed_files) > unindexed_baseline:
+        print(
+            "Unindexed memory file(s) above the measured baseline:",
+            file=sys.stderr,
+        )
+        for file_name in coverage.unindexed_files[:20]:
+            print(f"  {file_name}", file=sys.stderr)
+        if len(coverage.unindexed_files) > 20:
+            remaining = len(coverage.unindexed_files) - 20
+            print(f"  ... {remaining} more", file=sys.stderr)
+        print(
+            "Add keyword rows to .serena/memories/memory-index.md, then run "
+            "uv run --frozen python scripts/update_memory_index_tokens.py",
+            file=sys.stderr,
+        )
 
 
 def update_line(line: str, memories_dir: Path) -> str:
@@ -110,14 +227,16 @@ def update_memory_index(index_path: Path, memories_dir: Path) -> bool:
     return False
 
 
-def main() -> int:
+def run(repo_root: Path) -> int:
+    """Update token counts and verify root index coverage for repo_root."""
     if not HAS_TIKTOKEN:
-        print("Warning: tiktoken not installed. Token counts not updated.", file=sys.stderr)
+        print(
+            "Warning: tiktoken not installed. Token counts not updated.",
+            file=sys.stderr,
+        )
         print("  Install: uv pip install tiktoken", file=sys.stderr)
         return 2
 
-    # Determine paths
-    repo_root = Path(__file__).resolve().parent.parent
     memories_dir = repo_root / ".serena" / "memories"
     index_path = memories_dir / "memory-index.md"
 
@@ -130,13 +249,29 @@ def main() -> int:
         return 1
 
     modified = update_memory_index(index_path, memories_dir)
+    coverage = index_coverage(index_path, memories_dir)
 
     if modified:
         print("Updated token counts in memory-index.md")
     else:
         print("Token counts in memory-index.md already current")
 
+    errors = coverage_errors(coverage, UNINDEXED_MEMORY_BASELINE)
+    if errors:
+        print_coverage_errors(coverage, UNINDEXED_MEMORY_BASELINE)
+        return 1
+
+    print(
+        "Memory index coverage verified: "
+        f"{len(coverage.unindexed_files)} unindexed file(s) <= baseline "
+        f"{UNINDEXED_MEMORY_BASELINE}; "
+        f"{len(coverage.stale_index_references)} stale reference(s)"
+    )
     return 0
+
+
+def main() -> int:
+    return run(REPO_ROOT)
 
 
 if __name__ == "__main__":
