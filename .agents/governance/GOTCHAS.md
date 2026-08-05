@@ -543,6 +543,100 @@ Notes:
 Issue #4283 documents the measured 28-waiter convoy produced by the global lock
 and the first-principles analysis of why the race is per-ref.
 
+## A script under `scripts/ci/` needs a workflow caller, not just a lefthook job
+
+`tests/ci/test_ci_scripts_are_wired.py` parses `.github/workflows/**` and
+`.github/actions/**`, reads the `run:` body of every step that is not literally
+`if: false`, and fails for any `scripts/ci/*.py` it cannot find a live call for.
+Registering a new guard in `lefthook.yml` and in
+`scripts/validation/checks_ratchet.py` satisfies the push gate and the pre-PR
+gate, and still fails this test. Local hooks do not cover a push from a clone
+where `lefthook install` never ran, a bot push, or a cloud agent.
+
+The test exists because `ruff_count_ratchet.py` and `adr006_run_block_scanner.py`
+both shipped with green suites and no caller, and protected nothing for weeks
+(issue #3329). A unit test cannot catch a missing call site, so this checks the
+call site.
+
+Add the workflow step in the same change that adds the script. A ratchet with a
+fixed floor takes no `--base-ref` and needs no `git fetch --depth=1` preamble;
+copy the neighbouring step only if your guard actually diffs against a base.
+
+## An autofix is not a gate: pair every repair with a verifier
+
+`memory-token-update` (`lefthook.yml`) rewrites every `.serena/memories/`
+token count on pre-commit, and it is correct. It carries
+`skip: [merge, "test $SKIP_AUTOFIX = 1"]`, and nothing downstream checked its
+result, so a memory edited inside a merge commit reached `main` with the old
+count still recorded. Measured on pristine `main`: `skills-git-index` read 287
+against an actual 324, a 13% undercount (issue #4441).
+
+Two rules follow, and both are load-bearing:
+
+- **The verifier must reuse the repair's own computation.** If the gate derives
+  the expected value independently, the two can disagree, and the contributor is
+  trapped: the gate fails, they run the repair, the gate fails again on the
+  repaired file. `memory_index_token_ratchet.drifted_lines` calls the repair's
+  `update_line` directly for exactly this reason.
+- **"Cannot verify" must not exit zero.** The repair degrades to a warning when
+  `tiktoken` is missing. The verifier exits 2 instead. A gate that goes green
+  because it checked nothing is worse than no gate.
+
+## Grep the handler, not the job name
+
+A lefthook job name, its `git_hook_policy.py` subcommand string, and the Python
+function that implements it are three different identifiers. For the memory
+token repair they are `memory-token-update`, `memory-tokens`, and
+`update_memory_tokens`. Searching one spelling and finding nothing produces a
+confident, wrong "this is wired to no gate" conclusion. That mistake cost a full
+diagnostic cycle on issue #4441.
+
+Correct probe: `git grep -n "<function_name>"` to find the handler, read the
+`(subcommand, handler)` tuple near it, then grep that subcommand string in
+`lefthook.yml`.
+
+## "All validations passed" in a push log does not mean the branch reached the remote
+
+The repo's push wrapper runs `scripts/validation/pre_pr.py` first, and that
+script signs off with `RESULT: All validations passed` followed by
+`Ready to create pull request!`. Only then does it call `git push`, which fires
+the lefthook `pre-push` hook and runs the full suite a second time. Those two
+lines are therefore the *earliest* success message in the log, not the last one,
+and a log that ends on them usually means the push is still running.
+
+Two consequences:
+
+- Grepping the log for lefthook failures (`🥊 <job> (N seconds)`) and finding
+  none proves no job has failed **yet**. It does not prove the push finished.
+- The only proof a push landed is the remote itself:
+  `git ls-remote origin <branch>` against `git rev-parse HEAD`. Check the shas
+  match before opening a PR. Opening one against a branch the remote has never
+  heard of fails with a confusing 422 that names the base, not the head.
+
+Whether a commit made while a push is in flight lands with it is not
+predictable from the outside. The wrapper runs `pre_pr.py` first and only then
+calls `git push`, so a commit created during that window can be picked up, and
+one created after the transfer starts will not be. Measured both ways. Do not
+reason about it: read the sha off the remote and compare.
+
+## Never measure a gate from a detached HEAD
+
+`scripts/detect_scope_explosion.py` returns 0 on a detached `HEAD` for staged
+content that returns 1 on a branch. Same commit, same staged files, same tree;
+the only variable is whether `HEAD` is attached. It does not report that it
+skipped, it reports success (issue #4602).
+
+The direct cost is that `git bisect`, `git worktree add --detach`, a CI checkout
+of a SHA, and a rebase in progress all detach, so committing from any of those
+states skips the gate with no signal.
+
+The larger cost is to measurement. A probe run detached reports PASS on input the
+gate blocks, so the obvious way to test this check yields a false negative. That
+is how issue #4544 came to be closed as already-fixed while still reproducing,
+and the retraction had to be retracted. When you probe any gate, attach `HEAD`
+first with `git checkout -B probe/<name> <sha>` rather than
+`git worktree add --detach`, and treat a detached PASS as no result at all.
+
 ## The CLI e2e pre-push jobs need a Copilot token, and fail fast without one
 
 `plugin-load-e2e` and `hook-anchoring-e2e` shell out to the real `copilot`
@@ -652,3 +746,10 @@ sentence in `.claude/skills/context-optimizer/references/model-context-doctrine.
 and rerun `build/scripts/generate_skills.py` so the `src/copilot-cli/` mirror
 matches. Update the vendor-cost figure in the same sentence: it is the plugin
 count minus the `.github/instructions` count, and no test checks it.
+
+Two details the failure output does not explain. The at-source total is larger
+than the shipped total because `generate_rules.py` strips the `priority:` key on
+the way out, so the same rule is smaller in the plugin tree than on disk. And the
+two 8KB multipliers move independently: the `.py`-edit multiplier can hold steady
+while the always-on one shifts, so re-measure both rather than assuming one
+tracks the other.
