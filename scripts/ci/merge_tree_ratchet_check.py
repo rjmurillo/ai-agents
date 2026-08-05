@@ -374,23 +374,32 @@ def _check_one(
     return EXIT_OK, f"{label}: OK. {count} <= {baseline}."
 
 
-def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
-    """Extract merged tree, run counters, compare. Returns an EXIT_* code."""
+def _prepare_merged_tree(
+    repo_root: Path, base_ref: str
+) -> tuple[str | None, str | None, int]:
+    """Pin the base and construct a conflict-free merged tree."""
     base_oid = _resolve_base_oid(repo_root, base_ref)
     if base_oid is None:
-        return EXIT_EXTERNAL
+        return None, None, EXIT_EXTERNAL
     tree_oid, conflicts = _merge_tree_oid(repo_root, base_oid)
     if tree_oid is None:
-        # _merge_tree_oid already named the specific reason on stderr. A generic
-        # line here would contradict it (PR #4567 review).
-        return EXIT_EXTERNAL
+        return base_oid, None, EXIT_EXTERNAL
     if conflicts:
         sys.stderr.write(
             f"merge-tree-ratchet: merge has conflicts against {base_ref} "
             f"({base_oid[:12]}). Ratchets were not evaluated; resolve the conflicts "
             "and rerun the ratchet.\n"
         )
-        return EXIT_CONFLICT
+        return base_oid, tree_oid, EXIT_CONFLICT
+    return base_oid, tree_oid, EXIT_OK
+
+
+def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
+    """Extract merged tree, run counters, compare. Returns an EXIT_* code."""
+    base_oid, tree_oid, preparation_exit = _prepare_merged_tree(repo_root, base_ref)
+    if preparation_exit != EXIT_OK:
+        return preparation_exit
+    assert base_oid is not None and tree_oid is not None
 
     _ci_rel = "scripts/ci"
     _baseline_map = {
