@@ -60,9 +60,33 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e006",
+        "e007"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-05-session-1-fix-append-target-merge-conflicts"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reassess GOTCHAS union after PR #4603 evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-1-fix-append-target-merge-conflicts"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct GOTCHAS merge policy",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-05-session-1-fix-append-target-merge-conflicts"
     }
   ],

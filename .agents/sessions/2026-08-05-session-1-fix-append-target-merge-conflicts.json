@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Work changes staged for the commit; endingCommit recorded in the follow-up commit."
+        "Evidence": "Correction changes staged for a follow-up commit; endingCommit will be recorded in the next commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pytest 36 passed; ruff passed; memory_index --ci exit 0; diff --check exit 0; mutation table passed."
+        "Evidence": "pytest 15 passed; ruff passed; memory_index --ci exit 0; pre_pr.py exit 0; mutation table passed after GOTCHAS correction."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -142,10 +142,26 @@
       "artifacts": [
         "~/src/scratch/mergedriver_mutation_check.py"
       ]
+    },
+    {
+      "task": "Reassess GOTCHAS union after PR #4603 evidence",
+      "outcome": "Built-in union still worked in a fresh clone, but a GOTCHAS scratch merge showed union keeps two semantic duplicate headings without a conflict. The cited headings had Jaccard 0.167 after stopword removal, so a simple heading-similarity gate would miss the real duplicate.",
+      "artifacts": [
+        ".gitattributes",
+        "tests/test_append_merge_conflict_drivers.py"
+      ]
+    },
+    {
+      "task": "Correct GOTCHAS merge policy",
+      "outcome": "Removed merge=union from GOTCHAS.md. Kept union only for memory-index.md, where duplicate rows are mechanically healed or rejected.",
+      "artifacts": [
+        ".gitattributes",
+        "tests/test_append_merge_conflict_drivers.py"
+      ]
     }
   ],
-  "endingCommit": "918ba5c4fda5e3792a05fb61bba94e98d083c411",
+  "endingCommit": "",
   "nextSteps": [
-    "Push branch and open PR for issue #4605."
+    "Commit correction, update endingCommit in a follow-up commit, push, and update PR #4618."
   ]
 }

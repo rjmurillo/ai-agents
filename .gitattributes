@@ -363,7 +363,7 @@
 .gitignore export-ignore
 
 # ============================================================================
-# Merge Drivers: built-in union for append targets, custom drivers removed
+# Merge Drivers: built-in union for mechanical append targets
 # ============================================================================
 #
 # This file used to declare `.agents/HANDOFF.md merge=ours` and
@@ -382,25 +382,26 @@
 # The `handoff-aggregate` entry was declared as a placeholder for a driver that was
 # never written.
 #
-# Custom drivers still require per-clone git config and must not be declared here
-# unless a repository script registers them for every clone. Git's built-in
-# `union` driver is different: it needs no registration and is safe for append
-# targets where both sides' additions should survive.
+# Custom drivers still require per-clone git config and must not be declared
+# here unless a repository script registers them for every clone. Git's built-in
+# `union` driver is different: it needs no registration.
 #
-# `.agents/governance/GOTCHAS.md` is append-only prose under `##` headings, so
-# union preserves independent sections without requiring humans to replay both
-# sides of a conflict.
+# Union is still only safe when a later gate can detect duplicate meaning
+# mechanically. It is not safe for `.agents/governance/GOTCHAS.md`: two branches
+# can append different `##` headings that describe the same gotcha. A normal
+# conflict forces a human to reconcile that semantic duplicate. Union would keep
+# both sections and make the duplicate look correct.
 #
 # `.serena/memories/memory-index.md` is append-friendly but not append-only.
 # Union can keep two versions of the same memory row when both sides update a
 # token count. `scripts/update_memory_index_tokens.py` collapses identical
-# duplicate rows after recounting and fails on non-identical duplicates, so
-# corruption is healed when safe and loud when not.
+# duplicate rows after recounting and fails when one row repeats the same
+# memory link. The index already allows one memory to appear under multiple
+# keyword rows, so row-content equality is the safe repair key.
 #
 # ADR-014 still holds: HANDOFF.md is read-only on feature branches, enforced by
 # the pre-commit hook rather than by a merge driver. Refs #3625, #4605.
 #
-.agents/governance/GOTCHAS.md merge=union
 .serena/memories/memory-index.md merge=union
 
 # ============================================================================
