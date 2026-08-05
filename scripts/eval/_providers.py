@@ -36,6 +36,7 @@ when the question is "does this change help the models we actually run."
 
 from __future__ import annotations
 
+import math
 import os
 import re
 from collections.abc import Callable, Iterable
@@ -310,11 +311,16 @@ def _make_copilot_cli() -> EvalProvider:
     kwargs: dict[str, object] = {}
     if timeout:
         try:
-            kwargs["timeout"] = float(timeout)
+            parsed_timeout = float(timeout)
         except ValueError as exc:
             raise RuntimeError(
                 f"COPILOT_CLI_TIMEOUT must be a number of seconds, got {timeout!r}."
             ) from exc
+        if not math.isfinite(parsed_timeout) or parsed_timeout <= 0:
+            raise RuntimeError(
+                "COPILOT_CLI_TIMEOUT must be a finite positive number of seconds."
+            )
+        kwargs["timeout"] = parsed_timeout
     executable = os.environ.get("COPILOT_CLI_BIN")
     if executable:
         kwargs["executable"] = executable

@@ -11,9 +11,10 @@ import json
 import os
 import sys
 import tempfile
+import time
 import types
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -1268,6 +1269,17 @@ def test_copilot_factory_rejects_a_non_numeric_timeout(
         _providers.resolve_provider("copilot-cli")
 
 
+@pytest.mark.parametrize("timeout", ["0", "-1", "nan", "inf", "-inf"])
+def test_copilot_factory_rejects_a_non_positive_or_non_finite_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    timeout: str,
+) -> None:
+    monkeypatch.setenv("COPILOT_CLI_TIMEOUT", timeout)
+
+    with pytest.raises(RuntimeError, match="finite positive"):
+        _providers.resolve_provider("copilot-cli")
+
+
 # ---------------------------------------------------------------------------
 # Session transcript reading
 #
@@ -1693,6 +1705,7 @@ def test_unrelated_transcript_is_not_loaded_in_full(
         sandbox,
         since=0.0,
         provider_label="Copilot CLI",
+        deadline=time.monotonic() + 1.0,
     )
 
     assert result == ("matching answer", "claude-opus-5")
@@ -1719,6 +1732,7 @@ def test_matching_oversized_transcript_is_refused(
             sandbox,
             since=0.0,
             provider_label="Copilot CLI",
+            deadline=time.monotonic() + 1.0,
         )
 
 
@@ -1777,10 +1791,73 @@ def test_transcript_reader_requests_bounded_lines(
         sandbox,
         since=0.0,
         provider_label="Copilot CLI",
+        deadline=time.monotonic() + 1.0,
     )
 
     assert result == ("bounded answer", "model")
     assert sizes == [513, 513, 513]
+
+
+def test_transcript_candidate_count_is_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    for index in range(3):
+        session_dir = tmp_path / f"session-{index}"
+        session_dir.mkdir()
+        (session_dir / "events.jsonl").write_text("", encoding="utf-8")
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(transcript_module, "_MAX_TRANSCRIPT_CANDIDATES", 2)
+
+    with pytest.raises(RuntimeError, match="candidate limit exceeded"):
+        transcript_module.read_session_transcript(
+            tmp_path,
+            "sandbox",
+            since=0.0,
+            provider_label="Copilot CLI",
+            deadline=time.monotonic() + 1.0,
+        )
+
+
+def test_transcript_scan_obeys_its_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    paths = []
+    for index in range(3):
+        session_dir = tmp_path / f"session-{index}"
+        session_dir.mkdir()
+        path = session_dir / "events.jsonl"
+        path.write_text("", encoding="utf-8")
+        paths.append(path)
+    yielded = 0
+
+    class FakeRoot:
+        def glob(self, pattern: str):
+            nonlocal yielded
+            assert pattern == "*/events.jsonl"
+            for path in paths:
+                yielded += 1
+                yield path
+
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    clock = iter([0.0, 2.0])
+    monkeypatch.setattr(
+        transcript_module.time,
+        "monotonic",
+        lambda: next(clock, 2.0),
+    )
+
+    with pytest.raises(RuntimeError, match="transcript scan timed out"):
+        transcript_module.read_session_transcript(
+            cast(Any, FakeRoot()),
+            "sandbox",
+            since=0.0,
+            provider_label="Copilot CLI",
+            deadline=1.0,
+        )
+
+    assert yielded == 2
 
 
 def test_copilot_falls_back_to_stdout_when_session_root_is_missing(
@@ -1840,16 +1917,40 @@ def test_copilot_raises_when_the_session_ran_a_different_model(
 ) -> None:
     # Silent model substitution would attribute one model's behavior to
     # another, which corrupts every downstream comparison.
+    requested = "ghp_" + "R" * 36
+    actual = "ghp_" + "A" * 36
     _run_writing_session(
         monkeypatch,
         tmp_path,
-        model="gpt-5.6-sol",
+        model=actual,
         contents=["an answer"],
     )
     provider = _providers._CopilotCLIProvider()
 
-    with pytest.raises(RuntimeError, match="ran gpt-5.6-sol instead"):
-        provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
+    with pytest.raises(RuntimeError, match="model attribution mismatch") as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model=requested)
+
+    assert requested not in str(exc_info.value)
+    assert actual not in str(exc_info.value)
+
+
+def test_copilot_refuses_an_invalid_model_identifier(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    secret = "ghp_" + "S" * 36 + " private"
+    _run_writing_session(
+        monkeypatch,
+        tmp_path,
+        model=secret,
+        contents=["an answer"],
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(MalformedProviderMetadataError) as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="model")
+
+    assert secret not in str(exc_info.value)
 
 
 def test_copilot_ignores_session_logs_written_before_this_call(
@@ -2213,7 +2314,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         )
         provider = _providers._CopilotCLIProvider()
 
-        with pytest.raises(RuntimeError, match="ran gpt-5.6-sol instead"):
+        with pytest.raises(RuntimeError, match="model attribution mismatch"):
             provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_a_midsession_model_change_is_caught_through_the_message(
@@ -2235,7 +2336,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         )
         provider = _providers._CopilotCLIProvider()
 
-        with pytest.raises(RuntimeError, match="ran gpt-5.6-sol instead"):
+        with pytest.raises(RuntimeError, match="model attribution mismatch"):
             provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_two_models_in_one_answer_confirm_nothing(

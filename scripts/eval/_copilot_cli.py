@@ -19,7 +19,11 @@ import time
 from pathlib import Path
 from typing import cast
 
-from _copilot_cli_acp import ACPProcessError, run_acp_completion
+from _copilot_cli_acp import (
+    ACPProcessError,
+    run_acp_completion,
+    validate_timeout,
+)
 from _copilot_cli_constants import (
     FOOTER_COLUMN,
     FOOTER_LABEL_RE,
@@ -165,7 +169,7 @@ class _CopilotCLIProvider:
         self.name = "copilot-cli"
         self._provider_label = self._PROVIDER_LABEL
         self._executable = executable
-        self._timeout = timeout
+        self._timeout = validate_timeout(timeout)
         self.system_fingerprint: str | None = None
 
     @classmethod
@@ -175,6 +179,7 @@ class _CopilotCLIProvider:
         sandbox: str,
         *,
         since: float,
+        deadline: float,
     ) -> tuple[str, str | None] | None:
         """Return model-attributed text from this call session."""
         return cast(
@@ -184,6 +189,7 @@ class _CopilotCLIProvider:
                 sandbox,
                 since=since,
                 provider_label=cls._PROVIDER_LABEL,
+                deadline=deadline,
             ),
         )
 
@@ -387,15 +393,15 @@ class _CopilotCLIProvider:
             answer, model_used = transcript
             if model_used is not None and model_used != model:
                 raise RuntimeError(
-                    f"{self._provider_label} API returned no choices for model "
-                    f"{model}: the session ran {model_used} instead."
+                    f"{self._provider_label} model attribution mismatch; "
+                    "model identifiers redacted"
                 )
         if not answer:
             answer = self._strip_footer(completed.stdout or "")
             if answer and self._may_carry_tool_trace(answer):
                 raise RuntimeError(
-                    f"{self._provider_label} could not read a reply for model "
-                    f"{model}: the session transcript was unavailable and a line "
+                    f"{self._provider_label} could not read a model-attributed "
+                    "reply: the session transcript was unavailable and a line "
                     "in stdout opens with a CLI trace marker. Nothing on this "
                     "path can tell a trace apart from an answer that starts the "
                     "same way, so the run is refused rather than graded. Point "
@@ -403,11 +409,14 @@ class _CopilotCLIProvider:
                     "the structured transcript can be read."
                 )
         if not answer:
-            raise RuntimeError(f"{self._provider_label} API returned no choices for model {model}.")
+            raise RuntimeError(
+                f"{self._provider_label} API returned no choices; "
+                "model identifier redacted"
+            )
         if model_used is None and not self._unverified_model_allowed():
             raise RuntimeError(
                 f"{self._provider_label} could not confirm which model answered "
-                f"for {model}: no session transcript was readable, and the CLI "
+                "because no session transcript was readable, and the CLI "
                 "accepts --model without confirming it. This transport only "
                 "feeds model-attributed results, so an unconfirmed reply is a "
                 f"score for an unknown model. Point {self._SESSION_STATE_ENV} "
@@ -436,11 +445,13 @@ class _CopilotCLIProvider:
         root = session_state_root(self._SESSION_STATE_ENV, self._PROVIDER_LABEL)
         with tempfile.TemporaryDirectory(prefix="eval-copilot-") as sandbox:
             started = time.time()
+            deadline = time.monotonic() + self._timeout
             completed = self._run_process(argv, sandbox, prompt, root)
             transcript = self._read_session_transcript(
                 root,
                 sandbox,
                 since=started - 5.0,
+                deadline=deadline,
             )
         answer, model_used = self._read_answer(completed, transcript, model)
         # Publish which model the transcript confirmed, reset on every call so

@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import time
 from pathlib import Path
 from typing import cast
 
-from _eval_common import require_str_or_none
+from _eval_common import MalformedProviderMetadataError, require_str_or_none
 
 _COPILOT_HOME_ENV = "COPILOT_HOME"
+_MODEL_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}")
+_MAX_TRANSCRIPT_CANDIDATES = 256
 _MAX_TRANSCRIPT_LINE_CHARS = 1024 * 1024
 _MAX_TRANSCRIPT_CHARS = 4 * 1024 * 1024
 
@@ -85,6 +89,10 @@ def _read_assistant_message(
     if not content.strip():
         return None
     model = require_str_or_none(data.get("model"), "model")
+    if model and _MODEL_ID_RE.fullmatch(model) is None:
+        raise MalformedProviderMetadataError(
+            "provider metadata field 'model' has invalid format"
+        )
     return content.strip(), model
 
 
@@ -103,6 +111,7 @@ def _read_matching_session(
     sandbox: str,
     provider_label: str,
     since: float,
+    deadline: float,
 ) -> tuple[str, str | None] | None:
     matched = False
     message_models: list[str] = []
@@ -114,6 +123,10 @@ def _read_matching_session(
             return None
         with path.open(encoding="utf-8", errors="replace") as stream:
             while True:
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(
+                        f"{provider_label} session transcript scan timed out"
+                    )
                 raw_line = stream.readline(_MAX_TRANSCRIPT_LINE_CHARS + 1)
                 if not raw_line:
                     break
@@ -163,18 +176,35 @@ def read_session_transcript(
     *,
     since: float,
     provider_label: str,
+    deadline: float,
 ) -> tuple[str, str | None] | None:
     """Return the answer and the one model that authored all accepted text."""
+    candidates: list[Path] = []
     try:
-        candidates = sorted(root.glob("*/events.jsonl"))
+        for path in root.glob("*/events.jsonl"):
+            if time.monotonic() >= deadline:
+                raise RuntimeError(
+                    f"{provider_label} session transcript scan timed out"
+                )
+            candidates.append(path)
+            if len(candidates) > _MAX_TRANSCRIPT_CANDIDATES:
+                raise RuntimeError(
+                    f"{provider_label} session transcript candidate limit exceeded"
+                )
     except OSError:
         return None
+    candidates.sort()
     for path in candidates:
+        if time.monotonic() >= deadline:
+            raise RuntimeError(
+                f"{provider_label} session transcript scan timed out"
+            )
         transcript = _read_matching_session(
             path,
             sandbox,
             provider_label,
             since,
+            deadline,
         )
         if transcript is not None:
             return transcript
