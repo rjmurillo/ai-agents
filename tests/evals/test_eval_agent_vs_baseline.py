@@ -4262,11 +4262,15 @@ class TestEveryRegisteredProviderIsClassified:
         return set(providers_mod._REGISTRY)
 
     def test_registry_audit_preserves_the_provider_module(self):
-        existing = sys.modules["_providers"]
+        missing = object()
+        existing = sys.modules.get("_providers", missing)
 
         self._registry_names()
 
-        assert sys.modules["_providers"] is existing
+        if existing is missing:
+            assert "_providers" not in sys.modules
+        else:
+            assert sys.modules["_providers"] is existing
 
     def test_registry_and_classification_cover_the_same_names(self):
         """Adding a provider without classifying how it bills fails here."""
