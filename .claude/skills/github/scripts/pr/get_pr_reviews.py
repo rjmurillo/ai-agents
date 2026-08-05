@@ -173,7 +173,10 @@ def _canonicalize_login(login: str) -> tuple[str, list[str]]:
 def _normalize(item: dict[str, Any]) -> dict[str, Any]:
     """Preserve legacy author fields and add canonical identity metadata."""
     user = item.get("user")
-    observed = user.get("login") if isinstance(user, dict) else None
+    observed_value = user.get("login") if isinstance(user, dict) else None
+    if observed_value is not None and not isinstance(observed_value, str):
+        raise ValueError("Review author login is not a string")
+    observed = observed_value
     author_id = user.get("id") if isinstance(user, dict) else None
     if not isinstance(author_id, int):
         author_id = None
@@ -219,7 +222,18 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
 
     raw = _fetch_reviews(owner, repo, pr, fmt)
-    reviews = [_normalize(r) for r in raw]
+    try:
+        reviews = [_normalize(r) for r in raw]
+    except ValueError as exc:
+        write_skill_error(
+            f"Failed to normalize reviews for PR #{pr}: {exc}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT,
+            extra={"pull_request": pr},
+        )
+        return 3
     if state_filter:
         reviews = [review for review in reviews if review["state"] == state_filter]
 

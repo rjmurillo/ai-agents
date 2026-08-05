@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import warnings
 from typing import Any, cast
@@ -133,6 +134,16 @@ def _account_id(actor: dict[str, Any]) -> int | None:
     return account_id if isinstance(account_id, int) else None
 
 
+def _actor_login(actor: dict[str, Any], context: str) -> str:
+    """Return a string login, rejecting malformed API actor payloads."""
+    login = actor.get("login")
+    if login is None:
+        return ""
+    if not isinstance(login, str):
+        raise RuntimeError(f"{context} login is not a string")
+    return login
+
+
 def _ensure_reviewer(
     reviewer_map: dict[str, dict[str, Any]],
     login: str,
@@ -219,29 +230,39 @@ def _fetch_author_and_review_requests(
     author: dict[str, Any] = {}
     reviewers: list[dict[str, Any]] = []
     cursor: str | None = None
+    seen_cursors: set[str] = set()
     while True:
         response = gh_graphql(
             _PR_AUTHOR_AND_REQUESTS_QUERY,
             _graphql_variables(owner, repo, pr, cursor),
         )
         pull_request = _pull_request_data(response, pr)
-        if not author and isinstance(pull_request.get("author"), dict):
-            author = pull_request["author"]
+        author_payload = pull_request.get("author")
+        if author_payload is not None and not isinstance(author_payload, dict):
+            raise RuntimeError("PR author payload is not an object")
+        if not author and isinstance(author_payload, dict):
+            _actor_login(author_payload, "PR author")
+            author = author_payload
         nodes, page_info = _connection_data(pull_request, "reviewRequests")
         for node in nodes:
             reviewer = node.get("requestedReviewer") if isinstance(node, dict) else None
-            if isinstance(reviewer, dict) and reviewer.get("login"):
+            if isinstance(reviewer, dict) and _actor_login(reviewer, "requested reviewer"):
                 reviewers.append(reviewer)
         if not page_info.get("hasNextPage"):
             return author, reviewers
-        cursor = page_info.get("endCursor")
-        if not isinstance(cursor, str) or not cursor:
+        next_cursor = page_info.get("endCursor")
+        if not isinstance(next_cursor, str) or not next_cursor:
             raise RuntimeError("Review request pagination reported no end cursor")
+        if next_cursor in seen_cursors:
+            raise RuntimeError("Review request pagination repeated an end cursor")
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
 
 
 def _fetch_review_authors(owner: str, repo: str, pr: int) -> list[dict[str, Any]]:
     authors: list[dict[str, Any]] = []
     cursor: str | None = None
+    seen_cursors: set[str] = set()
     while True:
         response = gh_graphql(
             _PR_REVIEWS_QUERY,
@@ -251,13 +272,52 @@ def _fetch_review_authors(owner: str, repo: str, pr: int) -> list[dict[str, Any]
         nodes, page_info = _connection_data(pull_request, "reviews")
         for node in nodes:
             author = node.get("author") if isinstance(node, dict) else None
-            if isinstance(author, dict) and author.get("login"):
+            if isinstance(author, dict) and _actor_login(author, "review author"):
                 authors.append(author)
         if not page_info.get("hasNextPage"):
             return authors
-        cursor = page_info.get("endCursor")
-        if not isinstance(cursor, str) or not cursor:
+        next_cursor = page_info.get("endCursor")
+        if not isinstance(next_cursor, str) or not next_cursor:
             raise RuntimeError("Review pagination reported no end cursor")
+        if next_cursor in seen_cursors:
+            raise RuntimeError("Review pagination repeated an end cursor")
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
+
+
+def _fetch_legacy_author(owner: str, repo: str, pr: int) -> str:
+    """Return the legacy ``gh pr view --json author`` login."""
+    result = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "view",
+            str(pr),
+            "--repo",
+            f"{owner}/{repo}",
+            "--json",
+            "author",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        message = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(f"Legacy PR author lookup failed: {message}")
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Legacy PR author response is invalid JSON: {exc}") from exc
+    author = payload.get("author")
+    if author is None:
+        return ""
+    if not isinstance(author, dict):
+        raise RuntimeError("Legacy PR author payload is not an object")
+    return _actor_login(author, "legacy PR author")
 
 
 def _actor_type(actor: dict[str, Any], field: str) -> str:
@@ -281,8 +341,12 @@ def _add_comments(
     count_field: str,
 ) -> None:
     for comment in comments:
-        user = comment.get("user") or {}
-        login = user.get("login", "")
+        user = comment.get("user")
+        if user is None:
+            continue
+        if not isinstance(user, dict):
+            raise RuntimeError("Comment user payload is not an object")
+        login = _actor_login(user, "comment author")
         if not login:
             continue
         key = _ensure_reviewer(
@@ -299,7 +363,7 @@ def _add_actors(
     actors: list[dict[str, Any]],
 ) -> None:
     for actor in actors:
-        login = actor.get("login", "")
+        login = _actor_login(actor, "reviewer")
         if not login:
             continue
         user_type = _actor_type(actor, "__typename")
@@ -341,6 +405,7 @@ def main(argv: list[str] | None = None) -> int:
             owner, repo, pr
         )
         review_authors = _fetch_review_authors(owner, repo, pr)
+        legacy_pr_author = _fetch_legacy_author(owner, repo, pr)
         review_comments = _fetch_complete_comments(
             f"repos/{owner}/{repo}/pulls/{pr}/comments"
         )
@@ -350,23 +415,25 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeError as exc:
         error_and_exit(f"Failed to get PR #{pr}: {exc}", 3)
 
-    raw_pr_author = pr_author_data.get("login", "")
-    pr_author = raw_pr_author if isinstance(raw_pr_author, str) else ""
+    pr_author_observed = _actor_login(pr_author_data, "PR author")
     pr_author_id = _account_id(pr_author_data)
 
     reviewer_map: dict[str, dict[str, Any]] = {}
 
-    _add_comments(reviewer_map, review_comments, "review_comments")
-    _add_comments(reviewer_map, issue_comments, "issue_comments")
-    _add_actors(reviewer_map, requested_reviewers)
-    _add_actors(reviewer_map, review_authors)
-    reviewers = _finalize_reviewers(
-        reviewer_map,
-        args.exclude_bots,
-        args.exclude_author,
-        pr_author,
-        pr_author_id,
-    )
+    try:
+        _add_comments(reviewer_map, review_comments, "review_comments")
+        _add_comments(reviewer_map, issue_comments, "issue_comments")
+        _add_actors(reviewer_map, requested_reviewers)
+        _add_actors(reviewer_map, review_authors)
+        reviewers = _finalize_reviewers(
+            reviewer_map,
+            args.exclude_bots,
+            args.exclude_author,
+            pr_author_observed,
+            pr_author_id,
+        )
+    except RuntimeError as exc:
+        error_and_exit(f"Failed to get PR #{pr}: {exc}", 3)
 
     bot_count = sum(1 for r in reviewers if r["is_bot"])
     human_count = len(reviewers) - bot_count
@@ -374,8 +441,14 @@ def main(argv: list[str] | None = None) -> int:
     output = {
         "success": True,
         "pull_request": pr,
-        "pr_author": pr_author,
+        "pr_author": legacy_pr_author,
         "pr_author_id": pr_author_id,
+        "pr_author_observed": pr_author_observed or None,
+        "pr_author_canonical": (
+            canonicalize_login(pr_author_observed, pr_author_id)
+            if pr_author_observed
+            else None
+        ),
         "total_reviewers": len(reviewers),
         "bot_count": bot_count,
         "human_count": human_count,
