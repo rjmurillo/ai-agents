@@ -139,7 +139,8 @@ def test_committed_blob_refuses_when_head_probe_times_out(
     oid, problem = portability_git.committed_blob(tmp_path, tmp_path / REL)
 
     assert oid is None
-    assert problem is not None and "timed out" in problem
+    assert problem is not None
+    assert "identifying HEAD for the committed baseline" in problem
 
 
 def test_committed_blob_names_repository_root_timeout(

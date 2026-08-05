@@ -14,6 +14,86 @@ The slowest command was object enumeration at 179.915 ms maximum and
 155.260 ms median. The next-slowest maximum was 22.681 ms. The bound was
 therefore more than 166 times the slowest observed result.
 
+## Reproduce calibration
+
+Run this from the repository root:
+
+```python
+import statistics
+import subprocess
+import time
+
+commands = {
+    "root": ["rev-parse", "--show-toplevel"],
+    "head": ["rev-parse", "--verify", "--quiet", "HEAD"],
+    "tree": ["ls-tree", "-r", "-z", "--full-tree", "HEAD"],
+    "refs": ["show-ref", "--head"],
+    "ref-list": ["for-each-ref", "--format=%(objectname)"],
+    "objects": [
+        "cat-file",
+        "--batch-check=%(objecttype)",
+        "--batch-all-objects",
+    ],
+    "history": [
+        "log",
+        "-1",
+        "--format=%H",
+        "HEAD",
+        "--",
+        "scripts/validation/portability_git.py",
+    ],
+    "attribute": [
+        "check-attr",
+        "diff",
+        "--",
+        "scripts/validation/portability_git.py",
+    ],
+    "blob": [
+        "cat-file",
+        "blob",
+        "HEAD:scripts/validation/portability_git.py",
+    ],
+}
+
+for name, args in commands.items():
+    samples = []
+    for _ in range(20):
+        start = time.perf_counter()
+        subprocess.run(
+            ["git", "--no-replace-objects", *args],
+            stdout=subprocess.DEVNULL,
+            check=True,
+        )
+        samples.append(time.perf_counter() - start)
+    print(
+        name,
+        round(statistics.median(samples) * 1000, 3),
+        round(max(samples) * 1000, 3),
+    )
+```
+
+Recorded output in milliseconds, shown as median then maximum:
+
+```text
+object-count 169611
+attribute 3.502 4.126
+blob 3.113 3.819
+head 1.789 1.929
+history 3.795 4.884
+objects 155.260 179.915
+ref-list 3.241 4.916
+refs 3.797 22.681
+root 1.712 2.679
+tree 9.553 20.721
+```
+
+The object count comes from:
+
+```bash
+git --no-replace-objects cat-file --batch-check='%(objectname)' \
+  --batch-all-objects | wc -l
+```
+
 One fixed bound keeps local and CI behavior deterministic. An environment
 override would let the same commit pass locally and fail in CI. Per-operation
 budgets add policy without an observed need. Retries would multiply a local
