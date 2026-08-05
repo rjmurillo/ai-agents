@@ -104,15 +104,18 @@ Creates a PR with all guardrails enforced.
 
 **Usage**:
 
+Titles must follow conventional commit format. That check runs before
+`--skip-validation` is considered, so the flag does not bypass it.
+
 ```bash
 # Normal PR (runs validations)
 uv run --frozen python -m scripts.new_validated_pr --title "feat: Add feature" --body "Description"
 
 # Draft PR
-uv run --frozen python -m scripts.new_validated_pr --title "WIP: Feature" --draft
+uv run --frozen python -m scripts.new_validated_pr --title "feat: Add feature" --draft
 
 # Force mode (creates audit trail)
-uv run --frozen python -m scripts.new_validated_pr --title "hotfix" --skip-validation --audit-reason "hotfix"
+uv run --frozen python -m scripts.new_validated_pr --title "fix: Restore login" --skip-validation --audit-reason "hotfix"
 
 # Interactive mode
 uv run --frozen python -m scripts.new_validated_pr --web
