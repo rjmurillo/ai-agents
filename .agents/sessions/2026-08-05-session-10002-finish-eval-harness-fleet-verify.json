@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10002,
+    "date": "2026-08-05",
+    "branch": "fix/eval-harness-p2",
+    "startingCommit": "f720d5d68",
+    "objective": "Finish eval harness p2 fleet, verify findings, review, and merge"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project activation confirmed; initial instructions returned and semantic tools loaded."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena initial_instructions before code navigation."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read read-only .agents/HANDOFF.md and .agents/sessions/handoffs/2026-08-03-4123-handoff.md."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded the GitHub skill inventory and used its issue, PR, review, merge, and creation scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS skill usage rules and used no raw gh command."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS.md, GOTCHAS.md, root rules, and matching Python, test, script, and generated-artifact instructions."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read eval-harness-observations.md and eval-harness-surface-enumeration.md."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/eval-harness-p2"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/eval-harness-p2"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified fix/eval-harness-p2 at f720d5d68 with a clean tracked tree before work."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f720d5d68"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session start and end MUST items carry evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All implementation, review-fix, generator, and memory changes committed through e349e5317; this session log is the final artifact commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Final pre_pr.py exited 0; full eval suites, Ruff, mypy, generators, security scan, mutations, and targeted checks passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SQL verified fix-eval-harness-p2 and review-eval-harness-p2 both done."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: tests/eval/test_eval_rule_activation.py edited 7 times\nrework-warning: .serena/memories/eval-harness-observations.md edited 6 times\nrework-warning: tests/eval/test_providers.py edited 6 times\nrework-warning: tests/evals/test_eval_agent_vs_baseline.py edited 6 times"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reconstructed current issue and PR discourse",
+      "outcome": "Read direct and recursively linked issue and PR pages. #3957 is closed with the branch retaining the missing fixed registration details. #4121 and #4123 remain open, P2, reproducible, and merited. Linked #4119, #4120, #3592, #3588, and #3779 are closed, not planned, or superseded."
+    },
+    {
+      "action": "Merged current origin/main without rebasing",
+      "outcome": "Resolved two conflicts by preserving the malformed-metadata stop policy and current-main lint cleanup. Merge commit 24734be0d contains origin/main 1b98dbddd."
+    },
+    {
+      "action": "Reproduced and fixed an order-dependent eval test failure",
+      "outcome": "The registry audit replaced sys.modules['_providers']; a later routing test failed only in the full run. The audit now uses an isolated module name and preserves both present and absent prior state."
+    },
+    {
+      "action": "Ran mutation and inverted controls",
+      "outcome": "Seventeen defect mutations died and five cosmetic controls survived. Controls covered retry validation, malformed fingerprints, prompt argv leakage, tools, environment, redaction, reader joins, model IDs, absolute roots, and test isolation. Every source file restored byte-identically."
+    },
+    {
+      "action": "Completed security review",
+      "outcome": "Security agent returned ZERO FINDINGS. CWE-78 scan examined 32 changed Python files and found zero vulnerabilities."
+    },
+    {
+      "action": "Completed recursive GPT-5.6 Sol artifact reviews",
+      "outcome": "Four review rounds found six defects: boolean and non-integer retry budgets, launch error leakage, descendant pipe hangs, relative default home, and isolated-test absence. All were fixed. The fifth fresh review returned ZERO FINDINGS."
+    },
+    {
+      "action": "Ran full validation",
+      "outcome": "2316 passed and 4 skipped across full eval suites. Ruff passed 32 changed Python files. Mypy passed 30 canonical files plus both retry mirrors. Plugin sync, build_all --check, and final pre_pr.py exited 0."
+    },
+    {
+      "action": "Filed the observed process defect",
+      "outcome": "Issue #4671 records commit-file-count incorrectly treating generated mirrors as authored files after searches found no existing issue."
+    }
+  ],
+  "endingCommit": "e349e5317",
+  "nextSteps": []
+}
