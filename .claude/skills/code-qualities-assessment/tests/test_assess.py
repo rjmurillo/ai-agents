@@ -1154,6 +1154,48 @@ def test_unresolvable_base_is_an_error_not_a_pass(
         resolve_revision("no-such-ref")
 
 
+def test_no_common_ancestor_uses_the_resolved_base() -> None:
+    result = subprocess.CompletedProcess(
+        args=[],
+        returncode=1,
+        stdout="",
+        stderr="",
+    )
+    with patch.object(_mod, "resolve_revision", return_value="abc123"), patch(
+        "subprocess.run",
+        return_value=result,
+    ):
+        assert _mod.resolve_comparison_base("main") == "abc123"
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        subprocess.CompletedProcess(
+            args=[],
+            returncode=2,
+            stdout="",
+            stderr="fatal: repository unavailable",
+        ),
+        subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="",
+            stderr="",
+        ),
+    ],
+)
+def test_merge_base_operational_failures_do_not_fall_back(
+    result: subprocess.CompletedProcess[str],
+) -> None:
+    with patch.object(_mod, "resolve_revision", return_value="abc123"), patch(
+        "subprocess.run",
+        return_value=result,
+    ):
+        with pytest.raises(RuntimeError, match="git merge-base"):
+            _mod.resolve_comparison_base("main")
+
+
 def test_regression_mode_returns_1_when_base_blob_read_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

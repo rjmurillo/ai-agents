@@ -590,8 +590,13 @@ def resolve_comparison_base(base: str) -> str:
         check=False,
     )
     merge_base = result.stdout.strip()
-    if result.returncode != 0 or not merge_base:
+    if result.returncode == 1:
         return revision
+    if result.returncode != 0:
+        error = result.stderr.strip()
+        raise RuntimeError(f"git merge-base failed for {revision}: {error}")
+    if not merge_base:
+        raise RuntimeError(f"git merge-base returned no commit for {revision}")
     return merge_base
 
 
