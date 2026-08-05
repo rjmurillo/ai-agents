@@ -1,0 +1,101 @@
+{
+  "id": "episode-2026-08-04-session-9999-land-4568-post-merge-portability-hardening",
+  "session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Land PR 4568 post-merge portability hardening",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replayed four reviewed commits that merged PR #4568 did not contain",
+      "caused_by": [],
+      "leads_to": [
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added Windows skips for five symlink tests",
+      "caused_by": [],
+      "leads_to": [
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Centralized Git timeout detection and added operation-specific diagnostics",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran focused tests, Ruff, mypy, and independent code reviews",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed reviewer tool-output injection issue #4653 and updated rate-limit issue #4326",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T14:06:09+00:00",
+      "type": "commit",
+      "content": "Commit: eb5c54760",
+      "caused_by": [
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 1440,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

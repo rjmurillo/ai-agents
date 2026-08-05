@@ -1,0 +1,150 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9999,
+    "date": "2026-08-04",
+    "branch": "fix/4568-post-merge-portability-hardening",
+    "startingCommit": "71eedf65c",
+    "objective": "Land PR 4568 post-merge portability hardening"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena accepted project memory reads and writes for this repository"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions returned the Serena manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill script catalog loaded before GitHub writes"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4568-post-merge-portability-hardening"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4568-post-merge-portability-hardening"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked in /home/richard/src/scratch/doc-wrapper-portability-final"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "71eedf65c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST session start and session end items have evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session-end dry run confirmed .agents/HANDOFF.md was not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed portability/git-timeout-diagnostics in eb5c54760"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session-end dry run found no changed Markdown files"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, tests, and Serena memory committed; this session log is the final staged artifact"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed before the final session log commit"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todo state updated through the final evidence and review phases"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-04",
+      "action": "Replayed four reviewed commits that merged PR #4568 did not contain",
+      "result": "Recovery branch contains the reviewed portability tree"
+    },
+    {
+      "time": "2026-08-04",
+      "action": "Added Windows skips for five symlink tests",
+      "result": "Tests no longer assume Windows link privileges"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Centralized Git timeout detection and added operation-specific diagnostics",
+      "result": "Tree, ref, object, root, HEAD, baseline, and shared Git reads fail closed with useful errors"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Ran focused tests, Ruff, mypy, and independent code reviews",
+      "result": "185 focused tests and 23317 full-suite tests passed; both final review agents returned PASS"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Filed reviewer tool-output injection issue #4653 and updated rate-limit issue #4326",
+      "result": "Both process defects now have durable GitHub evidence"
+    }
+  ],
+  "endingCommit": "eb5c54760",
+  "nextSteps": [
+    "Run the exact pre-PR gate",
+    "Push the recovery branch and create the follow-up PR",
+    "Wait for CI, clear review threads, and merge",
+    "Run reflection and retrospective"
+  ]
+}
