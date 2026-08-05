@@ -63,6 +63,11 @@ class ACPProviderError(RuntimeError):
 
 
 @dataclass
+class _CharacterCounter:
+    value: int = 0
+
+
+@dataclass
 class _ProcessStreams:
     process: subprocess.Popen[str]
     process_tree: ProcessTree
@@ -71,7 +76,7 @@ class _ProcessStreams:
     stop_readers: threading.Event
     stdout_thread: threading.Thread
     stderr_thread: threading.Thread
-    protocol_chars: int = 0
+    protocol_chars: _CharacterCounter
     answer_chars: int = 0
 
 
@@ -92,6 +97,7 @@ def _read_stdout(
     stream: TextIO,
     lines: queue.Queue[str | BaseException | None],
     stop_readers: threading.Event,
+    protocol_chars: _CharacterCounter,
 ) -> None:
     try:
         while not stop_readers.is_set():
@@ -102,6 +108,14 @@ def _read_stdout(
                 _put_stdout(
                     lines,
                     RuntimeError("Copilot ACP protocol line exceeded the size limit"),
+                    stop_readers,
+                )
+                return
+            protocol_chars.value += len(line)
+            if protocol_chars.value > _MAX_PROTOCOL_CHARS:
+                _put_stdout(
+                    lines,
+                    RuntimeError("Copilot ACP protocol exceeded the size limit"),
                     stop_readers,
                 )
                 return
@@ -160,9 +174,10 @@ def _start_process(
     )
     stderr_chunks: list[str] = []
     stop_readers = threading.Event()
+    protocol_chars = _CharacterCounter()
     stdout_thread = threading.Thread(
         target=_read_stdout,
-        args=(process.stdout, stdout_lines, stop_readers),
+        args=(process.stdout, stdout_lines, stop_readers, protocol_chars),
         daemon=True,
     )
     stderr_thread = threading.Thread(
@@ -180,6 +195,7 @@ def _start_process(
         stop_readers,
         stdout_thread,
         stderr_thread,
+        protocol_chars,
     )
 
 
@@ -279,9 +295,6 @@ def _wait_for_response(
             )
         if isinstance(raw_line, BaseException):
             raise raw_line
-        streams.protocol_chars += len(raw_line)
-        if streams.protocol_chars > _MAX_PROTOCOL_CHARS:
-            raise RuntimeError("Copilot ACP protocol exceeded the size limit")
         message = _parse_message(raw_line)
         if message.get("id") == request_id:
             if "error" in message:
@@ -369,6 +382,39 @@ def _request(
     )
 
 
+def _drain_stdout_after_close(
+    streams: _ProcessStreams,
+    answer_chunks: list[str],
+    *,
+    deadline: float,
+    timeout: float,
+) -> None:
+    process = streams.process
+    if process.stdin is not None and not process.stdin.closed:
+        process.stdin.close()
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired(streams.process.args, timeout) from None
+        try:
+            raw_line = streams.stdout_lines.get(
+                timeout=min(remaining, _QUEUE_WAIT_SECONDS)
+            )
+        except queue.Empty:
+            if streams.process.poll() is not None:
+                return
+            continue
+        if raw_line is None:
+            return
+        if isinstance(raw_line, BaseException):
+            raise raw_line
+        message = _parse_message(raw_line)
+        if "id" in message and isinstance(message.get("method"), str):
+            raise RuntimeError("Copilot ACP requested a disabled client capability")
+        if message.get("method") == "session/update":
+            _consume_update(message, answer_chunks, streams)
+
+
 def _run_session(
     streams: _ProcessStreams,
     prompt: str,
@@ -445,6 +491,12 @@ def run_acp_completion(
             streams,
             prompt,
             cwd,
+            deadline=deadline,
+            timeout=timeout,
+        )
+        _drain_stdout_after_close(
+            streams,
+            answer_chunks,
             deadline=deadline,
             timeout=timeout,
         )

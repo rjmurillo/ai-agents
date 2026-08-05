@@ -315,7 +315,12 @@ def test_stdout_reader_applies_queue_backpressure(
     stop_readers = threading.Event()
     reader = threading.Thread(
         target=acp_module._read_stdout,
-        args=(io.StringIO("first\nsecond\n"), lines, stop_readers),
+        args=(
+            io.StringIO("first\nsecond\n"),
+            lines,
+            stop_readers,
+            acp_module._CharacterCounter(),
+        ),
     )
 
     reader.start()
@@ -348,30 +353,21 @@ def test_protocol_character_budget_is_cumulative(
 ) -> None:
     monkeypatch.setattr(acp_module, "_MAX_PROTOCOL_CHARS", 100)
     lines: queue.Queue[str | BaseException | None] = queue.Queue()
-    update = json.dumps(
-        {
-            "jsonrpc": "2.0",
-            "method": "session/update",
-            "params": {"update": {"sessionUpdate": "plan"}},
-        }
-    )
-    lines.put(update + "\n")
-    lines.put(update + "\n")
-    streams = SimpleNamespace(
-        process=SimpleNamespace(args=[]),
-        stdout_lines=lines,
-        stderr_chunks=[],
-        protocol_chars=0,
+    stop_readers = threading.Event()
+    counter = acp_module._CharacterCounter()
+
+    acp_module._read_stdout(
+        io.StringIO("x" * 60 + "\n" + "y" * 60 + "\n"),
+        lines,
+        stop_readers,
+        counter,
     )
 
-    with pytest.raises(RuntimeError, match="protocol exceeded the size limit"):
-        acp_module._wait_for_response(
-            streams,
-            99,
-            deadline=time.monotonic() + 1.0,
-            timeout=1.0,
-            answer_chunks=[],
-        )
+    assert isinstance(lines.get_nowait(), str)
+    error = lines.get_nowait()
+    assert isinstance(error, RuntimeError)
+    assert "protocol exceeded the size limit" in str(error)
+    assert counter.value > 100
 
 
 def test_protocol_character_budget_spans_requests(
@@ -385,33 +381,20 @@ def test_protocol_character_budget_spans_requests(
         "_MAX_PROTOCOL_CHARS",
         len(first) + len(second) - 1,
     )
-    streams = SimpleNamespace(
-        process=SimpleNamespace(args=[]),
-        stdout_lines=lines,
-        stderr_chunks=[],
-        protocol_chars=0,
-    )
-    lines.put(first)
-    assert (
-        acp_module._wait_for_response(
-            streams,
-            1,
-            deadline=time.monotonic() + 1.0,
-            timeout=1.0,
-            answer_chunks=[],
-        )
-        == {}
-    )
-    lines.put(second)
+    stop_readers = threading.Event()
+    counter = acp_module._CharacterCounter()
 
-    with pytest.raises(RuntimeError, match="protocol exceeded the size limit"):
-        acp_module._wait_for_response(
-            streams,
-            2,
-            deadline=time.monotonic() + 1.0,
-            timeout=1.0,
-            answer_chunks=[],
-        )
+    acp_module._read_stdout(
+        io.StringIO(first + second),
+        lines,
+        stop_readers,
+        counter,
+    )
+
+    assert isinstance(lines.get_nowait(), str)
+    error = lines.get_nowait()
+    assert isinstance(error, RuntimeError)
+    assert counter.value == len(first) + len(second)
 
 
 def test_answer_character_budget_updates_incrementally(
@@ -491,6 +474,39 @@ def test_newline_free_protocol_output_has_a_line_limit(
             env={"PATH": os.environ.get("PATH", os.defpath)},
             timeout=10.0,
         )
+
+
+def test_post_close_output_is_drained_before_waiting_for_exit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(acp_module, "_STDOUT_QUEUE_LINES", 2)
+    fake = _write_fake_acp(tmp_path)
+    flooded = _FAKE_ACP.replace(
+        '    if method == "session/close":\n'
+        '        emit({"jsonrpc": "2.0", "id": request_id, "result": {}})\n'
+        "        continue\n",
+        '    if method == "session/close":\n'
+        '        emit({"jsonrpc": "2.0", "id": request_id, "result": {}})\n'
+        "        for _ in range(10000):\n"
+        "            emit({\n"
+        '                "jsonrpc": "2.0",\n'
+        '                "method": "session/update",\n'
+        '                "params": {"update": {"sessionUpdate": "plan"}},\n'
+        "            })\n"
+        "        continue\n",
+    )
+    fake.write_text(flooded, encoding="utf-8")
+
+    completed = run_acp_completion(
+        _safe_argv(fake),
+        "WRITE_MARKER:/unused",
+        cwd=str(tmp_path),
+        env={"PATH": os.environ.get("PATH", os.defpath)},
+        timeout=10.0,
+    )
+
+    assert completed.returncode == 0
 
 
 def test_timeout_exception_does_not_receive_prompt_in_command(
