@@ -138,8 +138,15 @@
       "time": "2026-08-05T13:00:00-07:00",
       "action": "Validated the remediation",
       "result": "94 targeted tests passed; scoped Ruff and mypy passed; coverage was 84%; mutation controls failed on both restored defects; merge-tree ratchet and pre_pr passed."
+    },
+    {
+      "time": "2026-08-05T19:35:04Z",
+      "action": "Recorded required security review",
+      "result": "Root lefthook.yml changed through recovered commit dc7393d0b, so security PIV remains required before merge."
     }
   ],
   "endingCommit": "955af9fb6",
-  "nextSteps": []
+  "nextSteps": [
+    "Route lefthook.yml to security PIV before merge."
+  ]
 }
