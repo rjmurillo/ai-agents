@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import queue
+import signal
 import subprocess
 import threading
 import time
@@ -13,6 +15,8 @@ from typing import Literal, TextIO, cast
 _PROTOCOL_VERSION = 1
 _MAX_CAPTURE_CHARS = 4 * 1024 * 1024
 _STDERR_CLASSIFICATION_CHARS = 4096
+_PROCESS_WAIT_SECONDS = 5.0
+_READER_JOIN_SECONDS = 5.0
 _TOOL_UPDATE_NAMES = frozenset({"tool_call", "tool_call_update"})
 _AUTH_HINTS = (
     "auth",
@@ -63,19 +67,26 @@ class _ProcessStreams:
 
 
 def _read_stdout(stream: TextIO, lines: queue.Queue[str | None]) -> None:
-    for line in stream:
-        lines.put(line)
-    lines.put(None)
+    try:
+        for line in stream:
+            lines.put(line)
+    except (OSError, ValueError):
+        pass
+    finally:
+        lines.put(None)
 
 
 def _read_stderr(stream: TextIO, chunks: list[str]) -> None:
     remaining = _STDERR_CLASSIFICATION_CHARS
-    while data := stream.read(1024):
-        if remaining <= 0:
-            continue
-        kept = data[:remaining]
-        chunks.append(kept)
-        remaining -= len(kept)
+    try:
+        while data := stream.read(1024):
+            if remaining <= 0:
+                continue
+            kept = data[:remaining]
+            chunks.append(kept)
+            remaining -= len(kept)
+    except (OSError, ValueError):
+        pass
 
 
 def _start_process(
@@ -95,6 +106,12 @@ def _start_process(
         cwd=cwd,
         env=env,
         shell=False,
+        start_new_session=os.name != "nt",
+        creationflags=(
+            int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+            if os.name == "nt"
+            else 0
+        ),
     )
     if process.stdout is None or process.stderr is None:
         process.kill()
@@ -225,37 +242,85 @@ def _wait_for_response(
             _consume_update(message, answer_chunks)
 
 
-def _join_readers(streams: _ProcessStreams) -> None:
-    streams.stdout_thread.join()
-    streams.stderr_thread.join()
+def _terminate_process_tree(
+    process: subprocess.Popen[str],
+    *,
+    force: bool,
+) -> None:
+    if os.name == "nt":
+        if not force:
+            try:
+                os.kill(
+                    process.pid,
+                    getattr(signal, "CTRL_BREAK_EVENT", signal.SIGTERM),
+                )
+                return
+            except (OSError, ValueError):
+                pass
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            if process.poll() is None:
+                process.kill()
+        return
+
+    try:
+        os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+
+
+def _join_readers(streams: _ProcessStreams) -> bool:
+    deadline = time.monotonic() + _READER_JOIN_SECONDS
+    for reader in (streams.stdout_thread, streams.stderr_thread):
+        reader.join(max(0.0, deadline - time.monotonic()))
+    if not streams.stdout_thread.is_alive() and not streams.stderr_thread.is_alive():
+        return True
+
+    _terminate_process_tree(streams.process, force=True)
+    deadline = time.monotonic() + _READER_JOIN_SECONDS
+    for reader in (streams.stdout_thread, streams.stderr_thread):
+        reader.join(max(0.0, deadline - time.monotonic()))
+    return not streams.stdout_thread.is_alive() and not streams.stderr_thread.is_alive()
+
+
+def _wait_for_process(streams: _ProcessStreams) -> int:
+    process = streams.process
+    try:
+        return process.wait(timeout=_PROCESS_WAIT_SECONDS)
+    except subprocess.TimeoutExpired:
+        _terminate_process_tree(process, force=False)
+    try:
+        return process.wait(timeout=_PROCESS_WAIT_SECONDS)
+    except subprocess.TimeoutExpired:
+        _terminate_process_tree(process, force=True)
+        return process.wait(timeout=_PROCESS_WAIT_SECONDS)
 
 
 def _close_process(streams: _ProcessStreams) -> int:
     process = streams.process
     if process.stdin is not None and not process.stdin.closed:
         process.stdin.close()
-    try:
-        returncode = process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.terminate()
-        try:
-            returncode = process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            returncode = process.wait(timeout=5)
-    _join_readers(streams)
+    returncode = _wait_for_process(streams)
+    if not _join_readers(streams):
+        raise RuntimeError("Copilot ACP reader cleanup timed out")
     return returncode
 
 
 def _stop_process(streams: _ProcessStreams) -> None:
     process = streams.process
+    _terminate_process_tree(process, force=False)
     if process.poll() is None:
-        process.terminate()
         try:
-            process.wait(timeout=5)
+            process.wait(timeout=_PROCESS_WAIT_SECONDS)
         except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=5)
+            _terminate_process_tree(process, force=True)
+            process.wait(timeout=_PROCESS_WAIT_SECONDS)
     _join_readers(streams)
 
 

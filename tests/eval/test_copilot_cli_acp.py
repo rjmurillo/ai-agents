@@ -264,6 +264,45 @@ def test_delayed_stderr_is_joined_before_process_failure_is_classified(
     assert exc_info.value.stderr == "authentication failed after delay"
 
 
+@pytest.mark.timeout(3)
+def test_descendant_holding_pipes_cannot_hang_reader_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(acp_module, "_PROCESS_WAIT_SECONDS", 0.1)
+    monkeypatch.setattr(acp_module, "_READER_JOIN_SECONDS", 0.1)
+    fake = _write_fake_acp(tmp_path)
+    broken = _FAKE_ACP.replace(
+        "import sys\n",
+        "import subprocess\nimport sys\nimport time\n",
+    ).replace(
+        '    if method == "session/close":\n'
+        '        emit({"jsonrpc": "2.0", "id": request_id, "result": {}})\n'
+        "        continue\n",
+        '    if method == "session/close":\n'
+        "        subprocess.Popen(\n"
+        '            [sys.executable, "-c", "import time; time.sleep(60)"],\n'
+        "            stdout=sys.stdout,\n"
+        "            stderr=sys.stderr,\n"
+        "        )\n"
+        '        emit({"jsonrpc": "2.0", "id": request_id, "result": {}})\n'
+        "        continue\n",
+    )
+    fake.write_text(broken, encoding="utf-8")
+
+    started = time.monotonic()
+    completed = run_acp_completion(
+        _safe_argv(fake),
+        "WRITE_MARKER:/unused",
+        cwd=str(tmp_path),
+        env={"PATH": os.environ.get("PATH", os.defpath)},
+        timeout=10.0,
+    )
+
+    assert completed.returncode == 0
+    assert time.monotonic() - started < 2.0
+
+
 def test_timeout_exception_does_not_receive_prompt_in_command(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
