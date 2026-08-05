@@ -15,8 +15,10 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 from scripts.ci import cli_exit_contract_ratchet as ratchet
+from scripts.validation import checks_ratchet
 
 _SCRIPT_WITH_MAIN = "def main(argv=None):\n    return 0\n"
 _SCRIPT_WITHOUT_MAIN = "def helper():\n    return 0\n"
@@ -364,15 +366,17 @@ def test_ratchet_registered_with_base_ref_in_checks_ratchet() -> None:
 
     Issue #4528 comment: the gate accepted only ``--update`` (decrease) with no
     one-directional guard. Adding it to the RATCHETS registry with
-    ``uses_base_ref=True`` means the pre-push runner and pre-PR gate both pass
-    ``--base-ref origin/main``, so a raised baseline fails locally before a push
-    rather than only on CI.
+    ``uses_base_ref=True`` makes ``checks_ratchet.build_command`` append
+    ``--base-ref`` to the invocation, so a raised baseline fails locally before a
+    push rather than only on CI.
+
+    The ref is resolved per environment, not hardcoded. The runner calls
+    ``_resolve_default_base_ref`` in ``scripts/validation/checks_common.py``,
+    which prefers the PR's own ``baseRefName``, then ``refs/remotes/origin/HEAD``,
+    then falls back to ``origin/main`` and ``main``. CI passes
+    ``--base-ref FETCH_HEAD``. What this test pins is that ``--base-ref`` is
+    passed at all, not which ref it names.
     """
-    import sys
-
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "validation"))
-    import checks_ratchet
-
     names = {r.job_name: r for r in checks_ratchet.RATCHETS}
     assert "cli-exit-contract-ratchet" in names, (
         "cli-exit-contract-ratchet is missing from RATCHETS in "
@@ -394,15 +398,30 @@ def test_ci_invocation_passes_base_ref() -> None:
     merge. Only the --base-ref comparison can distinguish a genuine decrease
     from a raised allowance.
     """
-    workflow = (
+    workflow_path = (
         Path(__file__).resolve().parents[2]
         / ".github"
         / "workflows"
         / "pr-validation.yml"
-    ).read_text(encoding="utf-8")
+    )
+    with workflow_path.open(encoding="utf-8") as handle:
+        workflow = yaml.safe_load(handle)
 
-    assert "--base-ref" in workflow.split("cli_exit_contract_ratchet.py")[1].split("\n")[0], (
-        "The CI step for cli_exit_contract_ratchet.py in pr-validation.yml "
-        "must pass --base-ref so a raised baseline is caught. "
+    runs = [
+        step["run"]
+        for job in (workflow.get("jobs") or {}).values()
+        for step in (job.get("steps") or [])
+        if "cli_exit_contract_ratchet.py" in (step.get("run") or "")
+    ]
+
+    assert runs, (
+        "pr-validation.yml has no step that runs cli_exit_contract_ratchet.py. "
+        "The gate cannot catch a raised baseline if it never runs. "
         "See issue #4528."
     )
+    for run in runs:
+        assert "--base-ref" in run, (
+            "The CI step for cli_exit_contract_ratchet.py in pr-validation.yml "
+            f"must pass --base-ref so a raised baseline is caught. Got: {run!r}. "
+            "See issue #4528."
+        )

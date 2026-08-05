@@ -3,8 +3,8 @@
 Issue #4502: the test job had no timeout-minutes, so a hung pytest session
 would hold a runner for GitHub's 360-minute default before terminating.
 The measured p99 wall time is 1546 seconds (26 min) under fleet load.
-A 45-minute budget covers 2x that worst case and terminates genuine hangs
-well before the 6-hour default.
+The 45-minute budget allows 1.7x that worst case and terminates genuine
+hangs well before the 6-hour default.
 """
 
 from __future__ import annotations
@@ -42,8 +42,10 @@ class TestTestJobTimeout:
     def test_test_job_timeout_is_at_most_60_minutes(self) -> None:
         """The timeout must not be so large that it defeats the purpose.
 
-        p99 suite wall time is 1546 s (~26 min). A ceiling of 60 min gives
-        2x headroom while still terminating genuine hangs in under an hour.
+        p99 suite wall time is 1546 s (~26 min). A ceiling of 60 min allows
+        2.3x that and still terminates genuine hangs in under an hour. 60 is
+        the upper bound this test enforces, not the configured value: the
+        workflow sets 45, which allows 1.7x.
         """
         workflow = _load_workflow()
         jobs = workflow.get("jobs", {})
@@ -52,6 +54,8 @@ class TestTestJobTimeout:
         assert timeout is not None, "timeout-minutes not set"
         assert isinstance(timeout, int), f"timeout-minutes must be an integer, got {timeout!r}"
         assert timeout <= 60, (
-            f"timeout-minutes is {timeout}, which gives less than 6x the measured p99 "
-            "wall time of 26 min. A lower ceiling terminates hangs faster."
+            f"timeout-minutes is {timeout}, above the 60 min ceiling. Measured p99 "
+            f"suite wall time is 26 min, so 60 already allows 2.3x it. {timeout} "
+            f"allows {timeout / 26:.1f}x and delays termination of a genuine hang "
+            "by that much."
         )
