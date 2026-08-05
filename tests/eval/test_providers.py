@@ -14,7 +14,7 @@ import tempfile
 import time
 import types
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -1887,28 +1887,96 @@ def test_symlinked_transcript_is_refused(tmp_path: Path) -> None:
         )
 
 
+def test_symlinked_session_directory_is_not_followed(tmp_path: Path) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside.mkdir(exist_ok=True)
+    (outside / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "type": "session.start",
+                "data": {"context": {"cwd": "sandbox"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    link = tmp_path / "linked-session"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlink creation unavailable")
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+
+    result = transcript_module.read_session_transcript(
+        tmp_path,
+        "sandbox",
+        since=0.0,
+        provider_label="Copilot CLI",
+        deadline=time.monotonic() + 1.0,
+    )
+
+    assert result is None
+
+
+def test_nonmatching_entries_are_counted_toward_discovery_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    for index in range(3):
+        (tmp_path / f"unrelated-{index}.txt").write_text("", encoding="utf-8")
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(transcript_module, "_MAX_SESSION_ENTRIES", 2)
+
+    with pytest.raises(RuntimeError, match="directory entry limit exceeded"):
+        transcript_module.read_session_transcript(
+            tmp_path,
+            "sandbox",
+            since=0.0,
+            provider_label="Copilot CLI",
+            deadline=time.monotonic() + 1.0,
+        )
+
+
 def test_transcript_scan_obeys_its_deadline(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    paths = []
+    directories = []
     for index in range(3):
         session_dir = tmp_path / f"session-{index}"
         session_dir.mkdir()
         path = session_dir / "events.jsonl"
         path.write_text("", encoding="utf-8")
-        paths.append(path)
+        directories.append(session_dir)
     yielded = 0
 
-    class FakeRoot:
-        def glob(self, pattern: str):
+    class FakeEntry:
+        def __init__(self, path: Path) -> None:
+            self.name = path.name
+            self.path = str(path)
+
+        def is_dir(self, *, follow_symlinks: bool) -> bool:
+            assert follow_symlinks is False
+            return True
+
+    class FakeScandir:
+        def __enter__(self) -> FakeScandir:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def __iter__(self):
             nonlocal yielded
-            assert pattern == "*/events.jsonl"
-            for path in paths:
+            for path in directories:
                 yielded += 1
-                yield path
+                yield FakeEntry(path)
 
     transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(
+        transcript_module.os,
+        "scandir",
+        lambda root: FakeScandir(),
+    )
     clock = iter([0.0, 2.0])
     monkeypatch.setattr(
         transcript_module.time,
@@ -1918,7 +1986,7 @@ def test_transcript_scan_obeys_its_deadline(
 
     with pytest.raises(RuntimeError, match="transcript scan timed out"):
         transcript_module.read_session_transcript(
-            cast(Any, FakeRoot()),
+            tmp_path,
             "sandbox",
             since=0.0,
             provider_label="Copilot CLI",

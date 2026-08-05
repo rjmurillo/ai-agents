@@ -7,6 +7,7 @@ import os
 import re
 import stat
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
 
@@ -14,6 +15,7 @@ from _eval_common import MalformedProviderMetadataError, require_str_or_none
 
 _COPILOT_HOME_ENV = "COPILOT_HOME"
 _MODEL_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}")
+_MAX_SESSION_ENTRIES = 4096
 _MAX_TRANSCRIPT_CANDIDATES = 256
 _MAX_TRANSCRIPT_LINE_CHARS = 1024 * 1024
 _MAX_TRANSCRIPT_CHARS = 4 * 1024 * 1024
@@ -44,6 +46,12 @@ def session_state_root(env_name: str, provider_label: str) -> Path:
             f"{provider_label} needs the home directory to be absolute"
         )
     return home / ".copilot" / "session-state"
+
+
+@dataclass(frozen=True, slots=True)
+class _TranscriptCandidate:
+    session_name: str
+    modified_at: float
 
 
 def _parse_event(
@@ -107,8 +115,58 @@ def _model_that_spoke(
     return message_models[0]
 
 
+def _open_transcript(
+    root: Path,
+    session_name: str,
+    provider_label: str,
+) -> tuple[int, os.stat_result]:
+    file_flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
+    file_flags |= getattr(os, "O_NOFOLLOW", 0)
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    directory_flags |= getattr(os, "O_NOFOLLOW", 0)
+
+    if os.name == "nt":
+        session_path = root / session_name
+        session_metadata = session_path.lstat()
+        if (
+            stat.S_ISLNK(session_metadata.st_mode)
+            or not stat.S_ISDIR(session_metadata.st_mode)
+        ):
+            raise RuntimeError(
+                f"{provider_label} session directory is not a regular directory"
+            )
+        descriptor = os.open(session_path / "events.jsonl", file_flags)
+    else:
+        root_descriptor = os.open(root, directory_flags)
+        try:
+            session_descriptor = os.open(
+                session_name,
+                directory_flags,
+                dir_fd=root_descriptor,
+            )
+            try:
+                descriptor = os.open(
+                    "events.jsonl",
+                    file_flags,
+                    dir_fd=session_descriptor,
+                )
+            finally:
+                os.close(session_descriptor)
+        finally:
+            os.close(root_descriptor)
+
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode):
+        os.close(descriptor)
+        raise RuntimeError(
+            f"{provider_label} session transcript is not a regular file"
+        )
+    return descriptor, metadata
+
+
 def _read_matching_session(
-    path: Path,
+    root: Path,
+    candidate: _TranscriptCandidate,
     sandbox: str,
     provider_label: str,
     since: float,
@@ -120,25 +178,14 @@ def _read_matching_session(
     chunks: list[str] = []
     total_chars = 0
     try:
-        metadata = path.lstat()
-        if (
-            stat.S_ISLNK(metadata.st_mode)
-            or not stat.S_ISREG(metadata.st_mode)
-        ):
-            raise RuntimeError(
-                f"{provider_label} session transcript is not a regular file"
-            )
+        descriptor, metadata = _open_transcript(
+            root,
+            candidate.session_name,
+            provider_label,
+        )
         if metadata.st_mtime < since:
-            return None
-        flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
-        flags |= getattr(os, "O_NOFOLLOW", 0)
-        descriptor = os.open(path, flags)
-        opened_metadata = os.fstat(descriptor)
-        if not stat.S_ISREG(opened_metadata.st_mode):
             os.close(descriptor)
-            raise RuntimeError(
-                f"{provider_label} session transcript is not a regular file"
-            )
+            return None
         with os.fdopen(
             descriptor,
             encoding="utf-8",
@@ -201,41 +248,54 @@ def read_session_transcript(
     deadline: float,
 ) -> tuple[str, str | None] | None:
     """Return the answer and the one model that authored all accepted text."""
-    candidates: list[Path] = []
+    candidates: list[_TranscriptCandidate] = []
+    entries_seen = 0
     try:
-        for path in root.glob("*/events.jsonl"):
-            if time.monotonic() >= deadline:
-                raise RuntimeError(
-                    f"{provider_label} session transcript scan timed out"
+        with os.scandir(root) as entries:
+            for entry in entries:
+                entries_seen += 1
+                if entries_seen > _MAX_SESSION_ENTRIES:
+                    raise RuntimeError(
+                        f"{provider_label} session directory entry limit exceeded"
+                    )
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(
+                        f"{provider_label} session transcript scan timed out"
+                    )
+                if not entry.is_dir(follow_symlinks=False):
+                    continue
+                path = Path(entry.path) / "events.jsonl"
+                try:
+                    metadata = path.lstat()
+                except OSError:
+                    continue
+                if (
+                    stat.S_ISLNK(metadata.st_mode)
+                    or not stat.S_ISREG(metadata.st_mode)
+                ):
+                    raise RuntimeError(
+                        f"{provider_label} session transcript is not a regular file"
+                    )
+                if metadata.st_mtime < since:
+                    continue
+                candidates.append(
+                    _TranscriptCandidate(entry.name, metadata.st_mtime)
                 )
-            try:
-                metadata = path.lstat()
-            except OSError:
-                continue
-            if (
-                stat.S_ISLNK(metadata.st_mode)
-                or not stat.S_ISREG(metadata.st_mode)
-            ):
-                raise RuntimeError(
-                    f"{provider_label} session transcript is not a regular file"
-                )
-            if metadata.st_mtime < since:
-                continue
-            candidates.append(path)
-            if len(candidates) > _MAX_TRANSCRIPT_CANDIDATES:
-                raise RuntimeError(
-                    f"{provider_label} session transcript candidate limit exceeded"
-                )
+                if len(candidates) > _MAX_TRANSCRIPT_CANDIDATES:
+                    raise RuntimeError(
+                        f"{provider_label} session transcript candidate limit exceeded"
+                    )
     except OSError:
         return None
-    candidates.sort()
-    for path in candidates:
+    candidates.sort(key=lambda candidate: candidate.session_name)
+    for candidate in candidates:
         if time.monotonic() >= deadline:
             raise RuntimeError(
                 f"{provider_label} session transcript scan timed out"
             )
         transcript = _read_matching_session(
-            path,
+            root,
+            candidate,
             sandbox,
             provider_label,
             since,
