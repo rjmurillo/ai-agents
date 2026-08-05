@@ -19,7 +19,7 @@ This rule binds those claims to evidence. It exists because PR #1887 (the M4 evi
 
 ## What this rule binds
 
-This rule binds any new component under `.claude/hooks/`, `.claude/rules/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, or `.github/prompts/` whose contract is derived from another source in the repository. The two Copilot-side mirrors scope differently by consumer. `.github/instructions/canonical-source-mirror.instructions.md`, read by Copilot in full-repo context, keeps the full path set (`.claude/hooks/**`, `.claude/rules/**`, `scripts/validation/**`, `build/scripts/**`, `.claude/skills/**`, `.github/prompts/**`). Its `src/copilot-cli/` twin ships inside the plugin, so it narrows to the paths that travel with the plugin (`scripts/validation/**`, `build/scripts/**`, `.github/prompts/**`). The rule still binds the `.claude/` paths on the Claude side. Examples:
+This rule binds any new component under `.claude/hooks/`, `.claude/rules/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, `.github/prompts/`, `.agents/governance/`, or `.agents/retrospective/` whose contract is derived from another source in the repository. The two Copilot-side mirrors scope differently by consumer. `.github/instructions/canonical-source-mirror.instructions.md`, read by Copilot in full-repo context, keeps the full path set (`.claude/hooks/**`, `.claude/rules/**`, `scripts/validation/**`, `build/scripts/**`, `.claude/skills/**`, `.github/prompts/**`, `.agents/governance/**`, `.agents/retrospective/**`). Its `src/copilot-cli/` twin ships inside the plugin, so it narrows to the paths that travel with the plugin (`scripts/validation/**`, `build/scripts/**`, `.github/prompts/**`). The rule still binds the `.claude/` paths on the Claude side. Examples:
 
 - A pre-push hook that "mirrors" a CI validator's regex.
 - A skill helper that "matches" the exit codes of a validator script.
@@ -106,7 +106,7 @@ Nothing in this repository catches that. Two gates look like they would and neit
 
 To every gate in the repository, a citation to a symbol is ordinary prose. The only check is the one you run.
 
-Before you merge a document that names a test, a symbol, or a count, run `git grep -n "<name>"` **in the worktree of the branch that will merge**, not the one you did the work in. If it returns nothing, either move the documentation to the branch that owns the code or move the code.
+Before you merge a document that names a test, a symbol, or a count, run `git grep -nF -- "<name>"` **in the worktree of the branch that will merge**, not the one you did the work in. If it returns nothing, either move the documentation to the branch that owns the code or move the code.
 
 The same applies to numbers. A count is a measurement of a commit, not a permanent fact. Re-run it against the tree you are shipping.
 
