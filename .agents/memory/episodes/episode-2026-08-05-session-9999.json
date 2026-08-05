@@ -1,0 +1,93 @@
+{
+  "id": "episode-2026-08-05-session-9999",
+  "session": "2026-08-05-session-9999",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issues 4600 and 4580: add root staged scratch gate, correct implementer .agents scaffold predicate, test and mutation prove",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T06:20:00+00:00",
+      "type": "milestone",
+      "content": "Triage #4600: reproduced current gap by staging root-hygiene-probe.txt. Existing staged-dashes and staged-conflict-markers gates returned 0. Reference clone root listing had 25 nontracked root entries, including wt_drift/ and wt_encoding/.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T06:35:00+00:00",
+      "type": "milestone",
+      "content": "Triage #4580: read #1908 discussion and implementer prompt. Current predicate had no SESSION-PROTOCOL.md or consumer-owned check and blocked when .agents/HANDOFF.md was absent.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T07:05:00+00:00",
+      "type": "milestone",
+      "content": "Implemented root-hygiene pre-commit command keyed to an allowlist of 48 tracked root entries, with MERGE_HEAD skip and deletion allowance.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T07:20:00+00:00",
+      "type": "milestone",
+      "content": "Updated implementer prompts to key scaffold gates on .agents/SESSION-PROTOCOL.md ownership rather than .agents directory presence, then regenerated agent mirrors.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005",
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T07:40:00+00:00",
+      "type": "milestone",
+      "content": "Validation: targeted pytest 44 passed, ruff passed, generate_agents validate passed, root-hygiene live probe returned rc=1 for staged root scratch file, mutation proof passed.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T07:40:00+00:00",
+      "type": "test",
+      "content": "Validation: targeted pytest 44 passed, ruff passed, generate_agents validate passed, root-hygiene live probe returned rc=1 for staged root scratch file, mutation proof passed.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9999"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 80,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}
