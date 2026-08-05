@@ -147,3 +147,4 @@
 |fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (939)
 |token efficiency: [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
 |passive context research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (447)
+|serena subdirectory convention nested read_memory rglob enumeration: [memory/serena-memory-subdirectory-convention](memory/serena-memory-subdirectory-convention.md) (1146)
