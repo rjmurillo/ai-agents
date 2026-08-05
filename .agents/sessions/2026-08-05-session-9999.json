@@ -3,26 +3,26 @@
   "session": {
     "number": 9999,
     "date": "2026-08-05",
-    "branch": "fix/4524-4497-portability-isolation",
+    "branch": "fix/4519-4520-coupling-diffbase",
     "startingCommit": "5ec85be51a",
-    "objective": "Fix issues 4524 and 4497 portability isolation restore failure"
+    "objective": "Fix issues 4519 and 4520 coupling threshold and diff-base gates"
   },
   "protocolCompliance": {
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena activate_project unavailable in this Copilot tool set; initial instructions loaded."
+        "Evidence": "Serena activate_project tool was unavailable in Copilot; initial_instructions loaded and symbolic overview worked on doc_accuracy.py."
       },
       "serenaInstructions": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "serena-initial_instructions returned the Serena manual."
+        "Evidence": "serena-initial_instructions returned manual before code work."
       },
       "handoffRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read .agents/HANDOFF.md as read-only reference."
+        "Evidence": ".agents/HANDOFF.md read at session start."
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -32,37 +32,37 @@
       "skillScriptsListed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Loaded git workflow, incremental implementation, TDD, and session-init skills."
+        "Evidence": "find .claude/skills/github/scripts listed GitHub scripts."
       },
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read Serena memory usage-mandatory."
+        "Evidence": ".serena/memories/usage-mandatory.md read."
       },
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read PROJECT-CONSTRAINTS.md and TESTING-RIGOR.md."
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read."
       },
       "memoriesLoaded": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena portability topic returned no entries; usage-mandatory memory read."
+        "Evidence": "memory-index and usage-mandatory loaded for GitHub, testing, and validation context."
       },
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "fix/4524-4497-portability-isolation"
+        "Evidence": "fix/4519-4520-coupling-diffbase"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On fix/4524-4497-portability-isolation"
+        "Evidence": "On fix/4519-4520-coupling-diffbase"
       },
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Verified worktree status before work and after mutation proof."
+        "Evidence": "git status checked in fix worktree before edits."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -74,65 +74,69 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session start and end checklist fields completed in this log."
+        "Evidence": "Session log updated before commit."
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No edits made to .agents/HANDOFF.md."
+        "Evidence": ".agents/HANDOFF.md was not modified."
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No Serena memory file written because .serena/memories/memory-index.md is excluded by user instruction."
+        "Evidence": "No new durable memory needed; issue-specific evidence is in PR and scratch cache."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No repository Markdown files changed; markdownlint not applicable."
+        "Evidence": "No Markdown files changed in the authored diff."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code changes committed in 856e1d282b; this session log is the follow-up commit."
+        "Evidence": "One implementation commit: 6e88bf71c23a8cac2ac38fa2f8d0e3002f7f8688. This follow-up records the amended SHA."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Targeted pytest, ruff, CI script wiring, mutation harness, and session JSON validation passed."
+        "Evidence": "pytest doc_accuracy 51 passed, ruff changed Python passed, mutation table passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Session SQL todos updated through implementation, test, and PR steps."
+        "Evidence": "Todos tracked in session SQL and marked through validation phase."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "Not invoked; no retrospective requested for this fix branch."
+        "Evidence": "Not invoked because this was a small bug fix with no new workflow learning."
       }
     }
   },
   "workLog": [
     {
-      "step": "ownership",
-      "outcome": "Created isolated worktree after age-based correction; harvested stale worktrees."
+      "step": "triage",
+      "evidence": "Issue 4519 unmerited on origin/main. Coupling 10 returns rc 0, coupling 6 returns rc 11, unscored shell returns rc 0."
     },
     {
       "step": "triage",
-      "outcome": "Reproduced #4524 live; #4497 original OSError root already fixed on main, but pycache and control gaps remained live."
+      "evidence": "Issue 4520 reproduced on origin/main. Clean diff-base scan reported 4092 docs, 23588 claims, 35538 findings, rc 10."
     },
     {
-      "step": "implementation",
-      "outcome": "Delegated portability_common git reads to portability_git.run_git and hardened mutation restore reporting."
+      "step": "harvest",
+      "evidence": "Relevant dirty worktrees were older than 60 minutes. Kept reviewthreads root cause shape, discarded incomplete ghrobust duplicate rel_path patch."
     },
     {
-      "step": "validation",
-      "outcome": "79 targeted tests passed, 88 portability tests passed, CI wiring test passed, mutation table matched expected outcomes."
+      "step": "fix",
+      "evidence": "doc_accuracy diff-base now passes base before path separator, filters doc inventory to changed docs, and preserves empty changed_files as []"
+    },
+    {
+      "step": "mutation",
+      "evidence": "Three behavioral mutants died. Cosmetic docstring mutant survived."
     }
   ],
-  "endingCommit": "856e1d282b",
+  "endingCommit": "6e88bf71c23a8cac2ac38fa2f8d0e3002f7f8688",
   "nextSteps": [
-    "Open PR with Fixes #4524 and Fixes #4497."
+    "Push branch and create PR with Fixes #4519 and Fixes #4520."
   ]
 }
