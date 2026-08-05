@@ -111,7 +111,7 @@ class _WriteDetector(ast.NodeVisitor):
     # visitors                                                             #
     # ------------------------------------------------------------------ #
 
-    def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+    def visit_Call(self, node: ast.Call) -> None:
         self._check_call(node)
         self.generic_visit(node)
 

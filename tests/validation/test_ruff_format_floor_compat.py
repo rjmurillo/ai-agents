@@ -30,7 +30,7 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
-from validate_python_syntax import support_floor  # noqa: E402
+from validate_python_syntax import support_floor
 
 # Portable on every Python 3: an exception tuple wrapped in parentheses.
 _EXCEPT_TUPLE = "try:\n    x = 1\nexcept (OSError, ValueError):\n    pass\n"

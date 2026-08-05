@@ -23,9 +23,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.validation import portability_floor  # noqa: E402
-from scripts.validation.portability_floor import read_previous_sections  # noqa: E402
-from scripts.validation.portability_git import tree_entries, was_recorded  # noqa: E402
+from scripts.validation import portability_floor
+from scripts.validation.portability_floor import read_previous_sections
+from scripts.validation.portability_git import tree_entries, was_recorded
 
 pytestmark = pytest.mark.unit
 
