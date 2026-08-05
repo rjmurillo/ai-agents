@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "session": {
-    "number": 9999,
+    "number": 4588,
     "date": "2026-08-05",
     "branch": "fix/4588-episode-chronology",
     "startingCommit": "5ec85be51a",
@@ -94,17 +94,17 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit 7a029fd59e12322cca2e8fb16c0913057fcf17af contains the code fix and tests."
+        "Evidence": "Commit 65bc1ffc804e20cd2b34242ddb3044fa349f86a3 carries the corrected code, mirror, and tests."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pytest memory extractor file passed, ruff passed on changed Python files, mutation proof completed."
+        "Evidence": "pytest tests/skills/memory/test_extract_session_episode.py: 282 passed. ruff passed on changed Python files. Mutation proof completed before PR creation."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "SQL todos updated through implementation and audit phases."
+        "Evidence": "SQL todos updated through implementation, audit, duplicate arbitration, and correction phases."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -143,8 +143,18 @@
       "time": "2026-08-05T07:55:00+00:00",
       "entry": "Committed code fix.",
       "evidence": "Commit 7a029fd59e12322cca2e8fb16c0913057fcf17af carries code, mirror, and tests."
+    },
+    {
+      "time": "2026-08-05T09:34:38+00:00",
+      "entry": "Compared current main, PR #4617, and this branch on the exact #4588 reproduction.",
+      "evidence": "origin/main and PR #4617 preserve kept e009 at midnight with e009 -> e010; this branch preserved 2026-08-04T10:26:49+00:00 with e011 -> e009."
+    },
+    {
+      "time": "2026-08-05T10:05:13+00:00",
+      "entry": "Merged current main and ported PR #4617 causal order validation into this branch.",
+      "evidence": "Marker counts after merge are _WORKLOG_TIME_KEYS=2, #3972=3, int | None=5; commit 65bc1ffc80 combines duplicate timestamp upgrade with causal order validation."
     }
   ],
-  "endingCommit": "7a029fd59e12322cca2e8fb16c0913057fcf17af",
+  "endingCommit": "65bc1ffc804e20cd2b34242ddb3044fa349f86a3",
   "nextSteps": []
 }

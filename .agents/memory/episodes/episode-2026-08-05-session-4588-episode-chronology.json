@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-08-05-session-9999",
-  "session": "2026-08-05-session-9999",
+  "id": "episode-2026-08-05-session-4588-episode-chronology",
+  "session": "2026-08-05-session-4588-episode-chronology",
   "timestamp": "2026-08-05T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
@@ -16,7 +16,7 @@
       "leads_to": [
         "e002"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
     },
     {
       "id": "e002",
@@ -29,7 +29,7 @@
       "leads_to": [
         "e003"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
     },
     {
       "id": "e003",
@@ -43,7 +43,7 @@
         "e004",
         "e005"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
     },
     {
       "id": "e004",
@@ -56,7 +56,7 @@
       "leads_to": [
         "e006"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
     },
     {
       "id": "e005",
@@ -69,7 +69,7 @@
       "leads_to": [
         "e006"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
     },
     {
       "id": "e006",
@@ -83,7 +83,7 @@
       "leads_to": [
         "e007"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
     },
     {
       "id": "e007",
@@ -96,27 +96,53 @@
       "leads_to": [
         "e008"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
     },
     {
       "id": "e008",
-      "timestamp": "2026-08-05T08:05:00+00:00",
-      "type": "commit",
-      "content": "Commit: 7a029fd59e12322cca2e8fb16c0913057fcf17af",
+      "timestamp": "2026-08-05T09:34:38+00:00",
+      "type": "milestone",
+      "content": "Compared current main, PR #4617, and this branch on the exact #4588 reproduction.",
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T10:05:13+00:00",
+      "type": "milestone",
+      "content": "Merged current main and ported PR #4617 causal order validation into this branch.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T10:19:31+00:00",
+      "type": "commit",
+      "content": "Commit: 65bc1ffc804e20cd2b34242ddb3044fa349f86a3",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-4588-episode-chronology"
     }
   ],
   "metrics": {
-    "duration_minutes": 118,
-    "tool_calls": 0,
+    "duration_minutes": 248,
+    "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 2
+    "files_changed": 3
   },
   "lessons": []
 }
