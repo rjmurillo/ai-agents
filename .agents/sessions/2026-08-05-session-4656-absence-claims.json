@@ -1,0 +1,154 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4656,
+    "date": "2026-08-05",
+    "branch": "docs/retro-absence-claims",
+    "startingCommit": "e7dc512a5006c97ff706ecff24a0c90802f8943e",
+    "objective": "Record the 2026-08-05 absence-claim failures, ship the knowledge-persistence rule that bans unverified absence claims, and repair the two git memories whose combined gap produced the in-flight push misread."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools were not exposed in this harness, so activate_project could not run. Satisfied through the fallback AGENTS.md prescribes for that case: memories read directly from .serena/memories/. Five files listed under memoriesLoaded."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions could not run for the same reason. Its content was obtained from the checked-in .serena/ tree and the always-on rule set before any memory was edited."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read earlier in this session before branch work began."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file. Created when session-policy rejected the retrospective commit, not at session start; the two preceding commits touched no .agents path so the gate did not fire on them."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Invoked .claude/skills/retrospective/scripts/score_atomicity.py and .claude/skills/memory/scripts/test_memory_size.py directly."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read via .serena/memories/ directly; MCP unavailable."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/plugin-version-bump.md and .claude/rules/knowledge-persistence.md read to confirm the no-manifest-version constraint (ADR-092) before committing."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index.md, git/git-empty-hook-run-means-an-empty-push.md, git/git-hooks-observations.md, memory-index-validator-checks-one-direction-only.md, decision-agent-files-are-not-canonical.md."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/retro-absence-claims"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned docs/retro-absence-claims"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short run before each of the three commits; file lists matched the intended split."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e7dc512a5006c97ff706ecff24a0c90802f8943e, the merge base with origin/main."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Size, index, dash, and banned-vocabulary checks run on every changed file before each commit."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Two memories augmented, one created, one index row added. Commit b55e2e1d2."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "lefthook markdown-autofix and markdown-check passed on every commit in this branch."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "98526f68b (rule plus two mirrors), b55e2e1d2 (memories plus index), and the retrospective commit this log accompanies."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validation/memory_index.py PASSED; .claude/skills/memory/scripts/test_memory_size.py 48/48 in the git domain plus both root-level files."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Tracked in the retrospective artifact's action tables rather than a separate task file."
+      },
+      "retrospectiveInvoked": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-05-absence-claims.md, produced by the retrospective skill Phase 0 through Phase 5."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-05T16:40:00+00:00",
+      "entry": "Corrected the retrospective's central claim after re-reading the saved push logs.",
+      "evidence": "push-quirks.log ends '* [new branch] docs/gate-measurement-quirks' with EXIT=0; push-quirks2.log ends 'cannot lock ref ... reference already exists' with EXITCODE=1. The first push succeeded and the second, redundant one failed. The draft had attributed the success to the second attempt's explicit refspec."
+    },
+    {
+      "time": "2026-08-05T16:55:00+00:00",
+      "entry": "Verified all four findings from the Gemini adversarial review; accepted one, refuted two, partially rejected one.",
+      "evidence": "C1 accepted and fixed: an absolute absence clause inside a rule banning unverified absence claims. H1 and M1 refuted against lefthook.yml:260, which defines memory-token-update with the exact skip array claimed absent, and git_hook_policy.py:5658, which runs the updater with no --check. The reviewer had grepped only the sibling hook memory-token-counts."
+    },
+    {
+      "time": "2026-08-05T17:05:00+00:00",
+      "entry": "Merged two overlapping sections of the push memory instead of splitting it, against the size tool's printed recommendation.",
+      "evidence": "test_memory_size.py recommends decomposition on overflow. The failure being recorded was a retrieval failure across two half-right memories, so a third file recreates it. Removing the duplicated narrative took the file from 9,979 to 8,940 characters and the size objection dissolved."
+    },
+    {
+      "time": "2026-08-05T17:20:00+00:00",
+      "entry": "Nearly reverted a correct rule because the harness-injected instruction snapshot contradicted the repository file.",
+      "evidence": "The injected copy of knowledge-persistence says a rule change MUST bump both plugin manifests to a strictly-greater version. The repo file at .claude/rules/knowledge-persistence.md:21 says the manifests carry no version field and adding one fails validate_plugin_version_bump.py (ADR-092). Logged as decision-injected-instructions-lag-the-repo.md."
+    },
+    {
+      "time": "2026-08-05T17:28:00+00:00",
+      "entry": "Ran a negative control on the memory index validator and found a reporting defect.",
+      "evidence": "Pointing one memory-index.md link at a nonexistent file flips Result to FAILED via a P1 VALIDITY line about 800 lines into the output, while the summary block still reads 'Files: 321 indexed, 0 missing'. Recorded in memory-index-validator-checks-one-direction-only.md."
+    },
+    {
+      "time": "2026-08-05T17:32:00+00:00",
+      "entry": "Committed the branch in three atomic commits, each within the five-file limit.",
+      "evidence": "98526f68b rule plus two generated mirrors; b55e2e1d2 four memories plus the index; the retrospective artifact with this log. No plugin manifest touched, per ADR-092."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PRs for the four branches landed earlier in this session: docs/ai-gate-did-not-run, docs/gate-measurement-quirks, docs/memory-subdir-consumers, fix/memory-search-blind-to-nested.",
+    "Update PR #4656's body with the corrected counts and the four commits.",
+    "File the retrospective skill's internal inconsistency: Phase 5 mandates the closing activities while references/learning-template.md ends at Deduplication Check and Success Criteria requires matching that template."
+  ]
+}
