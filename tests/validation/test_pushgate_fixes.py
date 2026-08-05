@@ -6,6 +6,7 @@ Covers:
 - #4492: push_files contamination guard
 - #4511: portability write-lock files are gitignored
 - #4502: pytest.yml test job has timeout-minutes
+- #4657: pre-push and pre-PR share one unreachable-code gate
 """
 
 from __future__ import annotations
@@ -36,6 +37,16 @@ def _make_completed(
 # ---------------------------------------------------------------------------
 # #4472: budget-exhaustion message
 # ---------------------------------------------------------------------------
+
+
+def test_pre_push_uses_the_fail_closed_unreachable_gate() -> None:
+    """Pre-push must not revive the filesystem-walking legacy scanner."""
+    config = Path("lefthook.yml").read_text(encoding="utf-8")
+    job = config.split("- name: python-unreachable-statements", maxsplit=1)[1]
+    job = job.split("- name:", maxsplit=1)[0]
+
+    assert "scripts/validation/check_unreachable_code.py ." in job
+    assert "check_unreachable_after_terminator.py" not in job
 
 
 class TestBudgetExhaustionMessage:
