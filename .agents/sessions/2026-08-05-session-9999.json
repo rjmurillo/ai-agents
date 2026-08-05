@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "One commit: 18de6d907b2e2b9a5121b2081ecffc2879fb81d8."
+        "Evidence": "One implementation commit: 6e88bf71c23a8cac2ac38fa2f8d0e3002f7f8688. This follow-up records the amended SHA."
       },
       "validationPassed": {
         "level": "MUST",
@@ -135,7 +135,7 @@
       "evidence": "Three behavioral mutants died. Cosmetic docstring mutant survived."
     }
   ],
-  "endingCommit": "18de6d907b2e2b9a5121b2081ecffc2879fb81d8",
+  "endingCommit": "6e88bf71c23a8cac2ac38fa2f8d0e3002f7f8688",
   "nextSteps": [
     "Push branch and create PR with Fixes #4519 and Fixes #4520."
   ]
