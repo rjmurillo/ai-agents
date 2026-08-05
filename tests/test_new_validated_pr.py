@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import argparse
-import importlib.util
 import os
+import re
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -252,25 +252,41 @@ class TestFlagContractWithRealTarget:
     """
 
     @staticmethod
-    def _real_target_parser() -> argparse.ArgumentParser:
-        """Load the actual dispatch target and return its real parser.
+    def _target_accepted_flags(cwd: Path) -> frozenset[str]:
+        """Return the options the real target accepts, read from its own --help.
 
-        new_pr.py inserts its own directory onto sys.path at import time to
-        reach a sibling module. That mutation would outlive this test and make
-        those siblings importable everywhere else in the suite, so sys.path is
-        snapshotted and restored.
+        Deliberately a subprocess. Importing new_pr.py in this process would run
+        its top level, which inserts its own directory onto sys.path and imports
+        `validate_pr_description` under that bare name. Two different modules
+        carry that name, `.claude/skills/github/scripts/pr/` and
+        `src/copilot-cli/skills/github/scripts/pr/`, so the import would pin one
+        of them in sys.modules for the rest of the session and hand any later
+        importer the wrong tree's copy. Restoring sys.path does not undo that.
+        In a repo whose premise is those two trees staying in sync, a leak that
+        silently substitutes one for the other is worse than the drift this
+        class exists to catch.
+
+        Reading --help rather than calling build_parser() also pins the parser
+        the script actually runs. A build_parser() left behind as dead code
+        after main() starts building its own would still answer an in-process
+        call, and the contract would break at runtime with the suite green.
+
+        argparse answers --help and exits before the script does any work, so
+        this cannot reach `gh pr create` or touch the repository.
         """
         target = REPO_ROOT / SKILL_RELPATH
-        spec = importlib.util.spec_from_file_location("_flag_contract_new_pr", target)
-        assert spec is not None
-        assert spec.loader is not None
-        module = importlib.util.module_from_spec(spec)
-        saved_path = list(sys.path)
-        try:
-            spec.loader.exec_module(module)
-        finally:
-            sys.path[:] = saved_path
-        return module.build_parser()
+        result = subprocess.run(
+            [sys.executable, str(target), "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=cwd,
+        )
+        assert result.returncode == 0, (
+            f"{SKILL_RELPATH} could not answer --help "
+            f"(exit {result.returncode}): {result.stderr}"
+        )
+        return frozenset(re.findall(r"--[a-z][a-z0-9-]*", result.stdout))
 
     @staticmethod
     def _emitted_flags(argv: list[str]) -> list[str]:
@@ -278,17 +294,20 @@ class TestFlagContractWithRealTarget:
         args = _build_parser().parse_args(argv)
         return _build_skill_args(Path("unused.py"), args)[2:]
 
-    def test_target_still_exposes_a_parser_to_check_against(self) -> None:
+    def test_help_extraction_finds_the_targets_flags(self, tmp_path: Path) -> None:
         """Guards the check itself.
 
-        The two contract tests below are only meaningful while the target keeps
-        a parser they can interrogate. If build_parser is renamed or removed,
-        _real_target_parser raises AttributeError and this fails loudly, rather
-        than the contract silently degrading into an assertion about nothing.
+        The two contract tests below compare against whatever this extraction
+        returns. If --help stopped listing options, or the pattern stopped
+        matching, they would report every emitted flag as unknown rather than
+        passing on an empty set, so the failure is loud either way. This test
+        exists to say which of the two broke.
         """
-        assert isinstance(self._real_target_parser(), argparse.ArgumentParser)
+        accepted = self._target_accepted_flags(tmp_path)
+        assert "--help" in accepted
+        assert "--title" in accepted
 
-    def test_target_accepts_the_maximal_flag_set(self) -> None:
+    def test_target_accepts_the_maximal_flag_set(self, tmp_path: Path) -> None:
         emitted = self._emitted_flags(
             [
                 "--title", "fix: t", "--base", "release", "--head", "topic",
@@ -296,18 +315,23 @@ class TestFlagContractWithRealTarget:
                 "--skip-validation", "--audit-reason", "hotfix",
             ],
         )
-        parsed = self._real_target_parser().parse_args(emitted)
-        assert parsed.title == "fix: t"
-        assert parsed.base == "release"
-        assert parsed.head == "topic"
-        assert parsed.body == "text"
-        assert parsed.body_file == "b.md"
-        assert parsed.draft is True
-        assert parsed.skip_validation is True
-        assert parsed.audit_reason == "hotfix"
+        self._assert_all_accepted(emitted, self._target_accepted_flags(tmp_path))
 
-    def test_target_accepts_the_minimal_flag_set(self) -> None:
+    def test_target_accepts_the_minimal_flag_set(self, tmp_path: Path) -> None:
         emitted = self._emitted_flags(["--title", "fix: t"])
-        parsed = self._real_target_parser().parse_args(emitted)
-        assert parsed.title == "fix: t"
-        assert parsed.base == "main"
+        self._assert_all_accepted(emitted, self._target_accepted_flags(tmp_path))
+
+    @staticmethod
+    def _assert_all_accepted(emitted: list[str], accepted: frozenset[str]) -> None:
+        """Compare by set membership, never by substring.
+
+        `--body` is a substring of `--body-file`. A containment check against
+        the raw help text would keep passing after `--body` was removed, which
+        is the same silent pass this class exists to prevent.
+        """
+        unknown = [a for a in emitted if a.startswith("--") and a not in accepted]
+        assert not unknown, (
+            f"wrapper emits {unknown}, which {SKILL_RELPATH} does not accept; "
+            f"it accepts {sorted(accepted)}"
+        )
+
