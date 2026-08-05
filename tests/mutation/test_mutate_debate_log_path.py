@@ -39,6 +39,7 @@ import os
 import subprocess
 import sys
 import time
+import uuid
 from collections.abc import Generator
 from pathlib import Path
 
@@ -75,7 +76,8 @@ def mutation_worktree() -> Generator[tuple[Path, Path], None, None]:
     appear in the caller's working tree or index.
     """
 
-    wt_path = _SCRATCH / f"mut-debate-{os.getpid()}"
+    _SCRATCH.mkdir(parents=True, exist_ok=True)
+    wt_path = _SCRATCH / f"mut-debate-{os.getpid()}-{uuid.uuid4().hex}"
 
     subprocess.run(
         ["git", "worktree", "add", "--detach", str(wt_path), "HEAD"],
@@ -99,11 +101,18 @@ def mutation_worktree() -> Generator[tuple[Path, Path], None, None]:
         try:
             yield wt_path, wt_target
         finally:
-            subprocess.run(
+            result = subprocess.run(
                 ["git", "worktree", "remove", "--force", str(wt_path)],
                 cwd=str(REPO_ROOT),
                 check=False,
                 capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+            assert result.returncode == 0, (
+                f"Failed to remove mutation worktree {wt_path}.\n"
+                f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             )
 
     yield from _gen()
@@ -120,6 +129,8 @@ def _run_tests(wt_root: Path) -> subprocess.CompletedProcess[str]:
     wt_python = wt_root / ".venv" / "bin" / "python"
     if wt_python.exists():
         cmd[0] = str(wt_python)
+    else:
+        cmd = ["uv", "run", "--frozen", "python", "-m", "pytest", "--tb=short", "-q", *TESTS]
     return subprocess.run(
         cmd,
         cwd=str(wt_root),
