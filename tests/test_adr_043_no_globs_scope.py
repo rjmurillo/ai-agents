@@ -57,8 +57,12 @@ class TestADR043CorrectionNote:
         )
 
     def test_wrong_phrase_still_present_in_original_section(self, adr_text: str) -> None:
-        assert WRONG_PHRASE in adr_text, (
-            "Original Implementation Notes text must be preserved (not edited in place)"
+        head, sep, _ = adr_text.partition(CORRECTION_ANCHOR)
+        assert sep, "ADR-043 must contain a Correction Note section"
+        assert WRONG_PHRASE in head, (
+            "Original Implementation Notes text must be preserved (not edited in place). "
+            "The phrase must appear before the Correction Note; a copy quoted inside the "
+            "note would not prove the original survived."
         )
 
     def test_no_dash_violations(self, adr_text: str) -> None:
@@ -76,13 +80,20 @@ class TestNoPhraseRepetitionAcrossRules:
 
     def test_wrong_phrase_absent_from_all_adrs_and_rules(self) -> None:
         offenders: list[str] = []
+        unreadable: list[str] = []
         for path in self._gather_files():
             try:
                 text = path.read_text(encoding="utf-8")
-            except OSError:
+            except OSError as exc:
+                unreadable.append(f"{path.relative_to(PROJECT_ROOT)} ({exc})")
                 continue
             if WRONG_PHRASE in text and path != ADR_PATH:
                 offenders.append(str(path.relative_to(PROJECT_ROOT)))
+        assert not unreadable, (
+            f"Could not read {len(unreadable)} target file(s): {unreadable}. "
+            "This test enforces a repo-wide invariant, so an unreadable file means "
+            "the invariant was not checked, not that it holds."
+        )
         assert not offenders, (
             f"Wrong phrase '{WRONG_PHRASE}' found in: {offenders}. "
             "Remove or correct it; the phrase implies a scope guarantee "
