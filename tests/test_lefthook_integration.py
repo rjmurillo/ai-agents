@@ -586,6 +586,7 @@ def test_configuration_uses_named_native_jobs() -> None:
         "repair-packed-refs",
         "branch-policy",
         "handoff-protection",
+        "root-hygiene-policy",
         "session-policy",
         "staged-dash-policy",
         "root-scratch-policy",
@@ -652,6 +653,9 @@ def test_configuration_uses_named_native_jobs() -> None:
     pre_push = _job_map(config, "pre-push")
     assert str(pre_commit["adr-review-policy"]["run"]).endswith(
         "git_hook_policy.py adr-review {staged_files}"
+    )
+    assert str(pre_commit["root-hygiene-policy"]["run"]).endswith(
+        "git_hook_policy.py root-hygiene {staged_files}"
     )
     assert str(pre_push["retrospective-policy"]["run"]).endswith(
         "git_hook_policy.py retrospective {push_files}"
@@ -1999,6 +2003,50 @@ def test_handoff_policy_blocks_only_the_read_only_path(tmp_path: Path) -> None:
     assert policy.check_handoff(["README.md"], tmp_path) == 0
     assert policy.check_handoff([".agents/HANDOFF.md"], tmp_path) == 1
     assert policy.check_handoff(["../.agents/HANDOFF.md"], tmp_path) == 0
+
+
+def test_root_hygiene_allowlist_matches_current_tracked_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
+    root_entries = set(
+        _git(PROJECT_ROOT, "ls-tree", "--name-only", "HEAD").stdout.splitlines()
+    )
+
+    assert policy.ALLOWED_REPO_ROOT_ENTRIES == root_entries
+    assert policy.check_root_hygiene(sorted(root_entries), PROJECT_ROOT) == 0
+
+
+def test_root_hygiene_blocks_staged_root_scratch_file(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "README.md", "tracked\n")
+    _write_lf(repo / "scratch-notes.txt", "scratch\n")
+    _git(repo, "add", "scratch-notes.txt")
+
+    assert policy.check_root_hygiene(["scratch-notes.txt"], repo) == 1
+
+
+def test_root_hygiene_allows_deleting_disallowed_root_file(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "scratch-notes.txt", "scratch\n")
+    (repo / "scratch-notes.txt").unlink()
+    _git(repo, "add", "scratch-notes.txt")
+
+    assert policy.check_root_hygiene(["scratch-notes.txt"], repo) == 0
+
+
+def test_root_hygiene_skips_merge_state(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    head = _commit_file(repo, "README.md", "tracked\n")
+    _write_lf(repo / "scratch-notes.txt", "scratch\n")
+    _git(repo, "add", "scratch-notes.txt")
+    merge_head = repo / _git(repo, "rev-parse", "--git-path", "MERGE_HEAD").stdout.strip()
+    _write_lf(merge_head, f"{head}\n")
+
+    assert policy.check_root_hygiene(["scratch-notes.txt"], repo) == 0
 
 
 def test_session_policy_requires_and_validates_session(
@@ -7683,6 +7731,7 @@ def test_old_bot_review_does_not_warn(
     [
         ("branch", [], "check_branch"),
         ("handoff", ["README.md"], "check_handoff"),
+        ("root-hygiene", ["scratch.txt"], "check_root_hygiene"),
         ("session", ["session.json"], "check_sessions"),
         ("staged-dashes", ["doc.md"], "check_staged_dashes"),
         ("staged-action-pins", ["action.yml"], "check_staged_action_pins"),
