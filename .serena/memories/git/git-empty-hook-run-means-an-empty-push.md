@@ -97,9 +97,10 @@ That error is not real. `lefthook.yml` is byte identical across worktrees
 rejects duplicate mapping keys. So does the shared checkout's different copy.
 No production script writes `lefthook.yml`, it is absent from
 `GENERATOR-FILES.md`, and the tests that do write one are all scoped to
-`tmp_path`. The concrete writer behind the torn read stays unidentified; what
-is established is that the failure only appears when a second lefthook run
-overlaps a first, and that the config it complains about is valid.
+`tmp_path`. What is established is that the failure only appears when a second
+lefthook run overlaps a first, and that the config it complains about is valid.
+The writer class behind the torn read was later identified; see the next
+section.
 
 The first push then completed normally, `* [new branch] 191a73dd13e... ->
 docs/stale-checkout-tooling`, `PUSH_EXIT=0`. Roughly eight tool calls went into
@@ -117,6 +118,38 @@ git ls-remote origin refs/heads/"$BR"
 
 Never start a second push of a ref while the first is unresolved. Overlapping
 lefthook runs produce failures that describe the wrong subsystem.
+
+## A push in flight owns the working tree
+
+The pre-push chain runs for roughly eleven minutes against the **live working
+tree**, not against the pushed commit. Measured on one run: `pre-pr-validation`
+59s, `python-tests` 654s, plus generators and ratchets. Any file edited in that
+worktree during the window is read by the running chain.
+
+Two things follow, both observed in the same run:
+
+1. **The push fails.** A file mutated mid-flight for an unrelated experiment
+   left `python-tests (654.08 seconds)` then `PUSH_EXIT=1`. Eleven minutes
+   spent, nothing pushed, and the failure named a test rather than the edit.
+2. **Generated mirrors silently absorb the edit.**
+   `build/scripts/generate_skills.py` copies `.claude/skills/**` into
+   `src/copilot-cli/skills/**` (97 skills, 620 files written) straight from the
+   working tree. A mutation to `.claude/skills/github/scripts/pr/new_pr.py`
+   reappeared in `src/copilot-cli/skills/github/scripts/pr/new_pr.py` with no
+   command of mine having touched the mirror. Restoring only the source leaves
+   the mirror dirty, which then reads as unexplained drift.
+
+Ruled out individually as the writer, each with the mutation live and no push
+running: a scoped `pytest` of one file, `tests/build_scripts` (1555 passed),
+`scripts/validation/pre_pr.py`, and `build/scripts/build_all.py --check`. None
+touched the mirror. The generator does exactly this transformation on demand,
+so the class is proven even though the specific job inside the chain is not
+named.
+
+Rule: treat a worktree with a push in flight as read only. Mutation experiments
+belong in a different worktree, or after `PUSH_EXIT` is known. When a mirror
+turns up modified and no command of yours wrote it, check for a push in flight
+before hunting a generator bug.
 
 ## Generalization
 
