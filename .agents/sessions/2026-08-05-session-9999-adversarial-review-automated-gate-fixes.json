@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Fix commits c0d74520da, f5598c6685, 6d61e15e92, a42159476a, memory commit 8677da2c3f, session commit b68c7cde8a, and test harness commit db785c31d4"
+        "Evidence": "Fix commits c0d74520da, f5598c6685, 6d61e15e92, a42159476a, memory commit 8677da2c3f, session commit b68c7cde8a, test harness commit db785c31d4, and hook fix 40503be635"
       },
       "validationPassed": {
         "level": "MUST",
@@ -114,7 +114,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "948 targeted tests passed; each repaired false-pass path was mutation tested"
+        "Evidence": "969 changed-file tests passed; each repaired false-pass or wiring path was mutation tested"
       }
     }
   },
@@ -150,8 +150,12 @@
     {
       "action": "Recovered from the first full pre-push suite failure",
       "outcome": "Two pre-PR runner tests mocked git with empty output, which now correctly means the corpus was not scanned; isolated the three corpus gates in those orchestration tests and verified both tests pass"
+    },
+    {
+      "action": "Recovered from the second full pre-push failure",
+      "outcome": "The legacy filesystem scanner examined 461 ignored pytest artifact files and disagreed with pre-PR; issue #4657 now wires both phases to the same git-scoped fail-closed checker"
     }
   ],
-  "endingCommit": "db785c31d42f241da8fe8376f93762b3ad380d1a",
+  "endingCommit": "40503be635ea167700c1bbaf4a8f6647ee2f5d46",
   "nextSteps": []
 }
