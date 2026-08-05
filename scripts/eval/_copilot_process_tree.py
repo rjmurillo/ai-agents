@@ -10,11 +10,22 @@ from typing import Any
 
 _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
 _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+_CREATE_NEW_PROCESS_GROUP = 0x00000200
+_CREATE_SUSPENDED = 0x00000004
 
 
 def _last_error() -> int:
     get_last_error = getattr(ctypes, "get_last_error", None)
     return int(get_last_error()) if get_last_error is not None else 0
+
+
+def windows_creation_flags() -> int:
+    """Start Windows children suspended inside a distinct process group."""
+    if os.name != "nt":
+        return 0
+    return int(
+        getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", _CREATE_NEW_PROCESS_GROUP)
+    ) | int(getattr(subprocess, "CREATE_SUSPENDED", _CREATE_SUSPENDED))
 
 
 class _BasicLimitInformation(ctypes.Structure):
@@ -95,6 +106,12 @@ class _WindowsJob:
                     _last_error(),
                     "AssignProcessToJobObject failed",
                 )
+            ntdll: Any = loader("ntdll", use_last_error=True)
+            resume_process = ntdll.NtResumeProcess
+            resume_process.restype = ctypes.c_long
+            status = int(resume_process(ctypes.c_void_p(int(process_handle))))
+            if status != 0:
+                raise OSError(status, "NtResumeProcess failed")
         except BaseException:
             self.close()
             raise

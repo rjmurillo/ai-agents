@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from typing import Literal, TextIO, cast
 
-from _copilot_process_tree import ProcessTree
+from _copilot_process_tree import ProcessTree, windows_creation_flags
 
 _PROTOCOL_VERSION = 1
 _MAX_CAPTURE_CHARS = 4 * 1024 * 1024
@@ -71,6 +71,8 @@ class _ProcessStreams:
     stop_readers: threading.Event
     stdout_thread: threading.Thread
     stderr_thread: threading.Thread
+    protocol_chars: int = 0
+    answer_chars: int = 0
 
 
 def _put_stdout(
@@ -141,11 +143,7 @@ def _start_process(
         env=env,
         shell=False,
         start_new_session=os.name != "nt",
-        creationflags=(
-            int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
-            if os.name == "nt"
-            else 0
-        ),
+        creationflags=windows_creation_flags(),
     )
     try:
         process_tree = ProcessTree(process)
@@ -203,7 +201,11 @@ def _send_request(
     process.stdin.flush()
 
 
-def _consume_update(message: dict[str, object], answer_chunks: list[str]) -> None:
+def _consume_update(
+    message: dict[str, object],
+    answer_chunks: list[str],
+    streams: _ProcessStreams,
+) -> None:
     params = message.get("params")
     if not isinstance(params, dict):
         return
@@ -221,9 +223,10 @@ def _consume_update(message: dict[str, object], answer_chunks: list[str]) -> Non
     text = content.get("text")
     if not isinstance(text, str):
         raise RuntimeError("Copilot ACP returned a malformed text chunk")
-    answer_chunks.append(text)
-    if sum(map(len, answer_chunks)) > _MAX_CAPTURE_CHARS:
+    streams.answer_chars += len(text)
+    if streams.answer_chars > _MAX_CAPTURE_CHARS:
         raise RuntimeError("Copilot ACP response exceeded the size limit")
+    answer_chunks.append(text)
 
 
 def _parse_message(raw_line: str) -> dict[str, object]:
@@ -260,7 +263,6 @@ def _wait_for_response(
     timeout: float,
     answer_chunks: list[str],
 ) -> dict[str, object]:
-    protocol_chars = 0
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -277,8 +279,8 @@ def _wait_for_response(
             )
         if isinstance(raw_line, BaseException):
             raise raw_line
-        protocol_chars += len(raw_line)
-        if protocol_chars > _MAX_PROTOCOL_CHARS:
+        streams.protocol_chars += len(raw_line)
+        if streams.protocol_chars > _MAX_PROTOCOL_CHARS:
             raise RuntimeError("Copilot ACP protocol exceeded the size limit")
         message = _parse_message(raw_line)
         if message.get("id") == request_id:
@@ -291,7 +293,7 @@ def _wait_for_response(
         if "id" in message and isinstance(message.get("method"), str):
             raise RuntimeError("Copilot ACP requested a disabled client capability")
         if message.get("method") == "session/update":
-            _consume_update(message, answer_chunks)
+            _consume_update(message, answer_chunks, streams)
 
 
 def _join_readers(streams: _ProcessStreams) -> bool:

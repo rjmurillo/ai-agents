@@ -361,6 +361,7 @@ def test_protocol_character_budget_is_cumulative(
         process=SimpleNamespace(args=[]),
         stdout_lines=lines,
         stderr_chunks=[],
+        protocol_chars=0,
     )
 
     with pytest.raises(RuntimeError, match="protocol exceeded the size limit"):
@@ -371,6 +372,95 @@ def test_protocol_character_budget_is_cumulative(
             timeout=1.0,
             answer_chunks=[],
         )
+
+
+def test_protocol_character_budget_spans_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines: queue.Queue[str | BaseException | None] = queue.Queue()
+    first = json.dumps({"jsonrpc": "2.0", "id": 1, "result": {}}) + "\n"
+    second = json.dumps({"jsonrpc": "2.0", "id": 2, "result": {}}) + "\n"
+    monkeypatch.setattr(
+        acp_module,
+        "_MAX_PROTOCOL_CHARS",
+        len(first) + len(second) - 1,
+    )
+    streams = SimpleNamespace(
+        process=SimpleNamespace(args=[]),
+        stdout_lines=lines,
+        stderr_chunks=[],
+        protocol_chars=0,
+    )
+    lines.put(first)
+    assert (
+        acp_module._wait_for_response(
+            streams,
+            1,
+            deadline=time.monotonic() + 1.0,
+            timeout=1.0,
+            answer_chunks=[],
+        )
+        == {}
+    )
+    lines.put(second)
+
+    with pytest.raises(RuntimeError, match="protocol exceeded the size limit"):
+        acp_module._wait_for_response(
+            streams,
+            2,
+            deadline=time.monotonic() + 1.0,
+            timeout=1.0,
+            answer_chunks=[],
+        )
+
+
+def test_answer_character_budget_updates_incrementally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(acp_module, "_MAX_CAPTURE_CHARS", 6)
+    streams = SimpleNamespace(answer_chars=0)
+    chunks: list[str] = []
+
+    for text in ("abc", "def"):
+        acp_module._consume_update(
+            {
+                "params": {
+                    "update": {
+                        "sessionUpdate": "agent_message_chunk",
+                        "content": {"type": "text", "text": text},
+                    }
+                }
+            },
+            chunks,
+            streams,
+        )
+
+    assert chunks == ["abc", "def"]
+    assert streams.answer_chars == 6
+
+
+def test_windows_children_start_suspended_before_job_assignment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    process_tree_module = sys.modules[acp_module.ProcessTree.__module__]
+    monkeypatch.setattr(process_tree_module.os, "name", "nt")
+    monkeypatch.setattr(
+        process_tree_module.subprocess,
+        "CREATE_NEW_PROCESS_GROUP",
+        0x200,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        process_tree_module.subprocess,
+        "CREATE_SUSPENDED",
+        0x4,
+        raising=False,
+    )
+
+    flags = process_tree_module.windows_creation_flags()
+
+    assert flags & 0x200
+    assert flags & 0x4
 
 
 def test_newline_free_protocol_output_has_a_line_limit(
