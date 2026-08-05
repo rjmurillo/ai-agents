@@ -290,14 +290,14 @@ class AnthropicAPIAdapter:
         same unreadable response shape would misreport a contract violation as
         a provider outage. Logs one structured line per ordinary attempt.
 
-        Raises `ValueError` when `max_retries` is below 1. That is a caller
-        configuration mistake, not a provider failure, and the two must not
-        arrive in the same shape: a returned record saying `outcome="error"`
-        with `error_category="unknown"` counts toward the provider error
-        total for a call the provider never received (issue #4121). Booleans
-        are also rejected because they are flags, not retry budgets.
+        Raises `ValueError` when `max_retries` is not an integer or is below
+        1. That is a caller configuration mistake, not a provider failure, and
+        the two must not arrive in the same shape: a returned record saying
+        `outcome="error"` with `error_category="unknown"` counts toward the
+        provider error total for a call the provider never received
+        (issue #4121).
         """
-        if isinstance(max_retries, bool) or max_retries < 1:
+        if type(max_retries) is not int or max_retries < 1:
             raise ValueError(
                 f"max_retries must be an integer >= 1, got {max_retries!r}"
             )

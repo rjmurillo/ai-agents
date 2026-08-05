@@ -18,6 +18,7 @@ import re
 import sys
 from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -3265,8 +3266,8 @@ class TestTransportsRefuseAMalformedFingerprint:
         assert transport.calls == 1
 
 
-class TestAdapterNonPositiveMaxRetries:
-    """`max_retries <= 0` is refused instead of reported as a provider error.
+class TestAdapterInvalidMaxRetries:
+    """Invalid retry budgets are refused instead of becoming provider errors.
 
     Before #4121 the loop was skipped and the fallthrough returned
     `outcome="error"` with `ERR_UNKNOWN`, which is indistinguishable from a
@@ -3275,9 +3276,9 @@ class TestAdapterNonPositiveMaxRetries:
     record was not.
     """
 
-    @pytest.mark.parametrize("max_retries", [0, -1, False, True])
-    def test_non_positive_max_retries_is_rejected(
-        self, max_retries: int, capsys: pytest.CaptureFixture[str]
+    @pytest.mark.parametrize("max_retries", [0, -1, False, True, 1.5, "3"])
+    def test_invalid_max_retries_is_rejected(
+        self, max_retries: object, capsys: pytest.CaptureFixture[str]
     ) -> None:
         calls: list[str] = []
 
@@ -3293,7 +3294,7 @@ class TestAdapterNonPositiveMaxRetries:
                 fixture_id="F-MR",
                 variant="agent",
                 run_index=0,
-                max_retries=max_retries,
+                max_retries=cast(int, max_retries),
             )
         # The guard fires before anything else: no transport call, no log.
         assert calls == []
