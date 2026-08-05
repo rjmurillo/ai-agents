@@ -148,6 +148,11 @@
       "time": "2026-08-05T20:55:00+00:00",
       "entry": "Adversarial review of the PR #4669 body rejected three of five cited re-derivations as uncorroborated by session artifacts, and flagged the fifth as resting on an unstated harness premise. Corrected the body down to the three the retrospective records, and logged the rule that produced the miss.",
       "evidence": "grok-4.5 review returned 2 HIGH, 2 MEDIUM, 1 LOW; each verified independently before acting. Retro lines 138 and 147 corroborate two instances; line 147 names the third. New memory .serena/memories/pr-review/pr-body-session-claims-need-artifacts.md, 2,747 chars, size test PASS. Index count moved 321 to 322 as a positive control; count ratchet 424 <= 425."
+    },
+    {
+      "time": "2026-08-05T21:35:00+00:00",
+      "entry": "A second adversarial review, on the bullet that announces the new memory, found that bullet breaking the memory it describes. It asserted \"The facts held\" about three unrecorded re-derivations, while the memory itself suspends that question. Corrected the bullet to the memory wording and appended this entry immediately, which is the forward fix the memory prescribes.",
+      "evidence": "gpt-5.6-sol review returned 1 HIGH, verified against the memory at lines 28-30 (\"Whether they happened is beside the point. Unrecorded, they could not be cited.\") and the body at line 71. Sol independently confirmed the other nine claims, including retro lines 138 and 147, the three-instance count, the seven-object workLog shape, both Related paths, size 2,747 PASS, 0 dashes, 0 banned words, and the index row at skills-pr-review-index.md line 30. Pre-flight after the fix: 21 changed, 16 mentioned, 0 problems."
     }
   ],
   "endingCommit": "82abfbf460f782026f85279921622ebe39c4c61d",

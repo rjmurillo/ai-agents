@@ -156,12 +156,25 @@
       "caused_by": [
         "e011"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-05T21:35:00+00:00",
+      "type": "milestone",
+      "content": "A second adversarial review, on the bullet that announces the new memory, found that bullet breaking the memory it describes. It asserted \"The facts held\" about three unrecorded re-derivations, while the memory itself suspends that question. Corrected the bullet to the memory wording and appended this entry immediately, which is the forward fix the memory prescribes.",
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-4656-absence-claims"
     }
   ],
   "metrics": {
-    "duration_minutes": 255,
+    "duration_minutes": 295,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
