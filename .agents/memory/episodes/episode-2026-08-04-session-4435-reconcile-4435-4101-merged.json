@@ -97,24 +97,26 @@
     },
     {
       "id": "e009",
-      "timestamp": "2026-08-04T00:00:00+00:00",
+      "timestamp": "2026-08-04T10:26:49+00:00",
       "type": "milestone",
       "content": "Finalized closeout chronology",
-      "caused_by": [],
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [
-        "e011"
+        "e013"
       ],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     },
     {
       "id": "e010",
-      "timestamp": "2026-08-04T00:00:00+00:00",
+      "timestamp": "2026-08-04T19:35:33+00:00",
       "type": "milestone",
       "content": "Recorded final merged outcome",
-      "caused_by": [],
-      "leads_to": [
-        "e011"
+      "caused_by": [
+        "e013"
       ],
+      "leads_to": [],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     },
     {
@@ -130,9 +132,7 @@
         "e005",
         "e006",
         "e007",
-        "e008",
-        "e009",
-        "e010"
+        "e008"
       ],
       "leads_to": [
         "e012"
@@ -148,7 +148,7 @@
         "e011"
       ],
       "leads_to": [
-        "e013"
+        "e009"
       ],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     },
@@ -158,9 +158,11 @@
       "type": "commit",
       "content": "Commit: 0fd1ea30f55193e0f833e498e3fc7db88e8c3f3a",
       "caused_by": [
-        "e012"
+        "e009"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-04-session-4435-reconcile-4435-4101-merged"
     }
   ],

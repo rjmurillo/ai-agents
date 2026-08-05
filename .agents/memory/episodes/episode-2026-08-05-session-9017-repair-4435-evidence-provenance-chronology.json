@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Checked issue coordination",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Read required context",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Repaired canonical evidence",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     },
     {
@@ -40,7 +46,9 @@
       "type": "milestone",
       "content": "Validated repaired artifacts",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     },
     {
@@ -49,16 +57,45 @@
       "type": "milestone",
       "content": "Completed independent artifact review",
       "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded repair commit",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T14:34:06+00:00",
+      "type": "commit",
+      "content": "Commit: 11f7322e76f3bdfab0fa5d4540156ecebf4ba77a",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
     }
   ],
   "metrics": {
-    "duration_minutes": 22,
+    "duration_minutes": 25,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 5
   },
   "lessons": []

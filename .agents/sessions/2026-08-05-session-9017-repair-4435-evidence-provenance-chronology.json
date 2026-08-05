@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This commit carries the canonical session repair, regenerated episodes, and this session log. endingCommit will be recorded in the required follow-up commit."
+        "Evidence": "Repair committed as 11f7322e76f3bdfab0fa5d4540156ecebf4ba77a. This follow-up records endingCommit and restores generator output altered by the known preserve defect in issue #4588."
       },
       "validationPassed": {
         "level": "MUST",
@@ -138,8 +138,13 @@
       "timestamp": "2026-08-05T14:32:06+00:00",
       "action": "Completed independent artifact review",
       "result": "Separate code-review agent returned CLEAN with no correctness findings."
+    },
+    {
+      "timestamp": "2026-08-05T14:34:45+00:00",
+      "action": "Recorded repair commit",
+      "result": "Committed the five-file repair as 11f7322e76f3bdfab0fa5d4540156ecebf4ba77a. The pre-commit preserve path reproduced issue #4588 on the PR 4435 episode, so the canonical force generator restored it for the metadata follow-up."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "11f7322e76f3bdfab0fa5d4540156ecebf4ba77a",
   "nextSteps": []
 }
