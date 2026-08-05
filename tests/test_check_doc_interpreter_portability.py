@@ -647,6 +647,7 @@ def test_update_baseline_refuses_symlinked_parent(
     assert "through a symlink" in capsys.readouterr().err
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
 def test_update_baseline_rechecks_symlinked_parent_inside_lock(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
