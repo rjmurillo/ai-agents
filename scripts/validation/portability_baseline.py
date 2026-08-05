@@ -35,7 +35,7 @@ from scripts.validation.portability_floor import (
     Sections,
     read_previous_sections,
 )
-from scripts.validation.portability_git import run_git
+from scripts.validation.portability_git import git_timeout_problem, run_git
 
 
 def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
@@ -46,6 +46,7 @@ __all__ = [
     "COUNTED_SECTIONS",
     "Sections",
     "baseline_write_lock",
+    "find_symlinked_component",
     "read_previous_sections",
     "replace_baseline_atomically",
     "refuse_dropped_entries",
@@ -143,17 +144,17 @@ def _resolved(path: Path) -> Path | None:
         return None
 
 
-def _linked_component(baseline_path: Path, repo_root: Path) -> Path | None:
-    """Return the first symlink between the repository root and the baseline.
+def find_symlinked_component(path: Path, repo_root: Path) -> Path | None:
+    """Return the first redirecting link between the repository root and ``path``.
 
-    Checking only the leaf misses the cheaper attack. A symlinked *directory*
-    anywhere on the way down redirects the write just as effectively, and it
-    leaves the leaf looking like an ordinary file.
+    Checking only the leaf misses the cheaper attack. A symlinked or junction
+    directory anywhere on the way down redirects access just as effectively,
+    and it leaves the leaf looking like an ordinary file.
     """
     root = _resolved(repo_root)
-    current = baseline_path
-    for _ in range(64):
-        if current.is_symlink():
+    current = path
+    while True:
+        if _is_redirecting_link(current):
             return current
         parent = current.parent
         if parent == current:
@@ -164,9 +165,13 @@ def _linked_component(baseline_path: Path, repo_root: Path) -> Path | None:
             # the root resolves to the root and would end the walk clean, while
             # still sending the write to a path git does not track under that
             # name. Test it before stopping.
-            return parent if parent.is_symlink() else None
+            return parent if _is_redirecting_link(parent) else None
         current = parent
-    return None
+
+
+def _is_redirecting_link(path: Path) -> bool:
+    """Return whether a path component redirects filesystem access."""
+    return path.is_symlink() or path.is_junction()
 
 
 def _escaping_parent(baseline_path: Path, repo_root: Path) -> Path | None:
@@ -200,7 +205,7 @@ def refuse_symlinked_baseline(repo_root: Path, baseline_path: Path) -> bool:
     lets the vetted name and the consumed file be two different files. The
     wording below stays neutral because both callers reach it.
     """
-    linked = _linked_component(baseline_path, repo_root)
+    linked = find_symlinked_component(baseline_path, repo_root)
     if linked is not None:
         print(
             f"Refusing a baseline reached through a symlink: {linked}. "
@@ -252,6 +257,13 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
     all, runs inside a checkout where this resolves and the guard is live.
     """
     toplevel = run_git(repo_root, "rev-parse", "--show-toplevel")
+    if problem := git_timeout_problem(toplevel, "locating the repository root"):
+        print(
+            f"Refusing to trust the baseline {baseline_path}: {problem}. "
+            "The guard cannot confirm that the baseline is diffable.",
+            file=sys.stderr,
+        )
+        return True
     if toplevel is None or toplevel.returncode != 0:
         # Two distinct states collapse into a non-zero exit from run_git:
         #
@@ -289,6 +301,13 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
         return False
 
     proc = run_git(repo_root, "check-attr", "-z", "diff", "--", str(baseline_path))
+    if problem := git_timeout_problem(proc, "checking the baseline diff attribute"):
+        print(
+            f"Refusing to trust the baseline {baseline_path}: {problem}. "
+            "The guard cannot confirm that the baseline is diffable.",
+            file=sys.stderr,
+        )
+        return True
     if proc is None or proc.returncode != 0:
         print(
             f"Refusing to trust the baseline {baseline_path}: git could not report "
@@ -324,18 +343,20 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
     return False
 
 
-def _diff_attribute(repo_root: Path, path: Path) -> str | None:
-    """Return the git diff attribute for path, None if git cannot answer."""
+def _diff_attribute(repo_root: Path, path: Path) -> tuple[str | None, str | None]:
+    """Return the git diff attribute and any timeout-specific failure."""
     try:
         rel = str(path.resolve().relative_to(repo_root.resolve()))
     except (OSError, ValueError):
-        return None
+        return None, None
     proc = _run_git(repo_root, "check-attr", "diff", "--", rel)
+    if problem := git_timeout_problem(proc, "checking the baseline diff attribute"):
+        return None, problem
     if proc is None or proc.returncode != 0:
-        return None
+        return None, None
     # Output: "<path>: diff: <value>" where value is set/unset/unspecified/<driver>
     parts = proc.stdout.decode(errors="replace").strip().split(": ", 2)
-    return parts[2] if len(parts) == 3 else None
+    return (parts[2], None) if len(parts) == 3 else (None, None)
 
 
 def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> bool:
@@ -351,7 +372,13 @@ def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> boo
     suppress diffs is to also break every --update-baseline run, making the
     suppression observable before it can be exploited.
     """
-    attr = _diff_attribute(repo_root, baseline_path)
+    attr, problem = _diff_attribute(repo_root, baseline_path)
+    if problem:
+        print(
+            f"Refusing to write baseline {baseline_path}: {problem}.",
+            file=sys.stderr,
+        )
+        return True
     if attr is None:
         print(
             f"Refusing to write a baseline: git check-attr failed for {baseline_path}. "
@@ -404,6 +431,7 @@ def write_baseline_json(
                 return 2
 
             replace_baseline_atomically(
+                repo_root,
                 baseline_path,
                 json.dumps(payload, indent=2) + "\n",
             )
