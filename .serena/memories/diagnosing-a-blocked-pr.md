@@ -5,7 +5,28 @@ in one session merged cleanly through the REST endpoint while reporting
 BLOCKED. Treating the field as a verdict sends you looking for a gate that is
 not holding anything.
 
-## main has no classic branch protection
+## `UNKNOWN` in a bulk PR query is a recompute, not an answer, and not a defect
+
+A repo-wide GraphQL query for `mergeStateStatus` across every open PR can come
+back almost entirely `UNKNOWN`. Measured 2026-08-05: 53 of 55 open PRs returned
+`UNKNOWN` in one call, minutes after a per-PR REST read had returned a definite
+`blocked` for one of them.
+
+The tempting inference is that bulk queries serve stale or lazily-computed data
+and that only per-PR access forces GitHub to compute the real value. That is
+wrong. Tested by issuing the bulk query and two per-PR queries inside a single
+command, so no time passed between them: bulk and per-PR agreed exactly, both
+`BEHIND` for both PRs. Re-running the bulk query a few minutes later returned a
+fully resolved distribution with no `UNKNOWN` at all.
+
+`UNKNOWN` means GitHub is recomputing mergeability across the repository, which
+happens whenever `main` moves. It resolves on its own.
+
+This matters because acting on the wrong inference is expensive. Falling back to
+one REST call per PR turns a single query into 55, and the REST and GraphQL
+budgets are shared with the CI workflows, which authenticate as the same user ID
+(6811113). Exhausting them makes the AI review agents report `DID_NOT_RUN`,
+which blocks the very PRs being diagnosed. Wait and re-query instead.
 
 ```
 gh api repos/rjmurillo/ai-agents/branches/main/protection
