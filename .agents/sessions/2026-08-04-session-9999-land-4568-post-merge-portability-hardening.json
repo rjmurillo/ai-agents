@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and tests committed through ac25f74f7; this session log update is the final staged artifact"
+        "Evidence": "Implementation and review fixes committed through 40bec3c2a; this session log update is the final staged artifact"
       },
       "validationPassed": {
         "level": "MUST",
@@ -148,13 +148,23 @@
       "time": "2026-08-05",
       "action": "Fixed type errors found by the pre-push mypy gate",
       "result": "Hook mypy passed on both files; 42 focused tests and Ruff passed"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Resolved the main-branch memory-index conflict and closed Windows CI review gaps",
+      "result": "Memory gates passed; six privilege-dependent tests now run under the Windows path marker and skip on Windows"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Preserved partial Git stderr and calibrated the shared timeout",
+      "result": "Twenty runs across 169611 Git objects peaked at 179.915 ms; timeout tests, Ruff, and mypy passed"
     }
   ],
-  "endingCommit": "ac25f74f7",
+  "endingCommit": "40bec3c2a",
   "nextSteps": [
-    "Run final exact-tip review and the exact pre-PR gate",
-    "Push the recovery branch and create the replacement PR",
-    "Wait for CI, clear review threads, and merge",
+    "Run the final exact-tip review and exact pre-PR gate",
+    "Push the reviewed recovery tip to PR #4670",
+    "Wait for CI, clear review threads, and merge PR #4670",
     "Run reflection and retrospective"
   ]
 }

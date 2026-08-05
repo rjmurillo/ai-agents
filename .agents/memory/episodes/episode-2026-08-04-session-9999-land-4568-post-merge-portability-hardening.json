@@ -18,7 +18,9 @@
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e008",
+        "e009"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -33,7 +35,9 @@
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e008",
+        "e009"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -47,7 +51,7 @@
         "e002"
       ],
       "leads_to": [
-        "e008"
+        "e010"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -61,7 +65,7 @@
         "e002"
       ],
       "leads_to": [
-        "e008"
+        "e010"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -75,7 +79,7 @@
         "e002"
       ],
       "leads_to": [
-        "e008"
+        "e010"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -89,7 +93,7 @@
         "e002"
       ],
       "leads_to": [
-        "e008"
+        "e010"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -103,21 +107,51 @@
         "e002"
       ],
       "leads_to": [
-        "e008"
+        "e010"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
     {
       "id": "e008",
-      "timestamp": "2026-08-05T18:00:49+00:00",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved the main-branch memory-index conflict and closed Windows CI review gaps",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Preserved partial Git stderr and calibrated the shared timeout",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T20:53:45+00:00",
       "type": "commit",
-      "content": "Commit: ac25f74f7",
+      "content": "Commit: 40bec3c2a",
       "caused_by": [
         "e003",
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e008",
+        "e009"
       ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
@@ -129,7 +163,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 13
+    "files_changed": 187
   },
   "lessons": []
 }
