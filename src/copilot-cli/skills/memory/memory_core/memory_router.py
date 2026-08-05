@@ -37,6 +37,17 @@ from .url_validation import validate_http_url
 logger = logging.getLogger(__name__)
 
 
+DIRECTORY_MATCH_WEIGHT = 0.5
+"""Credit for a keyword that matches only a parent directory, not the file name.
+
+Matching moved from the bare stem to the relative path so nested memories become
+reachable. That let a topic directory hand a perfect score to every file under
+it, burying the top-level file the query actually named. Full credit for a stem
+match and partial credit for a directory-only match keeps the recall and leaves
+top-level scoring unchanged, since a top-level stem is its whole relative path.
+"""
+
+
 # ---------------------------------------------------------------------------
 # Data classes
 # ---------------------------------------------------------------------------
@@ -182,10 +193,15 @@ def invoke_serena_search(
     results: list[MemoryResult] = []
 
     for idx, file_name in enumerate(lower_names):
+        stem = file_name.rpartition("/")[2]
+        stem_matches = sum(1 for kw in keywords if kw in stem)
         match_count = sum(1 for kw in keywords if kw in file_name)
 
         if match_count > 0:
-            score = round((match_count / keyword_count) * 100, 2)
+            weighted = stem_matches + DIRECTORY_MATCH_WEIGHT * (
+                match_count - stem_matches
+            )
+            score = round((weighted / keyword_count) * 100, 2)
             current_file = files[idx]
 
             content = None
