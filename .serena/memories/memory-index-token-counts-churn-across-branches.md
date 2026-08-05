@@ -55,13 +55,15 @@ own the numbers:
 # keep every row from both sides, then:
 uv run --frozen python scripts/update_memory_index_tokens.py
 uv run --frozen python scripts/validation/memory_index.py
+git add .serena/memories/memory-index.md
 grep -n "your-memory-file-name" .serena/memories/memory-index.md
 ```
 
 `Token counts in memory-index.md already current` is the pass signal. If it
 prints that, your hand-picked numbers happened to be right. If it rewrites the
-file, they were not. Never hand-edit a count and never trust the validator's
-summary line to catch one.
+file, they were not. Stage `memory-index.md` again after the updater, because
+merge commits skip `stage-memory-index`. Never hand-edit a count and never
+trust the validator's summary line to catch one.
 
 ## Why a fresh worktree recounts everything
 
