@@ -39,6 +39,10 @@ fetch_checks = _mod.fetch_checks
 build_output = _mod.build_output
 dedupe_checks = _mod.dedupe_checks
 
+from scripts.github_core.checks_rollup import (  # noqa: E402
+    extract_workflow_run_id,
+    partition_rows_by_run,
+)
 
 # ---------------------------------------------------------------------------
 # Test helpers
@@ -1884,3 +1888,165 @@ class TestSupersededCheckRuns:
         assert rc == 7
         assert data["ChecksIncomplete"] is True
         assert data["AllPassing"] is False
+
+
+_RUN_A = "https://github.com/o/r/actions/runs/30827748904/job/91733674289"
+_RUN_A2 = "https://github.com/o/r/actions/runs/30827748904/job/91733675289"
+_RUN_B = "https://github.com/o/r/actions/runs/30826833314/job/91730700818"
+_RUN_B2 = "https://github.com/o/r/actions/runs/30826833314/job/91730702341"
+
+
+class TestExtractWorkflowRunId:
+    """Refs issue #4499: run identity comes from the details URL."""
+
+    def test_actions_url_yields_run_id(self):
+        assert extract_workflow_run_id(_RUN_A) == "30827748904"
+
+    def test_non_actions_url_yields_none(self):
+        assert extract_workflow_run_id("https://example.com/build/17") is None
+
+    def test_empty_string_yields_none(self):
+        assert extract_workflow_run_id("") is None
+
+    def test_none_yields_none(self):
+        assert extract_workflow_run_id(None) is None
+
+    def test_non_numeric_run_segment_yields_none(self):
+        assert extract_workflow_run_id("https://github.com/o/r/actions/runs/abc") is None
+
+
+class TestPartitionRowsByRun:
+    def test_same_run_rows_group_together(self):
+        rows = [{"u": _RUN_A}, {"u": _RUN_A2}]
+        groups = partition_rows_by_run(rows, "u")
+        assert len(groups) == 1
+        assert len(groups[0]) == 2
+
+    def test_distinct_runs_stay_separate(self):
+        groups = partition_rows_by_run([{"u": _RUN_A}, {"u": _RUN_B}], "u")
+        assert [len(g) for g in groups] == [1, 1]
+
+    def test_unknown_provenance_rows_are_singletons(self):
+        """Rows with no run id must not be grouped with each other."""
+        groups = partition_rows_by_run([{"u": ""}, {"u": ""}], "u")
+        assert [len(g) for g in groups] == [1, 1]
+
+    def test_empty_input_yields_no_groups(self):
+        assert partition_rows_by_run([], "u") == []
+
+
+class TestSameRunSiblingAggregation:
+    """Refs issue #4499: two jobs of one run must not mask each other."""
+
+    def test_failing_sibling_beats_skipped_sibling_in_same_run(self):
+        checks = [
+            _check("Run Python Tests", failing=True, conclusion="FAILURE",
+                   details=_RUN_A),
+            _check("Run Python Tests", passing=True, conclusion="SKIPPED",
+                   details=_RUN_A2),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsFailing"] is True
+        assert result[0]["Conclusion"] == "FAILURE"
+
+    def test_pr_4463_shape_two_runs_each_failure_plus_skipped(self):
+        """The exact live shape that reported FailedCount=0 on a red PR."""
+        checks = [
+            _check("Run Python Tests", failing=True, conclusion="FAILURE",
+                   details=_RUN_A),
+            _check("Run Python Tests", failing=True, conclusion="FAILURE",
+                   details=_RUN_B),
+            _check("Run Python Tests", passing=True, conclusion="SKIPPED",
+                   details=_RUN_A2),
+            _check("Run Python Tests", passing=True, conclusion="SKIPPED",
+                   details=_RUN_B2),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsFailing"] is True
+        assert sum(1 for c in result if c["IsFailing"]) == 1
+
+    def test_later_rerun_success_still_supersedes_stale_failure_across_runs(self):
+        """Issue #2208 must not regress: a newer run's SUCCESS still wins."""
+        checks = [
+            _check("Validate PR", failing=True, conclusion="FAILURE",
+                   details=_RUN_B),
+            _check("Validate PR", passing=True, conclusion="SUCCESS",
+                   details=_RUN_A),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsPassing"] is True
+
+    def test_later_run_failure_beats_older_success_across_runs(self):
+        checks = [
+            _check("Validate PR", passing=True, conclusion="SUCCESS",
+                   details=_RUN_B),
+            _check("Validate PR", failing=True, conclusion="FAILURE",
+                   details=_RUN_A),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsFailing"] is True
+        assert result[0]["Conclusion"] == "FAILURE"
+
+    def test_status_context_does_not_disable_check_run_recency(self):
+        checks = [
+            {
+                "Name": "Validate PR", "Type": "StatusContext",
+                "State": "SUCCESS", "Conclusion": "SUCCESS",
+                "DetailsUrl": "", "IsRequired": True,
+                "IsPending": False, "IsPassing": True, "IsFailing": False,
+            },
+            _check("Validate PR", passing=True, conclusion="SUCCESS",
+                   details=_RUN_B),
+            _check("Validate PR", failing=True, conclusion="FAILURE",
+                   details=_RUN_A),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["Type"] == "CheckRun"
+        assert result[0]["IsFailing"] is True
+        assert result[0]["Conclusion"] == "FAILURE"
+
+    def test_all_passing_siblings_in_one_run_stay_passing(self):
+        checks = [
+            _check("Run Python Tests", passing=True, conclusion="SUCCESS",
+                   details=_RUN_A),
+            _check("Run Python Tests", passing=True, conclusion="SKIPPED",
+                   details=_RUN_A2),
+        ]
+        result = dedupe_checks(checks)
+        assert result[0]["IsPassing"] is True
+
+    def test_rows_without_run_id_keep_cross_run_precedence(self):
+        """Unknown provenance must behave exactly as before the fix."""
+        checks = [
+            _check("legacy", failing=True, conclusion="FAILURE"),
+            _check("legacy", passing=True, conclusion="SUCCESS"),
+        ]
+        result = dedupe_checks(checks)
+        assert result[0]["IsPassing"] is True
+
+    def test_required_flag_still_ors_across_same_run_siblings(self):
+        checks = [
+            _check("Run Python Tests", failing=True, required=False,
+                   conclusion="FAILURE", details=_RUN_A),
+            _check("Run Python Tests", passing=True, required=True,
+                   conclusion="SKIPPED", details=_RUN_A2),
+        ]
+        result = dedupe_checks(checks)
+        assert result[0]["IsRequired"] is True
+        assert result[0]["IsFailing"] is True
+
+    def test_pending_sibling_does_not_mask_same_run_failure(self):
+        checks = [
+            _check("Run Python Tests", failing=True, conclusion="FAILURE",
+                   details=_RUN_A),
+            _check("Run Python Tests", pending=True, state="IN_PROGRESS",
+                   details=_RUN_A2),
+        ]
+        result = dedupe_checks(checks)
+        assert result[0]["IsFailing"] is True
+        assert result[0]["IsPending"] is True

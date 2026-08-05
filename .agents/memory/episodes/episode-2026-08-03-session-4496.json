@@ -1,0 +1,94 @@
+{
+  "id": "episode-2026-08-03-session-4496",
+  "session": "2026-08-03-session-4496",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Drive issues 4496, 4497, and 4465 to terminal state: fix test fixture hygiene, harness restore exit code, and patterns.md jq selectors.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T17:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged all three issues against origin/main. All confirmed still present.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-03-session-4496"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T18:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4497: wrapped target.write_bytes(backup) in try/except OSError, exits 2.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-03-session-4496"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T18:30:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4465: corrected patterns.md jq selectors to .Data.* path. Regenerated mirrors.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-03-session-4496"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T19:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4496: removed 20 unused monkeypatch params from 9 test files.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-03-session-4496"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T19:30:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main to clear inherited failures. Resolved taste_count_baseline.txt conflict.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-03-session-4496"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T01:05:04+00:00",
+      "type": "commit",
+      "content": "Commit: 945563593",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4496"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

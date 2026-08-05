@@ -106,6 +106,45 @@ This fired every few minutes with about ten concurrent agents. Prefer one wide
 query over several narrow ones, avoid parallel API reads across agents, and
 budget for the backoff rather than treating each refusal as a new problem.
 
+## It takes the AI quality gate down, and the PR does not say so
+
+A refusal during the AI review workflow does not surface as a rate limit
+anywhere a reader looks first. The chain, observed on PR #4471 at
+`2026-08-03T18:15:49Z`:
+
+1. The context build step shells out to `gh` to fetch PR data and takes a 403.
+   The log line is a `##[warning]`, not an error: `PR fetch failed: gh: API
+   rate limit exceeded for user ID 6811113`.
+2. `scripts/ci/check_ai_review_infra_gate.py` sets `CONTEXT_INFRA_FAILURE:
+   true` and every agent skips its Copilot CLI invocation.
+3. All ten agents report `DID_NOT_RUN (infra: true)`: security, qa, analyst,
+   architect, devops, roadmap, reliability, observability, agent-safety,
+   decision-rigor.
+4. `Aggregate Results` exits 1. That single red check is the only thing visible
+   on the PR, and its own log says nothing about rate limits.
+
+`gh pr checks` makes it worse: the individual agent jobs report **pass**,
+because skipping cleanly is a successful job. Only `Aggregate Results` is red.
+The natural reading, that the aggregation logic is broken or the diff failed
+review, is wrong both times.
+
+Diagnose it by opening any one agent job's log and grepping for `INFRA` or
+`rate limit`, not by reading the aggregate job. A uniform `DID_NOT_RUN` across
+all ten agents is the tell: a real review failure never hits every agent at
+once.
+
+The fix is a **full** re-run, `gh run rerun <run-id>`, once the bucket resets.
+`gh run rerun <run-id> --failed` does not work and the reason is the same
+asymmetry: the agent jobs are green, so `--failed` re-runs only `Aggregate
+Results`, which re-downloads the identical stale `DID_NOT_RUN` artifacts and
+fails identically. Measured on PR #4471: the `--failed` rerun aggregated at
+`18:44:56` against agent verdicts still stamped `18:15:49`, with core quota
+recovered to 4894/5000 at the time. Quota headroom is not the variable; which
+jobs re-run is.
+
+Nothing in the diff needs to change. Check `gh api rate_limit` for the reset
+timestamp first, keeping in mind that a healthy payload does not prove the API
+is serving, per the measurement above.
 ## There are two refusal modes, and the failing response tells you which
 
 The guidance above ("the numbers will look fine", "treat it as a 60 second
@@ -152,3 +191,4 @@ fetch `statusCheckRollup` per pull request only for the ones you need.
 mergeability lazily. The first query enqueues the computation. Wait about a
 minute and query again rather than treating `UNKNOWN` as a state. In one reading
 48 of 55 were `UNKNOWN` on the first pass and 0 on the second.
+
