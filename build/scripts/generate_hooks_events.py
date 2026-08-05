@@ -57,9 +57,9 @@ from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError  # noqa: E402
 
 # Files required at runtime by one emitted hook but not dispatched themselves.
-# No hook currently declares a companion; the mechanism and its tests stay so a
-# future companion can be added without re-plumbing the generator.
-_COMPANIONS_BY_OWNER: dict[str, tuple[str, ...]] = {}
+_COMPANIONS_BY_OWNER: dict[str, tuple[str, ...]] = {
+    "PreToolUse/invoke_markdownlint_guard.py": ("push_guard_base.py",),
+}
 _DISPATCHER_ARTIFACT_NAMES = ("_manifest.json", "_dispatch.py", "_bootstrap.py")
 
 
