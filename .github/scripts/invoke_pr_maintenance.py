@@ -566,15 +566,9 @@ def main(argv: list[str] | None = None) -> int:
         rate_result = check_workflow_rate_limit(resource_thresholds={"core": 100, "graphql": 50})
         if rate_result.status != RateLimitStatus.VERIFIED_HEALTHY:
             if not args.output_json:
-                # Name the observed condition. The gate fails on a quota
-                # threshold or on a live-probe refusal, and "too low" misreports
-                # the second as the first (issue #4326).
                 reason = rate_result.probe_error or "thresholds not met"
-                print(
-                    "Exiting: API rate limit gate "
-                    f"{rate_result.status.value} ({reason})",
-                    file=sys.stderr,
-                )
+                status = rate_result.status.value
+                print(f"Exiting: API rate limit gate {status} ({reason})", file=sys.stderr)
             return 0
     except RuntimeError:
         if not args.output_json:

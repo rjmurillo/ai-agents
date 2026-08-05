@@ -438,14 +438,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         if rate_result.status != RateLimitStatus.VERIFIED_HEALTHY:
             if not args.output_json:
-                # The gate fails on a threshold or on a live-probe refusal, and
-                # "too low" misreported the second as the first (issue #4326).
                 reason = rate_result.probe_error or "thresholds not met"
-                print(
-                    "Exiting: rate limit gate "
-                    f"{rate_result.status.value} ({reason})",
-                    file=sys.stderr,
-                )
+                status = rate_result.status.value
+                print(f"Exiting: rate limit gate {status} ({reason})", file=sys.stderr)
             return 0
     except (RuntimeError, subprocess.SubprocessError, OSError, KeyError):
         if not args.output_json:
