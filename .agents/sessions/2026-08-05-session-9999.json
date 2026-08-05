@@ -89,17 +89,17 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pre-commit markdown-autofix ran on the memory commit; no changed markdown paths remain after 27b83009be."
+        "Evidence": "Session-end markdown lint reported no markdown files changed after final test commit."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Work commits b649182f4d, 756b0bafe4, 1a86957691, and 27b83009be are recorded before this session log commit."
+        "Evidence": "Work commits b649182f4d, 756b0bafe4, 1a86957691, 27b83009be, 110f7871f7, and 036fdfee44 are recorded before this session log commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-05-session-9999.json passed."
+        "Evidence": "uv run --frozen python scripts/validate_session_json.py .agents/sessions/2026-08-05-session-9999.json passed after final test alignment."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "No separate retrospective artifact needed; durable learning recorded in Serena memory ci/mutation-harness-restore-failure-safe-writes."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "session-end reported rework-warning: none."
       }
     }
   },
@@ -147,6 +152,6 @@
       ]
     }
   ],
-  "endingCommit": "27b83009be",
+  "endingCommit": "036fdfee44",
   "nextSteps": []
 }
