@@ -180,6 +180,11 @@ class TestExtractLocations:
         result = extract_locations(text)
         assert "src/auth/login.ts" in result
 
+    def test_bold_location_field_extracts_extensionless_path(self) -> None:
+        text = "- **location**: `scripts/review-tool:47`\n"
+        result = extract_locations(text)
+        assert result == ["scripts/review-tool"]
+
     # Negative control: if extract_locations returned every token, prose
     # tokens like "N/A" would appear in the output.
     def test_negative_control_prose_excluded(self) -> None:
