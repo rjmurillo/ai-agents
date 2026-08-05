@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This commit carries the memory update and this log."
+        "Evidence": "Commit 758f34343 carries the memory update and this log."
       },
       "validationPassed": {
         "level": "MUST",
@@ -114,6 +114,6 @@
     }
   },
   "workLog": [],
-  "endingCommit": "",
+  "endingCommit": "758f343430581bd3cbfd4f7d779bf045fb5fb1aa",
   "nextSteps": []
 }

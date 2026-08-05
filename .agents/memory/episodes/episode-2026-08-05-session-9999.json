@@ -6,14 +6,24 @@
   "outcome": "success",
   "task": "Record BOT_PAT identity defect and git-transport-survives-rate-limit findings as memory; file issues 4607 and 4608",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T06:34:13+00:00",
+      "type": "commit",
+      "content": "Commit: 758f343430581bd3cbfd4f7d779bf045fb5fb1aa",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9999"
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 4
+    "commits": 1,
+    "files_changed": 5
   },
   "lessons": []
 }

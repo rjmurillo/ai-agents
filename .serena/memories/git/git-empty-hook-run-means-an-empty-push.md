@@ -76,3 +76,44 @@ Completion and content are different measurements, and the push workflow
 supplies only the first. The hook summary is the cheapest content signal
 available for free: a run where nothing matched is a run where nothing was
 sent.
+
+## The inverse trap: an empty `ls-remote` usually means "not yet" (95%)
+
+The failure above is a push that finishes too fast. The opposite misread costs
+more, and it looks identical to a real failure.
+
+A push here runs the whole lefthook pre-push suite before a single byte moves.
+Measured 2026-08-05: `python-tests` alone took 914 seconds, and the full push
+took over 14 minutes wall clock with a second agent's push competing for CPU.
+For that entire window `git ls-remote origin "$BRANCH"` prints nothing, because
+the ref genuinely does not exist yet.
+
+Nothing separates that from a rejected push by looking at `ls-remote` alone. On
+2026-08-05 I read the empty output as failure and nearly re-pushed, which would
+have started a second 15 minute suite and left two pushes racing the same ref.
+
+Check liveness before concluding anything:
+
+```bash
+git ls-remote origin "$BRANCH"                       # empty is ambiguous
+ps -eo cmd | grep -c "[g]it push origin HEAD:$BRANCH"  # 0 means it really ended
+```
+
+Only when the process count is 0 does an empty `ls-remote` mean the push
+failed. While the count is above 0, empty means "still running".
+
+Two related traps in the same window:
+
+- `tail` on a live push log lands in the middle of hook output, so it reads as
+  finished when it is not. One real log reached 24,613 lines. Compare
+  `wc -l` across two reads instead; a stalled count plus a live process means
+  a long hook is running, not a hang.
+- `Ready to create pull request!` appears in that log well before the push
+  completes, so it is not a completion signal either.
+
+## Generalization, second form
+
+An absent ref and a pending ref produce byte-identical output. Any check whose
+negative result is indistinguishable from "too early" needs a liveness probe
+next to it, or it is not a check. Pair the query with the process table, not
+with a longer wait.
