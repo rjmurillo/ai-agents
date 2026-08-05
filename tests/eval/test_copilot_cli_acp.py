@@ -794,6 +794,64 @@ def test_stdin_parent_exit_waits_for_delayed_stderr() -> None:
 
 
 @pytest.mark.timeout(3)
+def test_stdin_parent_exit_bounds_the_stderr_join(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release_threads = threading.Event()
+
+    class BlockingStdin:
+        def write(self, text: str) -> int:
+            release_threads.wait(timeout=2.0)
+            return len(text)
+
+        def flush(self) -> None:
+            return None
+
+    class ExitedProcess:
+        stdin = BlockingStdin()
+        args = ["copilot"]
+
+        def poll(self) -> int:
+            return 7
+
+    class FakeTree:
+        def terminate(self, *, force: bool) -> None:
+            return None
+
+    stderr_thread = threading.Thread(
+        target=lambda: release_threads.wait(timeout=2.0)
+    )
+    stderr_thread.start()
+    streams = cast(
+        Any,
+        SimpleNamespace(
+            process=ExitedProcess(),
+            process_tree=FakeTree(),
+            stderr_chunks=[],
+            stderr_thread=stderr_thread,
+        ),
+    )
+    monkeypatch.setattr(acp_module, "_READER_JOIN_SECONDS", 0.05)
+    started = time.monotonic()
+
+    try:
+        with pytest.raises(RuntimeError, match="stderr reader cleanup timed out"):
+            acp_module._send_request(
+                streams,
+                1,
+                "initialize",
+                {},
+                deadline=time.monotonic() + 1.0,
+                timeout=1.0,
+            )
+    finally:
+        release_threads.set()
+        stderr_thread.join(timeout=1.0)
+
+    assert time.monotonic() - started < 0.5
+
+
+@pytest.mark.timeout(3)
 def test_process_shutdown_obeys_the_session_deadline(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -258,9 +258,9 @@ def _send_request(
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise subprocess.TimeoutExpired(process.args, timeout) from None
-            streams.stderr_thread.join(remaining)
+            streams.stderr_thread.join(min(remaining, _READER_JOIN_SECONDS))
             if streams.stderr_thread.is_alive():
-                raise subprocess.TimeoutExpired(process.args, timeout) from None
+                raise RuntimeError("Copilot ACP stderr reader cleanup timed out")
             raise ACPProcessError(
                 returncode,
                 "".join(streams.stderr_chunks),
