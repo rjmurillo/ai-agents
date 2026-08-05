@@ -891,6 +891,71 @@ def test_permission_failure_still_names_fork_permissions(
     assert "first-time contributor" in context.text
 
 
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "HTTP 403: API rate limit exceeded for user ID 6811113",
+        "HTTP 403: You have exceeded a secondary rate limit",
+        "HTTP 403: You have triggered an abuse detection mechanism",
+    ],
+)
+def test_rate_limited_403_is_not_reported_as_a_permission_problem(
+    monkeypatch: pytest.MonkeyPatch,
+    stderr: str,
+):
+    """A rate-limit 403 must not be blamed on token permissions.
+
+    FORK_PERMISSION_SIGNAL matches the bare `HTTP 403` status, so every
+    REST-transport rate-limit refusal used to collect the fork hint. That is the
+    #4333 misdiagnosis arriving through a transport it was never fixed for.
+    """
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        return CommandResult("", stderr, 1)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("4575", "owner/repo", 100)
+
+    assert context.infrastructure_failure is True
+    assert "INFRASTRUCTURE_FAILURE" in context.text
+    assert stderr in context.text
+    assert "first-time contributor" not in context.text
+
+
+def test_fork_hint_survives_when_no_rate_limit_wording_is_present():
+    """Negative control: the suppression is specific, not a blanket disable.
+
+    Without this, deleting the hint outright would still pass the test above
+    while silently dropping a real diagnostic.
+    """
+    real_fork_failure = "HTTP 403: Resource not accessible by integration"
+
+    assert _mod.FORK_PERMISSION_SIGNAL.search(real_fork_failure)
+    assert not _mod.RATE_LIMIT_SIGNAL.search(real_fork_failure)
+
+    context = _mod._pr_fetch_failure_context("4575", real_fork_failure)
+
+    assert "first-time contributor" in context.text
+
+
+def test_graphql_rate_limit_never_matched_the_permission_signal():
+    """Edge: the GraphQL form carries no HTTP status, so it never matched.
+
+    Records why dropping the unconditional hint sufficed for GraphQL, and why
+    the REST form needed the second condition.
+    """
+    graphql_failure = "GraphQL: API rate limit already exceeded for user ID 6811113."
+
+    assert not _mod.FORK_PERMISSION_SIGNAL.search(graphql_failure)
+    assert _mod.RATE_LIMIT_SIGNAL.search(graphql_failure)
+
+    context = _mod._pr_fetch_failure_context("4575", graphql_failure)
+
+    assert "first-time contributor" not in context.text
+
+
 def test_name_only_falls_back_to_rest_file_list(monkeypatch: pytest.MonkeyPatch):
     """gh pr diff --name-only is GraphQL; REST pagination backs it up."""
 

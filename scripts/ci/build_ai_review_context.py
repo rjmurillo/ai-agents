@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, this file sat at 499 of 500 lines, so the
+# smallest correct form of the rate-limit classification fix (3 lines) still
+# lands at 502. Splitting a CI-critical context builder is a separate refactor,
+# not cleanup owed by a bug fix. Tracked for extraction in issue #4597.
 """Build the ai-review composite action context outside workflow YAML."""
 
 from __future__ import annotations
@@ -240,6 +244,15 @@ FORK_PERMISSION_SIGNAL = re.compile(
     re.IGNORECASE,
 )
 
+# A REST rate-limit refusal arrives as `HTTP 403: API rate limit exceeded ...`,
+# which FORK_PERMISSION_SIGNAL matches on the status alone. Suppressing the hint
+# on this signature keeps the #4333 misdiagnosis from returning through the REST
+# transport after it was fixed for GraphQL.
+RATE_LIMIT_SIGNAL = re.compile(
+    r"rate limit|secondary rate|abuse detection",
+    re.IGNORECASE,
+)
+
 
 def _pr_fetch_failure_context(pr_number: str, detail: str) -> ReviewContext:
     """Fail closed, naming the observed error rather than a guessed cause.
@@ -247,11 +260,14 @@ def _pr_fetch_failure_context(pr_number: str, detail: str) -> ReviewContext:
     REQ-008-05 (issue #2818) keeps the DID_NOT_RUN behavior. Issue #4333 is why
     the fork-permission hint is now conditional: an exhausted GraphQL quota was
     reported as a token permission problem, and chasing that cost real time on
-    PR #4273.
+    PR #4273. The GraphQL form carries no HTTP status, so dropping the
+    unconditional hint was enough for it. The REST form does carry one, so the
+    hint needs the rate-limit signature to lose as well.
     """
     hint = (
         " The GH_TOKEN may lack permissions for first-time contributor PRs from forks."
         if FORK_PERMISSION_SIGNAL.search(detail)
+        and not RATE_LIMIT_SIGNAL.search(detail)
         else ""
     )
     print(f"::warning::Could not fetch PR #{pr_number}: {detail}{hint}")
