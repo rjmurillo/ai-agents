@@ -17,13 +17,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from scripts.validation import portability_floor
 from scripts.validation.portability_floor import (
     Sections,
     read_previous_sections,
 )
-from scripts.validation.portability_git import tracked_blob
+from scripts.validation.portability_git import GIT_TIMEOUT_RETURN_CODE, tracked_blob
 
 
 def _git(root: Path, *args: str) -> None:
@@ -45,6 +48,33 @@ def _commit_baseline(root: Path, count: int) -> Path:
     _git(root, "add", "-A")
     _git(root, "commit", "-qm", "seed")
     return path
+
+
+def test_committed_object_timeout_names_the_failed_probe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _repo(tmp_path)
+    path = root / "scripts" / "validation" / "b.json"
+    monkeypatch.setattr(
+        portability_floor,
+        "committed_blob",
+        lambda *_args: ("deadbeef", None),
+    )
+    monkeypatch.setattr(
+        portability_floor,
+        "run_git",
+        lambda *_args: subprocess.CompletedProcess(
+            ["git", "cat-file"],
+            GIT_TIMEOUT_RETURN_CODE,
+            stdout=b"",
+            stderr=b"git command timed out after 30s",
+        ),
+    )
+
+    previous, problem = read_previous_sections(root, path)
+
+    assert previous is None
+    assert problem is not None and "reading the committed baseline object" in problem
 
 
 class TestAnUnresolvableHeadIsNotProofOfAnEmptyRepository:

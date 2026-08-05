@@ -74,8 +74,10 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] |
         return None
 
 
-def was_recorded(repo_root: Path, path: Path) -> bool | None:
-    """Report whether branch history has the baseline, None when git cannot answer.
+def was_recorded(
+    repo_root: Path, path: Path
+) -> tuple[bool | None, str | None]:
+    """Report whether branch history has the baseline and any timeout detail.
 
     The two failures of `resolve().relative_to()` are not the same answer and
     must not share a return. `ValueError` means the path resolved fine and sits
@@ -89,26 +91,30 @@ def was_recorded(repo_root: Path, path: Path) -> bool | None:
     try:
         resolved = path.resolve()
     except OSError:
-        return None
+        return None, None
     try:
         rel = resolved.relative_to(repo_root.resolve())
     except OSError:
-        return None
+        return None, None
     except ValueError:
-        return False
+        return False, None
 
     proc = run_git(repo_root, "log", "-1", "--format=%H", "HEAD", "--", str(rel))
+    if problem := git_timeout_problem(proc, "checking commit history for the baseline"):
+        return None, problem
     if proc is None:
-        return None
+        return None, None
     if proc.returncode == 0:
-        return bool(proc.stdout.strip())
+        return bool(proc.stdout.strip()), None
 
     refs = run_git(repo_root, "show-ref", "--head")
+    if problem := git_timeout_problem(refs, "checking repository refs"):
+        return None, problem
     if refs is None:
-        return None
+        return None, None
     if refs.returncode == 1 and not refs.stdout:
-        return False
-    return None
+        return False, None
+    return None, None
 
 
 def tree_entries(
