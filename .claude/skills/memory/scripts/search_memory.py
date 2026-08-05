@@ -82,8 +82,9 @@ def search_serena(
     keywords = query_keywords(query)
 
     results: list[dict[str, Any]] = []
-    for md_file in sorted(memory_path.glob("*.md")):
-        name = md_file.stem.lower()
+    for md_file in sorted(memory_path.rglob("*.md")):
+        rel = md_file.relative_to(memory_path).with_suffix("")
+        name = str(rel).lower()
         matching = [kw for kw in keywords if kw in name]
         if not matching:
             continue
@@ -94,7 +95,7 @@ def search_serena(
             content = ""
         preview = re.sub(r"\s+", " ", content).strip()
         results.append({
-            "Name": md_file.stem,
+            "Name": str(rel),
             "Source": "Serena",
             "Score": round(score, 2),
             "Path": str(md_file),
@@ -183,7 +184,7 @@ def get_memory_router_status(
     serena_available = serena_path.is_dir()
     serena_count = 0
     if serena_available:
-        serena_count = len(list(serena_path.glob("*.md")))
+        serena_count = len(list(serena_path.rglob("*.md")))
 
     episodes_available = False
     episode_count = 0
