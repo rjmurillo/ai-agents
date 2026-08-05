@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import queue
 import subprocess
@@ -32,6 +33,13 @@ _AUTH_HINTS = (
     "sign in",
     "unauthorized",
 )
+
+
+def validate_timeout(timeout: float) -> float:
+    """Return a finite positive session timeout."""
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError(f"timeout must be finite and > 0, got {timeout!r}")
+    return timeout
 
 
 class ACPProcessError(RuntimeError):
@@ -613,6 +621,7 @@ def run_acp_completion(
     timeout: float,
 ) -> subprocess.CompletedProcess[str]:
     """Send ``prompt`` over ACP stdin and return the text response."""
+    timeout = validate_timeout(timeout)
     streams = _start_process(argv, cwd=cwd, env=env)
     deadline = time.monotonic() + timeout
     try:

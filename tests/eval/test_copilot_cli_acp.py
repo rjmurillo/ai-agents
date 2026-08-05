@@ -144,6 +144,32 @@ def test_prompt_uses_stdin_and_safe_runtime_cannot_execute_fixture(
     assert not marker.exists()
 
 
+@pytest.mark.parametrize("timeout", [0.0, -1.0, float("nan"), float("inf")])
+def test_invalid_session_timeout_is_rejected_before_process_start(
+    monkeypatch: pytest.MonkeyPatch,
+    timeout: float,
+) -> None:
+    started = False
+
+    def fail_start(*args: object, **kwargs: object) -> None:
+        nonlocal started
+        started = True
+        raise AssertionError("process must not start")
+
+    monkeypatch.setattr(acp_module, "_start_process", fail_start)
+
+    with pytest.raises(ValueError, match="timeout must be finite and > 0"):
+        run_acp_completion(
+            ["copilot"],
+            "prompt",
+            cwd=".",
+            env={},
+            timeout=timeout,
+        )
+
+    assert started is False
+
+
 def test_unsafe_negative_control_exposes_secret_and_executes_fixture(
     tmp_path: Path,
 ) -> None:
