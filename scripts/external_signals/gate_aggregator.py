@@ -40,7 +40,13 @@ _PASSING = {"PASS"}
 # Treat it the same as UNKNOWN: blocking in the aggregate (it means a reviewer
 # agent skipped due to an infrastructure failure) but parseable, not fatal.
 _DID_NOT_RUN = {"DID_NOT_RUN"}
-_KNOWN = _BLOCKING | _WARNING | _PASSING | {"UNKNOWN"} | _DID_NOT_RUN
+# Public: the adapter in scripts/quality_gate/external_signal_gate.py reads
+# this to decide which repo verdict tokens still need aliasing before they
+# reach parse_signal. Adding a token here without teaching that adapter is
+# safe; adding one to the repo vocabulary without teaching either is not.
+KNOWN_VERDICTS = frozenset(_BLOCKING | _WARNING | _PASSING | {"UNKNOWN"})
+
+_KNOWN = KNOWN_VERDICTS | _DID_NOT_RUN
 
 _VALID_KINDS = {"external", "llm"}
 
