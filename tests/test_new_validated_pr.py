@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import argparse
+import importlib.util
 import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from scripts.github_core.repo import get_repo_root
-from scripts.new_validated_pr import SKILL_RELPATH, _run_web_mode, main
+from scripts.new_validated_pr import (
+    SKILL_RELPATH,
+    _build_parser,
+    _build_skill_args,
+    _run_web_mode,
+    main,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -224,3 +232,82 @@ class TestDispatch:
     ) -> None:
         exit_code, _ = self._run(mock_root, tmp_path, ["--title", "fix: t"], returncode=1)
         assert exit_code == 1
+
+
+class TestFlagContractWithRealTarget:
+    """Every flag this wrapper emits must be one the real target accepts.
+
+    TestDispatchTargetExists pins *which* script runs. This pins that the
+    command line handed to that script actually parses. The two failures are
+    independent: the target can exist, be the right file, and still reject the
+    arguments, which is exactly what happens the moment new_pr.py renames a
+    flag.
+
+    Nothing else in this file can catch that. Every dispatch test mocks
+    subprocess.run, so the argument list is asserted against string literals in
+    this file and never reaches a real parser. A rename in new_pr.py would leave
+    all of them green and fail only at runtime, which is the same class of
+    silent cross-script drift that let the wrapper dispatch to a deleted
+    New-PR.ps1 for months.
+    """
+
+    @staticmethod
+    def _real_target_parser() -> argparse.ArgumentParser:
+        """Load the actual dispatch target and return its real parser.
+
+        new_pr.py inserts its own directory onto sys.path at import time to
+        reach a sibling module. That mutation would outlive this test and make
+        those siblings importable everywhere else in the suite, so sys.path is
+        snapshotted and restored.
+        """
+        target = REPO_ROOT / SKILL_RELPATH
+        spec = importlib.util.spec_from_file_location("_flag_contract_new_pr", target)
+        assert spec is not None
+        assert spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        saved_path = list(sys.path)
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            sys.path[:] = saved_path
+        return module.build_parser()
+
+    @staticmethod
+    def _emitted_flags(argv: list[str]) -> list[str]:
+        """Return the args the wrapper would hand the target, without argv[0:2]."""
+        args = _build_parser().parse_args(argv)
+        return _build_skill_args(Path("unused.py"), args)[2:]
+
+    def test_target_still_exposes_a_parser_to_check_against(self) -> None:
+        """Guards the check itself.
+
+        The two contract tests below are only meaningful while the target keeps
+        a parser they can interrogate. If build_parser is renamed or removed,
+        _real_target_parser raises AttributeError and this fails loudly, rather
+        than the contract silently degrading into an assertion about nothing.
+        """
+        assert isinstance(self._real_target_parser(), argparse.ArgumentParser)
+
+    def test_target_accepts_the_maximal_flag_set(self) -> None:
+        emitted = self._emitted_flags(
+            [
+                "--title", "fix: t", "--base", "release", "--head", "topic",
+                "--body", "text", "--body-file", "b.md", "--draft",
+                "--skip-validation", "--audit-reason", "hotfix",
+            ],
+        )
+        parsed = self._real_target_parser().parse_args(emitted)
+        assert parsed.title == "fix: t"
+        assert parsed.base == "release"
+        assert parsed.head == "topic"
+        assert parsed.body == "text"
+        assert parsed.body_file == "b.md"
+        assert parsed.draft is True
+        assert parsed.skip_validation is True
+        assert parsed.audit_reason == "hotfix"
+
+    def test_target_accepts_the_minimal_flag_set(self) -> None:
+        emitted = self._emitted_flags(["--title", "fix: t"])
+        parsed = self._real_target_parser().parse_args(emitted)
+        assert parsed.title == "fix: t"
+        assert parsed.base == "main"
