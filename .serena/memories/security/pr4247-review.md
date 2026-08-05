@@ -18,7 +18,7 @@ The bot-skip guard is the **sole execution control** that prevents validation st
 
 ### 2. Unconditional Security Gates (from pr-validation.yml)
 
-Three security correctness gates are **explicitly marked UNCONDITIONAL** (no bot skip):
+Six security correctness gates are **explicitly marked UNCONDITIONAL** (no bot skip):
 
 1. **Line 283-293: ADR-006 run-block ratchet** - Detects business logic in workflow run blocks
    - Comment states: "Unconditional (Issue #4151): Renovate and Dependabot open workflow-only PRs (action SHA bumps), which are exactly the PRs that could smuggle a new run block past this gate if it were skip-guarded."

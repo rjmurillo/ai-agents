@@ -108,8 +108,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "retrospective skill run through Phase 4; wrote .agents/retrospective/2026-08-04-truncated-window-reductions.md and its INDEX.md entry."
       }
     }
   },

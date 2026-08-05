@@ -72,6 +72,31 @@ the same shape until now.
 
 All three produced a plausible answer from an incomplete view. None announced the loss.
 
+## Failure Mode Classification
+
+Per `.agents/governance/FAILURE-MODES.md`, this incident maps to one existing class. No new
+class is required.
+
+### Primary: FM-10 Silent Defaults and Guard-Clause Suppression
+
+FM-10's unifying property is that the call site has no way to know the operation did not do
+what its name claims. FM-10's catalogued shapes are all code-level: `except: pass`,
+`value or default`, a parser falling through to `{}`. This incident is the same property
+expressed in a query reduction rather than in a guard clause.
+
+`contexts(last:60)` against a head SHA carrying 131 contexts returned a well-formed, empty
+failure list. Nothing in the response distinguished "no failures" from "the failing row fell
+outside the window". All three instances in the Patterns table above share that shape: each
+produced a plausible answer from an incomplete view, and none announced the loss.
+
+The FM-10 enforcement pattern generalizes to match: surface the suppression. For a reduction,
+that means requesting `totalCount` alongside the window and comparing the two before reading
+the result, so a truncation announces itself the way a logged exception would.
+
+Not FM-9. FM-9 requires claiming parity with a canonical source without quoting it. The window
+size here was chosen without consulting any contract at all, so there was no contract to
+misquote.
+
 ## Phase 2: Diagnosis
 
 ### Successes (Tag: helpful)
