@@ -105,6 +105,14 @@
 - Model-panel child propagation parses each stderr line as JSON and accepts
   only the exact `{"level":"error","event":"MalformedProviderMetadataError"}`
   object. A prose substring is not a typed event.
+- Retry budgets are exact positive integers. Reject booleans, floats, strings,
+  zero, and negative values before transport resolution or retry loops.
+- Start ACP children in an isolated process group. Descendants can retain
+  inherited stdout and stderr after the direct child exits, so reader joins
+  must be bounded and cleanup must terminate the process tree.
+- The default home-derived session root must be absolute, just like explicit
+  session and Copilot home overrides. A relative home resolves differently in
+  the parent checkout and the isolated child working directory.
 
 ## Notes for Review (LOW confidence)
 
