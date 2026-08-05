@@ -3122,16 +3122,10 @@ class TestAdapterTotalWallBudget:
 
 
 class TestAdapterNonPositiveMaxRetries:
-    """`max_retries <= 0` skips the loop and lands on the fallthrough return.
-
-    Pinned because the record it produces is indistinguishable from a real
-    provider failure: `outcome="error"` carrying `ERR_UNKNOWN`. A caller
-    configuration mistake is reported in the provider's vocabulary, and no
-    attempt log is emitted to say otherwise. Refs #4121.
-    """
+    """`max_retries <= 0` is a caller mistake, not a provider result."""
 
     @pytest.mark.parametrize("max_retries", [0, -1, False])
-    def test_non_positive_max_retries_calls_no_transport(
+    def test_non_positive_max_retries_names_the_parameter(
         self, max_retries: int, capsys: pytest.CaptureFixture[str]
     ) -> None:
         calls: list[str] = []
@@ -3141,19 +3135,19 @@ class TestAdapterNonPositiveMaxRetries:
             raise AssertionError("transport must not be called")
 
         adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
-        result = adapter.call_model(
-            prompt="x",
-            model_id="claude-sonnet-4-6",
-            fixture_id="F-MR",
-            variant="agent",
-            run_index=0,
-            max_retries=max_retries,
-        )
+        with pytest.raises(ValueError) as exc_info:
+            adapter.call_model(
+                prompt="x",
+                model_id="claude-sonnet-4-6",
+                fixture_id="F-MR",
+                variant="agent",
+                run_index=0,
+                max_retries=max_retries,
+            )
+
+        assert "max_retries" in str(exc_info.value)
+        assert repr(max_retries) in str(exc_info.value)
         assert calls == []
-        assert result.outcome == "error"
-        assert result.error_category == ERR_UNKNOWN
-        assert result.attempts == 0
-        # Nothing was attempted, so no attempt log is written.
         assert capsys.readouterr().err == ""
 
 
