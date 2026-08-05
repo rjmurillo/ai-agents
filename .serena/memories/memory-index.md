@@ -99,7 +99,7 @@
 |subagent sandbox worktree checkout moves head wrong commit pushed reverts unstaged edit throwaway clone push sha not head: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
 |agent steering system prompt renders from live checkout stale behind main detached superseded rule no gate catches: [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) (943)
 |git branch switch checkout file state verification lost: [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) (851)
-|push skips every hook empty range detached HEAD no commits between ls-remote absence not failure slow push still running concurrent lefthook bogus yaml duplicate key exit status not remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (1972)
+|push skips every hook empty range detached HEAD no commits between ls-remote absence not failure slow push still running concurrent lefthook bogus yaml duplicate key exit status not remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2191)
 |lost code recovery investigation unmerged branch orphaned: [session/recovery-001-lost-code-investigation](session/recovery-001-lost-code-investigation.md) (552)
 |cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1251)
 
@@ -123,7 +123,8 @@
 |context engineering token optimization progressive disclosure just-in-time: [memory/context-engineering-principles](memory/context-engineering-principles.md) (594), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
 |passive context AGENTS.md skills decision-point retrieval-led compression: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (447), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (683), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (623)
 |instruction budget always-on ceiling applyTo scope headroom rule authoring: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1856)
-|memory index validator one direction unindexed orphan check non-recursive opt-in warn only passes clean: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (719)
+|injected instructions stale snapshot always-on context lags repo file cache canonical grep the rule before acting manifest bump reversal: [decision-injected-instructions-lag-the-repo](decision-injected-instructions-lag-the-repo.md) (785)
+|memory index validator one direction unindexed orphan check non-recursive opt-in warn only passes clean: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (927)
 
 [Root Cause Patterns (PR #908)]
 |governance enforcement ADR limits commits files programmatic gate: [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (603)
