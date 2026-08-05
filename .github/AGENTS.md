@@ -636,13 +636,14 @@ never conflict on the shared line. The earlier proposal, arming
 had to be current before merging, is not needed for this race: with the ratchet
 tolerating the drift there is no red `main` to prevent.
 
-**Status note, 2026-08-05.** That policy is now armed on ruleset `11104075`
-regardless. The paragraph above stays accurate on its own terms: strict checks
+**Status note, measured 2026-08-05.** That policy now reads `true` on ruleset
+`11104075`. The paragraph above stays accurate on its own terms: strict checks
 are not what resolves this particular race, and the ratchet tolerance is. Read
 it as a statement about the race, not as a claim about the current setting. Do
 not infer from it that being behind `main` is harmless, because it now blocks
-the merge outright. There is still no merge queue, so strict checks do not help
-a merge group, which is the case issue #4608 covers. See issue #4646.
+the merge outright. There is still no merge queue. Issue #4608 records an
+unverified hypothesis about how a future merge group would behave. See issue
+#4646.
 
 **Residual cost.** The baseline sits above the true count until someone records
 it, and that gap absorbs one later regression without firing. `--update` closes
