@@ -1,0 +1,138 @@
+{
+  "id": "episode-2026-08-05-session-1-triage-fix-issues-4261-4364",
+  "session": "2026-08-05-session-1-triage-fix-issues-4261-4364",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Triage and fix issues 4261 and 4364 encoding and debt scope",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched issues #4261 and #4364 plus comments from GitHub REST. Initial API calls hit a 403 limiter, slept 300 seconds, retried once, then cached the issue data in ~/src/scratch/encdebt-api-cache.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1-triage-fix-issues-4261-4364"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read the whole threads and linked items found in them. #4261 was already closed as implemented. #4364 was closed as unmerited, then gained later evidence about low-confidence heuristic deltas.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1-triage-fix-issues-4261-4364"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked dirty ai-agents worktrees by newest file age and content. No live or abandoned worktree had relevant #4261 or #4364 changes to harvest.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1-triage-fix-issues-4261-4364"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced #4261 current state: check_subprocess_encoding.py exists, is wired, and exits 0 on scripts/validation/.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1-triage-fix-issues-4261-4364"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced #4364 current state: changed-only plus base returned exit 0 for unchanged legacy absolute debt and exit 10 for a real cohesion drop. The absolute-debt claim is stale on current main.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1-triage-fix-issues-4261-4364"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added tests/test_assess_regression.py coverage for the main branch point: existing absolute debt exits 0 and existing score drops exit 10.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1-triage-fix-issues-4261-4364"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validation passed: ruff on tests/test_assess_regression.py; pytest focused suites returned 42 passed, then 103 passed including the skill test file.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1-triage-fix-issues-4261-4364"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "test",
+      "content": "Validation passed: ruff on tests/test_assess_regression.py; pytest focused suites returned 42 passed, then 103 passed including the skill test file.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1-triage-fix-issues-4261-4364"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation proof passed. M1 changed-only absolute fallback died. M2 suppressed exit-10 died. M3 subprocess errors keyword mutant died. M4 cosmetic docstring wording survived.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1-triage-fix-issues-4261-4364"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T06:14:16+00:00",
+      "type": "commit",
+      "content": "Commit: 4ba87e6765",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-1-triage-fix-issues-4261-4364"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

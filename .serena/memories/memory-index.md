@@ -53,6 +53,7 @@
 |sentinel zero None unknown unmeasured tri-state exit code fail open overload: [quality/add-missing-state-not-sentinel](quality/add-missing-state-not-sentinel.md) (599)
 |code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1118)
 |prompt engineering quality gate AI assessment template: [quality/quality-prompt-engineering-gates](quality/quality-prompt-engineering-gates.md) (1419)
+|code quality changed-only regression gate absolute debt issue 4364 exit 10 threshold: [validation/code-quality-changed-only-regression-gate](validation/code-quality-changed-only-regression-gate.md) (287)
 |validation quality lint false-positive gate test: [skills-validation-index](skills-validation-index.md) (422)
 |linting markdown autofix config exclude language backtick: [skills-linting-index](skills-linting-index.md) (173)
 
