@@ -29,4 +29,4 @@
 | batch response single commit multiple comments clean history efficiency | [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) |
 | code-review observations skill constraints parallel agents confidence threshold haiku sonnet permalink | [pr-review/pr-review-code-review-skill-observations](pr-review/pr-review-code-review-skill-observations.md) |
 | batching triage tier parallel dispatch merge ordering bot thread classification required checks | [workflows/pr-review-batching-strategy](workflows/pr-review-batching-strategy.md) |
-| skill sidecar learnings pr-review 1873 observations | [pr-review-pr1873-observations](pr-review-pr1873-observations.md) |
+| sidecar learnings PR-1873 five-round iteration constraints confidence-tier | [pr-review-pr1873-observations](pr-review-pr1873-observations.md) |

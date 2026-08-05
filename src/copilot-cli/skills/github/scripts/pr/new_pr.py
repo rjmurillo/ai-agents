@@ -68,6 +68,44 @@ _DASH_RE = re.compile("[\u2013\u2014]")
 # import path resolution the _DASH_RE comment documents rejecting.
 _SKILL_SCAN_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 
+
+def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
+    """Return the git ref to use for local validation diffs.
+
+    The ``--base`` value (e.g. ``main``) names a branch on GitHub. In a linked
+    worktree the local ref of that name is never advanced after the worktree is
+    created, so ``git diff main...HEAD`` diffs against a merge-base that may be
+    hundreds of commits stale and includes unrelated files (issues #4461, #4489).
+
+    Resolution priority:
+    1. ``explicit`` -- when the caller passes ``--validation-base``, trust it.
+    2. ``origin/{pr_base}`` -- when the remote-tracking ref exists, use it.
+       This ref is kept current by normal ``git fetch`` without checking out
+       ``{pr_base}`` locally, so it is always correct in a worktree.
+    3. ``pr_base`` fallback -- non-remote repos or unusual layouts where no
+       ``origin/`` remote exists.
+
+    The returned ref is used ONLY for ``git diff``; ``gh pr create --base``
+    always receives the bare ``pr_base`` name, which is what GitHub expects.
+    """
+    if explicit:
+        return explicit
+
+    remote_ref = f"origin/{pr_base}"
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", remote_ref],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    if result.returncode == 0:
+        return remote_ref
+    return pr_base
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -118,67 +156,6 @@ def _git_env() -> dict[str, str]:
         for k, v in os.environ.items()
         if k not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"}
     }
-
-
-def _tracking_remote() -> str | None:
-    """Return the remote whose tracking refs the base should resolve against.
-
-    ``origin`` wins when it exists. A repository with exactly one differently
-    named remote uses that one. With several remotes and no ``origin`` there is
-    no non-arbitrary answer, so the caller falls back to the literal base.
-    """
-    result = subprocess.run(
-        ["git", "remote"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        env=_git_env(),
-    )
-    if result.returncode != 0:
-        return None
-    remotes = result.stdout.split()
-    if "origin" in remotes:
-        return "origin"
-    return remotes[0] if len(remotes) == 1 else None
-
-
-def resolve_comparison_base(base: str) -> str:
-    """Return the ref to diff against, preferring the remote-tracking branch.
-
-    ``--base`` names the PR target on the server. The local branch of the same
-    name is usually stale, because nothing advances it while you work on feature
-    branches. Diffing against a stale ``main`` makes every file merged upstream
-    since look like part of this branch. Session End validation then picks the
-    newest session log out of that inflated set, which belongs to somebody else,
-    and fails the PR for a file this branch never touched.
-
-    The remote-tracking ref moves on every fetch and is what GitHub compares
-    against, so prefer it. The returned ref is fully qualified as
-    ``refs/remotes/<remote>/<base>`` rather than the ``<remote>/<base>``
-    shorthand, because the shorthand is resolved by search order: a local branch
-    or tag literally named ``origin/main`` would shadow the remote-tracking ref
-    and silently reintroduce the stale-base bug this function exists to remove.
-
-    Fall back to the given name when no such ref exists, which covers local-only
-    bases, a ``--base`` already given as ``origin/x``, and repositories with no
-    unambiguous remote.
-    """
-    remote = _tracking_remote()
-    if remote is None:
-        return base
-    candidate = f"refs/remotes/{remote}/{base}"
-    probe = subprocess.run(
-        ["git", "rev-parse", "--verify", "--quiet", f"{candidate}^{{commit}}"],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        env=_git_env(),
-    )
-    return candidate if probe.returncode == 0 else base
 
 
 def get_repo_root() -> str:
@@ -396,19 +373,7 @@ def run_validations(
                             timeout=60,
                         )
                         if vresult.returncode != 0:
-                            print(
-                                f"Session End validation failed for {session_log}",
-                                file=sys.stderr,
-                            )
-                            print(
-                                f"  (selected as the newest log in 'git diff {base}...{head}'. "
-                                "If that log is not yours, the base is behind: "
-                                "run 'git fetch origin' and retry.)",
-                                file=sys.stderr,
-                            )
-                            detail = f"{vresult.stdout or ''}{vresult.stderr or ''}".strip()
-                            if detail:
-                                print(detail, file=sys.stderr)
+                            print("Session End validation failed", file=sys.stderr)
                             raise SystemExit(1)
         elif not has_legacy_md:
             print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
@@ -590,6 +555,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--body", default="", help="PR description body")
     parser.add_argument("--body-file", default="", help="Path to file containing PR body")
     parser.add_argument("--base", default="main", help="Target branch (default: main)")
+    parser.add_argument(
+        "--validation-base",
+        default="",
+        dest="validation_base",
+        help=(
+            "Git ref for local validation diffs (default: auto-resolved to "
+            "origin/<base> when that ref exists, else <base>). Use this to "
+            "override the automatic resolution. Does not affect the GitHub "
+            "PR base branch."
+        ),
+    )
     parser.add_argument("--head", default="", help="Source branch (default: current branch)")
     parser.add_argument("--draft", action="store_true", help="Create as draft PR")
     parser.add_argument("--skip-validation", action="store_true", help="Skip validation checks")
@@ -655,10 +631,18 @@ def main(argv: list[str] | None = None) -> int:
         write_audit_log(repo_root, head, args.base, args.title, args.audit_reason)
         print()
     else:
+        validation_base = _resolve_validation_base(args.base, args.validation_base)
+        if validation_base != args.base:
+            print(
+                f"  Note: validating diff against {validation_base!r} "
+                f"(local {args.base!r} may be stale in a worktree). "
+                f"GitHub PR base remains {args.base!r}.",
+                file=sys.stderr,
+            )
         try:
             run_validations(
                 repo_root,
-                resolve_comparison_base(args.base),
+                validation_base,
                 head,
                 title=args.title,
                 body=args.body,
