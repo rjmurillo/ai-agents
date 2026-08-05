@@ -70,6 +70,30 @@ def test_run_git_bounds_and_reports_timeout(
     assert captured_timeout == [GIT_TIMEOUT_SECONDS]
 
 
+def test_run_git_preserves_partial_stderr_on_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        timeout = kwargs["timeout"]
+        assert isinstance(timeout, float)
+        raise subprocess.TimeoutExpired(
+            "git",
+            timeout,
+            stderr=b"waiting for repository lock",
+        )
+
+    monkeypatch.setattr(portability_git.subprocess, "run", time_out)
+
+    result = run_git(tmp_path, "status")
+
+    assert result is not None
+    assert result.returncode == GIT_TIMEOUT_RETURN_CODE
+    assert result.stderr == (
+        b"waiting for repository lock\ngit command timed out after 30s"
+    )
+
+
 def test_run_git_strips_git_overrides_case_insensitively(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -68,7 +68,10 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] |
         )
     except subprocess.TimeoutExpired as exc:
         stdout = exc.stdout if isinstance(exc.stdout, bytes) else b""
-        stderr = f"git command timed out after {GIT_TIMEOUT_SECONDS:g}s".encode()
+        stderr = exc.stderr if isinstance(exc.stderr, bytes) else b""
+        if stderr:
+            stderr += b"\n"
+        stderr += f"git command timed out after {GIT_TIMEOUT_SECONDS:g}s".encode()
         return subprocess.CompletedProcess(exc.cmd, GIT_TIMEOUT_RETURN_CODE, stdout, stderr)
     except OSError:
         return None
