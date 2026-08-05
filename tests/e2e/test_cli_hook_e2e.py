@@ -73,6 +73,26 @@ _probe_name = copilot_hook_probe.probe_name
 _write_probe_script = copilot_hook_probe.write_probe_script
 _copilot_auth_failed = copilot_hook_probe.copilot_auth_failed
 _copilot_auth_failure_headline = copilot_hook_probe.copilot_auth_failure_headline
+_copilot_transient_failure = copilot_hook_probe.copilot_transient_failure
+_copilot_transient_failure_headline = copilot_hook_probe.copilot_transient_failure_headline
+
+
+def _skip_on_auth_failure(result: subprocess.CompletedProcess[str]) -> None:
+    """Skip the test (not fail) when Copilot auth is absent or rejected.
+
+    In the pre-push context no valid Copilot token is expected, so an auth gate
+    is an infrastructure condition, not a branch defect. Skipping lets the push
+    proceed. The nightly workflow provisions a real token and uses
+    assert_smoke_ran.py to detect skipped smokes, so the nightly still fails red
+    when the secret is missing or revoked (issues #4483, #3275).
+
+    Using pytest.skip rather than pytest.fail here is the contractual choice:
+    fail would block every pre-push on branches that lack Copilot auth. The
+    existing timeout paths in this file already follow the same pattern.
+    """
+    if _copilot_auth_failed(result):
+        pytest.skip(_copilot_auth_failure_headline(result))
+
 
 
 def _skip_on_auth_failure(result: subprocess.CompletedProcess[str]) -> None:
@@ -219,6 +239,8 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         )
     except subprocess.TimeoutExpired:
         pytest.skip("copilot plugin install exceeded 240s (CLI/infra latency)")
+    if _copilot_transient_failure(install):
+        pytest.skip(_copilot_transient_failure_headline(install))
     if _copilot_auth_failed(install):
         _skip_on_auth_failure(install)
     assert install.returncode == 0, install.stderr or install.stdout
@@ -241,6 +263,8 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         )
     except subprocess.TimeoutExpired:
         pytest.skip("copilot run exceeded 240s (CLI/infra latency)")
+    if _copilot_transient_failure(run):
+        pytest.skip(_copilot_transient_failure_headline(run))
     if _copilot_auth_failed(run):
         _skip_on_auth_failure(run)
 
