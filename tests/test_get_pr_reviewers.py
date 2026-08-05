@@ -10,6 +10,7 @@ import sys
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -93,6 +94,7 @@ def _api(
     review_comments: list[dict] | None = None,
     issue_comments: list[dict] | None = None,
     graphql_error: RuntimeError | None = None,
+    legacy_author: Any = None,
 ):
     requests = list(request_pages or [_connection([])])
     reviews = list(review_pages or [_connection([])])
@@ -118,12 +120,24 @@ def _api(
             return review_comments or []
         return issue_comments or []
 
+    if legacy_author is None:
+        legacy_author = author.get("login", "") if isinstance(author, dict) else ""
+    pr_view = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout=json.dumps({"author": {"login": legacy_author}}),
+        stderr="",
+    )
+
     with patch(f"{_MODULE}.assert_gh_authenticated"), patch(
         f"{_MODULE}.resolve_repo_params",
         return_value=RepoInfo(owner="o", repo="r"),
     ), patch(f"{_MODULE}.gh_graphql", side_effect=graphql), patch(
         f"{_MODULE}.gh_api_paginated",
         side_effect=rest,
+    ), patch(
+        f"{_MODULE}.subprocess.run",
+        return_value=pr_view,
     ):
         yield
 
@@ -214,11 +228,17 @@ class TestMain:
     def test_live_cli_shaped_actors_keep_database_ids(self, capsys):
         author = _actor("copilot-swe-agent", 198982749, "Bot")
         review = _actor("copilot-pull-request-reviewer", 175728472, "Bot")
-        with _api(author=author, review_pages=[_connection([_review_node(review)])]):
+        with _api(
+            author=author,
+            review_pages=[_connection([_review_node(review)])],
+            legacy_author="app/copilot-swe-agent",
+        ):
             assert main(["--pull-request", "3235"]) == 0
         output = _output(capsys)
-        assert output["pr_author"] == "copilot-swe-agent"
+        assert output["pr_author"] == "app/copilot-swe-agent"
         assert output["pr_author_id"] == 198982749
+        assert output["pr_author_observed"] == "copilot-swe-agent"
+        assert output["pr_author_canonical"] == "copilot-swe-agent[bot]"
         reviewer = output["reviewers"][0]
         assert reviewer["login"] == "github-copilot[bot]"
         assert reviewer["actor_ids"] == [175728472]
@@ -321,6 +341,24 @@ class TestMain:
         }
 
     @pytest.mark.parametrize("connection", ["requests", "reviews"])
+    def test_repeated_pagination_cursor_exits_3(self, connection: str) -> None:
+        repeated_pages = [
+            _connection([], next_cursor="same"),
+            _connection([], next_cursor="same"),
+        ]
+        request_pages = repeated_pages if connection == "requests" else None
+        review_pages = repeated_pages if connection == "reviews" else None
+        with _api(
+            author=_actor("alice", 1),
+            request_pages=request_pages,
+            review_pages=review_pages,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "10"])
+
+        assert exc.value.code == 3
+
+    @pytest.mark.parametrize("connection", ["requests", "reviews"])
     def test_missing_pagination_cursor_exits_3(self, connection):
         bad_page = {
             "nodes": [],
@@ -358,6 +396,36 @@ class TestMain:
             author=_actor("alice", 1),
             request_pages=request_pages,
             review_pages=review_pages,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "10"])
+
+        assert exc.value.code == 3
+
+    @pytest.mark.parametrize("location", ["author", "request", "review", "comment"])
+    def test_non_string_actor_login_exits_3(self, location: str) -> None:
+        malformed = {"__typename": "Bot", "login": 42, "databaseId": 1}
+        author = malformed if location == "author" else _actor("alice", 1)
+        request_pages = (
+            [_connection([_request_node(malformed)])]
+            if location == "request"
+            else None
+        )
+        review_pages = (
+            [_connection([_review_node(malformed)])]
+            if location == "review"
+            else None
+        )
+        review_comments = (
+            [{"user": {"login": 42, "id": 1, "type": "Bot"}}]
+            if location == "comment"
+            else None
+        )
+        with _api(
+            author=author,
+            request_pages=request_pages,
+            review_pages=review_pages,
+            review_comments=review_comments,
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "10"])

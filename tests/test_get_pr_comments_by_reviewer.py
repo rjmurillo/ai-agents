@@ -207,6 +207,37 @@ class TestMain:
         assert exc.value.code == 3
         assert '"success": true' not in capsys.readouterr().out.lower()
 
+    @pytest.mark.parametrize("location", ["author", "comment"])
+    def test_non_string_actor_login_exits_3(
+        self,
+        location: str,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        author_login: str | int = 42 if location == "author" else "author1"
+        pr_view = _completed(stdout=json.dumps({"author": {"login": author_login}}))
+        comments = (
+            [{"user": {"login": 42, "type": "Bot"}, "body": "bad"}]
+            if location == "comment"
+            else []
+        )
+        with patch(
+            f"{_MODULE}.assert_gh_authenticated",
+        ), patch(
+            f"{_MODULE}.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            f"{_MODULE}.subprocess.run",
+            return_value=pr_view,
+        ), patch(
+            f"{_MODULE}.gh_api_paginated",
+            return_value=comments,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "42", "--comment-type", "review"])
+
+        assert exc.value.code == 3
+        assert '"success": true' not in capsys.readouterr().out.lower()
+
     def test_no_comments(self, capsys):
         pr_view = _completed(stdout=json.dumps({"author": {"login": "author1"}}))
         with patch(

@@ -71,6 +71,16 @@ def _account_id(actor: dict[str, Any]) -> int | None:
     return account_id if isinstance(account_id, int) else None
 
 
+def _actor_login(actor: dict[str, Any], context: str) -> str:
+    """Return a string login, rejecting malformed API actor payloads."""
+    login = actor.get("login")
+    if login is None:
+        return ""
+    if not isinstance(login, str):
+        raise RuntimeError(f"{context} login is not a string")
+    return login
+
+
 def _fetch_complete_comments(endpoint: str) -> list[dict[str, Any]]:
     """Reject the pagination helper's documented partial result."""
     with warnings.catch_warnings():
@@ -100,8 +110,12 @@ def _fetch_pr_author(owner: str, repo: str, pr_number: int) -> tuple[str, int | 
             error_and_exit(f"PR #{pr_number} not found", 2)
         error_and_exit(f"Failed to get PR #{pr_number}: {err_msg}", 3)
     data = json.loads(result.stdout)
-    author = data.get("author") or {}
-    return author.get("login", ""), _account_id(author)
+    author = data.get("author")
+    if author is None:
+        return "", None
+    if not isinstance(author, dict):
+        raise RuntimeError("PR author payload is not an object")
+    return _actor_login(author, "PR author"), _account_id(author)
 
 
 def get_pr_comments_by_reviewer(
@@ -154,9 +168,13 @@ def get_pr_comments_by_reviewer(
                 f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
             )
             for c in review_comments:
-                user = c.get("user") or {}
+                user = c.get("user")
+                if user is None:
+                    continue
+                if not isinstance(user, dict):
+                    raise RuntimeError("Review comment user payload is not an object")
                 comments.append({
-                    "login": user.get("login", ""),
+                    "login": _actor_login(user, "review comment author"),
                     "actor_id": _account_id(user),
                     "user_type": user.get("type", "User"),
                     "body": c.get("body", ""),
@@ -173,9 +191,13 @@ def get_pr_comments_by_reviewer(
                 f"repos/{owner}/{repo}/issues/{pr_number}/comments"
             )
             for c in issue_comments:
-                user = c.get("user") or {}
+                user = c.get("user")
+                if user is None:
+                    continue
+                if not isinstance(user, dict):
+                    raise RuntimeError("Issue comment user payload is not an object")
                 comments.append({
-                    "login": user.get("login", ""),
+                    "login": _actor_login(user, "issue comment author"),
                     "actor_id": _account_id(user),
                     "user_type": user.get("type", "User"),
                     "body": c.get("body", ""),
@@ -190,6 +212,8 @@ def get_pr_comments_by_reviewer(
         author_key = canonicalize_login(pr_author, pr_author_id)
         for comment in comments:
             observed = comment["login"]
+            if not isinstance(observed, str):
+                raise RuntimeError("Normalized comment login is not a string")
             if not observed:
                 continue
             actor_id = comment["actor_id"]

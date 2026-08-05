@@ -123,6 +123,13 @@ class TestNormalize:
         assert out["author_observed"] is None
         assert out["author_canonical"] is None
 
+    def test_non_string_author_login_is_rejected(self):
+        item = _api_review()
+        item["user"]["login"] = 42
+
+        with pytest.raises(ValueError, match="login is not a string"):
+            _normalize(item)
+
     def test_aliases_api_is_preserved_with_additive_identity_fields(self):
         out = _normalize(
             _api_review(
@@ -181,6 +188,15 @@ class TestMain:
         data = _envelope(capsys)["Data"]
         assert data["count"] == 1
         assert data["reviews"][0]["state"] == "APPROVED"
+
+    def test_non_string_author_login_returns_api_error(self, capsys):
+        malformed = _api_review()
+        malformed["user"]["login"] = 42
+
+        assert _run([malformed], ["--pull-request", "10"]) == 3
+        output = _envelope(capsys)
+        assert output["Success"] is False
+        assert output["Error"]["Type"] == "ApiError"
 
     def test_invalid_state_exits_1(self, capsys):
         assert _run([], ["--pull-request", "10", "--state", "NOPE"]) == 1
