@@ -117,6 +117,19 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-4656-absence-claims"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T18:43:41+00:00",
+      "type": "commit",
+      "content": "Commit: 87886b9f8ca7f34551b3f879755d1ee218d6b902",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-4656-absence-claims"
     }
@@ -126,7 +139,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 3
   },
   "lessons": []

@@ -145,7 +145,7 @@
       "evidence": "98526f68b rule plus two generated mirrors; b55e2e1d2 four memories plus the index; the retrospective artifact with this log. No plugin manifest touched, per ADR-092."
     }
   ],
-  "endingCommit": "1bd3603443419715f1d51b2de3ada41b010c3f99",
+  "endingCommit": "87886b9f8ca7f34551b3f879755d1ee218d6b902",
   "nextSteps": [
     "Open PRs for the four branches landed earlier in this session: docs/ai-gate-did-not-run, docs/gate-measurement-quirks, docs/memory-subdir-consumers, fix/memory-search-blind-to-nested.",
     "Update PR #4656's body with the corrected counts and the four commits.",
