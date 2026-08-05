@@ -55,7 +55,7 @@
       "id": "e005",
       "timestamp": "2026-08-03T00:00:00+00:00",
       "type": "milestone",
-      "content": "Update taste_count_baseline.txt from 595 to 593",
+      "content": "Update taste_count_baseline.txt from 584 to 583",
       "caused_by": [],
       "leads_to": [
         "e007"
@@ -112,6 +112,45 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T15:21:30+00:00",
+      "type": "commit",
+      "content": "Commit: 1202ea241",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-04T15:21:31+00:00",
+      "type": "commit",
+      "content": "Commit: 340d7b372",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-04T20:51:52+00:00",
+      "type": "commit",
+      "content": "Commit: a69b16c6a",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-03-session-4483-3275-4345-smoke-auth-budget"
     }
@@ -121,7 +160,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 6,
     "files_changed": 5
   },
   "lessons": []

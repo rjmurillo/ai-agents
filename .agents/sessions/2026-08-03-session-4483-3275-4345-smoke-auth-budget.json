@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed as 5067f238c."
+        "Evidence": "Committed as 1202ea241 (e2e auth skip) and 340d7b372 (taste baseline 584 to 583). Branch tip at session end is a69b16c6a, a CI retrigger commit, which matches endingCommit."
       },
       "validationPassed": {
         "level": "MUST",
@@ -131,15 +131,15 @@
       "result": "4 call sites changed from pytest.fail to helper. 8 unit tests added. All 32 tests pass."
     },
     {
-      "action": "Update taste_count_baseline.txt from 595 to 593",
-      "result": "My changes reduced taste violations by 2. Baseline updated to match."
+      "action": "Update taste_count_baseline.txt from 584 to 583",
+      "result": "My changes reduced taste violations by 1. Baseline updated to match."
     },
     {
       "action": "Close #4345",
       "result": "Issue closed with written justification comment at https://github.com/rjmurillo/ai-agents/issues/4345#issuecomment-5172855417"
     }
   ],
-  "endingCommit": "4607f6ce8",
+  "endingCommit": "a69b16c6a",
   "nextSteps": [
     "Push fix/smoke-auth-budget and create PR with Fixes #4483 and Fixes #3275"
   ]
