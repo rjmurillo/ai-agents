@@ -14,63 +14,79 @@ its **generated** `applyTo` resolves to `**`, so the answer lives in the
 generated tree. Parsing `.claude/rules/*.md` gives a wrong answer, wrong in both
 directions.
 
-There is also no single answer. The two destination trees disagree, measured at
-`0c75045d6`:
+There is also no single answer *by construction*, though the two trees agree
+today. Measured at `98526f68b`:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 8 rules, 72,291 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 11 rules, 79,823 bytes |
+| `.github/instructions` | Copilot in this repository | 8 rules, 71,901 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 8 rules, 71,901 bytes |
 
-`governance`, `secret-redaction`, and `session-logs` are narrowly scoped here and
-always-on in the plugin. A vendor install pays 7,532 bytes every turn that this
-repository never measures, on three rules that point at `.agents/` paths the
-installing repository does not have. Always name the tree with the number.
+Identical membership: `builder-ethos`, `claude-model-patches`, `code-quality`,
+`knowledge-persistence`, `lsp-first`, `search-before-building`, `universal`,
+`voice`.
 
-The scope inversion behind this is tracked as issue #4317. Re-measure before
-quoting any number here if that issue closes.
+They did not always agree. An earlier revision of this memory recorded 11 rules
+and 79,823 bytes in the plugin against 8 and 72,291 here, with `governance`,
+`secret-redaction`, and `session-logs` narrow at source and always-on in the
+product. That was issue #4317, and it is fixed: the generator now drops an
+all-internal rule from that tree instead of widening it.
+
+**Still name the tree with the number.** `test_doctrine_plugin_tree_figures_match_the_shipped_tree`
+compares the two trees, but only on rule count and byte total, so a swap that
+preserves both would pass. Nothing pins the names.
 
 ## Why the source cannot answer it
 
-`build/scripts/generate_rules.py` reaches `applyTo: "**"` four ways. Only the
+`build/scripts/generate_rules.py` reaches `applyTo: "**"` three ways. Only the
 first leaves a line in the source file that a grep can find.
 
 1. The source declares `paths: ["**"]` or `applyTo: '**'`. Renamed verbatim
    (`build/scripts/generate_rules.py:24`).
 2. The source declares `alwaysApply: true` and no path scope. Line 25 drops
    `alwaysApply:`, which leaves no scope, so case 3 fires.
-3. The source declares no scope at all. Lines 338-341 synthesize `**`:
+3. The source declares no scope at all. Lines 345-348 synthesize `**`:
 
    ```python
    if not had_scope and "applyTo" not in result:
        result = {"applyTo": _UNIVERSAL_SCOPE, **result}
    ```
 
-4. The source declares a scope whose globs are **all** filtered as internal-only.
-   Lines 335-337 fall back to `**` rather than shipping an empty scope:
+There used to be a fourth. A source whose globs were **all** filtered as
+internal-only fell back to `**` rather than shipping an empty scope, so
+narrowing a rule to `.claude/**` read like a reduction and widened it to every
+turn in the shipped plugin. That was issue #4317. The generator now drops the
+rule from that tree instead (`build/scripts/generate_rules.py:343`):
 
-   ```python
-   applyto_value = result.get("applyTo")
-   if had_scope and isinstance(applyto_value, str) and not applyto_value.strip():
-       result["applyTo"] = _UNIVERSAL_SCOPE
-   ```
+```python
+if had_scope and isinstance(applyto_value, str) and not applyto_value.strip():
+    return _SCOPE_SKIPPED
+```
 
-   This case is **destination-dependent** and is why the two trees disagree.
-   `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions`
-   under `keepInternalGlobsFor`, disabling the filter there, so case 4 cannot
-   fire for that tree. It fires only for `src/copilot-cli/instructions`.
+That branch is still live and four rules take it today: `governance`,
+`push-lock`, `secret-redaction`, and `session-logs` are present in
+`.github/instructions` and absent from `src/copilot-cli/instructions`
+altogether. `templates/platforms/copilot-cli.yaml:39-40` lists
+`.github/instructions` under `keepInternalGlobsFor`, which disables the filter
+for that tree, so the same rule is scoped there and pruned from the plugin.
+
+So the two trees hold different *rule sets* while agreeing on the always-on
+subset. Membership can still diverge, by a rule the filter does not touch
+gaining or losing a universal scope in one tree only. Keep naming the tree with
+the number.
 
 Cases 2 and 3 are one branch, not two. `_has_path_scope` (line 209) reads only
 the path-scope keys, so `alwaysApply` never sets `had_scope`.
 
 ## The footgun
 
-Case 4 inverts intent. Narrowing a rule to `.claude/**` reads like a reduction in
-scope and silently widens it to every turn in the shipped plugin. The generator
-prints `WARNING: dropped internal-only glob from applyTo` to stderr, and nobody
-reads stderr during a build.
+The pruning is silent in the direction that matters now. The generator prints
+`WARNING: dropped internal-only glob from applyTo` to stderr, and nobody reads
+stderr during a build, so a rule can leave the plugin entirely without anyone
+noticing. That is the safe failure direction, but it is still invisible.
 
-Cases 3 and 4 are why a source-tree measurement is not merely conservative. It
+Cases 3 and the retired case 4 are why a source-tree measurement is not merely
+conservative. It
 misses synthesized members, and it can count a rule whose globs were filtered
 out from under it.
 
@@ -95,7 +111,7 @@ wrote this memory, and the wrong count looked plausible enough to act on.
 import yaml
 from pathlib import Path
 
-# Pass the tree you actually mean. They do not agree.
+# Pass the tree you actually mean. They can diverge even when they agree today.
 TREE = ".github/instructions"  # or "src/copilot-cli/instructions"
 
 always_on = []
@@ -116,6 +132,42 @@ for p in sorted(Path(TREE).glob("*.instructions.md")):
 and fails when a shipped document drifts from it. Added because PR #4424
 narrowed `pragmatic-programmer` out of the always-on set and left two documents
 quoting the old composition.
+
+**Bytes you add to an always-on rule break this file.** The corpus size is
+hand-written into
+`.claude/skills/context-optimizer/references/model-context-doctrine.md` in six
+places, and the guard reads all six. Adding 868 bytes to
+`knowledge-persistence.md` on 2026-08-05 failed five at once:
+
+```
+test_doctrine_always_on_figures_match_the_measured_mirror
+test_doctrine_python_figures_match_the_measured_mirror
+test_doctrine_source_basis_figure_and_delta_are_consistent
+test_doctrine_plugin_tree_figures_match_the_shipped_tree
+test_doctrine_8kb_multipliers_match_the_measured_source_sizes
+```
+
+Four of those trip on any nonzero delta. The fifth needs enough to move a
+rounded multiplier, so a small edit fails four and reads as a different problem.
+
+The trap is *when* you find out. That file runs inside the pre-push
+`python-tests` hook, which took 891 seconds in that run and is not fast in any
+run. Check it in half a second instead:
+
+```bash
+uv run --frozen pytest tests/validation/test_always_on_corpus_claims.py -q
+```
+
+Each assertion message states both figures (`doctrine states X; measured Y`), so
+the fix is mechanical. Three things the messages do not tell you. The
+multipliers are measured at **source** basis while the corpus figures are
+measured at **mirror** basis, so they move by different amounts. The doctrine is
+mirrored into `src/copilot-cli/skills/context-optimizer/references/`, which is
+generated: fix `.claude/`, then run `build/scripts/generate_skills.py`; editing
+the mirror by hand trips the drift gate instead. And the guard's six regexes
+(`tests/validation/test_always_on_corpus_claims.py:194-208`) do not cover every
+number in the document. The book-rule percentage and the per-rule byte table go
+stale silently. Recompute those by hand in the same edit.
 
 ## Related
 

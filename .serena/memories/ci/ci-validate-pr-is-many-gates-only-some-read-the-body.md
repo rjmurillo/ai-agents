@@ -150,6 +150,21 @@ The script reads the **live** PR from GitHub, so push the body with
 `gh pr edit <N> --body-file <path>` before validating. Validating a local file
 proves nothing.
 
+That binds the script, not the check. Before a PR exists there is no number to
+pass, so the first CI run is normally where a body error surfaces. Skip that
+round trip by importing the same functions and running them against
+`git diff --name-only <merge-base>..<branch>`: every path in
+`extract_mentioned_files(body)` must `file_matches()` a changed path (CRITICAL),
+and every changed path with a matching extension under
+`SIGNIFICANT_DIRS_PATTERN` must appear in the strict or the
+`extract_all_mentioned_files()` set (WARNING). This caught two CRITICALs in an
+unopened branch on 2026-08-05, so PR #4667 opened green.
+
+`SIGNIFICANT_DIRS_PATTERN` is `^(\.github|scripts|src|\.agents)`. `.claude/` is
+absent, so that advisory names the **generated** `src/copilot-cli/` copy of a
+skill file and never the canonical `.claude/` source. It is not a signal about
+which one matters.
+
 ## Fixing the blocker
 
 The validator states its own parsing rule in the failure text: inline-backtick file
@@ -168,6 +183,21 @@ The recurring trap is naming a *tool* or a *reference* under `## Changes`:
 `count_memory_tokens.py` is the measuring instrument, not a changed file, but under
 `## Changes` it parses as a claim and blocks. Move the mention under `## Verification`
 or `## Testing`, or drop the extension so it stops looking like a path.
+
+**Better than either: prefix it with a citation cue on the same line.** The
+validator strips a backticked path that directly follows one, so the path stays
+precise and stays where the prose needs it: `token counts written by the
+updater, see \`scripts/update_memory_index_tokens.py\`.`
+
+`scripts/validation/pr_description.py:193` (`_INLINE_CITATION_PATTERN`) accepts
+`see`, `per`, `e.g.`, `e.g`, `eg.`, `for example`, `as in`, `for instance`,
+`as documented in`, `referenced by`, `defined in`, `introduced in`,
+`reference path`, `cf.`, `compare`, case-insensitively. Note `e.g` without the
+trailing period matches; bare `eg` does not. The cue must sit on the **same
+line** as the path, separated only by spaces, tabs, colons, and opening
+parentheses (`[: \t(]*`). A closing parenthesis between cue and path breaks the
+match. A cue on the previous line does nothing, deliberately: it keeps a
+citation from suppressing the list item under it.
 
 Escape hatch of last resort: the `description-validation-bypass` label. It suppresses
 **file-mention** CRITICALs and downgrades the verdict to `BYPASSED`, which is recorded
