@@ -90,12 +90,11 @@ not owed completeness. File the extraction issue and move on.
 ## Gotcha: `| tail` hides the exit code you are checking
 
 `uv run --frozen python3 scripts/ci/taste_count_ratchet.py | tail -3; echo $?`
-reports `tail`'s status, not the ratchet's. `tail` exits 0 whenever it succeeds,
-which is the normal case here, so the pipeline reads as a pass while the ratchet
-underneath it failed. The ratchet's failure banner is its first
-line, so `tail` also drops the one line that says REGRESSION. 2026-08-05: this
-reported a passing pre-push check on a tree that was already failing, and cost a
-full push cycle. Redirect and check instead:
+reports `tail`'s status, not the ratchet's. If `tail` succeeds, the pipeline
+reads as a pass while the ratchet underneath it failed. The ratchet's failure
+banner is its first line, so `tail` also drops the line that says REGRESSION.
+2026-08-05: this reported a passing pre-push check on a tree that was already
+failing, and cost a full push cycle. Redirect and check instead:
 
 ```bash
 uv run --frozen python3 scripts/ci/taste_count_ratchet.py > out.txt 2>&1
