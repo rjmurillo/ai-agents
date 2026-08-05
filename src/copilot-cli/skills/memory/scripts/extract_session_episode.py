@@ -1341,21 +1341,17 @@ def _dedupe_decisions(existing: list, new: list) -> list[dict]:
 
 
 def _preserved_timestamp(entry: dict, midnight: str | None) -> str | None:
-    """Midnight for every event except a commit, which keeps its real date.
+    """Stored event time, with deterministic fallback for legacy entries.
 
-    Normalization exists because milestone timestamps fall back to wall clock
-    and are not reproducible. A commit event's timestamp is a deterministic
-    function of the SHA already in its content, so normalizing it buys no
-    idempotence and costs the only evidence that separates a commit from a
-    same-day milestone. Without it ``_event_order_relation`` sees equal
-    timestamps, returns None per the #3464 incomparability rule, and every
-    milestone-to-commit edge is dropped on regeneration (issue #4071).
+    Work-log milestones can carry explicit source timestamps. Normalizing those
+    to midnight rewrites chronology on ``--preserve`` and erases the evidence
+    the causal graph needs. Only missing timestamps use the session date.
 
-    Falls back to the stored timestamp before midnight so a git-less run
-    (shallow clone, rebased SHA) cannot re-flatten an already-correct artifact.
+    Commit events still prefer git's committer time because older preserved
+    artifacts may already carry the flattened midnight timestamp from #4071.
     """
     if _norm(entry.get("type")) != "commit":
-        return midnight
+        return entry.get("timestamp") or midnight
     sha = _commit_sha(entry)
     real = _git_commit_timestamp(sha) if sha else None
     return real or entry.get("timestamp") or midnight
@@ -1364,7 +1360,7 @@ def _preserved_timestamp(entry: dict, midnight: str | None) -> str | None:
 def _dedupe_events(
     existing: list, new: list, midnight: str | None, *, session_id: str = ""
 ) -> list[dict]:
-    """Union events by (type, content); normalize timestamps; reassign ids.
+    """Union events by (type, content); preserve timestamps; reassign ids.
 
     When ``session_id`` is supplied, existing events that carry a
     ``_source_session`` stamp from a *different* session are dropped before the
@@ -1442,11 +1438,11 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
     but existing richer content survives. Lists union (existing first) by stable
     content keys so curated decisions/events/lessons are never dropped, metrics
     take the per-key max, placeholder task/outcome yield to existing real values,
-    and non-commit event timestamps normalize to the deterministic session date
-    so output is idempotent. Commit events keep the real committer date, which
-    is already deterministic from the SHA and is the only ordering evidence the
-    causal graph has against a same-day milestone (issue #4071). Applying twice
-    is a no-op.
+    and explicit event timestamps keep source chronology. Missing event
+    timestamps fall back to the deterministic session date for idempotence.
+    Commit events prefer the real committer date, which is deterministic from
+    the SHA and is ordering evidence for same-day milestones. Applying twice is
+    a no-op.
     """
     existing = _as_dict(existing)
     date = _deterministic_date(session_id, new.get("timestamp"), existing.get("timestamp"))
@@ -1817,7 +1813,25 @@ def _add_causal_references(
         adjacency[ref].add(event_id)
 
 
-def validate_episode_causal_graph(events: list[dict[str, Any]]) -> dict[str, datetime]:
+def _validate_causal_order(
+    events: list[dict[str, Any]],
+    timestamps: dict[str, datetime],
+    adjacency: dict[str, set[str]],
+) -> None:
+    by_id = {str(evt["id"]): evt for evt in events}
+    for source_id, target_ids in adjacency.items():
+        for target_id in target_ids:
+            relation = _event_order_relation(by_id[source_id], by_id[target_id], timestamps)
+            if relation == 1:
+                msg = f"event {source_id} leads to earlier event {target_id}"
+                raise EpisodeValidationError(msg, 1)
+
+
+def validate_episode_causal_graph(
+    events: list[dict[str, Any]],
+    *,
+    validate_order: bool = True,
+) -> dict[str, datetime]:
     """Validate event ids, event types, timestamps, references, and acyclicity."""
     ids: set[str] = set()
     parsed: dict[str, datetime] = {}
@@ -1832,6 +1846,8 @@ def validate_episode_causal_graph(events: list[dict[str, Any]]) -> dict[str, dat
     for evt in events:
         _add_causal_references(evt, ids, adjacency)
 
+    if validate_order:
+        _validate_causal_order(events, parsed, adjacency)
     _validate_dag(adjacency)
     return parsed
 
@@ -2042,7 +2058,7 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     existing values (including curated edges on a loaded episode) are replaced
     by the regenerated chain rather than retained.
     """
-    timestamps = validate_episode_causal_graph(events)
+    timestamps = validate_episode_causal_graph(events, validate_order=False)
     ids = {str(evt["id"]) for evt in events}
     edges = _immediate_causal_edges(events, timestamps)
 
