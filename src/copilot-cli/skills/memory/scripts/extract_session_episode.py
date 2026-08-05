@@ -1103,15 +1103,25 @@ def _range_files_changed(start: str, end: str, cwd: str | Path | None = None) ->
 _DURATION_TEXT_RE = re.compile(r"(\d+)\s*minutes?", re.IGNORECASE)
 
 
-def _duration_from_worklogs(entries: list) -> int:
+# workLog entries spell their timestamp two ways in the tree. Measured over the
+# 40 most recent session logs: 14 use "timestamp", 9 use "time", the rest carry
+# neither. Reading only "time" is why duration_minutes read 0 on the majority of
+# episodes (issue #3972). Accept both spellings, preferring "time".
+_WORKLOG_TIME_KEYS = ("time", "timestamp")
+
+
+def _duration_from_worklogs(entries: list) -> int | None:
     """Compute duration in minutes from first to last workLog timestamp.
 
-    Returns 0 when fewer than two timestamped entries exist or when parsing
-    fails, so callers always receive a non-negative integer.
+    Returns None when fewer than two timestamped entries exist or when parsing
+    fails, so a genuinely unmeasured duration stays distinguishable from a
+    measured zero.
     """
     times: list[datetime] = []
     for entry in entries:
-        raw = _as_dict(entry).get("time") if isinstance(entry, dict) else None
+        if not isinstance(entry, dict):
+            continue
+        raw = next((entry[k] for k in _WORKLOG_TIME_KEYS if entry.get(k)), None)
         if not raw:
             continue
         try:
@@ -1120,24 +1130,24 @@ def _duration_from_worklogs(entries: list) -> int:
         except (ValueError, TypeError):
             continue
     if len(times) < 2:
-        return 0
-    delta = times[-1] - times[0]
+        return None
+    delta = max(times) - min(times)
     return max(0, int(delta.total_seconds() / 60))
 
 
-def _duration_from_metrics_block(metrics_block: dict) -> int:
+def _duration_from_metrics_block(metrics_block: dict) -> int | None:
     """Parse duration from the old-schema top-level metrics block.
 
     Handles strings like "~20 minutes" or "25 minutes" and integer values.
-    Returns 0 when nothing parseable is found.
+    Returns None when nothing parseable is found.
     """
     raw = metrics_block.get("duration") or metrics_block.get("duration_minutes")
     if raw is None:
-        return 0
+        return None
     if isinstance(raw, (int, float)):
         return max(0, int(raw))
     m = _DURATION_TEXT_RE.search(str(raw))
-    return int(m.group(1)) if m else 0
+    return int(m.group(1)) if m else None
 
 
 def json_metrics(data: dict) -> dict:
@@ -1152,15 +1162,20 @@ def json_metrics(data: dict) -> dict:
     metrics_block = _as_dict(data.get("metrics"))
 
     # duration_minutes: prefer structured timestamps (first-to-last workLog entry),
-    # fall back to the old-schema metrics.duration text/integer.
+    # fall back to the old-schema metrics.duration text/integer. Stays None when
+    # neither source exists, so "not measured" is distinguishable from "took no
+    # measurable time" (issue #3972).
     duration = _duration_from_worklogs(worklogs)
-    if duration == 0:
+    if duration is None:
         duration = _duration_from_metrics_block(metrics_block)
 
     # tool_calls: only the old schema carries a structured count (metrics.toolCalls).
     # Modern session logs have no machine-readable tool count, so this field stays
-    # at zero for those sessions rather than emitting a misleading non-zero value.
-    tool_calls = int(metrics_block.get("toolCalls") or 0)
+    # null for those sessions. Emitting 0 was worse than emitting nothing: a reader
+    # cannot tell an unpopulated field from a session that really made no tool
+    # calls, and 0 reads as "nothing happened here, skip it" (issue #3972).
+    raw_tool_calls = metrics_block.get("toolCalls")
+    tool_calls = int(raw_tool_calls) if raw_tool_calls is not None else None
 
     metrics = {
         "duration_minutes": duration,

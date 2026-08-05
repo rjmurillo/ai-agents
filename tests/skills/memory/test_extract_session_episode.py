@@ -3560,12 +3560,19 @@ class TestDurationFromWorklogs:
         ]
         assert extract_session_episode._duration_from_worklogs(entries) == 30
 
-    def test_single_entry_returns_zero(self):
-        entries = [{"time": "2026-07-30T06:00:00Z", "entry": "only"}]
-        assert extract_session_episode._duration_from_worklogs(entries) == 0
+    def test_single_entry_returns_none(self):
+        """One timestamp cannot span an interval, so the duration is unmeasured.
 
-    def test_empty_list_returns_zero(self):
-        assert extract_session_episode._duration_from_worklogs([]) == 0
+        This asserted 0 before issue #3972. A single-entry log and a log whose
+        first and last entries share a timestamp both read as 0, which is the
+        conflation the fix removes.
+        """
+        entries = [{"time": "2026-07-30T06:00:00Z", "entry": "only"}]
+        assert extract_session_episode._duration_from_worklogs(entries) is None
+
+    def test_empty_list_returns_none(self):
+        """No entries means no measurement, not a measured zero (issue #3972)."""
+        assert extract_session_episode._duration_from_worklogs([]) is None
 
     def test_entries_without_time_are_skipped(self):
         entries = [
@@ -3604,11 +3611,13 @@ class TestDurationFromMetricsBlock:
     def test_parses_duration_minutes_key(self):
         assert extract_session_episode._duration_from_metrics_block({"duration_minutes": 15}) == 15
 
-    def test_missing_key_returns_zero(self):
-        assert extract_session_episode._duration_from_metrics_block({}) == 0
+    def test_missing_key_returns_none(self):
+        """No duration key means unmeasured, not a measured zero (issue #3972)."""
+        assert extract_session_episode._duration_from_metrics_block({}) is None
 
-    def test_unparseable_string_returns_zero(self):
-        assert extract_session_episode._duration_from_metrics_block({"duration": "unknown"}) == 0
+    def test_unparseable_string_returns_none(self):
+        """An unreadable value is a failed measurement, not a zero-length session."""
+        assert extract_session_episode._duration_from_metrics_block({"duration": "unknown"}) is None
 
 
 class TestJsonMetricsDuration:
@@ -3643,11 +3652,16 @@ class TestJsonMetricsDuration:
         metrics = extract_session_episode.json_metrics(data)
         assert metrics["duration_minutes"] == 45
 
-    def test_no_time_data_stays_zero(self):
-        """Modern sessions with no timestamps produce zero, not a false value."""
+    def test_no_time_data_stays_none(self):
+        """No timestamps means unmeasured duration, which is not the same as zero.
+
+        This asserted 0 before issue #3972. Reading 0 minutes tells a consumer the
+        session took no time; reading null tells it nobody measured. The second is
+        true and the first is not.
+        """
         data: dict = {}
         metrics = extract_session_episode.json_metrics(data)
-        assert metrics["duration_minutes"] == 0
+        assert metrics["duration_minutes"] is None
 
     def test_tool_calls_from_old_schema(self):
         data = {
@@ -3656,8 +3670,16 @@ class TestJsonMetricsDuration:
         metrics = extract_session_episode.json_metrics(data)
         assert metrics["tool_calls"] == 24
 
-    def test_tool_calls_zero_for_modern_session(self):
-        """Modern sessions without toolCalls in metrics block produce zero."""
+    def test_tool_calls_none_for_modern_session(self):
+        """Modern logs carry no tool count, so the field stays null (issue #3972).
+
+        This asserted 0 before the fix. Modern session logs have no
+        machine-readable tool count at all, so 0 claimed a measurement that was
+        never taken, and 0 reads as "nothing happened here, skip it". Duration is
+        still populated from the timestamps, which is what makes the pairing a
+        good regression guard: one field is measurable and the other is not, and
+        the two must not collapse to the same sentinel.
+        """
         data = {
             "workLog": [
                 {"time": "2026-07-30T08:00:00Z", "entry": "start"},
@@ -3665,6 +3687,5 @@ class TestJsonMetricsDuration:
             ],
         }
         metrics = extract_session_episode.json_metrics(data)
-        assert metrics["tool_calls"] == 0
-        # duration IS populated (from timestamps)
+        assert metrics["tool_calls"] is None
         assert metrics["duration_minutes"] == 30
