@@ -144,10 +144,13 @@ def test_prompt_uses_stdin_and_safe_runtime_cannot_execute_fixture(
     assert not marker.exists()
 
 
-@pytest.mark.parametrize("timeout", [0.0, -1.0, float("nan"), float("inf")])
+@pytest.mark.parametrize(
+    "timeout",
+    [0.0, -1.0, float("nan"), float("inf"), True, "1", None],
+)
 def test_invalid_session_timeout_is_rejected_before_process_start(
     monkeypatch: pytest.MonkeyPatch,
-    timeout: float,
+    timeout: object,
 ) -> None:
     started = False
 
@@ -164,7 +167,7 @@ def test_invalid_session_timeout_is_rejected_before_process_start(
             "prompt",
             cwd=".",
             env={},
-            timeout=timeout,
+            timeout=cast(float, timeout),
         )
 
     assert started is False

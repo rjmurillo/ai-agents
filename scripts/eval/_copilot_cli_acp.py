@@ -38,9 +38,14 @@ _AUTH_HINTS = (
 
 def validate_timeout(timeout: float) -> float:
     """Return a finite positive session timeout."""
-    if not math.isfinite(timeout) or timeout <= 0:
+    if (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or not math.isfinite(timeout)
+        or timeout <= 0
+    ):
         raise ValueError(f"timeout must be finite and > 0, got {timeout!r}")
-    return timeout
+    return float(timeout)
 
 
 class ACPProcessError(RuntimeError):
