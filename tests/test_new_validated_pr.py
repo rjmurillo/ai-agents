@@ -43,12 +43,20 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # staying in sync, a leak that substitutes one for the other is worse than the
 # drift this test exists to catch.
 _PARSER_PROBE = r"""
-import argparse, json, runpy, subprocess, sys
+import argparse, json, os, runpy, subprocess, sys
 
-target = sys.argv[1]
+target = os.path.realpath(sys.argv[1])
+_real_parse_args = argparse.ArgumentParser.parse_args
 
 
 def _capture(self, args=None, namespace=None):
+    # Only the target's own parser counts. Patching parse_args globally would
+    # otherwise capture a parser built by an imported dependency and report its
+    # flags as the target's. Nothing in the current import chain parses at
+    # import time, but a future one might, and it would fail silently.
+    caller = sys._getframe(1).f_globals.get("__file__", "")
+    if not caller or os.path.realpath(caller) != target:
+        return _real_parse_args(self, args, namespace)
     flags = sorted({s for action in self._actions for s in action.option_strings})
     sys.stdout.write("FLAGS_JSON:" + json.dumps(flags) + "\n")
     raise SystemExit(0)
@@ -58,7 +66,7 @@ def _blocked(*args, **kwargs):
     raise SystemExit(f"probe blocked a subprocess call before parse_args: {args[:1]!r}")
 
 
-# main() parses before it does anything else, so the capture below fires first.
+# main() parses before it does anything else, so the capture above fires first.
 # If that ever stops being true, fail loudly here instead of running `gh pr
 # create` from a test.
 subprocess.run = _blocked
