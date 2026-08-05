@@ -137,7 +137,7 @@ class TestApplyMutation:
         mutation = self._mutation(tmp_path)
         seen: list[bytes] = []
 
-        def fake_run(_test_filter):
+        def fake_run(_test_filter, _mutated_files=()):
             seen.append(mutation.target_file.read_bytes())
             return _proc(1)
 
@@ -150,19 +150,95 @@ class TestApplyMutation:
 
     def test_surviving_mutant_is_reported(self, tmp_path, monkeypatch):
         mutation = self._mutation(tmp_path)
-        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+        monkeypatch.setattr(harness, "_run_tests", lambda _f, _files=(): _proc(0))
         assert harness.apply_mutation(mutation).outcome == harness.SURVIVED
 
     def test_file_is_restored_when_the_run_raises(self, tmp_path, monkeypatch):
         mutation = self._mutation(tmp_path)
 
-        def boom(_test_filter):
+        def boom(_test_filter, _mutated_files=()):
             raise RuntimeError("pytest blew up")
 
         monkeypatch.setattr(harness, "_run_tests", boom)
         with pytest.raises(RuntimeError):
             harness.apply_mutation(mutation)
         assert mutation.target_file.read_bytes() == b"target\n"
+
+
+class TestRestoreBackups:
+    """Restore helper reports every dirty file before exiting."""
+
+    def test_restore_success_rewrites_the_original_bytes(self, tmp_path):
+        target = tmp_path / "sample.py"
+        target.write_bytes(b"MUTANT\n")
+
+        harness._restore_backups({target: b"ORIGINAL\n"})
+
+        assert target.read_bytes() == b"ORIGINAL\n"
+
+    def test_missing_backup_exits_2_and_names_the_dirty_file(self, tmp_path, capsys):
+        target = tmp_path / "sample.py"
+        target.write_bytes(b"MUTANT\n")
+
+        with pytest.raises(SystemExit) as excinfo:
+            harness._restore_backups({target: None})
+
+        assert excinfo.value.code == 2
+        err = capsys.readouterr().err
+        assert "backup missing" in err
+        assert str(target) in err
+
+    def test_partial_restore_failure_names_the_file_left_dirty(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        restored = tmp_path / "restored.py"
+        blocked = tmp_path / "blocked.py"
+        restored.write_bytes(b"MUTANT\n")
+        blocked.write_bytes(b"MUTANT\n")
+        real_write = Path.write_bytes
+
+        def write_bytes(self_path, data):
+            if self_path == blocked:
+                raise OSError(28, "No space left on device")
+            return real_write(self_path, data)
+
+        monkeypatch.setattr(Path, "write_bytes", write_bytes)
+
+        with pytest.raises(SystemExit) as excinfo:
+            harness._restore_backups(
+                {restored: b"ORIGINAL\n", blocked: b"ORIGINAL\n"}
+            )
+
+        assert excinfo.value.code == 2
+        assert restored.read_bytes() == b"ORIGINAL\n"
+        assert blocked.read_bytes() == b"MUTANT\n"
+        err = capsys.readouterr().err
+        assert str(blocked) in err
+        assert "git checkout --" in err
+
+
+class TestRunTests:
+    def test_run_tests_purges_pycache_and_disables_new_bytecode(
+        self, tmp_path, monkeypatch
+    ):
+        target = tmp_path / "sample.py"
+        target.write_text("print('x')\n", encoding="utf-8")
+        pycache = tmp_path / "__pycache__"
+        pycache.mkdir()
+        (pycache / "sample.pyc").write_bytes(b"stale")
+        seen_env: dict[str, str] = {}
+
+        def fake_run(_command, **kwargs):
+            seen_env.update(kwargs["env"])
+            return _proc(1)
+
+        monkeypatch.setattr(harness.subprocess, "run", fake_run)
+
+        result = harness._run_tests("tests/does_not_matter.py::test_x", (target,))
+
+        assert result.returncode == 1
+        assert not pycache.exists()
+        assert seen_env["PYTHONDONTWRITEBYTECODE"] == "1"
 
 
 class TestVerifyRepoRoot:
@@ -177,9 +253,9 @@ class TestVerifyRepoRoot:
 
 
 class TestMainExitCodes:
-    """main() must fail on every non-DEAD class, not just SURVIVED."""
+    """main() must fail when an outcome differs from the expected result."""
 
-    def _run_main(self, monkeypatch, outcomes):
+    def _run_main(self, monkeypatch, outcomes: list[tuple[str, str]]) -> int:
         mutations = [
             harness.Mutation(
                 description=f"m{i}",
@@ -187,11 +263,14 @@ class TestMainExitCodes:
                 old_bytes=b"a",
                 new_bytes=b"b",
                 test_filter="x",
+                expected_outcome=expected,
             )
-            for i, _ in enumerate(outcomes)
+            for i, (_actual, expected) in enumerate(outcomes)
         ]
         monkeypatch.setattr(harness, "build_mutations", lambda: mutations)
-        pairs = iter(zip(mutations, outcomes, strict=True))
+        pairs = iter(
+            zip(mutations, [actual for actual, _expected in outcomes], strict=True)
+        )
         monkeypatch.setattr(
             harness,
             "apply_mutation",
@@ -200,17 +279,45 @@ class TestMainExitCodes:
         return harness.main()
 
     def test_all_dead_exits_zero(self, monkeypatch):
-        assert self._run_main(monkeypatch, [harness.DEAD, harness.DEAD]) == 0
+        assert (
+            self._run_main(
+                monkeypatch,
+                [(harness.DEAD, harness.DEAD), (harness.DEAD, harness.DEAD)],
+            )
+            == 0
+        )
+
+    def test_cosmetic_control_survives_and_exits_zero(self, monkeypatch):
+        assert (
+            self._run_main(
+                monkeypatch,
+                [(harness.DEAD, harness.DEAD), (harness.SURVIVED, harness.SURVIVED)],
+            )
+            == 0
+        )
 
     @pytest.mark.parametrize(
         "outcome", [harness.SURVIVED, harness.NOT_RUN, harness.DID_NOT_APPLY]
     )
     def test_any_non_dead_outcome_fails(self, monkeypatch, outcome):
-        assert self._run_main(monkeypatch, [harness.DEAD, outcome]) == 1
+        assert (
+            self._run_main(
+                monkeypatch,
+                [(harness.DEAD, harness.DEAD), (outcome, harness.DEAD)],
+            )
+            == 1
+        )
+
+    def test_cosmetic_control_that_dies_fails(self, monkeypatch):
+        assert self._run_main(monkeypatch, [(harness.DEAD, harness.SURVIVED)]) == 1
 
     def test_not_run_is_reported_as_unmeasured(self, monkeypatch, capsys):
-        self._run_main(monkeypatch, [harness.NOT_RUN])
+        self._run_main(monkeypatch, [(harness.NOT_RUN, harness.DEAD)])
         assert "unmeasured rather than killed" in capsys.readouterr().out
+
+    def test_unexpected_outcome_is_reported(self, monkeypatch, capsys):
+        self._run_main(monkeypatch, [(harness.DEAD, harness.SURVIVED)])
+        assert "expected SURVIVED" in capsys.readouterr().out
 
 
 
@@ -251,7 +358,7 @@ class TestRestoreFailureExitCode:
             original_write(self_path, data)
 
         monkeypatch.setattr(mutation.target_file.__class__, "write_bytes", patched_write)
-        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+        monkeypatch.setattr(harness, "_run_tests", lambda _f, _files=(): _proc(0))
 
         with pytest.raises(SystemExit) as excinfo:
             harness.apply_mutation(mutation)
@@ -275,7 +382,7 @@ class TestRestoreFailureExitCode:
             original_write(self_path, data)
 
         monkeypatch.setattr(mutation.target_file.__class__, "write_bytes", patched_write)
-        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+        monkeypatch.setattr(harness, "_run_tests", lambda _f, _files=(): _proc(0))
 
         with pytest.raises(SystemExit):
             harness.apply_mutation(mutation)
@@ -290,7 +397,7 @@ class TestRestoreFailureExitCode:
         Distinguishes normal exit-1 (survived) from exit-2 (dirty tree).
         """
         mutation = self._mutation(tmp_path)
-        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+        monkeypatch.setattr(harness, "_run_tests", lambda _f, _files=(): _proc(0))
         result = harness.apply_mutation(mutation)
         assert result.outcome == harness.SURVIVED
 
@@ -308,7 +415,7 @@ class TestRestoreFailureExitCode:
                 original_write(self_path, data)
 
         monkeypatch.setattr(mutation.target_file.__class__, "write_bytes", patched_write)
-        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+        monkeypatch.setattr(harness, "_run_tests", lambda _f, _files=(): _proc(0))
 
         with pytest.raises(SystemExit) as excinfo:
             harness.apply_mutation(mutation)
@@ -329,7 +436,7 @@ class TestRestoreFailureExitCode:
             return original_read(self_path)
 
         monkeypatch.setattr(mutation.target_file.__class__, "read_bytes", patched_read)
-        monkeypatch.setattr(harness, "_run_tests", lambda _f: _proc(0))
+        monkeypatch.setattr(harness, "_run_tests", lambda _f, _files=(): _proc(0))
 
         with pytest.raises(SystemExit) as excinfo:
             harness.apply_mutation(mutation)
@@ -355,6 +462,16 @@ class TestMutationsAreRunnable:
     @pytest.mark.parametrize("mutation", harness.build_mutations(), ids=lambda m: m.description[:2])
     def test_patch_changes_the_file(self, mutation):
         assert mutation.old_bytes != mutation.new_bytes
+
+    def test_harness_has_one_cosmetic_control_that_must_survive(self):
+        controls = [
+            mutation
+            for mutation in harness.build_mutations()
+            if mutation.expected_outcome == harness.SURVIVED
+        ]
+
+        assert len(controls) == 1
+        assert "cosmetic" in controls[0].description.lower()
 
     def test_every_test_filter_collects(self):
         """The bug that started this: a nodeid that resolves to nothing.
