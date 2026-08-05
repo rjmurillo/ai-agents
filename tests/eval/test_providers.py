@@ -13,6 +13,7 @@ import sys
 import tempfile
 import types
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -1719,6 +1720,67 @@ def test_matching_oversized_transcript_is_refused(
             since=0.0,
             provider_label="Copilot CLI",
         )
+
+
+def test_transcript_reader_requests_bounded_lines(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    sandbox = str(tmp_path / "sandbox")
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    events = session_dir / "events.jsonl"
+    events.write_text("", encoding="utf-8")
+    lines = [
+        json.dumps(
+            {
+                "type": "session.start",
+                "data": {"context": {"cwd": sandbox}},
+            }
+        )
+        + "\n",
+        json.dumps(
+            {
+                "type": "assistant.message",
+                "data": {"content": "bounded answer", "model": "model"},
+            }
+        )
+        + "\n",
+        "",
+    ]
+    sizes: list[int] = []
+
+    class BoundedStream:
+        def __enter__(self) -> BoundedStream:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def readline(self, size: int = -1) -> str:
+            sizes.append(size)
+            return lines.pop(0)
+
+    original_open = Path.open
+
+    def bounded_open(path: Path, *args: Any, **kwargs: Any) -> Any:
+        if path == events:
+            return BoundedStream()
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", bounded_open)
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(transcript_module, "_MAX_TRANSCRIPT_LINE_CHARS", 512)
+
+    result = transcript_module.read_session_transcript(
+        tmp_path,
+        sandbox,
+        since=0.0,
+        provider_label="Copilot CLI",
+    )
+
+    assert result == ("bounded answer", "model")
+    assert sizes == [513, 513, 513]
 
 
 def test_copilot_falls_back_to_stdout_when_session_root_is_missing(

@@ -113,7 +113,10 @@ def _read_matching_session(
         if path.stat().st_mtime < since:
             return None
         with path.open(encoding="utf-8", errors="replace") as stream:
-            for raw_line in stream:
+            while True:
+                raw_line = stream.readline(_MAX_TRANSCRIPT_LINE_CHARS + 1)
+                if not raw_line:
+                    break
                 total_chars += len(raw_line)
                 if (
                     len(raw_line) > _MAX_TRANSCRIPT_LINE_CHARS
