@@ -32,6 +32,16 @@ replacement from another is the whole failure this module exists to prevent.
 """
 
 
+def isolated_git_env() -> dict[str, str]:
+    """Return the host environment with every Git override removed."""
+    return {key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")}
+
+
+def isolated_git_command(repo_root: Path, *args: str) -> list[str]:
+    """Build a Git command that ignores local replacement objects."""
+    return ["git", "--no-replace-objects", "-C", str(repo_root), *args]
+
+
 def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
     """Run one git command with every local override stripped out.
 
@@ -42,14 +52,11 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] |
     cannot reach; honouring a replacement ref would let one be forged in place
     and then deleted, leaving no trace of the substitution.
     """
-    env = {
-        key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")
-    }
     try:
         return subprocess.run(
-            ["git", "--no-replace-objects", "-C", str(repo_root), *args],
+            isolated_git_command(repo_root, *args),
             capture_output=True,
-            env=env,
+            env=isolated_git_env(),
             check=False,
         )
     except OSError:
@@ -140,9 +147,7 @@ def tree_entries(
     return entries, None
 
 
-def _descend(
-    entries: list[TreeEntry], component: str
-) -> tuple[TreeEntry | None, str | None]:
+def _descend(entries: list[TreeEntry], component: str) -> tuple[TreeEntry | None, str | None]:
     """Pick the committed entry a path component names, or say why it cannot.
 
     Every candidate that matches case-insensitively is collected before
@@ -261,8 +266,7 @@ def _no_commits_or_refuse(repo_root: Path) -> tuple[str | None, str | None]:
     objects = run_git(repo_root, "cat-file", "--batch-check=%(objecttype)", "--batch-all-objects")
     if objects is None or objects.returncode != 0:
         return None, (
-            "git could not enumerate the object database to confirm the "
-            "repository holds no commits"
+            "git could not enumerate the object database to confirm the repository holds no commits"
         )
     if b"commit" in objects.stdout.split():
         return None, (

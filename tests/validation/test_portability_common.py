@@ -84,8 +84,10 @@ def test_git_lines_strips_git_overrides_case_insensitively(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     captured_env: dict[str, str] = {}
+    captured_command: list[str] = []
 
     def run_git(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured_command.extend(command)
         env = kwargs["env"]
         assert isinstance(env, dict)
         captured_env.update(env)
@@ -93,13 +95,84 @@ def test_git_lines_strips_git_overrides_case_insensitively(
 
     monkeypatch.setenv("git_index_file", "/wrong/index")
     monkeypatch.setenv("Git_Dir", "/wrong/repo")
+    monkeypatch.setenv("GIT_ICASE_PATHSPECS", "1")
     monkeypatch.setenv("PORTABILITY_TEST_SENTINEL", "kept")
     monkeypatch.setattr(common.subprocess, "run", run_git)
 
     assert common._git_lines(tmp_path, ["status"]) == []
+    assert captured_command[:2] == ["git", "--no-replace-objects"]
     assert "git_index_file" not in captured_env
     assert "Git_Dir" not in captured_env
+    assert "GIT_ICASE_PATHSPECS" not in captured_env
     assert captured_env["PORTABILITY_TEST_SENTINEL"] == "kept"
+
+
+def test_git_lines_ignores_case_insensitive_pathspec_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["config", "user.email", "t@example.com"],
+        ["config", "user.name", "Test"],
+    ):
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+    (root / "Skills").mkdir()
+    (root / "Skills" / "a.md").write_text("x", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(root), "commit", "-qm", "seed"],
+        check=True,
+        capture_output=True,
+    )
+    monkeypatch.setenv("GIT_ICASE_PATHSPECS", "1")
+
+    assert common._git_lines(root, ["ls-files", "-z", "--", "skills"]) == []
+
+
+def test_git_lines_disables_replacement_objects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["config", "user.email", "t@example.com"],
+        ["config", "user.name", "Test"],
+    ):
+        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+    victim = root / "victim.txt"
+    victim.write_text("real", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-C", str(root), "commit", "-qm", "real"],
+        check=True,
+        capture_output=True,
+    )
+    real = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD:victim.txt"],
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    ).stdout.strip()
+    forged = subprocess.run(
+        ["git", "-C", str(root), "hash-object", "-w", "--stdin"],
+        input="forged",
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "-C", str(root), "replace", real, forged],
+        check=True,
+        capture_output=True,
+    )
+    monkeypatch.setenv("GIT_NO_REPLACE_OBJECTS", "0")
+
+    assert common._git_lines(root, ["cat-file", "-p", real]) == ["real"]
 
 
 class TestTheGuardCannotBeSkippedByForgettingAnArgument:
@@ -151,14 +224,10 @@ class TestTheGuardCannotBeSkippedByForgettingAnArgument:
             ["config", "user.email", "t@example.com"],
             ["config", "user.name", "t"],
         ):
-            subprocess.run(
-                ["git", "-C", str(root), *args], check=True, capture_output=True
-            )
+            subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
         path = root / "scripts" / "validation" / "b.json"
         path.write_text(json.dumps({"files": {"a.py": 4, "b.py": 2}}), encoding="utf-8")
-        subprocess.run(
-            ["git", "-C", str(root), "add", "-A"], check=True, capture_output=True
-        )
+        subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
         subprocess.run(
             ["git", "-C", str(root), "commit", "-qm", "seed"],
             check=True,
@@ -197,18 +266,14 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
         assert resolved.name == "link.json"
         assert resolved.is_symlink()
 
-    def test_an_override_outside_the_root_is_still_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_override_outside_the_root_is_still_rejected(self, tmp_path: Path) -> None:
         """Keeping the lexical path must not weaken the containment test."""
         root = tmp_path / "repo"
         (root / "scripts" / "validation").mkdir(parents=True)
         outside = tmp_path / "outside.json"
         outside.write_text("{}", encoding="utf-8")
 
-        resolved = common.resolve_baseline_path(
-            root, outside, "d.json"
-        )
+        resolved = common.resolve_baseline_path(root, outside, "d.json")
 
         assert resolved is None
 
@@ -220,9 +285,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
         link = root / "scripts" / "validation" / "escape.json"
         link.symlink_to(outside)
 
-        resolved = common.resolve_baseline_path(
-            root, link, "d.json"
-        )
+        resolved = common.resolve_baseline_path(root, link, "d.json")
 
         assert resolved is None
 
@@ -231,9 +294,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
         root = tmp_path / "repo"
         (root / "scripts" / "validation").mkdir(parents=True)
 
-        resolved = common.resolve_baseline_path(
-            root, Path("scripts/validation/b.json"), "d.json"
-        )
+        resolved = common.resolve_baseline_path(root, Path("scripts/validation/b.json"), "d.json")
 
         assert resolved == root / "scripts" / "validation" / "b.json"
 
@@ -255,9 +316,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
         (root / "link").symlink_to(root / "target" / "a" / "b")
         override = Path("link/../victim.json")
 
-        resolved = common.resolve_baseline_path(
-            root, override, "d.json"
-        )
+        resolved = common.resolve_baseline_path(root, override, "d.json")
 
         assert resolved.resolve() == (root / override).resolve()
         assert "link" in resolved.parts

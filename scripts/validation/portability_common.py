@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 from collections.abc import Callable, Iterable, Mapping
@@ -18,6 +17,7 @@ from scripts.validation.portability_baseline import (
     refuse_undiffable_baseline,
     write_baseline_json,
 )
+from scripts.validation.portability_git import isolated_git_command, isolated_git_env
 
 RegressionMessageFactory = Callable[[str, int, int], str]
 
@@ -108,9 +108,7 @@ def resolve_root(repo_root: Path | None, start: Path, require_repo_marker: bool)
         has_skills = (ancestor / ".claude" / "skills").is_dir()
         if not has_skills:
             continue
-        has_repo_marker = (ancestor / ".git").exists() or (
-            ancestor / "pyproject.toml"
-        ).is_file()
+        has_repo_marker = (ancestor / ".git").exists() or (ancestor / "pyproject.toml").is_file()
         if has_repo_marker or not require_repo_marker:
             return ancestor
     return base
@@ -227,38 +225,21 @@ def write_baseline(
     return 0
 
 
-_GIT_ENV_OVERRIDES = (
-    "GIT_INDEX_FILE",
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_COMMON_DIR",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_CEILING_DIRECTORIES",
-)
-
-
 def _git_lines(repo_root: Path, args: list[str]) -> list[str] | None:
     """Run a git plumbing command, None when git cannot answer.
 
-    The ambient environment is stripped of repository-discovery variables.
-    Inheriting GIT_INDEX_FILE lets a caller point the coverage probe at an
-    index that agrees with a truncated disk, which is the one input that makes
-    the probe confirm what it is supposed to test.
+    Git execution goes through ``isolated_git_command`` and
+    ``isolated_git_env``. Inheriting even pathspec-only variables lets a caller
+    change which tracked files the coverage probe sees.
     """
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if key.upper() not in _GIT_ENV_OVERRIDES
-    }
     try:
         proc = subprocess.run(
-            ["git", "-C", str(repo_root), *args],
+            isolated_git_command(repo_root, *args),
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
-            env=env,
+            env=isolated_git_env(),
             check=False,
         )
     except OSError:
