@@ -73,6 +73,26 @@ _probe_name = copilot_hook_probe.probe_name
 _write_probe_script = copilot_hook_probe.write_probe_script
 _copilot_auth_failed = copilot_hook_probe.copilot_auth_failed
 _copilot_auth_failure_headline = copilot_hook_probe.copilot_auth_failure_headline
+_copilot_transient_failure = copilot_hook_probe.copilot_transient_failure
+_copilot_transient_failure_headline = copilot_hook_probe.copilot_transient_failure_headline
+
+
+def _skip_on_auth_failure(result: subprocess.CompletedProcess[str]) -> None:
+    """Skip the test (not fail) when Copilot auth is absent or rejected.
+
+    In the pre-push context no valid Copilot token is expected, so an auth gate
+    is an infrastructure condition, not a branch defect. Skipping lets the push
+    proceed. The nightly workflow provisions a real token and uses
+    assert_smoke_ran.py to detect skipped smokes, so the nightly still fails red
+    when the secret is missing or revoked (issues #4483, #3275).
+
+    Using pytest.skip rather than pytest.fail here is the contractual choice:
+    fail would block every pre-push on branches that lack Copilot auth. The
+    existing timeout paths in this file already follow the same pattern.
+    """
+    if _copilot_auth_failed(result):
+        pytest.skip(_copilot_auth_failure_headline(result))
+
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 
@@ -201,8 +221,10 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         )
     except subprocess.TimeoutExpired:
         pytest.skip("copilot plugin install exceeded 240s (CLI/infra latency)")
+    if _copilot_transient_failure(install):
+        pytest.skip(_copilot_transient_failure_headline(install))
     if _copilot_auth_failed(install):
-        pytest.fail(_copilot_auth_failure_headline(install))
+        _skip_on_auth_failure(install)
     assert install.returncode == 0, install.stderr or install.stdout
 
     try:
@@ -223,8 +245,10 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         )
     except subprocess.TimeoutExpired:
         pytest.skip("copilot run exceeded 240s (CLI/infra latency)")
+    if _copilot_transient_failure(run):
+        pytest.skip(_copilot_transient_failure_headline(run))
     if _copilot_auth_failed(run):
-        pytest.fail(_copilot_auth_failure_headline(run))
+        _skip_on_auth_failure(run)
 
     assert marker.is_file(), _copilot_failure_diagnostics(
         probe_name, plugin, userland, run, install_root
@@ -426,3 +450,52 @@ def test_probe_script_writes_marker_when_run(tmp_path: Path) -> None:
     assert "MARKER" in text
     assert f"script={script}" in text
     assert f"COPILOT_PLUGIN_ROOT={tmp_path}" in text
+
+
+# Unit tests for _skip_on_auth_failure (issues #4483, #3275).
+# These run without RUN_CLI_E2E and without the real CLI, so they cover the
+# skip-vs-fail decision in bare CI. Mutation coverage: breaking copilot_auth_failed
+# to always return False causes the absent/rejected tests to fail. Breaking
+# _skip_on_auth_failure to call pytest.fail instead of pytest.skip causes
+# test_skip_on_auth_failure_raises_skip_for_* to fail.
+def _make_auth_result(rc: int, stderr: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(["copilot"], rc, stdout="", stderr=stderr)
+
+
+def test_skip_on_auth_failure_raises_skip_for_absent_token() -> None:
+    """_skip_on_auth_failure raises Skipped (not Failed) for a missing token."""
+    result = _make_auth_result(
+        1,
+        "No authentication information found. You can use any of the following methods:\n"
+        "  - Set the COPILOT_GITHUB_TOKEN environment variable",
+    )
+    with pytest.raises(pytest.skip.Exception):
+        _skip_on_auth_failure(result)
+
+
+def test_skip_on_auth_failure_raises_skip_for_rejected_token() -> None:
+    """_skip_on_auth_failure raises Skipped (not Failed) for a rejected/revoked token."""
+    result = _make_auth_result(
+        1,
+        "Failed to fetch PAT user login (401): GitHub returned: Bad credentials",
+    )
+    with pytest.raises(pytest.skip.Exception):
+        _skip_on_auth_failure(result)
+
+
+def test_skip_on_auth_failure_is_noop_on_success() -> None:
+    """_skip_on_auth_failure does not raise for a successful CLI run (cosmetic survivor)."""
+    result = _make_auth_result(0, "")
+    _skip_on_auth_failure(result)  # must not raise
+
+
+def test_skip_on_auth_failure_skip_message_is_non_empty() -> None:
+    """The skip reason names the cause so skipped runs are diagnosable."""
+    result = _make_auth_result(
+        1,
+        "No authentication information found. You can use any of the following methods:\n"
+        "  - Set the COPILOT_GITHUB_TOKEN environment variable",
+    )
+    with pytest.raises(pytest.skip.Exception) as exc_info:
+        _skip_on_auth_failure(result)
+    assert str(exc_info.value)  # skip message must not be blank

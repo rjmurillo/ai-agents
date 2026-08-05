@@ -180,8 +180,8 @@ whatever commit you are reading, not at a commit named here. A SHA in this
 paragraph would go stale on the next always-on edit while the numbers stayed
 correct, which is the harder error to notice. Two numbers, and they are not
 interchangeable. The
-**always-on corpus is 8 rules, 71,246 bytes**: the ones that load regardless
-of what you touch. The **effective context on a `.py` edit is 96,997 bytes
+**always-on corpus is 8 rules, 71,904 bytes**: the ones that load regardless
+of what you touch. The **effective context on a `.py` edit is 97,655 bytes
 across 11 files**, which is the always-on corpus plus the path-scoped rules
 that a Python file activates. Use the first when arguing about what every
 session pays. Use the second when arguing about what a specific edit pays.
@@ -195,7 +195,7 @@ uv run --frozen python scripts/validation/instruction_budget.py --format table
 
 **State the basis whenever you quote a number.** That command measures the
 generated `.github/instructions/` mirrors. The `.claude/rules/` sources are
-135 bytes larger in total (71,381 always-on) because `generate_rules.py`
+135 bytes larger in total (72,039 always-on) because `generate_rules.py`
 strips the `priority:` frontmatter key that the Copilot tree does not use.
 An earlier draft of this document mixed the two bases in one paragraph and
 published a corpus size that matched neither. If a figure here disagrees with
@@ -214,10 +214,8 @@ always-on file.
 | `pragmatic-programmer.md` | 11,375 | code files only | 3 positive, 1 negative | none |
 | `unified-software-engineering.md` | 8,242 | code files only | 3 positive, 1 negative | yes |
 
-That leaves 14,152 always-on bytes of book-derived rule, 20.1% of the
-That leaves 14,152 always-on bytes of book-derived rule, 20.1% of the
-70,510-byte always-on corpus measured at source. `code-quality` and
-70,510-byte always-on corpus measured at source. `code-quality` and
+That leaves 14,152 always-on bytes of book-derived rule, 19.6% of the
+72,039-byte always-on corpus measured at source. `code-quality` and
 `pragmatic-programmer` had no scenario file at all until PR #4017 added one to
 each on 2026-08-03, which is how they grew unchallenged for four months.
 
@@ -251,18 +249,27 @@ globs are all filtered out as internal-only. Neither of those reaches the corpus
 through a source line a grep could find, so the mirror is the authority for
 membership even though the source is the authority for content.
 
-Name the tree with the number, because the two mirror trees disagree.
+Name the tree with the number, because the two mirror trees used to disagree.
 `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions` under
 `keepInternalGlobsFor`, so the internal-glob filter is disabled there and the
-internal-only fallback cannot fire. It fires only for the plugin tree. At
-`0c75045d6` that leaves `.github/instructions` at 8 rules and 70,375 bytes while
-`src/copilot-cli/instructions` carries 12 rules and 83,170 bytes: `governance`,
-`push-lock`, `secret-redaction`, and `session-logs` are narrowly scoped here and
-always-on in the shipped plugin. Every figure in this document is the
-`.github/instructions` number. A vendor install pays 11,924 bytes a turn that
-this repository never measures, on four rules whose globs point at `.agents/`
-paths the installing
-repository does not have.
+internal-only fallback cannot fire. It fires only for the plugin tree, and
+before issue #4317 it fired the wrong way: dropping an internal glob left the
+rule with no scope at all, and the empty scope defaulted to `**`. Four rules
+scoped here to `.agents/` and `.serena/` paths (`governance`, `push-lock`,
+`secret-redaction`, and `session-logs`) therefore shipped to every plugin
+consumer as always-on, at 11,924 bytes a turn, pointed at directories the
+installing repository does not have. Narrow at source, universal in the
+product, which is the worst direction for a scope error to fail.
+
+The generator now skips an all-internal rule for any tree outside
+`keepInternalGlobsFor` and prunes the artifact it previously emitted, so
+`src/copilot-cli/instructions` carries 8 rules and 71,904 bytes, matching
+`.github/instructions` exactly. Every figure in this document is now both
+numbers. That convergence is the invariant worth guarding: a future remap that
+re-widens an internal glob would show up here as the plugin tree growing past
+the repository tree, so
+`tests/validation/test_always_on_corpus_claims.py` pins the two together rather
+than pinning the gap that used to separate them.
 
 They are fenced. The `software-engineering-library` skill contains an explicit
 design sentence saying these baseline rules stay loaded while the other eight
@@ -279,7 +286,7 @@ It was real. Commit `77edc827` (PR #1022, 2026-01-31) adopted the Vercel
 strategy and wrote "Total passive context: ~4.5KB (well under Vercel's 8KB
 threshold)".
 
-The always-on corpus is 8.7x that threshold and a Python edit sees 11.9x,
+The always-on corpus is 8.8x that threshold and a Python edit sees 12.0x,
 measured at source. The enforced budget ceiling in
 `scripts/validation/instruction_budget_constants.py` ratcheted upward to track
 measured size instead of holding at the goal, which made every increase look

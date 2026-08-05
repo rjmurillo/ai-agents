@@ -47,9 +47,20 @@ completion checks use only these values.
 | `[COMPLETE]` | Fix committed and pushed | Yes |
 | `[WONTFIX]` | Explicitly decided not to change | Yes |
 
-Non-terminal statuses (`[NEW]`, `[ACKNOWLEDGED]`) count as pending. Any unrecognized
-status also counts as pending (fail closed). Both counts use the same grep pattern:
-`grep -Ec "Status: \[NEW\]|Status: \[ACKNOWLEDGED\]|Status: pending"`.
+Comment map fields render as `**Status**: [NEW]`, so every status grep must match the
+bold field at line start. Dropping the `**` delimiters or the `^` anchor matches nothing
+and reports zero.
+
+Non-terminal statuses (`[NEW]`, `[ACKNOWLEDGED]`) count as pending. Gate 3 and Gate 5
+enumerate those two statuses. Phase 8.1 is the fail-closed backstop: it counts only the
+terminal statuses, so anything else, including a status outside this table, stays in the
+remaining count.
+
+```bash
+ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
+WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
+REMAINING=$((TOTAL - ADDRESSED - WONTFIX))
+```
 
 ## Prose Self-Check
 
@@ -1444,7 +1455,7 @@ exit_code=$?
 # Handle timeout (exit code 7)
 if [ "$exit_code" -eq 7 ]; then
     echo "[BLOCKED] Timeout waiting for CI checks to complete"
-    echo "  Pending: $(echo "$checks" | jq '.PendingCount') check(s) still running"
+    echo "  Pending: $(echo "$checks" | jq '.Data.PendingCount') check(s) still running"
     exit 1
 fi
 
@@ -1508,11 +1519,11 @@ echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
 checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
-all_passing=$(echo "$checks" | jq '.AllPassing')
+all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
 if [ "$all_passing" = "true" ]; then
     echo "[ ] CI checks: PASS"
 else
-    echo "[ ] CI checks: $(echo "$checks" | jq '.FailedCount') failures, $(echo "$checks" | jq '.PendingCount') pending"
+    echo "[ ] CI checks: $(echo "$checks" | jq '.Data.FailedCount') failures, $(echo "$checks" | jq '.Data.PendingCount') pending"
 fi
 
 echo "[ ] Pushed: $(git status -sb | head -1)"
