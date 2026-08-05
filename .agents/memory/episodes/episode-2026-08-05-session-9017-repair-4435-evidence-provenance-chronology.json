@@ -1,0 +1,65 @@
+{
+  "id": "episode-2026-08-05-session-9017-repair-4435-evidence-provenance-chronology",
+  "session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair PR 4435 evidence provenance and chronology",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked issue coordination",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read required context",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repaired canonical evidence",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated repaired artifacts",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed independent artifact review",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 22,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}
