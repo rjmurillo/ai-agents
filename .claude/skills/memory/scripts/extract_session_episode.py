@@ -1842,7 +1842,26 @@ def _add_causal_references(
         adjacency[ref].add(event_id)
 
 
-def validate_episode_causal_graph(events: list[dict[str, Any]]) -> dict[str, datetime]:
+def _validate_causal_order(
+    events: list[dict[str, Any]],
+    timestamps: dict[str, datetime],
+    adjacency: dict[str, set[str]],
+) -> None:
+    by_id = {str(evt["id"]): evt for evt in events}
+    for source_id, target_ids in adjacency.items():
+        for target_id in target_ids:
+            relation = _event_order_relation(by_id[source_id], by_id[target_id], timestamps)
+            if relation == 1:
+                raise EpisodeValidationError(
+                    f"event {source_id} leads to earlier event {target_id}", 1
+                )
+
+
+def validate_episode_causal_graph(
+    events: list[dict[str, Any]],
+    *,
+    validate_order: bool = True,
+) -> dict[str, datetime]:
     """Validate event ids, event types, timestamps, references, and acyclicity."""
     ids: set[str] = set()
     parsed: dict[str, datetime] = {}
@@ -1857,6 +1876,8 @@ def validate_episode_causal_graph(events: list[dict[str, Any]]) -> dict[str, dat
     for evt in events:
         _add_causal_references(evt, ids, adjacency)
 
+    if validate_order:
+        _validate_causal_order(events, parsed, adjacency)
     _validate_dag(adjacency)
     return parsed
 
@@ -2067,7 +2088,7 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     existing values (including curated edges on a loaded episode) are replaced
     by the regenerated chain rather than retained.
     """
-    timestamps = validate_episode_causal_graph(events)
+    timestamps = validate_episode_causal_graph(events, validate_order=False)
     ids = {str(evt["id"]) for evt in events}
     edges = _immediate_causal_edges(events, timestamps)
 
@@ -2213,7 +2234,7 @@ def validate_commit_order(events: Any) -> list[str]:
 
 
 def validate_causal_edge_order(events: Any) -> list[str]:
-    """Return one message per causal edge that runs backward by timestamp."""
+    """Return one message when a causal edge runs backward by event ordering."""
     if not isinstance(events, list):
         return []
     by_id = {
@@ -2222,29 +2243,34 @@ def validate_causal_edge_order(events: Any) -> list[str]:
         if isinstance(evt, dict) and isinstance(evt.get("id"), str)
     }
     problems: list[str] = []
+    checked: set[tuple[str, str]] = set()
     for evt in events:
-        if not isinstance(evt, dict):
+        if not isinstance(evt, dict) or not isinstance(evt.get("id"), str):
             continue
-        source = evt.get("id")
-        if not isinstance(source, str):
-            continue
-        for raw_target in _as_list(evt.get("leads_to")):
-            target = raw_target if isinstance(raw_target, str) else ""
+        event_id = str(evt["id"])
+        candidate_edges = [
+            (event_id, ref) for ref in _event_refs(evt, "leads_to")
+        ] + [(ref, event_id) for ref in _event_refs(evt, "caused_by")]
+        for source, target in candidate_edges:
+            if (source, target) in checked:
+                continue
+            checked.add((source, target))
+            source_event = by_id.get(source)
             target_event = by_id.get(target)
-            if target_event is None:
+            if source_event is None or target_event is None:
                 problems.append(f"causal edge {source} -> {target} references unknown event")
                 continue
             try:
-                source_time = _parse_causal_timestamp(evt)
-                target_time = _parse_causal_timestamp(target_event)
-            except EpisodeValidationError as exc:
+                timestamps = {
+                    source: _parse_causal_timestamp(source_event),
+                    target: _parse_causal_timestamp(target_event),
+                }
+                relation = _event_order_relation(source_event, target_event, timestamps)
+            except (EpisodeValidationError, KeyError) as exc:
                 problems.append(f"causal edge {source} -> {target} cannot be ordered: {exc}")
                 continue
-            if target_time < source_time:
-                problems.append(
-                    f"causal edge {source} -> {target} runs backwards: "
-                    f"{source_time.isoformat()} then {target_time.isoformat()}"
-                )
+            if relation == 1:
+                problems.append(f"event {source} leads to earlier event {target}")
     return problems
 
 

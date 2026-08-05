@@ -3486,7 +3486,7 @@ class TestPreserveChronology:
 
         problems = extract_session_episode.validate_causal_edge_order(events)
 
-        assert any("causal edge e002 -> e001 runs backwards" in p for p in problems)
+        assert any("event e002 leads to earlier event e001" in p for p in problems)
 
     def test_validate_mode_rejects_scrambled_causal_edges(self, tmp_path, capsys) -> None:
         episode = tmp_path / "episode-scrambled.json"
@@ -3517,7 +3517,7 @@ class TestPreserveChronology:
         )
 
         assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
-        assert "causal edge e002 -> e001 runs backwards" in capsys.readouterr().err
+        assert "event e002 leads to earlier event e001" in capsys.readouterr().err
 
     def test_causal_edge_order_allows_equal_timestamps(self) -> None:
         events = [
