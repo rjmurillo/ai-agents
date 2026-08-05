@@ -6,3 +6,4 @@
 | powershell Resolve-Path PathInfo string Length cast convert | [utilities/utilities-pathinfo-conversion](utilities/utilities-pathinfo-conversion.md) |
 | regex pattern match escape lookahead anchor quantifier character class | [utilities/utilities-regex](utilities/utilities-regex.md) |
 | CVA refactoring variant consolidation template generate install script | [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) |
+| python scratch script shadow stdlib module sys.path queue types select token json logging | [python/python-scratch-scripts-can-shadow-stdlib-modules](python/python-scratch-scripts-can-shadow-stdlib-modules.md) |

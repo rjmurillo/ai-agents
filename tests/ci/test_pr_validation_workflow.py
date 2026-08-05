@@ -998,3 +998,44 @@ class TestBotSkipGuardClassification:
                 f"_ALLOWED_BEHIND_GUARD contains {name!r} but no step with that name "
                 "exists in the workflow. Remove the stale entry."
             )
+
+
+def _pr_validation_steps() -> list[dict]:
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    steps: list[dict] = []
+    for job in data.get("jobs", {}).values():
+        steps.extend(job.get("steps", []) or [])
+    return steps
+
+
+def test_merge_tree_ratchet_fetches_base_at_full_depth() -> None:
+    """Issue #4518: the merge-tree step's base fetch must not be shallow.
+
+    A `--depth=1` fetch writes .git/shallow and severs history traversal, so
+    `git merge-tree` aborts with "refusing to merge unrelated histories" on any
+    branch behind the base. That is the only case this gate exists to judge, so
+    a shallow fetch silences the gate instead of failing loudly.
+
+    The sibling behaviour test in tests/ci/test_merge_tree_ratchet_check.py runs
+    its own fetch, so it cannot see a regression here. This assertion is the one
+    that catches a revert of the workflow line.
+    """
+    matching = [
+        s
+        for s in _pr_validation_steps()
+        if "merge_tree_ratchet_check.py" in (s.get("run") or "")
+    ]
+    assert matching, "the merge-tree ratchet step is missing from pr-validation.yml"
+    for step in matching:
+        run = step["run"]
+        fetch_lines = [
+            ln.strip()
+            for ln in run.splitlines()
+            if ln.strip().startswith("git fetch") and not ln.strip().startswith("#")
+        ]
+        assert fetch_lines, f"step {step.get('name')!r} must fetch the base ref"
+        for line in fetch_lines:
+            assert "--depth" not in line, (
+                f"step {step.get('name')!r} fetches the base shallowly ({line!r}); "
+                "merge-tree needs a merge base. See issue #4518."
+            )
