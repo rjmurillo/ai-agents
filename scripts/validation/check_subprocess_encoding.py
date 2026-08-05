@@ -49,6 +49,7 @@ Exits (ADR-035):
 from __future__ import annotations
 
 import ast
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -62,10 +63,6 @@ _TEXT_CAPTURING_CALLS: frozenset[str] = frozenset({"run", "Popen", "check_call"}
 _UNCONDITIONAL_DECODE_CALLS: frozenset[str] = frozenset({"check_output", "getoutput"})
 
 _ALL_SUBPROCESS_CALLS: frozenset[str] = _TEXT_CAPTURING_CALLS | _UNCONDITIONAL_DECODE_CALLS
-
-_SKIP_DIRS: frozenset[str] = frozenset(
-    {".venv", "venv", ".git", "__pycache__", "node_modules", ".mypy_cache", ".ruff_cache"}
-)
 
 
 def _keyword_value(call: ast.Call, name: str) -> ast.expr | None:
@@ -150,6 +147,10 @@ def _is_flagged(call: ast.Call) -> bool:
 _SUPPRESSION_COMMENT = "# subprocess-encoding: strict-ok"
 
 
+class ScanError(RuntimeError):
+    """Raised when the gate cannot inspect its declared source corpus."""
+
+
 def find_violations(source: str, filename: str = "<string>") -> list[int]:
     """Return line numbers of flagged calls in *source*.
 
@@ -159,10 +160,7 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
     decode failure should propagate as an error rather than silently produce
     replacement characters).
     """
-    try:
-        tree = ast.parse(source, filename=filename)
-    except SyntaxError:
-        return []
+    tree = ast.parse(source, filename=filename)
 
     source_lines = source.splitlines()
 
@@ -174,9 +172,7 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
     return sorted(
         node.lineno
         for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and _is_flagged(node)
-        and not _suppressed(node.lineno)
+        if isinstance(node, ast.Call) and _is_flagged(node) and not _suppressed(node.lineno)
     )
 
 
@@ -184,7 +180,15 @@ def _collect_sources(repo_root: Path) -> list[Path]:
     """Return tracked Python files under ``scripts/`` that are not in cache dirs."""
     try:
         completed = subprocess.run(
-            ["git", "-C", str(repo_root), "ls-files", "scripts/*.py", "scripts/**/*.py"],
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "ls-files",
+                "-z",
+                "scripts/*.py",
+                "scripts/**/*.py",
+            ],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -192,33 +196,43 @@ def _collect_sources(repo_root: Path) -> list[Path]:
             check=False,
             timeout=15,
         )
-        if completed.returncode == 0:
-            rels = [line for line in completed.stdout.splitlines() if line.strip()]
-            return [repo_root / r for r in rels if r.endswith(".py")]
-    except (OSError, subprocess.SubprocessError):
-        pass
-    # Fallback: walk the tree
-    found: list[Path] = []
-    for path in (repo_root / "scripts").rglob("*.py"):
-        if any(part in _SKIP_DIRS for part in path.relative_to(repo_root).parts):
-            continue
-        found.append(path)
-    return sorted(found)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ScanError(f"git could not list tracked scripts: {exc}") from exc
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or f"git exited {completed.returncode}"
+        raise ScanError(f"git could not list tracked scripts: {detail}")
+
+    rels = [entry for entry in completed.stdout.split("\0") if entry]
+    sources = [repo_root / rel for rel in rels if rel.endswith(".py")]
+    if not sources:
+        raise ScanError("git reported zero tracked Python files under scripts/")
+    return sources
+
+
+def _scan_all(repo_root: Path) -> tuple[list[tuple[Path, int]], int]:
+    """Return violations and the number of tracked source files examined."""
+    sources = _collect_sources(repo_root)
+    results: list[tuple[Path, int]] = []
+    for path in sources:
+        try:
+            mode = path.stat(follow_symlinks=False).st_mode
+        except OSError as exc:
+            raise ScanError(f"tracked source is missing: {path}") from exc
+        if not stat.S_ISREG(mode):
+            raise ScanError(f"tracked source is not a regular file: {path}")
+        try:
+            source = path.read_text(encoding="utf-8")
+            lines = find_violations(source, str(path))
+        except (OSError, UnicodeDecodeError, SyntaxError) as exc:
+            raise ScanError(f"could not analyze tracked source {path}: {exc}") from exc
+        for lineno in lines:
+            results.append((path, lineno))
+    return results, len(sources)
 
 
 def find_all_violations(repo_root: Path) -> list[tuple[Path, int]]:
     """Return ``(path, lineno)`` pairs for every flagged call site."""
-    results: list[tuple[Path, int]] = []
-    for path in _collect_sources(repo_root):
-        if not path.is_file():
-            continue
-        try:
-            source = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        for lineno in find_violations(source, str(path)):
-            results.append((path, lineno))
-    return results
+    return _scan_all(repo_root)[0]
 
 
 def validate_subprocess_encoding(repo_root: Path) -> bool:
@@ -227,19 +241,24 @@ def validate_subprocess_encoding(repo_root: Path) -> bool:
     Entry point matching the ``validate_*(repo_root) -> bool`` contract used
     by ``pre_pr_sequence.py``.
     """
-    violations = find_all_violations(repo_root)
+    violations, scanned_files = _scan_all(repo_root)
     if not violations:
+        print(
+            f"[OK] Scanned {scanned_files} tracked Python file(s) under scripts/; "
+            "0 subprocess encoding violations."
+        )
         return True
     count = len(violations)
     print(
-        f"[FAIL] {count} subprocess call(s) pin UTF-8 encoding without errors=\"replace\":",
+        f"[FAIL] {count} subprocess call(s) in {scanned_files} tracked file(s) "
+        'pin UTF-8 encoding without errors="replace":',
         file=sys.stderr,
     )
     for path, lineno in violations:
         rel = path.relative_to(repo_root) if path.is_relative_to(repo_root) else path
         print(f"  {rel}:{lineno}", file=sys.stderr)
     print(
-        "\nFix: add errors=\"replace\" to each flagged call.",
+        '\nFix: add errors="replace" to each flagged call.',
         file=sys.stderr,
     )
     print(
@@ -247,7 +266,7 @@ def validate_subprocess_encoding(repo_root: Path) -> bool:
         file=sys.stderr,
     )
     print(
-        "Without errors=\"replace\", the decode raises before the caller can report "
+        'Without errors="replace", the decode raises before the caller can report '
         "the real failure.",
         file=sys.stderr,
     )
@@ -261,7 +280,11 @@ def main(argv: list[str] | None = None) -> int:
     if not repo_root.is_dir():
         print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)
         return 2
-    return 0 if validate_subprocess_encoding(repo_root) else 1
+    try:
+        return 0 if validate_subprocess_encoding(repo_root) else 1
+    except ScanError as exc:
+        print(f"[FAIL] Subprocess encoding scan did not run: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

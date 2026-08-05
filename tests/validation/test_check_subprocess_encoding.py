@@ -18,9 +18,11 @@ Coverage:
 - edge/text-true-int: text=1 (not literal True) -> not flagged (conservative on non-literal)
 - edge/encoding-variable: encoding=enc (variable) -> not flagged (cannot prove UTF-8)
 - edge/errors-wrong-value: errors="strict" counts as present -> not flagged
-- edge/syntax-error: file with invalid Python -> returns empty list (no crash)
+- edge/syntax-error: invalid Python fails closed
 - edge/empty-source: empty source -> no violations
 - edge/invalid-root: non-existent directory -> exit 2
+- edge/empty-scope: zero tracked scripts -> exit 2
+- edge/git-failure: unavailable tracked-file inventory -> exit 2
 - integration: no tracked file under scripts/ has a violation after the fix
 - cli/exit-zero: repo root with no violations -> main() returns 0
 - cli/exit-one: source with a violation -> main() returns 1
@@ -29,6 +31,7 @@ Coverage:
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -45,6 +48,18 @@ from check_subprocess_encoding import (
     main,
     validate_subprocess_encoding,
 )
+
+
+def make_repo(tmp_path: Path, files: dict[str, str]) -> Path:
+    """Create a repository with the supplied tracked files."""
+    for rel, text in files.items():
+        path = tmp_path / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+    return tmp_path
+
 
 # ---------------------------------------------------------------------------
 # Positive: compliant calls (no violations expected)
@@ -123,7 +138,7 @@ def test_splat_kwargs_flagged_conservatively() -> None:
 
 def test_multiple_violations_reported() -> None:
     source = (
-        'import subprocess\n'
+        "import subprocess\n"
         'subprocess.run(["a"], text=True, encoding="utf-8")\n'
         'subprocess.run(["b"], capture_output=True, encoding="utf-8")\n'
     )
@@ -153,19 +168,15 @@ def test_non_utf8_encoding_not_flagged() -> None:
     assert find_violations(source) == []
 
 
-def test_syntax_error_returns_empty() -> None:
+def test_syntax_error_fails_closed() -> None:
     source = "def foo(:\n    pass\n"
-    assert find_violations(source) == []
+    with pytest.raises(SyntaxError):
+        find_violations(source)
 
 
 def test_multiline_call_flagged() -> None:
     source = (
-        "import subprocess\n"
-        "subprocess.run(\n"
-        '    ["x"],\n'
-        "    text=True,\n"
-        '    encoding="utf-8",\n'
-        ")\n"
+        'import subprocess\nsubprocess.run(\n    ["x"],\n    text=True,\n    encoding="utf-8",\n)\n'
     )
     lines = find_violations(source)
     assert lines == [2], "multiline call should be flagged at its start line"
@@ -202,9 +213,8 @@ def test_suppression_comment_on_multiline_open_paren() -> None:
 def test_no_violations_in_scripts(tmp_path: Path) -> None:
     """After the fix, no tracked scripts/ file should be flagged."""
     violations = find_all_violations(REPO_ROOT)
-    assert violations == [], (
-        "Unexpected violations in scripts/:\n"
-        + "\n".join(f"  {p}:{ln}" for p, ln in violations)
+    assert violations == [], "Unexpected violations in scripts/:\n" + "\n".join(
+        f"  {p}:{ln}" for p, ln in violations
     )
 
 
@@ -214,8 +224,16 @@ def test_no_violations_in_scripts(tmp_path: Path) -> None:
 
 
 def test_main_exits_zero_on_clean_tree(tmp_path: Path) -> None:
-    (tmp_path / "scripts").mkdir()
-    result = main([str(tmp_path)])
+    repo = make_repo(
+        tmp_path,
+        {
+            "scripts/clean.py": (
+                "import subprocess\n"
+                'subprocess.run(["x"], text=True, encoding="utf-8", errors="replace")\n'
+            )
+        },
+    )
+    result = main([str(repo)])
     assert result == 0
 
 
@@ -225,19 +243,55 @@ def test_main_exits_two_on_missing_root() -> None:
 
 
 def test_validate_subprocess_encoding_returns_true_on_clean(tmp_path: Path) -> None:
-    (tmp_path / "scripts").mkdir()
-    assert validate_subprocess_encoding(tmp_path) is True
+    repo = make_repo(tmp_path, {"scripts/clean.py": "value = 1\n"})
+    assert validate_subprocess_encoding(repo) is True
 
 
 def test_validate_subprocess_encoding_returns_false_on_violation(tmp_path: Path) -> None:
+    repo = make_repo(
+        tmp_path,
+        {
+            "scripts/bad.py": (
+                'import subprocess\nsubprocess.run(["x"], text=True, encoding="utf-8")\n'
+            )
+        },
+    )
+    assert validate_subprocess_encoding(repo) is False
+
+
+def test_main_exits_two_when_git_reports_zero_tracked_scripts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No scripts here.\n"})
+
+    result = main([str(repo)])
+
+    assert result == 2
+    assert "zero tracked Python files" in capsys.readouterr().err
+
+
+def test_main_exits_two_when_git_cannot_list_sources(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     scripts = tmp_path / "scripts"
     scripts.mkdir()
-    violating = scripts / "bad.py"
-    violating.write_text(
-        'import subprocess\nsubprocess.run(["x"], text=True, encoding="utf-8")\n',
-        encoding="utf-8",
-    )
-    assert validate_subprocess_encoding(tmp_path) is False
+    (scripts / "clean.py").write_text("value = 1\n", encoding="utf-8")
+
+    result = main([str(tmp_path)])
+
+    assert result == 2
+    assert "git could not list tracked scripts" in capsys.readouterr().err
+
+
+def test_main_exits_two_on_tracked_syntax_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path, {"scripts/bad.py": "def broken(:\n"})
+
+    result = main([str(repo)])
+
+    assert result == 2
+    assert "could not analyze tracked source" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -250,8 +304,7 @@ def test_mutation_removing_encoding_check_breaks_detection() -> None:
     Instead, verify the detector is NOT trivially always-true or always-false."""
     # compliant source must pass
     clean = (
-        "import subprocess\n"
-        'subprocess.run(["x"], text=True, encoding="utf-8", errors="replace")'
+        'import subprocess\nsubprocess.run(["x"], text=True, encoding="utf-8", errors="replace")'
     )
     assert find_violations(clean) == []
     # violating source must fail
@@ -266,9 +319,7 @@ def test_detector_requires_text_mode_to_flag() -> None:
     calls that don't decode at all.
     """
     binary_with_encoding = 'import subprocess\nsubprocess.run(["x"], encoding="utf-8")'
-    assert find_violations(binary_with_encoding) == [], (
-        "Binary-mode call should not be flagged"
-    )
+    assert find_violations(binary_with_encoding) == [], "Binary-mode call should not be flagged"
 
 
 def test_detector_requires_subprocess_to_flag() -> None:
