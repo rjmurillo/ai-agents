@@ -1,8 +1,8 @@
 """Tests for invoke_markdownlint_guard.
 
 Covers acceptance criteria from issue #1884 TASK-015-2: clean files pass,
-violations block with structured output, missing binary fails open,
-TimeoutExpired and OSError fail open, empty changeset short-circuits in
+violations block with structured output, missing binary fails closed,
+TimeoutExpired and OSError fail closed, empty changeset short-circuits in
 the framework, and the hooks.json registration includes the guard.
 """
 
@@ -37,12 +37,6 @@ def _fail(returncode: int, stdout: str = "", stderr: str = "") -> subprocess.Com
     return subprocess.CompletedProcess(
         args=["x"], returncode=returncode, stdout=stdout, stderr=stderr
     )
-
-
-@pytest.fixture(autouse=True)
-def _no_consumer_repo_skip():
-    with patch("push_guard_base.skip_if_consumer_repo", return_value=False):
-        yield
 
 
 @pytest.fixture
@@ -130,18 +124,31 @@ class TestViolations:
         assert "MD013/line-length" in out.out
         assert "Fix and re-push." in out.out
 
+    def test_nonzero_without_diagnostics_blocks(
+        self, push_command, tmp_path, capsys
+    ):
+        def lint(args):
+            if "--version" in args:
+                return _ok(stdout="0.21.0")
+            return _fail(2)
+
+        rc = _run("docs/a.md\n", lint, tmp_path)
+
+        assert rc == 2
+        assert "exited 2 without diagnostics" in capsys.readouterr().out
+
 
 class TestBinaryAbsent:
-    def test_binary_and_npx_missing_fails_open(self, push_command, tmp_path, capsys):
+    def test_binary_and_npx_missing_blocks(self, push_command, tmp_path, capsys):
         def lint(args):
             raise AssertionError("subprocess should not run when neither tool present")
 
         # which_value=None applies to BOTH markdownlint-cli2 and npx
         rc = _run("docs/a.md\n", lint, tmp_path, which_value=None)
-        assert rc == 0
+        assert rc == 2
         err = capsys.readouterr().err
         assert "neither markdownlint-cli2 nor npx found" in err
-        assert "fail-open" in err
+        assert "blocking push" in err
 
     def test_binary_missing_falls_back_to_npx(self, push_command, tmp_path, capsys):
         """When markdownlint-cli2 is not on PATH but npx is, use npx as documented."""
@@ -176,31 +183,66 @@ class TestBinaryAbsent:
 
 
 class TestTimeout:
-    def test_timeout_fails_open(self, push_command, tmp_path, capsys):
+    def test_timeout_blocks(self, push_command, tmp_path, capsys):
         def lint(args):
             if "--version" in args:
                 return _ok(stdout="0.21.0")
             raise subprocess.TimeoutExpired(cmd=args, timeout=60)
 
         rc = _run("docs/a.md\n", lint, tmp_path)
-        assert rc == 0
+        assert rc == 2
         err = capsys.readouterr().err
         assert "TIMEOUT" in err
-        assert "allowing push" in err
+        assert "blocking push" in err
 
 
 class TestOSError:
-    def test_oserror_fails_open(self, push_command, tmp_path, capsys):
+    def test_oserror_blocks(self, push_command, tmp_path, capsys):
         def lint(args):
             if "--version" in args:
                 return _ok(stdout="0.21.0")
             raise OSError("Exec format error")
 
         rc = _run("docs/a.md\n", lint, tmp_path)
-        assert rc == 0
+        assert rc == 2
         err = capsys.readouterr().err
         assert "OSError" in err
-        assert "allowing push" in err
+        assert "blocking push" in err
+
+
+class TestGuardWiring:
+    def test_consumer_repo_still_runs_customer_guard(
+        self, push_command, tmp_path
+    ):
+        def lint(args):
+            if "--version" in args:
+                return _ok(stdout="0.21.0")
+            return _fail(1, stdout="docs/a.md:1 MD018 missing space\n")
+
+        with patch("push_guard_base.skip_if_consumer_repo", return_value=True):
+            rc = _run("docs/a.md\n", lint, tmp_path)
+
+        assert rc == 2
+
+    def test_git_diff_failure_blocks_before_lint(
+        self, push_command, tmp_path, capsys
+    ):
+        def dispatch(args, **_kwargs):
+            if args and args[0] in {"git", "gh"}:
+                return _fail(128, stderr="fatal: unavailable")
+            raise AssertionError("markdownlint must not run without a changeset")
+
+        with patch(
+            "push_guard_base.subprocess.run", side_effect=dispatch
+        ), patch(
+            "push_guard_base.get_project_directory", return_value=str(tmp_path)
+        ), patch(
+            "push_guard_base._gh_base_ref", return_value=None
+        ):
+            rc = guard.main()
+
+        assert rc == 2
+        assert "could not determine changed files" in capsys.readouterr().out
 
 
 class TestEmptyChangeset:

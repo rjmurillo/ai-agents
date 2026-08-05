@@ -2,16 +2,15 @@
 """Block git push on markdownlint violations in changed .md files.
 
 Thin adapter over :mod:`push_guard_base`. Activates on ``*.md`` files in
-the push changeset and runs ``markdownlint-cli2`` against them. Failures
-of the binary itself (missing PATH entry, timeout, OSError) fail-open;
-only real lint violations block.
+the push changeset and runs ``markdownlint-cli2`` against them. Missing
+tools, timeouts, invocation failures, and lint violations all block.
 
 Customer value: prevents markdown lint failures from reaching consumer branches.
 
 Hook Type: PreToolUse
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
-    0 = Allow (no .md files, binary missing, timeout, OSError, clean)
-    2 = Block (markdownlint reported violations)
+    0 = Allow (no .md files or markdownlint clean)
+    2 = Block (markdownlint unavailable, failed, or reported violations)
 """
 
 from __future__ import annotations
@@ -25,7 +24,7 @@ from _bootstrap import ensure_plugin_paths
 ensure_plugin_paths()
 
 from hook_utilities import get_project_directory  # noqa: E402
-from push_guard_base import emit_fail_open, run_guard  # noqa: E402
+from push_guard_base import run_guard  # noqa: E402
 
 GUARD_NAME = "markdown-lint"
 BINARY = "markdownlint-cli2"
@@ -39,8 +38,7 @@ def _resolve_invocation() -> list[str] | None:
     Direct binary on PATH wins (works on dev machines with global install).
     Falls back to ``npx markdownlint-cli2`` (the documented invocation for
     fresh checkouts where only Node and the project's package.json are
-    available). Returns None if neither tool is on PATH; the caller
-    fail-opens in that case.
+    available). Returns None if neither tool is on PATH.
     """
     if shutil.which(BINARY) is not None:
         return [BINARY]
@@ -76,13 +74,12 @@ def _log_version(invocation: list[str]) -> None:
 def _validate(matching: list[str], _all_changed: list[str]) -> list[str]:
     invocation = _resolve_invocation()
     if invocation is None:
+        message = f"neither {BINARY} nor npx found on PATH"
         print(
-            f"[{GUARD_NAME}] neither {BINARY} nor npx found on PATH; "
-            f"allowing push (fail-open)",
+            f"[{GUARD_NAME}] {message}; blocking push",
             file=sys.stderr,
         )
-        emit_fail_open(GUARD_NAME, "binary_missing", f"{BINARY} and npx not on PATH")
-        return []
+        return [message]
 
     _log_version(invocation)
 
@@ -102,20 +99,19 @@ def _validate(matching: list[str], _all_changed: list[str]) -> list[str]:
             cwd=project_dir,
         )
     except subprocess.TimeoutExpired:
+        message = f"{BINARY} exceeded {SUBPROCESS_TIMEOUT}s"
         print(
-            f"[TIMEOUT] {BINARY} exceeded {SUBPROCESS_TIMEOUT}s; "
-            f"allowing push",
+            f"[TIMEOUT] {message}; blocking push",
             file=sys.stderr,
         )
-        emit_fail_open(GUARD_NAME, "timeout", f"{BINARY} exceeded {SUBPROCESS_TIMEOUT}s")
-        return []
+        return [message]
     except OSError as exc:
+        message = f"{BINARY} failed to invoke: {exc}"
         print(
-            f"[OSError] {BINARY} failed to invoke: {exc}; allowing push",
+            f"[OSError] {message}; blocking push",
             file=sys.stderr,
         )
-        emit_fail_open(GUARD_NAME, "oserror", f"{type(exc).__name__}: {exc}")
-        return []
+        return [message]
 
     if proc.returncode == 0:
         return []
@@ -127,11 +123,19 @@ def _validate(matching: list[str], _all_changed: list[str]) -> list[str]:
         violations = [
             line for line in proc.stderr.splitlines() if line.strip()
         ]
+    if not violations:
+        violations = [f"{BINARY} exited {proc.returncode} without diagnostics"]
     return violations
 
 
 def main() -> int:
-    return run_guard(_validate, ["*.md"], GUARD_NAME)
+    return run_guard(
+        _validate,
+        ["*.md"],
+        GUARD_NAME,
+        project_only=False,
+        fail_closed=True,
+    )
 
 
 if __name__ == "__main__":
