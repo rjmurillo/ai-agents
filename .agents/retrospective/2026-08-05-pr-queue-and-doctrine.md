@@ -14,8 +14,11 @@ and this file now labels them accordingly.
 
 **Verifiable from the repository**: the sign-test result and its eight archived
 runs, `baseline_health` having no production caller, the 62 workflow files with
-zero `merge_group` triggers, the 22 call sites passing `secrets.BOT_PAT`, the
-worktree count, and every cited memory path.
+zero `merge_group` triggers, the 22 sites matching
+`bot-pat: ${{ secrets.BOT_PAT }}`, the worktree count, and every cited memory
+path. That last one needs its pattern named to reproduce: a bare grep for
+`secrets.BOT_PAT` returns 56 hits across 12 files, and only the pass-through
+form is 22.
 
 **Self-reported from the session, not reconstructible from the repository**:
 agent counts, issue and PR tallies, elapsed times, cycle counts, and the impact

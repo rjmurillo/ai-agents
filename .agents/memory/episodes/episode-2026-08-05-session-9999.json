@@ -19,7 +19,10 @@
         "e005",
         "e006",
         "e007",
-        "e008"
+        "e008",
+        "e009",
+        "e010",
+        "e011"
       ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-9999"
@@ -95,6 +98,39 @@
       "timestamp": "2026-08-05T00:00:00+00:00",
       "type": "milestone",
       "content": "Acted on the Sol adversarial audit of the retrospective",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged main into the memory branch and resolved two conflicts by intent",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote a memory after measuring its central claim, and corrected its recipe",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-05-session-9999"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected an unreproducible number in the section about rigor",
       "caused_by": [],
       "leads_to": [
         "e001"

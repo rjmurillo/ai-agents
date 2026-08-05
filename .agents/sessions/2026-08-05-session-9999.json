@@ -141,6 +141,18 @@
     {
       "action": "Acted on the Sol adversarial audit of the retrospective",
       "detail": "Sol raised 2 CRITICAL and 8 HIGH findings. Verified each against the cited files before conceding. Both CRITICAL findings were real: a transposed 4928 for the measured core=4948, and rate_limit framed as an empty result when it was a falsely reassuring non-empty. Applied 11 corrections plus a provenance section separating repo-verifiable figures from session-attested ones."
+    },
+    {
+      "action": "Merged main into the memory branch and resolved two conflicts by intent",
+      "detail": "Both were add/add on the empty-push memory and the memory index. Kept both sides where the merge base was empty. Keeping both sections grew the memory from 1972 to 2435 tokens, which memory_index_token_ratchet.py caught; refreshed with update_memory_index_tokens.py. Post-merge duplicate checks passed at 18 tests."
+    },
+    {
+      "action": "Wrote a memory after measuring its central claim, and corrected its recipe",
+      "detail": "A ratchet is declared in lefthook.yml and checks_ratchet.py. Deleting one side fails 2 tests; deleting both leaves 16 passed, so the parity test measures agreement and not existence. The draft recipe named a grep I had never run: it returns 64, every lefthook job, and pairs with nothing. Replaced with a pattern that returns 7 on both sides."
+    },
+    {
+      "action": "Corrected an unreproducible number in the section about rigor",
+      "detail": "The retrospective Provenance block listed 22 call sites passing secrets.BOT_PAT as repo-verifiable. A bare grep returns 56 across 12 files; only bot-pat pass-through sites are 22. Named the pattern in both the retrospective and the PR body."
     }
   ],
   "endingCommit": "758f343430581bd3cbfd4f7d779bf045fb5fb1aa",
