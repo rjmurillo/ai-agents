@@ -706,12 +706,16 @@ def test_stdin_writer_stops_when_the_parent_has_exited() -> None:
             self.terminated = force
 
     tree = FakeTree()
+    stderr_thread = threading.Thread(target=lambda: None)
+    stderr_thread.start()
+    stderr_thread.join()
     streams = cast(
         Any,
         SimpleNamespace(
             process=ExitedProcess(),
             process_tree=tree,
             stderr_chunks=[],
+            stderr_thread=stderr_thread,
         ),
     )
 
@@ -730,6 +734,63 @@ def test_stdin_writer_stops_when_the_parent_has_exited() -> None:
 
     assert exc_info.value.returncode == 7
     assert tree.terminated is True
+
+
+@pytest.mark.timeout(3)
+def test_stdin_parent_exit_waits_for_delayed_stderr() -> None:
+    release_writer = threading.Event()
+    stderr_chunks: list[str] = []
+
+    class BlockingStdin:
+        def write(self, text: str) -> int:
+            release_writer.wait(timeout=2.0)
+            return len(text)
+
+        def flush(self) -> None:
+            return None
+
+    class ExitedProcess:
+        stdin = BlockingStdin()
+        args = ["copilot"]
+
+        def poll(self) -> int:
+            return 7
+
+    class FakeTree:
+        def terminate(self, *, force: bool) -> None:
+            return None
+
+    def delayed_stderr() -> None:
+        time.sleep(0.3)
+        stderr_chunks.append("authentication failed after delay")
+
+    stderr_thread = threading.Thread(target=delayed_stderr)
+    stderr_thread.start()
+    streams = cast(
+        Any,
+        SimpleNamespace(
+            process=ExitedProcess(),
+            process_tree=FakeTree(),
+            stderr_chunks=stderr_chunks,
+            stderr_thread=stderr_thread,
+        ),
+    )
+
+    try:
+        with pytest.raises(ACPProcessError) as exc_info:
+            acp_module._send_request(
+                streams,
+                1,
+                "initialize",
+                {},
+                deadline=time.monotonic() + 1.0,
+                timeout=1.0,
+            )
+    finally:
+        release_writer.set()
+        stderr_thread.join(timeout=1.0)
+
+    assert exc_info.value.stderr == "authentication failed after delay"
 
 
 @pytest.mark.timeout(3)

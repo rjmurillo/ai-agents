@@ -255,6 +255,12 @@ def _send_request(
         returncode = process.poll()
         if returncode is not None:
             streams.process_tree.terminate(force=True)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(process.args, timeout) from None
+            streams.stderr_thread.join(remaining)
+            if streams.stderr_thread.is_alive():
+                raise subprocess.TimeoutExpired(process.args, timeout) from None
             raise ACPProcessError(
                 returncode,
                 "".join(streams.stderr_chunks),
