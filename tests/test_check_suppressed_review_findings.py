@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import yaml
+
 _ROOT = Path(__file__).resolve().parents[1]
 _SCRIPTS_DIR = _ROOT / ".claude" / "skills" / "github" / "scripts" / "pr"
 
@@ -60,6 +62,12 @@ def test_parses_suppressed_findings_with_file_line_and_text() -> None:
         "line": 10,
         "text": "First finding.",
     }
+
+
+def test_strips_whitespace_from_suppressed_finding_path() -> None:
+    body = "<summary>Suppressed comments (1)</summary>\n**  src/app.py  :10**\n* Finding"
+    sections = parse_suppressed_sections(body)
+    assert sections[0]["findings"][0]["path"] == "src/app.py"
 
 
 def test_returns_zero_when_suppressed_section_is_absent() -> None:
@@ -114,12 +122,14 @@ def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
         stdout=json.dumps([page]),
         stderr="",
     )
-    with patch("check_suppressed_review_findings.assert_gh_authenticated"), \
-         patch(
-             "check_suppressed_review_findings.resolve_repo_params",
-             return_value=type("Repo", (), {"owner": "o", "repo": "r"})(),
-         ), \
-         patch("subprocess.run", return_value=completed):
+    with (
+        patch("check_suppressed_review_findings.assert_gh_authenticated"),
+        patch(
+            "check_suppressed_review_findings.resolve_repo_params",
+            return_value=type("Repo", (), {"owner": "o", "repo": "r"})(),
+        ),
+        patch("subprocess.run", return_value=completed),
+    ):
         rc = main(["--pull-request", "99"])
 
     assert rc == 0
@@ -129,6 +139,15 @@ def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
 
 
 def test_pr_review_config_contains_suppressed_gate() -> None:
-    config = (_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text()
-    assert "check_suppressed_review_findings.py --pull-request {pr}" in config
-    assert "stdout-json.suppressed_count == 0" in config
+    config = yaml.safe_load((_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text())
+    criteria = config["completion_criteria"]
+    suppressed_gate = next(
+        item for item in criteria if item["name"] == "No suppressed Copilot review findings"
+    )
+    assert (
+        suppressed_gate["command"] == "python3 .claude/skills/github/scripts/pr/"
+        "check_suppressed_review_findings.py --pull-request {pr}"
+    )
+    assert suppressed_gate["pass_when"] == (
+        "stdout-json.suppressed_count == 0 AND stdout-json.fetched_pages_complete == true"
+    )

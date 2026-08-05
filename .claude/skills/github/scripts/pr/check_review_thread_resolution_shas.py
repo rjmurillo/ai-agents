@@ -78,7 +78,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
         "--repo-path",
@@ -105,7 +108,9 @@ def extract_shas(body: str) -> list[str]:
 
 
 def fetch_review_threads(
-    owner: str, repo: str, pull_request: int,
+    owner: str,
+    repo: str,
+    pull_request: int,
 ) -> tuple[str, list[dict[str, Any]], bool]:
     threads: list[dict[str, Any]] = []
     head_sha = ""
@@ -169,8 +174,29 @@ def _latest_comment(thread: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def check_ancestor(sha: str, head_sha: str, repo_path: str) -> tuple[bool, str]:
+    verify = subprocess.run(
+        ["git", "-C", repo_path, "rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if verify.returncode != 0:
+        disambiguate = subprocess.run(
+            ["git", "-C", repo_path, "rev-parse", f"--disambiguate={sha}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        candidates = [line.strip() for line in disambiguate.stdout.splitlines() if line.strip()]
+        if len(candidates) > 1:
+            return False, "ambiguous"
+        return False, "invalid"
+
+    resolved_sha = verify.stdout.strip()
     result = subprocess.run(
-        ["git", "-C", repo_path, "merge-base", "--is-ancestor", sha, head_sha],
+        ["git", "-C", repo_path, "merge-base", "--is-ancestor", resolved_sha, head_sha],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
@@ -208,9 +234,7 @@ def build_report(
                     "line": thread.get("line"),
                     "comment_id": comment.get("id"),
                     "comment_database_id": comment.get("databaseId"),
-                    "comment_author": (
-                        author.get("login") if isinstance(author, dict) else ""
-                    ),
+                    "comment_author": (author.get("login") if isinstance(author, dict) else ""),
                     "comment_created_at": comment.get("createdAt"),
                     "sha": sha,
                     "reachable": reachable,
@@ -220,6 +244,7 @@ def build_report(
 
     unreachable_count = sum(1 for r in references if r["status"] == "unreachable")
     invalid_count = sum(1 for r in references if r["status"] == "invalid")
+    ambiguous_count = sum(1 for r in references if r["status"] == "ambiguous")
     return {
         "success": fetched_pages_complete,
         "pull_request": pull_request,
@@ -232,6 +257,7 @@ def build_report(
         "reachable_count": sum(1 for r in references if r["status"] == "reachable"),
         "unreachable_count": unreachable_count,
         "invalid_count": invalid_count,
+        "ambiguous_count": ambiguous_count,
         "fetched_pages_complete": fetched_pages_complete,
         "references": references,
     }
@@ -249,7 +275,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         head_sha, threads, fetched_pages_complete = fetch_review_threads(
-            owner, repo, args.pull_request,
+            owner,
+            repo,
+            args.pull_request,
         )
     except RuntimeError as exc:
         print(f"Failed to fetch review threads: {exc}", file=sys.stderr)

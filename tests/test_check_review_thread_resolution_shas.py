@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import yaml
+
 _ROOT = Path(__file__).resolve().parents[1]
 _SCRIPTS_DIR = _ROOT / ".claude" / "skills" / "github" / "scripts" / "pr"
 
@@ -95,6 +97,7 @@ def test_unreachable_sha_blocks_report() -> None:
     assert report["reachable_count"] == 0
     assert report["unreachable_count"] == 1
     assert report["invalid_count"] == 0
+    assert report["ambiguous_count"] == 0
 
 
 def test_invalid_sha_blocks_report() -> None:
@@ -113,6 +116,24 @@ def test_invalid_sha_blocks_report() -> None:
         )
     assert report["invalid_count"] == 1
     assert report["references"][0]["status"] == "invalid"
+
+
+def test_ambiguous_sha_blocks_report() -> None:
+    with patch(
+        "check_review_thread_resolution_shas.check_ancestor",
+        return_value=(False, "ambiguous"),
+    ):
+        report = build_report(
+            "o",
+            "r",
+            1,
+            "b" * 40,
+            [_thread("T1", True, "Fixed in deadbee")],
+            True,
+            ".",
+        )
+    assert report["ambiguous_count"] == 1
+    assert report["references"][0]["status"] == "ambiguous"
 
 
 def test_uses_latest_comment_only() -> None:
@@ -147,28 +168,56 @@ def test_incomplete_comment_pagination_fails_closed() -> None:
 
 
 def test_check_ancestor_classifies_git_exit_codes() -> None:
-    with patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0)):
+    with patch(
+        "subprocess.run",
+        side_effect=[
+            subprocess.CompletedProcess([], 0, stdout="abc1234\n"),
+            subprocess.CompletedProcess([], 0),
+        ],
+    ):
         assert check_ancestor("abc1234", "b" * 40, ".") == (True, "reachable")
-    with patch("subprocess.run", return_value=subprocess.CompletedProcess([], 1)):
+    with patch(
+        "subprocess.run",
+        side_effect=[
+            subprocess.CompletedProcess([], 0, stdout="abc1234\n"),
+            subprocess.CompletedProcess([], 1),
+        ],
+    ):
         assert check_ancestor("abc1234", "b" * 40, ".") == (False, "unreachable")
-    with patch("subprocess.run", return_value=subprocess.CompletedProcess([], 128)):
+    with patch(
+        "subprocess.run",
+        side_effect=[
+            subprocess.CompletedProcess([], 128),
+            subprocess.CompletedProcess([], 0, stdout="abc1234\ndef5678\n"),
+        ],
+    ):
+        assert check_ancestor("abc1234", "b" * 40, ".") == (False, "ambiguous")
+    with patch(
+        "subprocess.run",
+        side_effect=[
+            subprocess.CompletedProcess([], 128),
+            subprocess.CompletedProcess([], 0, stdout=""),
+        ],
+    ):
         assert check_ancestor("abc1234", "b" * 40, ".") == (False, "invalid")
 
 
 def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
-    with patch("check_review_thread_resolution_shas.assert_gh_authenticated"), \
-         patch(
-             "check_review_thread_resolution_shas.resolve_repo_params",
-             return_value=type("Repo", (), {"owner": "o", "repo": "r"})(),
-         ), \
-         patch(
-             "check_review_thread_resolution_shas.fetch_review_threads",
-             return_value=("b" * 40, [_thread("T1", True, "Fixed in abc1234")], True),
-         ), \
-         patch(
-             "check_review_thread_resolution_shas.check_ancestor",
-             return_value=(True, "reachable"),
-         ):
+    with (
+        patch("check_review_thread_resolution_shas.assert_gh_authenticated"),
+        patch(
+            "check_review_thread_resolution_shas.resolve_repo_params",
+            return_value=type("Repo", (), {"owner": "o", "repo": "r"})(),
+        ),
+        patch(
+            "check_review_thread_resolution_shas.fetch_review_threads",
+            return_value=("b" * 40, [_thread("T1", True, "Fixed in abc1234")], True),
+        ),
+        patch(
+            "check_review_thread_resolution_shas.check_ancestor",
+            return_value=(True, "reachable"),
+        ),
+    ):
         rc = main(["--pull-request", "99"])
 
     assert rc == 0
@@ -176,9 +225,24 @@ def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
     assert output["sha_reference_count"] == 1
     assert output["unreachable_count"] == 0
     assert output["invalid_count"] == 0
+    assert output["ambiguous_count"] == 0
 
 
 def test_pr_review_config_contains_resolution_sha_gate() -> None:
-    config = (_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text()
-    assert "check_review_thread_resolution_shas.py --pull-request {pr}" in config
-    assert "stdout-json.unreachable_count == 0" in config
+    config = yaml.safe_load((_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text())
+    criteria = config["completion_criteria"]
+    sha_gate = next(
+        item
+        for item in criteria
+        if item["name"] == "Resolved thread commit references are reachable"
+    )
+    assert (
+        sha_gate["command"] == "python3 .claude/skills/github/scripts/pr/"
+        "check_review_thread_resolution_shas.py --pull-request {pr}"
+    )
+    assert sha_gate["pass_when"] == (
+        "stdout-json.unreachable_count == 0 AND "
+        "stdout-json.invalid_count == 0 AND "
+        "stdout-json.ambiguous_count == 0 AND "
+        "stdout-json.fetched_pages_complete == true"
+    )

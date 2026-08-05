@@ -113,7 +113,7 @@ completion_criteria:
   - name: "Resolved thread commit references are reachable"
     verification: "command"
     command: "python3 .claude/skills/github/scripts/pr/check_review_thread_resolution_shas.py --pull-request {pr}"
-    pass_when: "stdout-json.unreachable_count == 0 AND stdout-json.invalid_count == 0 AND stdout-json.fetched_pages_complete == true"
+    pass_when: "stdout-json.unreachable_count == 0 AND stdout-json.invalid_count == 0 AND stdout-json.ambiguous_count == 0 AND stdout-json.fetched_pages_complete == true"
     fail_open: false
   - name: "PR is ready to merge (CI green, no conflicts)"
     verification: "command"
