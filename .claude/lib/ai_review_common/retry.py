@@ -37,18 +37,18 @@ def invoke_with_retry(
 
     Raises the last exception after all retries are exhausted.
 
-    Raises `ValueError` when the resolved `max_retries` is below 1. The loop
-    body never runs for such a value, and the fallthrough below then reports
-    `All 0 attempts failed. Last error: None`, which reads as an exhausted
-    retry sequence for a call that was never made. Booleans are also rejected
-    because they are flags, not retry budgets. `MAX_RETRIES=0` in the
-    environment reaches this, so it is a live misconfiguration (issue #4121).
+    Raises `ValueError` when the resolved `max_retries` is not an integer or is
+    below 1. The loop never runs for a non-positive value, and its fallthrough
+    then reports `All 0 attempts failed. Last error: None`, which reads as an
+    exhausted retry sequence for a call that was never made. `MAX_RETRIES=0`
+    in the environment reaches this, so it is a live misconfiguration
+    (issue #4121).
     """
     if max_retries is None:
         max_retries = _get_config_int("MAX_RETRIES", _DEFAULT_MAX_RETRIES)
     if initial_delay is None:
         initial_delay = _get_config_int("RETRY_DELAY", _DEFAULT_RETRY_DELAY)
-    if isinstance(max_retries, bool) or max_retries < 1:
+    if type(max_retries) is not int or max_retries < 1:
         raise ValueError(
             f"max_retries must be an integer >= 1, got {max_retries!r}"
         )

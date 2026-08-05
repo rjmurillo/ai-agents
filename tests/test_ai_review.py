@@ -246,9 +246,9 @@ class TestInvokeWithRetry:
 
         assert delays == [1, 2]
 
-    @pytest.mark.parametrize("max_retries", [0, -1, False, True])
-    def test_non_positive_max_retries_is_rejected(self, max_retries):
-        """A retry budget below 1 is a configuration mistake, not a failure.
+    @pytest.mark.parametrize("max_retries", [0, -1, False, True, 1.5, "3"])
+    def test_invalid_max_retries_is_rejected(self, max_retries):
+        """An invalid retry budget is a configuration mistake, not a failure.
 
         Before #4121 the loop body never ran and the fallthrough raised
         `All 0 attempts failed. Last error: None`, which reads as an
