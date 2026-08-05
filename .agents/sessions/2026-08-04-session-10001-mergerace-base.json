@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This work will be committed with endingCommit empty, then endingCommit will be recorded in a follow-up commit per issue #3618 guidance."
+        "Evidence": "Work commit e7f1960cf5 is recorded as endingCommit in this follow-up commit per issue #3618 guidance."
       },
       "validationPassed": {
         "level": "MUST",
@@ -145,6 +145,6 @@
       ]
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "e7f1960cf539c44aaf302a1bd4edc482a91df642",
   "nextSteps": []
 }

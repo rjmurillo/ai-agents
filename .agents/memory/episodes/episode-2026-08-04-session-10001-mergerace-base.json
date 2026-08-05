@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Triage issue #3755",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-04-session-10001-mergerace-base"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Triage issue #4544",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-04-session-10001-mergerace-base"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Fix issue #4553",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-04-session-10001-mergerace-base"
     },
     {
@@ -40,6 +46,22 @@
       "type": "milestone",
       "content": "Validate issue #4553",
       "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-04-session-10001-mergerace-base"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T04:59:16+00:00",
+      "type": "commit",
+      "content": "Commit: e7f1960cf539c44aaf302a1bd4edc482a91df642",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-10001-mergerace-base"
     }
@@ -49,7 +71,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 4
   },
   "lessons": []
