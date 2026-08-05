@@ -7,6 +7,7 @@ Covers:
 - #4511: portability write-lock files are gitignored
 - #4502: pytest.yml test job has timeout-minutes
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -63,8 +64,7 @@ class TestBudgetExhaustionMessage:
     ) -> tuple[int, str]:
         """Run run_pytest over len(returncodes) commands on the REAL clock."""
         commands = [
-            ["uv", "run", "python", "-m", "pytest", f"slice{i}"]
-            for i in range(len(returncodes))
+            ["uv", "run", "python", "-m", "pytest", f"slice{i}"] for i in range(len(returncodes))
         ]
         calls = iter(returncodes)
         monkeypatch.setattr(
@@ -224,9 +224,7 @@ class TestPushFilesGuard:
             "scripts.validation.git_hook_policy._branch_delta_files",
             lambda root, base="origin/main": {"scripts/validation/portability_common.py"},
         )
-        assert not policy._push_files_are_genuine(
-            [".claude/skills/some-skill/SKILL.md"], tmp_path
-        )
+        assert not policy._push_files_are_genuine([".claude/skills/some-skill/SKILL.md"], tmp_path)
 
     def test_empty_push_files_returns_false(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -271,7 +269,7 @@ class TestPushFilesGuard:
     def test_run_cli_e2e_proceeds_on_genuine_files(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        """run_cli_e2e proceeds past the guard when files are genuine."""
+        """A genuine change fails closed when no supported CLI can run."""
         monkeypatch.setattr(
             "scripts.validation.git_hook_policy._push_files_are_genuine",
             lambda files, root: True,
@@ -279,16 +277,42 @@ class TestPushFilesGuard:
         monkeypatch.setattr("shutil.which", lambda x: None)
 
         rc = policy.run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", tmp_path, ["real/file.py"])
-        # No CLI installed -> skip with rc=0 (existing behavior)
-        assert rc == 0
+        assert rc == 2
 
     def test_run_cli_e2e_no_push_files_arg_runs_normally(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        """run_cli_e2e with push_files=None bypasses the guard entirely."""
+        """Direct invocation still fails closed when the CLI is unavailable."""
         monkeypatch.setattr("shutil.which", lambda x: None)
         rc = policy.run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", tmp_path, None)
-        assert rc == 0
+        assert rc == 2
+
+    def test_cli_entrypoint_fails_closed_when_cli_is_unavailable(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """The command lefthook invokes must return a configuration error."""
+        changed = ".claude/skills/example/SKILL.md"
+        monkeypatch.setattr(
+            "scripts.validation.git_hook_policy._branch_delta_files",
+            lambda root, base="origin/main": {changed},
+        )
+        monkeypatch.setattr("shutil.which", lambda name: None)
+
+        rc = policy.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "cli-plugin-e2e",
+                "--files",
+                changed,
+            ]
+        )
+
+        assert rc == 2
+        assert "requires either copilot or claude" in capsys.readouterr().err
 
     def test_cli_plugin_e2e_subcommand_accepts_files_arg(self) -> None:
         """The cli-plugin-e2e subcommand accepts --files."""
