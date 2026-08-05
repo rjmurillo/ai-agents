@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.github_core import (
+    RateLimitStatus,
     check_workflow_rate_limit,
     resolve_repo_params,
 )
@@ -435,12 +436,16 @@ def main(argv: list[str] | None = None) -> int:
         rate_result = check_workflow_rate_limit(
             resource_thresholds={"core": 100, "graphql": 50},
         )
-        if not rate_result.success:
+        if rate_result.status != RateLimitStatus.VERIFIED_HEALTHY:
             if not args.output_json:
                 # The gate fails on a threshold or on a live-probe refusal, and
                 # "too low" misreported the second as the first (issue #4326).
                 reason = rate_result.probe_error or "thresholds not met"
-                print(f"Exiting: rate limit gate failed ({reason})", file=sys.stderr)
+                print(
+                    "Exiting: rate limit gate "
+                    f"{rate_result.status.value} ({reason})",
+                    file=sys.stderr,
+                )
             return 0
     except (RuntimeError, subprocess.SubprocessError, OSError, KeyError):
         if not args.output_json:
