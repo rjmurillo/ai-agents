@@ -155,7 +155,7 @@
       "evidence": "gpt-5.6-sol review returned 1 HIGH, verified against the memory at lines 28-30 (\"Whether they happened is beside the point. Unrecorded, they could not be cited.\") and the body at line 71. Sol independently confirmed the other nine claims, including retro lines 138 and 147, the three-instance count, the seven-object workLog shape, both Related paths, size 2,747 PASS, 0 dashes, 0 banned words, and the index row at skills-pr-review-index.md line 30. Pre-flight after the fix: 21 changed, 16 mentioned, 0 problems."
     }
   ],
-  "endingCommit": "82abfbf460f782026f85279921622ebe39c4c61d",
+  "endingCommit": "e8c73f488a1a53e805b0ae74f55fb0e8be1c4d8d",
   "nextSteps": [
     "Open PRs for the four branches landed earlier in this session: docs/ai-gate-did-not-run, docs/gate-measurement-quirks, docs/memory-subdir-consumers, fix/memory-search-blind-to-nested.",
     "Update PR #4656's body with the corrected counts and the four commits.",
