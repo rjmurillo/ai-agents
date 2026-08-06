@@ -151,9 +151,29 @@
     {
       "step": "review",
       "evidence": "Adversarial review dispatched on gemini-3.1-pro-preview, a different model family from the implementing model."
+    },
+    {
+      "step": "triage",
+      "evidence": "Review returned 1 CRITICAL, 1 HIGH, 1 MEDIUM, 1 LOW. CRITICAL rejected: git diff proves zero introduced lines carry the banned word, and the three pre-existing ones name the underscore character, not the AI-vernacular verb. LOW rejected: a negative control passing both before and after a revert is its purpose."
+    },
+    {
+      "step": "fix",
+      "evidence": "HIGH confirmed real. The no-verify half of the guard passed even with its relative-parts change reverted, because the temp root held no directory named worktrees. Added test_root_named_worktrees_keeps_its_files."
+    },
+    {
+      "step": "fix",
+      "evidence": "MEDIUM accepted by design rather than rewritten, on the reviewer's own recommendation. Added TestNoTrackedFileHidesBehindTheSkip so a future tracked file under a worktrees path fails loudly instead of vanishing from both gates."
+    },
+    {
+      "step": "verify",
+      "evidence": "Revert sensitivity proven for all three halves: dropping worktrees from _SKIP fails 2 tests, reverting either relative-parts change fails 1 with an empty scan result. Restored with git checkout -- after each experiment."
+    },
+    {
+      "step": "verify",
+      "evidence": "7 passed in 0.19s on the guard; the two previously timing-out gates now 20 passed in 75.83s against a 120s budget, was 2 failed in 292.99s. ruff clean on all three files."
     }
   ],
-  "endingCommit": "68a1edee64836da9a6e6a8a8889140a6818549ee",
+  "endingCommit": "082957159",
   "nextSteps": [
     "Push branch and open PR.",
     "Re-push the blocked docs/git-cat-file-proves-existence-not-reachability branch once this lands."
