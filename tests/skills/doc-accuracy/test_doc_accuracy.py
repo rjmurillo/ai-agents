@@ -683,6 +683,112 @@ class TestGetChangedFiles:
                 _os.environ["GIT_DIR"] = old
         assert exit_code == 0
 
+    def test_git_config_count_injection_blocked(self, tmp_path: Path) -> None:
+        """Malicious core.fsmonitor via GIT_CONFIG_COUNT cannot execute."""
+        self._init_repo(tmp_path)
+        (tmp_path / "a.md").write_text("# A\n")
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "add", "."],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "init"],
+            check=True, capture_output=True,
+        )
+        sentinel = tmp_path / "pwned_sentinel"
+        sentinel.unlink(missing_ok=True)
+        import os as _os
+        injections = {
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "core.fsmonitor",
+            "GIT_CONFIG_VALUE_0": f"echo pwned > {sentinel}",
+        }
+        old_vals = {}
+        for k, v in injections.items():
+            old_vals[k] = _os.environ.get(k)
+            _os.environ[k] = v
+        try:
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD~1",
+                "--phases", "1",
+            ])
+        finally:
+            for k in injections:
+                if old_vals[k] is None:
+                    _os.environ.pop(k, None)
+                else:
+                    _os.environ[k] = old_vals[k]
+        assert exit_code == 0
+        assert not sentinel.exists(), "fsmonitor injection executed despite env sanitization"
+
+    def test_graft_replace_shallow_overrides_ignored(self, tmp_path: Path) -> None:
+        """GIT_GRAFT_FILE/REPLACE_REF_BASE/SHALLOW_FILE do not alter results."""
+        self._init_repo(tmp_path)
+        (tmp_path / "a.md").write_text("# A\n")
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "add", "."],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "init"],
+            check=True, capture_output=True,
+        )
+        import os as _os
+        overrides = {
+            "GIT_GRAFT_FILE": "/nonexistent/grafts",
+            "GIT_REPLACE_REF_BASE": "refs/replace-evil/",
+            "GIT_SHALLOW_FILE": "/nonexistent/shallow",
+        }
+        old_vals = {}
+        for k, v in overrides.items():
+            old_vals[k] = _os.environ.get(k)
+            _os.environ[k] = v
+        try:
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD~1",
+                "--phases", "1",
+            ])
+        finally:
+            for k in overrides:
+                if old_vals[k] is None:
+                    _os.environ.pop(k, None)
+                else:
+                    _os.environ[k] = old_vals[k]
+        assert exit_code == 0
+
+    def test_git_env_strips_all_local_env_vars(self) -> None:
+        """_git_env excludes every var from rev-parse --local-env-vars."""
+        import os as _os
+
+        from doc_accuracy import _git_env
+        # Inject all known vars
+        local_vars = [
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG",
+            "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
+            "GIT_OBJECT_DIRECTORY", "GIT_DIR", "GIT_WORK_TREE",
+            "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE", "GIT_INDEX_FILE",
+            "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_PREFIX",
+            "GIT_SHALLOW_FILE", "GIT_COMMON_DIR",
+        ]
+        prefix_vars = ["GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0",
+                       "GIT_CONFIG_KEY_99", "GIT_CONFIG_VALUE_99"]
+        all_test = local_vars + prefix_vars
+        saved = {k: _os.environ.get(k) for k in all_test}
+        for k in all_test:
+            _os.environ[k] = "injected"
+        try:
+            env = _git_env()
+        finally:
+            for k in all_test:
+                if saved[k] is None:
+                    _os.environ.pop(k, None)
+                else:
+                    _os.environ[k] = saved[k]
+        for k in all_test:
+            assert k not in env, f"{k} leaked through _git_env()"
+
     def test_resolved_oid_missing_object_exits_3(self, tmp_path: Path) -> None:
         """OID resolved but cat-file fails (object gone) => exit 3."""
         self._init_repo(tmp_path)

@@ -163,24 +163,47 @@ EXCLUDE_DIRS = {
 
 _GIT_TIMEOUT = 60  # seconds, applied to every git subprocess call
 
-# Environment variables that can redirect git to a foreign repository.
+# Environment variables that can redirect git to a foreign repository,
+# inject configuration, or alter revision/object resolution.
 # Sanitized from every git subprocess to ensure -C <repo_root> is authoritative.
-_GIT_ENV_OVERRIDES = (
+# Source: `git rev-parse --local-env-vars` plus GIT_CONFIG_PARAMETERS/COUNT/KEY/VALUE.
+_GIT_ENV_DENY_EXACT = frozenset((
     "GIT_DIR",
     "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
     "GIT_INDEX_FILE",
     "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
     "GIT_COMMON_DIR",
     "GIT_CEILING_DIRECTORIES",
+    "GIT_GRAFT_FILE",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_SHALLOW_FILE",
+    "GIT_PREFIX",
+    "GIT_CONFIG",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+))
+
+# Prefix patterns: any env var starting with these is stripped.
+_GIT_ENV_DENY_PREFIXES = (
+    "GIT_CONFIG_KEY_",
+    "GIT_CONFIG_VALUE_",
 )
 
 
 def _git_env() -> dict[str, str]:
-    """Return a sanitized copy of os.environ without git repo-selection vars."""
+    """Return a sanitized copy of os.environ without git repo/config vars."""
     env = os.environ.copy()
-    for var in _GIT_ENV_OVERRIDES:
+    for var in _GIT_ENV_DENY_EXACT:
         env.pop(var, None)
+    to_remove = [
+        k for k in env
+        if any(k.startswith(p) for p in _GIT_ENV_DENY_PREFIXES)
+    ]
+    for k in to_remove:
+        del env[k]
     return env
 
 
