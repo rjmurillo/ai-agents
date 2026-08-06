@@ -133,11 +133,15 @@ class TestWorkflowYamlTargets:
     """Unit tests for ``_workflow_yaml_targets``, the branch-scoping helper.
 
     Covers the scoping contract added for correctness-preserving scoping:
-    changed subset, composite-action exclusion, and deleted-file exclusion.
-    The base-ref/command-failure scoping contract itself (shared by every
-    gate that calls ``_changed_paths_since_base``) is proven once in
+    changed subset and composite-action exclusion. The base-ref/command-
+    failure scoping contract itself (shared by every gate that calls
+    ``_changed_paths_since_base``) is proven once in
     ``tests/validation_pre_pr/test_changed_paths_since_base.py``, not
-    re-verified here.
+    re-verified here. The missing-from-disk hard-failure contract (item 2,
+    round 2 review) is proven generically, once, in
+    ``tests/validation_pre_pr/test_filtered_targets.py``;
+    ``test_missing_from_disk_raises`` below only locks in that THIS gate's
+    predicate (``.github/workflows/*.yml|yaml``) reaches that shared path.
     """
 
     @pytest.mark.parametrize(
@@ -149,9 +153,8 @@ class TestWorkflowYamlTargets:
                 [".github/workflows/ci.yml"],
             ),
             (".github/actions/composite/action.yml", ".github/actions/composite/action.yml", []),
-            (".github/workflows/removed.yml", None, []),
         ],
-        ids=["changed-subset-returned", "composite-action-excluded-2346", "deleted-file-excluded"],
+        ids=["changed-subset-returned", "composite-action-excluded-2346"],
     )
     def test_filtering_contract(
         self,
@@ -160,14 +163,13 @@ class TestWorkflowYamlTargets:
         on_disk: str | None,
         expected: list[str],
     ) -> None:
-        """Only ``.github/workflows/*.yml|yaml`` files still on disk qualify;
-        a changed composite ``action.yml`` must never reach actionlint (#2346)
-        and a diff entry with no matching working-tree file cannot be linted.
+        """Only ``.github/workflows/*.yml|yaml`` files qualify; a changed
+        composite ``action.yml`` must never reach actionlint (#2346).
 
         ``diff_stdout`` is NUL-delimited (matching the ``-z`` flag the shared
         helper now always passes); ``mock_run.return_value`` applies
-        uniformly to all three underlying git calls the helper makes, so the
-        same changed-set surfaces via each of the three sources.
+        uniformly to all four underlying git calls the helper makes, so the
+        same changed-set surfaces via each of the four sources.
         """
         from checks_tooling import _workflow_yaml_targets
 
@@ -175,10 +177,26 @@ class TestWorkflowYamlTargets:
             path = tmp_path / on_disk
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("stub\n", encoding="utf-8")
-        with patch("checks_tooling._resolve_branch_base_ref", return_value="origin/main"):
-            with patch("checks_tooling._run_subprocess") as mock_run:
+        with patch("checks_changed_paths._resolve_branch_base_ref", return_value="origin/main"):
+            with patch("checks_changed_paths._run_subprocess") as mock_run:
                 mock_run.return_value = (0, diff_stdout, "")
                 assert _workflow_yaml_targets(tmp_path) == expected
+
+    def test_missing_from_disk_raises(self, tmp_path: Path) -> None:
+        """A path git reports as a changed workflow file (ACMR: Added,
+        Copied, Modified, or Renamed -- never Deleted) but that is absent
+        from the worktree must fail this gate loudly (item 2, round 2
+        review), not be silently dropped and not fall back to validating
+        every ``*.yml``/``*.yaml`` under ``.github/workflows/`` instead.
+        """
+        from checks_changed_paths import ChangedPathMissingError
+        from checks_tooling import _workflow_yaml_targets
+
+        with patch("checks_changed_paths._resolve_branch_base_ref", return_value="origin/main"):
+            with patch("checks_changed_paths._run_subprocess") as mock_run:
+                mock_run.return_value = (0, ".github/workflows/removed.yml", "")
+                with pytest.raises(ChangedPathMissingError, match="removed.yml"):
+                    _workflow_yaml_targets(tmp_path)
 
 
 class TestWorkflowYamlTargetsWorktreeOnly:

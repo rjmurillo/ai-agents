@@ -22,11 +22,14 @@ class TestYamlStyleTargets:
     """Unit tests for ``_yaml_style_targets``, the branch-scoping helper.
 
     Covers only the extension-filtering contract specific to this gate
-    (which files qualify, deleted-file exclusion). The base-ref/command-
-    failure scoping contract itself (shared by every gate that calls
-    ``_changed_paths_since_base``) is proven once in
-    ``tests/validation_pre_pr/test_changed_paths_since_base.py``, not
-    re-verified here.
+    (which files qualify). The base-ref/command-failure scoping contract
+    itself (shared by every gate that calls ``_changed_paths_since_base``)
+    is proven once in ``tests/validation_pre_pr/test_changed_paths_since_base.py``,
+    not re-verified here. The missing-from-disk hard-failure contract
+    (item 2, round 2 review) is proven generically, once, in
+    ``tests/validation_pre_pr/test_filtered_targets.py``;
+    ``test_missing_from_disk_raises`` below only locks in that THIS gate's
+    predicate (``*.yml``/``*.yaml``) reaches that shared path.
     """
 
     @pytest.mark.parametrize(
@@ -34,9 +37,8 @@ class TestYamlStyleTargets:
         [
             ("README.md\0config.yml", ["config.yml"], ["config.yml"]),
             ("a.yml\0b.yaml\0c.txt", ["a.yml", "b.yaml"], ["a.yml", "b.yaml"]),
-            ("removed.yml", [], []),
         ],
-        ids=["changed-subset-returned", "both-extensions-matched", "deleted-file-excluded"],
+        ids=["changed-subset-returned", "both-extensions-matched"],
     )
     def test_filtering_contract(
         self,
@@ -45,21 +47,35 @@ class TestYamlStyleTargets:
         on_disk: list[str],
         expected: list[str],
     ) -> None:
-        """Only ``*.yml``/``*.yaml`` paths still present on disk qualify; a
-        diff entry with no matching working-tree file cannot be linted.
+        """Only ``*.yml``/``*.yaml`` paths qualify.
 
         ``diff_stdout`` is NUL-delimited (matching the ``-z`` flag the shared
         helper now always passes); ``mock_run.return_value`` applies
-        uniformly to all three underlying git calls the helper makes.
+        uniformly to all four underlying git calls the helper makes.
         """
         from checks_tooling import _yaml_style_targets
 
         for name in on_disk:
             (tmp_path / name).write_text("a: 1\n", encoding="utf-8")
-        with patch("checks_tooling._resolve_branch_base_ref", return_value="origin/main"):
-            with patch("checks_tooling._run_subprocess") as mock_run:
+        with patch("checks_changed_paths._resolve_branch_base_ref", return_value="origin/main"):
+            with patch("checks_changed_paths._run_subprocess") as mock_run:
                 mock_run.return_value = (0, diff_stdout, "")
                 assert _yaml_style_targets(tmp_path) == expected
+
+    def test_missing_from_disk_raises(self, tmp_path: Path) -> None:
+        """A path git reports as a changed YAML file (ACMR: Added, Copied,
+        Modified, or Renamed -- never Deleted) but that is absent from the
+        worktree must fail this gate loudly (item 2, round 2 review), not
+        be silently dropped and not fall back to scanning the whole repo.
+        """
+        from checks_changed_paths import ChangedPathMissingError
+        from checks_tooling import _yaml_style_targets
+
+        with patch("checks_changed_paths._resolve_branch_base_ref", return_value="origin/main"):
+            with patch("checks_changed_paths._run_subprocess") as mock_run:
+                mock_run.return_value = (0, "removed.yml", "")
+                with pytest.raises(ChangedPathMissingError, match="removed.yml"):
+                    _yaml_style_targets(tmp_path)
 
 
 class TestYamlStyleTargetsWorktreeOnly:
@@ -136,9 +152,7 @@ class TestValidateYamlStyle:
     def test_scoped_findings_are_advisory_and_still_pass(self, tmp_path: Path) -> None:
         """yamllint findings warn but never fail (advisory tool, #2374 precedent)."""
         with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
-            with patch(
-                "checks_tooling._yaml_style_targets", return_value=["config.yml"]
-            ):
+            with patch("checks_tooling._yaml_style_targets", return_value=["config.yml"]):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (
                         1,
