@@ -264,6 +264,24 @@ class TestWorkflowWiring:
         assert "check-agent-infrastructure" not in completed.stdout
 
 
+
+class TestInfraCheckWorkflowTokenWiring:
+    """Verify the quality-gate workflow passes github-token to check-agent-infrastructure."""
+
+    def test_quality_gate_passes_github_token_to_check_agent_infrastructure(self) -> None:
+        workflow = yaml.safe_load(AI_PR_WORKFLOW.read_text(encoding="utf-8"))
+        infra_steps = []
+        for job in workflow["jobs"].values():
+            for step in job.get("steps", []):
+                if str(step.get("uses", "")).endswith("check-agent-infrastructure"):
+                    infra_steps.append(step)
+
+        assert len(infra_steps) >= 1, "Expected at least one check-agent-infrastructure step"
+        for step in infra_steps:
+            assert "github-token" in step.get("with", {}), (
+                f"Step {step.get('name', 'unnamed')} missing github-token input"
+            )
+
 class TestAiReviewActionAuthWiring:
     def test_read_only_gh_steps_use_runner_token_before_bot_pat(self) -> None:
         action = yaml.safe_load(AI_REVIEW_ACTION.read_text(encoding="utf-8"))
