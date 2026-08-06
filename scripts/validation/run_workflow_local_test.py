@@ -723,11 +723,12 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
     ),
     (
         "installed-plugin-hook-guard",
-        lambda text: (
-            "Vanilla Windows" in text
-            and "row is not vanilla" in text.lower()
-            and "still resolve" in text.lower()
-            and "vanilla-windows" in text.lower()
+        lambda text: any(
+            "Vanilla Windows" in line
+            and "row is not vanilla" in line.lower()
+            and "still resolve" in line.lower()
+            and "vanilla-windows" in line.lower()
+            for line in text.splitlines()
         ),
         "act maps windows-latest to a Linux container that ships Python, so "
         "the vanilla guard's precondition correctly reports that interpreters "
