@@ -409,11 +409,12 @@ def _load_base_reference_counts(
     if destination_issues:
         return None, destination_issues[0]
     for file_name in reference_names:
-        target_path = posixpath.normpath(
-            f"{relative_memory}/{file_name}.md"
-        )
+        raw_target_path = f"{relative_memory}/{file_name}.md"
+        target_path = posixpath.normpath(raw_target_path)
         has_symlink_component = any(
-            target_path == symlink_path
+            raw_target_path == symlink_path
+            or raw_target_path.startswith(f"{symlink_path}/")
+            or target_path == symlink_path
             or target_path.startswith(f"{symlink_path}/")
             for symlink_path in symlink_paths
         )

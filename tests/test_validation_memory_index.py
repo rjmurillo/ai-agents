@@ -555,6 +555,43 @@ class TestCheckMemoryIndexReferences:
             ".serena/memories/alias/shared.md"
         )
 
+    def test_removed_symlink_component_in_base_tree_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        memory_path = tmp_path / ".serena" / "memories"
+        memory_path.mkdir(parents=True)
+        commit_id = "a" * 40
+        base_content = "| keywords: [entry](alias/../shared.md)\n"
+        completed = [
+            subprocess.CompletedProcess([], 0, f"{tmp_path}\n", ""),
+            subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
+            subprocess.CompletedProcess([], 0, base_content, ""),
+            subprocess.CompletedProcess(
+                [],
+                0,
+                (
+                    "120000 blob bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    "\t.serena/memories/alias\0"
+                ),
+                "",
+            ),
+        ]
+
+        with patch(
+            "scripts.validation.memory_index.subprocess.run",
+            side_effect=completed,
+        ):
+            counts, error = _load_base_reference_counts(
+                memory_path,
+                "origin/main",
+            )
+
+        assert counts is None
+        assert error == (
+            "base memory-index target is a symbolic link: "
+            ".serena/memories/shared.md"
+        )
+
     def test_valid_references(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (
