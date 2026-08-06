@@ -766,34 +766,6 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "having resolved. Real CI runners provide Docker and this row runs "
         "there.",
     ),
-    (
-        # scope is matched against the GitHub event, not a workflow name, so it
-        # must stay None. Narrowness lives in the predicate below, which requires
-        # this workflow's own job and step names to appear on the failing line.
-        None,
-        lambda text: (
-            # The aggregate reports the guard's overall verdict, so it goes red
-            # whenever a dependency does. Excuse it ONLY when the run also
-            # carries the upstream act limitation that explains that
-            # dependency, so a genuine job failure still fails the aggregate.
-            any(
-                "Plugin Hook Guard Result" in line
-                and "Assert every guard job succeeded" in line
-                for line in text.splitlines()
-            )
-            and any(
-                "VANILLA GUARD CANNOT RUN" in line and "docker" in line.lower()
-                for line in text.splitlines()
-            )
-        ),
-        "the aggregate status fails because the Vanilla Linux row could not "
-        "run under act for lack of a Docker socket. The aggregate is doing its "
-        "job: it must go red when any dependency fails or is skipped, since a "
-        "required check that reports success on a run where nothing was "
-        "verified is the false green this guard exists to prevent. This "
-        "attribution requires the upstream limitation to be present in the "
-        "same run, so a real job failure still fails the aggregate.",
-    ),
 )
 
 # ``_run`` stringifies a stage timeout as ``TimeoutExpired: ...`` (the exception
