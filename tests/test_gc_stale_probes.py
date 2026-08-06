@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.maintenance import _gc_parse, _gc_stale
+from scripts.maintenance import _gc_anchors, _gc_files, _gc_parse, _gc_stale
 from scripts.maintenance.gc_worktrees import (
     Decision,
     Worktree,
@@ -113,15 +113,15 @@ def _stale(
 
 
 class TestRegularFileProbe:
-    """``_regular_file`` separates "not there" from "could not ask"."""
+    """``regular_file`` separates "not there" from "could not ask"."""
 
     def test_a_real_file_is_true(self, tmp_path):
         target = tmp_path / "index"
         target.write_bytes(b"x")
-        assert _gc_stale._regular_file(target) is True
+        assert _gc_files.regular_file(target) is True
 
     def test_an_absent_file_is_false(self, tmp_path):
-        assert _gc_stale._regular_file(tmp_path / "missing") is False
+        assert _gc_files.regular_file(tmp_path / "missing") is False
 
     def test_a_path_under_a_file_is_unknown(self, tmp_path):
         """``a/b`` where ``a`` is a file is a corrupt record, not an empty one.
@@ -132,17 +132,17 @@ class TestRegularFileProbe:
         state most likely to be hiding something.
         """
         (tmp_path / "a").write_bytes(b"x")
-        assert _gc_stale._regular_file(tmp_path / "a" / "b") is None
+        assert _gc_files.regular_file(tmp_path / "a" / "b") is None
 
     def test_a_directory_is_unknown_not_absent(self, tmp_path):
         """A directory where an index belongs is corrupt, not empty."""
         (tmp_path / "index").mkdir()
-        assert _gc_stale._regular_file(tmp_path / "index") is None
+        assert _gc_files.regular_file(tmp_path / "index") is None
 
     def test_a_stat_failure_is_unknown(self, tmp_path):
         """A permission denial is the case ``Path.is_file`` hides."""
         with patch.object(Path, "stat", side_effect=PermissionError(13, "denied")):
-            assert _gc_stale._regular_file(tmp_path / "index") is None
+            assert _gc_files.regular_file(tmp_path / "index") is None
 
     def test_a_broken_symlink_is_unknown(self, tmp_path):
         """Something occupies the path, so this is not absence.
@@ -154,12 +154,12 @@ class TestRegularFileProbe:
         """
         link = tmp_path / "index"
         link.symlink_to(tmp_path / "nowhere")
-        assert _gc_stale._regular_file(link) is None
+        assert _gc_files.regular_file(link) is None
 
     def test_only_an_empty_path_is_absent(self, tmp_path):
         """The one case that earns ``False``, stated next to its near-misses."""
-        assert _gc_stale._regular_file(tmp_path / "missing") is False
-        assert _gc_stale._nothing_at(tmp_path / "missing") is True
+        assert _gc_files.regular_file(tmp_path / "missing") is False
+        assert _gc_files.nothing_at(tmp_path / "missing") is True
 
 
 class TestReflogProbeUnknowns:
@@ -167,7 +167,7 @@ class TestReflogProbeUnknowns:
 
     def test_an_unreadable_reflog_is_unknown_not_empty(self, tmp_path):
         with patch(
-            "scripts.maintenance._gc_stale._regular_file",
+            "scripts.maintenance._gc_anchors.regular_file",
             return_value=None,
         ):
             assert _gc_stale.unreachable_admin_commits(tmp_path, "/repo", 5.0) is None
@@ -184,7 +184,7 @@ class TestStagedContentProbe:
         """``index_exists=None`` means the ``stat`` itself failed."""
         with (
             patch(
-                "scripts.maintenance._gc_stale._regular_file",
+                "scripts.maintenance._gc_stale.regular_file",
                 return_value=index_exists,
             ),
             patch(
@@ -219,7 +219,7 @@ class TestStagedContentProbe:
 
     def test_a_timeout_is_unknown(self):
         with (
-            patch("scripts.maintenance._gc_stale._regular_file", return_value=True),
+            patch("scripts.maintenance._gc_stale.regular_file", return_value=True),
             patch(
                 "scripts.maintenance._gc_stale.subprocess.run",
                 side_effect=subprocess.TimeoutExpired("git", 5.0),
@@ -232,7 +232,7 @@ class TestStagedContentProbe:
     def test_the_probe_runs_in_the_repo_not_the_admin_directory(self):
         """git refuses the admin dir outright when safe.bareRepository is explicit."""
         with (
-            patch("scripts.maintenance._gc_stale._regular_file", return_value=True),
+            patch("scripts.maintenance._gc_stale.regular_file", return_value=True),
             patch(
                 "scripts.maintenance._gc_stale.subprocess.run",
                 return_value=SimpleNamespace(returncode=0),
@@ -399,24 +399,24 @@ class TestWorktreeLocalRefProbe:
         return admin
 
     def test_no_refs_directory_is_no_risk(self, tmp_path):
-        assert _gc_stale._worktree_ref_oids(self._admin(tmp_path)) == []
+        assert _gc_anchors.worktree_ref_oids(self._admin(tmp_path)) == []
 
     def test_a_ref_file_contributes_its_object_id(self, tmp_path):
         oid = "d" * 40
         admin = self._admin(tmp_path, "worktree/mywork", f"{oid}\n")
-        assert _gc_stale._worktree_ref_oids(admin) == [oid]
+        assert _gc_anchors.worktree_ref_oids(admin) == [oid]
 
     def test_a_symbolic_ref_anchors_nothing_on_its_own(self, tmp_path):
         admin = self._admin(tmp_path, "worktree/alias", "ref: refs/heads/main\n")
-        assert _gc_stale._worktree_ref_oids(admin) == []
+        assert _gc_anchors.worktree_ref_oids(admin) == []
 
     def test_the_null_oid_is_not_a_commit(self, tmp_path):
         admin = self._admin(tmp_path, "bisect/bad", f"{'0' * 40}\n")
-        assert _gc_stale._worktree_ref_oids(admin) == []
+        assert _gc_anchors.worktree_ref_oids(admin) == []
 
     def test_a_ref_file_that_does_not_parse_answers_unknown(self, tmp_path):
         admin = self._admin(tmp_path, "worktree/broken", "not an object id\n")
-        assert _gc_stale._worktree_ref_oids(admin) is None
+        assert _gc_anchors.worktree_ref_oids(admin) is None
 
     @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores the mode bits")
     def test_an_unreadable_ref_answers_unknown_rather_than_no_risk(self, tmp_path):
@@ -425,7 +425,7 @@ class TestWorktreeLocalRefProbe:
         ref = admin / "refs" / "worktree" / "mywork"
         ref.chmod(0o000)
         try:
-            assert _gc_stale._worktree_ref_oids(admin) is None
+            assert _gc_anchors.worktree_ref_oids(admin) is None
         finally:
             ref.chmod(0o644)
 
