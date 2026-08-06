@@ -73,12 +73,29 @@ def run(
 
 
 def fetch_base_ref(base_ref: str) -> None:
-    """Fetch the base ref with bounded depth, then unshallow.
+    """Fetch the base ref without leaving a shallow graft behind.
 
-    Both calls tolerate failure: the first one fails when the base is
-    already present; the second when the repo is not shallow. We never
-    raise here, the next step (rev-parse) is the authoritative check.
+    The previous form ran `--depth=200` unconditionally and then `--unshallow`,
+    with both tolerating failure. On the two callers' workflows the checkout is
+    already `fetch-depth: 0`, so the depth-limited fetch bought nothing and its
+    only effect was to write `.git/shallow`. The `--unshallow` that followed
+    normally repaired that, which is why nothing had ever been observed to
+    break, but its failure was swallowed: a timeout on a 165 MiB fetch left the
+    graft in place and the comment's "next step (rev-parse) is the
+    authoritative check" does not catch it, because `rev-parse` resolves a base
+    ref perfectly well on a grafted clone. Every range measured afterwards is
+    then wrong rather than absent (issue #4680).
+
+    So: do not graft a complete clone at all, and when the clone really is
+    shallow, verify the repair took instead of assuming it.
+
+    Raises:
+        RuntimeError: the clone is still shallow after the repair attempt.
     """
+    if _is_shallow_repository() is False:
+        run(["git", "fetch", "--no-tags", "origin", base_ref], check=False, timeout=120)
+        return
+
     run(
         ["git", "fetch", "--no-tags", "--depth=200", "origin", base_ref],
         check=False,
@@ -89,6 +106,27 @@ def fetch_base_ref(base_ref: str) -> None:
         check=False,
         timeout=120,
     )
+    if _is_shallow_repository() is not False:
+        raise RuntimeError(
+            "repository is still shallow after --unshallow, so any range "
+            "measured from here would silently widen. Run "
+            "`git fetch --unshallow origin` and retry."
+        )
+
+
+def _is_shallow_repository() -> bool | None:
+    """True, False, or None when git could not answer."""
+    code, stdout, _ = run(
+        ["git", "rev-parse", "--is-shallow-repository"], check=False, timeout=30
+    )
+    if code != 0:
+        return None
+    value = stdout.strip().lower()
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    return None
 
 
 def resolve_base(base_ref: str) -> str | None:

@@ -213,3 +213,75 @@ def test_main_with_malformed_pr_base_ref_fails_closed(
     err = capsys.readouterr().err
     assert "failed branch-name allowlist" in err
     assert "refusing to fall back" in err
+
+
+# --- fetch_base_ref shallow handling (issue #4680) -----------------------
+
+
+def _record_calls(monkeypatch: pytest.MonkeyPatch, shallow_answers: list[str]):
+    """Fake `run` that answers the shallow probe from a queue.
+
+    Dispatch is on argv rather than call order, because `fetch_base_ref`
+    branches and a positional list would silently hand a later call the answer
+    meant for an earlier one.
+    """
+    calls: list[list[str]] = []
+    answers = list(shallow_answers)
+
+    def fake_run(argv, **kwargs):
+        calls.append(list(argv))
+        if argv[:2] == ["git", "rev-parse"]:
+            return 0, (answers.pop(0) if answers else "false"), ""
+        return 0, "", ""
+
+    monkeypatch.setattr(base, "run", fake_run)
+    return calls
+
+
+def test_fetch_base_ref_does_not_graft_a_complete_clone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #4680: a depth-limited fetch writes .git/shallow even here.
+
+    Both workflows that reach this helper check out at `fetch-depth: 0`, so
+    `--depth=200` bought nothing and its only effect was the graft. The
+    discriminating assertion is the absence of any depth flag, not the presence
+    of a fetch.
+    """
+    calls = _record_calls(monkeypatch, ["false"])
+
+    base.fetch_base_ref("main")
+
+    fetches = [c for c in calls if c[:2] == ["git", "fetch"]]
+    assert len(fetches) == 1, calls
+    assert not any("--depth" in token for token in fetches[0]), fetches[0]
+    assert "--unshallow" not in fetches[0], fetches[0]
+
+
+def test_fetch_base_ref_still_repairs_a_genuinely_shallow_clone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The shallow path must keep working, or CI checkouts at depth 1 break."""
+    calls = _record_calls(monkeypatch, ["true", "false"])
+
+    base.fetch_base_ref("main")
+
+    fetches = [c for c in calls if c[:2] == ["git", "fetch"]]
+    assert any("--depth=200" in token for c in fetches for token in c), calls
+    assert any("--unshallow" in token for c in fetches for token in c), calls
+
+
+def test_fetch_base_ref_raises_when_the_repair_did_not_take(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The defect this replaces: a swallowed `--unshallow` failure.
+
+    `--unshallow` tolerated failure and the comment claimed the following
+    `rev-parse` was authoritative. It is not: `rev-parse` resolves a base ref
+    perfectly well on a grafted clone, so every range measured afterwards was
+    wrong rather than absent.
+    """
+    _record_calls(monkeypatch, ["true", "true"])
+
+    with pytest.raises(RuntimeError, match="still shallow"):
+        base.fetch_base_ref("main")
