@@ -45,8 +45,9 @@ def _gh_issue_body(issue_ref: str, default_repo: str) -> str:
     """Fetch title + body for an issue ref."""
     if "/" in issue_ref and "#" in issue_ref:
         repo, num = issue_ref.rsplit("#", 1)
-        token = os.environ.get("BOT_PAT", "")
-        if not token:
+        is_cross_repo = repo != default_repo
+        token = os.environ.get("BOT_PAT" if is_cross_repo else "GH_TOKEN", "")
+        if is_cross_repo and not token:
             raise ConfigError(
                 f"BOT_PAT is required to load cross-repository issue spec {issue_ref}"
             )

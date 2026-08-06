@@ -22,11 +22,13 @@ AGENT_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "agent-review" / "acti
 AI_PR_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ai-pr-quality-gate.yml"
 BUILD_AI_REVIEW_CONTEXT = REPO_ROOT / "scripts" / "ci" / "build_ai_review_context.py"
 BACKLOG_TRIAGE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "backlog-triage.yml"
+ARTIFACT_INSIGHT_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "artifact-insight-scanner.yml"
 AI_SPEC_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ai-spec-validation.yml"
 PR_MAINTENANCE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pr-maintenance.yml"
 SESSION_PROTOCOL_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ai-session-protocol.yml"
 SHARED_PAT_CANDIDATE_WORKFLOWS = (
     AI_SPEC_WORKFLOW,
+    ARTIFACT_INSIGHT_WORKFLOW,
     REPO_ROOT / ".github" / "workflows" / "ai-metrics-analysis.yml",
     PR_MAINTENANCE_WORKFLOW,
     REPO_ROOT / ".github" / "workflows" / "ai-issue-triage.yml",
@@ -363,19 +365,40 @@ class TestSharedPatCandidateWorkflows:
         assert permissions["checks"] == "read"
         assert permissions["statuses"] == "read"
 
+    def test_artifact_insight_scanner_splits_runner_and_bot_tokens(self) -> None:
+        workflow = yaml.safe_load(ARTIFACT_INSIGHT_WORKFLOW.read_text(encoding="utf-8"))
+        steps = {
+            step["name"]: step
+            for step in workflow["jobs"]["scan-artifacts"]["steps"] if "name" in step
+        }
+
+        assert workflow["env"]["GH_TOKEN"] == "${{ github.token }}"
+        analyze = steps["Analyze artifacts for insights"]["with"]
+        assert analyze["bot-pat"] == "${{ github.token }}"
+        assert analyze["github-token"] == "${{ github.token }}"
+        create_issues = steps["Create issues for findings"]["env"]
+        assert create_issues["GH_TOKEN"] == "${{ secrets.BOT_PAT }}"
+
     def _disallowed_bot_pat_uses(self, workflow_path: Path, workflow: Any) -> list[str]:
         matches = self._find_values(workflow, "secrets.BOT_PAT")
-        if workflow_path != AI_SPEC_WORKFLOW:
-            return matches
+        allowed: list[str] = []
 
-        jobs = workflow["jobs"]
-        load_spec = next(
-            step
-            for step in jobs["validate-spec"]["steps"]
-            if step["name"] == "Load Spec Content"
-        )
-        allowed = load_spec["env"]["BOT_PAT"]
-        return [match for match in matches if match != allowed]
+        if workflow_path == AI_SPEC_WORKFLOW:
+            load_spec = next(
+                step
+                for step in workflow["jobs"]["validate-spec"]["steps"]
+                if step["name"] == "Load Spec Content"
+            )
+            allowed.append(load_spec["env"]["BOT_PAT"])
+
+        if workflow_path == ARTIFACT_INSIGHT_WORKFLOW:
+            steps = workflow["jobs"]["scan-artifacts"]["steps"]
+            create_issues = next(
+                step for step in steps if step["name"] == "Create issues for findings"
+            )
+            allowed.append(create_issues["env"]["GH_TOKEN"])
+
+        return [match for match in matches if match not in allowed]
 
 
 class TestBuildAiReviewContextAuthBoundary:

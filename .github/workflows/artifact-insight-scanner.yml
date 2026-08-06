@@ -36,7 +36,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GH_TOKEN: ${{ secrets.BOT_PAT }}
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
   scan-artifacts:
@@ -82,7 +82,8 @@ jobs:
           context-path: ${{ steps.context.outputs.context_file }}
           prompt-file: .github/prompts/artifact-insight-scan.md
           timeout-minutes: 10
-          bot-pat: ${{ secrets.BOT_PAT }}
+          bot-pat: ${{ github.token }}
+          github-token: ${{ github.token }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           copilot-model: claude-sonnet-4.5
 

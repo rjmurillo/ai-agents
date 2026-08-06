@@ -37,7 +37,21 @@ class TestGhIssueBody:
                 _gh_issue_body("5", "owner/repo")
         assert m.call_args.kwargs["env"]["GH_TOKEN"] == "runner-token"
 
-    def test_cross_repo_issue_uses_bot_pat(self) -> None:
+    def test_qualified_same_repo_issue_uses_runner_token(self) -> None:
+        mock = MagicMock(returncode=0, stdout="qualified local content")
+        with patch.dict(
+            os.environ,
+            {"GH_TOKEN": "runner-token", "BOT_PAT": "bot-token"},
+            clear=True,
+        ):
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=mock) as m:
+                _gh_issue_body("owner/repo#5", "owner/repo")
+        args = m.call_args[0][0]
+        assert "repo" in " ".join(args)
+        assert "5" in " ".join(args)
+        assert m.call_args.kwargs["env"]["GH_TOKEN"] == "runner-token"
+
+    def test_qualified_different_repo_issue_uses_bot_pat(self) -> None:
         mock = MagicMock(returncode=0, stdout="cross-repo content")
         with patch.dict(
             os.environ,
