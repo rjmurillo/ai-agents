@@ -38,6 +38,27 @@ Learning matrix: keep shared boundaries and exact diff reviews. Drop delegated
 GitHub triage when the agent lacks GitHub tools. Add direct index entries for
 new retrieval memories.
 
+### Failure Mode Classification
+
+Primary classification: FM-5, Premature Merge and Deploy. PR
+[#4568](https://github.com/rjmurillo/ai-agents/pull/4568) merged before its
+final reviewed commits reached GitHub. PR
+[#4670](https://github.com/rjmurillo/ai-agents/pull/4670) restored the reviewed
+tree and completed the live merge gate.
+
+Contributing classification: FM-7, Self-Contained Agent Delegation Failure. A
+delegated PR triage lacked GitHub tools and returned no verifiable PR evidence.
+
+### Remediation
+
+| Action | Owner | Tracking |
+|--------|-------|----------|
+| Keep exact-tip review and live merge checks | PR author | PR #4670 |
+| Add changed-file mypy to pre-PR feedback | Validation maintainers | Issue #4674 |
+| Validate portability declarations, not marker counts | Portability maintainers | Issue #4116 |
+| Normalize mixed session timestamp forms | Memory maintainers | Issue #4675 |
+| Ignore plain memory prose in raw command scans | GitHub skill maintainers | Issue #4677 |
+
 ## Phase 2: Diagnosis
 
 ### Successes (Tag: helpful)

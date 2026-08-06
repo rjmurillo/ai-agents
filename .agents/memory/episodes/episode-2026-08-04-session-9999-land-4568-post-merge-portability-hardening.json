@@ -53,8 +53,7 @@
         "e002"
       ],
       "leads_to": [
-        "e011",
-        "e012"
+        "e011"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -68,8 +67,7 @@
         "e002"
       ],
       "leads_to": [
-        "e011",
-        "e012"
+        "e011"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -83,8 +81,7 @@
         "e002"
       ],
       "leads_to": [
-        "e011",
-        "e012"
+        "e011"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -98,8 +95,7 @@
         "e002"
       ],
       "leads_to": [
-        "e011",
-        "e012"
+        "e011"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -113,8 +109,7 @@
         "e002"
       ],
       "leads_to": [
-        "e011",
-        "e012"
+        "e011"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -128,8 +123,7 @@
         "e002"
       ],
       "leads_to": [
-        "e011",
-        "e012"
+        "e011"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -143,8 +137,7 @@
         "e002"
       ],
       "leads_to": [
-        "e011",
-        "e012"
+        "e011"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -158,8 +151,7 @@
         "e002"
       ],
       "leads_to": [
-        "e011",
-        "e012"
+        "e011"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
@@ -179,38 +171,17 @@
         "e010"
       ],
       "leads_to": [
-        "e013"
+        "e012"
       ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
     {
       "id": "e012",
-      "timestamp": "2026-08-05T23:35:38+00:00",
-      "type": "commit",
-      "content": "Commit: c96662c18",
-      "caused_by": [
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e007",
-        "e008",
-        "e009",
-        "e010"
-      ],
-      "leads_to": [
-        "e013"
-      ],
-      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
-    },
-    {
-      "id": "e013",
       "timestamp": "2026-08-06T00:26:45+00:00",
       "type": "commit",
       "content": "Commit: fbadfa5a2",
       "caused_by": [
-        "e011",
-        "e012"
+        "e011"
       ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
@@ -221,8 +192,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 191
+    "commits": 1,
+    "files_changed": 193
   },
   "lessons": []
 }
