@@ -98,17 +98,43 @@
         "e006",
         "e007"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-01-session-4470-auth-failure-misclassification"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T08:16:29+00:00",
+      "type": "commit",
+      "content": "Commit: 01762d1b9",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-01-session-4470-auth-failure-misclassification"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T10:44:14+00:00",
+      "type": "commit",
+      "content": "Commit: 91c4ea727",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-01-session-4470-auth-failure-misclassification"
     }
   ],
   "metrics": {
-    "duration_minutes": 0,
-    "tool_calls": 0,
+    "duration_minutes": null,
+    "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 6
+    "commits": 3,
+    "files_changed": 390
   },
   "lessons": []
 }

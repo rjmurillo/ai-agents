@@ -130,7 +130,7 @@
       "evidence": "Purged __pycache__ before each run. 4 mutation kills: (1) comment out rate-limit body check in _is_rest_reachable -> test_exits_3_not_4_when_both_probes_fail_but_gh_installed FAILED; (2) restore exit 4 in assert_gh_authenticated -> same test FAILED; (3) comment out COPILOT_RATE_LIMIT_MARKERS in probe -> test_rate_limited_returns_false_for_auth_rejected FAILED; (4) revert to stderr[-400:] tail-only -> test_head_tail_excerpt_long_string FAILED. Cosmetic docstring edit survived (PASSED)."
     }
   ],
-  "endingCommit": "8c1f16335",
+  "endingCommit": "91c4ea727",
   "nextSteps": [
     "#3275 secret rotation: COPILOT_GITHUB_TOKEN and SMOKE_COPILOT_CLI_TOKEN need rotation in GitHub Actions secrets (owner action, not code).",
     "#4480 is a duplicate of #4470; comment on it and close after PR merges.",
