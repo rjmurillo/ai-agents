@@ -18,7 +18,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 import warnings
 from datetime import UTC, datetime
@@ -41,6 +40,7 @@ from github_core.api import (
     assert_gh_authenticated,
     error_and_exit,
     gh_api_paginated,
+    gh_graphql,
     resolve_repo_params,
 )
 from github_core.bot_config import canonicalize_login
@@ -48,6 +48,19 @@ from github_core.bot_config import canonicalize_login
 # ---------------------------------------------------------------------------
 # Core logic
 # ---------------------------------------------------------------------------
+
+_PR_AUTHOR_QUERY = """\
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      author {
+        login
+        ... on Bot { databaseId }
+        ... on User { databaseId }
+      }
+    }
+  }
+}"""
 
 
 def _parse_iso_date(date_str: str) -> datetime | None:
@@ -93,24 +106,24 @@ def _fetch_complete_comments(endpoint: str) -> list[dict[str, Any]]:
 
 def _fetch_pr_author(owner: str, repo: str, pr_number: int) -> tuple[str, int | None]:
     """Fetch the PR author login and numeric account ID when available."""
-    result = subprocess.run(
-        [
-            "gh", "pr", "view", str(pr_number),
-            "--repo", f"{owner}/{repo}",
-            "--json", "author",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
+    response = gh_graphql(
+        _PR_AUTHOR_QUERY,
+        {
+            "owner": owner,
+            "repo": repo,
+            "number": pr_number,
+        },
     )
-    if result.returncode != 0:
-        err_msg = result.stderr or result.stdout
-        if "not found" in err_msg.lower():
-            error_and_exit(f"PR #{pr_number} not found", 2)
-        error_and_exit(f"Failed to get PR #{pr_number}: {err_msg}", 3)
-    data = json.loads(result.stdout)
-    author = data.get("author")
+    repository = response.get("repository")
+    pull_request = (
+        repository.get("pullRequest")
+        if isinstance(repository, dict)
+        else None
+    )
+    if not isinstance(pull_request, dict):
+        error_and_exit(f"PR #{pr_number} not found", 2)
+    assert isinstance(pull_request, dict)
+    author = pull_request.get("author")
     if author is None:
         return "", None
     if not isinstance(author, dict):

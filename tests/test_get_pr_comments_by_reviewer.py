@@ -52,6 +52,19 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
+def _author_response(login: object = "author1", actor_id: int | None = None) -> dict:
+    return {
+        "repository": {
+            "pullRequest": {
+                "author": {
+                    "login": login,
+                    "databaseId": actor_id,
+                }
+            }
+        }
+    }
+
+
 def _make_review_comment(
     login: str = "reviewer1",
     body: str = "Fix this",
@@ -177,7 +190,7 @@ class TestMain:
         failing_endpoint: str,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        pr_view = _completed(stdout=json.dumps({"author": {"login": "author1"}}))
+        author_response = _author_response()
 
         def rest(endpoint: str, **_kwargs) -> list[dict]:
             if f"/{failing_endpoint}/" in endpoint:
@@ -195,8 +208,8 @@ class TestMain:
             f"{_MODULE}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            f"{_MODULE}.subprocess.run",
-            return_value=pr_view,
+            f"{_MODULE}.gh_graphql",
+            return_value=author_response,
         ), patch(
             f"{_MODULE}.gh_api_paginated",
             side_effect=rest,
@@ -214,7 +227,7 @@ class TestMain:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         author_login: str | int = 42 if location == "author" else "author1"
-        pr_view = _completed(stdout=json.dumps({"author": {"login": author_login}}))
+        author_response = _author_response(author_login)
         comments = (
             [{"user": {"login": 42, "type": "Bot"}, "body": "bad"}]
             if location == "comment"
@@ -226,8 +239,8 @@ class TestMain:
             f"{_MODULE}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            f"{_MODULE}.subprocess.run",
-            return_value=pr_view,
+            f"{_MODULE}.gh_graphql",
+            return_value=author_response,
         ), patch(
             f"{_MODULE}.gh_api_paginated",
             return_value=comments,
@@ -239,15 +252,15 @@ class TestMain:
         assert '"success": true' not in capsys.readouterr().out.lower()
 
     def test_no_comments(self, capsys):
-        pr_view = _completed(stdout=json.dumps({"author": {"login": "author1"}}))
+        author_response = _author_response()
         with patch(
             f"{_MODULE}.assert_gh_authenticated",
         ), patch(
             f"{_MODULE}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            f"{_MODULE}.subprocess.run",
-            return_value=pr_view,
+            f"{_MODULE}.gh_graphql",
+            return_value=author_response,
         ), patch(
             f"{_MODULE}.gh_api_paginated",
             return_value=[],
@@ -260,7 +273,7 @@ class TestMain:
         assert output["total_reviewers"] == 0
 
     def test_groups_by_reviewer(self, capsys):
-        pr_view = _completed(stdout=json.dumps({"author": {"login": "author1"}}))
+        author_response = _author_response()
         review_comments = [
             _make_review_comment("alice", "Fix bug"),
             _make_review_comment("bob", "Add test"),
@@ -272,8 +285,8 @@ class TestMain:
             f"{_MODULE}.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
-            f"{_MODULE}.subprocess.run",
-            return_value=pr_view,
+            f"{_MODULE}.gh_graphql",
+            return_value=author_response,
         ), patch(
             f"{_MODULE}.gh_api_paginated",
             return_value=review_comments,
@@ -306,11 +319,7 @@ class TestGetPrCommentsByReviewer:
     ):
         review_comments = review_comments or []
         issue_comments = issue_comments or []
-        pr_view = _completed(
-            stdout=json.dumps(
-                {"author": {"login": pr_author, "databaseId": pr_author_id}}
-            )
-        )
+        author_response = _author_response(pr_author, pr_author_id)
 
         def paginated_side_effect(endpoint, **_kw):
             if "/pulls/" in endpoint and "/comments" in endpoint:
@@ -320,8 +329,8 @@ class TestGetPrCommentsByReviewer:
             return []
 
         with patch(
-            f"{_MODULE}.subprocess.run",
-            return_value=pr_view,
+            f"{_MODULE}.gh_graphql",
+            return_value=author_response,
         ), patch(
             f"{_MODULE}.gh_api_paginated",
             side_effect=paginated_side_effect,
@@ -419,7 +428,7 @@ class TestGetPrCommentsByReviewer:
         assert result["reviewers"][0]["issue_comments"] == 1
 
     def test_tracks_prs_per_reviewer(self):
-        pr_view = _completed(stdout=json.dumps({"author": {"login": "author1"}}))
+        author_response = _author_response()
         review_comments_pr1 = [_make_review_comment("alice")]
         review_comments_pr2 = [_make_review_comment("alice")]
 
@@ -435,8 +444,8 @@ class TestGetPrCommentsByReviewer:
             return []
 
         with patch(
-            f"{_MODULE}.subprocess.run",
-            return_value=pr_view,
+            f"{_MODULE}.gh_graphql",
+            return_value=author_response,
         ), patch(
             f"{_MODULE}.gh_api_paginated",
             side_effect=paginated_side_effect,
