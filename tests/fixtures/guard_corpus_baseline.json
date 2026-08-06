@@ -143,12 +143,6 @@
         2
       ]
     ],
-    "github/scripts/pr/get_pr_comments_by_reviewer.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
     "github/scripts/pr/get_pr_context.py": [
       [
         "diff_result = subprocess.run(",
