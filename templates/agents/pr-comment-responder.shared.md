@@ -61,20 +61,38 @@ completion checks use only these values.
 | `[ACKNOWLEDGED]` | Reaction posted, fix not yet committed | No |
 | `[COMPLETE]` | Fix committed and pushed | Yes |
 | `[WONTFIX]` | Explicitly decided not to change | Yes |
+| `[DUPLICATE]` | Same fix already applied elsewhere | Yes |
+| `[DEFERRED]` | Follow-up issue owns the remaining work | Yes, only when the same comment block includes `Refs #<n>` |
 
 Comment map fields render as `**Status**: [NEW]`, so every status grep must match the
 bold field at line start. Dropping the `**` delimiters or the `^` anchor matches nothing
 and reports zero.
 
-Non-terminal statuses (`[NEW]`, `[ACKNOWLEDGED]`) count as pending. Gate 3 and Gate 5
-enumerate those two statuses. Phase 8.1 is the fail-closed backstop: it counts only the
-terminal statuses, so anything else, including a status outside this table, stays in the
-remaining count.
+All gates use this single status-count block. It counts terminal statuses and derives
+pending as `TOTAL - TERMINAL`, so any status outside the table stays pending. Do not
+enumerate pending statuses in gate-specific checks.
 
 ```bash
-ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
-WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
-REMAINING=$((TOTAL - ADDRESSED - WONTFIX))
+TERMINAL=$(python3 - "$COMMENT_MAP" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+blocks = Path(sys.argv[1]).read_text(encoding="utf-8").split("\n---\n")
+terminal = 0
+for block in blocks:
+    match = re.search(r"^\*\*Status\*\*: \[([A-Z]+)\]", block, re.MULTILINE)
+    if not match:
+        continue
+    status = match.group(1)
+    if status in {"COMPLETE", "WONTFIX", "DUPLICATE"}:
+        terminal += 1
+    elif status == "DEFERRED" and re.search(r"\bRefs #\d+\b", block):
+        terminal += 1
+print(terminal)
+PY
+)
+PENDING=$((TOTAL - TERMINAL))
 ```
 
 ## Prose Self-Check
@@ -338,13 +356,33 @@ grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || ex
 **Before Phase 8 (thread resolution)**: Verify artifact state matches intended API state.
 
 ```bash
-# Count unresolved comments in the comment map
+# Count unresolved comments in the comment map using the shared status vocabulary block
 COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
 if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-PENDING=$(grep -Ec "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true)
+TOTAL=$TOTAL_COMMENTS
+TERMINAL=$(python3 - "$COMMENT_MAP" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+blocks = Path(sys.argv[1]).read_text(encoding="utf-8").split("\n---\n")
+terminal = 0
+for block in blocks:
+    match = re.search(r"^\*\*Status\*\*: \[([A-Z]+)\]", block, re.MULTILINE)
+    if not match:
+        continue
+    status = match.group(1)
+    if status in {"COMPLETE", "WONTFIX", "DUPLICATE"}:
+        terminal += 1
+    elif status == "DEFERRED" and re.search(r"\bRefs #\d+\b", block):
+        terminal += 1
+print(terminal)
+PY
+)
+PENDING=$((TOTAL - TERMINAL))
 
 # Count unresolved review threads separately
 UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
@@ -368,13 +406,33 @@ echo "Unresolved API threads: $UNRESOLVED_API"
 # API state
 REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
-# Artifact state
+# Artifact state, using the shared status vocabulary block
 COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
 if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-PENDING=$(grep -Ec "^\*\*Status\*\*: pending|^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true)
+TOTAL=$TOTAL_COMMENTS
+TERMINAL=$(python3 - "$COMMENT_MAP" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+blocks = Path(sys.argv[1]).read_text(encoding="utf-8").split("\n---\n")
+terminal = 0
+for block in blocks:
+    match = re.search(r"^\*\*Status\*\*: \[([A-Z]+)\]", block, re.MULTILINE)
+    if not match:
+        continue
+    status = match.group(1)
+    if status in {"COMPLETE", "WONTFIX", "DUPLICATE"}:
+        terminal += 1
+    elif status == "DEFERRED" and re.search(r"\bRefs #\d+\b", block):
+        terminal += 1
+print(terminal)
+PY
+)
+PENDING=$((TOTAL - TERMINAL))
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
@@ -666,8 +724,11 @@ No other values are valid.
 | `[ACKNOWLEDGED]` | Acknowledged, work in progress | No | Counts as pending in Phase 8.1 |
 | `[COMPLETE]` | Resolution implemented and verified | Yes | Counts as addressed |
 | `[WONTFIX]` | Intentionally not addressed (with reason) | Yes | Counts as addressed |
+| `[DUPLICATE]` | Same fix already applied elsewhere | Yes | Counts as addressed |
+| `[DEFERRED]` | Follow-up issue owns the remaining work | Yes, only with `Refs #<n>` | Counts as addressed only when linked |
 
-Phase 8.1 counts pending (`[NEW]` + `[ACKNOWLEDGED]`) and blocks with `exit 1` when any remain.
+Phase 8.1 uses the status-count block from the top-level vocabulary and blocks with
+`exit 1` when any pending comment remains.
 Phase 8.2 requires all GitHub conversation threads resolved before merge.
 
 ### Phase 2: Comment Map Generation
@@ -1170,21 +1231,39 @@ gh pr edit [number] --body "[updated body]"
 #### Phase 8.1: Comment Status Verification
 
 ```bash
-# Count addressed vs total
+# Count addressed vs total using the shared status vocabulary block
 COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
 if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
-WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
 TOTAL=$TOTAL_COMMENTS
+TERMINAL=$(python3 - "$COMMENT_MAP" <<'PY'
+import re
+import sys
+from pathlib import Path
 
-echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
+blocks = Path(sys.argv[1]).read_text(encoding="utf-8").split("\n---\n")
+terminal = 0
+for block in blocks:
+    match = re.search(r"^\*\*Status\*\*: \[([A-Z]+)\]", block, re.MULTILINE)
+    if not match:
+        continue
+    status = match.group(1)
+    if status in {"COMPLETE", "WONTFIX", "DUPLICATE"}:
+        terminal += 1
+    elif status == "DEFERRED" and re.search(r"\bRefs #\d+\b", block):
+        terminal += 1
+print(terminal)
+PY
+)
+PENDING=$((TOTAL - TERMINAL))
 
-if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
-  echo "[BLOCKED] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
-  grep -E -B 5 "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true
+echo "Verification: $TERMINAL / $TOTAL comments addressed"
+
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] INCOMPLETE: $PENDING comments remaining"
+  grep -E -B 5 "^\*\*Status\*\*: \[" "$COMMENT_MAP" || true
   exit 1
 fi
 ```
