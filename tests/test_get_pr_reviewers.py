@@ -318,6 +318,22 @@ class TestMain:
             "copilot-swe-agent[bot]",
         }
 
+    def test_shared_account_id_merges_different_logins(self, capsys):
+        comments = [
+            _comment("coderabbitai[bot]", 136622811, "Bot"),
+            _comment("coderabbitai", 136622811, "Bot"),
+        ]
+        with _api(author=_actor("alice", 1), review_comments=comments):
+            assert main(["--pull-request", "20"]) == 0
+
+        reviewers = _output(capsys)["reviewers"]
+        assert len(reviewers) == 1
+        assert reviewers[0]["actor_ids"] == [136622811]
+        assert sorted(reviewers[0]["aliases"]) == [
+            "coderabbitai",
+            "coderabbitai[bot]",
+        ]
+
     def test_request_and_review_pagination(self, capsys):
         request_pages = [
             _connection([_request_node(_actor("alice", 1))], next_cursor="r2"),

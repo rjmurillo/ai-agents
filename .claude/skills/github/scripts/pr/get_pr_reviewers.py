@@ -160,7 +160,20 @@ def _ensure_reviewer(
     ``Copilot``.
     """
     canonical: str = canonicalize_login(login, account_id)
-    entry = reviewer_map.get(canonical)
+    entry = None
+    if account_id is not None:
+        entry = next(
+            (
+                candidate
+                for candidate in reviewer_map.values()
+                if account_id in candidate["actor_ids"]
+            ),
+            None,
+        )
+        if entry is not None:
+            canonical = entry["login"]
+    if entry is None:
+        entry = reviewer_map.get(canonical)
     if entry is None:
         entry = reviewer_map[canonical] = {
             "login": canonical,
