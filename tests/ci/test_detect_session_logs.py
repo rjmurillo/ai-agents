@@ -136,6 +136,185 @@ class TestChangedFiles:
         with pytest.raises(mod.GhApiError):
             mod.changed_files("o/r", "7")
 
+    def test_a_rate_limit_403_is_retried_and_then_succeeds(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Issue #4510: PR #4508 exited 3 immediately on a single 403 rate-limit
+        response instead of retrying."""
+        calls = {"n": 0}
+
+        def fake_run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+            calls["n"] += 1
+            if calls["n"] < 3:
+                return _completed(
+                    returncode=1,
+                    stderr=("gh: API rate limit exceeded for user ID 6811113. (HTTP 403)"),
+                )
+            return _completed(stdout=f"{SESSION}\n")
+
+        sleeps: list[float] = []
+        monkeypatch.setattr(mod, "_run", fake_run)
+        monkeypatch.setattr(mod.time, "sleep", lambda seconds: sleeps.append(seconds))
+
+        assert mod.changed_files("o/r", "7") == [SESSION]
+        assert calls["n"] == 3
+        assert len(sleeps) == 2
+
+    def test_a_secondary_rate_limit_429_is_retried(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        calls = {"n": 0}
+
+        def fake_run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+            calls["n"] += 1
+            if calls["n"] < 2:
+                return _completed(returncode=1, stderr="gh: secondary rate limit (HTTP 429)")
+            return _completed(stdout=f"{SESSION}\n")
+
+        monkeypatch.setattr(mod, "_run", fake_run)
+        monkeypatch.setattr(mod.time, "sleep", lambda seconds: None)
+
+        assert mod.changed_files("o/r", "7") == [SESSION]
+        assert calls["n"] == 2
+
+    def test_a_genuine_404_is_not_retried(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        calls = {"n": 0}
+
+        def fake_run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+            calls["n"] += 1
+            return _completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
+
+        monkeypatch.setattr(mod, "_run", fake_run)
+        slept = []
+        monkeypatch.setattr(mod.time, "sleep", lambda seconds: slept.append(seconds))
+
+        with pytest.raises(mod.GhApiError, match="404"):
+            mod.changed_files("o/r", "7")
+        assert calls["n"] == 1
+        assert slept == []
+
+    def test_a_genuine_401_is_not_retried(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        calls = {"n": 0}
+
+        def fake_run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+            calls["n"] += 1
+            return _completed(returncode=1, stderr="gh: Bad credentials (HTTP 401)")
+
+        monkeypatch.setattr(mod, "_run", fake_run)
+        slept = []
+        monkeypatch.setattr(mod.time, "sleep", lambda seconds: slept.append(seconds))
+
+        with pytest.raises(mod.GhApiError, match="401"):
+            mod.changed_files("o/r", "7")
+        assert calls["n"] == 1
+        assert slept == []
+
+    def test_a_permission_403_without_rate_limit_text_is_not_retried(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A 403 is retried only when it names a rate limit; plain permission
+        denial is permanent."""
+        calls = {"n": 0}
+
+        def fake_run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+            calls["n"] += 1
+            return _completed(
+                returncode=1, stderr="gh: Resource not accessible by integration (HTTP 403)"
+            )
+
+        monkeypatch.setattr(mod, "_run", fake_run)
+        slept = []
+        monkeypatch.setattr(mod.time, "sleep", lambda seconds: slept.append(seconds))
+
+        with pytest.raises(mod.GhApiError, match="403"):
+            mod.changed_files("o/r", "7")
+        assert calls["n"] == 1
+        assert slept == []
+
+    def test_retry_budget_exhaustion_raises_after_max_attempts(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls = {"n": 0}
+
+        def fake_run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+            calls["n"] += 1
+            return _completed(returncode=1, stderr="gh: API rate limit exceeded (HTTP 403)")
+
+        monkeypatch.setattr(mod, "_run", fake_run)
+        slept = []
+        monkeypatch.setattr(mod.time, "sleep", lambda seconds: slept.append(seconds))
+
+        with pytest.raises(mod.GhApiError, match="rate limit"):
+            mod.changed_files("o/r", "7")
+        assert calls["n"] == mod._MAX_ATTEMPTS
+        assert len(slept) == mod._MAX_ATTEMPTS - 1
+
+    def test_retry_budget_exhaustion_surfaces_as_exit_code_3(
+        self, tmp_path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Fail only after the retry budget is exhausted (issue #4510); the
+        documented external-API exit code is 3 (ADR-035)."""
+        out = tmp_path / "out"
+        out.touch()
+        monkeypatch.setenv("GITHUB_OUTPUT", str(out))
+        monkeypatch.setattr(
+            mod,
+            "_run",
+            lambda argv: _completed(returncode=1, stderr="gh: API rate limit exceeded (HTTP 403)"),
+        )
+        monkeypatch.setattr(mod.time, "sleep", lambda seconds: None)
+
+        assert mod.main(["--repo", "o/r", "--pr-number", "7", "--cutoff", "2025-12-21"]) == 3
+
+    def test_retry_after_header_is_honoured_over_backoff(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Edge: Retry-After must be respected rather than a fixed/computed
+        backoff sleep."""
+        calls = {"n": 0}
+
+        def fake_run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+            calls["n"] += 1
+            if calls["n"] < 2:
+                return _completed(
+                    returncode=1,
+                    stderr="gh: API rate limit exceeded (HTTP 403) Retry-After: 42",
+                )
+            return _completed(stdout=f"{SESSION}\n")
+
+        sleeps: list[float] = []
+        monkeypatch.setattr(mod, "_run", fake_run)
+        monkeypatch.setattr(mod.time, "sleep", lambda seconds: sleeps.append(seconds))
+
+        assert mod.changed_files("o/r", "7") == [SESSION]
+        assert sleeps == [42.0]
+
+    def test_x_ratelimit_reset_is_honoured_when_no_retry_after(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Edge: X-RateLimit-Reset (an epoch second timestamp) is honoured
+        when Retry-After is absent."""
+        calls = {"n": 0}
+        fixed_now = 1_700_000_000.0
+
+        def fake_run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+            calls["n"] += 1
+            if calls["n"] < 2:
+                return _completed(
+                    returncode=1,
+                    stderr=(
+                        "gh: API rate limit exceeded (HTTP 403) "
+                        f"X-RateLimit-Reset: {int(fixed_now) + 30}"
+                    ),
+                )
+            return _completed(stdout=f"{SESSION}\n")
+
+        sleeps: list[float] = []
+        monkeypatch.setattr(mod, "_run", fake_run)
+        monkeypatch.setattr(mod.time, "sleep", lambda seconds: sleeps.append(seconds))
+        monkeypatch.setattr(mod.time, "time", lambda: fixed_now)
+
+        assert mod.changed_files("o/r", "7") == [SESSION]
+        assert sleeps == [30.0]
+
 
 class TestMain:
     def _outputs(self, path) -> dict[str, str]:

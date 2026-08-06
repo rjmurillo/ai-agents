@@ -296,6 +296,11 @@ pre-commit:
             run: uv run --frozen python scripts/validation/memory_index.py --path .serena/memories --ci
             glob: ".serena/memories/**/*.md"
 
+          - name: memory-token-counts
+            timeout: 5m
+            run: uv run --frozen python scripts/update_memory_index_tokens.py --check
+            glob: ".serena/memories/**/*.md"
+
           - name: memory-tier
             timeout: 5m
             run: uv run --frozen python scripts/validate_memory_tier.py --path .serena/memories

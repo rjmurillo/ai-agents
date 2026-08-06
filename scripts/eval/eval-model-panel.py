@@ -31,6 +31,7 @@ _EVAL_DIR = Path(__file__).resolve().parent
 if str(_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(_EVAL_DIR))
 
+from _eval_common import MalformedProviderMetadataError  # noqa: E402
 from _model_panel_core import (  # noqa: E402
     CellResult,
     Panel,
@@ -75,6 +76,21 @@ def _child_report_path(unit: str, run_id: str) -> Path:
     )
 
 
+def _has_malformed_metadata_event(stderr: str) -> bool:
+    expected = {
+        "level": "error",
+        "event": MalformedProviderMetadataError.__name__,
+    }
+    for raw_line in stderr.splitlines():
+        try:
+            payload = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if payload == expected:
+            return True
+    return False
+
+
 def _default_runner(unit: str, tier: PanelTier, n_runs: int, fixtures: str) -> dict[str, object]:
     """Run the harness for one (unit, tier) and return its parsed report.json.
 
@@ -106,6 +122,10 @@ def _default_runner(unit: str, tier: PanelTier, n_runs: int, fixtures: str) -> d
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError(f"harness invocation failed: {exc}") from exc
     if completed.returncode != 0:
+        if _has_malformed_metadata_event(completed.stderr):
+            raise MalformedProviderMetadataError(
+                "child harness refused malformed provider metadata"
+            )
         raise RuntimeError(
             f"harness exited {completed.returncode}: "
             f"{(completed.stderr or completed.stdout)[:200]}"
@@ -142,6 +162,8 @@ def sweep(
         for tier in panel.tiers:
             try:
                 report = runner(unit, tier, n_runs, fixtures)
+            except MalformedProviderMetadataError:
+                raise
             except RuntimeError as exc:
                 results.append(CellResult(unit, tier.label, error=str(exc)))
                 continue
