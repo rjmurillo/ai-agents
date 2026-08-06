@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
 # Paths that legitimately do not exist in this repo because the skill WRITES
@@ -156,8 +157,8 @@ def _extract_paths_from_text(
 
 def marker_declared_paths(
     text: str,
-    strip_code_fn: callable,
-    strip_inline_fn: callable,
+    strip_code_fn: Callable[[str], str],
+    strip_inline_fn: Callable[[str], str],
     *,
     unsafe_collector: set[str] | None = None,
 ) -> set[str]:
@@ -177,8 +178,8 @@ def marker_declared_paths(
 
 def prose_declared_paths(
     text: str,
-    strip_code_fn: callable,
-    strip_inline_fn: callable,
+    strip_code_fn: Callable[[str], str],
+    strip_inline_fn: Callable[[str], str],
     *,
     unsafe_collector: set[str] | None = None,
 ) -> set[str]:
@@ -214,8 +215,8 @@ def marker_path_drift(
     text: str,
     repo_root: Path,
     rel_path: str,
-    strip_code_fn: callable,
-    strip_inline_fn: callable,
+    strip_code_fn: Callable[[str], str],
+    strip_inline_fn: Callable[[str], str],
 ) -> list[str]:
     """Report path-drift failures for a file with a vendor-portability marker.
 

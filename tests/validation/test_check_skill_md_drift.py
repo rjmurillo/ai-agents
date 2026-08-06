@@ -411,12 +411,12 @@ class TestDriftBaseline:
 
     def test_new_file_is_regression(self) -> None:
         current = {"new.md": 2}
-        baseline = {}
+        baseline: dict[str, int] = {}
         regressions, _ = diff_drift_baseline(current, baseline)
         assert len(regressions) == 1
 
     def test_removed_file_is_improvement(self) -> None:
-        current = {}
+        current: dict[str, int] = {}
         baseline = {"old.md": 5}
         _, improvements = diff_drift_baseline(current, baseline)
         assert len(improvements) == 1
