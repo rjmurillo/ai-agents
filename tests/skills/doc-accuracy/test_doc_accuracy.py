@@ -374,18 +374,6 @@ class TestGetChangedFiles:
                  "GIT_COMMITTER_EMAIL": "t@t"},
         )
 
-    def test_uses_diff_base_as_commit_reference(self, tmp_path: Path) -> None:
-        git_result = MagicMock()
-        git_result.stdout = "README.md\ndocs/usage.md\n"
-
-        with patch.object(subprocess, "run", return_value=git_result) as run:
-            result = _get_changed_files("origin/main", tmp_path)
-
-        assert result == {"README.md", "docs/usage.md"}
-        assert run.call_args.args[0] == [
-            "git", "diff", "--name-only", "origin/main", "HEAD", "--",
-        ]
-
     def test_invalid_ref_exits_2(self, tmp_path: Path) -> None:
         """Invalid --diff-base is config error => exit 2 (ADR-035)."""
         self._init_repo(tmp_path)
@@ -397,16 +385,16 @@ class TestGetChangedFiles:
         assert exit_code == 2
 
     def test_non_git_repo_exits_3(self, tmp_path: Path) -> None:
-        """Running in a non-git directory is an external error => exit 3."""
+        """Non-git directory is an environment error => exit 3."""
         exit_code = main([
             "--target", str(tmp_path),
             "--diff-base", "HEAD",
             "--phases", "1",
         ])
-        assert exit_code in (2, 3)
+        assert exit_code == 3
 
     def test_missing_git_exits_3(self, tmp_path: Path) -> None:
-        """Missing git binary is an external/environment error => exit 3."""
+        """Missing git binary is an environment error => exit 3."""
         with patch.object(
             subprocess, "run",
             side_effect=FileNotFoundError("git not found"),
@@ -418,8 +406,8 @@ class TestGetChangedFiles:
             ])
         assert exit_code == 3
 
-    def test_timeout_exits_3(self, tmp_path: Path) -> None:
-        """Hung git process is an external error => exit 3."""
+    def test_rev_parse_timeout_exits_3(self, tmp_path: Path) -> None:
+        """Timeout during rev-parse is an environment error => exit 3."""
         with patch.object(
             subprocess, "run",
             side_effect=subprocess.TimeoutExpired("git", 60),
@@ -431,6 +419,32 @@ class TestGetChangedFiles:
             ])
         assert exit_code == 3
 
+    def test_ls_files_timeout_exits_3(self, tmp_path: Path) -> None:
+        """Timeout during ls-files (after diff succeeds) => exit 3."""
+        self._init_repo(tmp_path)
+        real_run = subprocess.run
+        ls_files_timeout_seen: list[object] = []
+
+        def selective_timeout(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "ls-files" in cmd:
+                ls_files_timeout_seen.append(kwargs.get("timeout"))
+                raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 60))
+            return real_run(*args, **kwargs)
+
+        with patch.object(subprocess, "run", side_effect=selective_timeout):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD",
+                "--phases", "1",
+            ])
+        assert exit_code == 3
+        # Verify timeout kwarg was actually passed to ls-files subprocess call
+        assert ls_files_timeout_seen, "ls-files was never called"
+        assert all(t is not None for t in ls_files_timeout_seen), (
+            "ls-files subprocess.run called without timeout kwarg"
+        )
+
     def test_valid_empty_diff_exits_0(self, tmp_path: Path) -> None:
         """Valid diff-base with no changed files passes (exit 0)."""
         self._init_repo(tmp_path)
@@ -441,13 +455,28 @@ class TestGetChangedFiles:
         ])
         assert exit_code == 0
 
-    def test_valid_empty_diff_returns_empty_set(self, tmp_path: Path) -> None:
-        """Valid diff-base with no changed files returns empty set, not error."""
-        git_result = MagicMock()
-        git_result.stdout = "\n"
-        with patch.object(subprocess, "run", return_value=git_result):
-            result = _get_changed_files("HEAD", tmp_path)
-        assert result == set()
+    def test_changed_diff_exits_0(self, tmp_path: Path) -> None:
+        """Valid diff-base with actual changes still passes."""
+        import os
+        self._init_repo(tmp_path)
+        (tmp_path / "README.md").write_text("# Hello\n")
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "add", "README.md"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "add readme"],
+            check=True, capture_output=True,
+            env={**os.environ, "GIT_AUTHOR_NAME": "t",
+                 "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+                 "GIT_COMMITTER_EMAIL": "t@t"},
+        )
+        exit_code = main([
+            "--target", str(tmp_path),
+            "--diff-base", "HEAD~1",
+            "--phases", "1",
+        ])
+        assert exit_code == 0
 
     def test_ignores_blank_diff_lines(self, tmp_path: Path) -> None:
         git_result = MagicMock()

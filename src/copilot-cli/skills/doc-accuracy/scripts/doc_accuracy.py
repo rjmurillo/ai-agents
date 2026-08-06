@@ -160,6 +160,16 @@ EXCLUDE_DIRS = {
     ".doc-accuracy",
 }
 
+_GIT_TIMEOUT = 60  # seconds, applied to every git subprocess call
+
+
+class _GitError(Exception):
+    """Classified git failure carrying an ADR-035 exit code."""
+
+    def __init__(self, exit_code: int, message: str) -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
+
 
 def _iter_git_files(repo_root: Path):
     """Yield ``Path`` objects for every file tracked by git in ``repo_root``.
@@ -180,6 +190,7 @@ def _iter_git_files(repo_root: Path):
             text=True,
             encoding="utf-8",
             errors="replace",
+            timeout=_GIT_TIMEOUT,
         )
         for rel in result.stdout.splitlines():
             if rel:
@@ -354,26 +365,59 @@ def _count_code_blocks(content: str) -> int:
 def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     """Get files changed between diff_base and HEAD (committed changes only).
 
-    Uses ``git diff diff_base HEAD`` so the result reflects what the commit
-    history changed, not the state of the working tree.
+    Pre-validates the git environment and revision so callers receive a
+    classified ``_GitError`` with the correct ADR-035 exit code:
+
+    * exit 2 -- *diff_base* is not a known revision (config error).
+    * exit 3 -- git is missing, the directory is not a repo, or an
+      external/network failure occurred (environment error).
 
     Raises
     ------
-    subprocess.CalledProcessError
-        When git rejects *diff_base* (e.g. unknown revision).
+    _GitError
+        Classified failure (see above).
     OSError
-        When git is not found or cannot be executed.
+        When git binary is not found.
     subprocess.TimeoutExpired
-        When git does not respond within the deadline.
+        When any git call exceeds ``_GIT_TIMEOUT``.
     """
-    result = subprocess.run(
-        ["git", "diff", "--name-only", diff_base, "HEAD", "--"],
-        capture_output=True,
-        text=True,
-        check=True,
-        cwd=repo_root,
-        timeout=60,
-    )
+    # Phase 1: verify git environment
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--is-inside-work-tree"],
+            capture_output=True, text=True, check=True, timeout=_GIT_TIMEOUT,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise _GitError(
+            3, f"rev-parse: not a git repository: "
+            f"{(exc.stderr or '').strip()}",
+        ) from exc
+
+    # Phase 2: verify the revision exists
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--verify",
+             f"{diff_base}^{{commit}}"],
+            capture_output=True, text=True, check=True, timeout=_GIT_TIMEOUT,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise _GitError(
+            2, f"rev-parse: unknown revision '{diff_base}': "
+            f"{(exc.stderr or '').strip()}",
+        ) from exc
+
+    # Phase 3: diff (ref already validated; failure is external)
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", diff_base, "HEAD", "--"],
+            capture_output=True, text=True, check=True,
+            cwd=repo_root, timeout=_GIT_TIMEOUT,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise _GitError(
+            3, f"diff: git failed after ref validation: "
+            f"{(exc.stderr or '').strip()}",
+        ) from exc
     return {f.strip() for f in result.stdout.strip().split("\n") if f.strip()}
 
 
@@ -1021,24 +1065,15 @@ def main(argv: list[str] | None = None) -> int:
         print("Phase 1: Assessment...", file=sys.stderr)
         try:
             assessment = run_assessment(target, diff_base=args.diff_base)
-        except subprocess.CalledProcessError as exc:
-            print(
-                f"ERROR: --diff-base '{args.diff_base}': git rejected "
-                f"revision (exit {exc.returncode}): "
-                f"{(exc.stderr or exc.stdout or '').strip()}",
-                file=sys.stderr,
-            )
-            return 2
+        except _GitError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return exc.exit_code
         except OSError as exc:
-            print(
-                f"ERROR: git not available or cannot run: {exc}",
-                file=sys.stderr,
-            )
+            print(f"ERROR: git not available: {exc}", file=sys.stderr)
             return 3
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
             print(
-                f"ERROR: git diff timed out for --diff-base "
-                f"'{args.diff_base}'",
+                f"ERROR: git timed out ({_GIT_TIMEOUT}s): {exc.cmd}",
                 file=sys.stderr,
             )
             return 3
