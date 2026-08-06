@@ -98,8 +98,15 @@ class TestHostileGitDirIsUnsetByFixture:
         ceiling = setenvs.get("GIT_CEILING_DIRECTORIES", "")
         assert str(tmp_path.parent) in ceiling
 
-    def test_fixture_is_noop_without_tmp_path(self, tmp_path: Path) -> None:
-        """Tests that do not take tmp_path must not receive a ceiling injection."""
+    def test_no_ceiling_without_tmp_path_but_still_sanitized(
+        self, tmp_path: Path
+    ) -> None:
+        """No ceiling without tmp_path, but the environment is still sanitized.
+
+        The ceiling needs a path, so it stays conditional. Unsetting an
+        inherited pointer does not, and gating it on tmp_path left every module
+        that builds its sandbox with tempfile unprotected. Refs #4717.
+        """
         module = _load_tests_conftest()
         fixture_fn = _get_fixture_fn(module)
 
@@ -116,7 +123,12 @@ class TestHostileGitDirIsUnsetByFixture:
 
         fixture_fn(request, mp)
 
-        assert not deleted, "delenv must not be called when tmp_path is absent"
+        assert "GIT_DIR" in deleted, (
+            "pointer vars must be unset even when the test has no tmp_path"
+        )
+        assert "GIT_CONFIG_COUNT" in deleted, (
+            "config injection vars must be unset even without tmp_path"
+        )
         assert "GIT_CEILING_DIRECTORIES" not in setenvs, (
             "GIT_CEILING_DIRECTORIES must not be set when tmp_path is absent"
         )

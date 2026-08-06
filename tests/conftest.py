@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sys
 import uuid
@@ -99,28 +100,61 @@ _GIT_POINTER_VARS = (
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
 )
 
+# Config injected through the environment applies to every git command in that
+# environment, including commands a test runs against its own sandbox. Git
+# exports this family to hooks, and the pre-commit and pre-push stages run
+# pytest, so a test launched from a hook inherits configuration it never set
+# and cannot see. Refs #4717.
+_GIT_CONFIG_ENV_VARS = ("GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS")
+
+_NUMBERED_GIT_CONFIG = re.compile(r"^GIT_CONFIG_(KEY|VALUE)_\d+$")
+
+
+def _sanitize_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove every inherited pointer to, and config override for, a repository.
+
+    ``GIT_CONFIG_COUNT`` names how many ``GIT_CONFIG_KEY_n`` and
+    ``GIT_CONFIG_VALUE_n`` pairs follow, so the count alone is not enough to
+    delete: git ignores the pairs without it, but a later ``GIT_CONFIG_COUNT``
+    set by code under test would make the stale pairs live again. The numbered
+    pairs are therefore removed alongside the count.
+    """
+    for name in _GIT_POINTER_VARS + _GIT_CONFIG_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    for name in [key for key in os.environ if _NUMBERED_GIT_CONFIG.match(key)]:
+        monkeypatch.delenv(name, raising=False)
+
+
+
 
 @pytest.fixture(autouse=True)
 def _isolate_tmp_path_from_parent_git_repo(
     request: pytest.FixtureRequest,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Prevent repo-local pytest temp dirs from discovering the parent checkout.
+    """Stop any test from reaching the surrounding checkout through git.
 
     ``GIT_CEILING_DIRECTORIES`` only bounds git's upward discovery walk. It is
     inert when ``GIT_DIR`` is already set in the environment, because an
     explicit ``GIT_DIR`` bypasses discovery entirely. Any git command run with
     only the ceiling and an inherited ``GIT_DIR`` operates on the repository
-    that ``GIT_DIR`` names, not on the temp tree. This fixture unsets every
-    pointer variable before setting the ceiling so that a hostile caller
-    environment cannot silently redirect git operations away from ``tmp_path``.
-    Refs #4287.
+    that ``GIT_DIR`` names, not on the temp tree. Refs #4287.
+
+    Sanitizing runs for every test, not only those requesting ``tmp_path``.
+    Whether a test can damage the real checkout depends on whether it runs git,
+    which is unrelated to how it spells its sandbox. Keying on ``tmp_path`` left
+    the modules that build sandboxes with ``tempfile`` completely unprotected,
+    including the one that exercises real worktrees and real commits. Two live
+    worktrees were corrupted before that gap was found, both only ever during a
+    hook-driven run, since the hook is what mutates the environment. Refs #4717.
+
+    The ceiling still needs a path, so it stays conditional on ``tmp_path``.
+    Unsetting an inherited pointer does not.
     """
+    _sanitize_git_environment(monkeypatch)
     if "tmp_path" not in request.fixturenames:
         return
     tmp_path = request.getfixturevalue("tmp_path")
-    for name in _GIT_POINTER_VARS:
-        monkeypatch.delenv(name, raising=False)
     existing = os.environ.get("GIT_CEILING_DIRECTORIES")
     ceiling = str(tmp_path.parent)
     value = ceiling if not existing else f"{ceiling}{os.pathsep}{existing}"
