@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation and latest-main merge changes committed through 75d8ee3ec."
+        "Evidence": "All implementation, latest-main validation, and session evidence committed through 95413a9b7."
       },
       "validationPassed": {
         "level": "MUST",
@@ -108,8 +108,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Learnings captured in .agents/retrospective/2026-08-06-skills-docs-p2.md."
       },
       "reworkWarning": {
         "level": "SHOULD",
@@ -146,9 +146,13 @@
     {
       "task": "Split closed trigger-axis documentation",
       "result": "Restored the five #4381 trigger-axis documentation files to origin/main in commit e01160836 and preserved their patch for a separate focused PR."
+    },
+    {
+      "task": "Run retrospective",
+      "result": "Captured root cause, boundary matrix actions, atomic learnings, and push-gate evidence in .agents/retrospective/2026-08-06-skills-docs-p2.md."
     }
   ],
-  "endingCommit": "75d8ee3ec",
+  "endingCommit": "95413a9b7",
   "nextSteps": [
     "Ship the focused #4381 trigger-axis documentation patch.",
     "Issue #4498 remains open for correction-queue worktree ref safety.",
