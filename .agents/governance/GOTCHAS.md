@@ -872,3 +872,36 @@ the way out, so the same rule is smaller in the plugin tree than on disk. And th
 two 8KB multipliers move independently: the `.py`-edit multiplier can hold steady
 while the always-on one shifts, so re-measure both rather than assuming one
 tracks the other.
+
+## Built-in `explore` and `research` subagent types cannot write anything
+
+The harness `task` tool offers agent types named `explore` and `research`.
+These are Copilot CLI product configuration, not anything this repository
+ships. They are read-only by design: no Bash, no session-state writes, no raw
+`gh`, no GitHub issue or pull request API.
+
+Nothing in this repository configures them, which is easy to confirm and worth
+confirming, because the names collide with things this repository does own:
+
+```bash
+grep -rl '"explore"' --include=*.json --include=*.md --include=*.yaml .
+```
+
+Zero hits outside session logs. The repository-owned `/research` command and
+the `analyst` agent are separate and do have execution tools. The names match;
+the capabilities do not.
+
+The failure mode is quiet. A fleet run assigns these types work that
+structurally cannot succeed, and the agents report back plausibly about what
+they would have done. Measured this session: sixteen triage agents dispatched
+as read-only types were told to record findings and update tracking state.
+None could. The work had to be rerouted, and nothing in the transcript said
+"permission denied," so the loss looked like agents being unhelpful rather
+than agents being unable.
+
+Use these types for reading and reporting only. Anything that must write a
+file, run a command, touch session state, or call the GitHub API needs
+`general-purpose` or a repository-owned agent. If a dispatched agent's
+deliverable is a change rather than an answer, it is the wrong type.
+
+Refs #4692.

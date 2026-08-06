@@ -121,6 +121,14 @@
         ".agents/governance/GOTCHAS.md"
       ],
       "outcome": "Added: a green pytest run is not a green push, measured on a branch that passed 23693 tests and was rejected by five gates; a staged file in the shared checkout fakes a red main, measured as baseline 583 versus tree 587 from 68 staged additions; core.bare=true appears during push and breaks every worktree, with the worktree-level immunization that survives a shared-config flip; and when several unrelated checks fail at once, suspect the substrate."
+    },
+    {
+      "timestamp": "2026-08-06T16:20:00Z",
+      "action": "Recorded that the built-in explore and research subagent types cannot write",
+      "files": [
+        ".agents/governance/GOTCHAS.md"
+      ],
+      "outcome": "Added a fifth trap covering issue 4692. The harness task tool offers agent types named explore and research that are Copilot CLI product configuration rather than anything this repository ships, and they are read-only: no Bash, no session state writes, no raw gh, no issue or pull request API. The names collide with the repository-owned /research command and analyst agent, which do have execution tools, and that collision is the trap. Measured this session: sixteen triage agents dispatched as read-only types were told to record findings and update tracking state and none could, with nothing in the transcript reporting a permission error, so the loss read as agents being unhelpful rather than unable. Included the grep that confirms no file in this repository configures those types."
     }
   ],
   "endingCommit": "d20aa50b9",
