@@ -278,20 +278,23 @@ class TestTheWriteItself:
         root = _repo(tmp_path)
         path = _baseline(root, NESTED)
         original = path.read_text(encoding="utf-8")
-        real_unlink = Path.unlink
 
-        def fail_replace(source: Path, destination: Path) -> Path:
-            if destination == path:
-                raise OSError("replace failed")
-            return source
+        def fail_replace(
+            source: str,
+            destination: str,
+            *,
+            src_dir_fd: int | None = None,
+            dst_dir_fd: int | None = None,
+        ) -> None:
+            del source, destination, src_dir_fd, dst_dir_fd
+            raise OSError("replace failed")
 
-        def fail_cleanup(temporary_path: Path, *, missing_ok: bool = False) -> None:
-            if temporary_path.suffix == ".tmp":
-                raise OSError("cleanup failed")
-            real_unlink(temporary_path, missing_ok=missing_ok)
+        def fail_cleanup(path: str, *, dir_fd: int | None = None) -> None:
+            del path, dir_fd
+            raise OSError("cleanup failed")
 
-        monkeypatch.setattr(Path, "replace", fail_replace)
-        monkeypatch.setattr(Path, "unlink", fail_cleanup)
+        monkeypatch.setattr(os, "replace", fail_replace)
+        monkeypatch.setattr(os, "unlink", fail_cleanup)
 
         assert write_baseline_json(root, path, NESTED, SECTIONS, UNIT, False) == 2
         assert path.read_text(encoding="utf-8") == original
@@ -331,13 +334,24 @@ class TestTheWriteItself:
         second_entered_replace = threading.Event()
         original_replace = os.replace
 
-        def replace(source: Path, destination: Path) -> None:
+        def replace(
+            source: str,
+            destination: str,
+            *,
+            src_dir_fd: int | None = None,
+            dst_dir_fd: int | None = None,
+        ) -> None:
             if threading.current_thread().name == "stale-writer":
                 first_entered_replace.set()
                 assert release_first.wait(timeout=2)
             else:
                 second_entered_replace.set()
-            original_replace(source, destination)
+            original_replace(
+                source,
+                destination,
+                src_dir_fd=src_dir_fd,
+                dst_dir_fd=dst_dir_fd,
+            )
 
         monkeypatch.setattr(os, "replace", replace)
         reduced = {"files": {"a.md": 1}, "marker_files": {"m.md": 13}}

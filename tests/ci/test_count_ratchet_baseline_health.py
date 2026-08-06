@@ -34,6 +34,20 @@ class TestBaselineHealth:
         baseline = actual + count_ratchet.MAX_BASELINE_SLACK
         assert count_ratchet.baseline_health(actual, baseline) is None
 
+    def test_seven_pr_merge_group_collision_is_healthy(self):
+        """Seven queued cleanup PRs leave six slack when all true up once."""
+        actual = 575
+        baseline = 581
+        assert count_ratchet.baseline_health(actual, baseline) is None
+
+    def test_eight_pr_merge_group_collision_exceeds_the_bound(self):
+        """Negative: eight queued cleanup PRs still exceed the accepted band."""
+        actual = 574
+        baseline = 581
+        problem = count_ratchet.baseline_health(actual, baseline)
+        assert problem is not None
+        assert "gap of 7 above the permitted" in problem
+
     def test_slack_one_past_the_bound_is_reported(self):
         """Edge: one more than the bound fails, and names the true count.
 
