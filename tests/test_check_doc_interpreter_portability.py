@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -13,8 +14,11 @@ from unittest.mock import Mock
 
 import pytest
 
+import scripts.validation.check_doc_interpreter_portability as portability_checker
+import scripts.validation.portability_baseline_write as baseline_write
 from scripts.validation.check_doc_interpreter_portability import (
     INVOCATION_PATTERN,
+    ScanError,
     find_offenses,
     is_in_scope,
     main,
@@ -454,6 +458,11 @@ def test_generated_mirrors_are_out_of_scope(path: str) -> None:
     assert not is_in_scope(path)
 
 
+def test_hand_maintained_github_prompt_is_in_scope() -> None:
+    """Only generated PR quality prompts are excluded under `.github/prompts`."""
+    assert is_in_scope(".github/prompts/drift-alert-issue.md")
+
+
 @pytest.mark.parametrize(
     "path",
     ["src/claude/AGENTS.md", "src/claude/architect.md"],
@@ -658,6 +667,56 @@ def test_update_baseline_refuses_symlinked_parent(
     assert "through a symlink" in capsys.readouterr().err
 
 
+@pytest.mark.windows_path
+@pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
+def test_update_baseline_rechecks_symlinked_parent_inside_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = make_repo(
+        tmp_path / "repo",
+        {
+            "README.md": "No command.\n",
+            "linked/baseline.json": '{"files": {"stale.md": 1}}\n',
+        },
+    )
+    external = tmp_path / "external"
+    external.mkdir()
+    external_baseline = external / "baseline.json"
+    external_baseline.write_text('{"files": {"stale.md": 1}}\n', encoding="utf-8")
+    linked = repo / "linked"
+    parked = repo / "parked"
+    original_guard = portability_checker._baseline_path_is_unsafe
+    calls = 0
+
+    def swap_parent_after_check(repo_root: Path, baseline_path: Path) -> bool:
+        nonlocal calls
+        unsafe = original_guard(repo_root, baseline_path)
+        calls += 1
+        if calls == 1:
+            linked.rename(parked)
+            linked.symlink_to(external, target_is_directory=True)
+        return unsafe
+
+    monkeypatch.setattr(portability_checker, "_baseline_path_is_unsafe", swap_parent_after_check)
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(repo),
+            "--baseline",
+            str(linked / "baseline.json"),
+            "--update-baseline",
+        ]
+    )
+
+    assert exit_code == 2
+    assert calls == 2
+    assert sorted(path.name for path in external.iterdir()) == ["baseline.json"]
+    assert external_baseline.read_text(encoding="utf-8") == '{"files": {"stale.md": 1}}\n'
+    assert (parked / "baseline.json").read_text(encoding="utf-8") == '{"files": {"stale.md": 1}}\n'
+
+
 def test_update_baseline_refuses_hidden_diff(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -712,7 +771,7 @@ def test_update_baseline_uses_shared_write_lock(
     )
 
     assert exit_code == 0
-    assert acquired == [repo / ".baseline.json.write-lock"]
+    assert acquired == [repo / ".check-doc-interpreter-portability.write-lock"]
 
 
 def test_update_baseline_refuses_count_increase(
@@ -753,12 +812,17 @@ def test_update_baseline_preserves_original_when_replace_fails(
     baseline = write_baseline(repo, {"README.md": 1})
     original = baseline.read_text(encoding="utf-8")
 
-    def fail_replace(source: Path, target: Path) -> Path:
-        if target == baseline:
-            raise OSError("replace failed")
-        return source
+    def fail_replace(
+        source: str,
+        target: str,
+        *,
+        src_dir_fd: int | None = None,
+        dst_dir_fd: int | None = None,
+    ) -> None:
+        del source, target, src_dir_fd, dst_dir_fd
+        raise OSError("replace failed")
 
-    monkeypatch.setattr(Path, "replace", fail_replace)
+    monkeypatch.setattr(os, "replace", fail_replace)
 
     exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
 
@@ -766,6 +830,87 @@ def test_update_baseline_preserves_original_when_replace_fails(
     assert baseline.read_text(encoding="utf-8") == original
     assert list(baseline.parent.glob(f".{baseline.name}.*.tmp")) == []
     assert "replace failed" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires POSIX directory descriptors")
+def test_update_baseline_parent_swap_cannot_redirect_replace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n"})
+    checked_parent = repo / "config"
+    checked_parent.mkdir()
+    baseline = checked_parent / "baseline.json"
+    baseline.write_text('{"files": {"README.md": 1}}', encoding="utf-8")
+    moved_parent = repo / "checked-parent"
+    attacker_parent = repo / "attacker-parent"
+    attacker_parent.mkdir()
+    victim = attacker_parent / "baseline.json"
+    victim.write_text("DO NOT OVERWRITE", encoding="utf-8")
+    original_replace = os.replace
+    swap_complete = False
+
+    def swap_parent_before_replace(
+        source: str,
+        destination: str,
+        *,
+        src_dir_fd: int | None = None,
+        dst_dir_fd: int | None = None,
+    ) -> None:
+        nonlocal swap_complete
+        if not swap_complete and src_dir_fd is not None:
+            checked_parent.rename(moved_parent)
+            checked_parent.symlink_to(attacker_parent, target_is_directory=True)
+            swap_complete = True
+        original_replace(
+            source,
+            destination,
+            src_dir_fd=src_dir_fd,
+            dst_dir_fd=dst_dir_fd,
+        )
+
+    monkeypatch.setattr(os, "replace", swap_parent_before_replace)
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(repo),
+            "--baseline",
+            str(baseline),
+            "--update-baseline",
+        ]
+    )
+
+    assert exit_code == 0
+    assert victim.read_text(encoding="utf-8") == "DO NOT OVERWRITE"
+    assert json.loads((moved_parent / "baseline.json").read_text(encoding="utf-8")) == {
+        "files": {}
+    }
+
+
+def test_update_baseline_fails_closed_without_descriptor_relative_replace(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = make_repo(tmp_path, {"README.md": "No command.\n"})
+    baseline = write_baseline(repo, {"README.md": 1})
+    original = baseline.read_text(encoding="utf-8")
+    monkeypatch.setattr(baseline_write, "_HAS_SECURE_DIR_FD", False)
+
+    exit_code = main(
+        [
+            "--repo-root",
+            str(repo),
+            "--baseline",
+            str(baseline),
+            "--update-baseline",
+        ]
+    )
+
+    assert exit_code == 2
+    assert baseline.read_text(encoding="utf-8") == original
+    assert "requires POSIX directory descriptor support" in capsys.readouterr().err
 
 
 def test_update_baseline_preserves_replace_error_when_cleanup_fails(
@@ -777,18 +922,22 @@ def test_update_baseline_preserves_replace_error_when_cleanup_fails(
     baseline = write_baseline(repo, {"README.md": 1})
     original = baseline.read_text(encoding="utf-8")
 
-    def fail_replace(source: Path, target: Path) -> Path:
-        if target == baseline:
-            raise OSError("replace failed")
-        return source
+    def fail_replace(
+        source: str,
+        target: str,
+        *,
+        src_dir_fd: int | None = None,
+        dst_dir_fd: int | None = None,
+    ) -> None:
+        del source, target, src_dir_fd, dst_dir_fd
+        raise OSError("replace failed")
 
-    def fail_cleanup(path: Path, missing_ok: bool = False) -> None:
-        del missing_ok
-        if path.name.startswith(f".{baseline.name}."):
-            raise OSError("cleanup failed")
+    def fail_cleanup(path: str, *, dir_fd: int | None = None) -> None:
+        del path, dir_fd
+        raise OSError("cleanup failed")
 
-    monkeypatch.setattr(Path, "replace", fail_replace)
-    monkeypatch.setattr(Path, "unlink", fail_cleanup)
+    monkeypatch.setattr(os, "replace", fail_replace)
+    monkeypatch.setattr(os, "unlink", fail_cleanup)
 
     exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
 
@@ -807,12 +956,11 @@ def test_update_baseline_reports_cleanup_only_failure(
     repo = make_repo(tmp_path, {"README.md": "No command.\n"})
     baseline = write_baseline(repo, {"README.md": 1})
 
-    def fail_cleanup(path: Path, missing_ok: bool = False) -> None:
-        del missing_ok
-        if path.name.startswith(f".{baseline.name}."):
-            raise OSError("cleanup failed")
+    def fail_cleanup(path: str, *, dir_fd: int | None = None) -> None:
+        del path, dir_fd
+        raise OSError("cleanup failed")
 
-    monkeypatch.setattr(Path, "unlink", fail_cleanup)
+    monkeypatch.setattr(os, "unlink", fail_cleanup)
 
     exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline), "--update-baseline"])
 
@@ -911,21 +1059,84 @@ def test_validation_refuses_missing_tracked_file(
     assert "tracked file is missing or not a regular file: missing.md" in capsys.readouterr().err
 
 
-def test_validation_refuses_tracked_symlinked_instruction_file(
+@pytest.mark.windows_path
+@pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
+def test_validation_refuses_tracked_symlinked_file(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    repo = make_repo(tmp_path / "repo", {"tool.py": "import yaml\n", "README.md": "No command.\n"})
-    outside = tmp_path / "outside.md"
-    outside.write_text("Run `python3 tool.py`.\n", encoding="utf-8")
-    link = repo / "linked.md"
-    try:
-        link.symlink_to(outside)
-    except OSError as exc:
-        pytest.skip(f"filesystem does not support symlinks: {exc}")
+    repo = make_repo(tmp_path / "repo", {"README.md": "No command.\n"})
+    external = tmp_path / "external.md"
+    external.write_text("Run `python3 tool.py`.\n", encoding="utf-8")
+    (repo / "linked.md").symlink_to(external)
     subprocess.run(["git", "add", "linked.md"], cwd=repo, check=True)
     baseline = write_baseline(repo, {})
 
     exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
 
     assert exit_code == 2
-    assert "tracked file is missing or not a regular file: linked.md" in capsys.readouterr().err
+    assert "tracked file is reached through a symlink" in capsys.readouterr().err
+
+
+@pytest.mark.windows_path
+@pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
+def test_third_party_imports_refuses_symlinked_script(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path / "repo", {"README.md": "No command.\n"})
+    external = tmp_path / "external.py"
+    external.write_text("import yaml\n", encoding="utf-8")
+    (repo / "tool.py").symlink_to(external)
+    subprocess.run(["git", "add", "tool.py"], cwd=repo, check=True)
+
+    with pytest.raises(ScanError, match="tracked file is reached through a symlink"):
+        third_party_imports("tool.py", repo, {"tool.py"})
+
+
+@pytest.mark.windows_path
+@pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
+def test_validation_refuses_symlinked_parent_directory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path / "repo", {"docs/guide.md": "No command.\n"})
+    external = tmp_path / "external"
+    external.mkdir()
+    (external / "guide.md").write_text("Run `python3 tool.py`.\n", encoding="utf-8")
+    (repo / "docs").rename(repo / "docs-original")
+    (repo / "docs").symlink_to(external, target_is_directory=True)
+    baseline = write_baseline(repo, {})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 2
+    assert "tracked file is reached through a symlink" in capsys.readouterr().err
+
+
+@pytest.mark.windows_path
+@pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
+def test_validation_refuses_parent_symlink_resolving_to_repo_root(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path / "repo", {"docs/guide.md": "No command.\n"})
+    (repo / "docs").rename(repo / "docs-original")
+    (repo / "guide.md").write_text("Run `python3 tool.py`.\n", encoding="utf-8")
+    (repo / "docs").symlink_to(repo, target_is_directory=True)
+    baseline = write_baseline(repo, {})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 2
+    assert "tracked file is reached through a symlink" in capsys.readouterr().err
+
+
+@pytest.mark.windows_path
+@pytest.mark.skipif(sys.platform == "win32", reason="Symlinks require privileges on Windows")
+def test_validation_refuses_dangling_tracked_symlink(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path / "repo", {"README.md": "No command.\n"})
+    (repo / "dangling.md").symlink_to(repo / "missing.md")
+    subprocess.run(["git", "add", "dangling.md"], cwd=repo, check=True)
+    baseline = write_baseline(repo, {})
+
+    exit_code = main(["--repo-root", str(repo), "--baseline", str(baseline)])
+
+    assert exit_code == 2
+    assert "tracked file is reached through a symlink" in capsys.readouterr().err

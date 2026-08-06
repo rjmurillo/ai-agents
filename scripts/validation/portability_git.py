@@ -31,6 +31,19 @@ than the JSON the checker wrote. Reading the floor from one file and the
 replacement from another is the whole failure this module exists to prevent.
 """
 
+GIT_TIMEOUT_SECONDS = 30.0
+GIT_TIMEOUT_RETURN_CODE = 124
+
+
+def git_timeout_problem(
+    proc: subprocess.CompletedProcess[bytes] | None, action: str
+) -> str | None:
+    """Describe a timed-out Git probe without masking other failures."""
+    if proc is None or proc.returncode != GIT_TIMEOUT_RETURN_CODE:
+        return None
+    detail = proc.stderr.decode(errors="replace")
+    return f"git timed out while {action} ({detail})"
+
 
 def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
     """Run one git command with every local override stripped out.
@@ -51,13 +64,23 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] |
             capture_output=True,
             env=env,
             check=False,
+            timeout=GIT_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, bytes) else b""
+        stderr = exc.stderr if isinstance(exc.stderr, bytes) else b""
+        if stderr:
+            stderr += b"\n"
+        stderr += f"git command timed out after {GIT_TIMEOUT_SECONDS:g}s".encode()
+        return subprocess.CompletedProcess(exc.cmd, GIT_TIMEOUT_RETURN_CODE, stdout, stderr)
     except OSError:
         return None
 
 
-def was_recorded(repo_root: Path, path: Path) -> bool | None:
-    """Report whether branch history has the baseline, None when git cannot answer.
+def was_recorded(
+    repo_root: Path, path: Path
+) -> tuple[bool | None, str | None]:
+    """Report whether branch history has the baseline and any timeout detail.
 
     The two failures of `resolve().relative_to()` are not the same answer and
     must not share a return. `ValueError` means the path resolved fine and sits
@@ -71,26 +94,30 @@ def was_recorded(repo_root: Path, path: Path) -> bool | None:
     try:
         resolved = path.resolve()
     except OSError:
-        return None
+        return None, None
     try:
         rel = resolved.relative_to(repo_root.resolve())
     except OSError:
-        return None
+        return None, None
     except ValueError:
-        return False
+        return False, None
 
     proc = run_git(repo_root, "log", "-1", "--format=%H", "HEAD", "--", str(rel))
+    if problem := git_timeout_problem(proc, "checking commit history for the baseline"):
+        return None, problem
     if proc is None:
-        return None
+        return None, None
     if proc.returncode == 0:
-        return bool(proc.stdout.strip())
+        return bool(proc.stdout.strip()), None
 
     refs = run_git(repo_root, "show-ref", "--head")
+    if problem := git_timeout_problem(refs, "checking repository refs"):
+        return None, problem
     if refs is None:
-        return None
+        return None, None
     if refs.returncode == 1 and not refs.stdout:
-        return False
-    return None
+        return False, None
+    return None, None
 
 
 def tree_entries(
@@ -118,6 +145,8 @@ def tree_entries(
     as untracked, which is the shrug that erases the floor.
     """
     listing = run_git(repo_root, "ls-tree", "-z", "--full-tree", treeish)
+    if problem := git_timeout_problem(listing, "listing the committed baseline directory"):
+        return None, problem
     if listing is None or listing.returncode != 0:
         return None, "git could not list the committed baseline directory"
 
@@ -249,6 +278,8 @@ def _no_commits_or_refuse(repo_root: Path) -> tuple[str | None, str | None]:
     only asked in the state no healthy repository reaches.
     """
     refs = run_git(repo_root, "for-each-ref", "--format=%(objectname)", "--count=1")
+    if problem := git_timeout_problem(refs, "listing repository refs"):
+        return None, problem
     if refs is None or refs.returncode != 0:
         return None, "git could not list the repository's refs to confirm it has no commits"
     if refs.stdout.strip():
@@ -259,6 +290,8 @@ def _no_commits_or_refuse(repo_root: Path) -> tuple[str | None, str | None]:
         )
 
     objects = run_git(repo_root, "cat-file", "--batch-check=%(objecttype)", "--batch-all-objects")
+    if problem := git_timeout_problem(objects, "enumerating the object database"):
+        return None, problem
     if objects is None or objects.returncode != 0:
         return None, (
             "git could not enumerate the object database to confirm the "
@@ -285,6 +318,8 @@ def committed_blob(repo_root: Path, path: Path) -> tuple[str | None, str | None]
     file at the wrong depth.
     """
     toplevel = run_git(repo_root, "rev-parse", "--show-toplevel")
+    if problem := git_timeout_problem(toplevel, "locating the repository root"):
+        return None, problem
     if toplevel is None or toplevel.returncode != 0:
         return None, (
             "the baseline is not inside a readable git repository, so the "
@@ -306,6 +341,8 @@ def committed_blob(repo_root: Path, path: Path) -> tuple[str | None, str | None]
     head = run_git(repo_root, "rev-parse", "--verify", "--quiet", "HEAD")
     if head is None:
         return None, "git could not be run to read the committed baseline"
+    if problem := git_timeout_problem(head, "identifying HEAD for the committed baseline"):
+        return None, problem
     if head.returncode != 0:
         if head.stdout.strip():
             return None, "git could not identify HEAD"

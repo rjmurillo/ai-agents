@@ -6085,6 +6085,12 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
         command = [sys.executable, "scripts/validate_session_json.py", path]
         if path not in new_logs:
             command.append("--existing-log")
+        else:
+            # A log this branch is adding for the first time is being committed
+            # at session-start, before session-end runs. Pass --creation-mode so
+            # the validator skips protocol-compliance checks that can only be
+            # satisfied after the session completes (issue #4425).
+            command.append("--creation-mode")
         result = _run_command(command, repo_root)
         _print_process_output(result)
         failed |= result.returncode != 0

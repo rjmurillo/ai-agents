@@ -51,7 +51,8 @@ Scope:
     decided or done, not instructions to follow. Rewriting a session log or an
     ADR body to change a command it quotes would falsify the record.
   * **Generated mirrors** (``src/copilot-cli/``, ``src/vs-code-agents/``,
-    ``.github/instructions/``, ``.github/prompts/``).
+    ``.github/instructions/``, and generated
+    ``.github/prompts/pr-quality-gate-*.md`` files).
     ``.agents/governance/GENERATOR-FILES.md`` names a generator for each. The
     fix belongs in the canonical source and arrives here by regeneration.
     ``src/claude/`` is deliberately NOT on that list. It looks like a mirror and
@@ -95,7 +96,6 @@ import ast
 import json
 import os
 import re
-import stat
 import subprocess
 import sys
 from collections import Counter
@@ -112,6 +112,7 @@ from scripts.validation.doc_interpreter_subprocess import (  # noqa: E402
 )
 from scripts.validation.portability_baseline import (  # noqa: E402
     baseline_write_lock,
+    find_symlinked_component,
     refuse_oversized_baseline,
     refuse_symlinked_baseline,
     refuse_undiffable_baseline,
@@ -119,6 +120,7 @@ from scripts.validation.portability_baseline import (  # noqa: E402
 )
 
 _DEFAULT_BASELINE_NAME = "doc_interpreter_baseline.json"
+_WRITE_LOCK_NAME = ".check-doc-interpreter-portability.write-lock"
 
 
 @dataclass
@@ -165,10 +167,10 @@ HISTORICAL_ROOTS: tuple[str, ...] = (
 # `validate_install_parity.py:97` blocklists `AGENTS.md` from every parity group.
 GENERATED_ROOTS: tuple[str, ...] = (
     ".github/instructions/",
-    ".github/prompts/",
     "src/copilot-cli/",
     "src/vs-code-agents/",
 )
+GENERATED_PROMPT_PREFIX: str = ".github/prompts/pr-quality-gate-"
 
 # Test files build offending invocations on purpose, as fixtures for this guard
 # and its siblings. Same shape as the `tests/hooks/fixtures/` carve-out in
@@ -227,7 +229,11 @@ def tracked_files(repo_root: Path, *patterns: str) -> list[str]:
 
 def is_in_scope(rel_path: str) -> bool:
     """Return whether a file carries instructions this guard should gate."""
-    return not rel_path.startswith(HISTORICAL_ROOTS + GENERATED_ROOTS + FIXTURE_ROOTS)
+    generated_prompt = rel_path.startswith(GENERATED_PROMPT_PREFIX) and rel_path.endswith(".md")
+    return not (
+        rel_path.startswith(HISTORICAL_ROOTS + GENERATED_ROOTS + FIXTURE_ROOTS)
+        or generated_prompt
+    )
 
 
 def is_declared(lines: list[str], index: int) -> bool:
@@ -316,6 +322,18 @@ def is_uv_run_prefixed(prefix: str) -> bool:
     return False
 
 
+def _tracked_regular_file(repo_root: Path, rel_path: str) -> Path:
+    path = repo_root / rel_path
+    linked = find_symlinked_component(path, repo_root)
+    if linked is not None:
+        raise ScanError(
+            f"tracked file is reached through a symlink ({linked}): {rel_path}"
+        )
+    if not path.is_file():
+        raise ScanError(f"tracked file is missing or not a regular file: {rel_path}")
+    return path
+
+
 def third_party_imports(
     rel_path: str,
     repo_root: Path,
@@ -328,7 +346,8 @@ def third_party_imports(
         return set()
     seen.add(rel_path)
     try:
-        tree = ast.parse((repo_root / rel_path).read_text(encoding="utf-8"))
+        source = _tracked_regular_file(repo_root, rel_path).read_text(encoding="utf-8")
+        tree = ast.parse(source)
     except (OSError, UnicodeDecodeError, SyntaxError, ValueError) as exc:
         raise ScanError(f"could not analyze {rel_path}: {exc}") from exc
 
@@ -388,13 +407,7 @@ def _scan_file(
     details: dict[str, list[str]] | None,
     stats: ScanStats | None,
 ) -> list[str]:
-    path = repo_root / rel
-    try:
-        mode = path.stat(follow_symlinks=False).st_mode
-    except OSError as exc:
-        raise ScanError(f"tracked file is missing or not a regular file: {rel}") from exc
-    if not stat.S_ISREG(mode):
-        raise ScanError(f"tracked file is missing or not a regular file: {rel}")
+    path = _tracked_regular_file(repo_root, rel)
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeDecodeError) as exc:
@@ -501,13 +514,14 @@ def _resolve_roots(args: argparse.Namespace) -> tuple[Path, Path]:
 
 def _update_baseline(
     current: dict[str, list[str]],
+    repo_root: Path,
     baseline_path: Path,
     details: dict[str, list[str]],
 ) -> int:
-    lock_path = baseline_path.with_name(f".{baseline_path.name}.write-lock")
+    lock_path = repo_root / _WRITE_LOCK_NAME
     try:
         with baseline_write_lock(lock_path):
-            return _update_baseline_locked(current, baseline_path, details)
+            return _update_baseline_locked(current, repo_root, baseline_path, details)
     except OSError as exc:
         print(f"check-doc-interpreter-portability: {exc}", file=sys.stderr)
         return 2
@@ -515,9 +529,12 @@ def _update_baseline(
 
 def _update_baseline_locked(
     current: dict[str, list[str]],
+    repo_root: Path,
     baseline_path: Path,
     details: dict[str, list[str]],
 ) -> int:
+    if _baseline_path_is_unsafe(repo_root, baseline_path):
+        return 2
     if not baseline_path.is_file():
         print(
             f"check-doc-interpreter-portability: baseline not found: {baseline_path}",
@@ -540,7 +557,7 @@ def _update_baseline_locked(
         return 1
 
     payload = json.dumps({"files": dict(sorted(current.items()))}, indent=2) + "\n"
-    replace_baseline_atomically(baseline_path, payload)
+    replace_baseline_atomically(repo_root, baseline_path, payload)
     print(f"check-doc-interpreter-portability: wrote {baseline_path} ({len(current)} files)")
     return 0
 
@@ -613,7 +630,7 @@ def main(argv: list[str] | None = None) -> int:
     if _baseline_path_is_unsafe(repo_root, baseline_path):
         return 2
     if args.update_baseline:
-        return _update_baseline(current, baseline_path, details)
+        return _update_baseline(current, repo_root, baseline_path, details)
     return _validate_against_baseline(current, baseline_path, details)
 
 

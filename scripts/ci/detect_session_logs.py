@@ -15,13 +15,70 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 _SESSION_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.(?:md|json)$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+# Bounded retry policy for transient rate-limit failures while enumerating
+# pull request files (issue #4510). PR #4508 hit an immediate exit 3 on a
+# single HTTP 403 "API rate limit exceeded" response, which failed the
+# required Detect Changed Sessions check for an unrelated change. Retry only
+# the rate-limit shape (HTTP 429, or HTTP 403 whose message names a rate
+# limit); genuine 401 (bad credentials) and 404 (not found) are permanent and
+# must fail fast.
+_MAX_ATTEMPTS = 5
+_BACKOFF_BASE_SECONDS = 2.0
+_MAX_BACKOFF_SECONDS = 60.0
+
+_HTTP_STATUS_PATTERN = re.compile(r"\(HTTP (\d+)\)")
+_RATE_LIMIT_TEXT_PATTERN = re.compile(r"rate limit", re.IGNORECASE)
+_RETRY_AFTER_PATTERN = re.compile(r"\bRetry-After:\s*(\d+)", re.IGNORECASE)
+_RATE_LIMIT_RESET_PATTERN = re.compile(r"\bX-RateLimit-Reset:\s*(\d+)", re.IGNORECASE)
+
+
+def _http_status(stderr: str) -> int | None:
+    """Extract the HTTP status code gh reports in its error text, if any."""
+    match = _HTTP_STATUS_PATTERN.search(stderr)
+    return int(match.group(1)) if match else None
+
+
+def _is_rate_limit_error(stderr: str) -> bool:
+    """Return True when *stderr* describes a retryable rate-limit response.
+
+    HTTP 429 is always a rate limit. HTTP 403 is ambiguous (gh reuses it for
+    both permission-denied and primary/secondary rate limits), so a 403 is
+    only retried when the message text names a rate limit. A permission 403
+    is permanent and must fail fast, same as 401/404.
+    """
+    status = _http_status(stderr)
+    if status == 429:
+        return True
+    return status == 403 and _RATE_LIMIT_TEXT_PATTERN.search(stderr) is not None
+
+
+def _retry_delay_seconds(stderr: str, attempt: int) -> float:
+    """Return how long to wait before the next attempt.
+
+    Honours ``Retry-After`` first, then ``X-RateLimit-Reset`` (an epoch
+    second timestamp), falling back to full-jitter exponential backoff
+    (release-it.md) when neither header is present in the error text.
+    """
+    retry_after = _RETRY_AFTER_PATTERN.search(stderr)
+    if retry_after:
+        return float(retry_after.group(1))
+
+    reset = _RATE_LIMIT_RESET_PATTERN.search(stderr)
+    if reset:
+        return max(float(reset.group(1)) - time.time(), 0.0)
+
+    backoff = min(_BACKOFF_BASE_SECONDS ** (attempt - 1), _MAX_BACKOFF_SECONDS)
+    return random.uniform(0, backoff)
 
 
 def _run(argv: list[str]) -> subprocess.CompletedProcess[str]:
@@ -45,25 +102,45 @@ def changed_files(repo: str, pr_number: str) -> list[str]:
     ``gh pr diff`` truncates on large pull requests (issue #468); the files API
     paginates instead.
 
-    Raises ``GhApiError`` when the API call fails. The shell original piped
-    ``gh api`` into ``grep ... || true``, so a failed call produced an empty
-    list and the gate reported "no session files changed" -- a silent pass on
-    an unreadable pull request. An unreadable pull request is unknown, not
-    clean.
+    A transient rate limit (HTTP 429, or HTTP 403 naming a rate limit) is
+    retried up to ``_MAX_ATTEMPTS`` times with backoff (issue #4510); a
+    genuine 401 or 404 is permanent and raises on the first attempt.
+
+    Raises ``GhApiError`` when the API call fails and is not retryable, or
+    when the retry budget is exhausted. The shell original piped ``gh api``
+    into ``grep ... || true``, so a failed call produced an empty list and the
+    gate reported "no session files changed" -- a silent pass on an unreadable
+    pull request. An unreadable pull request is unknown, not clean.
     """
-    completed = _run(
-        [
-            "gh",
-            "api",
-            f"repos/{repo}/pulls/{pr_number}/files",
-            "--paginate",
-            "--jq",
-            ".[].filename",
-        ]
-    )
-    if completed.returncode != 0:
-        raise GhApiError(completed.stderr.strip() or "gh api returned no diagnostics")
-    return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+    argv = [
+        "gh",
+        "api",
+        f"repos/{repo}/pulls/{pr_number}/files",
+        "--paginate",
+        "--jq",
+        ".[].filename",
+    ]
+    stderr = "gh api returned no diagnostics"
+    for attempt in range(1, _MAX_ATTEMPTS + 1):
+        completed = _run(argv)
+        if completed.returncode == 0:
+            return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+
+        stderr = completed.stderr.strip() or stderr
+        is_last_attempt = attempt == _MAX_ATTEMPTS
+        if not is_last_attempt and _is_rate_limit_error(stderr):
+            delay = _retry_delay_seconds(stderr, attempt)
+            print(
+                f"::warning::gh api rate limited (attempt {attempt}/{_MAX_ATTEMPTS}), "
+                f"retrying in {delay:.1f}s: {stderr}",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+            continue
+        raise GhApiError(stderr)
+
+    # Unreachable: the loop either returns, retries, or raises on every path.
+    raise GhApiError(stderr)
 
 
 def session_logs(paths: list[str]) -> list[str]:
