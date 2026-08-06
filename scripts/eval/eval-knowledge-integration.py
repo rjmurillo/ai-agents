@@ -32,7 +32,11 @@ from typing import Any
 from _anthropic_api import DEFAULT_MODEL, load_custom_prompts, verify_model_available
 from _anthropic_api import call_api as _call_api
 from _anthropic_api import load_api_key_for_selected_provider as _load_api_key_for_selected_provider
-from _eval_common import EST_TOKENS_PER_CALL, aggregate_multi_run_scores
+from _eval_common import (
+    EST_TOKENS_PER_CALL,
+    MalformedProviderMetadataError,
+    aggregate_multi_run_scores,
+)
 
 # ---------------------------------------------------------------------------
 # Skill context loading
@@ -578,6 +582,31 @@ def run_assessment(
     return results
 
 
+def _run_assessment_or_exit(
+    api_key: str,
+    skills: list[str],
+    prompts: dict[str, list[dict[str, Any]]],
+    *,
+    model: str,
+    dry_run: bool,
+    runs: int,
+) -> dict[str, dict[str, Any]]:
+    try:
+        return run_assessment(
+            api_key,
+            skills,
+            prompts,
+            model=model,
+            dry_run=dry_run,
+            runs=runs,
+        )
+    except MalformedProviderMetadataError:
+        raise
+    except RuntimeError as exc:
+        print(f"Error: assessment failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Eval skill knowledge integration quality")
     parser.add_argument("--skill", type=str, help="Eval a single skill instead of all 5")
@@ -660,13 +689,14 @@ def main() -> None:
     if not args.dry_run:
         print(f"Starting eval (est. {api_calls * 2}s with rate limiting)...", file=sys.stderr)
 
-    try:
-        results = run_assessment(
-            api_key, skills, prompts, model=args.model, dry_run=args.dry_run, runs=args.runs
-        )
-    except RuntimeError as exc:
-        print(f"Error: assessment failed: {exc}", file=sys.stderr)
-        sys.exit(1)
+    results = _run_assessment_or_exit(
+        api_key,
+        skills,
+        prompts,
+        model=args.model,
+        dry_run=args.dry_run,
+        runs=args.runs,
+    )
 
     # Apply kill gate
     gate = apply_kill_gate(results)
