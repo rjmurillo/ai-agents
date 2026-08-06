@@ -288,9 +288,10 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # No --depth=1 here. This job already checked out full history, and
-          # a depth-limited fetch writes .git/shallow for the later merge-tree
-          # step.
+          # This job later runs merge-tree and count-ratchet diagnostics that
+          # need a merge base. A depth-limited fetch writes .git/shallow for
+          # the whole job, and a later plain fetch does not repair it. This job
+          # already checked out full history, so keep this base fetch full-depth.
           git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/taste_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4039: type: ignore suppressions bypass the mypy ratchet by inflating
@@ -300,7 +301,9 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # No --depth=1: see the taste-lint ratchet step above.
+          # Keep this fetch full-depth; an earlier shallow fetch would graft
+          # .git/shallow for the later merge-tree ratchet. See the taste-lint
+          # ratchet step above for why a later plain fetch does not repair it.
           git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4313: 425 atomic memories are unreachable through the retrieval
@@ -313,7 +316,9 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # No --depth=1: see the taste-lint ratchet step above.
+          # Keep this fetch full-depth; an earlier shallow fetch would graft
+          # .git/shallow for the later merge-tree ratchet. See the taste-lint
+          # ratchet step above for why a later plain fetch does not repair it.
           git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/memory_index_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4441: `memory-token-update` repairs every index token count on
