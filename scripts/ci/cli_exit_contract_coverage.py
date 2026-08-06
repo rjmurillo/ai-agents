@@ -10,6 +10,7 @@ why (issue #4068).
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterable, Iterator, Sequence
 import re
 from dataclasses import dataclass
 
@@ -171,11 +172,72 @@ def _bare_main_stems(source: str, stems: frozenset[str]) -> set[str]:
 
 
 def _has_local_main_definition(tree: ast.Module) -> bool:
-    """Return True when this test file defines its own function named main."""
-    return any(
-        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "main"
-        for node in ast.walk(tree)
-    )
+    """Return True when this test file binds ``main`` at module scope.
+
+    Descends into module-level control flow (if/try/with/for/match) because
+    those execute at import time and can introduce bindings visible at module
+    scope.  Stops at class and function boundaries, which create their own
+    scope and cannot shadow a module-level ``main``.
+
+    Recognised binding forms:
+    * ``def main`` / ``async def main`` (function definition)
+    * ``main = ...`` (assignment, including lambda and name aliases)
+    """
+
+    def _binds_main(stmts: Iterable[ast.stmt]) -> bool:
+        for node in stmts:
+            if _node_binds_main(node):
+                return True
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue  # new scope -- do not descend
+            for child_block in _control_flow_bodies(node):
+                if _binds_main(child_block):
+                    return True
+        return False
+
+    return _binds_main(tree.body)
+
+
+def _node_binds_main(node: ast.stmt) -> bool:
+    """True when *node* itself binds the name ``main`` at its scope level."""
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return node.name == "main"
+    if isinstance(node, ast.Assign):
+        return any(
+            isinstance(t, ast.Name) and t.id == "main"
+            for t in node.targets
+        ) and isinstance(node.value, ast.Lambda)
+    if isinstance(node, ast.AnnAssign):
+        t = node.target
+        return (
+            isinstance(t, ast.Name)
+            and t.id == "main"
+            and isinstance(node.value, ast.Lambda)
+        )
+    return False
+
+
+def _control_flow_bodies(
+    node: ast.stmt,
+) -> Iterator[Sequence[ast.stmt]]:
+    """Yield statement lists from control-flow nodes that execute at module level."""
+    if isinstance(node, ast.If):
+        yield node.body
+        yield node.orelse
+    elif isinstance(node, (ast.Try, ast.TryStar)):
+        yield node.body
+        for handler in node.handlers:
+            yield handler.body
+        yield node.orelse
+        yield node.finalbody
+    elif isinstance(node, ast.With):
+        yield node.body
+    elif isinstance(node, (ast.For, ast.AsyncFor)):
+        yield node.body
+        yield node.orelse
+    elif hasattr(ast, "Match") and isinstance(node, ast.Match):
+        for case in node.cases:
+            yield case.body
 
 
 def _test_functions(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
