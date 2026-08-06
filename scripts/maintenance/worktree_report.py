@@ -22,6 +22,8 @@ KEEP_UNPUSHED = "unpushed commits and not merged to base"
 KEEP_GIT_ERROR = "git inspection failed"
 KEEP_TIME_BUDGET = "not inspected (time budget exhausted)"
 KEEP_OCCUPIED = "in use by a running process"
+KEEP_STALE_UNREACHABLE = "working tree gone and no ref contains its HEAD"
+PRUNE_STALE = "stale admin entry (working tree gone)"
 
 
 @dataclass
@@ -34,6 +36,7 @@ class Worktree:
     locked: bool = False
     bare: bool = False
     detached: bool = False
+    prunable: str | None = None
 
 
 @dataclass
