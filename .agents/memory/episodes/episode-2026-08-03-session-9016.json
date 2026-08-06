@@ -16,7 +16,7 @@
       "leads_to": [
         "e004"
       ],
-      "_source_session": "2026-08-03-session-9015"
+      "_source_session": "2026-08-03-session-9016"
     },
     {
       "id": "e002",
@@ -27,7 +27,7 @@
       "leads_to": [
         "e004"
       ],
-      "_source_session": "2026-08-03-session-9015"
+      "_source_session": "2026-08-03-session-9016"
     },
     {
       "id": "e003",
@@ -38,7 +38,7 @@
       "leads_to": [
         "e004"
       ],
-      "_source_session": "2026-08-03-session-9015"
+      "_source_session": "2026-08-03-session-9016"
     },
     {
       "id": "e004",
@@ -53,7 +53,7 @@
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-03-session-9015"
+      "_source_session": "2026-08-03-session-9016"
     },
     {
       "id": "e005",
@@ -66,7 +66,7 @@
       "leads_to": [
         "e006"
       ],
-      "_source_session": "2026-08-03-session-9015"
+      "_source_session": "2026-08-03-session-9016"
     },
     {
       "id": "e006",
@@ -77,16 +77,16 @@
         "e005"
       ],
       "leads_to": [],
-      "_source_session": "2026-08-03-session-9015"
+      "_source_session": "2026-08-03-session-9016"
     }
   ],
   "metrics": {
-    "duration_minutes": 0,
-    "tool_calls": 0,
+    "duration_minutes": null,
+    "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
     "commits": 3,
-    "files_changed": 3
+    "files_changed": 0
   },
   "lessons": []
 }
