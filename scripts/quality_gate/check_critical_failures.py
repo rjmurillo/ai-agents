@@ -122,17 +122,16 @@ def main(argv: list[str] | None = None) -> int:
     verdicts = collect_verdicts(env)
 
     missing = find_missing(verdicts)
-    for name, verdict in verdicts:
-        if not verdict.strip():
-            print(f"::error::{name}: No verdict received from aggregate step")
-        elif verdict in BLOCKING_VERDICTS:
-            print(f"::error::{name}: {verdict}")
-
     if missing:
+        for name, _verdict in verdicts:
+            if name in missing:
+                print(f"::error::{name}: No verdict received from aggregate step")
         _report_missing(missing)
         return 1
 
     if final_verdict in BLOCKING_VERDICTS:
+        for entry in find_blocking(verdicts):
+            print(f"::error::{entry}")
         _report_blocking(find_blocking(verdicts))
         return 1
 

@@ -1,0 +1,141 @@
+{
+  "id": "episode-2026-08-05-session-1-investigate-fix-bot_pat-budget-sharing",
+  "session": "2026-08-05-session-1-investigate-fix-bot_pat-budget-sharing",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Investigate and fix CI BOT_PAT budget sharing and taste baseline slack issues 4607 4608",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created isolated worktree fix/4607-4608-ci-budget-and-slack from origin/main.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-1-investigate-fix-bot_pat-budget-sharing"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified local token identity is rjmurillo id 6811113 and BOT_PAT is not available in this environment.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-1-investigate-fix-bot_pat-budget-sharing"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured taste count 582, baseline 583, current slack 1, and reproduced the seven-PR slack failure with new tests before fixing.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-1-investigate-fix-bot_pat-budget-sharing"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Moved read-only AI review GitHub API calls to runner github.token fallback while preserving BOT_PAT for post-analysis writes.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-1-investigate-fix-bot_pat-budget-sharing"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Raised MAX_BASELINE_SLACK from 5 to 6 and added positive, negative, and edge coverage for seven and eight PR merge-group collisions.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-1-investigate-fix-bot_pat-budget-sharing"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted tests, ruff, mutation proof, security review, taste ratchet, and pre_pr validation.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-1-investigate-fix-bot_pat-budget-sharing"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T10:01:10+00:00",
+      "type": "commit",
+      "content": "Commit: 2939d8f5c1",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-1-investigate-fix-bot_pat-budget-sharing"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T10:56:40+00:00",
+      "type": "commit",
+      "content": "Commit: c3dffc3ebf",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-05-session-1-investigate-fix-bot_pat-budget-sharing"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T11:23:41+00:00",
+      "type": "commit",
+      "content": "Commit: 4eb90b2b7",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1-investigate-fix-bot_pat-budget-sharing"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T12:37:28+00:00",
+      "type": "commit",
+      "content": "Commit: 380fabf8b",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-1-investigate-fix-bot_pat-budget-sharing"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 51,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 2
+  },
+  "lessons": []
+}

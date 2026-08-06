@@ -90,7 +90,7 @@ def _probe_auth(probe: Probe) -> None:
     if login is None:
         probe.summary.append("Authentication: FAILED")
         probe.annotations.append(
-            "::warning::GitHub API authentication failed. Check bot-pat token."
+            "::warning::GitHub API authentication failed. Check the GitHub API token."
         )
         return
     probe.auth_valid = True
