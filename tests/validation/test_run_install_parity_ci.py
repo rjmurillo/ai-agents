@@ -202,9 +202,11 @@ def test_main_with_malformed_pr_base_ref_fails_closed(
 
     fetch_calls: list[str] = []
 
-    monkeypatch.setattr(
-        runner, "fetch_base_ref", lambda base_ref: (fetch_calls.append(base_ref), 0)[1]
-    )
+    def _record_fetch(base_ref: str) -> int:
+        fetch_calls.append(base_ref)
+        return 0
+
+    monkeypatch.setattr(runner, "fetch_base_ref", _record_fetch)
     monkeypatch.setattr(runner, "resolve_base", lambda base_ref: f"origin/{base_ref}")
     monkeypatch.setattr(runner, "run", lambda cmd, *, check=False, timeout=60: (0, "OK\n", ""))
 
