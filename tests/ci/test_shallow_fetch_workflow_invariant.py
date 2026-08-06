@@ -17,6 +17,7 @@ test_shallow_fetch_graft_guards.py.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -31,7 +32,7 @@ ROOT_CHECKOUT_PATHS = {None, "", ".", "./"}
 SHALLOWING_FETCH_FLAGS = ("--depth", "--shallow-since", "--shallow-exclude")
 
 
-def _jobs(document: object) -> dict[str, dict[str, object]]:
+def _jobs(document: object) -> dict[str, Mapping[str, object]]:
     if not isinstance(document, dict):
         return {}
     jobs = document.get("jobs")
@@ -40,14 +41,14 @@ def _jobs(document: object) -> dict[str, dict[str, object]]:
     return {name: job for name, job in jobs.items() if isinstance(job, dict)}
 
 
-def _steps(job: dict[str, object]) -> list[dict[str, object]]:
+def _steps(job: Mapping[str, object]) -> list[Mapping[str, object]]:
     steps = job.get("steps")
     if not isinstance(steps, list):
         return []
     return [step for step in steps if isinstance(step, dict)]
 
 
-def _is_root_checkout(step: dict[str, object]) -> bool:
+def _is_root_checkout(step: Mapping[str, object]) -> bool:
     """True when the step checks out into the workspace root.
 
     `actions/checkout` writes its own `.git` under `path:`, so a nested
@@ -84,7 +85,7 @@ def _normalized_depth(value: object) -> object:
     return value
 
 
-def _root_checkout_depths(job: dict[str, object]) -> set[object]:
+def _root_checkout_depths(job: Mapping[str, object]) -> set[object]:
     """Every `fetch-depth` the job's ROOT checkout steps request.
 
     An absent `fetch-depth` is the action's default of 1, which is itself
@@ -143,7 +144,7 @@ def _targets_root_repository(line: str) -> bool:
     return True
 
 
-def _shallowing_fetches(job: dict[str, object]) -> list[tuple[str, str]]:
+def _shallowing_fetches(job: Mapping[str, object]) -> list[tuple[str, str]]:
     """Fetches in the job that would graft the root repository."""
     found: list[tuple[str, str]] = []
     for step in _steps(job):
@@ -289,7 +290,7 @@ def test_no_workflow_computes_its_checkout_depth_from_an_expression() -> None:
         ),
     ],
 )
-def test_root_checkout_depth_parsing(job: dict[str, object], expected: set[object]) -> None:
+def test_root_checkout_depth_parsing(job: Mapping[str, object], expected: set[object]) -> None:
     """Each case is an evasion the first draft of this parser fell for.
 
     The quoted-zero case is the one that mattered: `fetch-depth: "0"` is a
