@@ -34,6 +34,7 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
 import subprocess
@@ -50,7 +51,12 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.validation.verify_issue_close import unverified_claims  # noqa: E402
+from scripts.validation.verify_issue_close import (  # noqa: E402
+    IssueComment,
+    check_unresolved_scope,
+    extract_pr_numbers,
+    unverified_claims,
+)
 
 # Action categories mirror scripts/triage_recommendation_report.py.
 ACTION_CLOSE = "close"
@@ -146,6 +152,19 @@ class GitHubGateway(Protocol):
     def commit_exists(self, sha: str) -> bool: ...
 
     def pr_is_merged(self, pr: int) -> bool: ...
+
+    def get_issue_comments(self, issue: int) -> list[IssueComment] | None:
+        """Return issue comments, or None on API failure.
+
+        None means the fetch failed (rate-limited, network error). The caller
+        must treat None as blocking (issue #4640 principle: a failed lookup
+        must never be treated as "no data found").
+        """
+        ...
+
+    def get_pr_merge_time(self, pr: int) -> datetime.datetime | None:
+        """Return the merge timestamp of a PR, or None if unavailable."""
+        ...
 
 
 def _positive_int(value: object) -> int | None:
@@ -264,6 +283,34 @@ def _apply_close(
             action.issue, action.category, OUTCOME_SKIPPED,
             f"close aborted: unverified {', '.join(unverified)}",
         )
+    # Unresolved-scope gate (#4625): if a human commented AFTER the fix
+    # evidence, the issue may have unaddressed scope. Block and report.
+    cited_prs = extract_pr_numbers(action.rationale)
+    fix_ts: datetime.datetime | None = None
+    for pr_num in cited_prs:
+        fix_ts = gateway.get_pr_merge_time(pr_num)
+        if fix_ts is not None:
+            break
+    if cited_prs and fix_ts is None:
+        return ActionOutcome(
+            action.issue, action.category, OUTCOME_SKIPPED,
+            "close aborted: cannot determine fix timestamp from cited PR(s)",
+        )
+    if fix_ts is not None:
+        comments = gateway.get_issue_comments(action.issue)
+        if comments is None:
+            # Failed fetch blocks the close (issue #4640 principle).
+            return ActionOutcome(
+                action.issue, action.category, OUTCOME_SKIPPED,
+                "close aborted: comment fetch failed, cannot verify scope",
+            )
+        scope_blocks = check_unresolved_scope(comments, fix_ts)
+        if scope_blocks:
+            reasons = "; ".join(b.reason for b in scope_blocks[:3])
+            return ActionOutcome(
+                action.issue, action.category, OUTCOME_SKIPPED,
+                f"close aborted: unaddressed post-fix comment(s): {reasons}",
+            )
     if not mutate:
         return ActionOutcome(
             action.issue, action.category, OUTCOME_PLANNED, "would close",
@@ -422,6 +469,62 @@ class CliGitHubGateway:
         state = "" if raw_state is None else str(raw_state)
         return state.upper() == "MERGED"
 
+    def get_issue_comments(self, issue: int) -> list[IssueComment] | None:
+        result = self._run(
+            ["gh", "api", f"repos/{self._repo}/issues/{issue}/comments?per_page=100"],
+        )
+        if result is None or result.returncode != 0:
+            return None
+        try:
+            raw = json.loads(result.stdout)
+        except (json.JSONDecodeError, ValueError):
+            return None
+        if not isinstance(raw, list):
+            return None
+        comments: list[IssueComment] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            user = item.get("user") or {}
+            created = item.get("created_at", "")
+            if not created:
+                continue
+            try:
+                ts = datetime.datetime.fromisoformat(created.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                continue
+            comments.append(IssueComment(
+                author=user.get("login", ""),
+                author_type=user.get("type", ""),
+                created_at=ts,
+                url=item.get("html_url", ""),
+                body=item.get("body", ""),
+            ))
+        return comments
+
+    def get_pr_merge_time(self, pr: int) -> datetime.datetime | None:
+        result = self._run(
+            ["gh", "pr", "view", str(pr), "--repo", self._repo,
+             "--json", "mergedAt"],
+        )
+        if result is None or result.returncode != 0:
+            return None
+        try:
+            data = json.loads(result.stdout)
+        except (json.JSONDecodeError, ValueError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        merged_at = data.get("mergedAt", "")
+        if not merged_at:
+            return None
+        try:
+            return datetime.datetime.fromisoformat(
+                str(merged_at).replace("Z", "+00:00"),
+            )
+        except (ValueError, AttributeError):
+            return None
+
     def _run(self, command: list[str]) -> subprocess.CompletedProcess[str] | None:
         try:
             return subprocess.run(
@@ -544,6 +647,12 @@ class _OfflineGateway:
 
     def pr_is_merged(self, pr: int) -> bool:  # pragma: no cover - state is None first
         return False
+
+    def get_issue_comments(self, issue: int) -> list[IssueComment] | None:  # pragma: no cover
+        return None
+
+    def get_pr_merge_time(self, pr: int) -> datetime.datetime | None:  # pragma: no cover
+        return None
 
 
 if __name__ == "__main__":

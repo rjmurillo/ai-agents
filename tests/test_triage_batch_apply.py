@@ -71,6 +71,24 @@ class FakeGateway:
     def pr_is_merged(self, pr: int) -> bool:
         return pr in self._merged_prs
 
+    def get_issue_comments(self, issue: int) -> list | None:
+        comments_map = getattr(self, "_comments", {})
+        if issue in comments_map:
+            return comments_map[issue]
+        # Default: no comments (successful empty fetch, safe to proceed)
+        return []
+
+    def get_pr_merge_time(self, pr: int):
+        import datetime as dt
+        merge_times = getattr(self, "_merge_times", {})
+        if pr in merge_times:
+            return merge_times[pr]
+        # Default: if the PR is in merged_prs, return a very early timestamp
+        # so existing tests pass without needing explicit merge times.
+        if pr in self._merged_prs:
+            return dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
+        return None
+
 
 def _open(issue: int, labels: tuple[str, ...] = ()) -> IssueState:
     return IssueState(number=issue, state="OPEN", labels=frozenset(labels))
@@ -512,3 +530,130 @@ class TestMain:
         rc = main(["--manifest", str(manifest_path), "--apply"])
         assert rc == 2
         assert "owner" in capsys.readouterr().err
+
+
+class TestUnresolvedScopeWiring:
+    """Wiring tests: verify check_unresolved_scope is consulted in _apply_close.
+
+    Per convention from commit 43e2114e (#4281), a wiring test asserts that the
+    production closure path actually calls the scope check. If someone removes
+    the call while leaving the function in place, these tests fail.
+    """
+
+    def test_post_fix_human_comment_blocks_close(self):
+        """End-to-end: an issue with a human comment after the fix is NOT closed."""
+        import datetime as dt
+
+        from scripts.validation.verify_issue_close import IssueComment
+
+        fix_time = dt.datetime(2026, 7, 1, 10, 0, 0, tzinfo=dt.timezone.utc)
+        comment = IssueComment(
+            author="reviewer",
+            author_type="User",
+            created_at=dt.datetime(2026, 7, 2, 8, 0, 0, tzinfo=dt.timezone.utc),
+            url="https://github.com/o/r/issues/5#issuecomment-1",
+            body="the ARM64 path still panics",
+        )
+        gw = FakeGateway(
+            states={5: _open(5)},
+            merged_prs=frozenset({100}),
+        )
+        gw._comments = {5: [comment]}
+        gw._merge_times = {100: fix_time}
+        action = ManifestAction(
+            issue=5, category=ACTION_CLOSE,
+            rationale="Fixed via PR #100",
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "unaddressed post-fix" in outcome.detail
+        assert gw.closed == []
+
+    def test_bot_comment_after_fix_does_not_block(self):
+        """Bot comments do not block the close path."""
+        import datetime as dt
+
+        from scripts.validation.verify_issue_close import IssueComment
+
+        fix_time = dt.datetime(2026, 7, 1, 10, 0, 0, tzinfo=dt.timezone.utc)
+        comment = IssueComment(
+            author="github-actions[bot]",
+            author_type="Bot",
+            created_at=dt.datetime(2026, 7, 2, 8, 0, 0, tzinfo=dt.timezone.utc),
+            url="https://github.com/o/r/issues/5#issuecomment-2",
+            body="auto triage complete",
+        )
+        gw = FakeGateway(
+            states={5: _open(5)},
+            merged_prs=frozenset({100}),
+        )
+        gw._comments = {5: [comment]}
+        gw._merge_times = {100: fix_time}
+        action = ManifestAction(
+            issue=5, category=ACTION_CLOSE,
+            rationale="Fixed via PR #100",
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.closed == [5]
+
+    def test_comment_fetch_failure_blocks_close(self):
+        """A failed comment fetch must block (issue #4640 principle)."""
+        import datetime as dt
+
+        fix_time = dt.datetime(2026, 7, 1, 10, 0, 0, tzinfo=dt.timezone.utc)
+        gw = FakeGateway(
+            states={5: _open(5)},
+            merged_prs=frozenset({100}),
+        )
+        gw._comments = {5: None}  # Simulates API failure
+        gw._merge_times = {100: fix_time}
+        action = ManifestAction(
+            issue=5, category=ACTION_CLOSE,
+            rationale="Fixed via PR #100",
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "comment fetch failed" in outcome.detail
+        assert gw.closed == []
+
+    def test_no_pr_cited_skips_scope_check(self):
+        """A close with no PR citation does not trigger the scope check."""
+        gw = FakeGateway(states={5: _open(5)})
+        action = ManifestAction(
+            issue=5, category=ACTION_CLOSE,
+            rationale="stale, superseded by new design",
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.closed == [5]
+
+    def test_scope_check_is_wired_into_close_path(self):
+        """Wiring guard: removing the check_unresolved_scope call breaks this."""
+        import datetime as dt
+
+        from scripts.validation.verify_issue_close import IssueComment
+
+        fix_time = dt.datetime(2026, 7, 1, 10, 0, 0, tzinfo=dt.timezone.utc)
+        # Novel phrasing that no keyword list would catch
+        comment = IssueComment(
+            author="human",
+            author_type="User",
+            created_at=dt.datetime(2026, 7, 2, 0, 0, 0, tzinfo=dt.timezone.utc),
+            url="https://github.com/o/r/issues/7#issuecomment-42",
+            body="fwiw the ARM64 path panics on the same input",
+        )
+        gw = FakeGateway(
+            states={7: _open(7)},
+            merged_prs=frozenset({200}),
+        )
+        gw._comments = {7: [comment]}
+        gw._merge_times = {200: fix_time}
+        action = ManifestAction(
+            issue=7, category=ACTION_CLOSE,
+            rationale="Resolved via PR #200",
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        # If the wiring is removed, this would be OUTCOME_APPLIED
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert gw.closed == []
