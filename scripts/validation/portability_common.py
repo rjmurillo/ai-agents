@@ -125,9 +125,8 @@ def refuse_symlinked_scan_root(root: Path, scan_dir: Path) -> bool:
     per-root non-zero rule with files git does not track, while the real
     tracked files stay unscanned.
 
-    Resolve both paths and assert containment. A symlink pointing inside the
-    root is refused the same way: the caller can choose to allow it by not
-    calling this function, but the choice is explicit, not accidental.
+    Resolve both paths and assert containment. A symlink whose target remains
+    inside the repository is allowed because it cannot expand scan scope.
     """
     root_real = root.resolve()
     try:

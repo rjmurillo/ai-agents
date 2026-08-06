@@ -85,7 +85,7 @@ class TestRefuseSymlinkedScanRoot:
         assert refused is True
 
 
-class TestMdPortabilityScanAllRejectsSymplinkedRoot:
+class TestMdPortabilityScanAllRejectsSymlinkedRoot:
     """scan_all in check_skill_md_portability refuses symlinked scan roots."""
 
     def test_symlinked_plugin_root_raises(self, tmp_path: Path) -> None:
