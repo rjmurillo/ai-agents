@@ -541,7 +541,12 @@ def get_files_to_assess(
 
     if changed_only:
         changes = changed_files if changed_files is not None else get_changed_files(base)
-        files = [change.head_path for change in changes if change.head_path is not None]
+        files = [
+            change.head_path
+            for change in changes
+            if change.head_path is not None
+            and _target_contains(change.head_path, target)
+        ]
     else:
         target_path = Path(target)
         if target_path.is_file():
@@ -570,6 +575,28 @@ def _resolve_in_workspace(path: Path, label: str) -> Path:
     except ValueError as exc:
         raise ValueError(f"{label} escapes the workspace: {path}") from exc
     return resolved
+
+
+def _target_contains(file_path: Path, target: str) -> bool:
+    """Return whether *file_path* belongs to the requested target scope."""
+    from glob import glob
+
+    resolved_file = _resolve_in_workspace(file_path, "assessment candidate")
+    target_path = Path(target)
+    if target_path.is_file():
+        return resolved_file == _resolve_in_workspace(target_path, "--target")
+    if target_path.is_dir():
+        resolved_target = _resolve_in_workspace(target_path, "--target")
+        try:
+            resolved_file.relative_to(resolved_target)
+            return True
+        except ValueError:
+            return False
+    matches = {
+        _resolve_in_workspace(Path(match), "assessment candidate")
+        for match in glob(target, recursive=True)
+    }
+    return resolved_file in matches
 
 
 def _reject_option_like_revision(revision: str) -> None:

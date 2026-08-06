@@ -490,6 +490,24 @@ def test_changed_only_uses_base_for_clean_committed_branch(
     assert changed.exists()
 
 
+def test_changed_only_respects_target_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "other").mkdir()
+    _commit(tmp_path, "src/in_scope.py", _FOCUSED, "in scope")
+    _commit(tmp_path, "other/out_of_scope.py", _FOCUSED, "out of scope")
+    monkeypatch.chdir(tmp_path)
+
+    assert get_files_to_assess("src", True, "main") == [
+        Path("src/in_scope.py")
+    ]
+
+
 def test_changed_only_rejects_option_like_base() -> None:
     """CWE-88: an option-like --base is rejected before git runs."""
     with pytest.raises(ValueError):
