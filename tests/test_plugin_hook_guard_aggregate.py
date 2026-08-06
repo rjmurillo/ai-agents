@@ -180,17 +180,48 @@ def test_container_image_is_pinned_by_digest() -> None:
         assert "@sha256:" in image, f"job {name} must pin its container by digest, got {image}"
 
 
-def test_vanilla_linux_uses_a_real_json_parser() -> None:
-    """The command must be extracted with a parser, not grep and sed.
+def test_vanilla_rows_use_a_real_json_parser() -> None:
+    """The hook command must be extracted with a parser, not grep and sed.
 
-    The hook command contains escaped quotes, so a `"[^"]*"` pattern truncates
-    at the first one and yields an empty string. `bash -c ""` exits 0, which
-    would satisfy the did-not-deny assertion while testing nothing.
+    The command contains escaped quotes, so a `"[^"]*"` pattern truncates at
+    the first one and yields an empty string. An empty command makes the shell
+    exit 0, which would satisfy the did-not-deny assertion while testing
+    nothing. Measured: grep produced 0 characters where the real command is
+    1234.
+
+    Extraction now lives in Python (`json.loads`) rather than in the workflow,
+    so this asserts on the script and on the absence of the old shell pattern.
     """
     workflow_path = _REPO_ROOT / ".github" / "workflows" / "installed-plugin-hook-guard.yml"
-    text = workflow_path.read_text(encoding="utf-8")
-    assert 'grep -o \'"bash": "' not in text, "extract the hook command with jq, not grep"
-    assert "jq -r" in text, "vanilla Linux row must parse hooks.json with jq"
+    workflow_text = workflow_path.read_text(encoding="utf-8")
+    assert 'grep -o \'"bash": "' not in workflow_text, "never parse hooks.json with grep"
+
+    guard = _REPO_ROOT / "scripts" / "ci" / "vanilla_hook_guard.py"
+    guard_text = guard.read_text(encoding="utf-8")
+    assert "json.loads" in guard_text, "extraction must use a real JSON parser"
+
+
+def test_vanilla_rows_keep_logic_out_of_the_workflow() -> None:
+    """ADR-006. The vanilla rows previously carried 40 line shell blocks.
+
+    Two copies of the same assertions, one bash and one PowerShell, had already
+    drifted in what they checked, and neither could be unit tested.
+    """
+    yaml = pytest.importorskip("yaml")
+    workflow_path = _REPO_ROOT / ".github" / "workflows" / "installed-plugin-hook-guard.yml"
+    document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    for name in ("vanilla-linux", "vanilla-windows"):
+        for step in document["jobs"][name]["steps"]:
+            run = step.get("run", "")
+            code_lines = [
+                line for line in str(run).splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            ]
+            assert len(code_lines) <= 3, (
+                f"{name} step {step.get('name')!r} has {len(code_lines)} code lines; "
+                "move logic into a Python script per ADR-006"
+            )
+
 
     """Windows is the platform the customer reported, so it cannot be dropped."""
     yaml = pytest.importorskip("yaml")

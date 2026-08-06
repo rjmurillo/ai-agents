@@ -28,23 +28,12 @@ runs:
         python-version: '3.14'
 
     - name: Run installed plugin hook test
-      id: run
       shell: bash
+      # Argument assembly and the pass/fail branch live in the script, per
+      # ADR-006. The step fails when the script exits nonzero, which is the
+      # only signal a required check needs.
       env:
         PLUGIN_SOURCE: ${{ inputs.plugin-source }}
         NEGATIVE_ENV: ${{ inputs.negative-env }}
-      run: |
-        INSTALL_ROOT="${RUNNER_TEMP}/installed-plugins/ai-agents/project-toolkit"
-        CONSUMER_CWD="${RUNNER_TEMP}/consumer-repo"
-
-        ARGS="--plugin-source ${PLUGIN_SOURCE} --install-root ${INSTALL_ROOT} --consumer-cwd ${CONSUMER_CWD}"
-        if [ "${NEGATIVE_ENV}" = "true" ]; then
-          ARGS="${ARGS} --negative-env"
-        fi
-
-        if python scripts/ci/test_installed_plugin_hooks.py ${ARGS}; then
-          echo "result=pass" >> "$GITHUB_OUTPUT"
-        else
-          echo "result=fail" >> "$GITHUB_OUTPUT"
-          exit 1
+      run: python scripts/ci/test_installed_plugin_hooks.py --plugin-source "${PLUGIN_SOURCE}" --install-root "${RUNNER_TEMP}/installed-plugins/ai-agents/project-toolkit" --consumer-cwd "${RUNNER_TEMP}/consumer-repo" --negative-env "${NEGATIVE_ENV}"
         fi

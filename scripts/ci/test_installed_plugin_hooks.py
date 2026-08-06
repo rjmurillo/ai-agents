@@ -115,12 +115,17 @@ def main() -> int:
     parser.add_argument("--plugin-source", required=True, type=Path)
     parser.add_argument("--install-root", required=True, type=Path)
     parser.add_argument("--consumer-cwd", required=True, type=Path)
+    # Takes a value rather than being a flag so the caller can forward a
+    # workflow input directly. Assembling the flag conditionally in YAML was
+    # an ADR-006 violation and put a branch where it could not be tested.
     parser.add_argument(
         "--negative-env",
-        action="store_true",
+        choices=("true", "false"),
+        default="false",
         help="Test fail-open: unset plugin root and hide interpreter",
     )
     args = parser.parse_args()
+    negative_env = args.negative_env == "true"
 
     # Resolve all paths to absolute before any cwd change
     args.plugin_source = args.plugin_source.resolve()
@@ -145,7 +150,7 @@ def main() -> int:
             print(f"SKIP: no dispatcher for {event}")
             continue
 
-        if args.negative_env:
+        if negative_env:
             # Test fail-open: plugin root set to nonexistent path
             # (simulates Failure A: variable set but path invalid)
             proc = _run_hook(
