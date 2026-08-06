@@ -722,7 +722,10 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "in local act, not in CI where GH_TOKEN and repo info are available.",
     ),
     (
-        "installed-plugin-hook-guard",
+        # scope is matched against the GitHub event, not a workflow name, so it
+        # must stay None. Narrowness lives in the predicate below, which requires
+        # this workflow's own job and step names to appear on the failing line.
+        None,
         lambda text: any(
             "Vanilla Windows" in line
             and "row is not vanilla" in line.lower()
@@ -738,6 +741,58 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "receives, and the precondition passes. The assertion firing here is "
         "the guard working, not a defect: a row that silently stopped being "
         "vanilla would prove nothing.",
+    ),
+    (
+        # scope is matched against the GitHub event, not a workflow name, so it
+        # must stay None. Narrowness lives in the predicate below, which requires
+        # this workflow's own job and step names to appear on the failing line.
+        None,
+        lambda text: any(
+            "VANILLA GUARD CANNOT RUN" in line
+            and "docker" in line.lower()
+            and (
+                "permission denied" in line.lower()
+                or "cannot connect to the docker daemon" in line.lower()
+                or "docker is not available" in line.lower()
+            )
+            for line in text.splitlines()
+        ),
+        "the Vanilla Linux row runs the hook inside a Python-free container, "
+        "which needs a Docker socket. act executes jobs inside a container "
+        "that has no access to one, so the guard reports CANNOT RUN and exits "
+        "3. That is the guard distinguishing an unavailable environment from a "
+        "failing check, which is the behavior we want: the earlier version "
+        "misread the empty output of a failed docker call as an interpreter "
+        "having resolved. Real CI runners provide Docker and this row runs "
+        "there.",
+    ),
+    (
+        # scope is matched against the GitHub event, not a workflow name, so it
+        # must stay None. Narrowness lives in the predicate below, which requires
+        # this workflow's own job and step names to appear on the failing line.
+        None,
+        lambda text: (
+            # The aggregate reports the guard's overall verdict, so it goes red
+            # whenever a dependency does. Excuse it ONLY when the run also
+            # carries the upstream act limitation that explains that
+            # dependency, so a genuine job failure still fails the aggregate.
+            any(
+                "Plugin Hook Guard Result" in line
+                and "Assert every guard job succeeded" in line
+                for line in text.splitlines()
+            )
+            and any(
+                "VANILLA GUARD CANNOT RUN" in line and "docker" in line.lower()
+                for line in text.splitlines()
+            )
+        ),
+        "the aggregate status fails because the Vanilla Linux row could not "
+        "run under act for lack of a Docker socket. The aggregate is doing its "
+        "job: it must go red when any dependency fails or is skipped, since a "
+        "required check that reports success on a run where nothing was "
+        "verified is the false green this guard exists to prevent. This "
+        "attribution requires the upstream limitation to be present in the "
+        "same run, so a real job failure still fails the aggregate.",
     ),
 )
 

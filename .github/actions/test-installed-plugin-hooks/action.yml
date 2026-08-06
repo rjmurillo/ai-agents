@@ -36,4 +36,3 @@ runs:
         PLUGIN_SOURCE: ${{ inputs.plugin-source }}
         NEGATIVE_ENV: ${{ inputs.negative-env }}
       run: python scripts/ci/test_installed_plugin_hooks.py --plugin-source "${PLUGIN_SOURCE}" --install-root "${RUNNER_TEMP}/installed-plugins/ai-agents/project-toolkit" --consumer-cwd "${RUNNER_TEMP}/consumer-repo" --negative-env "${NEGATIVE_ENV}"
-        fi
