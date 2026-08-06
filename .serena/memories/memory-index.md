@@ -11,7 +11,7 @@
 |gh graphql rest rate limit budget separate exhaustion pr list api repos: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity exhaustion statusCheckRollup 504 mergeStateStatus UNKNOWN lazy: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)
 |rebase after push non-fast-forward force-push forbidden merge remote tip scope explosion miscount: [git/git-rebase-after-push-costs-two-cycles](git/git-rebase-after-push-costs-two-cycles.md) (1350)
-|push takes 15 minutes lefthook pre-push empty ls-remote means not yet vs failed liveness probe ps grep detached HEAD empty range no matching push files Ready to create pull request tail on live log: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2433)
+|push takes 15 minutes lefthook pre-push empty ls-remote means not yet vs failed liveness probe ps grep detached HEAD empty range no matching push files Ready to create pull request tail on live log skips every hook no commits between absence not failure slow push still running concurrent bogus yaml duplicate key exit status not remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2433)
 |new_pr create stale main ref session end validation failed opaque diff: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
 |git diff origin main direction stale branch deletion behind predates restore: [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) (496)
 |close_issue comment-file must stay under repo root git scratch verify-claims unmerged reason quoting: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (1884)
@@ -107,7 +107,6 @@
 |subagent sandbox worktree checkout moves head wrong commit pushed reverts unstaged edit throwaway clone push sha not head: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
 |agent steering system prompt renders from live checkout stale behind main detached superseded rule no gate catches: [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) (943)
 |git branch switch checkout file state verification lost: [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) (851)
-|push skips every hook empty range detached HEAD no commits between ls-remote absence not failure slow push still running concurrent lefthook bogus yaml duplicate key exit status not remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2433)
 |lost code recovery investigation unmerged branch orphaned: [session/recovery-001-lost-code-investigation](session/recovery-001-lost-code-investigation.md) (552)
 |cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1251)
 

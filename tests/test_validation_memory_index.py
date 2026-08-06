@@ -493,6 +493,37 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is False
         assert "skills-test-index" in result.unreferenced_indices
 
+    def test_duplicate_target_path(self, tmp_path: Path) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| first keywords: [first](shared.md)\n"
+                "| second keywords: [second](shared.md)\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert result.duplicate_references == ["shared"]
+        assert any("P0 DUPLICATE" in issue for issue in result.issues)
+
+    def test_known_duplicate_target_path_does_not_expand_scope(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| first: [first](skills-copilot-index.md)\n"
+                "| second: [second](skills-copilot-index.md)\n"
+            ),
+            "skills-copilot-index.md": "content",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is True
+        assert result.duplicate_references == []
+
     def test_broken_reference(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (
@@ -870,6 +901,21 @@ class TestMain:
             ),
         })
         exit_code = main(["--path", str(tmp_path), "--ci"])
+        assert exit_code == 1
+
+    def test_duplicate_memory_index_target_ci_fails(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| first keywords: [first](shared.md)\n"
+                "| second keywords: [second](shared.md)\n"
+            ),
+            "shared.md": "content",
+        })
+
+        exit_code = main(["--path", str(tmp_path), "--ci"])
+
         assert exit_code == 1
 
     def test_json_format(

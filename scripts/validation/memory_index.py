@@ -101,6 +101,7 @@ class MemoryIndexRefResult(ValidationIssues):
 
     unreferenced_indices: list[str] = field(default_factory=list)
     broken_references: list[str] = field(default_factory=list)
+    duplicate_references: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -170,6 +171,14 @@ _TABLE_ROW_PATTERN: re.Pattern[str] = re.compile(
 _MARKDOWN_LINK_PATTERN: re.Pattern[str] = re.compile(
     r"\[([^\]]+)\]\(([^)]+)\)"
 )
+# Issue #4705 adds a ratchet, not a cleanup of inherited duplicate paths.
+_KNOWN_DUPLICATE_MEMORY_REFS: frozenset[str] = frozenset({
+    "adr-reference-index",
+    "memory/memory-token-efficiency",
+    "memory/passive-context-vs-skills-vercel-research",
+    "project/project-labels-milestones",
+    "skills-copilot-index",
+})
 
 
 def find_domain_indices(memory_path: Path) -> list[DomainIndex]:
@@ -526,13 +535,33 @@ def check_memory_index_references(
             for link_match in _MARKDOWN_LINK_PATTERN.finditer(stripped):
                 file_refs.append(link_match.group(0))
 
-    file_refs = list({ref.strip() for ref in file_refs})
-    for file_name in file_refs:
+    normalized_refs: list[str] = []
+    for file_ref in file_refs:
         # Parse markdown link syntax
-        parsed_link = _MARKDOWN_LINK_PATTERN.search(file_name)
+        parsed_link = _MARKDOWN_LINK_PATTERN.search(file_ref)
         if parsed_link:
             link_target = parsed_link.group(2)
             file_name = re.sub(r"\.md$", "", link_target)
+        else:
+            file_name = file_ref.strip()
+        normalized_refs.append(file_name)
+
+    seen_refs: set[str] = set()
+    for file_name in normalized_refs:
+        is_new_duplicate = (
+            file_name in seen_refs
+            and file_name not in _KNOWN_DUPLICATE_MEMORY_REFS
+        )
+        if is_new_duplicate and file_name not in result.duplicate_references:
+            result.passed = False
+            result.duplicate_references.append(file_name)
+            result.issues.append(
+                f"P0 DUPLICATE: memory-index references "
+                f"{file_name}.md multiple times"
+            )
+        seen_refs.add(file_name)
+
+    for file_name in dict.fromkeys(normalized_refs):
 
         ref_path = memory_path / f"{file_name}.md"
 

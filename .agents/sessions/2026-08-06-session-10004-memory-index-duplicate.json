@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10004,
+    "date": "2026-08-06",
+    "branch": "fix/memory-index-duplicate-after-4687",
+    "startingCommit": "00a95ad5a",
+    "objective": "Repair the duplicate memory-index target path introduced after PR 4687 and add a regression guard"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools loaded; activation tool was unavailable in this harness"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill issue and pull request scripts loaded and inspected"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Root AGENTS.md skill-first rules applied"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository instructions and path-scoped rules loaded"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/memory-index.md duplicate rows and matching Git memory entry read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/memory-index-duplicate-after-4687"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Isolated worktree branch created from current origin/main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "New isolated worktree started clean"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "00a95ad5a"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All implementation and pre-commit validation items completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index.md consolidated the duplicate retrieval entry"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdownlint command ran; repository configuration excluded .serena and reported 0 files"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This session log is staged with the corrective implementation commit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "89 pytest cases passed; memory index, memory tier, count, token, taste, and ruff checks passed; mutation killed two guard tests"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 4705 records the defect, evidence, and completed scope"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-06T14:35:54+00:00",
+      "task": "Triage post-merge duplicate",
+      "outcome": "Confirmed two rows target one memory, found the existing validator deduplicates references before validation, and opened issue 4705"
+    },
+    {
+      "time": "2026-08-06T14:43:00+00:00",
+      "task": "Repair and guard memory index",
+      "outcome": "Consolidated every useful keyword into the GitHub and PR Operations row, restored the duplicate-path count from six to five, and added a guard that rejects any duplicate beyond the five inherited paths"
+    },
+    {
+      "time": "2026-08-06T14:44:00+00:00",
+      "task": "Validate corrective change",
+      "outcome": "Passed 89 tests, all requested ratchets, the full memory index validator, ruff, and a mutation control that disabled the new guard"
+    }
+  ],
+  "episodeMetrics": {
+    "filesChanged": 4,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "00a95ad5a",
+      "head": "00a95ad5a"
+    }
+  },
+  "endingCommit": "",
+  "nextSteps": [
+    "Commit, push, and open the corrective pull request"
+  ]
+}
