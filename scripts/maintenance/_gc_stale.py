@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -141,18 +142,43 @@ def _regular_file(path: Path) -> bool | None:
     not there, so nothing is at risk" is the same silent all-clear that let a
     worktree holding the only copy of a commit be listed for removal.
 
-    ``False`` is reserved for genuine absence. Something that is present but
-    not a regular file, a directory or a socket where an index or a reflog
-    belongs, is a state this probe does not understand, so it answers unknown
-    rather than treating a corrupt admin record as an empty one.
+    ``False`` is reserved for genuine absence, which means no directory entry
+    at that path at all. ``stat`` cannot establish that on its own: it follows
+    symlinks, so a link to a missing target raises the same
+    ``FileNotFoundError`` as nothing being there, and it raises
+    ``NotADirectoryError`` when a parent component is a regular file, which is
+    a corrupt admin record rather than an empty one. Both were being reported
+    as absence. ``lstat`` answers the narrower question of whether anything
+    occupies the path, so only that decides ``False``.
+
+    Something present but not a regular file, a directory or a socket where an
+    index or a reflog belongs, is a state this probe does not understand, so it
+    answers unknown rather than treating a corrupt admin record as an empty one.
     """
     try:
         mode = path.stat().st_mode
     except (FileNotFoundError, NotADirectoryError):
-        return False
+        return False if _nothing_at(path) else None
     except OSError:
         return None
-    return True if mode & 0o170000 == 0o100000 else None
+    return True if stat.S_ISREG(mode) else None
+
+
+def _nothing_at(path: Path) -> bool:
+    """Is there genuinely no directory entry at ``path``?
+
+    ``lstat`` does not follow the final symlink, so a dangling link reports as
+    present, which is the honest answer: something occupies the path and this
+    probe cannot read through it. Any other failure means the question itself
+    could not be asked, which is not absence either.
+    """
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+    return False
 
 
 def unreachable_reflog_commits(admin: Path, repo_dir: str, timeout: float) -> list[str] | None:
@@ -256,8 +282,9 @@ def _run(args: list[str], repo_dir: str, timeout: float, stdin: list[str]) -> st
         return None
     return result.stdout
 
+
 def linked_checkout_present(path: str) -> bool:
-    """Is a live linked checkout still sitting at ``path``?
+    """Is a live linked checkout for *this* entry still sitting at ``path``?
 
     Asks for the ``.git`` marker rather than the directory, because a bare
     ``exists`` verifies a pathname and not an identity. Delete a worktree and
@@ -268,9 +295,47 @@ def linked_checkout_present(path: str) -> bool:
     replacement directory does not. The main worktree, whose ``.git`` is a
     directory, never reaches here; ``decide`` returns ``KEEP_MAIN`` above.
 
-    One ``stat``, named so ``decide`` can take it as a default argument.
+    The marker existing is not enough either. Move worktree B onto worktree
+    A's deleted path and A's directory now holds a ``.git`` file, but it names
+    B's admin directory. A then reads as healthy, and every probe that follows
+    reports on A's admin record while the checkout actually there belongs to B.
+    So the marker has to point back: the admin directory it names must record
+    this same path as its worktree. A mismatch means this entry has no
+    checkout, which is the stale answer, and B is a registered entry of its own
+    that the report reaches separately.
+
+    Both links can be relative. ``worktree.useRelativePaths`` writes them that
+    way, and ``git worktree repair`` can too, so each is anchored against the
+    file that holds it rather than against the process working directory. That
+    is the same mistake ``--git-common-dir`` punishes in ``admin_dir_for``.
+
+    Two O(1) file reads, no directory scan, named so ``decide`` can take it as
+    a default argument.
     """
-    return (Path(path) / ".git").exists()
+    marker = Path(path) / ".git"
+    try:
+        recorded = marker.read_text(encoding="utf-8").strip()
+    except IsADirectoryError:
+        return True
+    except OSError:
+        return False
+    admin = _anchored(recorded.removeprefix("gitdir:").strip(), marker.parent)
+    if admin is None:
+        return False
+    try:
+        back = (admin / "gitdir").read_text(encoding="utf-8").strip()
+    except OSError:
+        return False
+    pointed = _anchored(back, admin)
+    return pointed is not None and _resolved(pointed) == _resolved(marker)
+
+
+def _anchored(recorded: str, base: Path) -> Path | None:
+    """Resolve a gitdir link against the file that holds it, not the cwd."""
+    if not recorded:
+        return None
+    link = Path(recorded)
+    return link if link.is_absolute() else base / link
 
 
 def is_stale(worktree: Worktree, checkout_present: Callable[[str], bool]) -> bool:

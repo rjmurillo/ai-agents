@@ -123,10 +123,16 @@ class TestRegularFileProbe:
     def test_an_absent_file_is_false(self, tmp_path):
         assert _gc_stale._regular_file(tmp_path / "missing") is False
 
-    def test_a_path_under_a_file_is_false(self, tmp_path):
-        """``a/b`` where ``a`` is a file raises NotADirectoryError, not ENOENT."""
+    def test_a_path_under_a_file_is_unknown(self, tmp_path):
+        """``a/b`` where ``a`` is a file is a corrupt record, not an empty one.
+
+        ``stat`` raises ``NotADirectoryError`` here, not ``ENOENT``. Reading
+        that as absence says "no index, nothing staged" about an admin
+        directory that has been overwritten by a regular file, which is the
+        state most likely to be hiding something.
+        """
         (tmp_path / "a").write_bytes(b"x")
-        assert _gc_stale._regular_file(tmp_path / "a" / "b") is False
+        assert _gc_stale._regular_file(tmp_path / "a" / "b") is None
 
     def test_a_directory_is_unknown_not_absent(self, tmp_path):
         """A directory where an index belongs is corrupt, not empty."""
@@ -138,11 +144,22 @@ class TestRegularFileProbe:
         with patch.object(Path, "stat", side_effect=PermissionError(13, "denied")):
             assert _gc_stale._regular_file(tmp_path / "index") is None
 
-    def test_a_broken_symlink_is_absent(self, tmp_path):
-        """``stat`` follows the link and raises ENOENT, which is real absence."""
+    def test_a_broken_symlink_is_unknown(self, tmp_path):
+        """Something occupies the path, so this is not absence.
+
+        ``stat`` follows the link and raises ``ENOENT``, the same error a
+        genuinely empty path raises. ``lstat`` separates them: the link itself
+        is a directory entry. A reflog behind a dangling link is a record this
+        probe cannot read, not a record that is not there.
+        """
         link = tmp_path / "index"
         link.symlink_to(tmp_path / "nowhere")
-        assert _gc_stale._regular_file(link) is False
+        assert _gc_stale._regular_file(link) is None
+
+    def test_only_an_empty_path_is_absent(self, tmp_path):
+        """The one case that earns ``False``, stated next to its near-misses."""
+        assert _gc_stale._regular_file(tmp_path / "missing") is False
+        assert _gc_stale._nothing_at(tmp_path / "missing") is True
 
 
 class TestReflogProbeUnknowns:

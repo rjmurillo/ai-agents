@@ -17,6 +17,8 @@ tested in ``test_gc_worktrees_stale_apply.py``.
 
 from __future__ import annotations
 
+import os
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 
@@ -401,22 +403,94 @@ class TestReflogWarning:
         assert reason.index("WARNING") < reason.index("git worktree remove")
 
 
+def _linked(root: Path, name: str) -> Path:
+    """Stage the file layout git writes for a linked worktree.
+
+    ``<checkout>/.git`` holds ``gitdir: <admin>`` and ``<admin>/gitdir`` holds
+    ``<checkout>/.git``. The pair is what identifies the checkout; either half
+    alone can be true of a directory that belongs to something else. Verified
+    against real git in ``test_gc_worktrees_real_git_stale.py``.
+    """
+    checkout = root / name
+    checkout.mkdir(parents=True)
+    admin = root / "main" / ".git" / "worktrees" / name
+    admin.mkdir(parents=True)
+    (checkout / ".git").write_text(f"gitdir: {admin}\n", encoding="utf-8")
+    (admin / "gitdir").write_text(f"{checkout / '.git'}\n", encoding="utf-8")
+    return checkout
+
+
 class TestCheckoutPresence:
-    """A pathname is not an identity.
+    """A pathname is not an identity, and neither is a bare marker.
 
     ``decide`` treats a missing checkout as a stale entry. Asking whether the
     *directory* is there answers a weaker question than the one that matters:
     delete a worktree and put an ordinary directory at the same path and the
     entry reads as healthy while its admin record points at something that is
-    no longer that worktree. The ``.git`` marker is what makes it that
-    worktree, so that is what gets asked.
+    no longer that worktree.
+
+    Asking only whether ``.git`` is there is still too weak. Move worktree B
+    onto worktree A's deleted path and A's directory holds a marker again, but
+    it names B's admin directory. The link has to close: the admin directory
+    the marker names must record this same path back.
     """
 
     def test_a_linked_checkout_carries_the_marker(self, tmp_path):
+        checkout = _linked(tmp_path, "wt")
+        assert _gc_stale.linked_checkout_present(str(checkout)) is True
+
+    def test_a_marker_naming_another_worktrees_admin_dir_does_not(self, tmp_path):
+        """Move worktree B onto worktree A's deleted path.
+
+        A's directory now holds a ``.git`` file, so a marker-exists check calls
+        A healthy. The file names B's admin directory, and B's admin directory
+        records B's path, so nothing about A's checkout is there. Every probe
+        that follows would read B's admin record and report it as A's.
+        """
+        moved = _linked(tmp_path, "moved")
+        vacated = tmp_path / "vacated"
+        shutil.move(str(moved), str(vacated))
+        assert (vacated / ".git").is_file()
+        assert _gc_stale.linked_checkout_present(str(vacated)) is False
+
+    def test_a_marker_naming_a_missing_admin_dir_does_not(self, tmp_path):
         checkout = tmp_path / "wt"
         checkout.mkdir()
         (checkout / ".git").write_text("gitdir: /repo/.git/worktrees/wt\n", encoding="utf-8")
-        assert _gc_stale.linked_checkout_present(str(checkout)) is True
+        assert _gc_stale.linked_checkout_present(str(checkout)) is False
+
+    def test_an_empty_marker_does_not(self, tmp_path):
+        checkout = tmp_path / "wt"
+        checkout.mkdir()
+        (checkout / ".git").write_text("gitdir:\n", encoding="utf-8")
+        assert _gc_stale.linked_checkout_present(str(checkout)) is False
+
+    def test_a_main_worktree_carries_a_directory_not_a_file(self, tmp_path):
+        """``.git`` is a real directory here, so there is no link to follow."""
+        main = tmp_path / "main"
+        (main / ".git").mkdir(parents=True)
+        assert _gc_stale.linked_checkout_present(str(main)) is True
+
+    def test_relative_links_resolve_against_the_file_that_holds_them(self, tmp_path):
+        """``worktree.useRelativePaths`` writes both sides relative.
+
+        Resolving either against the process working directory instead of
+        against its own file turns a healthy worktree into a stale entry.
+        """
+        checkout = _linked(tmp_path, "wt")
+        admin = tmp_path / "main" / ".git" / "worktrees" / "wt"
+        (checkout / ".git").write_text(
+            f"gitdir: {os.path.relpath(admin, checkout)}\n", encoding="utf-8"
+        )
+        (admin / "gitdir").write_text(
+            f"{os.path.relpath(checkout / '.git', admin)}\n", encoding="utf-8"
+        )
+        cwd = os.getcwd()
+        os.chdir(tmp_path.parent)
+        try:
+            assert _gc_stale.linked_checkout_present(str(checkout)) is True
+        finally:
+            os.chdir(cwd)
 
     def test_a_replacement_directory_does_not(self, tmp_path):
         """The case a bare ``exists`` call cannot see."""
