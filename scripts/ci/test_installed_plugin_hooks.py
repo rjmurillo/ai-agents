@@ -162,7 +162,7 @@ def main() -> int:
                 )
                 failures += 1
             else:
-                warning_present = b"INFRASTRUCTURE FAILURE" in proc.stderr
+                warning_present = b"hooks DISABLED" in proc.stderr
                 if not warning_present:
                     print(
                         f"FAIL: {event} allowed but no warning on stderr.\n"

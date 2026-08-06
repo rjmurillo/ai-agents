@@ -98,8 +98,8 @@ class TestInfrastructureFailOpen:
         )
 
         assert proc.returncode == 0
-        assert b"INFRASTRUCTURE FAILURE" in proc.stderr
-        assert b"ALLOWING" in proc.stderr
+        assert b"hooks DISABLED" in proc.stderr
+        assert b"your session is unaffected" in proc.stderr
 
     def test_missing_plugin_marker_allows(self, tmp_path: Path) -> None:
         """Plugin root exists but .claude-plugin/plugin.json absent."""
@@ -119,7 +119,7 @@ class TestInfrastructureFailOpen:
         )
 
         assert proc.returncode == 0
-        assert b"INFRASTRUCTURE FAILURE" in proc.stderr
+        assert b"hooks DISABLED" in proc.stderr
 
     def test_missing_hook_dispatch_module_allows(self, tmp_path: Path) -> None:
         """hook_dispatch module not importable (lib empty)."""
@@ -145,8 +145,8 @@ class TestInfrastructureFailOpen:
         )
 
         assert proc.returncode == 0
-        assert b"INFRASTRUCTURE FAILURE" in proc.stderr
-        assert b"ALLOWING" in proc.stderr
+        assert b"hooks DISABLED" in proc.stderr
+        assert b"your session is unaffected" in proc.stderr
 
     def test_unresolvable_plugin_root_allows(self, tmp_path: Path) -> None:
         """CLAUDE_PLUGIN_ROOT points to a nonexistent directory."""
@@ -164,7 +164,7 @@ class TestInfrastructureFailOpen:
         )
 
         assert proc.returncode == 0
-        assert b"INFRASTRUCTURE FAILURE" in proc.stderr
+        assert b"hooks DISABLED" in proc.stderr
 
 
 class TestPolicyDenialStillDenies:
@@ -221,3 +221,96 @@ class TestOversizePayloadStillDenies:
 
         # Happy path with a small payload and allowing shim: exit 0
         assert proc.returncode == 0
+
+
+class TestTooOldPythonDegrades:
+    """Python below floor (3.10) must degrade with warning, not crash."""
+
+    def test_old_python_bash_command_allows(self, tmp_path: Path) -> None:
+        """Simulate python3 reporting version 3.8 via a wrapper script."""
+        import stat as stat_mod
+
+        # Create a fake python3 that reports 3.8
+        fake_bin = tmp_path / "bin"
+        fake_bin.mkdir()
+        fake_python = fake_bin / "python3"
+        fake_python.write_text(
+            "#!/bin/sh\n"
+            'case "$1" in\n'
+            "  -c) exit 1 ;;\n"  # All -c calls fail (version check fails)
+            "  --version) printf 'Python 3.8.10\\n'; exit 0 ;;\n"
+            "esac\n"
+            "exit 0\n",
+            encoding="utf-8",
+        )
+        fake_python.chmod(stat_mod.S_IRWXU)
+
+        # Extract the bash command from hooks.json
+        import json
+
+        hooks_json = REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json"
+        data = json.loads(hooks_json.read_text())
+        bash_cmd = None
+        for _event_name, entries in data["hooks"].items():
+            if isinstance(entries, list):
+                for entry in entries:
+                    if isinstance(entry, dict) and "PreToolUse" in entry.get("bash", ""):
+                        bash_cmd = entry["bash"]
+                        break
+            if bash_cmd:
+                break
+
+        assert bash_cmd is not None, "Could not find PreToolUse bash command"
+
+        import os
+        import subprocess
+
+        env = dict(os.environ)
+        env["PATH"] = str(fake_bin)  # Only fake python3 on PATH
+        env["COPILOT_PLUGIN_ROOT"] = str(tmp_path)
+
+        proc = subprocess.run(
+            ["/usr/bin/bash", "-c", bash_cmd],
+            capture_output=True,
+            env=env,
+            timeout=10,
+        )
+
+        assert proc.returncode == 0, f"Expected 0, got {proc.returncode}: {proc.stderr.decode()}"
+        stderr = proc.stderr.decode()
+        assert "hooks DISABLED" in stderr
+        assert "3.10" in stderr
+        assert "python.org/downloads" in stderr
+
+
+class TestWarningTextContent:
+    """Warning messages must be specific and actionable."""
+
+    def test_infra_warning_names_plugin(self, tmp_path: Path) -> None:
+        root = tmp_path / "plugin"
+        root.mkdir()
+        event_dir = root / "hooks" / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        canonical = REPO_ROOT / ".claude" / "hooks" / "PreToolUse" / "_bootstrap.py"
+        (event_dir / "_bootstrap.py").write_bytes(canonical.read_bytes())
+        gd.write_entrypoint(event_dir, "PreToolUse")
+
+        proc = _run_dispatch(
+            event_dir / "_dispatch.py",
+            BASH_PAYLOAD,
+            env_override={"CLAUDE_PLUGIN_ROOT": "/nonexistent"},
+        )
+
+        assert proc.returncode == 0
+        stderr = proc.stderr.decode()
+        # Must name the plugin
+        assert "project-toolkit@ai-agents" in stderr
+        # Must say hooks are disabled and session is unaffected
+        assert "hooks DISABLED" in stderr
+        assert "session is unaffected" in stderr
+        # Must state the required version
+        assert "3.10" in stderr
+        # Must give install URL
+        assert "python.org/downloads" in stderr
+        # Must NOT contain a raw stack trace
+        assert "Traceback" not in stderr
