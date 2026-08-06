@@ -1,0 +1,194 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2,
+    "date": "2026-08-05",
+    "branch": "docs/botpat-identity-git-transport-memory",
+    "startingCommit": "f36f1ed72",
+    "objective": "Record BOT_PAT identity defect and git-transport-survives-rate-limit findings as memory; file issues 4607 and 4608"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools are not exposed in this session. Used the fallback AGENTS.md names for Serena Init: read memories directly from .serena/memories/."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Same fallback path. Project context came from AGENTS.md, .claude/rules/, and .agents/architecture/ADR-026 and ADR-084."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read earlier in this session; left unmodified per ADR-014."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/issue/ and ran --help on new_issue.py and post_issue_comment.py before invoking them."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-First honored: issues 4607 and 4608 and the 4608 correction went through the github skill scripts, not raw gh."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read ADR-026 Decision 5, ADR-084 rules 1 to 3, scripts/ci/count_ratchet.py, and tests/ci/test_count_ratchet_against_real_git.py."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Searched .serena/memories for prior rate-limit coverage (38 matches) and read ci/github-rate-limit-payload-does-not-predict-service.md in full."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/botpat-identity-git-transport-memory"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/botpat-identity-git-transport-memory"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f36f1ed72"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items above carry evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Appended two sections to .serena/memories/ci/github-rate-limit-payload-does-not-predict-service.md rather than creating duplicate memories."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Markdown auto-lint ran on the memory edit via the postToolUse hook."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session commits, in committer-date order: 758f343430581bd3cbfd4f7d779bf045fb5fb1aa, 9b21b499583eec4b70251aa4b9c89b5332b37634, c1b92aa58a617e1d54ccbb700ddc0cb979081aa8, eeea83ffe4264ddddd21cd0a3a602f0e52546d14, 4b92a2c6356d8b94e5166e9978f705f026fc6892, de14211f46c0e8e0363f55002ac1234cbbd7f7fb, 7a7fe051e7af12a5560630051672d7571e3b1259, d34766e1babf0762a14d2445229aa9c076895ff3, and f1a805fc531ea17aa62517c39ba7deedf30f091a. The last commit is the final branch tip for this session."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py run against this log."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-05-pr-queue-and-doctrine.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Verified the memory branch push landed by SHA rather than by elapsed time",
+      "detail": "git ls-remote returned 9b21b499583eec4b70251aa4b9c89b5332b37634 for refs/heads/docs/botpat-identity-git-transport-memory, equal to local HEAD, and ps showed 0 remaining push processes. Two earlier reads of the same command were empty; pairing them with the process count is what distinguished 'not yet' from 'failed' and avoided two wasted 15 minute push cycles.",
+      "timestamp": "2026-08-05T07:26:24Z"
+    },
+    {
+      "action": "Opened PR #4616 for the session record branch",
+      "detail": "new_pr.py passed all six pre-creation validations, including the prohibited-dash and escaped-newline checks. The PR body matched the diff at creation time.",
+      "timestamp": "2026-08-05T07:53:51Z"
+    },
+    {
+      "action": "Resolved review thread PRRT_kwDOQoWRls6Wh-Ig on PR #4598, then corrected my own reply",
+      "detail": "The reviewer asked for wording that the file already carried, and both examples already had --frozen, so I replied with the quoted line and resolved. Commit c3332dad7 by another agent then reworded that same sentence, which made my quote stale. Posted comment 5189180366 flagging my own error rather than leaving an inaccurate quote in the thread record.",
+      "timestamp": "2026-08-05T08:00:38Z"
+    },
+    {
+      "action": "Wrote the session retrospective",
+      "detail": ".agents/retrospective/2026-08-05-pr-queue-and-doctrine.md, following the byte exact template in .claude/skills/retrospective/references/learning-template.md. Five Whys on the burned push cycles and on the self inflicted CI outage. Five learnings, each with a matching skillbook ADD block and a deduplication row. Verified every cited memory path exists before publishing; one first search looked in the wrong directory and would have produced a false 'does not exist' claim.",
+      "timestamp": "2026-08-05T08:16:32Z"
+    },
+    {
+      "action": "Ran the pre-push preflight before pushing PR #4598 instead of after",
+      "detail": "Baseline compare (583 local, 583 on main), then 312 tests across test_no_duplicate_module_level_defs, test_check_duplicate_test_helpers, test_extract_session_episode, and the new test_memory_index_token_ratchet that main had just introduced. All passed in 11.61 seconds. The new memory index ratchet was worth running because this branch edits memory-index.md.",
+      "timestamp": "2026-08-05T07:57:28Z"
+    },
+    {
+      "action": "Resolved PR #4587 merge conflict",
+      "detail": "lefthook.yml and scripts/validation/checks_ratchet.py both had add/add conflicts with an empty merge base. Kept both ratchet entries. 66 tests pass; a negative control removing one entry produced exactly 2 parity failures, so the pass is evidence. Merge commit f96e6b832, pushed and SHA verified.",
+      "timestamp": "2026-08-05T08:33:29Z"
+    },
+    {
+      "action": "Acted on the Sol adversarial audit of the retrospective",
+      "detail": "Sol raised 2 CRITICAL and 8 HIGH findings. Verified each against the cited files before conceding. Both CRITICAL findings were real: a transposed 4928 for the measured core=4948, and rate_limit framed as an empty result when it was a falsely reassuring non-empty. Applied 11 corrections plus a provenance section separating repo-verifiable figures from session-attested ones.",
+      "timestamp": "2026-08-05T09:06:24Z"
+    },
+    {
+      "action": "Merged main into the memory branch and resolved two conflicts by intent",
+      "detail": "Both were add/add on the empty-push memory and the memory index. Kept both sides where the merge base was empty. Keeping both sections grew the memory from 1972 to 2435 tokens, which memory_index_token_ratchet.py caught; refreshed with update_memory_index_tokens.py. Post-merge duplicate checks passed at 18 tests.",
+      "timestamp": "2026-08-05T09:30:37Z"
+    },
+    {
+      "action": "Wrote a memory after measuring its central claim, and corrected its recipe",
+      "detail": "A ratchet is declared in lefthook.yml and checks_ratchet.py. Deleting one side fails 2 tests; deleting both leaves 16 passed, so the parity test measures agreement and not existence. The draft recipe named a grep I had never run: it returns 64, every lefthook job, and pairs with nothing. Replaced with a pattern that returns 7 on both sides.",
+      "timestamp": "2026-08-05T09:42:07Z"
+    },
+    {
+      "action": "Corrected an unreproducible number in the section about rigor",
+      "detail": "The retrospective Provenance block listed 22 call sites passing secrets.BOT_PAT as repo-verifiable. A bare grep returns 56 across 12 files; only bot-pat pass-through sites are 22. Named the pattern in both the retrospective and the PR body.",
+      "timestamp": "2026-08-05T09:06:24Z"
+    },
+    {
+      "action": "Proved the shared-budget chain end to end from a CI log, and found half of issue 4547 fixed",
+      "detail": "PR 4598 run 30988215939: the AI review context build took HTTP 403 API rate limit exceeded for user ID 6811113, the human account, so all ten agents skipped the Copilot invocation and emitted DID_NOT_RUN, which check_critical_failures.py treats as blocking. That settles the open question in 4487. Classification is fixed and retry is not: the issue own grep now returns five hits, all signature code, and every agent logged retries 0 because the retry guards the invocation that gets skipped.",
+      "timestamp": "2026-08-05T10:23:07Z"
+    },
+    {
+      "action": "Read the response header instead of the rate_limit payload, and they contradicted",
+      "detail": "At 10:13:48Z gh api rate_limit reported core remaining 4829 of 5000. At 10:15:22Z the header on a refused core call reported remaining 0 and used 5001. Same bucket name, opposite readings, 94 seconds apart. The header put it in exhaustion mode with an 18 minute window, so a short fixed backoff would have failed three times. Recorded in the existing memory rather than a new one.",
+      "timestamp": "2026-08-05T10:15:22Z"
+    },
+    {
+      "action": "Resolved a session-log filename collision between two concurrent agents",
+      "detail": "main carried .agents/sessions/2026-08-05-session-9999.json for branch fix/4519-4520-coupling-diffbase while this branch carried a different session under the same name. Different sessions, not a diverged one, so merging the workLogs would have falsified both records. Kept main copy at 9999 and re-filed this session as session-2.",
+      "timestamp": "2026-08-05T11:18:01Z"
+    }
+  ],
+  "episodeMetrics": {
+    "filesChanged": 10,
+    "comparison": {
+      "kind": "githubPullRequest",
+      "pullRequest": 4616,
+      "base": "4ce088f082f4e2ba82975b8918564b8dfd2b1d60",
+      "head": "afae287fab7082cea2d0d565ba5278a6bd2a86fd"
+    }
+  },
+  "endingCommit": "f1a805fc531ea17aa62517c39ba7deedf30f091a",
+  "nextSteps": []
+}
