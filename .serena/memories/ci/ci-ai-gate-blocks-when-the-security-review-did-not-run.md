@@ -47,6 +47,7 @@ find pull request diff: HTTP 403: API rate limit exceeded for user ID 6811113
 The review action then failed fetching the PR diff. The enclosing agent job did
 not die: it saved results and concluded `success`. Read the first `##[error]`
 in a failing agent job; the trailing summary is a template, not a diagnosis.
+
 ## Why the per-agent job says "Not blocking PR" while the PR is blocked
 
 Two different decisions. Reading the first as final is the trap.
