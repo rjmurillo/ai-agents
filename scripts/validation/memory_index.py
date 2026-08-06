@@ -182,6 +182,23 @@ _ALLOWED_MEMORY_REF_COUNTS: dict[str, int] = {
 }
 
 
+def _resolve_memory_reference(
+    memory_path: Path,
+    resolved_memory: Path,
+    file_name: str,
+) -> tuple[str | None, Path]:
+    """Resolve a memory reference and return its canonical identity."""
+    normalized_name = file_name.replace("\\", "/")
+    resolved_ref = (memory_path / f"{normalized_name}.md").resolve()
+    if not resolved_ref.is_relative_to(resolved_memory):
+        return None, resolved_ref
+
+    relative_ref = resolved_ref.relative_to(resolved_memory).as_posix()
+    identity = re.sub(r"\.md$", "", relative_ref, flags=re.IGNORECASE)
+    canonical_identity = os.path.normcase(identity).replace("\\", "/")
+    return canonical_identity, resolved_ref
+
+
 def find_domain_indices(memory_path: Path) -> list[DomainIndex]:
     """Find all domain index files (skills-*-index.md pattern)."""
     if not memory_path.exists():
@@ -542,12 +559,34 @@ def check_memory_index_references(
         parsed_link = _MARKDOWN_LINK_PATTERN.search(file_ref)
         if parsed_link:
             link_target = parsed_link.group(2)
-            file_name = re.sub(r"\.md$", "", link_target)
+            file_name = re.sub(
+                r"\.md$", "", link_target, flags=re.IGNORECASE
+            )
         else:
             file_name = file_ref.strip()
         normalized_refs.append(file_name)
 
-    reference_counts = Counter(normalized_refs)
+    canonical_refs: list[str] = []
+    resolved_refs: dict[str, Path] = {}
+    for file_name in normalized_refs:
+        canonical_identity, resolved_ref = _resolve_memory_reference(
+            memory_path,
+            resolved_memory,
+            file_name,
+        )
+        if canonical_identity is None:
+            result.passed = False
+            result.broken_references.append(file_name)
+            result.issues.append(
+                f"P1 VALIDITY: Path traversal detected "
+                f"in memory-index: {file_name}.md"
+            )
+            continue
+
+        canonical_refs.append(canonical_identity)
+        resolved_refs.setdefault(canonical_identity, resolved_ref)
+
+    reference_counts = Counter(canonical_refs)
     for file_name, observed_count in reference_counts.items():
         allowed_count = _ALLOWED_MEMORY_REF_COUNTS.get(file_name, 1)
         if observed_count > allowed_count:
@@ -559,21 +598,7 @@ def check_memory_index_references(
                 f"allowed {allowed_count}"
             )
 
-    for file_name in reference_counts:
-
-        ref_path = memory_path / f"{file_name}.md"
-
-        # Security: Prevent path traversal (CWE-22).
-        resolved_ref = ref_path.resolve()
-        if not resolved_ref.is_relative_to(resolved_memory):
-            result.passed = False
-            result.broken_references.append(file_name)
-            result.issues.append(
-                f"P1 VALIDITY: Path traversal detected "
-                f"in memory-index: {file_name}.md"
-            )
-            continue
-
+    for file_name, resolved_ref in resolved_refs.items():
         if not resolved_ref.exists():
             result.passed = False
             result.broken_references.append(file_name)

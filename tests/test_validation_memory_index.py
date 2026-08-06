@@ -508,6 +508,57 @@ class TestCheckMemoryIndexReferences:
         assert result.duplicate_references == ["shared"]
         assert any("P0 DUPLICATE" in issue for issue in result.issues)
 
+    def test_dot_alias_counts_as_same_target(self, tmp_path: Path) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| first keywords: [first](shared.md)\n"
+                "| second keywords: [second](./shared.md)\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert result.duplicate_references == ["shared"]
+
+    def test_section_relative_alias_counts_as_same_target(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| first keywords: [first](shared.md)\n"
+                "| second keywords: [second](section/../shared.md)\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert result.duplicate_references == ["shared"]
+
+    def test_case_alias_uses_platform_case_semantics(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| first keywords: [first](Shared.md)\n"
+                "| second keywords: [second](shared.md)\n"
+            ),
+            "Shared.md": "content",
+            "shared.md": "content",
+        })
+
+        with patch(
+            "scripts.validation.memory_index.os.path.normcase",
+            side_effect=lambda value: value.lower(),
+        ):
+            result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert result.duplicate_references == ["shared"]
+
     @pytest.mark.parametrize(
         "file_name",
         [
@@ -548,6 +599,37 @@ class TestCheckMemoryIndexReferences:
                 "3 times, allowed 2" in issue
                 for issue in result.issues
             )
+
+    @pytest.mark.parametrize(
+        "file_name",
+        [
+            "adr-reference-index",
+            "memory/memory-token-efficiency",
+            "memory/passive-context-vs-skills-vercel-research",
+            "project/project-labels-milestones",
+            "skills-copilot-index",
+        ],
+    )
+    def test_inherited_duplicate_alias_exceeding_limit_fails(
+        self, tmp_path: Path, file_name: str
+    ) -> None:
+        target = tmp_path / f"{file_name}.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("content")
+        (tmp_path / "memory-index.md").write_text(
+            f"| first keywords: [first]({file_name}.md)\n"
+            f"| second keywords: [second]({file_name}.md)\n"
+            f"| third keywords: [third](./{file_name}.md)\n"
+        )
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert result.duplicate_references == [file_name]
+        assert any(
+            "3 times, allowed 2" in issue
+            for issue in result.issues
+        )
 
     def test_broken_reference(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
@@ -623,16 +705,22 @@ class TestCheckMemoryIndexReferences:
         assert not result.broken_references
 
     def test_path_traversal_detected(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
+        memory_path = tmp_path / "memories"
+        create_memory_structure(memory_path, {
             "memory-index.md": (
                 "| Keywords | File |\n"
                 "|----------|------|\n"
-                "| evil | ../../../../etc/passwd |\n"
+                "| evil | ../outside |\n"
+                "| alias | .././outside |\n"
             ),
         })
-        result = check_memory_index_references(tmp_path, [])
+        (tmp_path / "outside.md").write_text("content")
+
+        result = check_memory_index_references(memory_path, [])
+
         assert result.passed is False
         assert any("Path traversal" in i for i in result.issues)
+        assert result.duplicate_references == []
 
 
 # ---------------------------------------------------------------------------
