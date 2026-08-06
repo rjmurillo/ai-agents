@@ -1,19 +1,9 @@
-"""Guards for the shallow-graft class of CI defect (issue #4572).
+"""Runtime guards for the shallow-graft class of CI defect (issue #4572).
 
-A `git fetch --depth=1` does not merely limit one fetch. It writes
-`.git/shallow`, which git shares across the whole repository and every
-worktree, and it severs ancestry traversal for every later step in the same
-job. A subsequent full fetch does not remove the graft; only `--unshallow`
-does.
-
-That makes the trap invisible at the step that pays for it. The step that
-writes the graft succeeds, and a different step further down the job fails, or
-worse, silently measures the wrong range. Two consumers in this repository were
-corrupted this way:
-
-* `git merge-tree` aborts with "refusing to merge unrelated histories" (rc 128).
-* A two-dot diff range widens from the branch's own commits to everything that
-  differs between the base tip and the branch.
+A `git fetch --depth=1` writes `.git/shallow`, which git shares across the
+whole repository and every worktree, and it severs ancestry traversal for
+every later step in the same job. A plain `git fetch` afterwards does not
+repair it.
 
 Measured on a complete clone of this repository, before and after a single
 `git fetch --depth=1 origin main`, with no other change:
@@ -23,9 +13,16 @@ Measured on a complete clone of this repository, before and after a single
     git merge-tree --write-tree       rc 0       ->  rc 128
     git merge-base base head          rc 0       ->  rc 1
 
-The tests here pin the two halves of the remedy: workflows must not write the
-graft, and the CI entrypoints that resolve a range must refuse to answer when
-the graft is present rather than answering wrongly.
+`git fetch --unshallow` removes the graft, and so does a `--deepen` large
+enough to reach the root commit; both were measured against this repository.
+The distinction matters because the remedy printed by
+`_check_history_integrity` names `--unshallow`, and a reader who believed a
+plain fetch sufficed is exactly how the defect shipped.
+
+This module is the containment half: the CI entrypoints that resolve a range
+must refuse to answer under a graft rather than answering wrongly. The
+prevention half, the static invariant that no workflow writes the graft, lives
+in test_shallow_fetch_workflow_invariant.py.
 """
 
 from __future__ import annotations
@@ -35,114 +32,9 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 POLICY = REPO_ROOT / "scripts" / "validation" / "git_hook_policy.py"
-
-DEFAULT_CHECKOUT_DEPTH = 1
-
-
-def _jobs(document: object) -> dict[str, dict[str, object]]:
-    if not isinstance(document, dict):
-        return {}
-    jobs = document.get("jobs")
-    if not isinstance(jobs, dict):
-        return {}
-    return {name: job for name, job in jobs.items() if isinstance(job, dict)}
-
-
-def _steps(job: dict[str, object]) -> list[dict[str, object]]:
-    steps = job.get("steps")
-    if not isinstance(steps, list):
-        return []
-    return [step for step in steps if isinstance(step, dict)]
-
-
-def _checkout_depths(job: dict[str, object]) -> set[object]:
-    """Every `fetch-depth` the job's checkout steps request.
-
-    An absent `fetch-depth` is the action's default of 1, which is itself
-    shallow, so it is reported as 1 rather than dropped.
-    """
-    depths: set[object] = set()
-    for step in _steps(job):
-        uses = step.get("uses")
-        if not isinstance(uses, str) or "actions/checkout" not in uses:
-            continue
-        with_block = step.get("with")
-        if not isinstance(with_block, dict):
-            depths.add(DEFAULT_CHECKOUT_DEPTH)
-            continue
-        depths.add(with_block.get("fetch-depth", DEFAULT_CHECKOUT_DEPTH))
-    return depths
-
-
-def _depth_limited_fetches(job: dict[str, object]) -> list[tuple[str, str]]:
-    """Uncommented `git fetch` lines in the job that pass a `--depth` flag."""
-    found: list[tuple[str, str]] = []
-    for step in _steps(job):
-        run = step.get("run")
-        if not isinstance(run, str):
-            continue
-        name = step.get("name")
-        for raw_line in run.splitlines():
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if "git fetch" in line and "--depth" in line:
-                found.append((str(name), line))
-    return found
-
-
-def _workflow_documents() -> list[tuple[Path, object]]:
-    documents: list[tuple[Path, object]] = []
-    for path in sorted(WORKFLOW_DIR.glob("*.yml")):
-        documents.append((path, yaml.safe_load(path.read_text(encoding="utf-8"))))
-    return documents
-
-
-def test_workflow_directory_is_not_empty() -> None:
-    """Scope control for the invariant below (testing rule 10).
-
-    A zero-finding sweep proves nothing when the examined count is unknown, and
-    a glob that stops matching would make the next test vacuous while still
-    reporting green.
-    """
-    documents = _workflow_documents()
-    assert len(documents) >= 10, (
-        f"expected the workflow sweep to examine files, saw {len(documents)}"
-    )
-    assert sum(len(_jobs(doc)) for _, doc in documents) >= 10
-
-
-def test_no_job_mixes_a_full_checkout_with_a_depth_limited_fetch() -> None:
-    """Issue #4572: the graft is written by a step that does not pay for it.
-
-    Scoped to jobs that already check out at `fetch-depth: 0`, because there a
-    `--depth=1` fetch is pure downside: the history is present already, so the
-    flag saves no bandwidth and its only observable effect is the graft. A job
-    that deliberately checks out shallow is left alone; it has made a different
-    trade knowingly.
-    """
-    offenders: list[str] = []
-    examined = 0
-    for path, document in _workflow_documents():
-        for job_name, job in _jobs(document).items():
-            examined += 1
-            if 0 not in _checkout_depths(job):
-                continue
-            for step_name, line in _depth_limited_fetches(job):
-                offenders.append(f"{path.name}::{job_name} step {step_name!r}: {line}")
-
-    assert examined >= 10, f"sweep examined only {examined} jobs"
-    assert not offenders, (
-        "a job checks out at fetch-depth 0 and then fetches with --depth, which "
-        "writes .git/shallow for the rest of the job and severs ancestry for "
-        "every later step (issue #4572). Drop the --depth flag:\n  "
-        + "\n  ".join(offenders)
-    )
 
 
 def _git(repo: Path, *argv: str) -> subprocess.CompletedProcess[str]:
@@ -298,3 +190,5 @@ def test_a_depth_limited_fetch_really_does_graft_a_complete_clone(
 
     assert _git(clone, "fetch", "--unshallow", str(origin)).returncode == 0
     assert not (clone / ".git" / "shallow").exists()
+
+
