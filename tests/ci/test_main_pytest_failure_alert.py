@@ -78,6 +78,16 @@ def test_gh_failure_exits_external(monkeypatch):
     assert rc == 3
 
 
+def test_main_gh_failure_exits_external(monkeypatch):
+    for key, value in _env({"test": {"result": "failure"}}).items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setattr(alert, "_run_gh", lambda args: _completed(stderr="api down", rc=1))
+
+    rc = alert.main()
+
+    assert rc == 3
+
+
 def test_pytest_workflow_wires_main_failure_alert():
     workflow = yaml.safe_load(
         (REPO_ROOT / ".github/workflows/pytest.yml").read_text(encoding="utf-8")
