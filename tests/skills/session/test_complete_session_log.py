@@ -1,5 +1,6 @@
 """Tests for complete_session_log.py session completion script."""
 
+import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -252,36 +253,32 @@ class TestUncommittedChanges:
         assert complete_session_log._test_uncommitted_changes() is True
 
 
-class TestExcludePathAbsoluteVsRelative:
-    """Regression: absolute session_path must be relpath'd before exclusion."""
+class TestMainNormalizesExcludePathToRelative:
+    """Integration: main() relpath's session_path for porcelain exclusion."""
 
-    @patch("complete_session_log.subprocess.run")
-    def test_absolute_exclude_does_not_match_relative_porcelain(self, mock_run):
-        """Absolute path fails to exclude the relative porcelain entry."""
-        session = ".agents/sessions/2026-08-03-session-0001.json"
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout=f" M {session}\n M src/app.py\n",
-        )
-        # Absolute: exclusion misses, both lines count
-        assert complete_session_log._test_uncommitted_changes(
-            exclude_path=f"/home/user/repo/{session}"
-        ) is True
-        # Relative: exclusion hits, only src/app.py remains
-        assert complete_session_log._test_uncommitted_changes(
-            exclude_path=session
-        ) is True  # src/app.py still dirty
-
-    @patch("complete_session_log.subprocess.run")
-    def test_relative_exclude_reports_clean_when_only_session_dirty(self, mock_run):
-        """Relative exclude + only session dirty = clean (the fixed path)."""
-        session = ".agents/sessions/2026-08-03-session-0001.json"
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout=f" M {session}\n",
-        )
-        assert complete_session_log._test_uncommitted_changes(
-            exclude_path=session
-        ) is False
+    @patch("complete_session_log.subprocess.run", return_value=MagicMock(returncode=0))
+    @patch("complete_session_log._run_rework_warning_step", return_value=("n", "n"))
+    @patch("complete_session_log._run_markdown_lint", return_value=(True, "ok"))
+    @patch("complete_session_log._test_serena_memory_updated", return_value=True)
+    @patch("complete_session_log._test_handoff_modified", return_value=False)
+    @patch("complete_session_log._get_ending_commit", return_value="abc1234")
+    @patch("complete_session_log._get_repo_root")
+    def test_exclude_path_is_repo_relative(self, mock_root, _1, _2, _3, _4, _5, _6, tmp_path):
+        sessions = tmp_path / ".agents" / "sessions"
+        sessions.mkdir(parents=True)
+        sf = sessions / "2026-08-06-session-1-test.json"
+        TestMainReworkWarningShape._make_session_json(self, sf)
+        mock_root.return_value = str(tmp_path)
+        captured: list[str | None] = []
+        with (
+            patch("complete_session_log._test_uncommitted_changes",
+                  side_effect=lambda exclude_path=None: (captured.append(exclude_path), False)[1]),
+            patch("complete_session_log.resolve_artifact_root", return_value=sessions),
+        ):
+            complete_session_log.main(["--session-path", str(sf)])
+        assert captured and not os.path.isabs(captured[0]), (
+            f"exclude_path must be repo-relative, got {captured}")
+        assert captured[0] == os.path.relpath(str(sf), str(tmp_path))
 
 
 class TestPathContainment:
