@@ -142,6 +142,60 @@ def test_windows_is_covered_on_a_real_windows_runner() -> None:
     """Windows is the platform the customer reported, so it cannot be dropped."""
     yaml = pytest.importorskip("yaml")
     workflow_path = _REPO_ROOT / ".github" / "workflows" / "installed-plugin-hook-guard.yml"
+    text = workflow_path.read_text(encoding="utf-8")
+    assert "windows-latest" in text
+
+
+def test_no_guard_job_is_conditional() -> None:
+    """No matrix job may carry an `if:`, which would let it skip silently.
+
+    Sol's guard-integrity review named three ways this workflow could be
+    weakened without looking weakened: reintroducing a path filter, making a
+    job conditional, and dropping a job from the aggregate's `needs`. The
+    other two are covered by sibling tests; this covers the second.
+
+    `guard-result` is exempt because its `if: always()` is what makes it
+    report at all when an upstream job fails.
+    """
+    yaml = pytest.importorskip("yaml")
+    workflow_path = _REPO_ROOT / ".github" / "workflows" / "installed-plugin-hook-guard.yml"
+    document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    conditional = {
+        name: job.get("if")
+        for name, job in document["jobs"].items()
+        if name != "guard-result" and job.get("if") is not None
+    }
+    assert not conditional, f"guard jobs must not be conditional: {conditional}"
+
+
+def test_container_image_is_pinned_by_digest() -> None:
+    """A mutable tag lets the vanilla row's environment change under us."""
+    yaml = pytest.importorskip("yaml")
+    workflow_path = _REPO_ROOT / ".github" / "workflows" / "installed-plugin-hook-guard.yml"
+    document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    for name, job in document["jobs"].items():
+        container = job.get("container")
+        if not container:
+            continue
+        image = container if isinstance(container, str) else container.get("image", "")
+        assert "@sha256:" in image, f"job {name} must pin its container by digest, got {image}"
+
+
+def test_vanilla_linux_uses_a_real_json_parser() -> None:
+    """The command must be extracted with a parser, not grep and sed.
+
+    The hook command contains escaped quotes, so a `"[^"]*"` pattern truncates
+    at the first one and yields an empty string. `bash -c ""` exits 0, which
+    would satisfy the did-not-deny assertion while testing nothing.
+    """
+    workflow_path = _REPO_ROOT / ".github" / "workflows" / "installed-plugin-hook-guard.yml"
+    text = workflow_path.read_text(encoding="utf-8")
+    assert 'grep -o \'"bash": "' not in text, "extract the hook command with jq, not grep"
+    assert "jq -r" in text, "vanilla Linux row must parse hooks.json with jq"
+
+    """Windows is the platform the customer reported, so it cannot be dropped."""
+    yaml = pytest.importorskip("yaml")
+    workflow_path = _REPO_ROOT / ".github" / "workflows" / "installed-plugin-hook-guard.yml"
     document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
     text = workflow_path.read_text(encoding="utf-8")
     assert "windows-latest" in text

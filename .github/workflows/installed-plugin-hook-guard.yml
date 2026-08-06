@@ -32,7 +32,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: ./.github/actions/test-installed-plugin-hooks
         with:
           plugin-source: src/copilot-cli
@@ -46,7 +46,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: ./.github/actions/test-installed-plugin-hooks
         with:
           plugin-source: src/copilot-cli
@@ -58,9 +58,9 @@ jobs:
     name: Vanilla Linux (no Python)
     runs-on: ubuntu-latest
     container:
-      image: debian:bookworm-slim
+      image: debian:bookworm-slim@sha256:362e64223cc0da95422b3b13c045186fc0a81250e765d31c025fbddf257f6143  # bookworm-slim
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Assert precondition - no Python present
         shell: bash
@@ -78,6 +78,20 @@ jobs:
           fi
           echo "PRECONDITION PASSED: no Python interpreter on PATH"
 
+      - name: Install jq for JSON parsing
+        shell: bash
+        run: |
+          # jq only. Do NOT install Python here: this row's entire value is
+          # that no interpreter is present, and the precondition above would
+          # start failing if that changed.
+          apt-get update -qq
+          apt-get install -y --no-install-recommends jq >/dev/null
+          jq --version
+          if command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
+            echo "FATAL: installing jq pulled in Python. Row is no longer vanilla."
+            exit 1
+          fi
+
       - name: Materialize installed plugin
         shell: bash
         run: |
@@ -93,9 +107,28 @@ jobs:
           # Precondition: python3 must not be available in this container
           if command -v python3 >/dev/null 2>&1; then echo "FAIL: python3 found"; exit 1; fi
           if command -v python >/dev/null 2>&1; then echo "FAIL: python found"; exit 1; fi
-          # Extract the bash command from hooks.json for PreToolUse
-          # Use grep/sed since we have no Python
-          BASH_CMD=$(grep -o '"bash": "[^"]*PreToolUse[^"]*"' "${INSTALL_ROOT}/hooks/hooks.json" | head -1 | sed 's/^"bash": "//; s/"$//')
+          # Extract the bash command from hooks.json with a real JSON parser.
+          # grep and sed cannot do this: the command contains escaped quotes,
+          # so a "[^"]*" pattern truncates at the first one and yields an empty
+          # string. An empty command makes `bash -c ""` exit 0, which would
+          # satisfy the "did not deny" assertion while testing nothing.
+          # jq is a JSON parser and, unlike Python, does not undo this row's
+          # vanilla precondition.
+          BASH_CMD=$(jq -r '.hooks.PreToolUse[0].bash' "${INSTALL_ROOT}/hooks/hooks.json")
+
+          # Fail loudly rather than testing an empty string.
+          if [ -z "${BASH_CMD}" ] || [ "${BASH_CMD}" = "null" ]; then
+            echo "FATAL: could not extract the PreToolUse bash command from hooks.json"
+            exit 1
+          fi
+          case "${BASH_CMD}" in
+            *_dispatch.py*) : ;;
+            *)
+              echo "FATAL: extracted command does not invoke the dispatcher; extraction is wrong"
+              echo "Extracted: ${BASH_CMD}"
+              exit 1
+              ;;
+          esac
 
           # Set up environment as the host would
           export COPILOT_PLUGIN_ROOT="${INSTALL_ROOT}"
@@ -144,7 +177,7 @@ jobs:
     name: Vanilla Windows (Python hidden from PATH)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Scrub Python from PATH and neutralize py launcher
         shell: pwsh
@@ -250,7 +283,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
           python-version: '3.14'
