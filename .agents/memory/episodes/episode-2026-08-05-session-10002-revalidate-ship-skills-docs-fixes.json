@@ -90,7 +90,8 @@
         "e012",
         "e014",
         "e016",
-        "e017"
+        "e017",
+        "e019"
       ],
       "leads_to": [
         "e009"
@@ -223,6 +224,30 @@
       "caused_by": [
         "e015"
       ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "test",
+      "content": "Run validation       Newest-main full relevant suite passed 23,880 tests with 33 skipped. Ruff, mypy, generators, drift, install parity, portability, plugin version, live GraphQL probes, 40 killing mutations, five surviving controls, and pre_pr 46 of 46 passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-06T05:09:30+00:00",
+      "type": "commit",
+      "content": "Commit: afe6cb3dd",
+      "caused_by": [
+        "e018"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
     }
@@ -232,7 +257,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 3
   },
   "lessons": []

@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation, CI remediation, and validation changes committed through e8a7e522e."
+        "Evidence": "All implementation, CI remediation, and newest-main merge changes committed through afe6cb3dd."
       },
       "validationPassed": {
         "level": "MUST",
@@ -121,7 +121,7 @@
   "workLog": [
     {
       "task": "Merge current main",
-      "result": "Merged origin/main at 1b98dbddd through bbd321624, then merged current main c96662c18 through 75d8ee3ec with normal merge hooks."
+      "result": "Merged origin/main at 1b98dbddd through bbd321624, c96662c18 through 75d8ee3ec, and b22b19b63 through afe6cb3dd with normal merge hooks."
     },
     {
       "task": "Read linked discourse and assess merit",
@@ -137,7 +137,7 @@
     },
     {
       "task": "Run validation",
-      "result": "Final full relevant suite passed 23,757 tests with 33 skipped. Ruff, mypy, generators, drift, install parity, portability, plugin version, live GraphQL probes, 40 killing mutations, five surviving controls, and pre_pr 46 of 46 passed."
+      "result": "Newest-main full relevant suite passed 23,880 tests with 33 skipped. Ruff, mypy, generators, drift, install parity, portability, plugin version, live GraphQL probes, 40 killing mutations, five surviving controls, and pre_pr 46 of 46 passed."
     },
     {
       "task": "Complete independent artifact review",
@@ -156,7 +156,7 @@
       "result": "Removed a duplicate historical-SHA rename test that failed in shallow CI, retained synthetic rename coverage, and updated the guard corpus after the author lookup moved to GraphQL."
     }
   ],
-  "endingCommit": "e8a7e522e",
+  "endingCommit": "afe6cb3dd",
   "nextSteps": [
     "Ship the focused #4381 trigger-axis documentation patch.",
     "Issue #4498 remains open for correction-queue worktree ref safety.",
