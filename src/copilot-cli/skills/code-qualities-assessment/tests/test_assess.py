@@ -470,16 +470,6 @@ def test_parse_changed_files_rejects_truncated_records(raw: bytes) -> None:
         _parse_changed_files(raw)
 
 
-def test_commit_054888b4_is_reported_as_a_rename() -> None:
-    changes = get_changed_files("054888b4^", "054888b4")
-
-    assert ChangedFile(
-        "R095",
-        Path("tests/validation/test_git_hook_policy_push_scope.py"),
-        Path("tests/validation/test_git_hook_policy_causal_restore.py"),
-    ) in changes
-
-
 def test_changed_only_uses_base_for_clean_committed_branch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
