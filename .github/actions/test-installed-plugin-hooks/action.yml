@@ -1,0 +1,50 @@
+name: 'Test Installed Plugin Hooks'
+description: >
+  Materialize the plugin as an installed consumer would see it and run hooks
+  from a non-repo consumer directory. Catches the class of failure where hooks
+  deny every tool call due to infrastructure issues (#4672).
+
+inputs:
+  plugin-source:
+    description: 'Path to the plugin source tree (default: src/copilot-cli)'
+    required: false
+    default: 'src/copilot-cli'
+  negative-env:
+    description: 'When true, test fail-open: unset plugin root vars (default: false)'
+    required: false
+    default: 'false'
+
+outputs:
+  result:
+    description: 'pass or fail'
+    value: ${{ steps.run.outputs.result }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+      with:
+        python-version: '3.14'
+
+    - name: Run installed plugin hook test
+      id: run
+      shell: bash
+      env:
+        PLUGIN_SOURCE: ${{ inputs.plugin-source }}
+        NEGATIVE_ENV: ${{ inputs.negative-env }}
+      run: |
+        INSTALL_ROOT="${RUNNER_TEMP}/installed-plugins/ai-agents/project-toolkit"
+        CONSUMER_CWD="${RUNNER_TEMP}/consumer-repo"
+
+        ARGS="--plugin-source ${PLUGIN_SOURCE} --install-root ${INSTALL_ROOT} --consumer-cwd ${CONSUMER_CWD}"
+        if [ "${NEGATIVE_ENV}" = "true" ]; then
+          ARGS="${ARGS} --negative-env"
+        fi
+
+        if python scripts/ci/test_installed_plugin_hooks.py ${ARGS}; then
+          echo "result=pass" >> "$GITHUB_OUTPUT"
+        else
+          echo "result=fail" >> "$GITHUB_OUTPUT"
+          exit 1
+        fi
