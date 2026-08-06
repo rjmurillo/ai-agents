@@ -1,6 +1,7 @@
 name: Installed Plugin Hook Guard
 # Structural regression gate for #4672: verifies the installed plugin's hooks
 # allow tool calls from a consumer environment, on all three target platforms.
+# Includes "vanilla" rows that genuinely lack Python, proving the degraded path.
 
 on:
   pull_request:
@@ -55,6 +56,196 @@ jobs:
         with:
           plugin-source: src/copilot-cli
           negative-env: 'true'
+
+  # Truly vanilla Linux: minimal container with NO Python installed.
+  # Proves the hook degrades gracefully rather than blocking.
+  vanilla-linux:
+    name: Vanilla Linux (no Python)
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm-slim
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
+
+      - name: Assert precondition - no Python present
+        shell: bash
+        run: |
+          # PRECONDITION: this row exists to test the no-Python path.
+          # If the base image ever ships Python, this row must fail loudly
+          # so it does not silently become a non-vanilla row.
+          if command -v python3 >/dev/null 2>&1; then
+            echo "FATAL: python3 found on vanilla image. Row is not vanilla."
+            exit 1
+          fi
+          if command -v python >/dev/null 2>&1; then
+            echo "FATAL: python found on vanilla image. Row is not vanilla."
+            exit 1
+          fi
+          echo "PRECONDITION PASSED: no Python interpreter on PATH"
+
+      - name: Materialize installed plugin
+        shell: bash
+        run: |
+          INSTALL_ROOT="${RUNNER_TEMP:-/tmp/runner}/installed-plugins/ai-agents/project-toolkit"
+          mkdir -p "${INSTALL_ROOT}"
+          cp -r src/copilot-cli/* "${INSTALL_ROOT}/"
+          cp -r src/copilot-cli/.claude-plugin "${INSTALL_ROOT}/"
+          echo "INSTALL_ROOT=${INSTALL_ROOT}" >> "$GITHUB_ENV"
+
+      - name: Run PreToolUse hook and assert degrade-with-warning
+        shell: bash
+        run: |
+          # Precondition: python3 must not be available in this container
+          if command -v python3 >/dev/null 2>&1; then echo "FAIL: python3 found"; exit 1; fi
+          if command -v python >/dev/null 2>&1; then echo "FAIL: python found"; exit 1; fi
+          # Extract the bash command from hooks.json for PreToolUse
+          # Use grep/sed since we have no Python
+          BASH_CMD=$(grep -o '"bash": "[^"]*PreToolUse[^"]*"' "${INSTALL_ROOT}/hooks/hooks.json" | head -1 | sed 's/^"bash": "//; s/"$//')
+
+          # Set up environment as the host would
+          export COPILOT_PLUGIN_ROOT="${INSTALL_ROOT}"
+          export CLAUDE_PLUGIN_ROOT="${INSTALL_ROOT}"
+
+          # Run the hook command, capture output
+          set +e
+          OUTPUT=$(echo '{"tool_name":"Bash","tool_input":{"command":"echo hi"}}' | bash -c "${BASH_CMD}" 2>&1)
+          EXIT_CODE=$?
+          set -e
+
+          echo "Exit code: ${EXIT_CODE}"
+          echo "Output: ${OUTPUT}"
+
+          # Assert: must NOT deny (exit 0)
+          if [ "${EXIT_CODE}" -ne 0 ]; then
+            echo "FAIL: hook DENIED (exit ${EXIT_CODE}). Must degrade, not block."
+            exit 1
+          fi
+
+          # Assert: must warn
+          if ! echo "${OUTPUT}" | grep -q "hooks DISABLED"; then
+            echo "FAIL: no 'hooks DISABLED' warning in output"
+            exit 1
+          fi
+          if ! echo "${OUTPUT}" | grep -q "session is unaffected"; then
+            echo "FAIL: no 'session is unaffected' in output"
+            exit 1
+          fi
+          if ! echo "${OUTPUT}" | grep -q "python.org/downloads"; then
+            echo "FAIL: no install URL in output"
+            exit 1
+          fi
+
+          echo "PASS: hook degraded gracefully with actionable warning"
+
+  # Vanilla Windows: Python scrubbed from PATH.
+  # NOTE: windows-latest ships Python and the py launcher preinstalled.
+  # We cannot remove them, but we CAN hide them from PATH to simulate
+  # a machine where Python was never added to PATH (common on enterprise
+  # Windows). The py launcher is neutralized by renaming it for the job.
+  # This does NOT prove complete absence (a real vanilla box has no Python
+  # binaries at all), but it exercises the exact code path: command -v
+  # fails for all interpreter names, so the shell guard fires.
+  vanilla-windows:
+    name: Vanilla Windows (Python hidden from PATH)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4
+
+      - name: Scrub Python from PATH and neutralize py launcher
+        shell: pwsh
+        run: |
+          # Remove all Python entries from PATH
+          $cleanPath = ($env:PATH -split ';' | Where-Object {
+            $_ -notmatch '[Pp]ython' -and $_ -notmatch 'PyLauncher'
+          }) -join ';'
+          echo "CLEAN_PATH=$cleanPath" >> $env:GITHUB_ENV
+
+          # Neutralize the py launcher by renaming it for the duration
+          $pyPaths = @(
+            "$env:SYSTEMROOT\py.exe",
+            "$env:LOCALAPPDATA\Programs\Python\Launcher\py.exe"
+          )
+          foreach ($p in $pyPaths) {
+            if (Test-Path $p) {
+              Rename-Item $p "$p.disabled" -ErrorAction SilentlyContinue
+              echo "Disabled: $p"
+            }
+          }
+
+      - name: Assert precondition - no Python resolves
+        shell: pwsh
+        env:
+          PATH: ${{ env.CLEAN_PATH }}
+        run: |
+          # PRECONDITION: all interpreter names must fail to resolve.
+          # If any resolves, the row is not vanilla.
+          $failed = $false
+          foreach ($cmd in @('py', 'python3', 'python')) {
+            if (Get-Command $cmd -ErrorAction SilentlyContinue) {
+              Write-Host "FATAL: $cmd found. Row is not vanilla."
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 }
+          Write-Host "PRECONDITION PASSED: no Python interpreter resolves"
+
+      - name: Run PreToolUse hook and assert degrade-with-warning
+        shell: pwsh
+        env:
+          PATH: ${{ env.CLEAN_PATH }}
+        run: |
+          $installRoot = "$env:RUNNER_TEMP\installed-plugins\ai-agents\project-toolkit"
+          New-Item -ItemType Directory -Force -Path $installRoot | Out-Null
+          Copy-Item -Recurse -Force "src\copilot-cli\*" $installRoot
+          Copy-Item -Recurse -Force "src\copilot-cli\.claude-plugin" $installRoot
+
+          $env:COPILOT_PLUGIN_ROOT = $installRoot
+          $env:CLAUDE_PLUGIN_ROOT = $installRoot
+
+          # Extract the powershell command from hooks.json
+          $hooks = Get-Content "$installRoot\hooks\hooks.json" | ConvertFrom-Json
+          $pwshCmd = $null
+          foreach ($prop in $hooks.hooks.PSObject.Properties) {
+            foreach ($entry in $prop.Value) {
+              if ($entry.powershell -and $entry.powershell -match 'PreToolUse') {
+                $pwshCmd = $entry.powershell
+                break
+              }
+            }
+            if ($pwshCmd) { break }
+          }
+
+          if (-not $pwshCmd) {
+            Write-Host "FATAL: Could not find PreToolUse powershell command"
+            exit 1
+          }
+
+          # Pipe a payload and run the hook command
+          $payload = '{"tool_name":"Bash","tool_input":{"command":"echo hi"}}'
+          $output = $payload | pwsh -NoProfile -Command $pwshCmd 2>&1
+          $exitCode = $LASTEXITCODE
+
+          Write-Host "Exit code: $exitCode"
+          Write-Host "Output: $output"
+
+          # Assert: must NOT deny
+          if ($exitCode -ne 0) {
+            Write-Host "FAIL: hook DENIED (exit $exitCode). Must degrade, not block."
+            exit 1
+          }
+
+          # Assert: must warn
+          $text = $output -join "`n"
+          if ($text -notmatch 'hooks DISABLED') {
+            Write-Host "FAIL: no 'hooks DISABLED' warning"
+            exit 1
+          }
+          if ($text -notmatch 'python.org/downloads') {
+            Write-Host "FAIL: no install URL in output"
+            exit 1
+          }
+
+          Write-Host "PASS: hook degraded gracefully with actionable warning"
 
   e2e-installed:
     name: E2E installed plugin (${{ matrix.os }})
