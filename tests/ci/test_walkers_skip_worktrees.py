@@ -22,7 +22,8 @@ Exit codes (ADR-035):
 
 from __future__ import annotations
 
-from pathlib import Path
+import subprocess
+from pathlib import Path, PurePosixPath
 from unittest.mock import patch
 
 import tests.test_no_duplicate_module_level_defs as dupes
@@ -95,6 +96,67 @@ class TestNoVerifyWalker:
 
         assert real in files, f"real instruction file dropped; got {files}"
         assert decoy not in files, f"worktree copy should be excluded; got {files}"
+
+    def test_root_named_worktrees_keeps_its_files(self, tmp_path: Path) -> None:
+        """Issue #4160: matching absolute parts excludes the whole repository.
+
+        Without this the walker looks fixed. Adding `worktrees` to the skip
+        while still matching absolute parts makes the gate return nothing at
+        all for a repository that lives under a directory named `worktrees`,
+        which is how fleet worktrees are laid out. A gate that scans nothing
+        passes, so the failure is silent.
+        """
+        root = tmp_path / "worktrees" / "wt_fix"
+        claude = root / ".claude"
+        claude.mkdir(parents=True, exist_ok=True)
+        real = claude / "real.md"
+        real.write_text("plain instruction text\n")
+
+        with (
+            patch.object(noverify, "REPO_ROOT", root),
+            patch.object(noverify, "_INSTRUCTION_ROOTS", (".claude",)),
+        ):
+            files = noverify._instruction_files()
+
+        assert real in files, (
+            "a repository under a 'worktrees' dir must still be scanned; "
+            f"got {files}"
+        )
+
+
+class TestNoTrackedFileHidesBehindTheSkip:
+    """The skip is a blind spot only if a tracked file ever moves into it.
+
+    Skipping any component named `worktrees` matches the repository's existing
+    convention in `_python_sources`, so it stays. The cost is that a tracked
+    file added under, say, `docs/worktrees/` would escape both gates without
+    anyone noticing. This turns that silent hole into a loud failure at the
+    moment someone digs it.
+    """
+
+    _KNOWN = frozenset({".agents/projects/v0.3.0/worktrees/.gitkeep"})
+
+    def test_no_new_tracked_path_lands_under_a_worktrees_dir(self) -> None:
+        repo = Path(__file__).resolve().parents[2]
+        out = subprocess.run(
+            ["git", "ls-files", "-z"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        offenders = sorted(
+            f
+            for f in out.split("\0")
+            if f and "worktrees" in PurePosixPath(f).parts and f not in self._KNOWN
+        )
+
+        assert offenders == [], (
+            "These tracked files sit under a directory named 'worktrees', so "
+            "the duplicate-defs and no-verify gates skip them silently. Either "
+            "rename the directory or add the path to _KNOWN with a reason: "
+            f"{offenders}"
+        )
 
 
 class TestSkipSetContract:
