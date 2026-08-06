@@ -12,6 +12,50 @@ one contradicts an assumption that looked obviously true.
 | `git worktree prune` is all or nothing | `git worktree lock` makes it selective |
 | `branch --contains` plus `tag --contains` covers the refs | It misses `refs/stash`; use `for-each-ref --contains` |
 
+## Correction: exit 0 does not mean nothing was lost
+
+An earlier version of this page read the exit code as permission. It is not.
+Two facts, both measured, retract that:
+
+`prunable` does not mean the worktree is gone. A worktree that was **moved**
+reports `prunable gitdir file points to non-existent location` and still works
+perfectly at its new location. Git is reporting that it lost track of the
+directory, not that the directory stopped existing. Nothing in the porcelain
+output separates deleted from moved.
+
+The admin `index` outlives the directory. `git add` writes a blob to the object
+database and records it only in that worktree's index. `rm -rf` on the
+directory leaves the index behind holding the blob's sole reference. Both
+`git worktree remove` and `git worktree prune` then delete the admin directory,
+index included, and the blob is reachable from nothing. `remove` returns exit 0
+while doing it.
+
+So "nothing there" is git's view of the *directory*, and it says nothing about
+the object database. Report stale entries; do not remove them. Point the
+operator at `git worktree prune --expire=<concrete age>`, and check the
+orphaned index first, because that command is itself the data-loss path.
+
+## Two traps when you check that index
+
+Do not run git with `cwd` set to the admin directory. It fails with
+`fatal: cannot use bare repository '...' (safe.bareRepository is 'explicit')`,
+exit 128. Run from the main worktree with `GIT_INDEX_FILE` pointing at the
+admin index instead:
+
+```bash
+GIT_INDEX_FILE=<admin>/index git diff-index --cached --quiet <head-sha>
+```
+
+Exit 0 is clean, exit 1 is staged content, and **anything else is git refusing
+to answer**. A two-valued fail-closed check reads 128 as "staged" and warns on
+every entry, which is the same as warning on none. Make the probe three-valued.
+
+`git rev-parse --git-common-dir` answers relatively whenever it can. From the
+repository root it returns `.git`; from a subdirectory, `../.git`. `git -C`
+does not change this. Resolve it against the main worktree's path, never
+against the process working directory, or the lookup fails everywhere except
+the one directory you happened to test in.
+
 ## Porcelain marks staleness for you
 
 `git worktree list --porcelain` emits a `prunable` line for any entry whose
@@ -33,25 +77,27 @@ every fixture and rewriting none.
 
 ## Removal works on an entry with no directory
 
-This is the one that matters, because getting it wrong pushes you toward
-`prune`, and `prune` is the blunt instrument.
+Mechanically, yes. Safely, no: read the correction above before acting on this
+section. It is recorded because the exit code surprises people, not because it
+is a green light.
 
 ```bash
-git worktree add /tmp/wt-demo -b demo && rm -rf /tmp/wt-demo
-git worktree remove /tmp/wt-demo   # exit 0, admin record gone
+git worktree add ~/src/scratch/wt-demo -b demo && rm -rf ~/src/scratch/wt-demo
+git worktree remove ~/src/scratch/wt-demo   # exit 0, admin record gone
 ```
 
 No `--force`. The natural assumption is that `remove` has to enter the
 directory to check for uncommitted work, so a missing directory would be an
-error. It is not: git treats "nothing there" as "nothing to lose".
+error. It is not, and that is the problem: git treats "nothing there" as
+"nothing to lose", having looked only at the directory.
 
 The consequence for any tool that cleans worktrees: you never need a blanket
-prune. Every entry, live or stale, goes through the same per-path removal. That
-buys three things at once. You cannot remove an entry your safety check never
-examined, because there is no second code path. One unsafe entry no longer
-blocks cleanup of the safe ones, because a withhold is per entry. And your
-report of what was removed is a record rather than an assumption, because you
-removed them one at a time and watched each result.
+prune. Every **live** entry goes through per-path removal. That buys three
+things at once. You cannot remove an entry your safety check never examined,
+because there is no second code path. One unsafe entry no longer blocks cleanup
+of the safe ones, because a withhold is per entry. And your report of what was
+removed is a record rather than an assumption, because you removed them one at
+a time and watched each result. Stale entries stay out of that loop entirely.
 
 ## Prune is selective if you lock
 
