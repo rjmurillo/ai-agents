@@ -5306,82 +5306,114 @@ def warn_if_push_files_incomplete(
     )
 
 
-def _is_branch_squash_merged(push_ref: PushRef, repo_root: Path) -> list[str] | None:
-    """Detect when a branch's prior content was squash-merged into origin/main.
+class _SquashMergeResult:
+    """Result of squash-merge detection for a push ref."""
 
-    Returns a list of commit SHAs that will be lost (orphaned) if the push
-    proceeds, or None if the branch is not squash-merged.
+    __slots__ = ("lost_commits", "warning")
+
+    def __init__(
+        self, lost_commits: list[str] | None = None, warning: str | None = None
+    ) -> None:
+        self.lost_commits = lost_commits
+        self.warning = warning
+
+
+def _probe_squash_state(
+    remote_sha: str, local_sha: str, repo_root: Path
+) -> _SquashMergeResult:
+    """Interrogate git to determine whether a branch was squash-merged.
+
+    Returns a result with:
+    - lost_commits set when squash-merge is confirmed (block).
+    - warning set when the determination is indeterminate (warn and allow).
+    - both None when no squash-merge signature is found (allow silently).
+    """
+    # remote_sha must NOT be an ancestor of origin/main.
+    ancestor_check = _run_git(
+        repo_root,
+        ["merge-base", "--is-ancestor", remote_sha, "origin/main"],
+    )
+    if ancestor_check.returncode == 0:
+        return _SquashMergeResult()  # Normal merge, not squash.
+
+    # Find merge-base between origin/main and the remote tip.
+    base_result = _run_git(
+        repo_root, ["merge-base", "origin/main", remote_sha],
+    )
+    if base_result.returncode != 0:
+        return _SquashMergeResult(
+            warning="could not compute merge-base with origin/main "
+            "(is origin/main fetched?). Cannot determine whether this "
+            "branch was squash-merged. Verify manually before pushing."
+        )
+    merge_base = base_result.stdout.strip()
+    if not merge_base:
+        return _SquashMergeResult(
+            warning="merge-base with origin/main is empty. Cannot determine "
+            "squash-merge state."
+        )
+
+    # Files the branch touched relative to the merge-base.
+    files_result = _run_git(
+        repo_root, ["diff", "--name-only", merge_base, remote_sha],
+    )
+    if files_result.returncode != 0:
+        return _SquashMergeResult(
+            warning="could not diff branch against merge-base. Cannot "
+            "determine squash-merge state."
+        )
+    branch_files = [f for f in files_result.stdout.splitlines() if f.strip()]
+    if not branch_files:
+        return _SquashMergeResult()  # Branch touched no files, not squash.
+
+    # Check if origin/main has identical content for those files.
+    diff_cmd = ["diff", "--name-only", "origin/main", remote_sha, "--"]
+    diff_cmd.extend(branch_files)
+    diff_result = _run_git(repo_root, diff_cmd)
+    if diff_result.returncode != 0:
+        return _SquashMergeResult(
+            warning="could not compare branch content with origin/main. "
+            "Cannot determine squash-merge state."
+        )
+    remaining_diffs = [f for f in diff_result.stdout.splitlines() if f.strip()]
+    if remaining_diffs:
+        return _SquashMergeResult()  # Content differs, not squash-merged.
+
+    # Squash-merge confirmed. List commits that will be orphaned.
+    lost_result = _run_git(
+        repo_root, ["rev-list", "--oneline", f"origin/main..{local_sha}"],
+    )
+    if lost_result.returncode != 0:
+        return _SquashMergeResult(
+            warning="squash-merge signature detected but could not list "
+            "orphaned commits."
+        )
+    lost = [line for line in lost_result.stdout.splitlines() if line.strip()]
+    return _SquashMergeResult(lost_commits=lost if lost else None)
+
+
+def _is_branch_squash_merged(push_ref: PushRef, repo_root: Path) -> _SquashMergeResult:
+    """Detect when a branch's prior content was squash-merged into origin/main.
 
     Detection (local git only, no API calls):
     1. The push is to an existing branch (remote_sha is not the zero SHA).
     2. remote_sha is NOT an ancestor of origin/main (not normally merged).
     3. The files the branch changed (relative to merge-base with origin/main)
-       are already present on origin/main with identical content. This is the
-       unique signature of a squash-merge.
+       are already present on origin/main with identical content.
 
-    Fails open (returns None) on any git error so a network outage or shallow
-    clone does not block a legitimate push (issue #4316).
+    Returns a _SquashMergeResult distinguishing three states:
+    - Confirmed squash-merge (lost_commits populated): block.
+    - Indeterminate (warning populated): warn and allow.
+    - No squash signature (both None): allow silently.
     """
     if push_ref.is_new or push_ref.is_deletion:
-        return None
-    # The remote tip must exist locally.
+        return _SquashMergeResult()
     if not _commit_ref_exists(repo_root, push_ref.remote_sha):
-        return None
-
-    # Step 2: remote_sha must NOT be an ancestor of origin/main.
-    ancestor_check = _run_git(
-        repo_root,
-        ["merge-base", "--is-ancestor", push_ref.remote_sha, "origin/main"],
-    )
-    if ancestor_check.returncode == 0:
-        # Branch is an ancestor of main (normal merge or fast-forward). Not squash.
-        return None
-
-    # Step 3: Find merge-base and check if branch content is already on main.
-    base_result = _run_git(
-        repo_root,
-        ["merge-base", "origin/main", push_ref.remote_sha],
-    )
-    if base_result.returncode != 0:
-        return None
-    merge_base = base_result.stdout.strip()
-    if not merge_base:
-        return None
-
-    # Files the branch touched relative to the merge-base.
-    files_result = _run_git(
-        repo_root,
-        ["diff", "--name-only", merge_base, push_ref.remote_sha],
-    )
-    if files_result.returncode != 0:
-        return None
-    branch_files = [f for f in files_result.stdout.splitlines() if f.strip()]
-    if not branch_files:
-        return None
-
-    # Check if origin/main has identical content for those files.
-    # If `git diff origin/main <remote_sha> -- <files>` is empty, the content
-    # the branch introduced is already on main (squash-merge signature).
-    diff_cmd = ["diff", "--name-only", "origin/main", push_ref.remote_sha, "--"]
-    diff_cmd.extend(branch_files)
-    diff_result = _run_git(repo_root, diff_cmd)
-    if diff_result.returncode != 0:
-        return None
-    remaining_diffs = [f for f in diff_result.stdout.splitlines() if f.strip()]
-    if remaining_diffs:
-        # Some branch files differ from main: not (fully) squash-merged.
-        return None
-
-    # The branch's content is fully on main via squash. Commits in the push
-    # range that are not on main will be orphaned.
-    lost_result = _run_git(
-        repo_root,
-        ["rev-list", "--oneline", f"origin/main..{push_ref.local_sha}"],
-    )
-    if lost_result.returncode != 0:
-        return None
-    lost = [line for line in lost_result.stdout.splitlines() if line.strip()]
-    return lost if lost else None
+        return _SquashMergeResult(
+            warning="remote tip is not present in local object store. "
+            "Cannot determine squash-merge state. Run 'git fetch' if unsure."
+        )
+    return _probe_squash_state(push_ref.remote_sha, push_ref.local_sha, repo_root)
 
 
 def _check_push_updates(updates: Sequence[PushUpdate], repo_root: Path) -> int:
@@ -5395,8 +5427,9 @@ def _check_push_updates(updates: Sequence[PushUpdate], repo_root: Path) -> int:
             continue
         # Issue #4316: block push to a branch whose PR was already squash-merged.
         # Commits pushed after squash-merge are silently lost (data loss).
-        lost_commits = _is_branch_squash_merged(update.source, repo_root)
-        if lost_commits:
+        squash_result = _is_branch_squash_merged(update.source, repo_root)
+        if squash_result.lost_commits:
+            lost_commits = squash_result.lost_commits
             print(
                 f"ERROR: branch '{destination}' was already squash-merged into main.",
                 file=sys.stderr,
@@ -5415,6 +5448,12 @@ def _check_push_updates(updates: Sequence[PushUpdate], repo_root: Path) -> int:
             )
             policy_failed = True
             continue
+        elif squash_result.warning:
+            print(
+                f"WARNING: squash-merge detection indeterminate for '{destination}': "
+                f"{squash_result.warning}",
+                file=sys.stderr,
+            )
         count_result = _check_commit_limit(update, repo_root)
         marker_result = _check_review_marker(update, repo_root)
         plugin_result = _check_plugin_version(update, repo_root)

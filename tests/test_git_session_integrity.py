@@ -94,9 +94,10 @@ class TestSquashMergeDetection:
             remote_ref="refs/heads/feature/x",
             remote_sha=remote_sha,
         )
-        lost = _is_branch_squash_merged(push_ref, Path(repo))
-        assert lost is not None, "Should detect squash-merged branch"
-        assert len(lost) >= 1, "Should report at least one lost commit"
+        result = _is_branch_squash_merged(push_ref, Path(repo))
+        assert result.lost_commits is not None, "Should detect squash-merged branch"
+        assert len(result.lost_commits) >= 1, "Should report at least one lost commit"
+        assert result.warning is None
 
     def test_normal_branch_not_blocked(self, tmp_path: Path) -> None:
         """A normal push to a branch whose PR has not merged passes."""
@@ -125,8 +126,9 @@ class TestSquashMergeDetection:
             remote_ref="refs/heads/feature/y",
             remote_sha=remote_sha,
         )
-        lost = _is_branch_squash_merged(push_ref, Path(repo))
-        assert lost is None, "Normal branch should not be flagged"
+        result = _is_branch_squash_merged(push_ref, Path(repo))
+        assert result.lost_commits is None, "Normal branch should not be flagged"
+        assert result.warning is None
 
     def test_new_branch_not_blocked(self, tmp_path: Path) -> None:
         """A brand new branch (first push) is never flagged."""
@@ -139,8 +141,44 @@ class TestSquashMergeDetection:
             remote_ref="refs/heads/new-branch",
             remote_sha="0" * 40,
         )
-        lost = _is_branch_squash_merged(push_ref, Path(repo))
-        assert lost is None
+        result = _is_branch_squash_merged(push_ref, Path(repo))
+        assert result.lost_commits is None
+        assert result.warning is None
+
+    def test_indeterminate_produces_warning(self, tmp_path: Path) -> None:
+        """When merge-base computation fails, a warning is produced (not silent)."""
+        repo = _init_repo(tmp_path)
+
+        # Create a branch and push it
+        _git(["checkout", "-b", "feature/z"], str(repo))
+        (repo / "z.py").write_text("z\n")
+        _git(["add", "z.py"], str(repo))
+        _git(["commit", "-m", "feat: z"], str(repo))
+        _git(["push", "origin", "feature/z"], str(repo))
+
+        # Add a second commit so local != remote (not a no-op push)
+        (repo / "z2.py").write_text("z2\n")
+        _git(["add", "z2.py"], str(repo))
+        _git(["commit", "-m", "feat: z2"], str(repo))
+
+        # Delete the origin/main ref directly so merge-base will fail
+        _git(["update-ref", "-d", "refs/remotes/origin/main"], str(repo))
+
+        from git_hook_policy import PushRef, _is_branch_squash_merged
+
+        local_sha = _git(["rev-parse", "HEAD"], str(repo)).stdout.strip()
+        remote_sha = _git(["rev-parse", "origin/feature/z"], str(repo)).stdout.strip()
+        push_ref = PushRef(
+            local_ref="refs/heads/feature/z",
+            local_sha=local_sha,
+            remote_ref="refs/heads/feature/z",
+            remote_sha=remote_sha,
+        )
+        result = _is_branch_squash_merged(push_ref, Path(repo))
+        # Should not block (no lost_commits) but should warn
+        assert result.lost_commits is None
+        assert result.warning is not None, "Indeterminate state must produce a warning"
+        assert "origin/main" in result.warning or "Cannot determine" in result.warning
 
 
 # ============================================================
@@ -253,14 +291,15 @@ class TestSessionBranchDiscriminator:
         d2 = _branch_discriminator("fix/issue-4561")
         assert d1 == d2
 
-    def test_discriminator_is_4_hex_chars(self) -> None:
-        """Discriminator is exactly 4 hex characters."""
+    def test_discriminator_is_correct_width(self) -> None:
+        """Discriminator width matches the module constant."""
         import re
 
-        from new_session_log import _branch_discriminator
+        from new_session_log import _BRANCH_DISCRIMINATOR_WIDTH, _branch_discriminator
 
         d = _branch_discriminator("main")
-        assert re.fullmatch(r"[0-9a-f]{4}", d), f"Expected 4 hex chars, got: {d}"
+        assert len(d) == _BRANCH_DISCRIMINATOR_WIDTH
+        assert re.fullmatch(r"[0-9a-f]+", d), f"Expected hex chars, got: {d}"
 
     def test_concurrent_worktrees_no_collision(self, tmp_path: Path) -> None:
         """Two simulated worktrees on different branches get different filenames."""
@@ -301,6 +340,38 @@ class TestSessionBranchDiscriminator:
         )
         assert path_1 != path_2
         assert num_2 > num_1, "Should have incremented session number"
+
+    def test_population_uniqueness_real_branches(self, tmp_path: Path) -> None:
+        """Every branch in this repository gets a unique discriminator.
+
+        This is the direct falsifiable test of the property issue #4561 exists
+        to provide. At 4 hex chars this test fails (7 collisions on 940
+        branches). At 8 hex chars it passes with headroom.
+        """
+        from new_session_log import _branch_discriminator
+
+        # Read real branch names from the repository
+        result = subprocess.run(
+            ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=str(Path(__file__).resolve().parents[1]),
+        )
+        if result.returncode != 0:
+            # If git is not available in test env, skip gracefully
+            return
+        branches = [b for b in result.stdout.splitlines() if b.strip()]
+        if len(branches) < 10:
+            # Not enough branches to be meaningful
+            return
+
+        discriminators = {_branch_discriminator(b) for b in branches}
+        collisions = len(branches) - len(discriminators)
+        assert collisions == 0, (
+            f"{collisions} discriminator collision(s) among {len(branches)} branches. "
+            "The discriminator width is too narrow."
+        )
 
 
 # ============================================================

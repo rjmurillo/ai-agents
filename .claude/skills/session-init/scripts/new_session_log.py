@@ -94,19 +94,30 @@ def build_parser() -> argparse.ArgumentParser:
 
 _SESSION_NUM_RE = re.compile(r"session-(\d+)")
 
+# Width of the branch-name hash used as a filename discriminator (hex characters).
+# At 8 hex chars (4 bytes, 4.3 billion values), the birthday-problem collision
+# probability for 940 branches is 0.01%. At the repo's 2026-08 branch count this
+# gives ~10,000x headroom before P(collision) reaches 1%.
+_BRANCH_DISCRIMINATOR_WIDTH = 8
+
 
 def _branch_discriminator(branch: str) -> str:
-    """Return a short deterministic hash of the branch name.
+    """Return a deterministic hash prefix of the branch name.
 
     Used as a filename discriminator so parallel worktrees on different branches
     cannot produce colliding session-log filenames even when they allocate the
-    same session number (issue #4561). The discriminator is 4 hex characters
-    derived from a hash of the branch name.
+    same session number (issue #4561).
+
+    Stability: sha256 of the UTF-8 bytes is platform-independent and
+    Python-version-independent. The ``errors="replace"`` fallback means two
+    branch names differing only in invalid UTF-8 bytes would collide, but git
+    branch names are constrained to a subset of ASCII by refname rules, so
+    invalid-byte branches are unreachable in practice.
     """
     import hashlib
 
     digest = hashlib.sha256(branch.encode("utf-8", errors="replace")).hexdigest()
-    return digest[:4]
+    return digest[:_BRANCH_DISCRIMINATOR_WIDTH]
 
 
 def _max_session_in_names(names: list[str]) -> int:
