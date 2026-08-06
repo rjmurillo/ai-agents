@@ -183,8 +183,9 @@ from _bootstrap import ensure_plugin_paths  # noqa: E402
 try:
     from _bootstrap import PluginInfrastructureError  # noqa: E402
 except ImportError:
-    class PluginInfrastructureError(Exception):  # type: ignore[no-redef]
-        pass
+    PluginInfrastructureError = type(  # noqa: E402
+        "PluginInfrastructureError", (Exception,), {}
+    )
 
 # Defensive hook-payload ceiling (#3074, ADR-066, CWE-400). Long-session
 # apply_patch calls can cross a few MiB, and no measured host maximum exists.

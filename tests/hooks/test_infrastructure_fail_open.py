@@ -10,6 +10,7 @@ Verifies:
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -348,6 +349,17 @@ class TestWarningTextContent:
         assert "Traceback" not in stderr
 
 
+def _read_generator_version() -> tuple[int, int]:
+    """Extract (_MIN_PYTHON_MAJOR, _MIN_PYTHON_MINOR) from the generator."""
+    repo = Path(__file__).resolve().parents[2]
+    source = (repo / "build" / "scripts" / "generate_dispatcher.py").read_text()
+    maj_m = re.search(r"_MIN_PYTHON_MAJOR\s*=\s*(\d+)", source)
+    assert maj_m, "_MIN_PYTHON_MAJOR not found in generate_dispatcher.py"
+    min_m = re.search(r"_MIN_PYTHON_MINOR\s*=\s*(\d+)", source)
+    assert min_m, "_MIN_PYTHON_MINOR not found in generate_dispatcher.py"
+    return int(maj_m.group(1)), int(min_m.group(1))
+
+
 class TestVersionAgreement:
     """The minimum Python version stated in three places must agree:
     1. generate_dispatcher.py (_MIN_PYTHON_MAJOR, _MIN_PYTHON_MINOR)
@@ -358,17 +370,8 @@ class TestVersionAgreement:
 
     def test_generator_and_hooks_json_agree(self, tmp_path: Path) -> None:
         """The version in _dispatch.py must match the generator constants."""
-        import re
-
         repo = Path(__file__).resolve().parents[2]
-        gen_path = repo / "build" / "scripts" / "generate_dispatcher.py"
-        source = gen_path.read_text()
-        maj = int(
-            re.search(r"_MIN_PYTHON_MAJOR\s*=\s*(\d+)", source).group(1)
-        )
-        minor = int(
-            re.search(r"_MIN_PYTHON_MINOR\s*=\s*(\d+)", source).group(1)
-        )
+        maj, minor = _read_generator_version()
 
         # Version check is now inside the generated _dispatch.py
         dispatch = (
@@ -391,17 +394,8 @@ class TestVersionAgreement:
 
     def test_readme_states_correct_version(self) -> None:
         """README.md must name the same minimum version as the generator."""
-        import re
-
         repo = Path(__file__).resolve().parents[2]
-        gen_path = repo / "build" / "scripts" / "generate_dispatcher.py"
-        source = gen_path.read_text()
-        maj = int(
-            re.search(r"_MIN_PYTHON_MAJOR\s*=\s*(\d+)", source).group(1)
-        )
-        minor = int(
-            re.search(r"_MIN_PYTHON_MINOR\s*=\s*(\d+)", source).group(1)
-        )
+        maj, minor = _read_generator_version()
 
         readme = repo / "README.md"
         text = readme.read_text()

@@ -77,7 +77,7 @@ def _run_hook(
     consumer_cwd: Path,
     plugin_root: Path | None,
     hide_interpreter: bool = False,
-) -> subprocess.CompletedProcess:
+) -> subprocess.CompletedProcess[bytes]:
     env = dict(os.environ)
     # Remove any existing plugin root vars
     env.pop("COPILOT_PLUGIN_ROOT", None)
