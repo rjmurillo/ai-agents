@@ -361,6 +361,10 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     ------
     subprocess.CalledProcessError
         When git rejects *diff_base* (e.g. unknown revision).
+    OSError
+        When git is not found or cannot be executed.
+    subprocess.TimeoutExpired
+        When git does not respond within the deadline.
     """
     result = subprocess.run(
         ["git", "diff", "--name-only", diff_base, "HEAD", "--"],
@@ -368,6 +372,7 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
         text=True,
         check=True,
         cwd=repo_root,
+        timeout=60,
     )
     return {f.strip() for f in result.stdout.strip().split("\n") if f.strip()}
 
@@ -1018,11 +1023,25 @@ def main(argv: list[str] | None = None) -> int:
             assessment = run_assessment(target, diff_base=args.diff_base)
         except subprocess.CalledProcessError as exc:
             print(
-                f"ERROR: --diff-base '{args.diff_base}' rejected by git "
-                f"(exit {exc.returncode}): {exc.stderr or exc.stdout or ''}".rstrip(),
+                f"ERROR: --diff-base '{args.diff_base}': git rejected "
+                f"revision (exit {exc.returncode}): "
+                f"{(exc.stderr or exc.stdout or '').strip()}",
                 file=sys.stderr,
             )
-            return 1
+            return 2
+        except OSError as exc:
+            print(
+                f"ERROR: git not available or cannot run: {exc}",
+                file=sys.stderr,
+            )
+            return 3
+        except subprocess.TimeoutExpired:
+            print(
+                f"ERROR: git diff timed out for --diff-base "
+                f"'{args.diff_base}'",
+                file=sys.stderr,
+            )
+            return 3
         (output_dir / "assessment.json").write_text(
             json.dumps(assessment, indent=2), encoding="utf-8"
         )

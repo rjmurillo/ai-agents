@@ -359,6 +359,21 @@ class TestRunAssessment:
 
 
 class TestGetChangedFiles:
+    """Tests for _get_changed_files and its integration via main()."""
+
+    @staticmethod
+    def _init_repo(path: Path) -> None:
+        """Create a minimal git repo with one empty commit."""
+        import os
+        subprocess.run(["git", "init", str(path)], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-C", str(path), "commit", "--allow-empty", "-m", "init"],
+            check=True, capture_output=True,
+            env={**os.environ, "GIT_AUTHOR_NAME": "t",
+                 "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+                 "GIT_COMMITTER_EMAIL": "t@t"},
+        )
+
     def test_uses_diff_base_as_commit_reference(self, tmp_path: Path) -> None:
         git_result = MagicMock()
         git_result.stdout = "README.md\ndocs/usage.md\n"
@@ -371,26 +386,60 @@ class TestGetChangedFiles:
             "git", "diff", "--name-only", "origin/main", "HEAD", "--",
         ]
 
-    def test_invalid_diff_base_exits_1(self, tmp_path: Path) -> None:
-        """Invalid --diff-base must exit 1, not silently pass (#4586)."""
-        subprocess.run(
-            ["git", "init", str(tmp_path)],
-            check=True, capture_output=True,
-        )
-        subprocess.run(
-            ["git", "-C", str(tmp_path), "commit",
-             "--allow-empty", "-m", "init"],
-            check=True, capture_output=True,
-            env={**__import__("os").environ, "GIT_AUTHOR_NAME": "t",
-                 "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
-                 "GIT_COMMITTER_EMAIL": "t@t"},
-        )
+    def test_invalid_ref_exits_2(self, tmp_path: Path) -> None:
+        """Invalid --diff-base is config error => exit 2 (ADR-035)."""
+        self._init_repo(tmp_path)
         exit_code = main([
             "--target", str(tmp_path),
             "--diff-base", "no-such-ref",
             "--phases", "1",
         ])
-        assert exit_code == 1
+        assert exit_code == 2
+
+    def test_non_git_repo_exits_3(self, tmp_path: Path) -> None:
+        """Running in a non-git directory is an external error => exit 3."""
+        exit_code = main([
+            "--target", str(tmp_path),
+            "--diff-base", "HEAD",
+            "--phases", "1",
+        ])
+        assert exit_code in (2, 3)
+
+    def test_missing_git_exits_3(self, tmp_path: Path) -> None:
+        """Missing git binary is an external/environment error => exit 3."""
+        with patch.object(
+            subprocess, "run",
+            side_effect=FileNotFoundError("git not found"),
+        ):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD",
+                "--phases", "1",
+            ])
+        assert exit_code == 3
+
+    def test_timeout_exits_3(self, tmp_path: Path) -> None:
+        """Hung git process is an external error => exit 3."""
+        with patch.object(
+            subprocess, "run",
+            side_effect=subprocess.TimeoutExpired("git", 60),
+        ):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD",
+                "--phases", "1",
+            ])
+        assert exit_code == 3
+
+    def test_valid_empty_diff_exits_0(self, tmp_path: Path) -> None:
+        """Valid diff-base with no changed files passes (exit 0)."""
+        self._init_repo(tmp_path)
+        exit_code = main([
+            "--target", str(tmp_path),
+            "--diff-base", "HEAD",
+            "--phases", "1",
+        ])
+        assert exit_code == 0
 
     def test_valid_empty_diff_returns_empty_set(self, tmp_path: Path) -> None:
         """Valid diff-base with no changed files returns empty set, not error."""
