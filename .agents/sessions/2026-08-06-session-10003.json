@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "GOTCHAS.md and this log are staged together in one commit, which is what the .agents session-policy requires. endingCommit is left empty on purpose: the SHA cannot exist before the commit that contains this file, and GOTCHAS warns against recording it and then amending."
+        "Evidence": "GOTCHAS.md, this log, and the episode landed in commit d20aa50b9. The SHA is recorded in a follow-up commit rather than by amending d20aa50b9, because GOTCHAS warns that amending after recording endingCommit breaks the check."
       },
       "validationPassed": {
         "level": "MUST",
@@ -123,7 +123,7 @@
       "outcome": "Added: a green pytest run is not a green push, measured on a branch that passed 23693 tests and was rejected by five gates; a staged file in the shared checkout fakes a red main, measured as baseline 583 versus tree 587 from 68 staged additions; core.bare=true appears during push and breaks every worktree, with the worktree-level immunization that survives a shared-config flip; and when several unrelated checks fail at once, suspect the substrate."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "d20aa50b9",
   "nextSteps": [
     "Find the writer that sets core.bare=true during the pre-push stage (issue #4698).",
     "Consider a fast repository health check that fails when core.bare is true alongside a work tree."
