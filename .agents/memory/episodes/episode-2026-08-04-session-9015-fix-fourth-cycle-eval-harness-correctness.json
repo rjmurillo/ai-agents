@@ -1,0 +1,151 @@
+{
+  "id": "episode-2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness",
+  "session": "2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix fourth-cycle eval harness correctness and security defects",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged fresh origin/main twice and resolved eval conflicts",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed the Copilot prompt-injection execution surface",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran the real Copilot CLI 1.0.78 runtime probe",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Redacted provider HTTP and SDK failures",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed generic recovery paths across eval entrypoints",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected issue closure evidence",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran tests, mutations, lint, typing, generation, and security checks",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "test",
+      "content": "Full eval suites: 2273 passed, 4 skipped; exact probes: 20 passed; Ruff and mypy clean on authored files; sync/build clean; security scan found zero findings in 17 files; all key inversions died",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran pre-PR and investigated its sole failure",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T06:50:28+00:00",
+      "type": "commit",
+      "content": "Commit: 6bd4a22dc",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-04T07:00:46+00:00",
+      "type": "commit",
+      "content": "Commit: 77b9f15bb",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9015-fix-fourth-cycle-eval-harness-correctness"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 5
+  },
+  "lessons": []
+}
