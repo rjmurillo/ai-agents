@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +19,14 @@ ACTION = REPO_ROOT / ".github" / "actions" / "check-agent-infrastructure" / "act
 AI_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "ai-review" / "action.yml"
 AGENT_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "agent-review" / "action.yml"
 AI_PR_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ai-pr-quality-gate.yml"
+BUILD_AI_REVIEW_CONTEXT = REPO_ROOT / "scripts" / "ci" / "build_ai_review_context.py"
+SHARED_PAT_CANDIDATE_WORKFLOWS = (
+    REPO_ROOT / ".github" / "workflows" / "ai-spec-validation.yml",
+    REPO_ROOT / ".github" / "workflows" / "ai-session-protocol.yml",
+    REPO_ROOT / ".github" / "workflows" / "ai-metrics-analysis.yml",
+    REPO_ROOT / ".github" / "workflows" / "pr-maintenance.yml",
+    REPO_ROOT / ".github" / "workflows" / "ai-issue-triage.yml",
+)
 
 
 def _probe(*, gh: bool, auth: bool, copilot: bool) -> cai.Probe:
@@ -287,3 +297,137 @@ class TestAgentReviewAuthWiring:
         assert len(review_steps) == 10
         for step in review_steps:
             assert step["with"]["github-token"] == "${{ secrets.GITHUB_TOKEN }}"
+
+
+class TestSharedPatCandidateWorkflows:
+    @pytest.mark.parametrize("workflow_path", SHARED_PAT_CANDIDATE_WORKFLOWS)
+    def test_repository_local_gh_calls_use_runner_token(self, workflow_path: Path) -> None:
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+
+        assert self._find_values(workflow, "secrets.BOT_PAT") == []
+
+    @pytest.mark.parametrize("workflow_path", SHARED_PAT_CANDIDATE_WORKFLOWS)
+    def test_ai_review_calls_receive_runner_token(self, workflow_path: Path) -> None:
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        review_steps = [
+            step
+            for job in workflow["jobs"].values()
+            for step in job.get("steps", [])
+            if step.get("uses") == "./.github/actions/ai-review"
+        ]
+
+        for step in review_steps:
+            assert step["with"]["bot-pat"] == "${{ github.token }}"
+            assert step["with"]["github-token"] == "${{ github.token }}"
+
+    def _find_values(self, value: object, needle: str) -> list[str]:
+        if isinstance(value, str):
+            return [value] if needle in value else []
+        if isinstance(value, list):
+            return [match for item in value for match in self._find_values(item, needle)]
+        if isinstance(value, dict):
+            return [
+                match
+                for item in value.values()
+                for match in self._find_values(item, needle)
+            ]
+        return []
+
+
+class TestBuildAiReviewContextAuthBoundary:
+    def test_context_builder_passes_gh_token_to_gh_boundary(self) -> None:
+        self._assert_context_builder_token(self._scratch_dir("with-token"), token="runner-token")
+
+    def test_context_builder_fails_when_gh_token_is_absent(self) -> None:
+        with pytest.raises(AssertionError):
+            self._assert_context_builder_token(self._scratch_dir("without-token"), token=None)
+
+    def _assert_context_builder_token(self, tmp_path: Path, *, token: str | None) -> None:
+        try:
+            completed, calls_path = self._run_context_builder(tmp_path, token=token)
+
+            if token is not None:
+                assert completed.returncode == 0, completed.stderr
+            calls = yaml.safe_load(calls_path.read_text(encoding="utf-8"))
+            assert [call["gh_token"] for call in calls] == ["runner-token", "runner-token"]
+        finally:
+            shutil.rmtree(tmp_path, ignore_errors=True)
+
+    def _scratch_dir(self, name: str) -> Path:
+        path = REPO_ROOT / ".pytest_tmp" / "agent-review-auth-boundary" / name
+        if path.exists():
+            shutil.rmtree(path)
+        path.mkdir(parents=True)
+        return path
+
+    def _run_context_builder(
+        self,
+        tmp_path: Path,
+        *,
+        token: str | None,
+    ) -> tuple[subprocess.CompletedProcess[str], Path]:
+        fake_bin = tmp_path / "bin"
+        fake_bin.mkdir()
+        calls_path = tmp_path / "gh-calls.yml"
+        fake_gh = fake_bin / "gh"
+        fake_gh.write_text(
+            f"""#!{sys.executable}
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+
+calls_path = Path({str(calls_path)!r})
+args = sys.argv[1:]
+records = []
+if calls_path.exists():
+    records = json.loads(calls_path.read_text(encoding="utf-8"))
+records.append({{"args": args, "gh_token": os.environ.get("GH_TOKEN", "")}})
+calls_path.write_text(json.dumps(records), encoding="utf-8")
+
+if not os.environ.get("GH_TOKEN"):
+    print("missing GH_TOKEN", file=sys.stderr)
+    raise SystemExit(7)
+
+if args == ["api", "repos/rjmurillo/ai-agents/pulls/123"]:
+    print(json.dumps({{"number": 123, "title": "Token test", "body": "body"}}))
+    raise SystemExit(0)
+
+if args == ["pr", "diff", "123", "--repo", "rjmurillo/ai-agents"]:
+    print("diff --git a/file.txt b/file.txt")
+    print("+changed")
+    raise SystemExit(0)
+
+print(f"unexpected gh args: {{args!r}}", file=sys.stderr)
+raise SystemExit(9)
+""",
+            encoding="utf-8",
+        )
+        fake_gh.chmod(0o755)
+
+        env = {
+            "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+            "PYTHONPATH": str(REPO_ROOT),
+            "CONTEXT_TYPE": "pr-diff",
+            "PR_NUMBER": "123",
+            "GITHUB_REPOSITORY": "rjmurillo/ai-agents",
+            "MAX_DIFF_LINES": "500",
+            "GITHUB_OUTPUT": str(tmp_path / "github-output.txt"),
+            "RUNNER_TEMP": str(tmp_path / "runner-temp"),
+        }
+        if token is not None:
+            env["GH_TOKEN"] = token
+
+        completed = subprocess.run(
+            [sys.executable, str(BUILD_AI_REVIEW_CONTEXT)],
+            check=False,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            text=True,
+            cwd=REPO_ROOT,
+            env=env,
+        )
+        return completed, calls_path
