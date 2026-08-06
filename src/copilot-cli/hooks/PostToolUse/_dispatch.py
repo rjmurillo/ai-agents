@@ -29,19 +29,7 @@ if sys.version_info < (3, 10):
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
-class _InfraError(Exception):
-    # Local fallback for PluginInfrastructureError. Avoids a hard coupling to
-    # _bootstrap.py: if that file predates the symbol (version skew from a
-    # partial upgrade), the dispatcher degrades instead of crashing (#4672).
-    pass
-
-
-try:
-    from _bootstrap import PluginInfrastructureError  # noqa: E402
-except ImportError:
-    PluginInfrastructureError = _InfraError  # noqa: E402
-
-from _bootstrap import ensure_plugin_paths  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # Defensive hook-payload ceiling (#3074, ADR-066, CWE-400). Long-session
 # apply_patch calls can cross a few MiB, and no measured host maximum exists.
@@ -201,9 +189,15 @@ def _main() -> int:
     event_dir = Path(__file__).resolve().parent
     mode = None
     try:
+        from _bootstrap import ensure_plugin_paths  # noqa: E402
         ensure_plugin_paths()
-    except (PluginInfrastructureError, ImportError, OSError, TypeError) as exc:
+    except Exception as exc:
         # Infrastructure failure: the dispatch machinery could not load.
+        # Catches ImportError (missing/broken _bootstrap.py, version skew),
+        # PluginInfrastructureError (lib dir missing, plugin root invalid),
+        # TypeError (signature mismatch from partial upgrade), OSError (file
+        # system issues). SystemExit from old _bootstrap.py versions is
+        # BaseException and propagates normally.
         # Allow the tool call (exit 0) to keep the plugin usable. A plugin
         # that denies every call forces uninstall, removing all protection.
         # Fail-open on infrastructure keeps the plugin installed so the next
