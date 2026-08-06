@@ -17,6 +17,7 @@ Exit Codes:
 import argparse
 import json
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -162,6 +163,26 @@ EXCLUDE_DIRS = {
 
 _GIT_TIMEOUT = 60  # seconds, applied to every git subprocess call
 
+# Environment variables that can redirect git to a foreign repository.
+# Sanitized from every git subprocess to ensure -C <repo_root> is authoritative.
+_GIT_ENV_OVERRIDES = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_CEILING_DIRECTORIES",
+)
+
+
+def _git_env() -> dict[str, str]:
+    """Return a sanitized copy of os.environ without git repo-selection vars."""
+    env = os.environ.copy()
+    for var in _GIT_ENV_OVERRIDES:
+        env.pop(var, None)
+    return env
+
 
 class _GitError(Exception):
     """Classified git failure carrying an ADR-035 exit code."""
@@ -171,13 +192,23 @@ class _GitError(Exception):
         self.exit_code = exit_code
 
 
+def _decode_stderr(raw: bytes | str | None) -> str:
+    """Decode subprocess stderr which may be bytes or str."""
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode(errors="replace").strip()
+    return raw.strip()
+
+
 def _iter_git_files(repo_root: Path, *, require_git: bool = False):
     """Yield ``Path`` objects for every file tracked by git in ``repo_root``.
 
-    Uses ``git ls-files --cached --others --exclude-standard`` so that paths
-    listed in ``.gitignore`` (generated files, caches, vendored trees) are
-    excluded automatically. Falls back to ``repo_root.rglob("*")`` when the
-    directory is not inside a git repository and *require_git* is ``False``.
+    Uses ``git ls-files -z --cached --others --exclude-standard`` with
+    NUL-separated output so that paths containing newlines or special
+    characters are handled correctly. Falls back to ``repo_root.rglob("*")``
+    when the directory is not inside a git repository and *require_git* is
+    ``False``.
 
     When *require_git* is ``True`` (diff-base/Git-scoped mode), a
     ``_GitError(3)`` is raised instead of falling back, because rglob
@@ -187,23 +218,23 @@ def _iter_git_files(repo_root: Path, *, require_git: bool = False):
         result = subprocess.run(
             [
                 "git", "-C", str(repo_root),
-                "ls-files", "--cached", "--others", "--exclude-standard",
+                "ls-files", "-z", "--cached", "--others", "--exclude-standard",
             ],
             capture_output=True,
             check=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
             timeout=_GIT_TIMEOUT,
+            env=_git_env(),
         )
-        for rel in result.stdout.splitlines():
-            if rel:
+        for rel_bytes in result.stdout.split(b"\x00"):
+            if rel_bytes:
+                rel = os.fsdecode(rel_bytes)
                 yield repo_root / rel
         return
     except subprocess.CalledProcessError as exc:
         if require_git:
             raise _GitError(
-                3, f"ls-files: git index error: {(exc.stderr or '').strip()}",
+                3, f"ls-files: git index error: "
+                f"{_decode_stderr(exc.stderr)}",
             ) from exc
     except FileNotFoundError:
         if require_git:
@@ -375,46 +406,53 @@ def _count_code_blocks(content: str) -> int:
 def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     """Get files changed between diff_base and HEAD (committed changes only).
 
-    Pre-validates the git environment and revision so callers receive a
-    classified ``_GitError`` with the correct ADR-035 exit code:
+    Uses a deterministic three-phase validation sequence:
 
-    * exit 2 -- *diff_base* is not a known revision (config error).
-    * exit 3 -- git is missing, the directory is not a repo, or an
-      external/network failure occurred (environment error).
+    1. Verify git work-tree environment (sanitized env, ``-C repo_root``).
+    2. Resolve *diff_base* to an OID (``rev-parse --verify --quiet``).
+       rc 1 = unknown ref => config exit 2.
+    3. Verify OID object accessibility (``cat-file -e <oid>^{commit}``).
+       Failure = object storage/corruption => external exit 3.
+    4. Diff by resolved OID using NUL-separated output (``-z``).
+
+    All git commands use ``_git_env()`` to strip inherited repository-
+    selection variables (GIT_DIR, GIT_WORK_TREE, etc.).
 
     Raises
     ------
     _GitError
-        Classified failure (see above).
+        Classified failure (exit 2 = config, exit 3 = external).
     OSError
         When git binary is not found.
     subprocess.TimeoutExpired
         When any git call exceeds ``_GIT_TIMEOUT``.
     """
+    env = _git_env()
+
     # Phase 1: verify git environment
     try:
         wt_result = subprocess.run(
             ["git", "-C", str(repo_root), "rev-parse", "--is-inside-work-tree"],
-            capture_output=True, text=True, check=True, timeout=_GIT_TIMEOUT,
+            capture_output=True, text=True, check=True,
+            timeout=_GIT_TIMEOUT, env=env,
         )
     except subprocess.CalledProcessError as exc:
         raise _GitError(
             3, f"rev-parse: not a git repository: "
-            f"{(exc.stderr or '').strip()}",
+            f"{_decode_stderr(exc.stderr)}",
         ) from exc
     if wt_result.stdout.strip().lower() != "true":
         raise _GitError(
             3, "rev-parse: not inside a git work tree",
         )
 
-    # Phase 2: verify the revision exists
-    # Use --quiet to avoid locale-dependent stderr messages.
-    # rc 1 = ref not found (config error); any other nonzero = external.
+    # Phase 2: resolve ref to OID
     try:
-        subprocess.run(
+        oid_result = subprocess.run(
             ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet",
-             f"{diff_base}^{{commit}}"],
-            capture_output=True, text=True, check=True, timeout=_GIT_TIMEOUT,
+             diff_base],
+            capture_output=True, text=True, check=True,
+            timeout=_GIT_TIMEOUT, env=env,
         )
     except subprocess.CalledProcessError as exc:
         if exc.returncode == 1:
@@ -422,23 +460,42 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
                 2, f"rev-parse: unknown revision '{diff_base}'",
             ) from exc
         raise _GitError(
-            3, f"rev-parse: object storage error (rc {exc.returncode}): "
-            f"{(exc.stderr or '').strip()}",
+            3, f"rev-parse: failed to resolve '{diff_base}' "
+            f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
+        ) from exc
+    oid = oid_result.stdout.strip()
+
+    # Phase 3: verify OID object is accessible as a commit
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo_root), "cat-file", "-e",
+             f"{oid}^{{commit}}"],
+            capture_output=True, check=True,
+            timeout=_GIT_TIMEOUT, env=env,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise _GitError(
+            3, f"cat-file: object {oid[:12]} not accessible "
+            f"(rc {exc.returncode}): "
+            f"{_decode_stderr(exc.stderr)}",
         ) from exc
 
-    # Phase 3: diff (ref already validated; failure is external)
+    # Phase 4: diff by resolved OID, NUL-separated output
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only", diff_base, "HEAD", "--"],
-            capture_output=True, text=True, check=True,
-            cwd=repo_root, timeout=_GIT_TIMEOUT,
+            ["git", "-C", str(repo_root), "diff", "--name-only", "-z",
+             oid, "HEAD", "--"],
+            capture_output=True, check=True,
+            timeout=_GIT_TIMEOUT, env=env,
         )
     except subprocess.CalledProcessError as exc:
         raise _GitError(
             3, f"diff: git failed after ref validation: "
-            f"{(exc.stderr or '').strip()}",
+            f"{_decode_stderr(exc.stderr)}",
         ) from exc
-    return {f.strip() for f in result.stdout.strip().split("\n") if f.strip()}
+    return {
+        os.fsdecode(f) for f in result.stdout.split(b"\x00") if f
+    }
 
 
 def run_assessment(

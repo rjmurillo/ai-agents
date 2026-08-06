@@ -623,7 +623,7 @@ class TestGetChangedFiles:
             cmd = args[0] if args else kwargs.get("args", [])
             if "diff" in cmd and "--name-only" in cmd:
                 result = MagicMock()
-                result.stdout = "doc.md\n\nscript.py\n"
+                result.stdout = b"doc.md\x00\x00script.py\x00"
                 result.returncode = 0
                 return result
             return real_run(*args, **kwargs)
@@ -632,6 +632,77 @@ class TestGetChangedFiles:
             result = _get_changed_files("HEAD", tmp_path)
 
         assert result == {"doc.md", "script.py"}
+
+    def test_unicode_and_newline_paths(self, tmp_path: Path) -> None:
+        """Files with Unicode and special chars are returned via -z output."""
+        self._init_repo(tmp_path)
+        # Create files with Unicode name
+        unicode_file = tmp_path / "\u00e9l\u00e8ve.md"
+        unicode_file.write_text("# Unicode\n")
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "add", "."],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "unicode"],
+            check=True, capture_output=True,
+        )
+        exit_code = main([
+            "--target", str(tmp_path),
+            "--diff-base", "HEAD~1",
+            "--phases", "1",
+        ])
+        assert exit_code == 0
+
+    def test_foreign_git_dir_ignored(self, tmp_path: Path) -> None:
+        """GIT_DIR env var pointing elsewhere does not affect result."""
+        self._init_repo(tmp_path)
+        (tmp_path / "a.md").write_text("# A\n")
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "add", "."],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "add a"],
+            check=True, capture_output=True,
+        )
+        # Set GIT_DIR to a bogus location; should be sanitized
+        import os as _os
+        old = _os.environ.get("GIT_DIR")
+        _os.environ["GIT_DIR"] = "/nonexistent/.git"
+        try:
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD~1",
+                "--phases", "1",
+            ])
+        finally:
+            if old is None:
+                _os.environ.pop("GIT_DIR", None)
+            else:
+                _os.environ["GIT_DIR"] = old
+        assert exit_code == 0
+
+    def test_resolved_oid_missing_object_exits_3(self, tmp_path: Path) -> None:
+        """OID resolved but cat-file fails (object gone) => exit 3."""
+        self._init_repo(tmp_path)
+        real_run = subprocess.run
+
+        def fail_cat_file(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "cat-file" in cmd:
+                raise subprocess.CalledProcessError(
+                    1, cmd, stderr=b"fatal: Not a valid object name",
+                )
+            return real_run(*args, **kwargs)
+
+        with patch.object(subprocess, "run", side_effect=fail_cat_file):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD",
+                "--phases", "1",
+            ])
+        assert exit_code == 3
 
 
 class TestRunClaimExtraction:
