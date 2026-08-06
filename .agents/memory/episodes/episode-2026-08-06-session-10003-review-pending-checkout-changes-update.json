@@ -1,0 +1,54 @@
+{
+  "id": "episode-2026-08-06-session-10003-review-pending-checkout-changes-update",
+  "session": "2026-08-06-session-10003-review-pending-checkout-changes-update",
+  "timestamp": "2026-08-06T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Review pending checkout changes, update pull requests, and clean repository worktrees",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct generated episode file count",
+      "caused_by": [],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnose session commit failure",
+      "caused_by": [],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-06T05:52:30+00:00",
+      "type": "commit",
+      "content": "Commit: c23d39989",
+      "caused_by": [
+        "e001",
+        "e002"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
