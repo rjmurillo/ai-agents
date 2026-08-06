@@ -74,7 +74,28 @@ fi
 
 ```bash
 REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
-PENDING=$(grep -c "^\*\*Status\*\*: pending\|^\*\*Status\*\*: \[ACKNOWLEDGED\]\|^\*\*Status\*\*: \[NEW\]" .agents/pr-comments/PR-[number]/comments.md)
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+TOTAL=$TOTAL_COMMENTS
+TERMINAL=$(python3 - "$COMMENT_MAP" <<'PYCODE'
+import re
+import sys
+from pathlib import Path
+
+blocks = Path(sys.argv[1]).read_text(encoding="utf-8").split("\n---\n")
+terminal = 0
+for block in blocks:
+    match = re.search(r"^\*\*Status\*\*: \[([A-Z]+)\]", block, re.MULTILINE)
+    if not match:
+        continue
+    status = match.group(1)
+    if status in {"COMPLETE", "WONTFIX", "DUPLICATE"}:
+        terminal += 1
+    elif status == "DEFERRED" and re.search(r"Refs #\d+", block):
+        terminal += 1
+print(terminal)
+PYCODE
+)
+PENDING=$((TOTAL - TERMINAL))
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
@@ -89,11 +110,31 @@ echo "[PASS] All gates cleared"
 ### Phase 8.1: Comment Status Verification
 
 ```bash
-ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
-WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+TOTAL=$TOTAL_COMMENTS
+TERMINAL=$(python3 - "$COMMENT_MAP" <<'PYCODE'
+import re
+import sys
+from pathlib import Path
 
-if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
-  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
+blocks = Path(sys.argv[1]).read_text(encoding="utf-8").split("\n---\n")
+terminal = 0
+for block in blocks:
+    match = re.search(r"^\*\*Status\*\*: \[([A-Z]+)\]", block, re.MULTILINE)
+    if not match:
+        continue
+    status = match.group(1)
+    if status in {"COMPLETE", "WONTFIX", "DUPLICATE"}:
+        terminal += 1
+    elif status == "DEFERRED" and re.search(r"Refs #\d+", block):
+        terminal += 1
+print(terminal)
+PYCODE
+)
+PENDING=$((TOTAL - TERMINAL))
+
+if [ "$PENDING" -ne 0 ]; then
+  echo "[WARNING] INCOMPLETE: $PENDING comments remaining"
 fi
 ```
 
