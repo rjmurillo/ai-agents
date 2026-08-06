@@ -84,12 +84,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This log is staged with the implementation commit."
+        "Evidence": "Implementation committed in cfe5e28d36745e2758f81dab4a9e7b4b74361d5e."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pre-commit session-policy validates this log during commit; targeted tests passed before commit."
+        "Evidence": "uv run python scripts/validate_session_json.py passed after setting endingCommit."
       }
     }
   },
@@ -119,6 +119,6 @@
       "entry": "Security agent reviewed staged CI action fix and reported APPROVED with zero findings."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "cfe5e28d36745e2758f81dab4a9e7b4b74361d5e",
   "nextSteps": []
 }

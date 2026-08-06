@@ -40,7 +40,7 @@
         "e002"
       ],
       "leads_to": [
-        "e004"
+        "e007"
       ],
       "_source_session": "2026-08-06-session-1-pr-autofix-slice"
     },
@@ -50,7 +50,7 @@
       "type": "milestone",
       "content": "Fixed Validate Plugin Manifests by installing pytest-timeout with pytest in the composite action.",
       "caused_by": [
-        "e003"
+        "e007"
       ],
       "leads_to": [
         "e005"
@@ -80,6 +80,19 @@
       ],
       "leads_to": [],
       "_source_session": "2026-08-06-session-1-pr-autofix-slice"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-06T04:40:51+00:00",
+      "type": "commit",
+      "content": "Commit: cfe5e28d36745e2758f81dab4a9e7b4b74361d5e",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-06-session-1-pr-autofix-slice"
     }
   ],
   "metrics": {
@@ -87,7 +100,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 4
   },
   "lessons": []
