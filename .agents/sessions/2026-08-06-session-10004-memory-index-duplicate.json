@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This session log is staged with the corrective implementation commit"
+        "Evidence": "Corrective implementation committed as b79d60c4b"
       },
       "validationPassed": {
         "level": "MUST",
@@ -135,10 +135,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "00a95ad5a",
-      "head": "00a95ad5a"
+      "head": "b79d60c4b"
     }
   },
-  "endingCommit": "",
+  "endingCommit": "b79d60c4b",
   "nextSteps": [
     "Commit, push, and open the corrective pull request"
   ]
