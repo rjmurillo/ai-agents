@@ -16,6 +16,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _bootstrap import ensure_plugin_paths  # noqa: E402
 
+try:
+    from _bootstrap import PluginInfrastructureError  # noqa: E402
+except ImportError:
+    class PluginInfrastructureError(Exception):  # type: ignore[no-redef]
+        pass
+
 # Defensive hook-payload ceiling (#3074, ADR-066, CWE-400). Long-session
 # apply_patch calls can cross a few MiB, and no measured host maximum exists.
 # Below this independent operating limit, unmatched tools allow and registered
@@ -175,6 +181,21 @@ def _main() -> int:
     mode = None
     try:
         ensure_plugin_paths()
+    except (PluginInfrastructureError, ImportError, OSError) as exc:
+        # Infrastructure failure: the dispatch machinery could not load.
+        # Allow the tool call (exit 0) to keep the plugin usable. A plugin
+        # that denies every call forces uninstall, removing all protection.
+        # Fail-open on infrastructure keeps the plugin installed so the next
+        # release still protects the user (#4672).
+        print(
+            f"project-toolkit@ai-agents: INFRASTRUCTURE FAILURE: "
+            f"{type(exc).__name__}: {_diag(str(exc))}. "
+            f"Hook ALLOWING to avoid blocking all tool calls. "
+            f"Reinstall the plugin or check your Python environment.",
+            file=sys.stderr,
+        )
+        return 0
+    try:
         from hook_dispatch import observe_output_policy, run_dispatch  # noqa: E402
 
         event, shims, shim_timeouts, mode = _load_manifest(event_dir)
@@ -201,7 +222,20 @@ def _main() -> int:
                 ),
             ),
         )
+    except ImportError as exc:
+        # hook_dispatch module missing: infrastructure failure, not policy.
+        print(
+            f"project-toolkit@ai-agents: INFRASTRUCTURE FAILURE: "
+            f"{type(exc).__name__}: {_diag(str(exc))}. "
+            f"Hook ALLOWING to avoid blocking all tool calls. "
+            f"Reinstall the plugin or check your Python environment.",
+            file=sys.stderr,
+        )
+        return 0
     except Exception as exc:  # noqa: BLE001 - generated entrypoint must stay loud
+        # Policy or dispatch error after machinery loaded: a shim ran and
+        # raised, or manifest validation failed post-load. Fail closed for
+        # gate/advise events (these are policy decisions), allow for observers.
         fail_closed = mode in ("gate", "advise") or event_dir.name.lower() in (
             "pretooluse",
             "permissionrequest",

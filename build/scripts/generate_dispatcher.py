@@ -71,11 +71,39 @@ from regen_guard import detect_reason_strict as regen_detect_reason
 # The dispatcher swaps {rel} to point at the per-event _dispatch.py but keeps
 # root resolution and shell shape identical.
 _BASH_TEMPLATE = (
-    'python3 -u "${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT}}}}/hooks/{event}/_dispatch.py"'
+    '_ptr="${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT}}}}"; '
+    'if [ -z "$_ptr" ]; then '
+    'echo "project-toolkit@ai-agents: plugin root unresolvable '
+    '(COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT both empty). '
+    'Hook allowing to avoid blocking all tool calls. '
+    'Reinstall the plugin or set COPILOT_PLUGIN_ROOT." >&2; exit 0; fi; '
+    '_interp="python3"; '
+    'if ! command -v "$_interp" >/dev/null 2>&1; then '
+    'echo "project-toolkit@ai-agents: interpreter \'$_interp\' not found on PATH. '
+    'Hook allowing to avoid blocking all tool calls. '
+    'Install Python 3 or ensure python3 is on PATH." >&2; exit 0; fi; '
+    '"$_interp" -u "$_ptr/hooks/{event}/_dispatch.py"'
 )
 _PWSH_TEMPLATE = (
-    'py -3 -u "$(if ($env:COPILOT_PLUGIN_ROOT) {{$env:COPILOT_PLUGIN_ROOT}} '
-    'else {{$env:CLAUDE_PLUGIN_ROOT}})/hooks/{event}/_dispatch.py"'
+    '$_ptr = if ($env:COPILOT_PLUGIN_ROOT) {{ $env:COPILOT_PLUGIN_ROOT }} '
+    'elseif ($env:CLAUDE_PLUGIN_ROOT) {{ $env:CLAUDE_PLUGIN_ROOT }} else {{ $null }}; '
+    'if (-not $_ptr) {{ '
+    'Write-Host "project-toolkit@ai-agents: plugin root unresolvable '
+    '(COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT both empty). '
+    'Hook allowing to avoid blocking all tool calls. '
+    'Reinstall the plugin or set COPILOT_PLUGIN_ROOT." -ForegroundColor Yellow; '
+    'exit 0 }}; '
+    '$_interp = "py"; '
+    'if (-not (Get-Command $_interp -ErrorAction SilentlyContinue)) {{ '
+    '$_interp = "python3"; '
+    'if (-not (Get-Command $_interp -ErrorAction SilentlyContinue)) {{ '
+    '$_interp = "python"; '
+    'if (-not (Get-Command $_interp -ErrorAction SilentlyContinue)) {{ '
+    'Write-Host "project-toolkit@ai-agents: no Python interpreter found (py, python3, python). '
+    'Hook allowing to avoid blocking all tool calls. '
+    'Install Python 3." -ForegroundColor Yellow; '
+    'exit 0 }} }} }}; '
+    '& $_interp -3 -u "$_ptr/hooks/{event}/_dispatch.py"'
 )
 
 _ENTRYPOINT = """\
@@ -96,6 +124,12 @@ from typing import cast
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _bootstrap import ensure_plugin_paths  # noqa: E402
+
+try:
+    from _bootstrap import PluginInfrastructureError  # noqa: E402
+except ImportError:
+    class PluginInfrastructureError(Exception):  # type: ignore[no-redef]
+        pass
 
 # Defensive hook-payload ceiling (#3074, ADR-066, CWE-400). Long-session
 # apply_patch calls can cross a few MiB, and no measured host maximum exists.
@@ -256,6 +290,21 @@ def _main() -> int:
     mode = None
     try:
         ensure_plugin_paths()
+    except (PluginInfrastructureError, ImportError, OSError) as exc:
+        # Infrastructure failure: the dispatch machinery could not load.
+        # Allow the tool call (exit 0) to keep the plugin usable. A plugin
+        # that denies every call forces uninstall, removing all protection.
+        # Fail-open on infrastructure keeps the plugin installed so the next
+        # release still protects the user (#4672).
+        print(
+            f"project-toolkit@ai-agents: INFRASTRUCTURE FAILURE: "
+            f"{type(exc).__name__}: {_diag(str(exc))}. "
+            f"Hook ALLOWING to avoid blocking all tool calls. "
+            f"Reinstall the plugin or check your Python environment.",
+            file=sys.stderr,
+        )
+        return 0
+    try:
         from hook_dispatch import observe_output_policy, run_dispatch  # noqa: E402
 
         event, shims, shim_timeouts, mode = _load_manifest(event_dir)
@@ -282,7 +331,20 @@ def _main() -> int:
                 ),
             ),
         )
+    except ImportError as exc:
+        # hook_dispatch module missing: infrastructure failure, not policy.
+        print(
+            f"project-toolkit@ai-agents: INFRASTRUCTURE FAILURE: "
+            f"{type(exc).__name__}: {_diag(str(exc))}. "
+            f"Hook ALLOWING to avoid blocking all tool calls. "
+            f"Reinstall the plugin or check your Python environment.",
+            file=sys.stderr,
+        )
+        return 0
     except Exception as exc:  # noqa: BLE001 - generated entrypoint must stay loud
+        # Policy or dispatch error after machinery loaded: a shim ran and
+        # raised, or manifest validation failed post-load. Fail closed for
+        # gate/advise events (these are policy decisions), allow for observers.
         fail_closed = mode in ("gate", "advise") or event_dir.name.lower() in (
             "pretooluse",
             "permissionrequest",
