@@ -61,6 +61,7 @@ _VALID_STATES = ("APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PEN
 # The raw alias is preserved in the ``aliases`` list for audit.
 _BOT_ALIASES: dict[str, str] = {
     "copilot-pull-request-reviewer": "Copilot",
+    "copilot-pull-request-reviewer[bot]": "Copilot",
     "github-actions": "github-actions[bot]",
 }
 

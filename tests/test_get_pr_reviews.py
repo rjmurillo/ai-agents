@@ -143,6 +143,17 @@ class TestNormalize:
         assert out["author_observed"] == "copilot-pull-request-reviewer"
         assert out["author_canonical"] == "github-copilot[bot]"
 
+    def test_bot_suffix_alias_preserves_legacy_author(self):
+        out = _normalize(
+            _api_review(
+                login="copilot-pull-request-reviewer[bot]",
+                author_id=175728472,
+            )
+        )
+        assert out["author"] == "Copilot"
+        assert out["aliases"] == ["copilot-pull-request-reviewer[bot]"]
+        assert out["author_canonical"] == "github-copilot[bot]"
+
     def test_github_actions_alias_api_is_unchanged(self):
         out = _normalize(_api_review(login="github-actions"))
         assert out["author"] == "github-actions[bot]"
