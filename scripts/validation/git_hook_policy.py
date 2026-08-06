@@ -2585,7 +2585,7 @@ def check_range_suppressions(base: str, head: str, repo_root: Path) -> int:
     commits, and 2263 after a single `git fetch --depth=1 origin main`.
 
     `_push_updates` already gates the pre-push path on the same check. This
-    call is what wires this path to it (issue #4572).
+    call is what wires this path to it (issue #4680).
     """
     integrity = _check_history_integrity(repo_root)
     if integrity != 0:
@@ -3007,7 +3007,7 @@ def check_suppression_diff(base_ref: str, repo_root: Path) -> int:
     origin main` and 290 after it.
 
     `_push_updates` already gates the pre-push path on the same check. This call
-    is what wires the CI path to it (issue #4572).
+    is what wires the CI path to it (issue #4680).
 
     Returns:
         0  no new security suppressions detected

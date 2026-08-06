@@ -1,4 +1,4 @@
-"""The workflow half of the shallow-graft guard (issue #4572).
+"""The workflow half of the shallow-graft guard (issue #4680).
 
 A `git fetch --depth=1` writes `.git/shallow`, which git shares across the
 whole repository and every worktree, and severs ancestry traversal for every
@@ -70,7 +70,7 @@ def test_no_job_mixes_a_full_checkout_with_a_depth_limited_fetch() -> None:
     assert not offenders, (
         "a job checks out at fetch-depth 0 and then fetches shallowly, which "
         "writes .git/shallow for the rest of the job and severs ancestry for "
-        "every later step (issue #4572). Drop the depth flag:\n  "
+        "every later step (issue #4680). Drop the depth flag:\n  "
         + "\n  ".join(offenders)
     )
 

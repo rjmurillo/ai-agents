@@ -1,4 +1,4 @@
-"""Runtime guards for the shallow-graft class of CI defect (issue #4572).
+"""Runtime guards for the shallow-graft class of CI defect (issue #4680).
 
 A `git fetch --depth=1` writes `.git/shallow`, which git shares across the
 whole repository and every worktree, and it severs ancestry traversal for

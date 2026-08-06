@@ -3041,7 +3041,7 @@ def _complete_history_reply(
     """Answer the history-integrity probes, or None if this is not one of them.
 
     `check_suppression_diff` and `check_range_suppressions` gate on
-    `_check_history_integrity` before they read any range (issue #4572), which
+    `_check_history_integrity` before they read any range (issue #4680), which
     adds two `rev-parse` calls ahead of every case below. These cases are about
     what the range check concludes on an intact clone, so the probes are
     answered as complete. The shallow and grafted legs are covered against real
