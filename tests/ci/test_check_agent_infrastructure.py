@@ -15,6 +15,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 ACTION = REPO_ROOT / ".github" / "actions" / "check-agent-infrastructure" / "action.yml"
 AI_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "ai-review" / "action.yml"
+AGENT_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "agent-review" / "action.yml"
+AI_PR_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ai-pr-quality-gate.yml"
 
 
 def _probe(*, gh: bool, auth: bool, copilot: bool) -> cai.Probe:
@@ -263,3 +265,25 @@ class TestAiReviewActionAuthWiring:
         action = yaml.safe_load(AI_REVIEW_ACTION.read_text(encoding="utf-8"))
         steps = {step["name"]: step for step in action["runs"]["steps"]}
         assert steps["Execute post-analysis script"]["env"]["GH_TOKEN"] == "${{ inputs.bot-pat }}"
+
+
+class TestAgentReviewAuthWiring:
+    def test_agent_review_accepts_and_forwards_the_runner_token(self) -> None:
+        action = yaml.safe_load(AGENT_REVIEW_ACTION.read_text(encoding="utf-8"))
+        assert "github-token" in action["inputs"]
+
+        steps = {step["name"]: step for step in action["runs"]["steps"]}
+        review_with = steps["${{ inputs.emoji }} ${{ inputs.agent }} Review"]["with"]
+        assert review_with["github-token"] == "${{ inputs.github-token }}"
+
+    def test_quality_gate_jobs_pass_the_runner_token_to_agent_review(self) -> None:
+        workflow = yaml.safe_load(AI_PR_WORKFLOW.read_text(encoding="utf-8"))
+        review_steps = []
+        for job in workflow["jobs"].values():
+            for step in job.get("steps", []):
+                if step.get("uses") == "./.github/actions/agent-review":
+                    review_steps.append(step)
+
+        assert len(review_steps) == 10
+        for step in review_steps:
+            assert step["with"]["github-token"] == "${{ secrets.GITHUB_TOKEN }}"

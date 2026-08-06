@@ -36,6 +36,10 @@ inputs:
   bot-pat:
     description: 'Bot PAT for GitHub API'
     required: true
+  github-token:
+    description: 'Runner-scoped GitHub token for GitHub API reads'
+    required: false
+    default: ''
   copilot-token:
     description: 'GitHub Copilot token'
     required: true
@@ -117,6 +121,7 @@ runs:
         prompt-file: ${{ inputs.prompt-file }}
         timeout-minutes: 5
         bot-pat: ${{ inputs.bot-pat }}
+        github-token: ${{ inputs.github-token }}
         copilot-token: ${{ inputs.copilot-token }}
         additional-context: ${{ inputs.additional-context }}
 
