@@ -33,8 +33,10 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
     permissions:
+      checks: read
       contents: read
       pull-requests: read
+      statuses: read
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
       has-prs: ${{ steps.discover.outputs.has-prs }}

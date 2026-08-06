@@ -27,6 +27,7 @@ on:
 
 permissions:
   contents: read
+  issues: read
   pull-requests: write
 
 # Concurrency control: Attempts to cancel in-progress runs when new runs start
@@ -131,6 +132,7 @@ jobs:
         env:
           SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
           ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
+          BOT_PAT: ${{ secrets.BOT_PAT }}
         run: python3 scripts/ci/spec_load_content.py
 
       - name: Prepare Spec Context

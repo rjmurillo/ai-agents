@@ -59,7 +59,7 @@ jobs:
       - name: Discover open issues for AI triage
         id: discover
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: >-
           uv run --frozen python scripts/issue_triage.py
           --limit "$BACKLOG_MAX_ISSUES"
@@ -96,7 +96,8 @@ jobs:
           issue-number: ${{ matrix.number }}
           prompt-file: .github/prompts/issue-triage-categorize.md
           timeout-minutes: 3
-          bot-pat: ${{ secrets.BOT_PAT }}
+          bot-pat: ${{ github.token }}
+          github-token: ${{ github.token }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: "Record triage result for issue #${{ matrix.number }}"
@@ -247,7 +248,7 @@ jobs:
 
       - name: Apply approved manifest
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           APPROVED_MANIFEST_JSON: ${{ inputs.approved_manifest_json }}
           REPO_OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
