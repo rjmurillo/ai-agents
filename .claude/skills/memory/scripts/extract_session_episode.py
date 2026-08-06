@@ -1087,7 +1087,7 @@ def _range_files_changed(start: str, end: str, cwd: str | Path | None = None) ->
     cmd = ["git"]
     if cwd is not None:
         cmd += ["-C", str(cwd)]
-    cmd += ["diff", "--name-only", f"{start}..{end}"]
+    cmd += ["diff", "--name-only", f"{start}...{end}"]
     env = os.environ.copy()
     for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
         env.pop(var, None)
@@ -1135,6 +1135,11 @@ def _duration_from_worklogs(entries: list) -> int | None:
             continue
         try:
             dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                # Session logs use UTC by convention; legacy naive timestamps are UTC, not local time.
+                dt = dt.replace(tzinfo=UTC)
+            else:
+                dt = dt.astimezone(UTC)
             times.append(dt)
         except (ValueError, TypeError):
             continue
@@ -2300,6 +2305,43 @@ def validate_causal_edge_order(events: Any) -> list[str]:
     return problems
 
 
+def validate_causal_edge_consistency(events: Any) -> list[str]:
+    """Return stored-vs-derived causal edge mismatches."""
+    if not isinstance(events, list):
+        return []
+    if any(
+        not isinstance(evt, dict)
+        or not isinstance(evt.get("id"), str)
+        or not isinstance(evt.get("timestamp"), str)
+        or evt.get("type") not in _CAUSAL_EVENT_TYPES
+        for evt in events
+    ):
+        return []
+    try:
+        timestamps = validate_episode_causal_graph(events, validate_order=False)
+    except EpisodeValidationError as exc:
+        return [str(exc)]
+
+    stored: set[tuple[str, str]] = set()
+    for evt in events:
+        try:
+            stored.update(_event_causal_edges(evt))
+        except EpisodeValidationError as exc:
+            return [str(exc)]
+
+    typed_events = [evt for evt in events if isinstance(evt, dict)]
+    derivable = _immediate_causal_edges(typed_events, timestamps)
+    problems = [
+        f"causal edge {source} -> {target} is stored but not derivable"
+        for source, target in sorted(stored - derivable)
+    ]
+    problems.extend(
+        f"causal edge {source} -> {target} is derivable but missing"
+        for source, target in sorted(derivable - stored)
+    )
+    return problems
+
+
 def _edge_count(events: list) -> int:
     """Total ``leads_to`` edges across ``events``."""
     return sum(len(_as_list(_as_dict(evt).get("leads_to"))) for evt in events)
@@ -2360,7 +2402,11 @@ def validate_episode_file(path: Path) -> list[str]:
     events = data.get("events")
     problems = validate_event_ids(events)
     if not problems:
-        problems = [*validate_commit_order(events), *validate_causal_edge_order(events)]
+        problems = [
+            *validate_commit_order(events),
+            *validate_causal_edge_order(events),
+            *validate_causal_edge_consistency(events),
+        ]
     problems = [*problems, *validate_metrics_consistency(data.get("metrics"))]
     return [f"{path}: {problem}" for problem in problems]
 

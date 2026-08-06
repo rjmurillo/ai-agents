@@ -2269,6 +2269,23 @@ class TestFilesChangedPrefersTheStagedDiff:
         episode = self._run(repo, log, tmp_path / "ep")
         assert episode["metrics"]["files_changed"] == 0
 
+    def test_post_commit_range_counts_only_branch_side(self, tmp_path):
+        """Issue #4416: mainline arrivals between base and head do not count."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        _commit(repo, "seed.txt", "seed\n")
+        _git(repo, "checkout", "-q", "-b", "feature")
+        feature = _commit(repo, "feature.txt", "feature\n")
+        _git(repo, "checkout", "-q", "main")
+        main = _commit(repo, "main.txt", "main\n")
+
+        changed = extract_session_episode._range_files_changed(main, feature, repo)
+
+        assert changed == 1
+
 
 class TestDecisionRecordsCarryIndependentSignal:
     """Decision records used to duplicate one string across `context` and
@@ -2564,12 +2581,13 @@ class TestBackwardsCommitOrder:
 
         assert extract_session_episode.main([str(episodes), "--validate"]) == 0
 
-    def test_an_edge_into_a_milestone_is_never_flagged(self, tmp_path, monkeypatch):
+    def test_edge_into_a_milestone_reports_consistency_mismatch(self, tmp_path, monkeypatch):
         """Only commit-to-commit edges carry independent evidence of order.
 
         The milestone quotes an older SHA on purpose: a work-log entry citing a
         commit is not a claim about when the milestone happened, so reading a
         committer date off it would invent order the episode never recorded.
+        The stored edge is still rejected by the derived-edge consistency check.
         """
         _, episodes, _, older, newer = self._reversed_pair(tmp_path, monkeypatch)
         mixed = [
@@ -2578,10 +2596,12 @@ class TestBackwardsCommitOrder:
         ]
         target = self._write(episodes / "episode-mixed.json", mixed)
 
-        assert extract_session_episode.validate_episode_file(target) == []
+        problems = extract_session_episode.validate_episode_file(target)
 
-    def test_an_unresolvable_sha_is_skipped_not_guessed(self, tmp_path, monkeypatch):
-        """Squash-merged branches take their SHAs away; absence is not evidence."""
+        assert any("causal edge e001 -> e002 is stored but not derivable" in p for p in problems)
+
+    def test_unresolvable_sha_reports_consistency_mismatch(self, tmp_path, monkeypatch):
+        """Squash-merged branches take their SHAs away; absence is not order evidence."""
         _, episodes, _, _, newer = self._reversed_pair(tmp_path, monkeypatch)
         ghost = [
             self._evt("e001", "commit", f"Commit: {newer}", leads_to=["e002"]),
@@ -2589,7 +2609,9 @@ class TestBackwardsCommitOrder:
         ]
         target = self._write(episodes / "episode-ghost.json", ghost)
 
-        assert extract_session_episode.validate_episode_file(target) == []
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any("causal edge e001 -> e002 is stored but not derivable" in p for p in problems)
 
     def test_fix_repairs_the_chain_and_exits_0(self, tmp_path, monkeypatch, capsys):
         _, episodes, events, older, newer = self._reversed_pair(tmp_path, monkeypatch)
@@ -2720,6 +2742,52 @@ class TestBackwardsCommitOrder:
 
         assert rc == 2
         assert "--fix requires --validate" in capsys.readouterr().err
+
+
+class TestCausalEdgeConsistency:
+    @staticmethod
+    def _evt(eid: str, timestamp: str, *, leads_to=(), caused_by=()):
+        return {
+            "id": eid,
+            "timestamp": timestamp,
+            "type": "milestone",
+            "content": eid,
+            "caused_by": list(caused_by),
+            "leads_to": list(leads_to),
+        }
+
+    @staticmethod
+    def _write(path: Path, events: list[dict]):
+        path.write_text(json.dumps({"events": events, "metrics": {}}, indent=2), encoding="utf-8")
+        return path
+
+    def test_missing_derivable_edge_is_reported(self, tmp_path):
+        target = self._write(
+            tmp_path / "episode-missing.json",
+            [
+                self._evt("e001", "2026-01-01T00:00:00+00:00"),
+                self._evt("e002", "2026-01-01T00:10:00+00:00"),
+            ],
+        )
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any("causal edge e001 -> e002 is derivable but missing" in p for p in problems)
+
+    def test_stored_but_not_derivable_edge_is_reported(self, tmp_path):
+        target = self._write(
+            tmp_path / "episode-unexpected.json",
+            [
+                self._evt("e001", "2026-01-01T00:00:00+00:00", leads_to=["e002"]),
+                self._evt("e002", "2026-01-01T00:00:00+00:00", caused_by=["e001"]),
+            ],
+        )
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any(
+            "causal edge e001 -> e002 is stored but not derivable" in p for p in problems
+        )
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
@@ -3676,6 +3744,17 @@ class TestJsonMetricsDuration:
             "workLog": [
                 {"time": "2026-07-30T08:00:00Z", "entry": "start"},
                 {"time": "2026-07-30T08:30:00Z", "entry": "end"},
+            ],
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 30
+
+    def test_mixed_naive_and_offset_timestamps_are_normalized_to_utc(self):
+        """Issue #4675: mixed ISO timezone forms must not crash duration."""
+        data = {
+            "workLog": [
+                {"time": "2026-08-06T10:00:00", "entry": "start"},
+                {"time": "2026-08-06T10:30:00+00:00", "entry": "end"},
             ],
         }
         metrics = extract_session_episode.json_metrics(data)
