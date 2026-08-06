@@ -207,6 +207,10 @@ def _invalid_destination_reason(destination: str) -> str | None:
         return "URL percent escape"
     if _COMMONMARK_ENTITY_PATTERN.search(destination):
         return "CommonMark character reference"
+    if "<" in destination or ">" in destination:
+        return "CommonMark angle-bracket destination"
+    if any(character.isspace() for character in destination):
+        return "CommonMark destination title or whitespace"
     if "\\" in destination:
         return "CommonMark backslash escape"
     if "?" in destination:

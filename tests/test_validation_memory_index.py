@@ -615,6 +615,8 @@ class TestCheckMemoryIndexReferences:
         [
             ("shared%2Emd", "shared%2Emd.md"),
             ("shared&period;md", "shared&period;md.md"),
+            ("<shared.md>", "<shared.md>.md"),
+            ('shared.md "title"', 'shared.md "title".md'),
             (r"shared\.md", "shared/.md"),
             ("shared.md?view", "shared.md?view.md"),
             ("shared.md#section", "shared.md#section.md"),
