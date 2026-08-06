@@ -304,6 +304,16 @@ def decide(
     try:
         if has_uncommitted_changes(worktree.path):
             return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_DIRTY)
+        operation = _gc_stale.in_progress_operation(worktree.path)
+        if operation is not None:
+            return Decision(
+                worktree.path,
+                worktree.branch,
+                remove=False,
+                reason=f"{operation} is still in progress here, and the commits it holds "
+                "live only in the worktree's own admin directory, which the removal "
+                "deletes. Finish or abort it first",
+            )
         merged = is_merged_to_base(worktree.path, base_ref)
         reason = "merged to base"
         if worktree.detached or worktree.branch is None:

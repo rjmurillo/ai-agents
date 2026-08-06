@@ -330,6 +330,63 @@ def linked_checkout_present(path: str) -> bool:
     return pointed is not None and _resolved(pointed) == _resolved(marker)
 
 
+# Every per-worktree marker git writes while an operation is mid-flight, mapped
+# to the words a reader would use for it. Each lives in the worktree's own admin
+# directory, so removing the worktree deletes the marker along with whatever it
+# anchors. Verified against real git 2.43.0: an interrupted merge whose result
+# is an empty tree leaves ``git status --porcelain`` empty while ``MERGE_HEAD``
+# holds a commit no branch, no tag, and no reflog entry reaches, so the porcelain
+# check, the HEAD comparison, and the reflog re-probe all pass and the commit is
+# orphaned by the removal. ``git worktree remove`` does not guard this either.
+_OPERATION_MARKERS: tuple[tuple[str, str], ...] = (
+    ("MERGE_HEAD", "an unfinished merge"),
+    ("CHERRY_PICK_HEAD", "an unfinished cherry-pick"),
+    ("REVERT_HEAD", "an unfinished revert"),
+    ("BISECT_LOG", "an unfinished bisect"),
+    ("rebase-merge", "an unfinished rebase"),
+    ("rebase-apply", "an unfinished rebase"),
+    ("sequencer", "an unfinished sequencer run"),
+)
+
+
+def admin_dir_from_marker(path: str) -> Path | None:
+    """The admin directory this checkout's ``.git`` marker names, or None.
+
+    Two O(1) file reads and no subprocess, unlike ``admin_dir_for``, which scans
+    every registered entry. That matters because this runs once per worktree on
+    the decision path, where the time budget already carries three git calls.
+    A main worktree holds a ``.git`` directory rather than a marker file, and
+    that directory is its gitdir, so it answers itself.
+    """
+    marker = Path(path) / ".git"
+    try:
+        recorded = marker.read_text(encoding="utf-8").strip()
+    except IsADirectoryError:
+        return marker
+    except OSError:
+        return None
+    return _anchored(recorded.removeprefix("gitdir:").strip(), marker.parent)
+
+
+def in_progress_operation(path: str) -> str | None:
+    """Name the git operation this worktree is in the middle of, or None.
+
+    Answers None when the admin directory cannot be resolved, because the two
+    callers that matter both treat an unresolvable entry as stale on their own
+    and a false refusal here would keep every unreadable worktree forever.
+    """
+    admin = admin_dir_from_marker(path)
+    if admin is None:
+        return None
+    for name, description in _OPERATION_MARKERS:
+        try:
+            if (admin / name).exists():
+                return description
+        except OSError:
+            continue
+    return None
+
+
 def _anchored(recorded: str, base: Path) -> Path | None:
     """Resolve a gitdir link against the file that holds it, not the cwd."""
     if not recorded:
