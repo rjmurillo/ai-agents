@@ -444,7 +444,7 @@ def main(argv: list[str] | None = None) -> int:
         issue_comments = _fetch_complete_comments(
             f"repos/{owner}/{repo}/issues/{pr}/comments"
         )
-    except RuntimeError as exc:
+    except (RuntimeError, subprocess.TimeoutExpired) as exc:
         error_and_exit(f"Failed to get PR #{pr}: {exc}", 3)
 
     pr_author_observed = _actor_login(pr_author_data, "PR author")

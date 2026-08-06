@@ -93,7 +93,7 @@ def _api(
     review_pages: list[dict] | None = None,
     review_comments: list[dict] | None = None,
     issue_comments: list[dict] | None = None,
-    graphql_error: RuntimeError | None = None,
+    graphql_error: BaseException | None = None,
     legacy_author: Any = None,
     legacy_error: BaseException | None = None,
 ):
@@ -203,6 +203,15 @@ class TestMain:
         with _api(graphql_error=RuntimeError("server error")):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "10"])
+        assert exc.value.code == 3
+
+    def test_graphql_timeout_exits_3(self):
+        with _api(
+            graphql_error=subprocess.TimeoutExpired("gh", 30),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "10"])
+
         assert exc.value.code == 3
 
     def test_legacy_author_timeout_exits_3(self):
