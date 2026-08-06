@@ -1,0 +1,94 @@
+{
+  "id": "episode-2026-08-06-session-1-pr-autofix-slice",
+  "session": "2026-08-06-session-1-pr-autofix-slice",
+  "timestamp": "2026-08-06T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Triage assigned PR autofix failure slice and fix live Validate Plugin Manifests dependency defect.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-06T04:28:50+00:00",
+      "type": "milestone",
+      "content": "Started assigned PR autofix slice from origin/main at b22b19b63c077dd841bdcda07d0bc160068add36.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-06-session-1-pr-autofix-slice"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-06T04:31:00+00:00",
+      "type": "milestone",
+      "content": "GitHub API rate limit blocked open PR enumeration; continued from /tmp/fails2.tsv and direct job ids.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-06-session-1-pr-autofix-slice"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-06T04:35:00+00:00",
+      "type": "milestone",
+      "content": "Validated title failures as real semantic PR title violations, Python test failures as not live on origin/main, and PR merge state as a dirty PR branch.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-06-session-1-pr-autofix-slice"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-06T04:45:00+00:00",
+      "type": "milestone",
+      "content": "Fixed Validate Plugin Manifests by installing pytest-timeout with pytest in the composite action.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-06-session-1-pr-autofix-slice"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-06T04:50:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted pytest, manifest validation, ruff, and a negative control proving the new test fails without the dependency.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-06-session-1-pr-autofix-slice"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-06T05:05:00+00:00",
+      "type": "milestone",
+      "content": "Security agent reviewed staged CI action fix and reported APPROVED with zero findings.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-1-pr-autofix-slice"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 36,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 4
+  },
+  "lessons": []
+}
