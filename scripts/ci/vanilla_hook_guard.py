@@ -54,6 +54,16 @@ class GuardError(RuntimeError):
     """A vanilla row did not behave as the contract requires."""
 
 
+class EnvironmentUnavailableError(RuntimeError):
+    """The row could not run at all, which is not the same as failing.
+
+    Distinguishing these two is the whole point. A missing container
+    runtime is an infrastructure gap; reporting it as "the plugin denied"
+    or as "the image is not vanilla" sends the reader to the wrong place.
+    Local act has no Docker, so this fires there and not in CI.
+    """
+
+
 def scrub_path(raw_path: str) -> str:
     """Drop every PATH entry that contains an interpreter.
 
@@ -150,11 +160,24 @@ def run_linux_container(image: str, install_root: Path, consumer_cwd: Path) -> t
     The container is the code under test's environment. This harness stays on
     the runner, so the container never needs Python for the test to be driven.
     """
+    if shutil.which("docker") is None:
+        raise EnvironmentUnavailableError(
+            "docker is not available, so the Python-free container cannot be started. "
+            "This row requires a runner with Docker."
+        )
     probe = subprocess.run(
         ["docker", "run", "--rm", image, "sh", "-c",
          "command -v python3 || command -v python || echo NONE"],
         capture_output=True, text=True, check=False,
     )
+    # An empty result and a failed invocation are different things. Treating a
+    # failed docker call as "an interpreter resolved" reports a confusing
+    # not-vanilla error for what is actually a missing container runtime.
+    if probe.returncode != 0:
+        raise EnvironmentUnavailableError(
+            f"could not probe image {image}: docker exited {probe.returncode}. "
+            f"stderr: {probe.stderr.strip() or '(empty)'}"
+        )
     if "NONE" not in probe.stdout:
         raise GuardError(
             f"image {image} is not vanilla; an interpreter resolved: {probe.stdout.strip()}"
@@ -200,6 +223,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"hook exit code: {returncode}")
         print(f"hook output:\n{output}")
         assert_degraded(returncode, output)
+    except EnvironmentUnavailableError as exc:
+        print(f"VANILLA GUARD CANNOT RUN: {exc}", file=sys.stderr)
+        return 3
     except GuardError as exc:
         print(f"VANILLA GUARD FAILED: {exc}", file=sys.stderr)
         return 1

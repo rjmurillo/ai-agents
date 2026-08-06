@@ -722,16 +722,21 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "in local act, not in CI where GH_TOKEN and repo info are available.",
     ),
     (
-        None,
+        "installed-plugin-hook-guard",
         lambda text: (
             "Vanilla Windows" in text
-            and "Assert precondition" in text
-            and "Row is not vanilla" in text
+            and "row is not vanilla" in text.lower()
+            and "still resolve" in text.lower()
+            and "vanilla-windows" in text.lower()
         ),
         "act maps windows-latest to a Linux container that ships Python, so "
-        "the Vanilla Windows precondition assertion ('Row is not vanilla') "
-        "correctly fires. This fails only in local act; the real Windows "
-        "runner scrubs Python from PATH before the assertion runs.",
+        "the vanilla guard's precondition correctly reports that interpreters "
+        "still resolve and refuses to run a row that is not vanilla. This "
+        "fails only under local act. On a real Windows runner the harness "
+        "removes every interpreter-bearing directory from the PATH the hook "
+        "receives, and the precondition passes. The assertion firing here is "
+        "the guard working, not a defect: a row that silently stopped being "
+        "vanilla would prove nothing.",
     ),
 )
 

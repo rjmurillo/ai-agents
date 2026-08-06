@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -150,3 +151,103 @@ def _json_quote(value: str) -> str:
     import json
 
     return json.dumps(value)
+
+
+def test_materialize_installed_plugin_cli_exits_nonzero_on_a_bad_source(tmp_path: Path) -> None:
+    """Drive the real CLI so the exit-contract ratchet can see it.
+
+    A missing plugin source must fail loudly. A materializer that silently
+    produces an empty install would make every downstream guard row assert
+    against nothing.
+    """
+    script = _REPO_ROOT / "scripts" / "ci" / "materialize_installed_plugin.py"
+    proc = subprocess.run(
+        [
+            sys.executable, str(script),
+            "--plugin-source", str(tmp_path / "does-not-exist"),
+            "--install-root", str(tmp_path / "install"),
+            "--consumer-cwd", str(tmp_path / "consumer"),
+        ],
+        capture_output=True, text=True, check=False,
+    )
+    assert proc.returncode != 0
+    assert "not a directory" in (proc.stdout + proc.stderr)
+
+
+def test_materialize_installed_plugin_cli_exits_nonzero_without_a_manifest(tmp_path: Path) -> None:
+    source = tmp_path / "plugin"
+    (source / "hooks").mkdir(parents=True)
+    script = _REPO_ROOT / "scripts" / "ci" / "materialize_installed_plugin.py"
+    proc = subprocess.run(
+        [
+            sys.executable, str(script),
+            "--plugin-source", str(source),
+            "--install-root", str(tmp_path / "install"),
+            "--consumer-cwd", str(tmp_path / "consumer"),
+        ],
+        capture_output=True, text=True, check=False,
+    )
+    assert proc.returncode != 0
+    assert "manifest" in (proc.stdout + proc.stderr)
+
+
+def test_vanilla_hook_guard_cli_exits_nonzero_without_an_image(tmp_path: Path) -> None:
+    script = _REPO_ROOT / "scripts" / "ci" / "vanilla_hook_guard.py"
+    proc = subprocess.run(
+        [
+            sys.executable, str(script),
+            "--mode", "linux-container",
+            "--install-root", str(tmp_path),
+            "--consumer-cwd", str(tmp_path),
+        ],
+        capture_output=True, text=True, check=False,
+    )
+    assert proc.returncode != 0
+
+
+def test_missing_docker_is_unavailable_not_a_guard_failure(
+    guard, monkeypatch, tmp_path: Path
+) -> None:
+    """An empty result and a failed command are different things.
+
+    This is the defect the first version of this script shipped with. Under
+    local act there is no Docker, so `docker run` failed, stdout was empty,
+    and the emptiness check reported "image is not vanilla; an interpreter
+    resolved: " with nothing after the colon. That sends the reader hunting a
+    container-image problem that does not exist.
+    """
+    monkeypatch.setattr(guard.shutil, "which", lambda name: None)
+    with pytest.raises(guard.EnvironmentUnavailableError, match="docker is not available"):
+        guard.run_linux_container("debian:example", tmp_path, tmp_path)
+
+
+def test_failed_docker_probe_is_unavailable_not_not_vanilla(
+    guard, monkeypatch, tmp_path: Path
+) -> None:
+    """A nonzero docker exit must not be read as an interpreter resolving."""
+    monkeypatch.setattr(guard.shutil, "which", lambda name: "/usr/bin/docker")
+
+    class _Failed:
+        returncode = 125
+        stdout = ""
+        stderr = "Cannot connect to the Docker daemon"
+
+    monkeypatch.setattr(guard.subprocess, "run", lambda *a, **k: _Failed())
+    with pytest.raises(guard.EnvironmentUnavailableError, match="docker exited 125"):
+        guard.run_linux_container("debian:example", tmp_path, tmp_path)
+
+
+def test_a_real_interpreter_in_the_image_is_a_guard_failure(
+    guard, monkeypatch, tmp_path: Path
+) -> None:
+    """The not-vanilla path must still fire when docker genuinely succeeds."""
+    monkeypatch.setattr(guard.shutil, "which", lambda name: "/usr/bin/docker")
+
+    class _Resolved:
+        returncode = 0
+        stdout = "/usr/bin/python3\n"
+        stderr = ""
+
+    monkeypatch.setattr(guard.subprocess, "run", lambda *a, **k: _Resolved())
+    with pytest.raises(guard.GuardError, match="not vanilla"):
+        guard.run_linux_container("debian:example", tmp_path, tmp_path)
