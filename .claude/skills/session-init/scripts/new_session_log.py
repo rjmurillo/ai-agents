@@ -95,6 +95,20 @@ def build_parser() -> argparse.ArgumentParser:
 _SESSION_NUM_RE = re.compile(r"session-(\d+)")
 
 
+def _branch_discriminator(branch: str) -> str:
+    """Return a short deterministic hash of the branch name.
+
+    Used as a filename discriminator so parallel worktrees on different branches
+    cannot produce colliding session-log filenames even when they allocate the
+    same session number (issue #4561). The discriminator is 4 hex characters
+    derived from a hash of the branch name.
+    """
+    import hashlib
+
+    digest = hashlib.sha256(branch.encode("utf-8", errors="replace")).hexdigest()
+    return digest[:4]
+
+
 def _max_session_in_names(names: list[str]) -> int:
     """Highest session number among `*.json` file names, or 0 when none."""
     max_num = 0
@@ -222,6 +236,7 @@ def _write_session_file(
     session_data: dict[str, Any],
     current_date: str,
     objective: str,
+    branch: str = "",
 ) -> tuple[str, int]:
     """Write session JSON file with atomic creation and collision retry.
 
@@ -230,11 +245,12 @@ def _write_session_file(
     os.makedirs(sessions_dir, exist_ok=True)
     session_number = session_data["session"]["number"]
     max_retries = 5
+    disc = f"-b{_branch_discriminator(branch)}" if branch else ""
 
     for retry in range(max_retries):
         keywords = get_descriptive_keywords(objective)
         suffix = f"-{keywords}" if keywords else ""
-        filename = f"{current_date}-session-{session_number}{suffix}.json"
+        filename = f"{current_date}-session-{session_number}{disc}{suffix}.json"
         filepath = os.path.join(sessions_dir, filename)
 
         try:
@@ -326,6 +342,7 @@ def main(argv: list[str] | None = None) -> int:
             session_data,
             current_date,
             objective,
+            branch=git_info["branch"],
         )
     except OSError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
