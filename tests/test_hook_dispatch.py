@@ -226,6 +226,24 @@ class TestRunDispatch:
         rc = run_dispatch(tmp_path, names, b"{}")
         assert rc == 2
 
+    def test_shim_syntax_error_degrades_with_warning(self, tmp_path, capsys):
+        """A shim that cannot compile is a load failure: degrade, not deny."""
+        names = [_write_shim(tmp_path, "bad.py", "def broken(:\n")]
+        rc = run_dispatch(tmp_path, names, b"{}")
+        assert rc == 0
+        err = capsys.readouterr().err
+        assert "WARNING: hooks DISABLED" in err
+        assert "SyntaxError" in err
+
+    def test_shim_runtime_error_denies_not_degrades(self, tmp_path, capsys):
+        """A shim that loads then raises is an execution failure: deny."""
+        names = [_write_shim(tmp_path, "raises.py", "raise ValueError('bad input')\n")]
+        rc = run_dispatch(tmp_path, names, b"{}")
+        assert rc == 2
+        err = capsys.readouterr().err
+        assert "denying (fail-closed)" in err
+        assert "WARNING: hooks DISABLED" not in err
+
     def test_invalid_shim_timeout_fails_closed(self, tmp_path):
         names = [_write_shim(tmp_path, "slow.py", "import sys; sys.exit(0)\n")]
 

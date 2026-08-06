@@ -16,38 +16,25 @@ Design contract (the security-critical part):
   ``hooks.json``). Orphaned ``invoke_*.py`` files on disk are never executed.
 - **Gate vs observe mode (ADR-068, #2342).** ``run_dispatch`` takes a
   ``short_circuit`` flag. In gate mode (``PreToolUse``) the first shim that exits
-  non-zero denies the tool; the dispatcher returns that code and stops
-  (fail-closed, ADR-066). A registered shim missing on disk, or an unexpected
-  exception while running a shim, is a denial (exit 2), never a silent allow. A
-  shim's own internal fail-open (its ``main`` returning 0 on its own error) is
-  preserved, because the dispatcher only observes the shim's final exit code.
-  Per-shim timeout metadata is validated, but not enforced with daemon threads:
-  a timed-out Python thread cannot be killed and can leave child processes
-  running after hook success. The host owns the cumulative event timeout and
-  kills the whole dispatcher process if that budget is exhausted. In observe
-  mode every shim runs regardless of an earlier non-zero exit; failures are
-  logged and the dispatcher returns 0, matching the old host behavior where
-  the host ran all observer entries before consolidation. Current generated
-  observers are ``PostToolUse``, ``PreCompact``, ``SessionStart``, and
-  ``UserPromptSubmit``. Unclassified events, including ``SessionEnd``, remain
-  direct until their output and failure contracts are reviewed.
+  non-zero denies the tool (fail-closed, ADR-066). A shim that cannot load
+  (SyntaxError, ImportError) degrades with exit 0 (#4672); a shim that loads
+  and raises during execution denies (exit 2). Per-shim timeout metadata is
+  validated but not enforced; the host owns the cumulative event timeout. In
+  observe mode every shim runs regardless; failures are logged and the
+  dispatcher returns 0. Current generated observers are ``PostToolUse``,
+  ``PreCompact``, ``SessionStart``, and ``UserPromptSubmit``.
 - **stdin replay.** Each shim reads ``sys.stdin.buffer``; the dispatcher rewinds
   a fresh stream of the original bytes before each shim, so every shim inspects
   exactly the payload the host delivered (no #2290 schema mutation).
 - **Observer output translation.** Copilot parses at most one final JSON
-  document per command hook. PostToolUse shim stdout is merged in registration
-  order into one documented ``additionalContext`` response. SessionStart and
-  PreCompact stdout is captured at the Python stream, file-descriptor, and
-  inherited child-process levels, then discarded because current producers
-  include branch-controlled repository prose that must not reach model-visible
-  channels. UserPromptSubmit output is also discarded because Copilot documents
-  no output field for that event and does not document stderr as a model-context
-  channel. Only successful observers contribute; partial stdout from a failing
-  observer is discarded.
-- **Host-timeout residual.**
-  ``.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`` records:
-  "A `timeoutSec: 2` probe timed out and failed open, then executed the tool."
-  A timeout can therefore allow a tool before later guards run.
+  document per command hook. PostToolUse shim stdout is merged into one
+  ``additionalContext`` response. SessionStart, PreCompact, and UserPromptSubmit
+  stdout is captured and discarded (current producers include repository prose
+  that must not reach model-visible channels). Only successful observers
+  contribute; partial stdout from a failing observer is discarded.
+- **Host-timeout residual.** ADR-068 records: "A `timeoutSec: 2` probe timed
+  out and failed open, then executed the tool." A timeout can therefore allow
+  a tool before later guards run.
 """
 
 from __future__ import annotations
@@ -75,7 +62,9 @@ from hook_dispatch_protocol import (  # noqa: E402
 from hook_dispatch_protocol import (  # noqa: E402
     emit_observer_output as _emit_observer_output,
 )
-from hook_dispatch_protocol import observe_output_policy  # noqa: E402,F401
+from hook_dispatch_protocol import (  # noqa: E402
+    observe_output_policy,  # noqa: F401
+)
 from hook_dispatch_protocol import (  # noqa: E402
     record_discarded_observer_output as _record_discarded_observer_output,
 )
@@ -88,9 +77,8 @@ BLOCK_EXIT = 2
 def _install_stdin(raw: bytes) -> None:
     """Point ``sys.stdin`` at a fresh stream over ``raw``.
 
-    A ``TextIOWrapper`` over a ``BufferedReader`` exposes both ``.buffer`` (read
-    by the matcher-shim layer) and ``.read()``/``.isatty()`` (read by a wrapped
-    original hook), so a shim and the original it wraps see the same bytes.
+    TextIOWrapper over BufferedReader exposes both ``.buffer`` (read by the
+    matcher-shim layer) and ``.read()`` (read by a wrapped original hook).
     """
     sys.stdin = io.TextIOWrapper(
         io.BufferedReader(io.BytesIO(raw)),
@@ -119,8 +107,8 @@ def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
     except SystemExit as exc:
         # Only an explicit sys.exit() is a policy verdict.
         return _exit_code(exc)
-    except Exception as exc:
-        # Shim cannot load/run: not a policy decision. Degrade (#4672).
+    except (SyntaxError, ImportError) as exc:
+        # Load failure: affects every call, creates uninstall pressure. Degrade.
         print(
             f"project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected). "
             f"Shim {name} raised {type(exc).__name__}: {exc}; infrastructure failure, not a "
@@ -128,6 +116,14 @@ def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
             file=sys.stderr,
         )
         return ALLOW_EXIT
+    except Exception as exc:
+        # Execution failure: affects one call, no uninstall pressure. Deny.
+        print(
+            f"hook-dispatch: shim {name} raised {type(exc).__name__}: "
+            f"{exc}; denying (fail-closed)",
+            file=sys.stderr,
+        )
+        return BLOCK_EXIT
 
 
 def _open_capture_stream(fd: int) -> TextIO:
