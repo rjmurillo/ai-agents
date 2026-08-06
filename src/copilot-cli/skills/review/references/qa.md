@@ -39,7 +39,7 @@ keeps that change from passing on absent evidence. See
 - Do NOT claim tools (ruff, mypy, pytest, etc.) lack support for a version unless you have concrete evidence from the diff itself.
 - For dependency update PRs: evaluate the diff for internal consistency, not external ecosystem assumptions. If CI tests pass, the tooling works.
 - Base findings on what the code shows, not on recalled release schedules.
-- **Python version floor (issue #3931)**: Before reporting any Python compatibility finding, read `project.requires-python` from `pyproject.toml`. Do not flag a language feature as unsupported when the stated floor already includes that feature. PEP 604 union types (`X | Y`) are valid in `isinstance` and `issubclass` on Python 3.10 and later; this repository requires Python 3.14, so flagging `isinstance(value, A | B)` is a false positive. Cite the detected floor in any compatibility finding you do report.
+- **Python version floor (issue #3931)**: Before reporting any Python compatibility finding, read `project.requires-python` from `pyproject.toml`. Do not flag a language feature as unsupported when the stated floor already includes that feature. PEP 604 union types (`X | Y`) are valid in `isinstance` and `issubclass` on Python 3.10 and later, provided every union member is itself a valid runtime type argument (not a parameterized generic like `list[int]`). `isinstance(v, list[int] | str)` raises `TypeError` even on 3.14 because `list[int]` is not a class. This repository requires Python 3.14, so flagging `isinstance(value, A | B)` where both operands are plain types is a false positive. Cite the detected floor in any compatibility finding you do report.
 
 ## Evaluation Principles
 

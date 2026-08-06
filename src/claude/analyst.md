@@ -13,8 +13,8 @@ tools:
   - WebFetch
   - Bash(git *)
   - Bash(gh *)
-  - Bash(python3 .claude/skills/github/scripts/*)
-  - Bash(python3 .claude/skills/*/scripts/*)
+  - Bash(python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/*")
+  - Bash(python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/*/scripts/*")
   - mcp__serena__*
   - mcp__context7__*
   - mcp__deepwiki__*
