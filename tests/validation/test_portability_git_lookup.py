@@ -23,15 +23,179 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.validation import portability_floor
+from scripts.validation import portability_floor, portability_git
 from scripts.validation.portability_floor import read_previous_sections
-from scripts.validation.portability_git import tree_entries, was_recorded
+from scripts.validation.portability_git import (
+    GIT_TIMEOUT_RETURN_CODE,
+    GIT_TIMEOUT_SECONDS,
+    run_git,
+    tree_entries,
+    was_recorded,
+)
 
 pytestmark = pytest.mark.unit
 
 HIGH = {"files": {"victim": 5}}
 LOW = {"files": {"victim": 0}}
 REL = Path("scripts/validation/baseline.json")
+
+
+def _timed_out(*args: str) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.CompletedProcess(
+        args,
+        GIT_TIMEOUT_RETURN_CODE,
+        stdout=b"",
+        stderr=b"git command timed out after 30s",
+    )
+
+
+def test_run_git_bounds_and_reports_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured_timeout: list[float] = []
+
+    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        timeout = kwargs["timeout"]
+        assert isinstance(timeout, float)
+        captured_timeout.append(timeout)
+        raise subprocess.TimeoutExpired("git", timeout)
+
+    monkeypatch.setattr(portability_git.subprocess, "run", time_out)
+
+    result = run_git(tmp_path, "status")
+
+    assert result is not None
+    assert result.returncode == GIT_TIMEOUT_RETURN_CODE
+    assert result.stderr == b"git command timed out after 30s"
+    assert captured_timeout == [GIT_TIMEOUT_SECONDS]
+
+
+def test_run_git_preserves_partial_stderr_on_timeout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        timeout = kwargs["timeout"]
+        assert isinstance(timeout, float)
+        raise subprocess.TimeoutExpired(
+            "git",
+            timeout,
+            stderr=b"waiting for repository lock",
+        )
+
+    monkeypatch.setattr(portability_git.subprocess, "run", time_out)
+
+    result = run_git(tmp_path, "status")
+
+    assert result is not None
+    assert result.returncode == GIT_TIMEOUT_RETURN_CODE
+    assert result.stderr == (
+        b"waiting for repository lock\ngit command timed out after 30s"
+    )
+
+
+def test_run_git_strips_git_overrides_case_insensitively(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured_env: dict[str, str] = {}
+
+    def capture(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        env = kwargs["env"]
+        assert isinstance(env, dict)
+        captured_env.update(env)
+        return subprocess.CompletedProcess(command, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setenv("git_index_file", "/wrong/index")
+    monkeypatch.setenv("Git_Dir", "/wrong/repo")
+    monkeypatch.setenv("PORTABILITY_TEST_SENTINEL", "kept")
+    monkeypatch.setattr(portability_git.subprocess, "run", capture)
+
+    result = run_git(tmp_path, "status")
+
+    assert result is not None
+    assert "git_index_file" not in captured_env
+    assert "Git_Dir" not in captured_env
+    assert captured_env["PORTABILITY_TEST_SENTINEL"] == "kept"
+
+
+def test_committed_blob_refuses_when_head_probe_times_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def dispatch(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+        assert repo_root == tmp_path
+        if args == ("rev-parse", "--show-toplevel"):
+            return subprocess.CompletedProcess(args, 0, stdout=os.fsencode(tmp_path), stderr=b"")
+        if args == ("rev-parse", "--verify", "--quiet", "HEAD"):
+            return subprocess.CompletedProcess(
+                args,
+                GIT_TIMEOUT_RETURN_CODE,
+                stdout=b"",
+                stderr=b"git command timed out after 30s",
+            )
+        raise AssertionError(f"unexpected git command: {args}")
+
+    monkeypatch.setattr(portability_git, "run_git", dispatch)
+
+    oid, problem = portability_git.committed_blob(tmp_path, tmp_path / REL)
+
+    assert oid is None
+    assert problem is not None
+    assert "identifying HEAD for the committed baseline" in problem
+
+
+def test_committed_blob_names_repository_root_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(portability_git, "run_git", lambda *_args: _timed_out("rev-parse"))
+
+    oid, problem = portability_git.committed_blob(tmp_path, tmp_path / REL)
+
+    assert oid is None
+    assert problem is not None and "locating the repository root" in problem
+    assert "timed out" in problem
+
+
+def test_tree_entries_names_listing_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(portability_git, "run_git", lambda *_args: _timed_out("ls-tree"))
+
+    entries, problem = tree_entries(tmp_path, "HEAD")
+
+    assert entries is None
+    assert problem is not None and "listing the committed baseline directory" in problem
+    assert "timed out" in problem
+
+
+def test_no_commit_probe_names_ref_listing_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(portability_git, "run_git", lambda *_args: _timed_out("for-each-ref"))
+
+    state, problem = portability_git._no_commits_or_refuse(tmp_path)
+
+    assert state is None
+    assert problem is not None and "listing repository refs" in problem
+    assert "timed out" in problem
+
+
+def test_no_commit_probe_names_object_enumeration_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def dispatch(_repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+        if args and args[0] == "for-each-ref":
+            return subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
+        if args and args[0] == "cat-file":
+            return _timed_out("cat-file")
+        raise AssertionError(f"unexpected git command: {args}")
+
+    monkeypatch.setattr(portability_git, "run_git", dispatch)
+
+    state, problem = portability_git._no_commits_or_refuse(tmp_path)
+
+    assert state is None
+    assert problem is not None and "enumerating the object database" in problem
+    assert "timed out" in problem
 
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -271,7 +435,7 @@ class TestAPathThatCannotBeResolvedIsNotProofNothingWasRecorded:
         outside.parent.mkdir(parents=True)
         outside.write_text("{}\n")
 
-        assert was_recorded(root, outside) is False
+        assert was_recorded(root, outside) == (False, None)
 
     def test_an_unresolvable_path_answers_unknown_and_not_absent(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -286,7 +450,7 @@ class TestAPathThatCannotBeResolvedIsNotProofNothingWasRecorded:
             return real(self, strict)
 
         monkeypatch.setattr(Path, "resolve", refuse)
-        assert was_recorded(root, baseline) is None
+        assert was_recorded(root, baseline) == (None, None)
 
     def test_the_control_resolves_and_answers(self, tmp_path: Path) -> None:
         """Without the induced failure the same call returns a real verdict."""
@@ -294,10 +458,10 @@ class TestAPathThatCannotBeResolvedIsNotProofNothingWasRecorded:
         baseline = root / REL
         baseline.write_text("{}\n")
 
-        assert was_recorded(root, baseline) is False
+        assert was_recorded(root, baseline) == (False, None)
 
         _commit(root, root, {"files": {"a/b.py": 5}})
-        assert was_recorded(root, baseline) is True
+        assert was_recorded(root, baseline) == (True, None)
 
     def test_the_caller_refuses_before_it_ever_asks(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

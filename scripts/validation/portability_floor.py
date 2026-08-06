@@ -21,6 +21,7 @@ from typing import Any
 
 from scripts.validation.portability_git import (
     committed_blob,
+    git_timeout_problem,
     run_git,
     was_recorded,
 )
@@ -136,6 +137,8 @@ def _committed_sections(repo_root: Path, path: Path) -> tuple[Sections | None, s
         return None, None
 
     proc = run_git(repo_root, "cat-file", "blob", blob)
+    if problem := git_timeout_problem(proc, "reading the committed baseline object"):
+        return None, problem
     if proc is None or proc.returncode != 0:
         return None, "the committed baseline object could not be read"
 
@@ -200,7 +203,9 @@ def read_previous_sections(
     try:
         raw = path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        recorded = was_recorded(repo_root, path)
+        recorded, recorded_problem = was_recorded(repo_root, path)
+        if recorded_problem:
+            return None, recorded_problem
         if recorded is None:
             return None, "git could not determine whether branch history recorded the baseline"
         if recorded:

@@ -1,0 +1,146 @@
+{
+  "id": "episode-2026-08-05-session-9017-repair-4435-evidence-provenance-chronology",
+  "session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair PR 4435 evidence provenance and chronology",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T14:09:17+00:00",
+      "type": "milestone",
+      "content": "Checked issue coordination",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T14:10:00+00:00",
+      "type": "milestone",
+      "content": "Read required context",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T14:24:00+00:00",
+      "type": "milestone",
+      "content": "Repaired canonical evidence",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T14:28:00+00:00",
+      "type": "milestone",
+      "content": "Validated repaired artifacts",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T14:32:06+00:00",
+      "type": "milestone",
+      "content": "Completed independent artifact review",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T14:34:45+00:00",
+      "type": "milestone",
+      "content": "Recorded repair commit",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T15:57:03+00:00",
+      "type": "milestone",
+      "content": "Landed extractor dependency",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T14:34:06+00:00",
+      "type": "commit",
+      "content": "Commit: 11f7322e76f3bdfab0fa5d4540156ecebf4ba77a",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T15:55:14+00:00",
+      "type": "commit",
+      "content": "Commit: 3787354aa2de9b1a198416fc0cec871b420e5e38",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T15:57:29+00:00",
+      "type": "commit",
+      "content": "Commit: 1923a88f37aa73c00807ae879aa4e04d8af90c22",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9017-repair-4435-evidence-provenance-chronology"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 107,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 32
+  },
+  "lessons": []
+}

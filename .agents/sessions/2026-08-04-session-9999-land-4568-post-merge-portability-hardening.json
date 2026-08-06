@@ -1,0 +1,180 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9999,
+    "date": "2026-08-04",
+    "branch": "fix/4568-post-merge-portability-hardening",
+    "startingCommit": "71eedf65c",
+    "objective": "Land PR 4568 post-merge portability hardening"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena accepted project memory reads and writes for this repository"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions returned the Serena manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved as read-only"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill script catalog loaded before GitHub writes"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4568-post-merge-portability-hardening"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4568-post-merge-portability-hardening"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked in the recovery worktree"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "71eedf65c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Markdown lint ran for three changed Markdown artifacts; repository configuration excluded all three from content linting"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: fbadfa5a2)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session todo state updated through the final evidence and review phases"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-05-pr-4670-portability-recovery.md"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-04",
+      "action": "Replayed four reviewed commits that merged PR #4568 did not contain",
+      "result": "Recovery branch contains the reviewed portability tree"
+    },
+    {
+      "time": "2026-08-04",
+      "action": "Added Windows skips for six symlink tests",
+      "result": "Tests no longer assume Windows link privileges"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Centralized Git timeout detection and added operation-specific diagnostics",
+      "result": "Tree, ref, object, root, HEAD, baseline, and shared Git reads fail closed with useful errors"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Ran focused tests, Ruff, mypy, and independent code reviews",
+      "result": "204 focused tests and 23320 full-suite tests passed; final observability review found no Critical or High issue"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Filed reviewer tool-output injection issue #4653 and updated rate-limit issue #4326",
+      "result": "Both process defects now have durable GitHub evidence"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Ran local quality review gates",
+      "result": "Golden-principles and taste-lint scans passed; the heuristic quality scorer reported score regressions without a concrete Critical or High defect"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Fixed type errors found by the pre-push mypy gate",
+      "result": "Hook mypy passed on both files; 42 focused tests and Ruff passed"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Resolved the main-branch memory-index conflict and closed Windows CI review gaps",
+      "result": "Memory gates passed; six privilege-dependent tests now run under the Windows path marker and skip on Windows"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Preserved partial Git stderr and calibrated the shared timeout",
+      "result": "Twenty runs across 169611 Git objects peaked at 179.915 ms; timeout tests, Ruff, and mypy passed"
+    },
+    {
+      "time": "2026-08-05",
+      "action": "Closed final review evidence gaps",
+      "result": "HEAD timeout names the exact probe; calibration is reproducible; machine-local session evidence was removed"
+    },
+    {
+      "time": "2026-08-05T23:35:38",
+      "action": "Merged recovery PR #4670 and closed process follow-ups",
+      "result": "All checks passed, review threads reached zero, issue #4116 reopened, mypy feedback gap filed as #4674, and mixed-timezone extraction crash filed as #4675"
+    }
+  ],
+  "endingCommit": "fbadfa5a2",
+  "nextSteps": []
+}
