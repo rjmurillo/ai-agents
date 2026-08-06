@@ -39,6 +39,10 @@ inputs:
   bot-pat:
     description: 'GitHub PAT for GitHub CLI operations (gh commands). Can be classic or fine-grained PAT with repo access.'
     required: true
+  github-token:
+    description: 'Runner-scoped GitHub token for GitHub API reads'
+    required: false
+    default: ''
   copilot-token:
     description: |
       Fine-grained PAT with "Copilot Requests" permission for Copilot CLI.
@@ -161,7 +165,7 @@ runs:
       if: inputs.enable-diagnostics == 'true'
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.bot-pat }}
+        GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
       run: python3 "$GITHUB_WORKSPACE/scripts/ci/verify_github_auth.py"
 
     - name: Diagnose Copilot CLI
@@ -171,7 +175,7 @@ runs:
       env:
         # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
-        GH_TOKEN: ${{ inputs.bot-pat }}
+        GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
         COPILOT_AGENT: ${{ inputs.agent }}
         COPILOT_MODEL: ${{ inputs.copilot-model }}
       run: python3 "$GITHUB_WORKSPACE/scripts/ci/diagnose_copilot_cli.py"
@@ -180,7 +184,7 @@ runs:
       id: context
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.bot-pat }}
+        GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
         CONTEXT_TYPE: ${{ inputs.context-type }}
         PR_NUMBER: ${{ inputs.pr-number }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
@@ -213,7 +217,7 @@ runs:
       env:
         # Use dedicated Copilot token if provided, otherwise fall back to bot-pat
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
-        GH_TOKEN: ${{ inputs.bot-pat }}
+        GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
         AI_REVIEW_OUTPUT_FILE: ${{ steps.infra_gate.outputs.output_file }}
         ADDITIONAL_CONTEXT: ${{ inputs.additional-context }}
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
