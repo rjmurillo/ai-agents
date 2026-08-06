@@ -53,12 +53,15 @@ def reflog_oids(admin: Path) -> list[str] | None:
 
 
 def _reflog_text(log: Path) -> str | None:
-    """The reflog's contents, ``""`` when it is not there, ``None`` when unreadable."""
-    present = regular_file(log)
-    if present is None:
+    """The reflog's contents, or ``None`` when it could not be read.
+
+    ``log`` came from a walk that already saw it, so a file that is absent now
+    is one that went away underneath us, not one that was never there. Reading
+    that as an empty reflog would clear a worktree using a snapshot the probe
+    knows is stale.
+    """
+    if not regular_file(log):
         return None
-    if not present:
-        return ""
     try:
         return log.read_text(encoding="utf-8", errors="replace")
     except OSError:
@@ -66,21 +69,27 @@ def _reflog_text(log: Path) -> str | None:
 
 
 def _collect_reflog_oids(text: str, seen: dict[str, None]) -> bool:
-    """Add every non-null id in ``text`` to ``seen``. ``False`` if it made no sense.
+    """Add every non-null id in ``text`` to ``seen``. ``False`` if a line made no sense.
 
-    Lines that parse and name only the null id are understood and carry no
-    risk, which is why the test is "did any field look like an id" rather than
-    "did any survive".
+    Every line git writes to a reflog opens with the old and the new object id,
+    so a non-blank line that does not is a line this reader does not
+    understand: a truncated final write, a different encoding, or not a reflog
+    at all. Judging the file as a whole would let one good line vouch for the
+    rest and hand back a partial list, which reads downstream as "these are the
+    only ids at risk". A line naming only the null id is understood and carries
+    no risk, which is why the test is the shape of the fields rather than what
+    survives.
     """
-    understood = False
     for line in text.splitlines():
-        for field in line.split(" ")[:2]:
-            if not _OID.fullmatch(field):
-                continue
-            understood = True
+        if not line.strip():
+            continue
+        fields = line.split(" ")[:2]
+        if len(fields) < 2 or not all(_OID.fullmatch(f) for f in fields):
+            return False
+        for field in fields:
             if not _NULL_OID.fullmatch(field):
                 seen[field] = None
-    return understood or not text.strip()
+    return True
 
 
 def walk_files(root: Path) -> list[Path] | None:

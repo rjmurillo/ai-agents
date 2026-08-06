@@ -245,3 +245,98 @@ class TestReflogsBeyondHead:
         ref.parent.mkdir(parents=True)
         ref.write_text("this is not a reflog\n")
         assert _gc_anchors.reflog_oids(tmp_path) is None
+
+
+class TestReflogParsingIsPerLine:
+    """One line a reader understands does not vouch for the rest of the file."""
+
+    @staticmethod
+    def _log(tmp_path: Path, body: str) -> Path:
+        log = tmp_path / "logs" / "HEAD"
+        log.parent.mkdir(parents=True)
+        log.write_text(body, encoding="utf-8")
+        return tmp_path
+
+    def test_a_line_that_does_not_open_with_two_ids_is_not_understood(self, tmp_path):
+        """A partial list reads downstream as "these are the only ids at risk".
+
+        Judging the file as a whole let one good line clear a file whose
+        remaining lines were never parsed, which is the silent all-clear this
+        module exists to prevent.
+        """
+        admin = self._log(
+            tmp_path,
+            f"{'a' * 40} {'b' * 40} t <t> 0 +0000\tcommit\nthis is not a reflog\n",
+        )
+        assert _gc_anchors.reflog_oids(admin) is None
+
+    def test_a_truncated_final_line_is_not_understood(self, tmp_path):
+        """A reflog caught mid-write ends in a partial line."""
+        admin = self._log(tmp_path, f"{'a' * 40} {'b' * 40} t <t> 0 +0000\tcommit\n{'c' * 40} ")
+        assert _gc_anchors.reflog_oids(admin) is None
+
+    def test_a_line_with_only_one_id_is_not_understood(self, tmp_path):
+        admin = self._log(tmp_path, f"{'a' * 40} not-an-id t <t> 0 +0000\tcommit\n")
+        assert _gc_anchors.reflog_oids(admin) is None
+
+    def test_blank_lines_are_understood(self, tmp_path):
+        admin = self._log(tmp_path, f"\n{'a' * 40} {'b' * 40} t <t> 0 +0000\tcommit\n\n")
+        assert sorted(_gc_anchors.reflog_oids(admin)) == ["a" * 40, "b" * 40]
+
+    def test_an_entirely_blank_reflog_is_understood_and_empty(self, tmp_path):
+        assert _gc_anchors.reflog_oids(self._log(tmp_path, "\n\n")) == []
+
+    def test_a_real_git_reflog_parses(self, tmp_path):
+        """Guard against over-tightening: git's own output has to still read.
+
+        Several entries, an amend, a checkout, and a branch move, so the file
+        carries every message shape git writes on an ordinary session.
+        """
+        env = {
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "HOME": str(tmp_path),
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@t",
+        }
+
+        def run(*args: str) -> None:
+            subprocess.run(
+                ["git", "-C", str(tmp_path / "repo"), *args],
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                env=env,
+            )
+
+        (tmp_path / "repo").mkdir()
+        subprocess.run(
+            ["git", "init", "-q", "-b", "main", str(tmp_path / "repo")],
+            check=True,
+            capture_output=True,
+            env=env,
+        )
+        run("commit", "-q", "--allow-empty", "-m", "one")
+        run("commit", "-q", "--allow-empty", "-m", "two")
+        run("commit", "-q", "--allow-empty", "--amend", "-m", "two amended")
+        run("checkout", "-q", "-b", "side")
+        run("commit", "-q", "--allow-empty", "-m", "three")
+
+        oids = _gc_anchors.reflog_oids(tmp_path / "repo" / ".git")
+        assert oids is not None, "git's own reflog did not parse"
+        assert len(oids) >= 3, oids
+
+
+class TestAReflogThatVanishesMidWalk:
+    """The walk already saw the file, so absence now means it went away."""
+
+    def test_a_path_the_walk_found_and_then_lost_is_unknown(self, tmp_path):
+        """``_reflog_text`` is handed a path ``walk_files`` returned.
+
+        Reading a file that has since been deleted as an empty reflog would
+        clear the worktree using a snapshot the probe already knows is stale.
+        """
+        assert _gc_anchors._reflog_text(tmp_path / "gone") is None
