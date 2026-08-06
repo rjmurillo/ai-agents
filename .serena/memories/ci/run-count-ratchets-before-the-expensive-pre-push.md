@@ -44,10 +44,10 @@ Run the ratchets against the base before you push. Each takes seconds:
 
 ```bash
 git fetch origin main
-uv run --frozen python3 scripts/ci/taste_count_ratchet.py --base-ref origin/main
-uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main
-uv run --frozen python3 scripts/ci/memory_index_count_ratchet.py --base-ref origin/main
-uv run --frozen python3 scripts/ci/merge_tree_ratchet_check.py --base-ref FETCH_HEAD
+uv run --frozen --extra dev python scripts/ci/taste_count_ratchet.py --base-ref origin/main
+uv run --frozen --extra dev python scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main
+uv run --frozen --extra dev python scripts/ci/memory_index_count_ratchet.py --base-ref origin/main
+uv run --frozen --extra dev python scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main
 ```
 
 Do **not** copy the CI form of these commands, which historically fetched with
