@@ -8,20 +8,24 @@ wrapper (``_workflow_yaml_targets`` / ``_yaml_style_targets``), so a change to
 the shared helper had to be re-verified (and could drift) in two places. This
 file is the one place that behavior is proven; each gate file keeps only the
 filtering/wiring tests that are actually specific to that gate (extension
-matching, composite-action exclusion, deleted-file exclusion, argv
-construction for the linter itself).
+matching, composite-action exclusion, argv construction for the linter
+itself; the missing-from-disk hard failure is proven once, generically, in
+``tests/validation_pre_pr/test_filtered_targets.py``).
 
-``_changed_paths_since_base`` unions three git signals (issue: a prior
-version only diffed the committed range against the base ref, so a
-worktree-only edit -- staged, unstaged, or untracked -- was invisible to
-every gate that scoped itself this way):
+``_changed_paths_since_base`` unions four git signals, collected SEPARATELY
+(round 2 review, item 1: a single two-dot ``git diff HEAD`` call compares
+the worktree directly to HEAD, bypassing the index, so a staged change
+"canceled" by reverting the worktree copy back to HEAD content -- without
+touching the index -- went undetected; see
+``TestStagedChangeSurvivesWorktreeRevert`` below for the reproduction):
 
 1. Committed changes since the base ref (``<base>...HEAD``).
-2. Uncommitted changes against HEAD (covers the index AND the working tree
-   in one ``git diff HEAD`` call).
-3. Untracked files (``git ls-files --others --exclude-standard``).
+2. Staged changes against HEAD (``git diff --cached HEAD``): the index.
+3. Unstaged changes (``git diff``, no revision arg): the worktree against
+   the index.
+4. Untracked files (``git ls-files --others --exclude-standard``).
 
-All three run NUL-delimited (``-z``) so Unicode and space-containing paths
+All four run NUL-delimited (``-z``) so Unicode and space-containing paths
 survive intact.
 
 ``git_cmd``, ``make_repo_with_base``, and ``no_gh`` are fixtures from
@@ -39,19 +43,19 @@ from unittest.mock import patch
 
 import pytest
 
-# `checks_tooling.py` is a script module, not a package member; it inserts
-# its own directory onto `sys.path` when imported via `scripts.validation.*`
-# (see its `_SCRIPT_DIR` guard), but that only helps a module that imports
-# `scripts.validation.pre_pr` FIRST. Doing the same insert directly here
-# makes this file's import self-contained instead of depending on another
-# test module having already run its own top-level import first (an
-# ordering `ruff --fix`'s import sort is not aware of and will happily
-# rearrange out from under).
+# `checks_changed_paths.py` is a script module, not a package member; it
+# inserts its own directory onto `sys.path` when imported via
+# `scripts.validation.*` (see its `_SCRIPT_DIR` guard), but that only helps a
+# module that imports `scripts.validation.pre_pr` FIRST. Doing the same
+# insert directly here makes this file's import self-contained instead of
+# depending on another test module having already run its own top-level
+# import first (an ordering `ruff --fix`'s import sort is not aware of and
+# will happily rearrange out from under).
 _SCRIPTS_VALIDATION_DIR = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 if str(_SCRIPTS_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_VALIDATION_DIR))
 
-from checks_tooling import _changed_paths_since_base  # noqa: E402
+from checks_changed_paths import _changed_paths_since_base  # noqa: E402
 
 pytestmark = pytest.mark.usefixtures("no_gh")
 
@@ -69,46 +73,39 @@ class TestScopingContract:
 
     def test_returns_none_when_no_base_ref_resolves(self, tmp_path: Path) -> None:
         # tmp_path is not a git repo at all; no ref can resolve.
-        with patch("checks_tooling._run_subprocess") as mock_run:
+        with patch("checks_changed_paths._run_subprocess") as mock_run:
             assert _changed_paths_since_base(tmp_path, "Test") is None
         mock_run.assert_not_called()
 
     @pytest.mark.parametrize(
         "failing_call_index",
-        [0, 1, 2],
-        ids=["committed-diff-fails", "worktree-diff-fails", "ls-files-fails"],
+        [0, 1, 2, 3],
+        ids=["committed-diff-fails", "staged-diff-fails", "unstaged-diff-fails", "ls-files-fails"],
     )
     def test_returns_none_when_any_underlying_command_fails(
         self, tmp_path: Path, failing_call_index: int
     ) -> None:
         """A git-command failure is a proof failure, not a "no changes"
-        signal, regardless of which of the three commands fails."""
-        with patch(
-            "checks_tooling._resolve_branch_base_ref", return_value="origin/main"
-        ):
-            results = [(0, "", ""), (0, "", ""), (0, "", "")]
+        signal, regardless of which of the four commands fails."""
+        with patch("checks_changed_paths._resolve_branch_base_ref", return_value="origin/main"):
+            results = [(0, "", ""), (0, "", ""), (0, "", ""), (0, "", "")]
             results[failing_call_index] = (128, "", "fatal: bad revision")
-            with patch("checks_tooling._run_subprocess") as mock_run:
+            with patch("checks_changed_paths._run_subprocess") as mock_run:
                 mock_run.side_effect = results
                 assert _changed_paths_since_base(tmp_path, "Test") is None
 
     def test_returns_empty_list_for_a_clean_resolved_branch(self, tmp_path: Path) -> None:
-        with patch(
-            "checks_tooling._resolve_branch_base_ref", return_value="origin/main"
-        ):
-            with patch("checks_tooling._run_subprocess") as mock_run:
+        with patch("checks_changed_paths._resolve_branch_base_ref", return_value="origin/main"):
+            with patch("checks_changed_paths._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "", "")
                 assert _changed_paths_since_base(tmp_path, "Test") == []
 
-    def test_issues_exactly_three_calls_in_order_with_acmr_and_z(
-        self, tmp_path: Path
-    ) -> None:
-        """Locks in the three-command shape: committed range, worktree-vs-HEAD,
-        untracked -- each NUL-delimited, the two diffs ACMR-filtered."""
-        with patch(
-            "checks_tooling._resolve_branch_base_ref", return_value="origin/main"
-        ):
-            with patch("checks_tooling._run_subprocess") as mock_run:
+    def test_issues_exactly_four_calls_in_order_with_acmr_and_z(self, tmp_path: Path) -> None:
+        """Locks in the four-command shape: committed range, staged-vs-HEAD,
+        unstaged, untracked -- each NUL-delimited, the three diffs
+        ACMR-filtered."""
+        with patch("checks_changed_paths._resolve_branch_base_ref", return_value="origin/main"):
+            with patch("checks_changed_paths._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "", "")
                 _changed_paths_since_base(tmp_path, "Test")
 
@@ -138,7 +135,22 @@ class TestScopingContract:
                         "--name-only",
                         "-z",
                         "--diff-filter=ACMR",
+                        "--cached",
                         "HEAD",
+                    ],
+                ),
+                {"timeout": 30},
+            ),
+            (
+                (
+                    [
+                        "git",
+                        "-C",
+                        str(tmp_path),
+                        "diff",
+                        "--name-only",
+                        "-z",
+                        "--diff-filter=ACMR",
                     ],
                 ),
                 {"timeout": 30},
@@ -161,18 +173,18 @@ class TestScopingContract:
 
 
 # ---------------------------------------------------------------------------
-# Real-repo integration: each of the three unioned sources, independently
+# Real-repo integration: each of the four unioned sources, independently
 # ---------------------------------------------------------------------------
 
 
-class TestUnionOfThreeSources:
+class TestUnionOfFourSources:
     """Real git repos (no mocking) proving each source is actually unioned."""
 
     def test_worktree_only_unstaged_edit_is_included(
         self, tmp_path: Path, make_repo_with_base: RepoFactory
     ) -> None:
         """An edit that is neither committed nor staged -- pure worktree --
-        must still show up (the ``git diff HEAD`` two-dot call, not the
+        must still show up (the unstaged ``git diff`` call, not the
         three-dot base-ref range, is what catches this)."""
         repo = make_repo_with_base(tmp_path)
         (repo / "README.md").write_text("seed\nunstaged edit\n", encoding="utf-8")
@@ -249,6 +261,57 @@ class TestUnionOfThreeSources:
         self, tmp_path: Path, make_repo_with_base: RepoFactory
     ) -> None:
         repo = make_repo_with_base(tmp_path)
+
+        assert _changed_paths_since_base(repo, "Test") == []
+
+
+# ---------------------------------------------------------------------------
+# Item 1 (round 2 review): a two-dot ``git diff HEAD`` compares the worktree
+# directly to HEAD, bypassing the index -- so a staged change whose worktree
+# copy is separately reverted to HEAD content "cancels" and disappears from
+# that one call. Splitting staged (``--cached HEAD``) from unstaged (plain
+# ``git diff``) closes the gap; these tests are the reproduction and guard.
+# ---------------------------------------------------------------------------
+
+
+class TestStagedChangeSurvivesWorktreeRevert:
+    def test_staged_edit_is_included_even_when_worktree_copy_reverts_to_head(
+        self, tmp_path: Path, make_repo_with_base: RepoFactory, git_cmd: GitCmd
+    ) -> None:
+        """Reproduces the item-1 bug: stage a modification (index differs
+        from HEAD), then overwrite the WORKTREE copy back to HEAD content
+        without touching the index (``git show HEAD:path`` writes the file
+        directly; no git command runs against the index). A single two-dot
+        ``git diff HEAD`` sees no difference here (verified this session:
+        it compares the worktree to HEAD directly), so the old
+        implementation lost this path entirely. ``git diff --cached HEAD``
+        (the staged source) still reports it, and that source alone is
+        enough for the union to include it.
+        """
+        repo = make_repo_with_base(tmp_path)
+        (repo / "README.md").write_text("seed\nstaged change\n", encoding="utf-8")
+        git_cmd(repo, "add", "README.md")
+
+        head_content = git_cmd(repo, "show", "HEAD:README.md").stdout
+        (repo / "README.md").write_text(head_content, encoding="utf-8")
+
+        result = _changed_paths_since_base(repo, "Test")
+
+        assert result == ["README.md"]
+
+    def test_staged_then_fully_restored_is_not_reported_as_changed(
+        self, tmp_path: Path, make_repo_with_base: RepoFactory, git_cmd: GitCmd
+    ) -> None:
+        """Inverse guard: staging a change and then restoring BOTH the
+        index and the worktree (``git restore --staged --worktree``, the
+        normal way to undo a stage) must leave nothing reported as changed.
+        The fix for the cancellation bug must not overcorrect into
+        reporting a path that is genuinely, cleanly back to HEAD.
+        """
+        repo = make_repo_with_base(tmp_path)
+        (repo / "README.md").write_text("seed\nstaged change\n", encoding="utf-8")
+        git_cmd(repo, "add", "README.md")
+        git_cmd(repo, "restore", "--staged", "--worktree", "README.md")
 
         assert _changed_paths_since_base(repo, "Test") == []
 

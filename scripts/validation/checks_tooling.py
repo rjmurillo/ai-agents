@@ -11,18 +11,14 @@ import os
 import re
 import shutil
 import sys
-from collections.abc import Callable
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from checks_common import (  # noqa: E402
-    MissingScriptSkip,
-    _resolve_branch_base_ref,
-    _run_subprocess,
-)
+from checks_changed_paths import _filtered_targets  # noqa: E402
+from checks_common import MissingScriptSkip, _run_subprocess  # noqa: E402
 from checks_dash import _is_vendored  # noqa: E402
 
 MARKDOWNLINT_CLI2_PACKAGE = "markdownlint-cli2@0.23.1"
@@ -178,69 +174,6 @@ def _report_selection(target_args: list[str], stdout: str) -> None:
         )
 
 
-def _git_paths_z(
-    repo_root: Path, args: list[str], warn_label: str, action: str
-) -> list[str] | None:
-    """Run a git subcommand that lists paths NUL-delimited; None on failure.
-
-    ``args`` is the argv after ``git -C <repo_root>`` (each subcommand's own
-    ``-z``/``--name-only`` flags). ``-z`` keeps Unicode/space paths intact:
-    verified this session, plain ``git diff --name-only`` C-quotes
-    ``日本語.md`` as an octal escape; ``-z`` prints raw UTF-8, NUL-terminated.
-    """
-    exit_code, stdout, stderr = _run_subprocess(
-        ["git", "-C", str(repo_root), *args],
-        timeout=30,
-    )
-    if exit_code != 0:
-        print(f"[WARNING] {warn_label} target narrowing skipped: {action} failed: {stderr}")
-        return None
-    return [path for path in stdout.split("\0") if path]
-
-
-def _changed_paths_since_base(repo_root: Path, warn_label: str) -> list[str] | None:
-    """Return the union of changed paths, or None for full-scan fallback.
-
-    Shared by the markdown/workflow/yaml target helpers. Unions three
-    signals so a worktree-only edit (staged, unstaged, or brand new) is
-    never invisible to a gate's scope: (1) committed changes since the base
-    ref (``<base>...HEAD``); (2) uncommitted changes against HEAD, a
-    two-dot ``git diff HEAD`` covering the index AND working tree in one
-    call; (3) untracked files (``git ls-files --others --exclude-standard``).
-    All three run ``-z``; see :func:`_git_paths_z`.
-
-    Returns None (full-scan fallback) when the base ref cannot be resolved
-    or ANY command fails -- a failure is a proof failure, not "no changes".
-    Returns ``[]`` for a clean worktree. ACMR filtering (Added, Copied,
-    Modified, Renamed; no Deleted) is preserved for the two diffs; untracked
-    files are included as-is. Callers still apply the existing per-path
-    ``(repo_root / path).is_file()`` check afterward.
-    """
-    base_ref = _resolve_branch_base_ref(repo_root)
-    if base_ref is None:
-        print(f"[WARNING] {warn_label} target narrowing skipped: no base ref resolved")
-        return None
-
-    diff_filter = ["diff", "--name-only", "-z", "--diff-filter=ACMR"]
-    sources = (
-        (diff_filter + [f"{base_ref}...HEAD"], "git diff (base ref)"),
-        (diff_filter + ["HEAD"], "git diff (worktree)"),
-        (["ls-files", "--others", "--exclude-standard", "-z"], "git ls-files (untracked)"),
-    )
-
-    seen: set[str] = set()
-    changed_paths: list[str] = []
-    for args, action in sources:
-        group = _git_paths_z(repo_root, args, warn_label, action)
-        if group is None:
-            return None
-        for path in group:
-            if path not in seen:
-                seen.add(path)
-                changed_paths.append(path)
-    return changed_paths
-
-
 def _print_capped(output: str, limit: int, unit: str) -> None:
     """Print at most ``limit`` lines of ``output``, then an omitted-count note."""
     lines = output.strip().split("\n")
@@ -248,20 +181,6 @@ def _print_capped(output: str, limit: int, unit: str) -> None:
         print(line)
     if len(lines) > limit:
         print(f"... ({len(lines) - limit} more {unit} omitted)")
-
-
-def _filtered_targets(
-    repo_root: Path, warn_label: str, predicate: Callable[[str], bool]
-) -> list[str] | None:
-    """Return changed paths matching ``predicate`` and still on disk.
-
-    None/[] pass through unchanged from :func:`_changed_paths_since_base`;
-    ``(repo_root / path).is_file()`` drops any path no longer on disk.
-    """
-    changed = _changed_paths_since_base(repo_root, warn_label)
-    if changed is None:
-        return None
-    return [path for path in changed if predicate(path) and (repo_root / path).is_file()]
 
 
 def _markdown_lint_targets(repo_root: Path) -> list[str] | None:
