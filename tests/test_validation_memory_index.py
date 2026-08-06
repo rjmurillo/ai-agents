@@ -7,6 +7,7 @@ duplicate detection, orphan detection, memory-index references, and output forma
 
 from __future__ import annotations
 
+import subprocess
 from collections import Counter
 from pathlib import Path
 from unittest.mock import patch
@@ -480,6 +481,43 @@ class TestCheckMemoryIndexReferences:
         assert counts is None
         assert error == "invalid base ref: '--octopus'"
 
+    def test_symbolic_link_in_base_tree_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        memory_path = tmp_path / ".serena" / "memories"
+        memory_path.mkdir(parents=True)
+        commit_id = "a" * 40
+        base_content = "| keywords: [entry](shared.md)\n"
+        completed = [
+            subprocess.CompletedProcess([], 0, f"{tmp_path}\n", ""),
+            subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
+            subprocess.CompletedProcess([], 0, base_content, ""),
+            subprocess.CompletedProcess(
+                [],
+                0,
+                (
+                    "120000 blob bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    "\t.serena/memories/shared.md\0"
+                ),
+                "",
+            ),
+        ]
+
+        with patch(
+            "scripts.validation.memory_index.subprocess.run",
+            side_effect=completed,
+        ):
+            counts, error = _load_base_reference_counts(
+                memory_path,
+                "origin/main",
+            )
+
+        assert counts is None
+        assert error == (
+            "base memory-index target is a symbolic link: "
+            ".serena/memories/shared.md"
+        )
+
     def test_valid_references(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (
@@ -576,6 +614,7 @@ class TestCheckMemoryIndexReferences:
         ("destination", "decoy_path"),
         [
             ("shared%2Emd", "shared%2Emd.md"),
+            ("shared&period;md", "shared&period;md.md"),
             (r"shared\.md", "shared/.md"),
             ("shared.md?view", "shared.md?view.md"),
             ("shared.md#section", "shared.md#section.md"),
@@ -606,6 +645,27 @@ class TestCheckMemoryIndexReferences:
             for issue in result.issues
         )
         assert result.duplicate_references == []
+
+    def test_symbolic_link_target_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        (tmp_path / "target.md").write_text("content")
+        (tmp_path / "shared.md").symlink_to("target.md")
+        (tmp_path / "memory-index.md").write_text(
+            "| keywords: [entry](shared.md)\n"
+        )
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is False
+        assert any(
+            "symbolic link" in issue
+            for issue in result.issues
+        )
 
     @pytest.mark.parametrize(
         ("base_count", "head_count", "expected_pass"),

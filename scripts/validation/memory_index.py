@@ -30,6 +30,7 @@ import argparse
 import dataclasses
 import json
 import os
+import posixpath
 import re
 import subprocess
 from collections import Counter
@@ -174,29 +175,38 @@ _MARKDOWN_LINK_PATTERN: re.Pattern[str] = re.compile(
     r"\[([^\]]+)\]\(([^)]+)\)"
 )
 _URL_PERCENT_ESCAPE_PATTERN = re.compile(r"%[0-9A-Fa-f]{2}")
+_COMMONMARK_ENTITY_PATTERN = re.compile(
+    r"&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);"
+)
 
 
 def _resolve_memory_reference(
     memory_path: Path,
     resolved_memory: Path,
     file_name: str,
-) -> tuple[str | None, Path]:
+) -> tuple[str | None, Path, str | None]:
     """Resolve a memory reference and return its canonical identity."""
     normalized_name = file_name.replace("\\", "/")
-    resolved_ref = (memory_path / f"{normalized_name}.md").resolve()
+    reference_path = memory_path / f"{normalized_name}.md"
+    if reference_path.is_symlink():
+        return None, reference_path, "symbolic link"
+
+    resolved_ref = reference_path.resolve()
     if not resolved_ref.is_relative_to(resolved_memory):
-        return None, resolved_ref
+        return None, resolved_ref, "Path traversal"
 
     relative_ref = resolved_ref.relative_to(resolved_memory).as_posix()
     identity = re.sub(r"\.md$", "", relative_ref, flags=re.IGNORECASE)
     canonical_identity = os.path.normcase(identity).replace("\\", "/")
-    return canonical_identity, resolved_ref
+    return canonical_identity, resolved_ref, None
 
 
 def _invalid_destination_reason(destination: str) -> str | None:
     """Return why a Markdown destination is unsafe to canonicalize."""
     if _URL_PERCENT_ESCAPE_PATTERN.search(destination):
         return "URL percent escape"
+    if _COMMONMARK_ENTITY_PATTERN.search(destination):
+        return "CommonMark character reference"
     if "\\" in destination:
         return "CommonMark backslash escape"
     if "?" in destination:
@@ -264,14 +274,14 @@ def _canonical_reference_counts(
     resolved_memory = memory_path.resolve()
     canonical_refs: list[str] = []
     for file_name in reference_names:
-        canonical_identity, _ = _resolve_memory_reference(
+        canonical_identity, _, invalid_reason = _resolve_memory_reference(
             memory_path,
             resolved_memory,
             file_name,
         )
         if canonical_identity is None:
             return None, (
-                "P1 VALIDITY: Path traversal detected "
+                f"P1 VALIDITY: {invalid_reason} detected "
                 f"in memory-index: {file_name}.md"
             )
         canonical_refs.append(canonical_identity)
@@ -331,8 +341,58 @@ def _load_base_reference_counts(
             return None, (
                 f"could not read {relative_index} at merge base {merge_base}"
             )
+
+        relative_memory = posixpath.dirname(relative_index)
+        tree_result = subprocess.run(
+            [
+                "git",
+                "ls-tree",
+                "-r",
+                "-z",
+                merge_base,
+                "--",
+                relative_memory,
+            ],
+            cwd=repo_root,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+        )
+        if tree_result.returncode != 0:
+            return None, (
+                f"could not inspect {relative_memory} at merge base "
+                f"{merge_base}"
+            )
     except (OSError, ValueError) as exc:
         return None, f"could not read base memory index: {exc}"
+
+    symlink_paths: set[str] = set()
+    for entry in tree_result.stdout.split("\0"):
+        if not entry:
+            continue
+        if "\t" not in entry:
+            return None, "could not parse merge-base tree output"
+        metadata, path = entry.split("\t", 1)
+        mode = metadata.split(" ", 1)[0]
+        if mode == "120000":
+            symlink_paths.add(path)
+
+    reference_names, destination_issues = (
+        _extract_memory_reference_names(show_result.stdout)
+    )
+    if destination_issues:
+        return None, destination_issues[0]
+    for file_name in reference_names:
+        target_path = posixpath.normpath(
+            f"{relative_memory}/{file_name}.md"
+        )
+        if target_path in symlink_paths:
+            return None, (
+                f"base memory-index target is a symbolic link: "
+                f"{target_path}"
+            )
 
     return _canonical_reference_counts(show_result.stdout, memory_path)
 
@@ -678,16 +738,18 @@ def check_memory_index_references(
     canonical_refs: list[str] = []
     resolved_refs: dict[str, Path] = {}
     for file_name in reference_names:
-        canonical_identity, resolved_ref = _resolve_memory_reference(
+        canonical_identity, resolved_ref, invalid_reason = (
+            _resolve_memory_reference(
             memory_path,
             resolved_memory,
             file_name,
+            )
         )
         if canonical_identity is None:
             result.passed = False
             result.broken_references.append(file_name)
             result.issues.append(
-                f"P1 VALIDITY: Path traversal detected "
+                f"P1 VALIDITY: {invalid_reason} detected "
                 f"in memory-index: {file_name}.md"
             )
             continue
