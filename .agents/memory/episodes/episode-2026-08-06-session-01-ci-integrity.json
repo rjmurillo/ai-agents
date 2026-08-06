@@ -53,7 +53,7 @@
         "e003"
       ],
       "leads_to": [
-        "e005"
+        "e010"
       ],
       "_source_session": "2026-08-06-session-01-ci-integrity"
     },
@@ -63,7 +63,7 @@
       "type": "milestone",
       "content": "Fixed #4709 by serializing act jobs for multi-job workflows and making contention retries visible.",
       "caused_by": [
-        "e004"
+        "e010"
       ],
       "leads_to": [
         "e006"
@@ -91,7 +91,9 @@
       "caused_by": [
         "e006"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-06-session-01-ci-integrity"
     },
     {
@@ -106,14 +108,38 @@
         "e003"
       ],
       "_source_session": "2026-08-06-session-01-ci-integrity"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-07T00:15:00+00:00",
+      "type": "milestone",
+      "content": "Ran full required validation. Full pytest, mypy hook policy, merge-tree ratchet, and pre_pr.py passed.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-01-ci-integrity"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-06T23:07:21+00:00",
+      "type": "commit",
+      "content": "Commit: 31738edf3f63c3b7ae50680d6280bfb3461565f6",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-06-session-01-ci-integrity"
     }
   ],
   "metrics": {
-    "duration_minutes": 82,
+    "duration_minutes": 112,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 2
   },
   "lessons": []

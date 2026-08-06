@@ -84,12 +84,12 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Work commits end at 7ea1efcf39c7809e49350876ebdd98edd2568233."
+        "evidence": "Work commits end at 31738edf3f63c3b7ae50680d6280bfb3461565f6."
       },
       "validationPassed": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Targeted tests and negative controls passed before session log commit; full required validation is run after this log commit."
+        "evidence": "Full pytest, mypy hook policy, merge-tree ratchet, and pre_pr.py passed."
       }
     }
   },
@@ -121,8 +121,12 @@
     {
       "time": "2026-08-06T23:45:00Z",
       "entry": "Ran targeted tests and negative controls. Each new test went red when its implementation was reverted and green after reapplying."
+    },
+    {
+      "time": "2026-08-07T00:15:00Z",
+      "entry": "Ran full required validation. Full pytest, mypy hook policy, merge-tree ratchet, and pre_pr.py passed."
     }
   ],
-  "endingCommit": "7ea1efcf39c7809e49350876ebdd98edd2568233",
+  "endingCommit": "31738edf3f63c3b7ae50680d6280bfb3461565f6",
   "nextSteps": []
 }
