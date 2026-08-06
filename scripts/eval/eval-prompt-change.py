@@ -74,7 +74,7 @@ from _anthropic_api import (
     load_api_key_for_selected_provider,
     verify_model_available,
 )
-from _eval_common import EST_TOKENS_PER_CALL
+from _eval_common import EST_TOKENS_PER_CALL, MalformedProviderMetadataError
 from _providers import is_default_anthropic
 
 RATE_LIMIT_SLEEP_SEC = 1.0
@@ -733,6 +733,30 @@ def _is_provider_outage(exc: Exception) -> bool:
     return any(marker in msg for marker in outage_markers)
 
 
+def _run_or_exit(
+    api_key: str,
+    before_text: str,
+    after_text: str,
+    scenarios: list[dict[str, Any]],
+    args: argparse.Namespace,
+    source: str,
+) -> None:
+    try:
+        _run_and_report(api_key, before_text, after_text, scenarios, args, source)
+    except MalformedProviderMetadataError:
+        raise
+    except RuntimeError as error:
+        if _is_provider_outage(error):
+            print(
+                "SKIP: behavioral eval could not run, model provider "
+                f"unavailable: {error}",
+                file=sys.stderr,
+            )
+            sys.exit(0)
+        print(f"ERROR: eval failed: {error}", file=sys.stderr)
+        sys.exit(3)
+
+
 def main() -> None:
     args = _parse_args()
     if getattr(args, "provider", None):
@@ -794,19 +818,7 @@ def main() -> None:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(2)
 
-    try:
-        _run_and_report(api_key, before_text, after_text, scenarios, args, source)
-    except RuntimeError as e:
-        if _is_provider_outage(e):
-            # Infrastructure outage, not a quality regression. Skip neutrally so
-            # the gate does not red-fail on a provider the change did not touch.
-            print(
-                f"SKIP: behavioral eval could not run, model provider unavailable: {e}",
-                file=sys.stderr,
-            )
-            sys.exit(0)
-        print(f"ERROR: eval failed: {e}", file=sys.stderr)
-        sys.exit(3)
+    _run_or_exit(api_key, before_text, after_text, scenarios, args, source)
 
 
 if __name__ == "__main__":  # pragma: no cover
