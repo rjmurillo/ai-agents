@@ -10,8 +10,6 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 from pathlib import Path
-
-_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "validation" / "check_pr_bypass_label.py"
 from types import SimpleNamespace
 
 import pytest
@@ -22,6 +20,8 @@ _MODULE_PATH = (
     / "validation"
     / "check_pr_bypass_label.py"
 )
+
+_SCRIPT_PATH = _MODULE_PATH
 _spec = importlib.util.spec_from_file_location("check_pr_bypass_label", _MODULE_PATH)
 assert _spec and _spec.loader
 mod = importlib.util.module_from_spec(_spec)
