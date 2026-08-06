@@ -1,16 +1,15 @@
-"""Test analyst agent tool allowlist security and bundled script layout.
+"""Test analyst agent security contract: no shell execution, delegation-only GitHub access.
 
 Verifies:
-1. The allowlist permits only the bundled github_query.py, not arbitrary python
-2. The bundled script exists in both plugin roots
-3. Repo-local spoofing is structurally impossible (script is self-contained)
-4. Missing trusted install produces explicit failure
-5. The bundled script exposes only read-only commands
+1. No Bash wildcard or shell tool in the allowlist
+2. No direct gh/git/python3 guidance in prose
+3. Delegation contract requires supplied context
+4. Missing context produces [BLOCKED] response in prose
+5. Parity between plugin roots
 """
 
 from __future__ import annotations
 
-import re
 import subprocess
 from pathlib import Path
 
@@ -22,143 +21,117 @@ REPO_ROOT = Path(subprocess.check_output(
 
 ANALYST_MD = REPO_ROOT / ".claude" / "agents" / "analyst.md"
 ANALYST_SRC = REPO_ROOT / "src" / "claude" / "analyst.md"
-SCRIPT_CLAUDE = REPO_ROOT / ".claude" / "scripts" / "github_query.py"
-SCRIPT_SRC = REPO_ROOT / "src" / "claude" / "scripts" / "github_query.py"
-
-ALLOWLIST_PATTERN = 'Bash(python3 "$CLAUDE_PLUGIN_ROOT/scripts/github_query.py" *)'
 
 
-class TestAllowlistNarrow:
-    """The tool allowlist permits only the bundled script."""
+class TestNoBashWildcard:
+    """The analyst must have no Bash tool permission of any kind."""
 
-    def test_allowlist_references_exact_script(self) -> None:
+    def test_no_bash_in_tools_frontmatter(self) -> None:
         text = ANALYST_MD.read_text()
-        assert ALLOWLIST_PATTERN in text
+        # Extract frontmatter
+        parts = text.split("---", 2)
+        assert len(parts) >= 3, "No YAML frontmatter found"
+        frontmatter = parts[1]
+        for line in frontmatter.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("- Bash"):
+                pytest.fail(f"Bash tool found in frontmatter: {stripped}")
 
-    def test_no_broad_python3_permission(self) -> None:
+    def test_no_python3_in_tools_frontmatter(self) -> None:
         text = ANALYST_MD.read_text()
-        # Must not contain python3 * (without the script path)
-        lines = text.splitlines()
-        for line in lines:
-            if "Bash(python3" in line and "github_query.py" not in line:
-                pytest.fail(f"Broad python3 permission found: {line.strip()}")
+        parts = text.split("---", 2)
+        frontmatter = parts[1]
+        assert "python3" not in frontmatter
 
-    def test_no_python3_dash_c_allowed(self) -> None:
-        """python3 -c must not match the allowlist pattern."""
-        # The allowlist is: Bash(python3 "$CLAUDE_PLUGIN_ROOT/scripts/github_query.py" *)
-        # A command like python3 -c "..." does NOT start with the required
-        # $CLAUDE_PLUGIN_ROOT/scripts/github_query.py prefix, so it must not
-        # match.  We verify the pattern structurally: the second positional
-        # token after python3 must be the literal script path.
+    def test_no_git_tool_in_frontmatter(self) -> None:
         text = ANALYST_MD.read_text()
-        bash_python_lines = [
-            l.strip() for l in text.splitlines()
-            if l.strip().startswith("- Bash(python3")
-        ]
-        for line in bash_python_lines:
-            assert "$CLAUDE_PLUGIN_ROOT/scripts/github_query.py" in line, (
-                f"python3 permission without pinned script path: {line}"
-            )
+        parts = text.split("---", 2)
+        frontmatter = parts[1]
+        # "git" could appear in description, so check tool lines only
+        for line in frontmatter.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("- Bash(git"):
+                pytest.fail(f"git tool found: {stripped}")
 
-    def test_parity_between_plugin_roots(self) -> None:
-        assert ANALYST_MD.read_text() == ANALYST_SRC.read_text()
+    def test_no_gh_tool_in_frontmatter(self) -> None:
+        text = ANALYST_MD.read_text()
+        parts = text.split("---", 2)
+        frontmatter = parts[1]
+        for line in frontmatter.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("- Bash(gh"):
+                pytest.fail(f"gh tool found: {stripped}")
 
 
-class TestBundledScriptLayout:
-    """The github_query.py script is bundled in both plugin roots."""
+class TestNoDirectGitHubGuidance:
+    """Prose must not instruct the analyst to run shell commands."""
 
-    def test_script_exists_in_claude_root(self) -> None:
-        assert SCRIPT_CLAUDE.is_file()
-
-    def test_script_exists_in_src_root(self) -> None:
-        assert SCRIPT_SRC.is_file()
-
-    def test_scripts_are_identical(self) -> None:
-        assert SCRIPT_CLAUDE.read_bytes() == SCRIPT_SRC.read_bytes()
-
-    def test_script_is_self_contained(self) -> None:
-        """Script must not import from or reference other plugin roots."""
-        text = SCRIPT_SRC.read_text()
-        # Must not reference .claude/ paths (cross-plugin)
-        assert ".claude/skills" not in text
-        assert ".claude/lib" not in text
-        # Must not import from project-toolkit paths
-        assert "from skills" not in text
-        assert "import skills" not in text
-
-    def test_script_has_no_eval_or_exec(self) -> None:
-        """Script must not contain eval/exec that could run arbitrary code."""
-        text = SCRIPT_SRC.read_text()
-        # Reject eval() and exec() calls (but allow "evaluate" in comments)
-        for line in text.splitlines():
-            stripped = line.lstrip()
+    def test_no_gh_api_instruction(self) -> None:
+        text = ANALYST_MD.read_text()
+        # Split off frontmatter
+        body = text.split("---", 2)[2]
+        for line in body.splitlines():
+            stripped = line.strip()
             if stripped.startswith("#"):
                 continue
-            assert not re.search(r'\beval\s*\(', stripped), f"eval() found: {line}"
-            assert not re.search(r'\bexec\s*\(', stripped), f"exec() found: {line}"
-
-
-class TestBundledScriptReadOnly:
-    """The bundled script exposes only read-only commands."""
-
-    def test_only_read_commands_exposed(self) -> None:
-        """All subcommands must be read-only GitHub API operations."""
-        result = subprocess.run(
-            ["python3", str(SCRIPT_SRC), "--help"],
-            capture_output=True, text=True,
-        )
-        help_text = result.stdout + result.stderr
-        # These are the allowed commands
-        allowed = {"pr-context", "pr-threads", "pr-comments", "pr-checks", "issue-context"}
-        # Extract subcommand names from help text
-        # argparse prints: {pr-context,pr-threads,...}
-        match = re.search(r'\{([^}]+)\}', help_text)
-        assert match, f"Could not find subcommands in help: {help_text}"
-        found = set(match.group(1).split(","))
-        assert found == allowed, f"Unexpected commands: {found - allowed}"
-
-    def test_no_write_operations(self) -> None:
-        """Script must not contain POST/PUT/PATCH/DELETE API calls."""
-        text = SCRIPT_SRC.read_text()
-        # Check _gh_api calls default to GET
-        # Check no method="POST" etc. in actual command functions
-        for method in ("POST", "PUT", "PATCH", "DELETE"):
-            # Allow the method parameter definition, but not actual usage
-            for line in text.splitlines():
-                stripped = line.lstrip()
-                if stripped.startswith("#") or stripped.startswith("def "):
+            # Allow negations like "cannot run" or "do not"
+            if "gh api" in stripped.lower() or "gh pr" in stripped.lower():
+                if any(neg in stripped.lower() for neg in
+                       ["cannot", "do not", "must not", "never", "no shell"]):
                     continue
-                if f'method="{method}"' in stripped:
-                    # Only allowed in the _gh_api signature default
-                    if "def _gh_api" not in stripped:
-                        pytest.fail(f"Write method {method} used: {line}")
+                pytest.fail(f"Direct gh instruction found: {stripped}")
 
-
-class TestMissingInstallFailsExplicit:
-    """When CLAUDE_PLUGIN_ROOT points to a directory without the script,
-    the command must fail explicitly rather than falling back to repo-local."""
-
-    def test_missing_script_fails(self, tmp_path: Path) -> None:
-        """Invoking with a CLAUDE_PLUGIN_ROOT that lacks the script fails."""
-        fake_root = tmp_path / "fake-plugin"
-        fake_root.mkdir()
-        result = subprocess.run(
-            [
-                "python3",
-                str(fake_root / "scripts" / "github_query.py"),
-                "pr-context", "--pull-request", "1",
-            ],
-            capture_output=True, text=True,
-        )
-        assert result.returncode != 0
-
-    def test_no_repo_local_fallback_in_allowlist(self) -> None:
-        """The allowlist must not contain cwd-relative .claude paths."""
+    def test_no_python3_invocation_instruction(self) -> None:
         text = ANALYST_MD.read_text()
-        bash_lines = [
-            l for l in text.splitlines()
-            if "Bash(python3" in l
-        ]
-        for line in bash_lines:
-            assert ".claude/skills" not in line, f"repo-local fallback: {line}"
-            assert ":-." not in line, f"cwd-relative fallback: {line}"
+        body = text.split("---", 2)[2]
+        for line in body.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            if "python3 " in stripped and "$" in stripped:
+                # This is a command invocation pattern
+                if any(neg in stripped.lower() for neg in
+                       ["cannot", "do not", "must not", "never"]):
+                    continue
+                pytest.fail(f"python3 invocation instruction: {stripped}")
+
+    def test_no_bundled_script_reference(self) -> None:
+        text = ANALYST_MD.read_text()
+        assert "github_query.py" not in text
+        assert "CLAUDE_PLUGIN_ROOT/scripts" not in text
+
+
+class TestDelegationContract:
+    """Analyst must declare that GitHub context comes from orchestrator."""
+
+    def test_blocked_response_documented(self) -> None:
+        text = ANALYST_MD.read_text()
+        assert "[BLOCKED]" in text
+
+    def test_missing_context_list_pattern(self) -> None:
+        text = ANALYST_MD.read_text()
+        assert "Missing context required for analysis" in text
+
+    def test_orchestrator_delegation_mentioned(self) -> None:
+        text = ANALYST_MD.read_text()
+        assert "orchestrator" in text.lower() or "delegation prompt" in text.lower()
+
+    def test_no_direct_retrieval_claim(self) -> None:
+        """Must not claim ability to fetch GitHub data directly."""
+        text = ANALYST_MD.read_text()
+        body = text.split("---", 2)[2]
+        assert "fetch pr" not in body.lower() or "cannot" in body.lower()
+        # Should not have a "how to query GitHub" section
+        assert "### GitHub queries" not in body
+
+
+class TestParity:
+    """Both copies must be byte-identical."""
+
+    def test_md_parity(self) -> None:
+        assert ANALYST_MD.read_text() == ANALYST_SRC.read_text()
+
+    def test_no_bundled_scripts_exist(self) -> None:
+        """The github_query.py script must not exist in either root."""
+        assert not (REPO_ROOT / ".claude" / "scripts" / "github_query.py").exists()
+        assert not (REPO_ROOT / "src" / "claude" / "scripts" / "github_query.py").exists()
