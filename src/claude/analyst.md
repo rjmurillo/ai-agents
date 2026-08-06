@@ -13,7 +13,7 @@ tools:
   - WebFetch
   - Bash(git *)
   - Bash(gh *)
-  - Bash(python3 *)
+  - Bash(python3 "$CLAUDE_PLUGIN_ROOT/scripts/github_query.py" *)
   - mcp__serena__*
   - mcp__context7__*
   - mcp__deepwiki__*
@@ -99,34 +99,22 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 **mcp__deepwiki__***: repository documentation lookup
 **Memory via Serena**: `mcp__serena__read_memory`, `mcp__serena__write_memory`
 
-### Locating skill scripts
+### GitHub queries (bundled)
 
-The github skill scripts ship in the `project-toolkit` plugin. This agent may
-run from a different plugin root or from a subdirectory, so resolve the scripts
-directory at runtime using this function before any `python3` invocation:
+A read-only query script ships with this plugin at
+`$CLAUDE_PLUGIN_ROOT/scripts/github_query.py`. It wraps `gh api` for
+structured JSON output without cross-plugin dependencies.
 
 ```bash
-resolve_project_toolkit_scripts() {
-  local repo_root
-  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  for root in \
-    "${COPILOT_PLUGIN_ROOT:-}" \
-    "${CLAUDE_PLUGIN_ROOT:-}" \
-    "$repo_root/.claude" \
-    "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
-    "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
-    "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
-    if [ -n "$root" ] && [ -d "$root/skills/github/scripts" ]; then
-      printf '%s\n' "$root/skills/github/scripts"
-      return 0
-    fi
-  done
-  return 1
-}
-SCRIPTS_DIR="$(resolve_project_toolkit_scripts)" || { echo "ERROR: project-toolkit not found" >&2; exit 1; }
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/github_query.py" pr-context --pull-request 42
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/github_query.py" pr-threads --pull-request 42
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/github_query.py" pr-comments --pull-request 42
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/github_query.py" pr-checks --pull-request 42
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/github_query.py" issue-context --issue 100
 ```
 
-Prefer skill scripts over raw `gh` commands. Prefer `mcp__context7__*` and `mcp__deepwiki__*` over web scraping for library docs.
+For queries not covered by the bundled script, use `gh api` directly.
+Prefer `mcp__context7__*` and `mcp__deepwiki__*` over web scraping for library docs.
 
 **GitHub URL routing (required)**: For any `github.com` URL (issues, PRs, code, commits), use the `github-url-intercept` skill, which routes to `gh api` calls. Never call `web_fetch` on GitHub URLs. Calling `web_fetch` on a GitHub URL allows external hooks to intercept the request and redirect the agent to tools that are not in the declared toolset, which causes the agent to stall with no findings (issue #4032).
 
