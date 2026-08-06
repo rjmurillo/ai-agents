@@ -1026,6 +1026,22 @@ def _active_run_lines(step: dict) -> list[str]:
     ]
 
 
+def _join_continuations(lines: list[str]) -> list[str]:
+    """Join shell continuation lines (trailing backslash) into logical commands."""
+    joined: list[str] = []
+    buf = ""
+    for line in lines:
+        if line.endswith("\\"):
+            buf += line[:-1] + " "
+        else:
+            buf += line
+            joined.append(buf)
+            buf = ""
+    if buf:
+        joined.append(buf)
+    return joined
+
+
 _MERGE_BASE_CONSUMERS = ("merge_tree_ratchet_check.py", "count_ratchet.py")
 
 
@@ -1207,7 +1223,7 @@ def test_steps_before_merge_tree_do_not_shallow_fetch() -> None:
 
     offenders: list[str] = []
     for step in steps[: merge_indexes[0]]:
-        for line in _active_run_lines(step):
+        for line in _join_continuations(_active_run_lines(step)):
             if line.startswith("git fetch") and "--depth" in line:
                 offenders.append(f"{step.get('name')}: {line}")
 
