@@ -22,45 +22,20 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
-import time
-from collections.abc import Callable, Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-# Select the platform-specific file-locking primitive at import time so a
-# bare `import fcntl` never executes on Windows (where the module does not
-# exist).  Both branches are real code paths; the Windows branch is exercised
-# through the injected _lock_file / _unlock_file seam in tests.
-if sys.platform == "win32":
-    import msvcrt
-
-    def _lock_file(fd: int) -> None:
-        """Acquire an exclusive lock on an open file descriptor (Windows)."""
-        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-
-    def _unlock_file(fd: int) -> None:
-        """Release the lock on an open file descriptor (Windows)."""
-        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-
-else:
-    import fcntl
-
-    def _lock_file(fd: int) -> None:
-        """Acquire an exclusive lock on an open file descriptor (POSIX)."""
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-    def _unlock_file(fd: int) -> None:
-        """Release the lock on an open file descriptor (POSIX)."""
-        fcntl.flock(fd, fcntl.LOCK_UN)
-
+from scripts.validation.portability_baseline_write import (
+    baseline_write_lock,
+    replace_baseline_atomically,
+)
 from scripts.validation.portability_floor import (
     COUNTED_SECTIONS,
     Sections,
     read_previous_sections,
 )
-from scripts.validation.portability_git import run_git
+from scripts.validation.portability_git import git_timeout_problem, run_git
 
 
 def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
@@ -70,12 +45,19 @@ def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] 
 __all__ = [
     "COUNTED_SECTIONS",
     "Sections",
+    "baseline_write_lock",
+    "find_symlinked_component",
     "read_previous_sections",
+    "replace_baseline_atomically",
     "refuse_dropped_entries",
+    "refuse_oversized_baseline",
     "refuse_symlinked_baseline",
     "refuse_undiffable_baseline",
     "write_baseline_json",
 ]
+
+# Compatibility alias for tests and callers that still use the former private name.
+_baseline_write_lock = baseline_write_lock
 
 # Variables that run_git strips from the environment before calling git.
 # Their presence means run_git may have hidden a real repository from git.
@@ -162,17 +144,17 @@ def _resolved(path: Path) -> Path | None:
         return None
 
 
-def _linked_component(baseline_path: Path, repo_root: Path) -> Path | None:
-    """Return the first symlink between the repository root and the baseline.
+def find_symlinked_component(path: Path, repo_root: Path) -> Path | None:
+    """Return the first redirecting link between the repository root and ``path``.
 
-    Checking only the leaf misses the cheaper attack. A symlinked *directory*
-    anywhere on the way down redirects the write just as effectively, and it
-    leaves the leaf looking like an ordinary file.
+    Checking only the leaf misses the cheaper attack. A symlinked or junction
+    directory anywhere on the way down redirects access just as effectively,
+    and it leaves the leaf looking like an ordinary file.
     """
     root = _resolved(repo_root)
-    current = baseline_path
-    for _ in range(64):
-        if current.is_symlink():
+    current = path
+    while True:
+        if _is_redirecting_link(current):
             return current
         parent = current.parent
         if parent == current:
@@ -183,9 +165,13 @@ def _linked_component(baseline_path: Path, repo_root: Path) -> Path | None:
             # the root resolves to the root and would end the walk clean, while
             # still sending the write to a path git does not track under that
             # name. Test it before stopping.
-            return parent if parent.is_symlink() else None
+            return parent if _is_redirecting_link(parent) else None
         current = parent
-    return None
+
+
+def _is_redirecting_link(path: Path) -> bool:
+    """Return whether a path component redirects filesystem access."""
+    return path.is_symlink() or path.is_junction()
 
 
 def _escaping_parent(baseline_path: Path, repo_root: Path) -> Path | None:
@@ -219,7 +205,7 @@ def refuse_symlinked_baseline(repo_root: Path, baseline_path: Path) -> bool:
     lets the vetted name and the consumed file be two different files. The
     wording below stays neutral because both callers reach it.
     """
-    linked = _linked_component(baseline_path, repo_root)
+    linked = find_symlinked_component(baseline_path, repo_root)
     if linked is not None:
         print(
             f"Refusing a baseline reached through a symlink: {linked}. "
@@ -271,6 +257,13 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
     all, runs inside a checkout where this resolves and the guard is live.
     """
     toplevel = run_git(repo_root, "rev-parse", "--show-toplevel")
+    if problem := git_timeout_problem(toplevel, "locating the repository root"):
+        print(
+            f"Refusing to trust the baseline {baseline_path}: {problem}. "
+            "The guard cannot confirm that the baseline is diffable.",
+            file=sys.stderr,
+        )
+        return True
     if toplevel is None or toplevel.returncode != 0:
         # Two distinct states collapse into a non-zero exit from run_git:
         #
@@ -308,6 +301,13 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
         return False
 
     proc = run_git(repo_root, "check-attr", "-z", "diff", "--", str(baseline_path))
+    if problem := git_timeout_problem(proc, "checking the baseline diff attribute"):
+        print(
+            f"Refusing to trust the baseline {baseline_path}: {problem}. "
+            "The guard cannot confirm that the baseline is diffable.",
+            file=sys.stderr,
+        )
+        return True
     if proc is None or proc.returncode != 0:
         print(
             f"Refusing to trust the baseline {baseline_path}: git could not report "
@@ -343,18 +343,20 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
     return False
 
 
-def _diff_attribute(repo_root: Path, path: Path) -> str | None:
-    """Return the git diff attribute for path, None if git cannot answer."""
+def _diff_attribute(repo_root: Path, path: Path) -> tuple[str | None, str | None]:
+    """Return the git diff attribute and any timeout-specific failure."""
     try:
         rel = str(path.resolve().relative_to(repo_root.resolve()))
     except (OSError, ValueError):
-        return None
+        return None, None
     proc = _run_git(repo_root, "check-attr", "diff", "--", rel)
+    if problem := git_timeout_problem(proc, "checking the baseline diff attribute"):
+        return None, problem
     if proc is None or proc.returncode != 0:
-        return None
+        return None, None
     # Output: "<path>: diff: <value>" where value is set/unset/unspecified/<driver>
     parts = proc.stdout.decode(errors="replace").strip().split(": ", 2)
-    return parts[2] if len(parts) == 3 else None
+    return (parts[2], None) if len(parts) == 3 else (None, None)
 
 
 def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> bool:
@@ -370,7 +372,13 @@ def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> boo
     suppress diffs is to also break every --update-baseline run, making the
     suppression observable before it can be exploited.
     """
-    attr = _diff_attribute(repo_root, baseline_path)
+    attr, problem = _diff_attribute(repo_root, baseline_path)
+    if problem:
+        print(
+            f"Refusing to write baseline {baseline_path}: {problem}.",
+            file=sys.stderr,
+        )
+        return True
     if attr is None:
         print(
             f"Refusing to write a baseline: git check-attr failed for {baseline_path}. "
@@ -387,78 +395,6 @@ def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> boo
         file=sys.stderr,
     )
     return True
-
-
-@contextmanager
-def _baseline_write_lock(
-    lock_path: Path,
-    *,
-    _lock: Callable[[int], None] | None = None,
-    _unlock: Callable[[int], None] | None = None,
-) -> Iterator[None]:
-    """Serialize baseline writes with a file lock.
-
-    Uses `fcntl.flock` on POSIX and `msvcrt.locking` on Windows, selected at
-    import time so the wrong module is never imported.  The lock file survives
-    a crash and is re-acquired on the next run; a stale directory left by a
-    SIGKILL (from the previous mkdir-based lock) is removed on entry.
-
-    The ``_lock`` / ``_unlock`` parameters are injection seams for tests.
-    Pass callables with signature ``(fd: int) -> None`` to exercise a
-    specific platform path on any host.  Normal callers must not pass them.
-    """
-    lock_fn = _lock if _lock is not None else _lock_file
-    unlock_fn = _unlock if _unlock is not None else _unlock_file
-
-    # Remove a stale directory from the old mkdir-based lock (Issue #4237).
-    if lock_path.is_dir():
-        try:
-            lock_path.rmdir()
-        except OSError:
-            pass
-
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
-    try:
-        deadline = time.monotonic() + 10.0
-        while True:
-            try:
-                lock_fn(fd)
-                break
-            except (OSError, PermissionError):
-                if time.monotonic() >= deadline:
-                    raise TimeoutError(
-                        f"timed out waiting for baseline lock {lock_path}"
-                    ) from None
-                time.sleep(0.05)
-        try:
-            yield
-        finally:
-            unlock_fn(fd)
-    finally:
-        os.close(fd)
-
-
-def _replace_atomically(baseline_path: Path, text: str) -> None:
-    fd: int | None = None
-    tmp: Path | None = None
-    try:
-        fd, tmp_name = tempfile.mkstemp(
-            dir=baseline_path.parent,
-            prefix=f".{baseline_path.name}.",
-            suffix=".tmp",
-        )
-        tmp = Path(tmp_name)
-        handle = os.fdopen(fd, "w", encoding="utf-8")
-        fd = None
-        with handle:
-            handle.write(text)
-        os.replace(tmp, baseline_path)
-    finally:
-        if fd is not None:
-            os.close(fd)
-        if tmp is not None:
-            tmp.unlink(missing_ok=True)
 
 
 def write_baseline_json(
@@ -483,7 +419,7 @@ def write_baseline_json(
     """
     lock_path = baseline_path.with_name(f".{baseline_path.name}.write-lock")
     try:
-        with _baseline_write_lock(lock_path):
+        with baseline_write_lock(lock_path):
             if refuse_symlinked_baseline(repo_root, baseline_path):
                 return 2
 
@@ -494,7 +430,11 @@ def write_baseline_json(
             if refuse_dropped_entries(previous, counted, unit, allow_shrink, problem):
                 return 2
 
-            _replace_atomically(baseline_path, json.dumps(payload, indent=2) + "\n")
+            replace_baseline_atomically(
+                repo_root,
+                baseline_path,
+                json.dumps(payload, indent=2) + "\n",
+            )
     except OSError as exc:
         print(f"Could not write baseline {baseline_path}: {exc}", file=sys.stderr)
         return 2

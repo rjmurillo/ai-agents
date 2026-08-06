@@ -1,0 +1,181 @@
+"""Own and terminate the Copilot subprocess tree."""
+
+from __future__ import annotations
+
+import ctypes
+import os
+import signal
+import subprocess
+import time
+from typing import Any
+
+_JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+_JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+_CREATE_NEW_PROCESS_GROUP = 0x00000200
+_CREATE_SUSPENDED = 0x00000004
+
+
+def _last_error() -> int:
+    get_last_error = getattr(ctypes, "get_last_error", None)
+    return int(get_last_error()) if get_last_error is not None else 0
+
+
+def windows_creation_flags() -> int:
+    """Start Windows children suspended inside a distinct process group."""
+    if os.name != "nt":
+        return 0
+    return int(
+        getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", _CREATE_NEW_PROCESS_GROUP)
+    ) | int(getattr(subprocess, "CREATE_SUSPENDED", _CREATE_SUSPENDED))
+
+
+class _BasicLimitInformation(ctypes.Structure):
+    _fields_ = [
+        ("PerProcessUserTimeLimit", ctypes.c_longlong),
+        ("PerJobUserTimeLimit", ctypes.c_longlong),
+        ("LimitFlags", ctypes.c_ulong),
+        ("MinimumWorkingSetSize", ctypes.c_size_t),
+        ("MaximumWorkingSetSize", ctypes.c_size_t),
+        ("ActiveProcessLimit", ctypes.c_ulong),
+        ("Affinity", ctypes.c_size_t),
+        ("PriorityClass", ctypes.c_ulong),
+        ("SchedulingClass", ctypes.c_ulong),
+    ]
+
+
+class _IoCounters(ctypes.Structure):
+    _fields_ = [
+        ("ReadOperationCount", ctypes.c_ulonglong),
+        ("WriteOperationCount", ctypes.c_ulonglong),
+        ("OtherOperationCount", ctypes.c_ulonglong),
+        ("ReadTransferCount", ctypes.c_ulonglong),
+        ("WriteTransferCount", ctypes.c_ulonglong),
+        ("OtherTransferCount", ctypes.c_ulonglong),
+    ]
+
+
+class _ExtendedLimitInformation(ctypes.Structure):
+    _fields_ = [
+        ("BasicLimitInformation", _BasicLimitInformation),
+        ("IoInfo", _IoCounters),
+        ("ProcessMemoryLimit", ctypes.c_size_t),
+        ("JobMemoryLimit", ctypes.c_size_t),
+        ("PeakProcessMemoryUsed", ctypes.c_size_t),
+        ("PeakJobMemoryUsed", ctypes.c_size_t),
+    ]
+
+
+class _WindowsJob:
+    def __init__(self, process: subprocess.Popen[str]) -> None:
+        loader = getattr(ctypes, "WinDLL", None)
+        if loader is None:
+            raise OSError("Windows job objects are unavailable")
+        kernel32: Any = loader("kernel32", use_last_error=True)
+        create_job = kernel32.CreateJobObjectW
+        create_job.restype = ctypes.c_void_p
+        handle = create_job(None, None)
+        if not handle:
+            raise OSError(_last_error(), "CreateJobObjectW failed")
+
+        self._kernel32 = kernel32
+        self._handle: int | None = int(handle)
+        try:
+            limits = _ExtendedLimitInformation()
+            limits.BasicLimitInformation.LimitFlags = (
+                _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            )
+            configured = kernel32.SetInformationJobObject(
+                ctypes.c_void_p(self._handle),
+                _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+                ctypes.byref(limits),
+                ctypes.sizeof(limits),
+            )
+            if not configured:
+                raise OSError(
+                    _last_error(),
+                    "SetInformationJobObject failed",
+                )
+            process_handle = getattr(process, "_handle", None)
+            if process_handle is None:
+                raise OSError("Windows process handle is unavailable")
+            assigned = kernel32.AssignProcessToJobObject(
+                ctypes.c_void_p(self._handle),
+                ctypes.c_void_p(int(process_handle)),
+            )
+            if not assigned:
+                raise OSError(
+                    _last_error(),
+                    "AssignProcessToJobObject failed",
+                )
+            ntdll: Any = loader("ntdll", use_last_error=True)
+            resume_process = ntdll.NtResumeProcess
+            resume_process.restype = ctypes.c_long
+            status = int(resume_process(ctypes.c_void_p(int(process_handle))))
+            if status != 0:
+                raise OSError(status, "NtResumeProcess failed")
+        except BaseException:
+            self.close()
+            raise
+
+    def close(self) -> None:
+        if self._handle is None:
+            return
+        self._kernel32.CloseHandle(ctypes.c_void_p(self._handle))
+        self._handle = None
+
+
+class ProcessTree:
+    """Hold the platform process-tree boundary until cleanup completes."""
+
+    def __init__(self, process: subprocess.Popen[str]) -> None:
+        self._process = process
+        self._windows_job = _WindowsJob(process) if os.name == "nt" else None
+        self._closed = False
+
+    def terminate(self, *, force: bool) -> None:
+        if self._closed:
+            return
+        if self._windows_job is not None:
+            self.close()
+            return
+        try:
+            os.killpg(
+                self._process.pid,
+                signal.SIGKILL if force else signal.SIGTERM,
+            )
+        except ProcessLookupError:
+            pass
+
+    def wait_for_exit_before_reap(self, timeout: float) -> bool:
+        if os.name != "posix" or not hasattr(os, "waitid"):
+            return False
+        if self._process.returncode is not None:
+            return False
+        deadline = time.monotonic() + timeout
+        options = os.WEXITED | os.WNOHANG | os.WNOWAIT
+        while time.monotonic() < deadline:
+            try:
+                if os.waitid(os.P_PID, self._process.pid, options) is not None:
+                    return True
+            except ChildProcessError:
+                return False
+            time.sleep(0.01)
+        return False
+
+    def has_exited(self) -> bool:
+        if os.name != "posix" or not hasattr(os, "waitid"):
+            return self._process.poll() is not None
+        if self._process.returncode is not None:
+            return True
+        try:
+            options = os.WEXITED | os.WNOHANG | os.WNOWAIT
+            return os.waitid(os.P_PID, self._process.pid, options) is not None
+        except ChildProcessError:
+            return self._process.returncode is not None
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        if self._windows_job is not None:
+            self._windows_job.close()
+        self._closed = True
