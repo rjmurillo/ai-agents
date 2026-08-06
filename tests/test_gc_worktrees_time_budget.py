@@ -32,7 +32,10 @@ from scripts.maintenance.gc_worktrees import (
     main,
     parse_args,
 )
-from tests.gc_worktree_fixtures import no_reflog_only_work  # noqa: F401
+from tests.gc_worktree_fixtures import (  # noqa: F401
+    checkout_is_present,
+    no_reflog_only_work,
+)
 
 _MODULE = "scripts.maintenance.gc_worktrees"
 

@@ -1,8 +1,14 @@
 """Shared fixtures for the worktree GC suites that name synthetic paths.
 
 Three suites drive ``decide`` against fabricated worktree paths. They import
-``no_reflog_only_work`` from here rather than each carrying a copy, so the
-reason the stub exists is written down once and cannot drift between them.
+these stubs from here rather than each carrying a copy, so the reason each one
+exists is written down once and cannot drift between them.
+
+Both stubs answer a probe that reads the real filesystem. Against a path that
+was never created, the honest answer is "unknown" or "gone", and both keep
+every worktree, which would leave these suites asserting nothing. So each stub
+declares the fabricated path stands for a healthy worktree, and the probe it
+replaces is measured against real git instead.
 """
 
 from __future__ import annotations
@@ -13,6 +19,28 @@ from unittest.mock import patch
 import pytest
 
 _PROBE = "scripts.maintenance.gc_worktrees._gc_reasons.reflog_only_work"
+_PRESENT = "scripts.maintenance.gc_worktrees._gc_stale.linked_checkout_present"
+
+
+@pytest.fixture(autouse=True)
+def checkout_is_present() -> Iterator[None]:
+    """Declare that every fabricated path holds its own checkout.
+
+    ``decide`` calls ``is_stale`` before any merge check, and staleness is not
+    ``prunable`` alone: an entry whose ``.git`` marker is missing, or present
+    but naming another worktree's admin directory, is stale even when git says
+    nothing. A fabricated path carries no marker at all, so without this stub
+    every worktree in these suites would report as a stale entry.
+
+    What the stub replaces is covered where it can be measured:
+    ``TestCheckoutPresence`` in ``test_gc_worktrees_stale.py`` builds the file
+    layout and states each answer, and
+    ``test_gc_worktrees_real_git_stale.py`` proves against real git that a
+    worktree moved onto another's deleted path does not make that entry
+    healthy.
+    """
+    with patch(_PRESENT, return_value=True):
+        yield
 
 
 @pytest.fixture(autouse=True)

@@ -181,7 +181,6 @@ def is_merged_to_base(path: str, base_ref: str) -> bool:
     raise RuntimeError(msg)
 
 
-
 def decide(
     worktree: Worktree,
     main_path: str,
@@ -192,7 +191,7 @@ def decide(
     cwds: frozenset[str] = frozenset(),
     remote_head_refs: frozenset[str] | None = None,
     origin_upstreams: dict[str, str] | None = None,
-    checkout_present: Callable[[str], bool] = _gc_stale.linked_checkout_present,
+    checkout_present: Callable[[str], bool] | None = None,
 ) -> Decision:
     """Decide whether a worktree is safe to remove. KEEP on any doubt.
 
@@ -207,10 +206,12 @@ def decide(
     rather than ``KEEP_DETACHED``. Both keep the worktree, so the fail-safe
     invariant holds either way.
 
-    A ``prunable`` worktree is always kept. The marker means git cannot find
-    the working tree, and three different situations produce it: the directory
-    was deleted and abandoned, the directory was deleted while its index still
-    held staged content, or the directory was **moved and is still in use**.
+    A stale worktree is always kept. Staleness is not ``prunable`` alone: git
+    sets that marker only when the recorded directory is gone, and it computes
+    it at all only for entries it would consider pruning. Three different
+    situations produce a stale entry: the directory was deleted and abandoned,
+    the directory was deleted while its index still held staged content, or the
+    directory was **moved and is still in use**.
     Nothing in the admin record separates them, and removing the entry silently
     orphans staged blobs in the second case and breaks a live checkout in the
     third. So the report names the entry, lists everything clearing it would
@@ -225,6 +226,11 @@ def decide(
         reason = KEEP_BARE if worktree.bare else KEEP_MAIN
         return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
 
+    # Resolved here rather than as a default argument. A default binds the
+    # probe at import, so a test that replaces the module attribute never
+    # reaches it and quietly measures production behaviour instead.
+    present = checkout_present or _gc_stale.linked_checkout_present
+
     def kept(reason: str) -> Decision:
         """Attach the stale-entry risk to whichever structural reason won.
 
@@ -236,14 +242,15 @@ def decide(
         this work, and the report already discloses those entries as
         uninspected.
 
-        Staleness here is not ``prunable`` alone. Verified against real git:
-        git suppresses the ``prunable`` marker for a locked worktree even when
-        its directory is gone, because it will not prune a locked entry
-        regardless. So a missing directory counts on its own. That check costs
-        one ``stat`` and cannot fire on a healthy worktree, whose directory is
-        present by definition.
+        Staleness here is not ``prunable`` alone, for the same reason it is not
+        on the unlocked path. Verified against real git: git suppresses the
+        ``prunable`` marker for a locked worktree even when its directory is
+        gone, because it will not prune a locked entry regardless. So a missing
+        or foreign checkout counts on its own. That check is two file reads and
+        cannot fire on a healthy worktree, whose marker points back by
+        definition.
         """
-        if _gc_stale.is_stale(worktree, checkout_present):
+        if _gc_stale.is_stale(worktree, present):
             return Decision(
                 worktree.path,
                 worktree.branch,
@@ -280,7 +287,7 @@ def decide(
     if not inspect:
         return _keep(worktree, KEEP_TIME_BUDGET)
 
-    if worktree.prunable:
+    if _gc_stale.is_stale(worktree, present):
         return Decision(
             worktree.path,
             worktree.branch,
