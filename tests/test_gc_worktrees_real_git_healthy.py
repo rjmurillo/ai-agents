@@ -212,9 +212,11 @@ def test_the_index_recovery_command_preserves_unmerged_stages(
     reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
     command = command_of(reason, "mkdir -p RECOVERY_DIR", tmp_path / "recovery")
     result = subprocess.run(
-        command,
+        # A reader pastes this into a shell, so the test has to run it as one.
+        # Spelled as argv so the interpreter is named here rather than inherited
+        # from whatever the caller's environment happens to point sh at.
+        ["bash", "-c", command],
         cwd=tmp_path,  # outside any repo: the printed command has to carry its own -C
-        shell=True,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -258,9 +260,11 @@ def test_the_index_recovery_command_preserves_a_gitlink(
     reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
     command = command_of(reason, "mkdir -p RECOVERY_DIR", tmp_path / "recovery")
     result = subprocess.run(
-        command,
+        # A reader pastes this into a shell, so the test has to run it as one.
+        # Spelled as argv so the interpreter is named here rather than inherited
+        # from whatever the caller's environment happens to point sh at.
+        ["bash", "-c", command],
         cwd=tmp_path,  # outside any repo: the printed command has to carry its own -C
-        shell=True,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -306,9 +310,11 @@ def test_a_failing_rescue_stops_the_chain_and_shows_in_the_exit_code(
     git(git_sandbox.main, "branch", blocked, head)
 
     result = subprocess.run(
-        command,
+        # A reader pastes this into a shell, so the test has to run it as one.
+        # Spelled as argv so the interpreter is named here rather than inherited
+        # from whatever the caller's environment happens to point sh at.
+        ["bash", "-c", command],
         cwd=git_sandbox.main,
-        shell=True,
         capture_output=True,
         text=True,
         encoding="utf-8",
