@@ -133,7 +133,6 @@ class TestPathNormalizationGate:
     def test_passes_on_clean_tree(self) -> None:
         from checks_tooling import validate_path_normalization
 
-        # The real validator passes on the repo (verified earlier).
         assert validate_path_normalization(REPO_ROOT) is True
 
     def test_raises_when_script_missing(self, tmp_path: Path) -> None:
@@ -142,6 +141,25 @@ class TestPathNormalizationGate:
 
         with pytest.raises(MissingScriptSkip):
             validate_path_normalization(tmp_path)
+
+    def test_fails_on_absolute_path_violation(self, tmp_path: Path) -> None:
+        """A .md file containing a Linux absolute path must FAIL the gate."""
+        from checks_tooling import validate_path_normalization
+
+        # Set up the validator script (symlink to real one)
+        build_dir = tmp_path / "build" / "scripts"
+        build_dir.mkdir(parents=True)
+        real_script = REPO_ROOT / "build" / "scripts" / "validate_path_normalization.py"
+        (build_dir / "validate_path_normalization.py").write_bytes(
+            real_script.read_bytes()
+        )
+
+        # Create a .md file with a forbidden absolute path
+        doc = tmp_path / "bad-doc.md"
+        doc.write_text("Install from /home/username/repo/bin/tool\n")
+
+        result = validate_path_normalization(tmp_path)
+        assert result is False
 
 
 class TestPlanningArtifactsGate:
@@ -158,6 +176,37 @@ class TestPlanningArtifactsGate:
 
         with pytest.raises(MissingScriptSkip):
             validate_planning_artifacts(tmp_path)
+
+    def test_fails_on_orphan_condition(self, tmp_path: Path) -> None:
+        """A planning doc with an orphan specialist condition must FAIL."""
+        from checks_tooling import validate_planning_artifacts
+
+        # Set up the validator script
+        build_dir = tmp_path / "build" / "scripts"
+        build_dir.mkdir(parents=True)
+        real_script = REPO_ROOT / "build" / "scripts" / "validate_planning_artifacts.py"
+        (build_dir / "validate_planning_artifacts.py").write_bytes(
+            real_script.read_bytes()
+        )
+
+        # Create a planning doc with an orphan condition (a specialist condition
+        # listed outside any table and not referenced in any table row).
+        planning_dir = tmp_path / ".agents" / "planning"
+        planning_dir.mkdir(parents=True)
+        plan_doc = planning_dir / "plan-feature.md"
+        plan_doc.write_text(
+            "# Feature Plan\n\n"
+            "## Tasks\n\n"
+            "| Task | Owner |\n"
+            "| ---- | ----- |\n"
+            "| Build API | Dev |\n\n"
+            "## Conditions\n\n"
+            "- QA: Integration tests must cover all endpoints\n"
+            "- Security: Pen test required before launch\n"
+        )
+
+        result = validate_planning_artifacts(tmp_path)
+        assert result is False
 
 
 class TestMypyChangedFilesGate:
@@ -176,15 +225,108 @@ class TestMypyChangedFilesGate:
         with patch("checks_mypy._resolve_branch_base_ref", return_value=None):
             assert validate_mypy_changed_files(REPO_ROOT) is True
 
-    def test_calls_run_mypy_on_changed_files(self) -> None:
-        from checks_mypy import validate_mypy_changed_files
+    def test_fails_when_new_type_error_added(self, tmp_path: Path) -> None:
+        """A file that ADDS a new type error on a changed line must FAIL.
 
-        with patch("checks_mypy._resolve_branch_base_ref", return_value="main"):
-            with patch(
-                "checks_mypy._run_subprocess",
-                return_value=(0, "scripts/validation/checks_tooling.py\n", ""),
-            ):
-                with patch("git_hook_policy.run_mypy", return_value=0) as mock_mypy:
-                    result = validate_mypy_changed_files(REPO_ROOT)
-                    assert result is True
-                    mock_mypy.assert_called_once()
+        This is an end-to-end test: creates a real git repo, introduces a type
+        error on a new line, and runs run_mypy against it. The ratchet sees the
+        error is on a changed line and blocks.
+        """
+        from git_hook_policy import run_mypy
+
+        # Create a minimal git repo with a base commit
+        subprocess.run(["git", "init", str(tmp_path)], capture_output=True, check=True)
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "config", "user.email", "test@test.com"],
+            capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "config", "user.name", "Test"],
+            capture_output=True, check=True,
+        )
+
+        # Base commit: a clean file with no type errors
+        py_file = tmp_path / "example.py"
+        py_file.write_text("def greet(name: str) -> str:\n    return name\n")
+        subprocess.run(["git", "-C", str(tmp_path), "add", "."], capture_output=True, check=True)
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "base"],
+            capture_output=True, check=True,
+        )
+
+        # Branch: add a line with a type error
+        py_file.write_text(
+            "def greet(name: str) -> str:\n"
+            "    return name\n"
+            "\n"
+            "x: int = 'not an int'  # type error on this new line\n"
+        )
+        subprocess.run(["git", "-C", str(tmp_path), "add", "."], capture_output=True, check=True)
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "add error"],
+            capture_output=True, check=True,
+        )
+
+        # run_mypy uses _mypy_ratchet_base_ref() to get the base. We patch it
+        # to point at our base commit (HEAD~1).
+        with patch("git_hook_policy._mypy_ratchet_base_ref", return_value="HEAD~1"):
+            result = run_mypy(["example.py"], tmp_path)
+
+        # The error is on a changed line, so the ratchet blocks it.
+        assert result == 1, "Expected FAIL: new type error on a changed line"
+
+    def test_passes_when_preexisting_error_not_on_changed_line(self, tmp_path: Path) -> None:
+        """A file with pre-existing type errors that are NOT on changed lines must PASS.
+
+        This pins the ratchet semantic: touching a file that already has errors
+        does NOT block, as long as your change does not add to them.
+        """
+        from git_hook_policy import run_mypy
+
+        # Create a minimal git repo
+        subprocess.run(["git", "init", str(tmp_path)], capture_output=True, check=True)
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "config", "user.email", "test@test.com"],
+            capture_output=True, check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "config", "user.name", "Test"],
+            capture_output=True, check=True,
+        )
+
+        # Base commit: file already has a type error on line 4
+        py_file = tmp_path / "example.py"
+        py_file.write_text(
+            "def greet(name: str) -> str:\n"
+            "    return name\n"
+            "\n"
+            "x: int = 'not an int'  # pre-existing error\n"
+        )
+        subprocess.run(["git", "-C", str(tmp_path), "add", "."], capture_output=True, check=True)
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "base with error"],
+            capture_output=True, check=True,
+        )
+
+        # Branch: change a DIFFERENT line (add a clean function), leave error alone
+        py_file.write_text(
+            "def greet(name: str) -> str:\n"
+            "    return name\n"
+            "\n"
+            "x: int = 'not an int'  # pre-existing error\n"
+            "\n"
+            "def farewell(name: str) -> str:\n"
+            "    return f'bye {name}'\n"
+        )
+        subprocess.run(["git", "-C", str(tmp_path), "add", "."], capture_output=True, check=True)
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "add clean function"],
+            capture_output=True, check=True,
+        )
+
+        # run_mypy with ratchet base pointing at the base commit
+        with patch("git_hook_policy._mypy_ratchet_base_ref", return_value="HEAD~1"):
+            result = run_mypy(["example.py"], tmp_path)
+
+        # The error is pre-existing and NOT on a changed line, so ratchet allows it.
+        assert result == 0, "Expected PASS: pre-existing error not on a changed line"

@@ -354,7 +354,7 @@ def _run_python_validator(repo_root: Path, script_rel: str, args: list[str]) -> 
     if not python_script.exists():
         raise MissingScriptSkip(f"{Path(script_rel).name} not present (downstream install)")
     exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, str(python_script)] + args
+        [sys.executable, str(python_script)] + args, cwd=repo_root
     )
     output = (stdout or "") + (stderr or "")
     if output.strip():
