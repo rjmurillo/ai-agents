@@ -24,6 +24,7 @@ _STDERR_CLASSIFICATION_CHARS = 4096
 _PROCESS_WAIT_SECONDS = 5.0
 _FORCE_REAP_SECONDS = 1.0
 _READER_JOIN_SECONDS = 5.0
+_WRITER_JOIN_SECONDS = 1.0
 _QUEUE_WAIT_SECONDS = 0.1
 _TOOL_UPDATE_NAMES = frozenset({"tool_call", "tool_call_update"})
 _AUTH_HINTS = (
@@ -267,12 +268,14 @@ def _send_request(
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             streams.process_tree.terminate(force=True)
+            _stop_writer(process, writer)
             raise subprocess.TimeoutExpired(process.args, timeout) from None
         if completed.wait(min(remaining, _QUEUE_WAIT_SECONDS)):
             break
         returncode = process.poll()
         if returncode is not None:
             streams.process_tree.terminate(force=True)
+            _stop_writer(process, writer)
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise subprocess.TimeoutExpired(process.args, timeout) from None
@@ -285,6 +288,24 @@ def _send_request(
             )
     if not write_errors.empty():
         raise RuntimeError("Copilot ACP stdin write failed") from None
+
+
+def _stop_writer(
+    process: subprocess.Popen[str],
+    writer: threading.Thread,
+) -> None:
+    stdin = process.stdin
+    if stdin is not None:
+        try:
+            os.close(stdin.fileno())
+        except (AttributeError, OSError, ValueError):
+            try:
+                stdin.close()
+            except (OSError, ValueError):
+                pass
+    writer.join(_WRITER_JOIN_SECONDS)
+    if writer.is_alive():
+        raise RuntimeError("Copilot ACP stdin writer cleanup timed out")
 
 
 def _consume_update(

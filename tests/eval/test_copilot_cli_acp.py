@@ -724,6 +724,9 @@ def test_stdin_write_obeys_the_session_deadline() -> None:
         def flush(self) -> None:
             return None
 
+        def close(self) -> None:
+            release_writer.set()
+
     class FakeTree:
         terminated = False
 
@@ -770,6 +773,9 @@ def test_stdin_writer_stops_when_the_parent_has_exited() -> None:
 
         def flush(self) -> None:
             return None
+
+        def close(self) -> None:
+            release_writer.set()
 
     class ExitedProcess:
         stdin = BlockingStdin()
@@ -828,6 +834,9 @@ def test_stdin_parent_exit_waits_for_delayed_stderr() -> None:
         def flush(self) -> None:
             return None
 
+        def close(self) -> None:
+            release_writer.set()
+
     class ExitedProcess:
         stdin = BlockingStdin()
         args = ["copilot"]
@@ -876,15 +885,19 @@ def test_stdin_parent_exit_waits_for_delayed_stderr() -> None:
 def test_stdin_parent_exit_bounds_the_stderr_join(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    release_threads = threading.Event()
+    release_writer = threading.Event()
+    release_stderr = threading.Event()
 
     class BlockingStdin:
         def write(self, text: str) -> int:
-            release_threads.wait(timeout=2.0)
+            release_writer.wait(timeout=2.0)
             return len(text)
 
         def flush(self) -> None:
             return None
+
+        def close(self) -> None:
+            release_writer.set()
 
     class ExitedProcess:
         stdin = BlockingStdin()
@@ -898,7 +911,7 @@ def test_stdin_parent_exit_bounds_the_stderr_join(
             return None
 
     stderr_thread = threading.Thread(
-        target=lambda: release_threads.wait(timeout=2.0)
+        target=lambda: release_stderr.wait(timeout=2.0)
     )
     stderr_thread.start()
     streams = cast(
@@ -924,10 +937,57 @@ def test_stdin_parent_exit_bounds_the_stderr_join(
                 timeout=1.0,
             )
     finally:
-        release_threads.set()
+        release_writer.set()
+        release_stderr.set()
         stderr_thread.join(timeout=1.0)
 
     assert time.monotonic() - started < 0.5
+
+
+@pytest.mark.timeout(3)
+def test_stdin_writer_cleanup_refuses_a_live_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BlockingStdin:
+        def write(self, text: str) -> int:
+            time.sleep(2.0)
+            return len(text)
+
+        def flush(self) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    class RunningProcess:
+        stdin = BlockingStdin()
+        args = ["copilot"]
+
+        def poll(self) -> None:
+            return None
+
+    class FakeTree:
+        def terminate(self, *, force: bool) -> None:
+            return None
+
+    streams = cast(
+        Any,
+        SimpleNamespace(
+            process=RunningProcess(),
+            process_tree=FakeTree(),
+        ),
+    )
+    monkeypatch.setattr(acp_module, "_WRITER_JOIN_SECONDS", 0.05)
+
+    with pytest.raises(RuntimeError, match="stdin writer cleanup timed out"):
+        acp_module._send_request(
+            streams,
+            1,
+            "initialize",
+            {},
+            deadline=time.monotonic() + 0.05,
+            timeout=0.05,
+        )
 
 
 @pytest.mark.timeout(3)
