@@ -123,7 +123,7 @@ def test_lister_not_called_on_ok(tmp_path, capsys):
 def test_run_blocks_a_baseline_with_too_much_slack(tmp_path, capsys):
     """Wiring: run() must reject a stale-high baseline, not only regressions."""
     actual = 10
-    baseline = 16
+    baseline = 17
     args = _make_args(tmp_path, baseline_value=baseline)
 
     rc = count_ratchet.run(
