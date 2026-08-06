@@ -285,7 +285,7 @@ def parse_lessons(lines: list[str]) -> list[str]:
 
 def parse_metrics(lines: list[str]) -> dict:
     """Extract metrics from session log."""
-    metrics = {
+    metrics: dict[str, int | None] = {
         "duration_minutes": 0,
         "tool_calls": 0,
         "errors": 0,
@@ -1374,12 +1374,14 @@ def _preserved_timestamp(entry: dict, midnight: str | None) -> str | None:
     """
     if _norm(entry.get("type")) != "commit":
         timestamp = entry.get("timestamp")
-        if timestamp and timestamp != midnight:
+        if isinstance(timestamp, str) and timestamp and timestamp != midnight:
             return timestamp
-        return midnight or timestamp
+        return midnight if midnight else None
     sha = _commit_sha(entry)
     real = _git_commit_timestamp(sha) if sha else None
-    return real or entry.get("timestamp") or midnight
+    timestamp = entry.get("timestamp")
+    stored = timestamp if isinstance(timestamp, str) else None
+    return real or stored or midnight
 
 
 def _maybe_update_event_timestamp(
