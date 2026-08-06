@@ -1,5 +1,6 @@
 """Tests for complete_session_log.py session completion script."""
 
+import os
 import sys
 from contextlib import ExitStack
 from pathlib import Path
@@ -12,7 +13,6 @@ import complete_session_log
 
 
 class TestGetRepoRoot:
-    """Tests for _get_repo_root function (#3922)."""
 
     @patch("complete_session_log.subprocess.run")
     def test_returns_show_toplevel_output(self, mock_run):
@@ -44,7 +44,6 @@ class TestGetRepoRoot:
 
 
 class TestFindCurrentSessionLog:
-    """Tests for _find_current_session_log function."""
 
     def test_returns_none_when_no_dir(self, tmp_path):
         assert complete_session_log._find_current_session_log(str(tmp_path / "missing")) is None
@@ -88,7 +87,6 @@ class TestFindCurrentSessionLog:
 
 
 class TestGetEndingCommit:
-    """Tests for _get_ending_commit function."""
 
     @patch("complete_session_log.subprocess.run")
     def test_returns_commit(self, mock_run):
@@ -102,7 +100,6 @@ class TestGetEndingCommit:
 
 
 class TestHandoffModified:
-    """Tests for _test_handoff_modified function."""
 
     @patch("complete_session_log.subprocess.run")
     def test_detects_modified(self, mock_run):
@@ -116,7 +113,6 @@ class TestHandoffModified:
 
 
 class TestSerenaMemoryUpdated:
-    """Tests for _test_serena_memory_updated function."""
 
     @patch("complete_session_log.subprocess.run")
     def test_detects_memory_changes(self, mock_run):
@@ -192,7 +188,6 @@ class TestSerenaMemoryUpdated:
 
 
 class TestUncommittedChanges:
-    """Tests for _test_uncommitted_changes function."""
 
     @patch("complete_session_log.subprocess.run")
     def test_clean_repo(self, mock_run):
@@ -246,10 +241,9 @@ class TestUncommittedChanges:
 
 
 class TestMainNormalizesExcludePathToRelative:
-    """Integration: main() relpath's session_path for porcelain exclusion."""
-    def _run(self, tmp_path, *, relpath_patch=None):
+    def _run(self, tmp_path, *, rp=None, win=False):
         sessions = tmp_path / ".agents" / "sessions"
-        sessions.mkdir(parents=True)
+        sessions.mkdir(parents=True, exist_ok=True)
         sf = sessions / "2026-08-06-session-1-test.json"
         TestMainReworkWarningShape._make_session_json(self, sf)
         captured: list[str | None] = []
@@ -263,25 +257,31 @@ class TestMainNormalizesExcludePathToRelative:
             patch("complete_session_log.subprocess.run", return_value=MagicMock(returncode=0)),
             patch("complete_session_log._test_uncommitted_changes",
                   side_effect=lambda exclude_path=None: (captured.append(exclude_path), False)[1]),
-            patch("complete_session_log.resolve_artifact_root", return_value=sessions)]
-        if relpath_patch is not None:
-            patches.append(patch("complete_session_log.os.path.relpath", **relpath_patch))
+            patch("complete_session_log.resolve_artifact_root", return_value=sessions),
+            patch("complete_session_log._validate_path_containment", side_effect=lambda p, d: p)]
+        if rp is not None:
+            patches.append(patch("complete_session_log.os.path.relpath", **rp))
+        if win:
+            patches.append(patch.object(os, "sep", "\\"))
         with ExitStack() as s:
             [s.enter_context(p) for p in patches]
             complete_session_log.main(["--session-path", str(sf)])
         return captured[0] if captured else "NOT_CALLED"
-
     def test_in_repo_path_is_excluded(self, tmp_path):
-        assert self._run(tmp_path) == ".agents/sessions/2026-08-06-session-1-test.json"
-
+        expected = os.path.join(".agents", "sessions", "2026-08-06-session-1-test.json")
+        assert self._run(tmp_path) == expected
     def test_dotdot_prefixed_name_inside_repo_is_excluded(self, tmp_path):
-        got = self._run(tmp_path, relpath_patch={"return_value": "..foo/sessions/s.json"})
-        assert got == "..foo/sessions/s.json"
-
+        val = os.path.join("..foo", "sessions", "s.json")
+        assert self._run(tmp_path, rp={"return_value": val}) == val
     def test_actual_parent_traversal_yields_none(self, tmp_path):
-        assert self._run(tmp_path, relpath_patch={"return_value": "../outside/s.json"}) is None
+        val = os.path.join("..", "outside", "s.json")
+        assert self._run(tmp_path, rp={"return_value": val}) is None
     def test_cross_drive_valueerror_yields_none(self, tmp_path):
-        assert self._run(tmp_path, relpath_patch={"side_effect": ValueError("D:")}) is None
+        assert self._run(tmp_path, rp={"side_effect": ValueError("D:")}) is None
+    def test_win_parent_traversal_yields_none(self, tmp_path):
+        assert self._run(tmp_path, rp={"return_value": r"..\outside\s.json"}, win=True) is None
+        v = r"..foo\s.json"  # valid name, not parent traversal
+        assert self._run(tmp_path, rp={"return_value": v}, win=True) == v
 
 
 class TestPathContainment:
