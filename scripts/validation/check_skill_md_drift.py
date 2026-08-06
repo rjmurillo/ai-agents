@@ -120,9 +120,12 @@ def _extract_paths_from_text(
         return True
 
     # Single-segment prefixes: require separator + content
+    # The optional leading group captures ./ or / or ../ sequences so that
+    # traversal paths like ../scripts/foo.py are captured whole rather than
+    # having the prefix stripped by the lookbehind.
     for prefix in (r"\.agents", r"build", r"scripts"):
         pat = re.compile(
-            simple_anchor + r"(?:\.[\\/]|[\\/])?"
+            simple_anchor + r"(?:(?:\.\.[\\/])+|\.[\\/]|[\\/])?"
             + prefix + r"[\\/]" + path_char + r"+",
             re.MULTILINE,
         )
@@ -139,7 +142,7 @@ def _extract_paths_from_text(
         r"templates[\\/]+platforms",
     ):
         pat = re.compile(
-            simple_anchor + r"(?:\.[\\/]|[\\/])?"
+            simple_anchor + r"(?:(?:\.\.[\\/])+|\.[\\/]|[\\/])?"
             + prefix + r"(?:[\\/]" + path_char + r"*)?",
             re.MULTILINE,
         )

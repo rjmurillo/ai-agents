@@ -286,6 +286,29 @@ class TestMarkerPathDrift:
         # Must NOT reach the existence check
         assert not any("existence miss" in f for f in failures)
 
+    def test_leading_dotdot_traversal_detected(self, tmp_path: Path) -> None:
+        """Leading ../prefix/path is captured and reported as invalid.
+
+        Regression guard: the extractor previously anchored only on the prefix
+        itself, so ../scripts/foo.py matched as scripts/foo.py and the leading
+        traversal was silently normalized away.
+        """
+        (tmp_path / "scripts" / "validation").mkdir(parents=True)
+        (tmp_path / "scripts" / "validation" / "real.py").touch()
+        text = _make_marker_file(
+            "../scripts/validation/real.py",
+            "Check ../scripts/validation/real.py for details.",
+        )
+        failures = marker_path_drift(
+            text, tmp_path, "skills/test/SKILL.md", _strip_code, _strip_inline_code
+        )
+        invalid = [f for f in failures if "invalid path" in f]
+        assert len(invalid) == 1
+        assert "../scripts/validation/real.py" in invalid[0]
+        # Must NOT reach the existence check (the file exists, but traversal
+        # is invalid regardless)
+        assert not any("existence miss" in f for f in failures)
+
     def test_absolute_path_reported_as_invalid(self, tmp_path: Path) -> None:
         """Absolute paths are reported as invalid, not silently dropped."""
         text = _make_marker_file(
