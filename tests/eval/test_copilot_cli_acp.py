@@ -601,6 +601,24 @@ def test_windows_children_start_suspended_before_job_assignment(
     assert flags & 0x4
 
 
+def test_posix_close_does_not_signal_after_reap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    process_tree_module = sys.modules[acp_module.ProcessTree.__module__]
+    monkeypatch.setattr(process_tree_module.os, "name", "posix")
+    signals: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        process_tree_module.os,
+        "killpg",
+        lambda pid, sig: signals.append((pid, sig)),
+    )
+    tree = process_tree_module.ProcessTree(SimpleNamespace(pid=1234))
+
+    tree.close()
+
+    assert signals == []
+
+
 def test_newline_free_protocol_output_has_a_line_limit(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -732,6 +750,10 @@ def test_stdin_write_obeys_the_session_deadline() -> None:
 
         def terminate(self, *, force: bool) -> None:
             self.terminated = force
+            release_writer.set()
+
+        def has_exited(self) -> bool:
+            return False
 
     tree = FakeTree()
     streams = cast(
@@ -784,11 +806,18 @@ def test_stdin_writer_stops_when_the_parent_has_exited() -> None:
         def poll(self) -> int:
             return 7
 
+        def wait(self, timeout: float) -> int:
+            return 7
+
     class FakeTree:
         terminated = False
 
         def terminate(self, *, force: bool) -> None:
             self.terminated = force
+            release_writer.set()
+
+        def has_exited(self) -> bool:
+            return True
 
     tree = FakeTree()
     stderr_thread = threading.Thread(target=lambda: None)
@@ -844,9 +873,15 @@ def test_stdin_parent_exit_waits_for_delayed_stderr() -> None:
         def poll(self) -> int:
             return 7
 
+        def wait(self, timeout: float) -> int:
+            return 7
+
     class FakeTree:
         def terminate(self, *, force: bool) -> None:
-            return None
+            release_writer.set()
+
+        def has_exited(self) -> bool:
+            return True
 
     def delayed_stderr() -> None:
         time.sleep(0.3)
@@ -906,9 +941,15 @@ def test_stdin_parent_exit_bounds_the_stderr_join(
         def poll(self) -> int:
             return 7
 
+        def wait(self, timeout: float) -> int:
+            return 7
+
     class FakeTree:
         def terminate(self, *, force: bool) -> None:
-            return None
+            release_writer.set()
+
+        def has_exited(self) -> bool:
+            return True
 
     stderr_thread = threading.Thread(
         target=lambda: release_stderr.wait(timeout=2.0)
@@ -969,6 +1010,9 @@ def test_stdin_writer_cleanup_refuses_a_live_thread(
     class FakeTree:
         def terminate(self, *, force: bool) -> None:
             return None
+
+        def has_exited(self) -> bool:
+            return False
 
     streams = cast(
         Any,

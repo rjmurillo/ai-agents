@@ -244,11 +244,15 @@ class _OpenAICompatibleProvider:
             raise  # unreachable; _normalize_and_raise always raises
         choices = getattr(resp, "choices", None) or []
         if not choices:
-            raise RuntimeError(f"{self._provider_label} API returned no choices for model {model}.")
+            raise RuntimeError(
+                f"{self._provider_label} API returned no choices; "
+                "model identifier redacted"
+            )
         content = choices[0].message.content
         if not isinstance(content, str):
             raise RuntimeError(
-                f"{self._provider_label} API returned non-text content for model {model}."
+                f"{self._provider_label} API returned non-text content; "
+                "model identifier redacted"
             )
         fingerprint = getattr(resp, "system_fingerprint", None)
         self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)

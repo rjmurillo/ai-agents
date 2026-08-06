@@ -6,6 +6,7 @@ import ctypes
 import os
 import signal
 import subprocess
+import time
 from typing import Any
 
 _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
@@ -145,11 +146,36 @@ class ProcessTree:
         except ProcessLookupError:
             pass
 
+    def wait_for_exit_before_reap(self, timeout: float) -> bool:
+        if os.name != "posix" or not hasattr(os, "waitid"):
+            return False
+        if self._process.returncode is not None:
+            return False
+        deadline = time.monotonic() + timeout
+        options = os.WEXITED | os.WNOHANG | os.WNOWAIT
+        while time.monotonic() < deadline:
+            try:
+                if os.waitid(os.P_PID, self._process.pid, options) is not None:
+                    return True
+            except ChildProcessError:
+                return False
+            time.sleep(0.01)
+        return False
+
+    def has_exited(self) -> bool:
+        if os.name != "posix" or not hasattr(os, "waitid"):
+            return self._process.poll() is not None
+        if self._process.returncode is not None:
+            return True
+        try:
+            options = os.WEXITED | os.WNOHANG | os.WNOWAIT
+            return os.waitid(os.P_PID, self._process.pid, options) is not None
+        except ChildProcessError:
+            return self._process.returncode is not None
+
     def close(self) -> None:
         if self._closed:
             return
         if self._windows_job is not None:
             self._windows_job.close()
-        else:
-            self.terminate(force=True)
         self._closed = True

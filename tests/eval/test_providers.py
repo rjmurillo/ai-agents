@@ -265,8 +265,29 @@ def test_openai_provider_raises_on_non_text_content(
     monkeypatch.setattr(_FakeCompletions, "create", _return_non_text)
     provider = _providers.resolve_provider("openai")
 
-    with pytest.raises(RuntimeError, match="OpenAI API returned non-text content"):
-        provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o")
+    model = "ghp_" + "M" * 36
+    with pytest.raises(RuntimeError, match="OpenAI API returned non-text content") as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "hi"}], model=model)
+
+    assert model not in str(exc_info.value)
+
+
+def test_openai_provider_redacts_model_when_no_choice_is_returned(
+    fake_openai: type[_FakeOpenAI],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        _FakeCompletions,
+        "create",
+        lambda self, **kwargs: types.SimpleNamespace(choices=[]),
+    )
+    provider = _providers.resolve_provider("openai")
+    model = "ghp_" + "C" * 36
+
+    with pytest.raises(RuntimeError, match="OpenAI API returned no choices") as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "hi"}], model=model)
+
+    assert model not in str(exc_info.value)
 
 
 def test_openai_provider_sets_timeout_and_disables_sdk_retries(

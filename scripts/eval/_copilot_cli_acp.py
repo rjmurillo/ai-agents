@@ -272,13 +272,15 @@ def _send_request(
             raise subprocess.TimeoutExpired(process.args, timeout) from None
         if completed.wait(min(remaining, _QUEUE_WAIT_SECONDS)):
             break
-        returncode = process.poll()
-        if returncode is not None:
+        if streams.process_tree.has_exited():
             streams.process_tree.terminate(force=True)
             _stop_writer(process, writer)
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise subprocess.TimeoutExpired(process.args, timeout) from None
+            returncode = process.wait(
+                timeout=min(remaining, _PROCESS_WAIT_SECONDS)
+            )
             streams.stderr_thread.join(min(remaining, _READER_JOIN_SECONDS))
             if streams.stderr_thread.is_alive():
                 raise RuntimeError("Copilot ACP stderr reader cleanup timed out")
@@ -295,17 +297,14 @@ def _stop_writer(
     writer: threading.Thread,
 ) -> None:
     stdin = process.stdin
-    if stdin is not None:
-        try:
-            os.close(stdin.fileno())
-        except (AttributeError, OSError, ValueError):
-            try:
-                stdin.close()
-            except (OSError, ValueError):
-                pass
     writer.join(_WRITER_JOIN_SECONDS)
     if writer.is_alive():
         raise RuntimeError("Copilot ACP stdin writer cleanup timed out")
+    if stdin is not None:
+        try:
+            stdin.close()
+        except (OSError, ValueError):
+            pass
 
 
 def _consume_update(
@@ -380,7 +379,7 @@ def _wait_for_response(
                 timeout=min(remaining, _QUEUE_WAIT_SECONDS)
             )
         except queue.Empty:
-            if streams.process.poll() is not None and not terminated_descendants:
+            if streams.process_tree.has_exited() and not terminated_descendants:
                 streams.process_tree.terminate(force=True)
                 terminated_descendants = True
             continue
@@ -457,10 +456,16 @@ def _wait_for_process(
     timeout: float,
 ) -> int:
     process = streams.process
-    try:
+    if process.returncode is not None:
+        return process.returncode
+    first_wait = _remaining_process_wait(streams, deadline, timeout)
+    if streams.process_tree.wait_for_exit_before_reap(first_wait):
+        streams.process_tree.terminate(force=True)
         return process.wait(
             timeout=_remaining_process_wait(streams, deadline, timeout)
         )
+    try:
+        return process.wait(timeout=first_wait)
     except subprocess.TimeoutExpired:
         streams.process_tree.terminate(force=False)
     try:
@@ -577,7 +582,7 @@ def _drain_stdout_after_close(
                 timeout=min(remaining, _QUEUE_WAIT_SECONDS)
             )
         except queue.Empty:
-            if streams.process.poll() is not None and not terminated_descendants:
+            if streams.process_tree.has_exited() and not terminated_descendants:
                 streams.process_tree.terminate(force=True)
                 terminated_descendants = True
             continue
