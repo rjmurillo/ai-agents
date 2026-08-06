@@ -229,6 +229,24 @@ class TestMain:
         env = _envelope(capsys)
         assert env["Success"] is False
 
+    def test_timeout_exits_3(self, capsys):
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired("gh", 60),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "1"])
+
+        assert exc.value.code == 3
+        assert _envelope(capsys)["Error"]["Type"] == "ApiError"
+
     def test_api_failure_respects_human_output_format(self, capsys):
         with (
             patch("get_issue_comments.assert_gh_authenticated"),

@@ -92,20 +92,31 @@ def _exit_code_for(message: str, *, not_found: bool) -> tuple[int, str]:
 
 def _fetch_comments(owner: str, repo: str, issue: int, fmt: str) -> list[dict[str, object]]:
     """Page through the issue's comments via gh api. Raises SystemExit on error."""
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"repos/{owner}/{repo}/issues/{issue}/comments?per_page=100",
-            "--paginate",
-            "--slurp",
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=60,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                f"repos/{owner}/{repo}/issues/{issue}/comments?per_page=100",
+                "--paginate",
+                "--slurp",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        write_skill_error(
+            f"Timed out fetching comments for issue #{issue}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT,
+            extra={"issue": issue},
+        )
+        raise SystemExit(3) from None
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
         not_found = "Could not resolve" in error_str or "not found" in error_str.lower()
