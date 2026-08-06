@@ -1182,7 +1182,14 @@ def _run_update_baseline(
         root,
         scanned_by_root,
         baseline_path,
-        {"files": current, "marker_files": marker_current},
+        # drift_files must be present or the guard compares the recorded
+        # section against a missing one and reports every entry as dropped, so
+        # --update-baseline could never succeed once drift was recorded.
+        {
+            "files": current,
+            "marker_files": marker_current,
+            "drift_files": drift_current or {},
+        },
         "skill .md files",
         args.allow_baseline_shrink,
     ):

@@ -70,11 +70,15 @@ class TestExtractPathsFromText:
     def test_rejects_absolute_path(self) -> None:
         """Defect 2 (HIGH): absolute paths must be rejected."""
         text = "See /scripts/validation/check.py for the code."
-        paths = _extract_paths_from_text(text)
-        # The leading / is stripped by _clean_match, but the result must not
-        # include an absolute-looking path. The cleaned version should be valid.
-        for p in paths:
-            assert not p.startswith("/"), f"Absolute path leaked: {p}"
+        unsafe: set[str] = set()
+        paths = _extract_paths_from_text(text, unsafe_collector=unsafe)
+        # Asserting only "no extracted path starts with /" passes vacuously
+        # when nothing is extracted, which is exactly what happens here. Assert
+        # the path was reported as invalid instead, which is falsifiable.
+        assert unsafe, "absolute path was not reported as invalid"
+        assert not any(candidate.startswith("/") for candidate in paths), (
+            f"absolute path leaked into the extracted set: {paths}"
+        )
 
     def test_rejects_dotdot_traversal(self) -> None:
         """Defect 2 (HIGH): '..' in path components must be rejected."""
@@ -462,6 +466,22 @@ class TestVacuityRegressionGuard:
     non-empty, yet the child (ADR-999.md) is missing.
     """
 
-    def test_guard_documented(self) -> None:
-        """Placeholder: the real guard is the existence miss test above."""
-        assert True
+    def test_traversal_after_a_leading_segment_is_reported(self) -> None:
+        """Traversal that is not leading must still be caught.
+
+        Matching only a leading "../" left these invisible: the extractor began
+        at the recognized prefix, so _is_valid_path never saw the "..". Refs
+        #4116.
+        """
+        for candidate in (
+            "../scripts/x.py",
+            "./../scripts/x.py",
+            "a/../scripts/x.py",
+            "a/../../scripts/x.py",
+            "/scripts/x.py",
+        ):
+            unsafe: set[str] = set()
+            _extract_paths_from_text(
+                f"See {candidate} for details.", unsafe_collector=unsafe
+            )
+            assert unsafe, f"traversal or absolute path not reported: {candidate}"

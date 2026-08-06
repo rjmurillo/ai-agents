@@ -121,12 +121,15 @@ def _extract_paths_from_text(
         return True
 
     # Single-segment prefixes: require separator + content
-    # The optional leading group captures ./ or / or ../ sequences so that
-    # traversal paths like ../scripts/foo.py are captured whole rather than
-    # having the prefix stripped by the lookbehind.
+    # The optional leading group captures any run of leading segments so the
+    # whole path token is seen, not just the part starting at the recognized
+    # prefix. Matching only a leading "../" left traversal that arrives later
+    # invisible: "./../scripts/x.py" and "a/../scripts/x.py" were extracted as
+    # if they began at "scripts", so _is_valid_path never saw the ".." and the
+    # reference escaped the plugin unreported. Refs #4116.
     for prefix in (r"\.agents", r"build", r"scripts"):
         pat = re.compile(
-            simple_anchor + r"(?:(?:\.\.[\\/])+|\.[\\/]|[\\/])?"
+            simple_anchor + r"[\\/]?(?:[\w.\-]+[\\/])*?"
             + prefix + r"[\\/]" + path_char + r"+",
             re.MULTILINE,
         )
@@ -143,7 +146,7 @@ def _extract_paths_from_text(
         r"templates[\\/]+platforms",
     ):
         pat = re.compile(
-            simple_anchor + r"(?:(?:\.\.[\\/])+|\.[\\/]|[\\/])?"
+            simple_anchor + r"[\\/]?(?:[\w.\-]+[\\/])*?"
             + prefix + r"(?:[\\/]" + path_char + r"*)?",
             re.MULTILINE,
         )
