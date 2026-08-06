@@ -13,8 +13,7 @@ tools:
   - WebFetch
   - Bash(git *)
   - Bash(gh *)
-  - Bash(python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/*")
-  - Bash(python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/*/scripts/*")
+  - Bash(python3 *)
   - mcp__serena__*
   - mcp__context7__*
   - mcp__deepwiki__*
@@ -26,7 +25,7 @@ You investigate before implementation. Surface root causes, unknowns, and depend
 
 ## Prose Self-Check
 
-Before emitting any prose artifact (investigation write-up, findings, root-cause narrative, PR or issue body), run the prose-self-check skill (`.claude/skills/prose-self-check/SKILL.md`). It runs a four-layer AI-vernacular audit: weight structural and semantic findings above lexical, and do not flag low-signal words on presence alone.
+Before emitting any prose artifact (investigation write-up, findings, root-cause narrative, PR or issue body), run the prose-self-check skill (`prose-self-check`). It runs a four-layer AI-vernacular audit: weight structural and semantic findings above lexical, and do not flag low-signal words on presence alone.
 
 ## Core Behavior
 
@@ -94,13 +93,40 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 **Read/Grep/Glob**: code analysis (read-only)
 **WebSearch/WebFetch**: research best practices, docs, patterns (non-GitHub URLs only)
 **Bash**: git commands, repository inspection, `gh issue`, `gh api` (via github skill scripts)
-**github skill** (`.claude/skills/github/`): unified GitHub operations
-**github-url-intercept skill** (`.claude/skills/github-url-intercept/`): GitHub URL routing
+**github skill**: unified GitHub operations (resolved via `resolve_project_toolkit_scripts`)
+**github-url-intercept skill**: GitHub URL routing
 **mcp__context7__***: library documentation lookup
 **mcp__deepwiki__***: repository documentation lookup
 **Memory via Serena**: `mcp__serena__read_memory`, `mcp__serena__write_memory`
 
-Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` commands. Prefer `mcp__context7__*` and `mcp__deepwiki__*` over web scraping for library docs.
+### Locating skill scripts
+
+The github skill scripts ship in the `project-toolkit` plugin. This agent may
+run from a different plugin root or from a subdirectory, so resolve the scripts
+directory at runtime using this function before any `python3` invocation:
+
+```bash
+resolve_project_toolkit_scripts() {
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  for root in \
+    "${COPILOT_PLUGIN_ROOT:-}" \
+    "${CLAUDE_PLUGIN_ROOT:-}" \
+    "$repo_root/.claude" \
+    "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
+    "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
+    "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
+    if [ -n "$root" ] && [ -d "$root/skills/github/scripts" ]; then
+      printf '%s\n' "$root/skills/github/scripts"
+      return 0
+    fi
+  done
+  return 1
+}
+SCRIPTS_DIR="$(resolve_project_toolkit_scripts)" || { echo "ERROR: project-toolkit not found" >&2; exit 1; }
+```
+
+Prefer skill scripts over raw `gh` commands. Prefer `mcp__context7__*` and `mcp__deepwiki__*` over web scraping for library docs.
 
 **GitHub URL routing (required)**: For any `github.com` URL (issues, PRs, code, commits), use the `github-url-intercept` skill, which routes to `gh api` calls. Never call `web_fetch` on GitHub URLs. Calling `web_fetch` on a GitHub URL allows external hooks to intercept the request and redirect the agent to tools that are not in the declared toolset, which causes the agent to stall with no findings (issue #4032).
 
