@@ -15,11 +15,12 @@ uv run --frozen python scripts/memory/validate_memory_sizes.py <path to memory>
 ## Why they diverge
 
 `test_memory_size.py:117` computes `char_count = len(content)` on a decoded
-`str` and compares it to `MAX_CHARS = 10_000` at line 130. Python's `len` on a
+`str`. `MAX_CHARS = 10_000` is defined at line 86, assigned to
+`self.max_chars`, and used in the comparison at line 130. Python's `len` on a
 `str` counts code points.
 
-UTF-8 spends three bytes on a typical emoji and two on an accented letter, so
-every such character widens the gap by one or two. A memory that uses status
+UTF-8 spends four bytes on a typical emoji and two on an accented letter, so
+every such character widens the gap by three or one. A memory that uses status
 glyphs in a table pays the difference on every row.
 
 ## Evidence

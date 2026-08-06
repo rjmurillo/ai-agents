@@ -33,8 +33,8 @@ the gate's criterion. Membership in the changed set is.
 
 | Gate | lefthook.yml | Script | Baseline refs | Fails on |
 | --- | --- | --- | --- | --- |
-| `python-lint-ratchet` | line 416 | `scripts/ci/ruff_ratchet.py` | 0 | any violation in a changed file |
-| `python-lint-count-ratchet` | line 423 | `scripts/ci/ruff_count_ratchet.py` | via `count_ratchet.py` | count above baseline |
+| `python-lint-ratchet` | line 421 | `scripts/ci/ruff_ratchet.py` | 0 | any violation in a changed file |
+| `python-lint-count-ratchet` | line 428 | `scripts/ci/ruff_count_ratchet.py` | via `count_ratchet.py` | count above baseline |
 
 `scripts/ci/ruff_ratchet.py:2` states it outright: "Fail on ruff violations in
 changed Python files only." `run_ruff` shells `ruff check` over the changed
