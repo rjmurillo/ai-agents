@@ -108,8 +108,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Learnings captured in the learnings section of this log."
       },
       "reworkWarning": {
         "level": "SHOULD",
@@ -149,13 +149,30 @@
   "nextSteps": [
     "Route Lefthook and subprocess materialization changes to security PIV before merge."
   ],
-  "retrospective": {
-    "learnings captured": true,
-    "key_learnings": [
-      "A new module under scripts/ci must either be workflow-invoked or listed in _NOT_WORKFLOW_INVOKED. merge_tree_materialization.py and merge_tree_ratchet_registry.py are libraries behind the workflow-invoked merge_tree_ratchet_check.py, so they belong on the allowlist with a reason, not wired into a workflow of their own.",
-      "Fail-closed base resolution broke two pre_pr tests whose blanket subprocess mock returned empty stdout for every command. An empty answer from git symbolic-ref is what a broken remote HEAD looks like, so the crude mock started testing the failure path. A per-command mock keeps those tests on the pass path.",
-      "_normalize_remote_head was stubbed by every test that touched it and covered only by accident through that blanket mock. Direct positive, negative, and edge tests now cover it, verified by mutating the origin/ prefix guard and watching three of them fail.",
-      "The full pre-push suite takes about 12 minutes here, so reproducing a hook failure by rerunning the same command costs more than reading which jobs the push reported and reproducing only those."
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "Give a synthetic merge tree its own Git index rather than reusing the checkout's",
+        "context": "Materializing an exact tree for the merge-tree ratchets",
+        "application": "A temporary index plus explicit cleanup diagnostics, so a failed run cannot leave the real index rewritten"
+      },
+      {
+        "pattern": "Resolve the base once and pass the same OID to every base-aware ratchet",
+        "context": "Several ratchets each resolving the base independently could measure different trees",
+        "application": "One refreshed, pinned OID is handed to all of them, and a refresh error fails closed"
+      },
+      {
+        "pattern": "Give ratchets a single ownership registry",
+        "context": "Lefthook jobs and the merge-tree checker had drifted apart before",
+        "application": "One registry declares each ratchet's shell, baseline, and trigger globs, and a test compares it to the Lefthook jobs"
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Treating a subprocess launch failure as a ratchet result",
+        "consequence": "A ratchet that could not start would read as a pass",
+        "correction": "Launch failure returns rc 127 and is reported separately from a ratchet verdict"
+      }
     ]
   }
 }

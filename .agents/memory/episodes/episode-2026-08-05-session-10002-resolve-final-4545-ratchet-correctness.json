@@ -88,7 +88,12 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 7
+    "files_changed": 13
   },
-  "lessons": []
+  "lessons": [
+    "Give a synthetic merge tree its own Git index rather than reusing the checkout's. A temporary index plus explicit cleanup diagnostics, so a failed run cannot leave the real index rewritten",
+    "Resolve the base once and pass the same OID to every base-aware ratchet. One refreshed, pinned OID is handed to all of them, and a refresh error fails closed",
+    "Give ratchets a single ownership registry. One registry declares each ratchet's shell, baseline, and trigger globs, and a test compares it to the Lefthook jobs",
+    "Avoid: Treating a subprocess launch failure as a ratchet result. Launch failure returns rc 127 and is reported separately from a ratchet verdict"
+  ]
 }

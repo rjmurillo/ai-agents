@@ -27,7 +27,7 @@
         "e001"
       ],
       "leads_to": [
-        "e005"
+        "e006"
       ],
       "_source_session": "2026-08-05-session-10000-remediate-4545-review-findings-clean"
     },
@@ -37,7 +37,7 @@
       "type": "milestone",
       "content": "Implemented PR 4545 review remediation",
       "caused_by": [
-        "e006"
+        "e005"
       ],
       "leads_to": [
         "e004"
@@ -57,6 +57,19 @@
     },
     {
       "id": "e005",
+      "timestamp": "2026-08-05T19:35:04+00:00",
+      "type": "milestone",
+      "content": "Recorded required security review",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-05-session-10000-remediate-4545-review-findings-clean"
+    },
+    {
+      "id": "e006",
       "timestamp": "2026-08-05T19:30:34+00:00",
       "type": "commit",
       "content": "Commit: 955af9fb6",
@@ -64,20 +77,7 @@
         "e002"
       ],
       "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-05-session-10000-remediate-4545-review-findings-clean"
-    },
-    {
-      "id": "e006",
-      "timestamp": "2026-08-05T19:35:04+00:00",
-      "type": "milestone",
-      "content": "Recorded required security review",
-      "caused_by": [
         "e005"
-      ],
-      "leads_to": [
-        "e003"
       ],
       "_source_session": "2026-08-05-session-10000-remediate-4545-review-findings-clean"
     }
@@ -88,7 +88,12 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 6
+    "files_changed": 91
   },
-  "lessons": []
+  "lessons": [
+    "Rebuild on the live PR head in a clean worktree, and pin the old local tip with an archive branch. archive/pr4545-local-a0387bc21 preserved a0387bc21, which made the diverged branch disposable instead of something to merge",
+    "Split a policy change out of a correctness PR even when it is one line. Cherry-picked five; left the Ruff baseline 43 to 31 change out, because changing main's ceiling is a separate review",
+    "Require mutation controls to fail on the restored defect. Both restored defects failed their controls before the remediation was called done",
+    "Avoid: Reading only the final diff to decide whether security review is required. Check how each sensitive file entered the branch, not just that it differs"
+  ]
 }

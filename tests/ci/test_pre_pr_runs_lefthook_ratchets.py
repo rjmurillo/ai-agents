@@ -370,14 +370,25 @@ class TestNormalizeRemoteHead:
             )
         assert "cannot resolve remote HEAD" in capsys.readouterr().err
 
-    def test_nonzero_exit_reports_stderr(
+    def test_nonzero_exit_is_rejected_even_with_a_plausible_answer(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        """Negative: the exit code is checked, not just the shape of stdout.
+
+        Git can print a usable-looking ref and still fail. Pairing a nonzero
+        exit with `origin/main` is the only case that isolates the exit-code
+        half of the guard: with an empty or non-origin answer the prefix check
+        rejects the input first, so deleting the exit-code check keeps every
+        other case green.
+        """
         with patch.object(
-            checks_ratchet, "_run_subprocess", return_value=(128, "", "not a ref")
+            checks_ratchet,
+            "_run_subprocess",
+            return_value=(128, "origin/main", "fatal: ref not usable"),
         ):
             assert (
                 checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
                 is None
             )
-        assert "not a ref" in capsys.readouterr().err
+        assert "ref not usable" in capsys.readouterr().err
+

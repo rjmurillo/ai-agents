@@ -108,8 +108,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "Learnings captured in the learnings section of this log."
       },
       "reworkWarning": {
         "level": "SHOULD",
@@ -149,13 +149,30 @@
   "nextSteps": [
     "Route lefthook.yml to security PIV before merge."
   ],
-  "retrospective": {
-    "learnings captured": true,
-    "key_learnings": [
-      "Rebuilding on the live PR head in a clean worktree, with archive/pr4545-local-a0387bc21 pinning the old local tip, made the diverged local branch disposable instead of something to merge.",
-      "Cherry-picking five of six unpublished commits was the right split. The sixth lowered the Ruff baseline from 43 to 31, which is a policy change about main's ceiling, not part of this PR's correctness fix, so it belongs in its own review.",
-      "Mutation controls that fail on both restored defects are what separate a test that covers a fix from a test that merely runs beside it.",
-      "The root lefthook.yml change arrived through a recovered commit rather than a deliberate edit, so the security PIV requirement is easy to miss when reading only the final diff."
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "Rebuild on the live PR head in a clean worktree, and pin the old local tip with an archive branch",
+        "context": "The local branch had diverged from the PR head after the remote was rewritten",
+        "application": "archive/pr4545-local-a0387bc21 preserved a0387bc21, which made the diverged branch disposable instead of something to merge"
+      },
+      {
+        "pattern": "Split a policy change out of a correctness PR even when it is one line",
+        "context": "Six unpublished commits, five of them behavior and test fixes",
+        "application": "Cherry-picked five; left the Ruff baseline 43 to 31 change out, because changing main's ceiling is a separate review"
+      },
+      {
+        "pattern": "Require mutation controls to fail on the restored defect",
+        "context": "Verifying that new tests cover the fix rather than merely running beside it",
+        "application": "Both restored defects failed their controls before the remediation was called done"
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "Reading only the final diff to decide whether security review is required",
+        "consequence": "The root lefthook.yml change arrived through recovered commit dc7393d0b, so the PIV requirement is easy to miss",
+        "correction": "Check how each sensitive file entered the branch, not just that it differs"
+      }
     ]
   }
 }
