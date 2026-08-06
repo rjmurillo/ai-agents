@@ -141,3 +141,123 @@ class TestImportThenReassign:
         )
         _arrange(tmp_path, monkeypatch, self._script(), test_src)
         assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
+
+
+# ---------------------------------------------------------------------------
+# Module-end semantics and function-local shadow tests
+# ---------------------------------------------------------------------------
+
+
+class TestModuleEndSemantics:
+    """Bare main() resolves at call time (module end), not definition time."""
+
+    @staticmethod
+    def _script():
+        return (
+            "import sys\n"
+            "def main(argv=None):\n"
+            "    if not argv:\n"
+            "        return 1\n"
+            "    return 0\n"
+            "if __name__ == '__main__':\n"
+            "    sys.exit(main())\n"
+        )
+
+    def test_module_rebind_after_test_def_denies(self, tmp_path, monkeypatch):
+        """main rebound after test function definition denies ALL tests."""
+        test_src = (
+            "from scripts.ci.widget import main\n"
+            "def test_exit():\n"
+            "    assert main() != 0\n"
+            "main = print  # rebind AFTER def\n"
+        )
+        _arrange(tmp_path, monkeypatch, self._script(), test_src)
+        assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
+
+    def test_untouched_target_import_credits(self, tmp_path, monkeypatch):
+        """Plain from-import with no later rebinding credits correctly."""
+        test_src = (
+            "from scripts.ci.widget import main\n"
+            "def test_exit():\n"
+            "    assert main() != 0\n"
+        )
+        _arrange(tmp_path, monkeypatch, self._script(), test_src)
+        assert _run(tmp_path, "0") == ratchet.EXIT_OK
+
+    def test_conditional_rebind_denies(self, tmp_path, monkeypatch):
+        """Conditional rebinding produces UNKNOWN at module end (deny)."""
+        test_src = (
+            "from scripts.ci.widget import main\n"
+            "import os\n"
+            "if os.environ.get('X'):\n"
+            "    main = print\n"
+            "def test_exit():\n"
+            "    assert main() != 0\n"
+        )
+        _arrange(tmp_path, monkeypatch, self._script(), test_src)
+        assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
+
+
+class TestFunctionLocalMainShadow:
+    """Function-local main binding shadows global and denies credit."""
+
+    @staticmethod
+    def _script():
+        return (
+            "import sys\n"
+            "def main(argv=None):\n"
+            "    if not argv:\n"
+            "        return 1\n"
+            "    return 0\n"
+            "if __name__ == '__main__':\n"
+            "    sys.exit(main())\n"
+        )
+
+    def test_parameter_named_main_denies(self, tmp_path, monkeypatch):
+        """Function parameter named main shadows global TARGET import."""
+        test_src = (
+            "from scripts.ci.widget import main\n"
+            "def test_exit(main=print):\n"
+            "    assert main() != 0\n"
+        )
+        _arrange(tmp_path, monkeypatch, self._script(), test_src)
+        assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
+
+    def test_local_assign_named_main_denies(self, tmp_path, monkeypatch):
+        """Local assignment to main in function body shadows global TARGET."""
+        test_src = (
+            "from scripts.ci.widget import main\n"
+            "def test_exit():\n"
+            "    main = lambda: 1\n"
+            "    assert main() != 0\n"
+        )
+        _arrange(tmp_path, monkeypatch, self._script(), test_src)
+        assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
+
+
+class TestAliasRebindDeniesCredit:
+    """Module alias rebinding before main=alias.main denies credit."""
+
+    @staticmethod
+    def _script():
+        return (
+            "import sys\n"
+            "def main(argv=None):\n"
+            "    if not argv:\n"
+            "        return 1\n"
+            "    return 0\n"
+            "if __name__ == '__main__':\n"
+            "    sys.exit(main())\n"
+        )
+
+    def test_alias_rebind_before_reexport_denies(self, tmp_path, monkeypatch):
+        """widget=Other() before main=widget.main denies credit."""
+        test_src = (
+            "from scripts.ci import widget\n"
+            "widget = type('Fake', (), {'main': print})()\n"
+            "main = widget.main\n"
+            "def test_exit():\n"
+            "    assert main() != 0\n"
+        )
+        _arrange(tmp_path, monkeypatch, self._script(), test_src)
+        assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION

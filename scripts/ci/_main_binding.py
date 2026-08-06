@@ -1,8 +1,12 @@
 """Per-call-site module-scope main-binding state for CLI exit-contract coverage.
 
-Tracks the binding state of ``main`` through module-level execution order and
-records, at each test function/class definition point, what stems a bare
-``main()`` call should credit.
+Tracks the binding state of ``main`` through module-level execution order,
+evaluating at MODULE END (runtime semantics: global name resolution happens at
+call time, after the module finishes executing).
+
+Also detects function-local ``main`` bindings (parameters, local assignments,
+imports, for/with/except/match targets, walrus) which shadow the global at
+compile time and deny credit regardless of module state.
 
 State model:
 - UNBOUND: main has never been bound; sole-fallback logic applies separately
@@ -10,8 +14,7 @@ State model:
 - LOCAL: main is bound to something unrelated (deny credit)
 - UNKNOWN: ambiguous due to wildcard, conditional, or deletion (deny credit)
 
-Conservative branch join: only credit when ALL reachable states agree on the
-same target stems.  If any path produces a different state, the join is UNKNOWN.
+Conservative branch join: only credit when ALL reachable states agree.
 """
 
 from __future__ import annotations
@@ -58,7 +61,6 @@ class MainState:
 
     @property
     def credits(self) -> frozenset[str]:
-        """Stems bare main() should credit (empty = deny)."""
         return self.stems if self.kind == _Kind.TARGET else frozenset()
 
     @property
@@ -70,24 +72,27 @@ def _join(a: MainState, b: MainState) -> MainState:
     """Conservative join: credit only when ALL paths agree."""
     if a == b:
         return a
-    # Both unbound = unbound; one unbound one not = unknown
     if a.kind == _Kind.UNBOUND and b.kind == _Kind.UNBOUND:
         return MainState.unbound()
-    if _Kind.UNKNOWN in (a.kind, b.kind):
+    if _Kind.UNKNOWN in (a.kind, b.kind) or _Kind.LOCAL in (a.kind, b.kind):
         return MainState.unknown()
-    if _Kind.LOCAL in (a.kind, b.kind):
-        return MainState.unknown()
-    # Both TARGET but different stems
     if a.kind == _Kind.TARGET and b.kind == _Kind.TARGET:
         shared = a.stems & b.stems
         return MainState.target(shared) if shared else MainState.unknown()
-    # Mismatch (TARGET + UNBOUND, etc.)
     return MainState.unknown()
 
 
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class _Ctx:
+    stems: frozenset[str]
+    aliases: dict[str, str]
+    referenced: set[str]
+    alias_established: set[str] = field(default_factory=set)
 
 
 def compute_bare_credit(
@@ -98,78 +103,27 @@ def compute_bare_credit(
 ) -> dict[int, frozenset[str]]:
     """Map function/class definition lineno -> stems bare main() should credit.
 
-    For UNBOUND state at a function definition, the sole-fallback applies:
-    credit the sole referenced stem if exactly one stem is referenced.
-    For TARGET state, credit the target stems directly.
-    For LOCAL/UNKNOWN, no credit (empty set).
+    Python resolves global names at CALL TIME.  All test functions see the
+    module-end state of ``main``.  Functions with a local ``main`` binding
+    shadow the global and get empty credit.
     """
-    ctx = _Ctx(stems=stems, aliases=aliases, referenced=referenced)
-    state = MainState.unbound()
-    result: dict[int, frozenset[str]] = {}
+    ctx = _Ctx(stems=stems, aliases=dict(aliases), referenced=referenced)
+    end_state = _walk_module(tree.body, MainState.unbound(), ctx)
+    module_credit = _credit_at(end_state, ctx)
 
-    state = _walk_stmts(tree.body, state, ctx, result)
+    result: dict[int, frozenset[str]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name == "main":
+                continue
+            credit = frozenset() if _function_has_local_main(node) else module_credit
+            result[node.lineno] = credit
+        elif isinstance(node, ast.ClassDef) and node.name != "main":
+            result[node.lineno] = module_credit
     return result
 
 
-# ---------------------------------------------------------------------------
-# Walk context
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class _Ctx:
-    stems: frozenset[str]
-    aliases: dict[str, str]
-    referenced: set[str]
-
-
-# ---------------------------------------------------------------------------
-# Statement walker -- source-ordered
-# ---------------------------------------------------------------------------
-
-
-def _walk_stmts(
-    stmts: Sequence[ast.stmt],
-    state: MainState,
-    ctx: _Ctx,
-    result: dict[int, frozenset[str]],
-) -> MainState:
-    """Walk statements in source order, updating state and recording at funcs."""
-    for node in stmts:
-        # Record state at function/class definitions
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if node.name == "main":
-                # def main is a local binding, not a test function
-                state = MainState.local()
-                continue
-            result[node.lineno] = _credit_at(state, ctx)
-            continue  # don't descend into function body
-        if isinstance(node, ast.ClassDef):
-            if node.name != "main":
-                credit = _credit_at(state, ctx)
-                result[node.lineno] = credit
-                # Record same credit for all methods within the class
-                for item in ast.walk(node):
-                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        result[item.lineno] = credit
-                continue
-            # class main: is a local binding
-            state = MainState.local()
-            continue
-
-        # Update state based on this statement
-        new_state = _stmt_effect(node, state, ctx)
-        if new_state is not None:
-            state = new_state
-            continue
-
-        # Control flow: descend with conservative joins
-        state = _control_flow(node, state, ctx, result)
-    return state
-
-
 def _credit_at(state: MainState, ctx: _Ctx) -> frozenset[str]:
-    """Compute credit stems at a definition point."""
     if state.kind == _Kind.TARGET:
         return state.stems
     if state.kind == _Kind.UNBOUND and len(ctx.referenced) == 1:
@@ -178,14 +132,173 @@ def _credit_at(state: MainState, ctx: _Ctx) -> frozenset[str]:
 
 
 # ---------------------------------------------------------------------------
-# Statement effect -- returns new state or None if not a binding statement
+# Function-local main detection
 # ---------------------------------------------------------------------------
 
 
-def _stmt_effect(
-    node: ast.stmt, state: MainState, ctx: _Ctx
-) -> MainState | None:
-    """Return new state if this statement binds main, else None."""
+def _function_has_local_main(func: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """True if ``main`` is bound locally (compile-time local shadow)."""
+    if _params_bind_main(func.args):
+        return True
+    return _stmts_bind_main(func.body)
+
+
+def _params_bind_main(args: ast.arguments) -> bool:
+    all_args = args.args + args.posonlyargs + args.kwonlyargs
+    if any(a.arg == "main" for a in all_args):
+        return True
+    if args.vararg and args.vararg.arg == "main":
+        return True
+    return bool(args.kwarg and args.kwarg.arg == "main")
+
+
+def _stmts_bind_main(stmts: Sequence[ast.stmt]) -> bool:
+    """Check if main is bound (not descending into nested scopes)."""
+    for node in stmts:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if _stmt_binds_main_locally(node) or _has_walrus_main(node):
+            return True
+        for body in _child_bodies(node):
+            if _stmts_bind_main(body):
+                return True
+    return False
+
+
+def _stmt_binds_main_locally(node: ast.stmt) -> bool:
+    """True if this single statement directly binds main (no recursion)."""
+    if isinstance(node, ast.Assign):
+        return any(_target_binds_name(t, "main") for t in node.targets)
+    if isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+        return _target_binds_name(node.target, "main")
+    if isinstance(node, (ast.Import, ast.ImportFrom)):
+        return any((a.asname or a.name) == "main" for a in node.names)
+    if isinstance(node, (ast.For, ast.AsyncFor)):
+        return _target_binds_name(node.target, "main")
+    if isinstance(node, (ast.With, ast.AsyncWith)):
+        return any(
+            i.optional_vars and _target_binds_name(i.optional_vars, "main")
+            for i in node.items
+        )
+    if isinstance(node, ast.Delete):
+        return any(isinstance(t, ast.Name) and t.id == "main" for t in node.targets)
+    if hasattr(ast, "Match") and isinstance(node, ast.Match):
+        return any(_pattern_binds_main(c.pattern) for c in node.cases)
+    return _is_try(node) and any(h.name == "main" for h in node.handlers)
+
+
+def _child_bodies(node: ast.stmt) -> list[Sequence[ast.stmt]]:
+    """Return sub-statement bodies to recurse into (excluding nested scopes)."""
+    if isinstance(node, ast.If):
+        return [node.body, node.orelse]
+    if isinstance(node, (ast.For, ast.AsyncFor, ast.While)):
+        return [node.body, node.orelse]
+    if isinstance(node, (ast.With, ast.AsyncWith)):
+        return [node.body]
+    if _is_try(node):
+        bodies: list[Sequence[ast.stmt]] = [node.body, node.orelse, node.finalbody]
+        bodies.extend(h.body for h in node.handlers)
+        return bodies
+    if hasattr(ast, "Match") and isinstance(node, ast.Match):
+        return [c.body for c in node.cases]
+    return []
+
+
+def _pattern_binds_main(pattern: ast.pattern) -> bool:  # type: ignore[name-defined]
+    """Check if a match pattern captures ``main``."""
+    if hasattr(ast, "MatchAs") and isinstance(pattern, ast.MatchAs):
+        if pattern.name == "main":
+            return True
+        return bool(pattern.pattern and _pattern_binds_main(pattern.pattern))
+    if hasattr(ast, "MatchStar") and isinstance(pattern, ast.MatchStar):
+        return pattern.name == "main" if pattern.name else False
+    if hasattr(ast, "MatchMapping") and isinstance(pattern, ast.MatchMapping):
+        if pattern.rest == "main":
+            return True
+    # Recurse into composite patterns
+    children = getattr(pattern, "patterns", [])
+    if not children:
+        children = getattr(pattern, "kwd_patterns", [])
+    return any(_pattern_binds_main(p) for p in children)
+
+
+# ---------------------------------------------------------------------------
+# Module-level state walk
+# ---------------------------------------------------------------------------
+
+
+def _walk_module(
+    stmts: Sequence[ast.stmt], state: MainState, ctx: _Ctx
+) -> MainState:
+    """Walk module statements in source order, compute end state."""
+    for node in stmts:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name == "main":
+                state = MainState.local()
+            continue
+        if isinstance(node, ast.ClassDef):
+            if node.name == "main":
+                state = MainState.local()
+            continue
+        _update_aliases(node, ctx)
+        new = _stmt_effect(node, state, ctx)
+        if new is not None:
+            state = new
+        else:
+            state = _control_flow(node, state, ctx)
+    return state
+
+
+def _update_aliases(node: ast.stmt, ctx: _Ctx) -> None:
+    """Track alias establishment and invalidation in source order."""
+    if isinstance(node, (ast.Import, ast.ImportFrom)):
+        for alias in node.names:
+            eff = alias.asname or alias.name
+            if eff in ctx.aliases:
+                ctx.alias_established.add(eff)
+        return
+    for name in _stmt_assigned_names(node):
+        if name == "main" or name not in ctx.aliases:
+            continue
+        if name not in ctx.alias_established:
+            ctx.alias_established.add(name)
+        else:
+            ctx.aliases.pop(name)
+
+
+def _stmt_assigned_names(node: ast.stmt) -> list[str]:
+    """Names assigned by this statement (top-level targets only)."""
+    if isinstance(node, ast.Assign):
+        result: list[str] = []
+        for t in node.targets:
+            result.extend(_assigned_names(t))
+        return result
+    if isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+        return _assigned_names(node.target)
+    if isinstance(node, ast.Delete):
+        return [t.id for t in node.targets if isinstance(t, ast.Name)]
+    return []
+
+
+def _assigned_names(target: ast.expr) -> list[str]:
+    if isinstance(target, ast.Name):
+        return [target.id]
+    if isinstance(target, (ast.Tuple, ast.List)):
+        out: list[str] = []
+        for elt in target.elts:
+            out.extend(_assigned_names(elt))
+        return out
+    if isinstance(target, ast.Starred):
+        return _assigned_names(target.value)
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Statement effects on main state
+# ---------------------------------------------------------------------------
+
+
+def _stmt_effect(node: ast.stmt, state: MainState, ctx: _Ctx) -> MainState | None:
     if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
         return _assign_effect(node, ctx)
     if isinstance(node, (ast.Import, ast.ImportFrom)):
@@ -193,42 +306,28 @@ def _stmt_effect(
     if isinstance(node, ast.Delete):
         if any(isinstance(t, ast.Name) and t.id == "main" for t in node.targets):
             return MainState.unknown()
-        return None
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-        # Already handled above for test functions; here for nested definitions
         if node.name == "main":
             return MainState.local()
-        return None
-    # Walrus in expression statement
     if _has_walrus_main(node):
         return MainState.local()
     return None
 
 
 def _assign_effect(node: ast.stmt, ctx: _Ctx) -> MainState | None:
-    """Assignment/augmented/annotated effect on main."""
     if isinstance(node, ast.Assign):
         if not any(_target_binds_name(t, "main") for t in node.targets):
-            # Check walrus in value
-            if _has_walrus_main(node):
-                return MainState.local()
-            return None
+            return MainState.local() if _has_walrus_main(node) else None
         return _resolve_value(node.value, ctx)
     if isinstance(node, ast.AugAssign):
-        if _target_binds_name(node.target, "main"):
-            return MainState.local()
-        return None
+        return MainState.local() if _target_binds_name(node.target, "main") else None
     # AnnAssign
     if node.value is not None and _target_binds_name(node.target, "main"):
         return _resolve_value(node.value, ctx)
-    if _has_walrus_main(node):
-        return MainState.local()
-    return None
+    return MainState.local() if _has_walrus_main(node) else None
 
 
 def _resolve_value(value: ast.expr, ctx: _Ctx) -> MainState:
-    """Determine if an assignment value resolves to a target stem's main."""
-    # Re-export: main = X.main where X is in aliases
     if (
         isinstance(value, ast.Attribute)
         and value.attr == "main"
@@ -237,145 +336,133 @@ def _resolve_value(value: ast.expr, ctx: _Ctx) -> MainState:
         stem = ctx.aliases.get(value.value.id)
         if stem is not None and stem in ctx.stems:
             return MainState.target(frozenset({stem}))
-    # Any other value = local
     return MainState.local()
 
 
 def _import_effect(node: ast.stmt, ctx: _Ctx) -> MainState | None:
-    """Import/from-import effect on main."""
     if isinstance(node, ast.ImportFrom):
-        # Wildcard import: unknown
-        if any(alias.name == "*" for alias in node.names):
+        if any(a.name == "*" for a in node.names):
             return MainState.unknown()
         for alias in node.names:
-            effective_name = alias.asname if alias.asname else alias.name
-            if effective_name != "main":
+            eff = alias.asname or alias.name
+            if eff != "main":
                 continue
-            # from X import main (or alias): resolve module
             if alias.name == "main" and alias.asname is None:
-                # Direct from-import: check if module is a known stem
                 module = node.module or ""
                 stem = module.rsplit(".", 1)[-1]
                 if stem in ctx.stems:
                     return MainState.target(frozenset({stem}))
-            # from X import Y as main: local
             return MainState.local()
         return None
-    # import X as main
     for alias in node.names:
-        effective_name = alias.asname if alias.asname else alias.name
-        if effective_name == "main":
+        if (alias.asname or alias.name) == "main":
             return MainState.local()
     return None
 
 
 # ---------------------------------------------------------------------------
-# Control flow -- conservative join
+# Control flow with conservative joins
 # ---------------------------------------------------------------------------
 
 
-def _control_flow(
-    node: ast.stmt,
-    state: MainState,
-    ctx: _Ctx,
-    result: dict[int, frozenset[str]],
-) -> MainState:
-    """Handle control-flow nodes with conservative branch joins."""
+def _control_flow(node: ast.stmt, state: MainState, ctx: _Ctx) -> MainState:
     branches = list(_branch_bodies(node))
     if not branches:
         return state
 
-    # For/while: target binds main before body executes
-    loop_state = state
-    if isinstance(node, (ast.For, ast.AsyncFor)):
-        if _target_binds_name(node.target, "main"):
-            loop_state = MainState.local()
-    if isinstance(node, (ast.With, ast.AsyncWith)):
-        for item in node.items:
-            if item.optional_vars and _target_binds_name(item.optional_vars, "main"):
-                loop_state = MainState.local()
-                break
+    entry = _loop_entry(node, state)
+    exit_states = [_walk_module(body, e, ctx) for body, e in _iter_branches(branches, state, entry)]
 
-    # Walk each branch, collect exit states
-    exit_states: list[MainState] = []
-    for body, entry in branches:
-        if entry == "loop":
-            entry_state = loop_state
-        elif entry == "except_main":
-            entry_state = MainState.local()
-        elif entry == "match":
-            # Match patterns can capture names; conservatively treat as unknown
-            entry_state = MainState.unknown()
-        else:
-            entry_state = state
-        exit_s = _walk_stmts(body, entry_state, ctx, result)
-        exit_states.append(exit_s)
-
-    # For if without else, the else branch is the incoming state
     if isinstance(node, ast.If) and not node.orelse:
         exit_states.append(state)
-    # For while without else AND zero-iteration possibility
-    if isinstance(node, (ast.While, ast.AsyncFor, ast.For)):
-        if not node.orelse:
-            exit_states.append(state)  # zero iterations
+    if isinstance(node, (ast.While, ast.For, ast.AsyncFor)) and not node.orelse:
+        exit_states.append(state)
 
-    # Join all exit states
-    if not exit_states:
-        joined = state
-    else:
-        joined = exit_states[0]
-        for s in exit_states[1:]:
-            joined = _join(joined, s)
+    joined = exit_states[0] if exit_states else state
+    for s in exit_states[1:]:
+        joined = _join(joined, s)
 
-    # Finally block is a continuation, not a branch
-    if isinstance(node, (ast.Try, ast.TryStar)) and node.finalbody:
-        joined = _walk_stmts(node.finalbody, joined, ctx, result)
-
+    if _is_try(node) and node.finalbody:
+        joined = _walk_module(node.finalbody, joined, ctx)
     return joined
 
 
-def _branch_bodies(
-    node: ast.stmt,
-) -> Iterator[tuple[Sequence[ast.stmt], str]]:
-    """Yield (body, entry_kind) for control-flow branches."""
+def _loop_entry(node: ast.stmt, state: MainState) -> MainState:
+    if isinstance(node, (ast.For, ast.AsyncFor)):
+        if _target_binds_name(node.target, "main"):
+            return MainState.local()
+    if isinstance(node, (ast.With, ast.AsyncWith)):
+        for item in node.items:
+            if item.optional_vars and _target_binds_name(item.optional_vars, "main"):
+                return MainState.local()
+    return state
+
+
+def _iter_branches(
+    branches: list[tuple[Sequence[ast.stmt], str]],
+    state: MainState,
+    loop_entry: MainState,
+) -> Iterator[tuple[Sequence[ast.stmt], MainState]]:
+    for body, kind in branches:
+        if kind == "loop":
+            yield body, loop_entry
+        elif kind == "except_main":
+            yield body, MainState.local()
+        elif kind == "match":
+            yield body, MainState.unknown()
+        else:
+            yield body, state
+
+
+def _branch_bodies(node: ast.stmt) -> list[tuple[Sequence[ast.stmt], str]]:
     if isinstance(node, ast.If):
-        yield node.body, "normal"
-        if node.orelse:
-            yield node.orelse, "normal"
-    elif isinstance(node, (ast.While,)):
-        yield node.body, "loop"
-        if node.orelse:
-            yield node.orelse, "normal"
-    elif isinstance(node, (ast.For, ast.AsyncFor)):
-        yield node.body, "loop"
-        if node.orelse:
-            yield node.orelse, "normal"
-    elif isinstance(node, (ast.With, ast.AsyncWith)):
-        yield node.body, "loop"
-    elif isinstance(node, (ast.Try, ast.TryStar)):
-        yield node.body, "normal"
-        for handler in node.handlers:
-            # ExceptHandler name binding
-            body = handler.body
-            if handler.name == "main":
-                yield body, "except_main"
-            else:
-                yield body, "normal"
-        if node.orelse:
-            yield node.orelse, "normal"
-        # finalbody handled as continuation in _control_flow, not a branch
-    elif hasattr(ast, "Match") and isinstance(node, ast.Match):
-        for case in node.cases:
-            yield case.body, "match"
+        return _if_branches(node)
+    if isinstance(node, (ast.While, ast.For, ast.AsyncFor)):
+        return _loop_branches(node)
+    if isinstance(node, (ast.With, ast.AsyncWith)):
+        return [(node.body, "loop")]
+    if _is_try(node):
+        return _try_branches(node)
+    if hasattr(ast, "Match") and isinstance(node, ast.Match):
+        return [(c.body, "match") for c in node.cases]
+    return []
+
+
+def _if_branches(node: ast.If) -> list[tuple[Sequence[ast.stmt], str]]:
+    result: list[tuple[Sequence[ast.stmt], str]] = [(node.body, "normal")]
+    if node.orelse:
+        result.append((node.orelse, "normal"))
+    return result
+
+
+def _loop_branches(node: ast.stmt) -> list[tuple[Sequence[ast.stmt], str]]:
+    result: list[tuple[Sequence[ast.stmt], str]] = [(node.body, "loop")]
+    if node.orelse:
+        result.append((node.orelse, "normal"))
+    return result
+
+
+def _try_branches(node: ast.stmt) -> list[tuple[Sequence[ast.stmt], str]]:
+    result: list[tuple[Sequence[ast.stmt], str]] = [(node.body, "normal")]
+    for h in node.handlers:
+        result.append((h.body, "except_main" if h.name == "main" else "normal"))
+    if node.orelse:
+        result.append((node.orelse, "normal"))
+    return result
 
 
 # ---------------------------------------------------------------------------
-# Target helpers
+# Helpers
 # ---------------------------------------------------------------------------
+
+
+def _is_try(node: ast.stmt) -> bool:
+    if isinstance(node, ast.Try):
+        return True
+    return hasattr(ast, "TryStar") and isinstance(node, ast.TryStar)
 
 
 def _target_binds_name(node: ast.expr, name: str) -> bool:
-    """True if an assignment-target expression binds *name*."""
     if isinstance(node, ast.Name):
         return node.id == name
     if isinstance(node, (ast.Tuple, ast.List)):
@@ -386,14 +473,8 @@ def _target_binds_name(node: ast.expr, name: str) -> bool:
 
 
 def _has_walrus_main(node: ast.stmt) -> bool:
-    """True if any expression in *node* contains ``(main := ...)``."""
     for child in ast.walk(node):
         if isinstance(child, ast.NamedExpr):
             if isinstance(child.target, ast.Name) and child.target.id == "main":
                 return True
     return False
-
-
-# Legacy compatibility shim -- removed; callers use compute_bare_credit.
-def has_local_main_definition(tree: ast.Module) -> bool:
-    raise NotImplementedError("Use compute_bare_credit instead")
