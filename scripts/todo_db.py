@@ -9,7 +9,7 @@ This module provides two entry-points:
 - ``ensure_todo(db, todo_id, title)`` -- idempotent upsert: creates the row if
   absent, leaves it unchanged if it already exists. Returns True if it was
   inserted, False if it already existed.
-- ``complete_todo(db, todo_id)`` -- marks a row done and asserts exactly one
+- ``complete_todo(db, todo_id)`` -- marks an existing row done and asserts exactly one
   row was affected. Raises ``MissingTodoError`` when the row is absent.
 
 Both accept a path (``str | Path``) or an open ``sqlite3.Connection``.
@@ -17,10 +17,9 @@ Both accept a path (``str | Path``) or an open ``sqlite3.Connection``.
 CLI usage (for agents calling from a shell)::
 
     uv run --frozen python scripts/todo_db.py ensure <db-path> <todo-id> <title>
-    uv run --frozen python scripts/todo_db.py complete <db-path> <todo-id>
+    uv run --frozen python scripts/todo_db.py complete <db-path> <todo-id> [--title <title>]
 
-Exit codes: 0 = success, 1 = logic error (missing row), 2 = config error
-(bad arguments).
+Exit codes: 0 = success, 1 = logic error, 2 = config error (bad arguments).
 """
 from __future__ import annotations
 
@@ -126,9 +125,14 @@ def _build_parser() -> argparse.ArgumentParser:
     ensure.add_argument("todo_id", help="Todo identifier (primary key)")
     ensure.add_argument("title", help="Human-readable title for the todo")
 
-    complete = sub.add_parser("complete", help="Mark a todo done (asserts row exists)")
+    complete = sub.add_parser("complete", help="Ensure a todo row, then mark it done")
     complete.add_argument("db_path", help="Path to the SQLite database file")
     complete.add_argument("todo_id", help="Todo identifier to mark done")
+    complete.add_argument(
+        "--title",
+        default=None,
+        help="Human-readable title to use when the row is missing",
+    )
 
     return parser
 
@@ -147,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "complete":
         try:
+            ensure_todo(args.db_path, args.todo_id, args.title or args.todo_id)
             complete_todo(args.db_path, args.todo_id)
         except MissingTodoError as exc:
             print(f"error: {exc}", file=sys.stderr)

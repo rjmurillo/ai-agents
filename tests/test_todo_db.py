@@ -1,7 +1,7 @@
 """Tests for scripts/todo_db.py (issue #4379).
 
-Covers: upsert idempotency, completion assertion, missing-row failure,
-concurrent-insert safety, and CLI exit codes.
+Covers: upsert idempotency, direct completion assertion, assignment-safe CLI
+completion, concurrent-insert safety, and CLI exit codes.
 """
 from __future__ import annotations
 
@@ -161,6 +161,17 @@ class TestCLIComplete:
         rc = main(["complete", str(db), "t1"])
         assert rc == 0
 
-    def test_complete_exits_one_when_row_absent(self, tmp_path: Path) -> None:
-        rc = main(["complete", str(_make_db(tmp_path)), "pr-missing"])
-        assert rc == 1
+    def test_complete_ensures_missing_row_before_status_update(
+        self, tmp_path: Path
+    ) -> None:
+        db = _make_db(tmp_path)
+
+        rc = main(["complete", str(db), "pr-4379", "--title", "Assigned task"])
+
+        assert rc == 0
+        conn = sqlite3.connect(db)
+        row = _row(conn, "pr-4379")
+        conn.close()
+        assert row is not None
+        assert row["title"] == "Assigned task"
+        assert row["status"] == "done"
