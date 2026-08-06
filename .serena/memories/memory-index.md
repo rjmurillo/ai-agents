@@ -40,6 +40,7 @@
 
 [Security]
 |security vulnerability TOCTOU secret injection: [skills-security-index](skills-security-index.md) (508)
+|filesystem redirect symlink junction ancestor parent swap descriptor nofollow mutation: [security/filesystem-redirect-boundaries](security/filesystem-redirect-boundaries.md) (154)
 
 [Architecture and Design]
 |architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (588)
