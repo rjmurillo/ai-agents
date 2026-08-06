@@ -612,6 +612,45 @@ def _target_contains(
     return resolved_file in matches
 
 
+def _target_exists_at_revision(target: str, revision: str) -> bool:
+    """Return whether a missing target matched any path at *revision*."""
+    import fnmatch
+    import subprocess
+
+    workspace = Path.cwd().resolve()
+    resolved_target = Path(target)
+    try:
+        relative_target = resolved_target.relative_to(workspace).as_posix()
+    except ValueError as exc:
+        raise ValueError(f"--target escapes the workspace: {target}") from exc
+    result = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", revision],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"git ls-tree failed for target validation at {revision}")
+    names = result.stdout.splitlines()
+    if any(character in relative_target for character in "*?["):
+        return any(fnmatch.fnmatchcase(name, relative_target) for name in names)
+    prefix = relative_target.rstrip("/")
+    return any(name == prefix or name.startswith(f"{prefix}/") for name in names)
+
+
+def _target_is_known(target: str, revision: str) -> bool:
+    """Return whether target exists in HEAD or matched the comparison base."""
+    target_path = Path(target)
+    if target_path.exists():
+        return True
+    if any(character in target for character in "*?["):
+        if _glob_target_matches(target):
+            return True
+    return _target_exists_at_revision(target, revision)
+
+
 def _reject_option_like_revision(revision: str) -> None:
     """Refuse a revision git would read as an option (CWE-88)."""
     if revision.startswith("-"):
@@ -1603,6 +1642,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if not files:
         if gate_mode == "regression" and changed_files is not None:
+            assert comparison_base is not None
+            if not _target_is_known(target_path, comparison_base):
+                print(f"ERROR: --target does not match HEAD or base: {args.target}", file=sys.stderr)
+                return 1
             report = _render_report(args.format, [], [], config, gate_mode)
             _write_report(report, args.output)
             return 0

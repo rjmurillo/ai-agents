@@ -525,6 +525,19 @@ def test_regression_mode_passes_when_target_has_no_changes(
     assert json.loads(capsys.readouterr().out)["summary"]["file_count"] == 0
 
 
+def test_regression_mode_rejects_unknown_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "changed.py", _FOCUSED, "change")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--target", "typo", *_regression_argv()[2:]]) == 1
+
+
 def test_changed_only_resolves_glob_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
