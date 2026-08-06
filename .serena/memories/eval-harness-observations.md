@@ -124,6 +124,11 @@
   and file handles against reparse points and final-path containment.
 - Reject non-real, non-finite, and non-positive timeouts. Cleanup must force
   kill and reap children, then fail if any reader remains live.
+- Close stdin only after its writer exits. On POSIX, observe child exit with
+  `waitid(..., WNOWAIT)`, terminate the process group, then reap the leader so
+  PID reuse cannot target an unrelated group.
+- Close transcript descriptors when metadata reads or parent-directory closes
+  fail. Empty and non-text provider errors must redact requested model IDs.
 - The default home-derived session root must be absolute, just like explicit
   session and Copilot home overrides. A relative home resolves differently in
   the parent checkout and the isolated child working directory.

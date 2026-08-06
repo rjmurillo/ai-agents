@@ -122,7 +122,8 @@
         "e008",
         "e009",
         "e011",
-        "e013"
+        "e013",
+        "e015"
       ],
       "leads_to": [
         "e012"
@@ -172,6 +173,30 @@
       "caused_by": [
         "e012"
       ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-05-session-10002-finish-eval-harness-fleet-verify"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "test",
+      "content": "2371 passed and 4 skipped across full eval suites. Ruff passed 34 changed Python files. Mypy passed 32 canonical files plus both retry mirrors. Plugin sync, build_all --check, security scan, and pre_pr.py exited 0.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-10002-finish-eval-harness-fleet-verify"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-06T01:23:49+00:00",
+      "type": "commit",
+      "content": "Commit: 1502382d8",
+      "caused_by": [
+        "e014"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-10002-finish-eval-harness-fleet-verify"
     }
@@ -181,7 +206,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 4
   },
   "lessons": []
