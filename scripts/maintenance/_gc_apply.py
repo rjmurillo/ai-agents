@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+from scripts.maintenance import _gc_reasons
 from scripts.maintenance.worktree_report import GcReport
 
 
@@ -64,6 +65,25 @@ def apply_removals(
     to a single git call, and a HEAD that moved inside it is skipped rather
     than removed.
 
+    A HEAD comparison is not enough on its own, for two reasons found by
+    review. The value it compares against has to be the one the recheck
+    actually decided on, which is why each candidate carries it: reading the
+    HEADs after the recheck returned meant a commit landing between the two
+    reads became the expected value and then matched itself. And a worktree can
+    commit and go back: check out a branch, commit, reset, and HEAD ends where
+    it started while the commit survives with nothing but that worktree's
+    reflog naming it. No comparison of HEAD against HEAD can see that one.
+
+    So the reflog probe is run again for each candidate immediately before its
+    own removal, after the HEAD check. It asks the question that actually
+    matters, whether removing this entry orphans a commit, against the
+    repository as it is at that instant rather than as the plan found it. It
+    costs one admin-directory lookup and one ``rev-list`` per candidate, and
+    only for candidates that got that far. It cannot replace the HEAD check:
+    ``rev-list --not --all`` examines every worktree's HEAD, so a commit that
+    is still this worktree's own HEAD reads as reachable right up until the
+    removal destroys the thing making it so.
+
     Refuses to mutate anything when either report is partial. A truncated run
     inspects whichever worktrees the clock allowed, so applying it would remove
     a different set than the dry run a reader reviewed. Rerun with
@@ -89,7 +109,6 @@ def apply_removals(
 
     still_safe = {decision.path: decision for decision in fresh.candidates}
     fresh_reasons = {decision.path: decision.reason for decision in fresh.decisions}
-    heads = {decision.path: _head_of(decision.path, run_git) for decision in fresh.candidates}
 
     for decision in report.candidates:
         if decision.path not in still_safe:
@@ -98,9 +117,13 @@ def apply_removals(
                 f"{decision.path}: skipped, changed since the plan: {changed}"
             )
             continue
-        moved = _head_moved_since(decision.path, heads.get(decision.path), run_git)
+        moved = _head_moved_since(decision.path, still_safe[decision.path].head, run_git)
         if moved:
             report.remove_errors.append(f"{decision.path}: skipped, {moved}")
+            continue
+        orphaned = _gc_reasons.reflog_only_work(decision.path, fresh.main_worktree, run_git)
+        if orphaned:
+            report.remove_errors.append(f"{decision.path}: skipped, {orphaned}")
             continue
         try:
             remove_worktree(decision.path, run_git)

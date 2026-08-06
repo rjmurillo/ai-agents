@@ -49,16 +49,25 @@ def _forbidden_git(*_args: str) -> str:
 
 
 @pytest.fixture(autouse=True)
-def _stub_pre_removal_head():
-    """Unit tests name paths that do not exist, so the pre-removal HEAD read is stubbed.
+def _stub_pre_removal_probes():
+    """Unit tests name paths that do not exist, so both pre-removal reads are stubbed.
 
-    ``apply_removals`` reads each candidate's HEAD twice, once with the recheck
-    and once immediately before removing it, and refuses when the two differ.
-    Against a fabricated path both reads fail and every removal is withheld,
-    which would hide what these tests are actually about. Tests that care about
-    the comparison patch it again with their own values.
+    ``apply_removals`` asks two questions immediately before each removal:
+    whether the worktree's HEAD is still where the recheck decision recorded
+    it, and whether its reflog has since become the only anchor for a commit.
+    Both read the filesystem, both fail against a fabricated path, and either
+    failure withholds every removal, which would hide what these tests are
+    about. Tests that care about a comparison patch it again with their own
+    values.
+
+    What the stubs replace is measured in
+    ``test_gc_worktrees_real_git_apply.py``, which builds both races against
+    real git and reads the object database back.
     """
-    with patch(f"{_MODULE}._gc_apply._head_of", return_value=_STUB_HEAD):
+    with (
+        patch(f"{_MODULE}._gc_apply._head_of", return_value=_STUB_HEAD),
+        patch(f"{_MODULE}._gc_reasons.reflog_only_work", return_value=""),
+    ):
         yield
 
 
@@ -135,8 +144,14 @@ def _report(*decisions: Decision) -> GcReport:
 
 
 def _live(path: str, branch: str | None = "feat/x") -> Decision:
-    """A candidate the plan proposes removing."""
-    return Decision(path, branch, remove=True, reason="fully pushed")
+    """A candidate the plan proposes removing.
+
+    ``head`` is what ``--apply`` compares against just before it removes. A
+    removal decision that carries none is refused, because nothing then
+    establishes the worktree is where the recheck left it, so a candidate
+    without one cannot stand in for a real plan here.
+    """
+    return Decision(path, branch, remove=True, reason="fully pushed", head=_STUB_HEAD)
 
 
 def _keep_unreachable(path: str) -> Decision:
@@ -179,25 +194,24 @@ class TestNoBlanketPrune:
 
 
 class TestPerCandidateHead:
-    """Removals run in series, so the last candidate acts on a seconds-old reading.
+    """Removals run in series, so the last candidate acts on a seconds-old plan.
 
     ``git worktree remove`` refuses a dirty tree but accepts a *committed*
     change, so a commit landing between the recheck and this candidate's own
     turn is removed and orphaned. Re-reading each HEAD immediately before its
     own removal narrows that window to a single subprocess.
+
+    What it is compared against has to be the HEAD the recheck decided on,
+    which each removal decision carries. Reading the baseline separately, after
+    the recheck returned, meant a commit landing between those two reads became
+    the baseline and then matched itself.
     """
 
     def test_a_head_that_moved_after_the_recheck_withholds_that_removal(self):
         report = _report(_live("/repo/a"), _live("/repo/b"))
-        heads = {"/repo/a": _STUB_HEAD, "/repo/b": _STUB_HEAD, None: "9" * 40}
-        seen: list[str] = []
+        moved = {"/repo/a": _STUB_HEAD, "/repo/b": "9" * 40}
 
-        def head(path: str, _run: object) -> str:
-            seen.append(path)
-            # Second read of /repo/b: a commit landed after the recheck.
-            return heads[None] if seen.count(path) > 1 and path == "/repo/b" else heads[path]
-
-        with patch(f"{_MODULE}._gc_apply._head_of", side_effect=head):
+        with patch(f"{_MODULE}._gc_apply._head_of", side_effect=lambda p, _g: moved[p]):
             with patch(f"{_MODULE}._gc_apply.remove_worktree") as remove:
                 _gc_apply.apply_removals(report, revalidate=lambda: report, run_git=_forbidden_git)
         assert [c.args[0] for c in remove.call_args_list] == ["/repo/a"]
@@ -205,18 +219,16 @@ class TestPerCandidateHead:
 
     def test_an_unreadable_head_is_not_evidence_of_safety(self):
         report = _report(_live("/repo/a"))
-        answers = iter([_STUB_HEAD, None])
-        with patch(f"{_MODULE}._gc_apply._head_of", side_effect=lambda _p, _g: next(answers)):
+        with patch(f"{_MODULE}._gc_apply._head_of", return_value=None):
             with patch(f"{_MODULE}._gc_apply.remove_worktree") as remove:
                 _gc_apply.apply_removals(report, revalidate=lambda: report, run_git=_forbidden_git)
         remove.assert_not_called()
         assert any("could not be read" in e for e in report.remove_errors)
 
     def test_a_recheck_that_recorded_no_head_leaves_nothing_to_compare(self):
-        report = _report(_live("/repo/a"))
-        with patch(f"{_MODULE}._gc_apply._head_of", return_value=None):
-            with patch(f"{_MODULE}._gc_apply.remove_worktree") as remove:
-                _gc_apply.apply_removals(report, revalidate=lambda: report, run_git=_forbidden_git)
+        report = _report(Decision("/repo/a", "feat/a", remove=True, reason="fully pushed"))
+        with patch(f"{_MODULE}._gc_apply.remove_worktree") as remove:
+            _gc_apply.apply_removals(report, revalidate=lambda: report, run_git=_forbidden_git)
         remove.assert_not_called()
         assert any("recorded no HEAD" in e for e in report.remove_errors)
 
@@ -228,6 +240,21 @@ class TestPerCandidateHead:
         assert [c.args[0] for c in remove.call_args_list] == ["/repo/a"]
         assert report.remove_errors == []
 
+    def test_the_baseline_comes_from_the_decision_not_from_a_second_read(self):
+        """Reading the baseline separately lets a commit become its own baseline.
+
+        Every ``_head_of`` call here agrees, so a baseline taken by reading is
+        self-consistent and the removal proceeds. Only the recheck decision
+        remembers where the worktree was when it was judged safe, and it
+        disagrees, which is what has to withhold the removal.
+        """
+        report = _report(_live("/repo/a"))
+        with patch(f"{_MODULE}._gc_apply._head_of", return_value="9" * 40):
+            with patch(f"{_MODULE}._gc_apply.remove_worktree") as remove:
+                _gc_apply.apply_removals(report, revalidate=lambda: report, run_git=_forbidden_git)
+        remove.assert_not_called()
+        assert any("HEAD moved" in e for e in report.remove_errors)
+
     def test_each_candidate_is_re_read_on_its_own_turn_not_once_up_front(self):
         """A single up-front snapshot is exactly the staleness this guard exists to fix."""
         report = _report(_live("/repo/a"), _live("/repo/b"))
@@ -235,8 +262,26 @@ class TestPerCandidateHead:
             with patch(f"{_MODULE}._gc_apply.remove_worktree"):
                 _gc_apply.apply_removals(report, revalidate=lambda: report, run_git=_forbidden_git)
         reads = [c.args[0] for c in head.call_args_list]
-        assert reads.count("/repo/a") == 2
-        assert reads.count("/repo/b") == 2
+        assert reads == ["/repo/a", "/repo/b"], "one read each, taken on that candidate's turn"
+
+    def test_a_reflog_that_became_the_only_anchor_withholds_that_removal(self):
+        """The case no comparison of HEAD against HEAD can see.
+
+        A worktree that commits and resets ends where it started, so the HEAD
+        check passes and the commit survives with nothing but this entry's
+        reflog naming it. Proved against real git in
+        ``test_gc_worktrees_real_git_apply.py``.
+        """
+        report = _report(_live("/repo/a"), _live("/repo/b"))
+        stranded = {"/repo/a": "", "/repo/b": "WARNING: its reflog is the only anchor for 1"}
+
+        with patch(
+            f"{_MODULE}._gc_reasons.reflog_only_work", side_effect=lambda p, _m, _g: stranded[p]
+        ):
+            with patch(f"{_MODULE}._gc_apply.remove_worktree") as remove:
+                _gc_apply.apply_removals(report, revalidate=lambda: report, run_git=_forbidden_git)
+        assert [c.args[0] for c in remove.call_args_list] == ["/repo/a"]
+        assert any("/repo/b" in e and "only anchor" in e for e in report.remove_errors)
 
 
 class TestRevalidation:

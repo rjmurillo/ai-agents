@@ -370,8 +370,10 @@ class TestApplyRemovals:
             apply=True,
             main_worktree=_MAIN,
             decisions=[
-                Decision("/repo/a", "feat/a", remove=True, reason="merged to base"),
-                Decision("/repo/b", "feat/b", remove=True, reason="fully pushed"),
+                Decision(
+                    "/repo/a", "feat/a", remove=True, reason="merged to base", head=_STUB_HEAD
+                ),
+                Decision("/repo/b", "feat/b", remove=True, reason="fully pushed", head=_STUB_HEAD),
                 Decision("/repo/c", "feat/c", remove=False, reason=KEEP_LOCKED),
             ],
         )
@@ -397,8 +399,10 @@ class TestApplyRemovals:
             apply=True,
             main_worktree=_MAIN,
             decisions=[
-                Decision("/repo/a", "feat/a", remove=True, reason="merged to base"),
-                Decision("/repo/b", "feat/b", remove=True, reason="fully pushed"),
+                Decision(
+                    "/repo/a", "feat/a", remove=True, reason="merged to base", head=_STUB_HEAD
+                ),
+                Decision("/repo/b", "feat/b", remove=True, reason="fully pushed", head=_STUB_HEAD),
             ],
         )
 
