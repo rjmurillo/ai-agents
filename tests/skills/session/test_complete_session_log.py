@@ -252,6 +252,38 @@ class TestUncommittedChanges:
         assert complete_session_log._test_uncommitted_changes() is True
 
 
+class TestExcludePathAbsoluteVsRelative:
+    """Regression: absolute session_path must be relpath'd before exclusion."""
+
+    @patch("complete_session_log.subprocess.run")
+    def test_absolute_exclude_does_not_match_relative_porcelain(self, mock_run):
+        """Absolute path fails to exclude the relative porcelain entry."""
+        session = ".agents/sessions/2026-08-03-session-0001.json"
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout=f" M {session}\n M src/app.py\n",
+        )
+        # Absolute: exclusion misses, both lines count
+        assert complete_session_log._test_uncommitted_changes(
+            exclude_path=f"/home/user/repo/{session}"
+        ) is True
+        # Relative: exclusion hits, only src/app.py remains
+        assert complete_session_log._test_uncommitted_changes(
+            exclude_path=session
+        ) is True  # src/app.py still dirty
+
+    @patch("complete_session_log.subprocess.run")
+    def test_relative_exclude_reports_clean_when_only_session_dirty(self, mock_run):
+        """Relative exclude + only session dirty = clean (the fixed path)."""
+        session = ".agents/sessions/2026-08-03-session-0001.json"
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout=f" M {session}\n",
+        )
+        assert complete_session_log._test_uncommitted_changes(
+            exclude_path=session
+        ) is False
+
+
 class TestPathContainment:
     """Tests for _validate_path_containment (CWE-22)."""
 

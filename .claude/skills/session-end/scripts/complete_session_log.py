@@ -557,7 +557,10 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # 5. changesCommitted
-    has_uncommitted = _test_uncommitted_changes(exclude_path=session_path)
+    # git-porcelain outputs repo-relative paths; session_path is absolute after
+    # _validate_path_containment. Convert to relative so the exclusion matches.
+    _session_rel = os.path.relpath(session_path, repo_root)
+    has_uncommitted = _test_uncommitted_changes(exclude_path=_session_rel)
     if "changesCommitted" in session_end:
         check = session_end["changesCommitted"]
         if not has_uncommitted:
