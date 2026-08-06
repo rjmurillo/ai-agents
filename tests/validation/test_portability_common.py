@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import portability_common as common
+from scripts.validation.portability_git import GIT_TIMEOUT_RETURN_CODE
 
 
 def _message(rel: str, count: int, allowed: int) -> str:
@@ -80,26 +81,38 @@ def test_resolve_baseline_rejects_path_outside_repo(tmp_path: Path) -> None:
     )
 
 
-def test_git_lines_strips_git_overrides_case_insensitively(
+def test_git_lines_delegates_to_the_shared_git_runner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    captured_env: dict[str, str] = {}
+    captured: list[tuple[Path, tuple[str, ...]]] = []
 
-    def run_git(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        env = kwargs["env"]
-        assert isinstance(env, dict)
-        captured_env.update(env)
-        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+    def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+        captured.append((repo_root, args))
+        return subprocess.CompletedProcess(args, 0, stdout=b"a.py\0b.py\0", stderr=b"")
 
-    monkeypatch.setenv("git_index_file", "/wrong/index")
-    monkeypatch.setenv("Git_Dir", "/wrong/repo")
-    monkeypatch.setenv("PORTABILITY_TEST_SENTINEL", "kept")
-    monkeypatch.setattr(common.subprocess, "run", run_git)
+    monkeypatch.setattr(common, "run_git", run_git)
 
-    assert common._git_lines(tmp_path, ["status"]) == []
-    assert "git_index_file" not in captured_env
-    assert "Git_Dir" not in captured_env
-    assert captured_env["PORTABILITY_TEST_SENTINEL"] == "kept"
+    assert common._git_lines(tmp_path, ["ls-files", "-z"]) == ["a.py", "b.py"]
+    assert captured == [(tmp_path, ("ls-files", "-z"))]
+
+
+def test_git_lines_refuses_when_the_shared_git_runner_times_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    timed_out = subprocess.CompletedProcess(
+        ["git"],
+        GIT_TIMEOUT_RETURN_CODE,
+        stdout=b"",
+        stderr=b"git command timed out after 30s",
+    )
+    monkeypatch.setattr(common, "run_git", lambda *_args: timed_out)
+
+    assert common._git_lines(tmp_path, ["ls-files", "-z"]) is None
+    error = capsys.readouterr().err
+    assert "git timed out while running ls-files -z" in error
+    assert "git command timed out after 30s" in error
 
 
 class TestTheGuardCannotBeSkippedByForgettingAnArgument:
@@ -194,6 +207,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
             root, Path("scripts/validation/link.json"), "d.json"
         )
 
+        assert resolved is not None
         assert resolved.name == "link.json"
         assert resolved.is_symlink()
 
@@ -259,5 +273,6 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
             root, override, "d.json"
         )
 
+        assert resolved is not None
         assert resolved.resolve() == (root / override).resolve()
         assert "link" in resolved.parts
