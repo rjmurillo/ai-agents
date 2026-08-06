@@ -14,23 +14,51 @@ from scripts.ci.spec_load_content import _gh_issue_body, main, run
 class TestGhIssueBody:
     def test_returns_output_on_success(self) -> None:
         mock = MagicMock(returncode=0, stdout="Title\n\nBody text")
-        with patch("scripts.ci.spec_load_content.subprocess.run", return_value=mock):
-            result = _gh_issue_body("42", "owner/repo")
+        with patch.dict(os.environ, {"GH_TOKEN": "runner-token"}, clear=True):
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=mock):
+                result = _gh_issue_body("42", "owner/repo")
         assert "Body text" in result
 
     def test_returns_empty_on_failure(self) -> None:
         mock = MagicMock(returncode=1, stdout="")
-        with patch("scripts.ci.spec_load_content.subprocess.run", return_value=mock):
-            result = _gh_issue_body("999", "owner/repo")
+        with patch.dict(os.environ, {"GH_TOKEN": "runner-token"}, clear=True):
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=mock):
+                result = _gh_issue_body("999", "owner/repo")
         assert result == ""
 
-    def test_parses_cross_repo_ref(self) -> None:
+    def test_local_issue_uses_runner_token(self) -> None:
+        mock = MagicMock(returncode=0, stdout="local content")
+        with patch.dict(
+            os.environ,
+            {"GH_TOKEN": "runner-token", "BOT_PAT": "bot-token"},
+            clear=True,
+        ):
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=mock) as m:
+                _gh_issue_body("5", "owner/repo")
+        assert m.call_args.kwargs["env"]["GH_TOKEN"] == "runner-token"
+
+    def test_cross_repo_issue_uses_bot_pat(self) -> None:
         mock = MagicMock(returncode=0, stdout="cross-repo content")
-        with patch("scripts.ci.spec_load_content.subprocess.run", return_value=mock) as m:
-            _gh_issue_body("owner/other#5", "owner/repo")
+        with patch.dict(
+            os.environ,
+            {"GH_TOKEN": "runner-token", "BOT_PAT": "bot-token"},
+            clear=True,
+        ):
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=mock) as m:
+                _gh_issue_body("owner/other#5", "owner/repo")
         args = m.call_args[0][0]
         assert "other" in " ".join(args)
         assert "5" in " ".join(args)
+        assert m.call_args.kwargs["env"]["GH_TOKEN"] == "bot-token"
+
+    def test_cross_repo_issue_requires_bot_pat(self) -> None:
+        env = {
+            "SPEC_REFS": "",
+            "ISSUE_REFS": "owner/other#5",
+            "GITHUB_REPOSITORY": "owner/repo",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            assert main() == 2
 
 
 class TestRun:

@@ -16,6 +16,7 @@ Outputs:
 
 EXIT CODES (ADR-035):
   0 - content loaded (or no content found; still 0)
+  2 - configuration error
 """
 
 from __future__ import annotations
@@ -24,6 +25,10 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+
+
+class ConfigError(RuntimeError):
+    """Workflow environment cannot satisfy the requested spec reference."""
 
 
 def write_github_output(key: str, value: str) -> None:
@@ -40,9 +45,15 @@ def _gh_issue_body(issue_ref: str, default_repo: str) -> str:
     """Fetch title + body for an issue ref."""
     if "/" in issue_ref and "#" in issue_ref:
         repo, num = issue_ref.rsplit("#", 1)
+        token = os.environ.get("BOT_PAT", "")
+        if not token:
+            raise ConfigError(
+                f"BOT_PAT is required to load cross-repository issue spec {issue_ref}"
+            )
     else:
         repo = default_repo
         num = issue_ref
+        token = os.environ.get("GH_TOKEN", "")
 
     result = subprocess.run(
         [
@@ -62,6 +73,7 @@ def _gh_issue_body(issue_ref: str, default_repo: str) -> str:
         encoding="utf-8",
         errors="replace",
         check=False,
+        env={**os.environ, "GH_TOKEN": token},
     )
     return result.stdout.strip() if result.returncode == 0 else ""
 
@@ -114,7 +126,11 @@ def run(_argv: list[str] | None = None) -> int:
 
 def main() -> int:
     """Entry point."""
-    return run()
+    try:
+        return run()
+    except ConfigError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

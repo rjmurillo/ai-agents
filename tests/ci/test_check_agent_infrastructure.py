@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -20,12 +21,16 @@ AI_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "ai-review" / "action.yml
 AGENT_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "agent-review" / "action.yml"
 AI_PR_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ai-pr-quality-gate.yml"
 BUILD_AI_REVIEW_CONTEXT = REPO_ROOT / "scripts" / "ci" / "build_ai_review_context.py"
+BACKLOG_TRIAGE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "backlog-triage.yml"
+AI_SPEC_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ai-spec-validation.yml"
+PR_MAINTENANCE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pr-maintenance.yml"
 SESSION_PROTOCOL_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ai-session-protocol.yml"
 SHARED_PAT_CANDIDATE_WORKFLOWS = (
-    REPO_ROOT / ".github" / "workflows" / "ai-spec-validation.yml",
+    AI_SPEC_WORKFLOW,
     REPO_ROOT / ".github" / "workflows" / "ai-metrics-analysis.yml",
-    REPO_ROOT / ".github" / "workflows" / "pr-maintenance.yml",
+    PR_MAINTENANCE_WORKFLOW,
     REPO_ROOT / ".github" / "workflows" / "ai-issue-triage.yml",
+    BACKLOG_TRIAGE_WORKFLOW,
 )
 
 
@@ -304,7 +309,7 @@ class TestSharedPatCandidateWorkflows:
     def test_repository_local_gh_calls_use_runner_token(self, workflow_path: Path) -> None:
         workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
 
-        assert self._find_values(workflow, "secrets.BOT_PAT") == []
+        assert self._disallowed_bot_pat_uses(workflow_path, workflow) == []
 
     @pytest.mark.parametrize("workflow_path", SHARED_PAT_CANDIDATE_WORKFLOWS)
     def test_ai_review_calls_receive_runner_token(self, workflow_path: Path) -> None:
@@ -345,6 +350,32 @@ class TestSharedPatCandidateWorkflows:
         assert len(gh_token_steps) == 2
         for step in gh_token_steps:
             assert step["env"]["GH_TOKEN"] == "${{ github.token }}"
+
+    def test_ai_spec_validation_grants_issue_read_for_issue_specs(self) -> None:
+        workflow = yaml.safe_load(AI_SPEC_WORKFLOW.read_text(encoding="utf-8"))
+
+        assert workflow["permissions"]["issues"] == "read"
+
+    def test_pr_maintenance_discovery_can_read_status_rollups(self) -> None:
+        workflow = yaml.safe_load(PR_MAINTENANCE_WORKFLOW.read_text(encoding="utf-8"))
+        permissions = workflow["jobs"]["discover-prs"]["permissions"]
+
+        assert permissions["checks"] == "read"
+        assert permissions["statuses"] == "read"
+
+    def _disallowed_bot_pat_uses(self, workflow_path: Path, workflow: Any) -> list[str]:
+        matches = self._find_values(workflow, "secrets.BOT_PAT")
+        if workflow_path != AI_SPEC_WORKFLOW:
+            return matches
+
+        jobs = workflow["jobs"]
+        load_spec = next(
+            step
+            for step in jobs["validate-spec"]["steps"]
+            if step["name"] == "Load Spec Content"
+        )
+        allowed = load_spec["env"]["BOT_PAT"]
+        return [match for match in matches if match != allowed]
 
 
 class TestBuildAiReviewContextAuthBoundary:
