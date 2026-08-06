@@ -109,19 +109,30 @@ def _fetch_reviews(
     owner: str, repo: str, pr: int, fmt: str,
 ) -> list[dict[str, object]]:
     """Page through the PR's reviews via REST. Raises SystemExit on error."""
-    result = subprocess.run(
-        [
-            "gh", "api",
-            f"repos/{owner}/{repo}/pulls/{pr}/reviews?per_page=100",
-            "--paginate",
-            "--slurp",
-        ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=60,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh", "api",
+                f"repos/{owner}/{repo}/pulls/{pr}/reviews?per_page=100",
+                "--paginate",
+                "--slurp",
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        write_skill_error(
+            f"Timed out fetching reviews for PR #{pr}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT,
+            extra={"pull_request": pr},
+        )
+        raise SystemExit(3) from None
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
         not_found = "not found" in error_str.lower() or "Could not resolve" in error_str

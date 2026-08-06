@@ -228,6 +228,22 @@ class TestMain:
                 main(["--pull-request", "10"])
             assert exc.value.code == expected
 
+    def test_timeout_exits_3_with_api_error(self, capsys):
+        with patch(f"{_MODULE}.assert_gh_authenticated"), patch(
+            f"{_MODULE}.resolve_repo_params",
+            return_value=_fake_repo(),
+        ), patch(
+            f"{_MODULE}.subprocess.run",
+            side_effect=subprocess.TimeoutExpired("gh", 60),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "10"])
+
+        assert exc.value.code == 3
+        output = _envelope(capsys)
+        assert output["Success"] is False
+        assert output["Error"]["Type"] == "ApiError"
+
     def test_invalid_json_exits_3(self):
         with patch(f"{_MODULE}.assert_gh_authenticated"), patch(
             f"{_MODULE}.resolve_repo_params",
