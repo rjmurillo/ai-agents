@@ -1169,7 +1169,7 @@ class TestUnexpectedScanException:
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
 
-        def _exploding_scan(root: Path) -> None:
+        def _exploding_scan(root: Path, *, check_drift: bool = False) -> None:
             raise TypeError("bad token type")
 
         monkeypatch.setattr(cmp, "scan_all", _exploding_scan)
@@ -1430,6 +1430,8 @@ class TestBaselineSemanticConflictGuard:
         (root / "scripts" / "validation" / "check_skill_md_portability.py").write_text(
             "# scanner\n", encoding="utf-8"
         )
+        # Create a stub for the upstream path that marker tests reference
+        (root / ".agents" / "state").mkdir(parents=True)
         baseline = root / "baseline.json"
         baseline.write_text(json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8")
         subprocess.run(["git", "init", "-q"], cwd=root, check=True)
@@ -2045,3 +2047,7 @@ class TestScriptsPathDetection:
         """
         text = "The scripts are maintained by the team.\n"
         assert cmp.count_upstream_refs(text) == 0
+
+
+# ---------------------------------------------------------------------------
+# Marker path-drift tests (issue #4116)
