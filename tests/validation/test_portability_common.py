@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import portability_common as common
+from scripts.validation.portability_git import GIT_TIMEOUT_RETURN_CODE
 
 
 def _message(rel: str, count: int, allowed: int) -> str:
@@ -80,39 +81,38 @@ def test_resolve_baseline_rejects_path_outside_repo(tmp_path: Path) -> None:
     )
 
 
-def test_git_lines_delegates_to_the_shared_hardened_git_runner(
+def test_git_lines_delegates_to_the_shared_git_runner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    calls: list[tuple[Path, tuple[str, ...]]] = []
+    captured: list[tuple[Path, tuple[str, ...]]] = []
 
     def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
-        calls.append((repo_root, args))
-        return subprocess.CompletedProcess(args, 0, stdout=b"one.py\0two.py\0", stderr=b"")
+        captured.append((repo_root, args))
+        return subprocess.CompletedProcess(args, 0, stdout=b"a.py\0b.py\0", stderr=b"")
 
     monkeypatch.setattr(common, "run_git", run_git)
 
-    assert common._git_lines(tmp_path, ["ls-files", "-z"]) == ["one.py", "two.py"]
-    assert calls == [(tmp_path, ("ls-files", "-z"))]
+    assert common._git_lines(tmp_path, ["ls-files", "-z"]) == ["a.py", "b.py"]
+    assert captured == [(tmp_path, ("ls-files", "-z"))]
 
 
-def test_git_lines_reports_none_when_the_shared_git_runner_cannot_answer(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_git_lines_refuses_when_the_shared_git_runner_times_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr(common, "run_git", lambda _root, *_args: None)
-
-    assert common._git_lines(tmp_path, ["ls-files", "-z"]) is None
-
-
-def test_git_lines_reports_none_when_git_exits_nonzero(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        common,
-        "run_git",
-        lambda _root, *_args: subprocess.CompletedProcess(_args, 128, stdout=b"", stderr=b"fatal"),
+    timed_out = subprocess.CompletedProcess(
+        ["git"],
+        GIT_TIMEOUT_RETURN_CODE,
+        stdout=b"",
+        stderr=b"git command timed out after 30s",
     )
+    monkeypatch.setattr(common, "run_git", lambda *_args: timed_out)
 
     assert common._git_lines(tmp_path, ["ls-files", "-z"]) is None
+    error = capsys.readouterr().err
+    assert "git timed out while running ls-files -z" in error
+    assert "git command timed out after 30s" in error
 
 
 class TestTheGuardCannotBeSkippedByForgettingAnArgument:
@@ -207,6 +207,7 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
             root, Path("scripts/validation/link.json"), "d.json"
         )
 
+        assert resolved is not None
         assert resolved.name == "link.json"
         assert resolved.is_symlink()
 
@@ -272,5 +273,6 @@ class TestAnOverrideKeepsTheEvidenceTheSymlinkGuardNeeds:
             root, override, "d.json"
         )
 
+        assert resolved is not None
         assert resolved.resolve() == (root / override).resolve()
         assert "link" in resolved.parts

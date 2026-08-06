@@ -16,7 +16,7 @@ from scripts.validation.portability_baseline import (
     refuse_undiffable_baseline,
     write_baseline_json,
 )
-from scripts.validation.portability_git import run_git
+from scripts.validation.portability_git import git_timeout_problem, run_git
 
 RegressionMessageFactory = Callable[[str, int, int], str]
 
@@ -229,17 +229,18 @@ def write_baseline(
 def _git_lines(repo_root: Path, args: list[str]) -> list[str] | None:
     """Run a git plumbing command, None when git cannot answer.
 
-    The shared portability Git runner strips every GIT_* environment variable
-    and disables replacement objects. Keep this helper as the text adapter so
-    coverage checks keep their current return contract without owning another
-    subprocess policy.
+    The shared runner strips every Git override, disables replacement objects,
+    and bounds the subprocess. Keeping those controls in one implementation
+    prevents the coverage probe from drifting behind the baseline reader.
     """
     proc = run_git(repo_root, *args)
-    if proc is None:
+    if problem := git_timeout_problem(proc, f"running {' '.join(args)}"):
+        print(problem, file=sys.stderr)
         return None
-    if proc.returncode != 0:
+    if proc is None or proc.returncode != 0:
         return None
-    return [line for line in proc.stdout.decode("utf-8", "replace").split("\0") if line]
+    stdout = proc.stdout.decode(errors="replace")
+    return [line for line in stdout.split("\0") if line]
 
 
 def tracked_coverage_by_root(
@@ -283,6 +284,14 @@ def _refuse_partial_worktree(root: Path, scanned_by_root: Mapping[str, int]) -> 
     """Refuse a baseline write whose completeness git cannot confirm."""
     names = list(scanned_by_root)
     unmerged = _git_lines(root, ["ls-files", "-u", "-z", "--", *names])
+    if unmerged is None:
+        print(
+            "Refusing to write a baseline because git cannot vouch for the worktree: "
+            "git could not inspect unresolved conflicts under the scanned roots. A "
+            "failed conflict probe cannot prove the worktree is safe to record.",
+            file=sys.stderr,
+        )
+        return True
     if unmerged:
         print(
             "Refusing to write a baseline from a tree with unresolved conflicts under "

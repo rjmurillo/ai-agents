@@ -14,3 +14,4 @@
 | PR validation gate scheduled workflow LASTEXITCODE environment CI parameterize | [validation/validation-pr-gates](validation/validation-pr-gates.md) |
 | cross-reference verification renumbering refactoring all references | [validation/validation-007-cross-reference-verification](validation/validation-007-cross-reference-verification.md) |
 | ADR numbering conflicts QA final renumber duplicate verification | [validation/validation-474-adr-numbering-qa-final](validation/validation-474-adr-numbering-qa-final.md) |
+| portability git timeout diagnostics fail closed operation context | [portability/git-timeout-diagnostics](portability/git-timeout-diagnostics.md) |
