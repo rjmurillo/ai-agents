@@ -28,6 +28,7 @@
 |blocked pr mergeStateStatus ruleset required contexts thread resolution commit limit bypass diagnose: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (908)
 
 [Scripting and Testing]
+|repo-root default script REPO_ROOT __file__ scratch clone cwd wrong repository vacuous test passes git_hook_policy: [testing/repo-root-default-measures-the-wrong-repository](testing/repo-root-default-measures-the-wrong-repository.md) (719)
 |portability git timeout diagnostics fail closed operation context calibration: [portability/git-timeout-diagnostics](portability/git-timeout-diagnostics.md) (951)
 |eval harness enumerate scripts naming underscore hyphen glob baseline no-skill control arm fixtures: [eval-harness-surface-enumeration](eval-harness-surface-enumeration.md) (681)
 |powershell ps1 psm1 module pester test discovery isolation variable scope script: [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (181), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373)
@@ -74,6 +75,7 @@
 |spec coverage acceptance criteria checkbox observe signal non-blocking required check push-pr body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
 |BOT_PAT github.token runner token AI review read calls rate limit budget user id: [ci/ci-ai-review-read-calls-use-runner-token](ci/ci-ai-review-read-calls-use-runner-token.md) (284)
 |count ratchet baseline branch freshness behind main stale higher baseline merge origin/main: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (822)
+|taste count ratchet pre-push cost twelve minutes python-tests push lock queue file-size split not suppress run ratchets first: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (706)
 |stale detached HEAD shared checkout verify wrong commit git show ref path worktree parse fresh input stale tooling already fixed upstream script version skew session end validation failed inflated diff base resolve_comparison_base: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (1497)
 |validate PR check red advisory blocking signal DESCRIPTION_RESULT TEMPLATE_STATUS exit code file mentioned but not in diff CRITICAL WARNING: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (2488)
 |linking an issue Closes Fixes Resolves Implements Refs arms AI spec validation acceptance criteria PARTIAL completeness trace check_spec_failures analyst critic: [ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff](ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff.md) (1302)
