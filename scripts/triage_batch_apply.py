@@ -53,6 +53,7 @@ if str(_REPO_ROOT) not in sys.path:
 from scripts.validation.verify_issue_close import (  # noqa: E402
     IssueComment,
     check_unresolved_scope,
+    extract_commit_shas,
     extract_pr_numbers,
     unverified_claims,
 )
@@ -163,6 +164,10 @@ class GitHubGateway(Protocol):
 
     def get_pr_merge_time(self, pr: int) -> datetime.datetime | None:
         """Return the merge timestamp of a PR, or None if unavailable."""
+        ...
+
+    def get_commit_time(self, sha: str) -> datetime.datetime | None:
+        """Return a commit's timestamp, or None if unavailable."""
         ...
 
 
@@ -285,15 +290,26 @@ def _apply_close(
     # Unresolved-scope gate (#4625): if a human commented AFTER the fix
     # evidence, the issue may have unaddressed scope. Block and report.
     cited_prs = extract_pr_numbers(action.rationale)
+    cited_shas = extract_commit_shas(action.rationale)
     fix_ts: datetime.datetime | None = None
     for pr_num in cited_prs:
         fix_ts = gateway.get_pr_merge_time(pr_num)
         if fix_ts is not None:
             break
-    if cited_prs and fix_ts is None:
+    if fix_ts is None:
+        # A rationale may cite a commit and no pull request. Without this the
+        # gate below was skipped outright, so a commit-only closure never
+        # checked for unresolved scope: the exact hole #4625 describes, reached
+        # by a different route. Refs #4625.
+        for sha in cited_shas:
+            fix_ts = gateway.get_commit_time(sha)
+            if fix_ts is not None:
+                break
+    if (cited_prs or cited_shas) and fix_ts is None:
         return ActionOutcome(
             action.issue, action.category, OUTCOME_SKIPPED,
-            "close aborted: cannot determine fix timestamp from cited PR(s)",
+            "close aborted: cannot determine fix timestamp from cited "
+            "PR(s) or commit(s)",
         )
     if fix_ts is not None:
         comments = gateway.get_issue_comments(action.issue)

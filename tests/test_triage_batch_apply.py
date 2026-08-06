@@ -30,6 +30,7 @@ from scripts.triage_batch_apply import (
     parse_actions,
     run_batch,
 )
+from scripts.validation.verify_issue_close import IssueComment
 
 
 class FakeGateway:
@@ -75,6 +76,19 @@ class FakeGateway:
             return comments_map[issue]
         # Default: no comments (successful empty fetch, safe to proceed)
         return []
+
+    def get_commit_time(self, sha: str):
+        """Mirror get_pr_merge_time: a known commit has an early timestamp.
+
+        Tests that need the unavailable case pass commit_times={} explicitly.
+        """
+        import datetime as dt
+        commit_times = getattr(self, "_commit_times", None)
+        if commit_times is not None:
+            return commit_times.get(sha)
+        if sha in self._known_commits:
+            return dt.datetime(2000, 1, 1, tzinfo=dt.UTC)
+        return None
 
     def get_pr_merge_time(self, pr: int):
         import datetime as dt
@@ -442,3 +456,52 @@ class TestMain:
         assert "owner" in capsys.readouterr().err
 
 
+
+
+class TestCommitOnlyClosureScopeGate:
+    """A rationale citing only a commit must still face the scope gate.
+
+    The gate resolved a fix timestamp from cited pull requests alone. With no
+    pull request cited, no timestamp existed, the gate was skipped, and the
+    issue closed without ever checking for unresolved scope. That is the hole
+    #4625 describes, reached by a different route. Refs #4625.
+    """
+
+    def test_comment_after_a_cited_commit_blocks_the_close(self):
+        import datetime as dt
+
+        gw = FakeGateway({5: _open(5)}, known_commits=frozenset({"abc1234"}))
+        gw._commit_times = {"abc1234": dt.datetime(2026, 1, 1, tzinfo=dt.UTC)}
+        gw._comments = {
+            5: [
+                IssueComment(
+                    author="someone",
+                    author_type="User",
+                    created_at=dt.datetime(2026, 2, 1, tzinfo=dt.UTC),
+                    url="https://example.invalid/c/1",
+                    body="This is still broken for the nested case.",
+                )
+            ]
+        }
+        action = ManifestAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="resolved by commit abc1234",
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert gw.closed == []
+
+    def test_unresolvable_commit_timestamp_blocks_rather_than_skips(self):
+        """Fail closed: no timestamp means scope cannot be checked."""
+        gw = FakeGateway({5: _open(5)}, known_commits=frozenset({"abc1234"}))
+        gw._commit_times = {}
+        action = ManifestAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="resolved by commit abc1234",
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "timestamp" in outcome.detail
+        assert gw.closed == []

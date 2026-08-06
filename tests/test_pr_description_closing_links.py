@@ -214,3 +214,34 @@ class TestEdgeCases:
         issues = validate_closing_links(body, "main", "main")
         assert len(issues) == 1
         assert issues[0].severity == "CRITICAL"
+
+
+class TestMultilineCodeSpanNegativeControl:
+    """A closing link inside a multiline code span must not count as real.
+
+    CommonMark allows a line ending inside a code span; only a blank line ends
+    it. Restricting the body to a single line left these unstripped, so an
+    example was read as a genuine closing link and the gate passed on a pull
+    request that closes nothing. Refs #3827.
+
+    Asserted through validate_closing_links rather than the regex so the test
+    fails if the stripping stops being consulted, not only if the pattern
+    changes.
+    """
+
+    def test_multiline_single_backtick_span_does_not_satisfy_the_gate(self) -> None:
+        body = "Some text\n\n`example\nFixes #123`\n"
+        assert validate_closing_links(body, "main", "main") != []
+
+    def test_multiline_double_backtick_span_does_not_satisfy_the_gate(self) -> None:
+        body = "Some text\n\n``ex `tick`\nFixes #123``\n"
+        assert validate_closing_links(body, "main", "main") != []
+
+    def test_blank_line_ends_the_span_so_the_link_counts(self) -> None:
+        """The inverse control: a blank line closes the span per CommonMark."""
+        body = "`example\n\nFixes #123`\n"
+        assert validate_closing_links(body, "main", "main") == []
+
+    def test_a_real_closing_link_still_satisfies_the_gate(self) -> None:
+        body = "This change is complete.\n\nFixes #123\n"
+        assert validate_closing_links(body, "main", "main") == []

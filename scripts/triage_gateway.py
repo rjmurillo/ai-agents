@@ -100,8 +100,11 @@ class CliGitHubGateway:
         must treat None as blocking (issue 4640 principle: a failed lookup
         must never be treated as "no data found").
         """
+        # --paginate or the scope check only ever sees the first page. An
+        # issue with 101 comments could carry the blocking one at 101 and
+        # close anyway, which is the failure this check exists to stop.
         result = self._run(
-            ["gh", "api",
+            ["gh", "api", "--paginate",
              f"repos/{self._repo}/issues/{issue}/comments?per_page=100"],
         )
         if result is None or result.returncode != 0:
@@ -134,6 +137,27 @@ class CliGitHubGateway:
                 body=item.get("body", ""),
             ))
         return comments
+
+    def get_commit_time(self, sha: str) -> datetime.datetime | None:
+        """Return a commit's committer timestamp, or None if unavailable.
+
+        A rationale may cite a commit and no pull request. Without this the
+        scope gate had no timestamp to compare comments against and was
+        skipped entirely, so a commit-only closure never checked for
+        unresolved scope. Refs #4625.
+        """
+        result = self._run(
+            ["git", "show", "-s", "--format=%cI", sha],
+        )
+        if result is None or result.returncode != 0:
+            return None
+        stamp = result.stdout.strip()
+        if not stamp:
+            return None
+        try:
+            return datetime.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            return None
 
     def get_pr_merge_time(self, pr: int) -> datetime.datetime | None:
         """Return the merge timestamp of a PR, or None if unavailable."""
@@ -215,6 +239,9 @@ class OfflineGateway:
         return False
 
     def get_issue_comments(self, issue: int) -> list[IssueComment] | None:  # pragma: no cover
+        return None
+
+    def get_commit_time(self, sha: str) -> datetime.datetime | None:  # pragma: no cover
         return None
 
     def get_pr_merge_time(self, pr: int) -> datetime.datetime | None:  # pragma: no cover
