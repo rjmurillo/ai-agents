@@ -157,9 +157,9 @@
     },
     {
       "id": "e011",
-      "timestamp": "2026-08-05T21:54:01+00:00",
-      "type": "commit",
-      "content": "Commit: f35ffffb6",
+      "timestamp": "2026-08-05T23:35:38+00:00",
+      "type": "milestone",
+      "content": "Merged recovery PR #4670 and closed process follow-ups",
       "caused_by": [
         "e003",
         "e004",
@@ -170,17 +170,30 @@
         "e009",
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-06T00:26:45+00:00",
+      "type": "commit",
+      "content": "Commit: fbadfa5a2",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     }
   ],
   "metrics": {
-    "duration_minutes": 1440,
+    "duration_minutes": 2855,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 187
+    "files_changed": 193
   },
   "lessons": []
 }
