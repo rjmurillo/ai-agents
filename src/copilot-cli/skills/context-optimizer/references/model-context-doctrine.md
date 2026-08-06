@@ -174,7 +174,7 @@ as an implementer.
 
 ## Where this repo stands
 
-Measured at `b2729ee54`. Two numbers, and they are not interchangeable. The
+Regenerate these before quoting them. Two numbers, and they are not interchangeable. The
 **always-on corpus is 8 rules, 71,815 bytes**: the ones that load regardless
 of what you touch. The **effective context on a `.py` edit is 97,566 bytes
 across 11 files**, which is the always-on corpus plus the path-scoped rules
@@ -209,7 +209,7 @@ always-on file.
 | `pragmatic-programmer.md` | 11,375 | code files only | 3 positive, 1 negative | none |
 | `unified-software-engineering.md` | 8,242 | code files only | 3 positive, 1 negative | yes |
 
-That leaves 14,152 always-on bytes of book-derived rule, 20.1% of the
+That leaves 14,152 always-on bytes of book-derived rule, 19.7% of the
 71,950-byte always-on corpus measured at source. `code-quality` and
 `pragmatic-programmer` had no scenario file at all until PR #4017 added one to
 each on 2026-08-03, which is how they grew unchallenged for four months.
