@@ -74,32 +74,32 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All MUST session start and session end items have evidence"
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session-end dry run confirmed .agents/HANDOFF.md was not modified"
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Updated portability/git-timeout-diagnostics with history and committed-object coverage"
+        "Evidence": ".serena/memories/ has changes"
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session-end dry run found no changed Markdown files"
+        "Evidence": "No markdown files changed"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Portability recovery and review fixes merged through c96662c18"
+        "Evidence": "All changes committed (HEAD: fbadfa5a2)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "scripts/validate_session_json.py passed before the final session log commit"
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": ".agents/retrospective/2026-08-05-pr-4670-portability-recovery.md"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },

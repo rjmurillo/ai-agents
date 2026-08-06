@@ -178,7 +178,9 @@
         "e009",
         "e010"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e013"
+      ],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     },
     {
@@ -196,6 +198,20 @@
         "e009",
         "e010"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-06T00:26:45+00:00",
+      "type": "commit",
+      "content": "Commit: fbadfa5a2",
+      "caused_by": [
+        "e011",
+        "e012"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9999-land-4568-post-merge-portability-hardening"
     }
@@ -205,7 +221,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 191
   },
   "lessons": []
