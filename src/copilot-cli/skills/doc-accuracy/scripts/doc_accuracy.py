@@ -161,6 +161,12 @@ EXCLUDE_DIRS = {
 }
 
 _GIT_TIMEOUT = 60  # seconds, applied to every git subprocess call
+_INVALID_REF_PATTERNS = (
+    "unknown revision",
+    "bad revision",
+    "needed a single revision",
+    "ambiguous argument",
+)
 
 
 class _GitError(Exception):
@@ -408,6 +414,8 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
         )
 
     # Phase 2: verify the revision exists
+    # Classify stderr to distinguish user-supplied bad ref (exit 2) from
+    # object-DB/permission/corruption failures (exit 3).
     try:
         subprocess.run(
             ["git", "-C", str(repo_root), "rev-parse", "--verify",
@@ -415,8 +423,21 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
             capture_output=True, text=True, check=True, timeout=_GIT_TIMEOUT,
         )
     except subprocess.CalledProcessError as exc:
+        stderr_lower = (exc.stderr or "").strip().lower()
+        # rc 1 with empty/absent stderr in a healthy repo is typically
+        # "verify failed" for a nonexistent ref => config error.
+        is_invalid_ref = (
+            any(pat in stderr_lower for pat in _INVALID_REF_PATTERNS)
+            or (exc.returncode == 1 and not stderr_lower)
+        )
+        if is_invalid_ref:
+            raise _GitError(
+                2, f"rev-parse: unknown revision '{diff_base}': "
+                f"{(exc.stderr or '').strip()}",
+            ) from exc
+        # Object-DB corruption, permission, promisor, bad GIT_OBJECT_DIRECTORY
         raise _GitError(
-            2, f"rev-parse: unknown revision '{diff_base}': "
+            3, f"rev-parse: object storage error: "
             f"{(exc.stderr or '').strip()}",
         ) from exc
 

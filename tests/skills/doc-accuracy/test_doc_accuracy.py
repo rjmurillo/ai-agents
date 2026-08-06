@@ -400,6 +400,28 @@ class TestGetChangedFiles:
         ])
         assert exit_code == 2
 
+    def test_corrupt_object_db_exits_3(self, tmp_path: Path) -> None:
+        """Valid ref but object-DB failure (bad GIT_OBJECT_DIRECTORY) => exit 3."""
+        self._init_repo(tmp_path)
+        real_run = subprocess.run
+
+        def corrupt_verify(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "--verify" in cmd:
+                raise subprocess.CalledProcessError(
+                    128, cmd,
+                    stderr="fatal: unable to read object: permission denied",
+                )
+            return real_run(*args, **kwargs)
+
+        with patch.object(subprocess, "run", side_effect=corrupt_verify):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD",
+                "--phases", "1",
+            ])
+        assert exit_code == 3
+
     def test_non_git_repo_exits_3(self, tmp_path: Path) -> None:
         """Non-git directory is an environment error => exit 3."""
         exit_code = main([
