@@ -20,6 +20,7 @@ the condition with real git and then reads the report back.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -41,11 +42,11 @@ class GitSandbox:
     remote: Path
 
 
-def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
         cwd=cwd,
-        check=True,
+        check=check,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -248,7 +249,7 @@ def test_the_index_recovery_command_exports_a_skip_worktree_entry(
     start = reason.index("GIT_INDEX_FILE=")
     end = reason.find(" |", start)
     command = (reason[start:] if end == -1 else reason[start:end]).replace(
-        "--prefix=RECOVERY_DIR/", f"--prefix={tmp_path}/"
+        "RECOVERY_DIR", str(tmp_path)
     )
     result = subprocess.run(
         # A reader pastes this into a shell, so the test has to run it as one.
@@ -262,3 +263,155 @@ def test_the_index_recovery_command_exports_a_skip_worktree_entry(
     )
     assert result.returncode == 0, result.stderr
     assert (tmp_path / "staged.txt").read_text(encoding="utf-8") == "unique staged blob\n"
+    assert (tmp_path / "index").exists(), "the copied index is the half that recovers the rest"
+
+
+def test_the_index_recovery_command_preserves_unmerged_stages(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """``checkout-index -a`` writes nothing for an unmerged entry and still exits 0.
+
+    A conflicted index holds three blobs per path and no stage-0 entry, so the
+    export produces an empty directory and reports success. A reader pasting
+    the old command saw exit 0 and believed the staged work was rescued while
+    every stage went with the removal. The copied index is what carries them.
+    """
+    worktree = git_sandbox.root / "unmerged-index"
+    _git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), "HEAD")
+    _git(worktree, "checkout", "-b", "gc-left")
+    (worktree / "conflict.txt").write_text("left side\n", encoding="utf-8")
+    _git(worktree, "add", "conflict.txt")
+    _git(worktree, "commit", "-m", "left")
+    _git(worktree, "checkout", "--detach", "HEAD~1")
+    (worktree / "conflict.txt").write_text("right side\n", encoding="utf-8")
+    _git(worktree, "add", "conflict.txt")
+    _git(worktree, "commit", "-m", "right")
+    merge = _git(worktree, "merge", "gc-left", check=False)
+    assert merge.returncode != 0, "the merge has to conflict for the index to hold stages"
+    assert _git(worktree, "ls-files", "-u").stdout.strip(), "no unmerged stages were staged"
+    shutil.rmtree(worktree)
+
+    reason = _reason_of(_run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    start = reason.index("GIT_INDEX_FILE=")
+    end = reason.find(" |", start)
+    command = (reason[start:] if end == -1 else reason[start:end]).replace(
+        "RECOVERY_DIR", str(tmp_path)
+    )
+    result = subprocess.run(
+        command,
+        cwd=git_sandbox.main,
+        shell=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode == 0, result.stderr
+    assert not (tmp_path / "conflict.txt").exists(), (
+        "checkout-index is expected to skip it; the point is that the copy does not"
+    )
+    stages = subprocess.run(
+        ["git", "ls-files", "-s", "-u"],
+        cwd=git_sandbox.main,
+        env={**os.environ, "GIT_INDEX_FILE": str(tmp_path / "index")},
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    assert "conflict.txt" in stages.stdout, stages.stdout
+    assert stages.stdout.count("conflict.txt") >= 2, "both sides of the conflict must survive"
+
+
+def test_the_index_recovery_command_preserves_a_gitlink(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """``checkout-index -a`` writes a submodule entry as an empty directory.
+
+    The recorded commit is the whole content of a gitlink, and the export
+    keeps none of it while exiting 0. A reader who saw the directory appear
+    would conclude the submodule came back. Only the copied index still names
+    the commit the entry pointed at.
+    """
+    worktree = git_sandbox.root / "gitlink-index"
+    _git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), "HEAD")
+    pointed_at = _git(worktree, "rev-parse", "HEAD").stdout.strip()
+    _git(worktree, "update-index", "--add", "--cacheinfo", f"160000,{pointed_at},sub")
+    shutil.rmtree(worktree)
+
+    reason = _reason_of(_run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    start = reason.index("GIT_INDEX_FILE=")
+    end = reason.find(" |", start)
+    command = (reason[start:] if end == -1 else reason[start:end]).replace(
+        "RECOVERY_DIR", str(tmp_path)
+    )
+    result = subprocess.run(
+        command,
+        cwd=git_sandbox.main,
+        shell=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode == 0, result.stderr
+    assert list((tmp_path / "sub").iterdir()) == [], (
+        "checkout-index is expected to empty it; the point is that the copy is not empty"
+    )
+    entries = subprocess.run(
+        ["git", "ls-files", "-s"],
+        cwd=git_sandbox.main,
+        env={**os.environ, "GIT_INDEX_FILE": str(tmp_path / "index")},
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
+    )
+    assert f"160000 {pointed_at} 0\tsub" in entries.stdout, entries.stdout
+
+
+def test_a_failing_rescue_stops_the_chain_and_shows_in_the_exit_code(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Joined with ``;`` a failed rescue is invisible: the chain runs on and exits 0.
+
+    ``git branch`` refuses a name that already exists, which is the realistic
+    failure after a partial earlier attempt. The reader needs the chain to stop
+    there, because continuing means the report says the rescue succeeded while
+    one commit stayed unanchored. A shell reports the status of the last
+    command in a ``;`` list, so only ``&&`` surfaces it.
+    """
+    head = _git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
+    worktree = git_sandbox.root / "healthy-blocked-rescue"
+    _git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), head)
+    first, second = _abandon_commits(git_sandbox, worktree, 2)
+
+    reason = _reason_of(_run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    start = reason.index("git branch gc-rescue-")
+    end = reason.find(" |", start)
+    command = reason[start:] if end == -1 else reason[start:end]
+    blocked = command[len("git branch ") :].split()[0]
+    survivor = second if blocked.endswith(first) else first
+    _git(git_sandbox.main, "branch", blocked, head)
+
+    result = subprocess.run(
+        command,
+        cwd=git_sandbox.main,
+        shell=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode != 0, "a blocked rescue that exits 0 reads as a completed rescue"
+    assert (
+        _git(
+            git_sandbox.main, "rev-parse", "--verify", f"gc-rescue-{survivor}", check=False
+        ).returncode
+        != 0
+    ), "the chain must stop at the failure rather than carry on past it"

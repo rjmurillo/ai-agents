@@ -130,7 +130,13 @@ def _staged_warning(admin: Path, head: str | None, main_path: str) -> str:
     return (
         "WARNING: its index holds staged work that no commit carries, and clearing the "
         f"entry deletes that index. Recover first: GIT_INDEX_FILE={index} "
-        "git checkout-index -a --ignore-skip-worktree-bits --prefix=RECOVERY_DIR/"
+        "git checkout-index -a --ignore-skip-worktree-bits --prefix=RECOVERY_DIR/ && "
+        f"cp {index} RECOVERY_DIR/index | the copied index is the part that recovers "
+        "everything: checkout-index writes only merged, non-submodule entries, and "
+        "verified against real git it exits 0 while writing no files for an index of "
+        "unmerged stages and an empty directory for a submodule entry, losing the "
+        "recorded commit. Read the copy with "
+        "GIT_INDEX_FILE=RECOVERY_DIR/index git ls-files -s -u"
     )
 
 
@@ -141,7 +147,10 @@ def _reflog_warning(admin: Path, main_path: str) -> str:
         return "its reflog could not be read, so abandoned commits cannot be ruled out"
     if not orphans:
         return ""
-    rescues = "; ".join(f"git branch gc-rescue-{sha} {sha}" for sha in orphans[:3])
+    # Joined with && so a failed rescue stops the chain and shows in the exit code.
+    # With ; or a bare space the later branches run anyway and the command as a whole
+    # reports the last one's status, which reads as success while a commit stayed lost.
+    rescues = " && ".join(f"git branch gc-rescue-{sha} {sha}" for sha in orphans[:3])
     more = (
         ""
         if len(orphans) <= 3
