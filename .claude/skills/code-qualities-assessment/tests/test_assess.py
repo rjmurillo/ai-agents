@@ -538,6 +538,21 @@ def test_regression_mode_rejects_unknown_target(
     assert main(["--target", "typo", *_regression_argv()[2:]]) == 1
 
 
+def test_base_glob_does_not_cross_directory_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / "src" / "nested").mkdir(parents=True)
+    _commit(tmp_path, "src/nested/base.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    (tmp_path / "other").mkdir()
+    _commit(tmp_path, "other/changed.py", _FOCUSED, "change")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--target", "src/*.py", *_regression_argv()[2:]]) == 1
+
+
 def test_changed_only_resolves_glob_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

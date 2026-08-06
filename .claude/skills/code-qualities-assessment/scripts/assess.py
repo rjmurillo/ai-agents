@@ -28,7 +28,7 @@ import math
 import re
 import sys
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 # Language detection by file suffix. Only languages with tuned heuristics are
@@ -619,7 +619,6 @@ def _target_contains(
 
 def _target_exists_at_revision(target: str, revision: str) -> bool:
     """Return whether a missing target matched any path at *revision*."""
-    import fnmatch
     import subprocess
 
     workspace = Path.cwd().resolve()
@@ -640,7 +639,7 @@ def _target_exists_at_revision(target: str, revision: str) -> bool:
         raise RuntimeError(f"git ls-tree failed for target validation at {revision}")
     names = result.stdout.splitlines()
     if any(character in relative_target for character in "*?["):
-        return any(fnmatch.fnmatchcase(name, relative_target) for name in names)
+        return any(PurePosixPath(name).match(relative_target) for name in names)
     prefix = relative_target.rstrip("/")
     return any(name == prefix or name.startswith(f"{prefix}/") for name in names)
 
