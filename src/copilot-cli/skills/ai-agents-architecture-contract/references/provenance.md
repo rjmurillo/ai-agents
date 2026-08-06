@@ -23,7 +23,7 @@ Verified 2026-07-30 against the working tree. Volatile facts are date-stamped in
 | Plugin names/versions, marketplaces, npm CLI | the three `.claude-plugin/plugin.json` files, `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json`, `packages/ai-agents-cli/package.json` | `grep -n -e '"name"' -e '"version"' .claude/.claude-plugin/plugin.json src/claude/.claude-plugin/plugin.json src/copilot-cli/.claude-plugin/plugin.json .claude-plugin/marketplace.json .github/plugin/marketplace.json packages/ai-agents-cli/package.json` |
 | No pwsh commands in CONTRIBUTING and no repo `.ps1` files (ADR-042) | `CONTRIBUTING.md`; repo tree | `grep -c pwsh CONTRIBUTING.md` prints 0; `git ls-files "*.ps1"` prints nothing |
 | Ruff changed-file and whole-tree count ratchets block regressions while legacy debt remains | `.github/workflows/pytest.yml:135-186`; `scripts/ci/ruff_ratchet.py`; `scripts/ci/ruff_count_ratchet.py` | `sed -n '135,186p' .github/workflows/pytest.yml; head -40 scripts/ci/ruff_ratchet.py scripts/ci/ruff_count_ratchet.py` |
-| testpaths exclude skill tests | `pyproject.toml:61` | `grep -n "testpaths" pyproject.toml` |
+| testpaths exclude skill tests | `pyproject.toml [tool.pytest.ini_options].testpaths` | `grep -n "testpaths" pyproject.toml` |
 | Verification-based enforcement doctrine | `.agents/SESSION-PROTOCOL.md:30` | `grep -n "verification-based" .agents/SESSION-PROTOCOL.md` |
 | Retro-cited SHAs may exist in a clone but remain unreachable from `main` | local clone state | `for sha in ddb76e0 01e76615a; do git cat-file -t "$sha"; git merge-base --is-ancestor "$sha" origin/main; printf "%s %s\n" "$sha" "$?"; done` (expect type `commit` and ancestry status `1` when the objects exist) |
 

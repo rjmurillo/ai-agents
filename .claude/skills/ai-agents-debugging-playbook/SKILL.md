@@ -148,7 +148,7 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | pre_pr.py sequence and exit codes | `scripts/validation/pre_pr.py:1-30` | `sed -n '1,30p' scripts/validation/pre_pr.py` |
 | install-parity checks co-change, not content; skips RULE and hand-maintained-only diffs | `build/scripts/validate_install_parity.py:378,389` | `sed -n '376,392p' build/scripts/validate_install_parity.py` |
 | Agent drift compares an 18-heading allowlist at 80 percent similarity, reported not enforced | `build/scripts/detect_agent_drift.py:57-76,668`, `.github/workflows/drift-detection.yml:35-42` | `sed -n '57,76p;668p' build/scripts/detect_agent_drift.py; sed -n '35,42p' .github/workflows/drift-detection.yml` |
-| testpaths exclude skill tests | `pyproject.toml:41` | `grep -n testpaths pyproject.toml` |
+| testpaths exclude skill tests | `pyproject.toml [tool.pytest.ini_options].testpaths` | `grep -n testpaths pyproject.toml` |
 | FAILURE-MODES.md 11 sections | `.agents/governance/FAILURE-MODES.md:32-404` | `grep -n "^## " .agents/governance/FAILURE-MODES.md` |
 
 Maintenance: when a new recurring failure earns a retro, add a table row here with all five columns filled, and update `ai-agents-failure-archaeology` with the history. When any cited line number drifts, fix it on contact using the re-verify command.

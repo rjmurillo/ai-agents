@@ -122,8 +122,8 @@
     "metrics": {
       "type": "object",
       "properties": {
-        "duration_minutes": { "type": "number" },
-        "tool_calls": { "type": "integer" },
+        "duration_minutes": { "type": ["number", "null"], "description": "Null when the source log carries no usable timestamps" },
+        "tool_calls": { "type": ["integer", "null"], "description": "Null when the source log does not record tool call counts" },
         "errors": { "type": "integer" },
         "recoveries": { "type": "integer" },
         "commits": { "type": "integer" },

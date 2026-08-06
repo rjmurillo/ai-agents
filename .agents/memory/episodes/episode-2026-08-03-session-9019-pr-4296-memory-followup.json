@@ -1,0 +1,138 @@
+{
+  "id": "episode-2026-08-03-session-9019-pr-4296-memory-followup",
+  "session": "2026-08-03-session-9019-pr-4296-memory-followup",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Land the approved three-memory follow-up for merged PR 4296 in an isolated worktree without mutating any PR",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Set up an isolated base",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-9019-pr-4296-memory-followup"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "T1: fix the self-contradicting merge/rerun advice",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-9019-pr-4296-memory-followup"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "T2: pin the decode encoding in both subprocess recipes",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-9019-pr-4296-memory-followup"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "T3: canonicalize both lock-memory pointers",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-9019-pr-4296-memory-followup"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run the required validators",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-9019-pr-4296-memory-followup"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "test",
+      "content": "Run the required validators      Validation: pre_pr.py 48 validations, 44 passed, 0 failed, 4 skipped, exit 0. taste_lints.py scoped to the 4 changed files: no violations, exit 0. memory_index.py --ci: PASSED, 33/33 domains, exit 0 (pre-existing P1/P2 advisories are unrelated to these files). validate_session_json.py on this log: PASS.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-9019-pr-4296-memory-followup"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Report the markdownlint scope honestly",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-9019-pr-4296-memory-followup"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Report the advisory memory-size failure honestly",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-9019-pr-4296-memory-followup"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Respect the no-mutation constraint",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-03-session-9019-pr-4296-memory-followup"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-03T16:37:46+00:00",
+      "type": "commit",
+      "content": "Commit: 7be1d25b1",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9019-pr-4296-memory-followup"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

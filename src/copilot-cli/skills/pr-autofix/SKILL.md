@@ -157,6 +157,11 @@ auto-merge only when all four conditions hold. Release each PR's lease after its
 merge command (or skip) completes:
 
 ```bash
+python3 "$SCRIPTS_DIR/run_completion_gate.py" \
+    --pull-request "$PR" \
+    --json \
+    --evidence-path ".agents/pr-comments/PR-$PR/gate-evidence.json"
+
 python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
     --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
 ```
@@ -199,7 +204,7 @@ If `BEHIND`, update branch against main BEFORE other actions (see doc Branch Upd
 - **Stale merge-state cache**: `test_pr_merge_ready.py` sets `StaleDirtySuspected=true` when GitHub reports `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"`. This is advisory, not authoritative. **Before any base merge or conflict refresh, re-run `check_pr_live_state.py` to confirm the PR is still open (issue #4349).** A PR can merge or close during the review-fix cycle; acting on a stale gate result triggers a conflict merge into a deleted branch. Verify against local git FIRST: in a worktree, `git fetch origin "$BASE"`, then `git merge-base --is-ancestor "origin/$BASE" HEAD` (exit 0 = ancestor) AND a `git merge --no-commit --no-ff "origin/$BASE"` trial merge that stays clean. Both clean means the conflict is stale. **Disable any existing auto-merge on the PR before running the base-ref refresh (issue #3913).** Call `set_pr_auto_merge.py disable --pull-request $PR` and verify `autoMergeRequest` is null before committing or pushing. A refresh push while auto-merge is armed can recompute the PR as clean and merge it without an explicit readiness decision. Run a safe base-ref refresh (`git merge origin/"$BASE" --no-edit` + push, no force) after the Force-Push Safety SHA audit and the auto-merge disable, then re-run the completion gate. A failing trial merge means the conflict is real: resolve via merge-resolver agent. Evidence required: the ancestry exit code and trial-merge result. See doc Stale merge-state cache section (issue #2368).
 - **Stale CI check**: Push fresh commit to re-trigger; avoid `--no-verify` if possible.
 - **Bot review threads**: Read, triage per Thread Severity, reply with disposition, resolve via `add_pr_review_thread_reply.py --resolve`.
-- **Armed auto-merge racing the completion gate (issue #4377)**: Resolving the last blocking thread on a PR with armed auto-merge can trigger the merge immediately, before the completion gate runs. GitHub fires auto-merge within ~36 seconds of the thread count reaching zero. To prevent the race, disable auto-merge before replying to and resolving the final thread, run the completion gate, then re-arm if all four Ready-to-Merge conditions hold: call `set_pr_auto_merge.py disable --pull-request $PR` immediately before the final `add_pr_review_thread_reply.py --resolve`. Verify `autoMergeRequest` is null via `get_pr_context.py` before proceeding. After the completion gate passes, re-enable with `set_pr_auto_merge.py --enable`. If the gate fails, do not re-arm; address the failing criterion first. This sequence must also apply when running the completion gate in the normal thread-resolution flow: do not assume auto-merge is unarmed. Call `get_pr_context.py` and inspect `autoMergeRequest` before resolving any thread that may be the last one.
+- **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate.
 - **Session validation failure**: Use session-log-fixer skill.
 
 ## Force-Push Safety
@@ -389,14 +394,12 @@ Per PR processed:
 - [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (another agent holds it); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
 - [ ] Tier classification recorded (T1-T5).
 - [ ] Branch lease acquired via `pr_autofix_lease.py acquire` before any branch mutation (issue #3413). SKIP result caused early exit; ACT result recorded with `base_sha`.
-- [ ] If pre-push validation takes longer than 15 minutes: `pr_autofix_lease.py renew` called mid-run to keep the lease live for the full critical section (issue #4376).
 - [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
 - [ ] Auto-merge disarm ran after live-state ACT on any non-T1 PR (issue #3913): `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
 - [ ] Live-state gate re-ran immediately before any base refresh or conflict resolution (issue #4349): stale gate result from the start of the session is not sufficient; the PR can merge mid-cycle.
 - [ ] When `StaleDirtySuspected=true`: `set_pr_auto_merge.py disable` ran and `autoMergeRequest` confirmed null before any base-ref refresh push (issue #3913).
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
-- [ ] Before resolving the last blocking thread: `get_pr_context.py` was called to check `autoMergeRequest`; if armed, `set_pr_auto_merge.py disable` ran and `autoMergeRequest` confirmed null before `add_pr_review_thread_reply.py --resolve` (issue #4377).
 - [ ] `mergeStateStatus` is `CLEAN` (or `UNSTABLE` with documented non-required failures).
 - [ ] Branch is up to date with `main` (`mergeStateStatus` not `BEHIND`).
 - [ ] Force-push safety check ran before any push: `git rev-parse "refs/heads/$BRANCH"` matched the PR's expected `head.sha`.

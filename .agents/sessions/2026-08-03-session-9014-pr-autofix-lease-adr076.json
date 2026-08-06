@@ -79,7 +79,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ruff check --output-format=concise: All checks passed. Taste ratchet OK (590 == baseline 590)."
+        "Evidence": "NOT LINTED: scripts/validation/pre_pr.py --markdown-lint-only selected 0 markdown files."
       },
       "changesCommitted": {
         "level": "MUST",

@@ -924,8 +924,8 @@ def main(argv: list[str] | None = None) -> int:
         # step 6: emit an ACT/lease-store-unavailable result on the same
         # output channel so the caller sees a structured verdict, then exit
         # 0 (ACT). The SHA gate is the backstop. We emit a best-effort
-        # result; if output plumbing itself is broken we fall through to a
-        # plain exit.
+        # result. Output serialization failures remain fatal because callers
+        # cannot act safely without a readable lease verdict.
         code = exc.code if isinstance(exc.code, int) else 3
         logger.warning(
             "op=lease_main_failopen exit_code=%d command=%s pr=%d",
