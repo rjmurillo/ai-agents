@@ -80,6 +80,7 @@
 |job name collision duplicate check name ambiguous red Validate budget Check Changed Paths Detect changes Aggregate Results gh pr checks json link run view job: [ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous](ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous.md) (1461)
 |copilot skill mirror two canonical sources generate_skills generate_commands bridged slash command push-pr collision abort: [copilot/copilot-skill-mirror-has-two-sources](copilot/copilot-skill-mirror-has-two-sources.md) (848)
 |mutation testing line swap stale bytecode __pycache__ false green coverage: [ci/ci-line-swap-mutations-reuse-stale-bytecode](ci/ci-line-swap-mutations-reuse-stale-bytecode.md) (834)
+|milestone tracking v-prefix semver SEMVER_PATTERN set_item_milestone silent no-op: [ci/milestone-tracking-v-prefix-fix](ci/milestone-tracking-v-prefix-fix.md) (408)
 |CI CD workflow actions runner ARM: [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (959)
 |workflow pattern composite matrix artifact verdict report: [skills-workflow-patterns-index](skills-workflow-patterns-index.md) (284)
 |dorny paths-filter checkout base ref PR changes: [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) (930)
