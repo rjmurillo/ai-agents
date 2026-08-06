@@ -48,7 +48,7 @@ def run(_argv: list[str] | None = None) -> int:
 
     spec_file = Path(spec_file_path)
     if not spec_file.is_file():
-        print(f"::error::SPEC_FILE does not exist: {spec_file}", file=sys.stderr)
+        print(f"::error::SPEC_FILE is not an existing file: {spec_file}", file=sys.stderr)
         return 2
 
     try:
