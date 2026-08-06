@@ -31,6 +31,7 @@ import dataclasses
 import json
 import os
 import re
+import subprocess
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -172,14 +173,7 @@ _TABLE_ROW_PATTERN: re.Pattern[str] = re.compile(
 _MARKDOWN_LINK_PATTERN: re.Pattern[str] = re.compile(
     r"\[([^\]]+)\]\(([^)]+)\)"
 )
-# Issue #4705 adds a ratchet, not a cleanup of inherited duplicate paths.
-_ALLOWED_MEMORY_REF_COUNTS: dict[str, int] = {
-    "adr-reference-index": 2,
-    "memory/memory-token-efficiency": 2,
-    "memory/passive-context-vs-skills-vercel-research": 2,
-    "project/project-labels-milestones": 2,
-    "skills-copilot-index": 2,
-}
+_URL_PERCENT_ESCAPE_PATTERN = re.compile(r"%[0-9A-Fa-f]{2}")
 
 
 def _resolve_memory_reference(
@@ -197,6 +191,139 @@ def _resolve_memory_reference(
     identity = re.sub(r"\.md$", "", relative_ref, flags=re.IGNORECASE)
     canonical_identity = os.path.normcase(identity).replace("\\", "/")
     return canonical_identity, resolved_ref
+
+
+def _invalid_destination_reason(destination: str) -> str | None:
+    """Return why a Markdown destination is unsafe to canonicalize."""
+    if _URL_PERCENT_ESCAPE_PATTERN.search(destination):
+        return "URL percent escape"
+    if "\\" in destination:
+        return "CommonMark backslash escape"
+    if "?" in destination:
+        return "query"
+    if "#" in destination:
+        return "fragment"
+    return None
+
+
+def _extract_memory_reference_names(
+    content: str,
+) -> tuple[list[str], list[str]]:
+    """Extract plain relative reference names and reject ambiguous syntax."""
+    file_refs: list[str] = []
+    issues: list[str] = []
+    for line in content.splitlines():
+        match = _TABLE_ROW_PATTERN.match(line)
+        if match:
+            file_entry = match.group(2).strip()
+            skip_values = {
+                "File", "Essential Memories", "Memory", "Memory Index"
+            }
+            if file_entry in skip_values or re.match(r"^-+$", file_entry):
+                continue
+            file_refs.extend(
+                f.strip() for f in file_entry.split(",") if f.strip()
+            )
+            continue
+
+        stripped = line.strip()
+        if stripped.startswith("|") and not stripped.startswith("|---"):
+            file_refs.extend(
+                link_match.group(0)
+                for link_match in _MARKDOWN_LINK_PATTERN.finditer(stripped)
+            )
+
+    reference_names: list[str] = []
+    for file_ref in file_refs:
+        parsed_link = _MARKDOWN_LINK_PATTERN.search(file_ref)
+        destination = (
+            parsed_link.group(2) if parsed_link else file_ref.strip()
+        )
+        invalid_reason = _invalid_destination_reason(destination)
+        if invalid_reason:
+            issues.append(
+                f"P1 VALIDITY: memory-index destination "
+                f"{destination!r} contains {invalid_reason}"
+            )
+            continue
+        reference_names.append(
+            re.sub(r"\.md$", "", destination, flags=re.IGNORECASE)
+        )
+    return reference_names, issues
+
+
+def _canonical_reference_counts(
+    content: str,
+    memory_path: Path,
+) -> tuple[Counter[str] | None, str | None]:
+    """Count safe canonical references, or return a closed failure."""
+    reference_names, issues = _extract_memory_reference_names(content)
+    if issues:
+        return None, issues[0]
+
+    resolved_memory = memory_path.resolve()
+    canonical_refs: list[str] = []
+    for file_name in reference_names:
+        canonical_identity, _ = _resolve_memory_reference(
+            memory_path,
+            resolved_memory,
+            file_name,
+        )
+        if canonical_identity is None:
+            return None, (
+                "P1 VALIDITY: Path traversal detected "
+                f"in memory-index: {file_name}.md"
+            )
+        canonical_refs.append(canonical_identity)
+    return Counter(canonical_refs), None
+
+
+def _load_base_reference_counts(
+    memory_path: Path,
+    base_ref: str,
+) -> tuple[Counter[str] | None, str | None]:
+    """Read canonical memory-index counts from the merge base."""
+    try:
+        repo_root_result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=memory_path,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if repo_root_result.returncode != 0:
+            return None, "could not resolve repository root"
+        repo_root = Path(repo_root_result.stdout.strip()).resolve()
+        relative_index = (
+            memory_path.resolve() / "memory-index.md"
+        ).relative_to(repo_root).as_posix()
+
+        merge_base_result = subprocess.run(
+            ["git", "merge-base", base_ref, "HEAD"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if merge_base_result.returncode != 0:
+            return None, f"could not resolve merge base for {base_ref}"
+        merge_base = merge_base_result.stdout.strip()
+
+        show_result = subprocess.run(
+            ["git", "show", f"{merge_base}:{relative_index}"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if show_result.returncode != 0:
+            return None, (
+                f"could not read {relative_index} at merge base {merge_base}"
+            )
+    except (OSError, ValueError) as exc:
+        return None, f"could not read base memory index: {exc}"
+
+    return _canonical_reference_counts(show_result.stdout, memory_path)
 
 
 def find_domain_indices(memory_path: Path) -> list[DomainIndex]:
@@ -496,7 +623,9 @@ def check_naming_convention(memory_path: Path) -> NamingConventionResult:
 
 
 def check_memory_index_references(
-    memory_path: Path, domain_indices: list[DomainIndex]
+    memory_path: Path,
+    domain_indices: list[DomainIndex],
+    base_reference_counts: Counter[str],
 ) -> MemoryIndexRefResult:
     """Validate that memory-index references existing domain indices.
 
@@ -528,47 +657,16 @@ def check_memory_index_references(
                 f"in memory-index: {index.name}"
             )
 
-    # P1: Check validity of references
-    # Collect file references from both table rows and pipe-delimited lines
-    file_refs: list[str] = []
-    for line in content.splitlines():
-        # Try table row format first: | keywords | files |
-        match = _TABLE_ROW_PATTERN.match(line)
-        if match:
-            file_entry = match.group(2).strip()
-            skip_values = {
-                "File", "Essential Memories", "Memory", "Memory Index"
-            }
-            if file_entry in skip_values or re.match(r"^-+$", file_entry):
-                continue
-            file_refs.extend(
-                f.strip() for f in file_entry.split(",") if f.strip()
-            )
-            continue
-
-        # Try pipe-delimited format: |keywords: [name](file.md), ...
-        stripped = line.strip()
-        if stripped.startswith("|") and not stripped.startswith("|---"):
-            # Extract all markdown links from the line
-            for link_match in _MARKDOWN_LINK_PATTERN.finditer(stripped):
-                file_refs.append(link_match.group(0))
-
-    normalized_refs: list[str] = []
-    for file_ref in file_refs:
-        # Parse markdown link syntax
-        parsed_link = _MARKDOWN_LINK_PATTERN.search(file_ref)
-        if parsed_link:
-            link_target = parsed_link.group(2)
-            file_name = re.sub(
-                r"\.md$", "", link_target, flags=re.IGNORECASE
-            )
-        else:
-            file_name = file_ref.strip()
-        normalized_refs.append(file_name)
+    reference_names, destination_issues = (
+        _extract_memory_reference_names(content)
+    )
+    if destination_issues:
+        result.passed = False
+        result.issues.extend(destination_issues)
 
     canonical_refs: list[str] = []
     resolved_refs: dict[str, Path] = {}
-    for file_name in normalized_refs:
+    for file_name in reference_names:
         canonical_identity, resolved_ref = _resolve_memory_reference(
             memory_path,
             resolved_memory,
@@ -588,7 +686,7 @@ def check_memory_index_references(
 
     reference_counts = Counter(canonical_refs)
     for file_name, observed_count in reference_counts.items():
-        allowed_count = _ALLOWED_MEMORY_REF_COUNTS.get(file_name, 1)
+        allowed_count = max(base_reference_counts.get(file_name, 0), 1)
         if observed_count > allowed_count:
             result.passed = False
             result.duplicate_references.append(file_name)
@@ -733,7 +831,11 @@ def check_domain_prefix_naming(
 # ---------------------------------------------------------------------------
 
 
-def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
+def run_validation(
+    memory_path: Path,
+    output_format: str,
+    base_reference_counts: Counter[str],
+) -> ValidationReport:
     """Run full memory index validation."""
     from datetime import UTC, datetime
 
@@ -828,7 +930,9 @@ def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
 
     # P1: memory-index references
     memory_index_result = check_memory_index_references(
-        memory_path, domain_indices
+        memory_path,
+        domain_indices,
+        base_reference_counts,
     )
     report.memory_index_result = memory_index_result
 
@@ -984,6 +1088,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Report orphaned atomic files that should be indexed",
     )
+    parser.add_argument(
+        "--base-ref",
+        default=os.environ.get("BASE_REF", "origin/main"),
+        help=(
+            "Git base ref for duplicate-count ratchet "
+            "(env: BASE_REF, default: origin/main)"
+        ),
+    )
     return parser
 
 
@@ -1009,7 +1121,20 @@ def main(argv: list[str] | None = None) -> int:
             return 2  # ADR-035: config error (path not found)
         return 0
 
-    report = run_validation(target, args.output_format)
+    base_reference_counts, base_error = _load_base_reference_counts(
+        target,
+        args.base_ref,
+    )
+    if base_reference_counts is None:
+        if args.output_format == "console":
+            print(f"Base memory index unavailable: {base_error}")
+        return 2
+
+    report = run_validation(
+        target,
+        args.output_format,
+        base_reference_counts,
+    )
 
     # Output results
     if args.output_format == "console":
