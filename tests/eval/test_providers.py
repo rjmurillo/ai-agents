@@ -1865,6 +1865,38 @@ def test_non_regular_transcript_is_refused(tmp_path: Path) -> None:
         )
 
 
+def test_transcript_descriptor_closes_when_fstat_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    (session_dir / "events.jsonl").write_text("", encoding="utf-8")
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    original_close = os.close
+    closed: list[int] = []
+
+    def record_close(descriptor: int) -> None:
+        closed.append(descriptor)
+        original_close(descriptor)
+
+    monkeypatch.setattr(transcript_module.os, "close", record_close)
+    monkeypatch.setattr(
+        transcript_module.os,
+        "fstat",
+        lambda descriptor: (_ for _ in ()).throw(OSError("fstat failed")),
+    )
+
+    with pytest.raises(OSError, match="fstat failed"):
+        transcript_module._open_transcript(
+            tmp_path,
+            "session",
+            "Copilot CLI",
+        )
+
+    assert len(closed) == 3
+
+
 def test_symlinked_transcript_is_refused(tmp_path: Path) -> None:
     target = tmp_path / "target.jsonl"
     target.write_text("", encoding="utf-8")

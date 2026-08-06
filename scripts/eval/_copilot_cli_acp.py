@@ -213,6 +213,9 @@ def _start_process(
             process.wait(timeout=_PROCESS_WAIT_SECONDS)
         for reader in started_readers:
             reader.join(timeout=_READER_JOIN_SECONDS)
+        if any(reader.is_alive() for reader in started_readers):
+            process_tree.close()
+            raise RuntimeError("Copilot ACP reader cleanup timed out") from None
         process_tree.close()
         raise
     return _ProcessStreams(

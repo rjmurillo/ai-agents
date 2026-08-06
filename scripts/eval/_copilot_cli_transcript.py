@@ -150,7 +150,11 @@ def _open_transcript(
         finally:
             os.close(root_descriptor)
 
-    metadata = os.fstat(descriptor)
+    try:
+        metadata = os.fstat(descriptor)
+    except BaseException:
+        os.close(descriptor)
+        raise
     if not stat.S_ISREG(metadata.st_mode):
         os.close(descriptor)
         raise RuntimeError(

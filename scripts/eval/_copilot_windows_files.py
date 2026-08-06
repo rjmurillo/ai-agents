@@ -221,7 +221,12 @@ def open_windows_transcript(
         )
         descriptor = open_osfhandle(file_handle.value, os.O_RDONLY)
         file_handle.value = None
-        return descriptor, os.fstat(descriptor)
+        try:
+            metadata = os.fstat(descriptor)
+        except BaseException:
+            os.close(descriptor)
+            raise
+        return descriptor, metadata
     finally:
         if file_handle is not None:
             file_handle.close()

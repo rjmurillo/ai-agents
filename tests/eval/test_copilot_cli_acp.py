@@ -441,6 +441,32 @@ def test_reader_start_failure_cleans_up_the_child(
     assert started["process"].poll() is not None
 
 
+def test_reader_start_failure_refuses_a_live_reader(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    fake = _write_fake_acp(tmp_path)
+    original_start = threading.Thread.start
+    start_calls = 0
+
+    def fail_second_start(thread: threading.Thread) -> None:
+        nonlocal start_calls
+        start_calls += 1
+        if start_calls == 2:
+            raise RuntimeError("reader start failed")
+        original_start(thread)
+
+    monkeypatch.setattr(threading.Thread, "start", fail_second_start)
+    monkeypatch.setattr(threading.Thread, "is_alive", lambda thread: True)
+
+    with pytest.raises(RuntimeError, match="reader cleanup timed out"):
+        acp_module._start_process(
+            _safe_argv(fake),
+            cwd=str(tmp_path),
+            env={"PATH": os.environ.get("PATH", os.defpath)},
+        )
+
+
 @pytest.mark.timeout(3)
 def test_parent_exit_during_request_kills_pipe_holding_descendant(
     tmp_path: Path,
