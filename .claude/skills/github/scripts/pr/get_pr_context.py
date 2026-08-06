@@ -22,6 +22,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import Any, TypeAlias, cast
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -53,6 +54,8 @@ from github_core.output import (
     write_skill_output,
 )
 
+JsonObject: TypeAlias = dict[str, Any]
+
 _JSON_FIELDS = (
     "number,title,body,headRefName,headRefOid,baseRefName,baseRefOid,state,author,labels,"
     "reviewRequests,reviews,reviewDecision,commits,additions,deletions,changedFiles,"
@@ -81,29 +84,44 @@ query($owner: String!, $repo: String!, $number: Int!) {
 }"""
 
 
-def _review_threads(owner: str, repo: str, pr: int) -> dict:
+def _review_threads(owner: str, repo: str, pr: int) -> JsonObject:
     try:
-        response = gh_graphql(
-            _REVIEW_THREADS_QUERY,
-            {"owner": owner, "repo": repo, "number": pr},
+        response = cast(
+            JsonObject,
+            gh_graphql(
+                _REVIEW_THREADS_QUERY,
+                {"owner": owner, "repo": repo, "number": pr},
+            ),
         )
     except RuntimeError as exc:
         error_and_exit(f"Failed to get review threads for PR #{pr}: {exc}", 3)
 
-    pull_request = (response.get("repository") or {}).get("pullRequest")
+    repository = response.get("repository")
+    if not isinstance(repository, dict):
+        error_and_exit(
+            f"Failed to get review threads for PR #{pr}: repository missing",
+            3,
+        )
+
+    pull_request = cast(JsonObject, repository).get("pullRequest")
     if pull_request is None:
         error_and_exit(f"PR #{pr} not found in {owner}/{repo}", 2)
+    if not isinstance(pull_request, dict):
+        error_and_exit(
+            f"Failed to get review threads for PR #{pr}: pullRequest invalid",
+            3,
+        )
 
-    review_threads = pull_request.get("reviewThreads")
-    if review_threads is None:
+    review_threads = cast(JsonObject, pull_request).get("reviewThreads")
+    if not isinstance(review_threads, dict):
         error_and_exit(
             f"Failed to get review threads for PR #{pr}: reviewThreads missing",
             3,
         )
-    return review_threads
+    return cast(JsonObject, review_threads)
 
 
-def _load_pr_data(repo_flag: str, pr: int) -> dict:
+def _load_pr_data(repo_flag: str, pr: int) -> JsonObject:
     pr_result = subprocess.run(
         ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", _JSON_FIELDS],
         capture_output=True,
@@ -118,7 +136,10 @@ def _load_pr_data(repo_flag: str, pr: int) -> dict:
             error_and_exit(f"PR #{pr} not found in {repo_flag}", 2)
         error_and_exit(f"Failed to get PR #{pr}: {err_msg}", 3)
 
-    pr_data = json.loads(pr_result.stdout)
+    parsed_pr_data = json.loads(pr_result.stdout)
+    if not isinstance(parsed_pr_data, dict):
+        error_and_exit(f"Failed to get PR #{pr}: response is not an object", 3)
+    pr_data = cast(JsonObject, parsed_pr_data)
     if "statusCheckRollup" not in pr_data:
         error_and_exit(
             f"Failed to get PR #{pr}: statusCheckRollup missing from response",
@@ -127,15 +148,19 @@ def _load_pr_data(repo_flag: str, pr: int) -> dict:
     return pr_data
 
 
-def _review_thread_nodes(owner: str, repo: str, pr: int) -> tuple[dict, list[dict]]:
+def _review_thread_nodes(
+    owner: str,
+    repo: str,
+    pr: int,
+) -> tuple[JsonObject, list[JsonObject]]:
     review_threads = _review_threads(owner, repo, pr)
     review_thread_nodes = review_threads.get("nodes")
-    if review_thread_nodes is None:
+    if not isinstance(review_thread_nodes, list):
         error_and_exit(
             f"Failed to get review threads for PR #{pr}: reviewThreads.nodes missing",
             3,
         )
-    return review_threads, review_thread_nodes
+    return review_threads, cast(list[JsonObject], review_thread_nodes)
 
 
 def _review_counts(reviews_raw: list[object]) -> dict[str, int]:
