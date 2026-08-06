@@ -46,7 +46,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GH_TOKEN: ${{ secrets.BOT_PAT }}
+  GH_TOKEN: ${{ github.token }}
   PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
 
 jobs:
@@ -153,7 +153,8 @@ jobs:
           additional-context: ${{ steps.prepare-context.outputs.spec_context }}
           prompt-file: .github/prompts/spec-trace-requirements.md
           timeout-minutes: 3
-          bot-pat: ${{ secrets.BOT_PAT }}
+          bot-pat: ${{ github.token }}
+          github-token: ${{ github.token }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: ✅ Completeness Check (Critic Agent)
@@ -168,7 +169,8 @@ jobs:
           additional-context: ${{ steps.prepare-context.outputs.spec_context }}
           prompt-file: .github/prompts/spec-check-completeness.md
           timeout-minutes: 3
-          bot-pat: ${{ secrets.BOT_PAT }}
+          bot-pat: ${{ github.token }}
+          github-token: ${{ github.token }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       # Issue #2108 / #1855: enforce the closed-loop rule (no PASS on LLM

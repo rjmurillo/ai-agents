@@ -49,13 +49,13 @@ jobs:
       - name: Check API rate limit
         id: ratelimit
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: python3 .github/scripts/test_rate_limit.py
 
       - name: Discover PRs needing attention
         id: discover
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           result=$(python3 .github/scripts/invoke_pr_maintenance.py --max-prs "$PR_MAX_PRS" --output-json)
           matrix_json=$(echo "$result" | jq -c '{include: .prs}')
@@ -73,7 +73,7 @@ jobs:
 
       - name: Write step summary
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           SUMMARY_JSON: ${{ steps.discover.outputs.summary }}
         run: python3 scripts/ci/write_pr_discovery_summary.py
 
@@ -83,7 +83,7 @@ jobs:
       - name: Detect orphan commits on merged PR branches
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: python3 scripts/maintenance/detect_orphan_commits.py --limit 50
 
   # Job 2: Process PRs in parallel (matrix strategy)
@@ -128,7 +128,7 @@ jobs:
         id: auto-resolve
         if: matrix.hasConflicts == true && (inputs.process_conflicts != false)
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ matrix.number }}
           HEAD_REF: ${{ matrix.headRefName }}
           BASE_REF: ${{ matrix.baseRefName }}
@@ -140,7 +140,7 @@ jobs:
         id: conflict-context
         if: steps.auto-resolve.outputs.needs_ai == 'true'
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ matrix.headRefName }}
           BASE_REF: ${{ matrix.baseRefName }}
           BLOCKED_FILES_JSON: ${{ steps.auto-resolve.outputs.blocked_files }}
@@ -163,13 +163,14 @@ jobs:
             ${{ steps.conflict-context.outputs.conflict_context }}
           prompt-file: .github/prompts/merge-conflict-analysis.md
           timeout-minutes: 5
-          bot-pat: ${{ secrets.BOT_PAT }}
+          bot-pat: ${{ github.token }}
+          github-token: ${{ github.token }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: Apply AI conflict resolution
         if: steps.auto-resolve.outputs.needs_ai == 'true' && steps.ai-analysis.outputs.verdict == 'PASS'
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           AI_FINDINGS: ${{ steps.ai-analysis.outputs.findings }}
           PR_NUMBER: ${{ matrix.number }}
           HEAD_REF: ${{ matrix.headRefName }}
@@ -201,7 +202,7 @@ jobs:
           steps.auto-resolve.outputs.needs_ai != 'true' ||
           steps.ai-analysis.outputs.verdict == 'PASS'
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ matrix.number }}
         run: python3 scripts/ci/detect_human_changes_requested.py
 
@@ -221,7 +222,8 @@ jobs:
           prompt-file: .github/prompts/pr-comment-triage.md
           execute-script: .claude/skills/github/scripts/pr/invoke_pr_comment_processing.py
           timeout-minutes: 10
-          bot-pat: ${{ secrets.BOT_PAT }}
+          bot-pat: ${{ github.token }}
+          github-token: ${{ github.token }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: Comment processing result
@@ -250,7 +252,7 @@ jobs:
 
       - name: Final summary
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           SUMMARY_JSON: ${{ needs.discover-prs.outputs.summary-json }}
         run: python3 scripts/ci/write_pr_maintenance_summary.py
 
@@ -259,5 +261,5 @@ jobs:
       # a known false positive (#4163) and needs a human to confirm.
       - name: Report PR supersession candidates
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: python3 scripts/report_pr_supersession.py >> "$GITHUB_STEP_SUMMARY"

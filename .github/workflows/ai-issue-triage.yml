@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GH_TOKEN: ${{ secrets.BOT_PAT }}
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
   ai-issue-triage:
@@ -49,7 +49,8 @@ jobs:
           issue-number: ${{ github.event.issue.number }}
           prompt-file: .github/prompts/issue-triage-categorize.md
           timeout-minutes: 2
-          bot-pat: ${{ secrets.BOT_PAT }}
+          bot-pat: ${{ github.token }}
+          github-token: ${{ github.token }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: Parse Categorization Results
@@ -69,7 +70,8 @@ jobs:
           issue-number: ${{ github.event.issue.number }}
           prompt-file: .github/prompts/issue-feature-review.md
           timeout-minutes: 3
-          bot-pat: ${{ secrets.BOT_PAT }}
+          bot-pat: ${{ github.token }}
+          github-token: ${{ github.token }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: Parse Feature Review Results
@@ -88,7 +90,8 @@ jobs:
           issue-number: ${{ github.event.issue.number }}
           prompt-file: .github/prompts/issue-triage-roadmap.md
           timeout-minutes: 2
-          bot-pat: ${{ secrets.BOT_PAT }}
+          bot-pat: ${{ github.token }}
+          github-token: ${{ github.token }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: Parse Roadmap Results
@@ -102,7 +105,7 @@ jobs:
       - name: Apply Labels
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           LABELS_JSON: ${{ steps.parse-categorize.outputs.labels }}
           PRIORITY: ${{ steps.parse-align.outputs.priority }}
@@ -112,7 +115,7 @@ jobs:
       - name: Assign Milestone
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           MILESTONE: ${{ steps.parse-align.outputs.milestone }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -128,7 +131,8 @@ jobs:
           issue-number: ${{ github.event.issue.number }}
           prompt-file: .github/prompts/issue-prd-generation.md
           timeout-minutes: 8
-          bot-pat: ${{ secrets.BOT_PAT }}
+          bot-pat: ${{ github.token }}
+          github-token: ${{ github.token }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           copilot-model: 'auto'
 

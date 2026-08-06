@@ -36,7 +36,7 @@ jobs:
       - name: Install gh-metrics extension
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           echo "Installing gh-metrics extension..."
@@ -47,7 +47,7 @@ jobs:
         id: metrics
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           WEEKS: ${{ inputs.weeks || '4' }}
           GH_REPOSITORY: ${{ github.repository }}
         run: |
@@ -67,7 +67,8 @@ jobs:
           additional-context: |
             Analysis Period: ${{ steps.metrics.outputs.start_date }} to ${{ steps.metrics.outputs.end_date }}
             Repository: ${{ github.repository }}
-          bot-pat: ${{ secrets.BOT_PAT }}
+          bot-pat: ${{ github.token }}
+          github-token: ${{ github.token }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
 
       - name: Build issue body
@@ -126,7 +127,7 @@ jobs:
         if: steps.ai-analysis.outputs.verdict != 'PASS'
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          GH_TOKEN: ${{ github.token }}
           START_DATE: ${{ steps.metrics.outputs.start_date }}
           END_DATE: ${{ steps.metrics.outputs.end_date }}
         run: |

@@ -37,7 +37,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GH_TOKEN: ${{ secrets.BOT_PAT }}
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
   # Check if any session-related files changed
