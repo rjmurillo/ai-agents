@@ -1,34 +1,37 @@
-"""Stale admin entries in worktree GC.
+"""Stale admin entries in worktree GC: what ``decide`` reports about them.
 
 A worktree whose directory is gone leaves an admin entry behind. Every git
 command run inside that directory fails, so the tool used to classify all 62
 of them on this machine as "git inspection failed" and report KEEP, while
 ``--apply`` pruned them anyway. The dry-run plan contradicted what apply did.
 
-These tests pin three things: that git's own ``prunable`` marker is what
-decides staleness, that a stale entry whose HEAD no ref contains is kept
-rather than pruned, and that a single unreachable entry withholds the prune
-for all of them, because ``git worktree prune`` takes no path argument.
+These tests pin what the plan says: that a stale entry is recognised whether
+or not git set ``prunable``, that a stale entry whose HEAD no ref contains is
+kept rather than pruned, and that every independent loss channel is named,
+because rescuing the HEAD rescues neither the index nor the reflog.
+
+The probes that answer those questions live in ``_gc_stale.py`` and are tested
+in ``test_gc_stale_probes.py``. What ``--apply`` then does with the plan is
+tested in ``test_gc_worktrees_stale_apply.py``.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from scripts.maintenance import _gc_parse, _gc_reasons
 from scripts.maintenance.gc_worktrees import (
     KEEP_LOCKED,
     KEEP_MAIN,
-    KEEP_STALE_UNREACHABLE,
     KEEP_TIME_BUDGET,
-    PRUNE_STALE,
     Decision,
-    GcReport,
     Worktree,
-    apply_removals,
     decide,
-    list_worktrees,
-    stale_head_is_reachable,
 )
+from scripts.maintenance.worktree_report import KEEP_STALE, KEEP_STALE_UNREACHABLE
 
 _MAIN = "/repo/main"
 _BASE = "origin/main"
@@ -37,15 +40,56 @@ _SHA = "f30c6952bf2da328bcff0aecc74ff05de3558df7"
 _MODULE = "scripts.maintenance.gc_worktrees"
 
 
-def _decide(worktree: Worktree, *, reachable: bool = True) -> Decision:
-    with patch(f"{_MODULE}.stale_head_is_reachable", return_value=reachable):
-        return decide(worktree, _MAIN, _BASE, cwds=frozenset())
+_STUB_HEAD = "f" * 40
+
+
+@pytest.fixture(autouse=True)
+def _stub_pre_removal_head():
+    """Unit tests name paths that do not exist, so the pre-removal HEAD read is stubbed.
+
+    ``apply_removals`` reads each candidate's HEAD twice, once with the recheck
+    and once immediately before removing it, and refuses when the two differ.
+    Against a fabricated path both reads fail and every removal is withheld,
+    which would hide what these tests are actually about. Tests that care about
+    the comparison patch it again with their own values.
+    """
+    with patch(f"{_MODULE}._gc_apply._head_of", return_value=_STUB_HEAD):
+        yield
+
+
+def _decide(
+    worktree: Worktree,
+    *,
+    reachable: bool = True,
+    staged: str = "clean",
+    admin: str | None = "/a",
+    present: bool = False,
+) -> Decision:
+    """Decide with the stale diagnostics stubbed to a clean, locatable entry.
+
+    The diagnostics have their own tests below. Pinning them here keeps these
+    cases about the decision rather than about what the index happened to hold.
+
+    ``present`` states whether the worktree directory is on disk. It is a
+    parameter rather than a real ``stat`` so a case says what it means instead
+    of depending on whether ``/gone/wt`` happens to be absent from the machine
+    running the suite. It defaults to ``False`` because every worktree in this
+    file is stale.
+    """
+    with (
+        patch(f"{_MODULE}._gc_reasons.stale_head_is_reachable", return_value=reachable),
+        patch(
+            f"{_MODULE}._gc_reasons._gc_stale.admin_dir_for",
+            return_value=None if admin is None else Path(admin),
+        ),
+        patch(f"{_MODULE}._gc_reasons._gc_stale.staged_content_state", return_value=staged),
+    ):
+        return decide(worktree, _MAIN, _BASE, cwds=frozenset(), path_exists=lambda _: present)
 
 
 def _parse(text: str) -> list[Worktree]:
     """Run the real porcelain parser over canned ``git worktree list`` output."""
-    with patch(f"{_MODULE}._run_git", return_value=text):
-        return list_worktrees()
+    return _gc_parse.list_worktrees(lambda _: text)
 
 
 def _stale(path: str = "/gone/wt", **kwargs) -> Worktree:
@@ -89,47 +133,99 @@ class TestPorcelainParsing:
 class TestDecide:
     """Staleness is decided from git's marker, not from a filesystem probe."""
 
-    def test_a_stale_entry_whose_head_is_reachable_is_a_prune_candidate(self):
-        decision = _decide(_stale(), reachable=True)
-        assert decision.remove is True
-        assert decision.reason == PRUNE_STALE
+    def test_a_stale_entry_is_kept_even_when_its_head_is_reachable(self):
+        """``prunable`` cannot separate a deleted worktree from a moved one.
 
-    def test_a_stale_entry_whose_head_is_unreachable_is_kept(self):
+        A worktree that was moved rather than deleted carries the same marker
+        and is still in use, so removing its admin record breaks a live
+        checkout. Reachable HEAD is necessary but nowhere near sufficient.
+        """
+        decision = _decide(_stale(), reachable=True)
+        assert decision.remove is False
+        assert decision.reason == KEEP_STALE
+
+    def test_the_kept_reason_names_the_guarded_manual_command(self):
+        """A reason that only says no is not actionable."""
+        decision = _decide(_stale(), reachable=True)
+        assert "git worktree repair" in decision.reason
+        assert "git worktree remove" in decision.reason
+
+    def test_the_kept_reason_never_recommends_a_blanket_prune(self):
+        """``prune`` takes no path, so clearing one entry would clear unsafe siblings."""
+        decision = _decide(_stale(), reachable=True)
+        assert "prune" not in decision.reason
+
+    def test_repair_is_offered_before_removal(self):
+        """A moved worktree is the recoverable case, so it must be read first."""
+        reason = _decide(_stale(), reachable=True).reason
+        assert reason.index("repair") < reason.index("remove")
+
+    def test_a_stale_entry_whose_head_is_unreachable_says_so_specifically(self):
+        """Unreachable is the louder warning and must not collapse into the generic one."""
         decision = _decide(_stale(), reachable=False)
         assert decision.remove is False
-        assert decision.reason.startswith(KEEP_STALE_UNREACHABLE)
+        assert KEEP_STALE_UNREACHABLE in decision.reason
+        assert decision.reason.startswith("WARNING")
+        assert decision.reason != KEEP_STALE
 
     def test_the_kept_reason_carries_the_sha_needed_to_rescue_it(self):
         """A path alone is not actionable; the rescue command needs the SHA."""
         decision = _decide(_stale(), reachable=False)
-        assert f"git branch <name> {_SHA}" in decision.reason
+        assert f"git branch rescue/{_SHA[:12]} {_SHA}" in decision.reason
+
+    def test_a_missing_head_never_renders_as_a_literal_none(self):
+        """``git branch <name> None`` is a command that cannot work and looks like one that can."""
+        decision = _decide(_stale(head=None), reachable=False)
+        assert "None" not in decision.reason
+        assert "recorded HEAD is missing" in decision.reason
 
     def test_a_stale_entry_past_the_time_budget_costs_no_reachability_call(self):
         """The budget guard must precede the subprocess the check spawns."""
-        with patch(f"{_MODULE}.stale_head_is_reachable") as reachable:
-            decision = decide(
-                _stale(), _MAIN, _BASE, cwds=frozenset(), inspect=False
-            )
+        with patch(f"{_MODULE}._gc_reasons.stale_head_is_reachable") as reachable:
+            decision = decide(_stale(), _MAIN, _BASE, cwds=frozenset(), inspect=False)
         reachable.assert_not_called()
         assert decision.reason == KEEP_TIME_BUDGET
         assert decision.remove is False
 
-    def test_a_stale_entry_never_reaches_the_git_inspection_path(self):
+    def test_no_git_command_runs_inside_the_missing_worktree(self):
         """The old code ran git in a directory that no longer exists.
 
-        Any git call from ``decide`` on a stale entry is the regression this
-        test exists to catch, so the runner raises instead of returning.
+        The diagnostics do call git, but every call must run in the main
+        worktree. A call whose ``cwd`` is the vanished path is the regression
+        this test exists to catch.
         """
+        seen: list[str | None] = []
 
-        def explode(*_args, **_kwargs):
-            raise AssertionError("decide ran git inside a missing worktree")
+        def record(_args, cwd=None):
+            seen.append(cwd)
+            return ""
 
-        with patch(f"{_MODULE}._run_git", side_effect=explode):
-            decision = _decide(_stale(), reachable=True)
-        assert decision.reason == PRUNE_STALE
+        with patch(f"{_MODULE}._run_git", side_effect=record):
+            _decide(_stale(path="/gone/wt"), reachable=True)
+        assert "/gone/wt" not in seen, seen
+        assert not any(c and c.startswith("/gone") for c in seen), seen
+
+    def test_no_stale_entry_is_ever_a_removal_candidate(self):
+        """The blanket guarantee, independent of any single reason string."""
+        for reachable in (True, False):
+            for extra in ({}, {"branch": "feat/x", "detached": False}):
+                decision = _decide(_stale(**extra), reachable=reachable)
+                assert decision.remove is False, (reachable, extra)
 
     def test_a_locked_stale_entry_stays_locked(self):
         decision = _decide(_stale(locked=True), reachable=True)
+        assert decision.reason.startswith(KEEP_LOCKED)
+
+    def test_a_locked_stale_entry_still_discloses_what_clearing_it_would_destroy(self):
+        """A lock is temporary. The index and reflog risk outlives it."""
+        decision = _decide(_stale(locked=True), reachable=False, staged="staged")
+        assert KEEP_LOCKED in decision.reason
+        assert "its index holds staged work" in decision.reason
+        assert KEEP_STALE_UNREACHABLE in decision.reason
+
+    def test_a_locked_healthy_worktree_carries_no_stale_diagnostics(self):
+        """Negative control: only ``prunable`` entries have an orphaned admin dir."""
+        decision = _decide(_stale(prunable="", locked=True), reachable=True, present=True)
         assert decision.reason == KEEP_LOCKED
 
     def test_the_main_worktree_wins_even_if_git_calls_it_prunable(self):
@@ -142,140 +238,129 @@ class TestDecide:
 
 
 class TestReachability:
-    """The guard fails safe: anything it cannot confirm counts as unreachable."""
+    """The guard fails safe: anything it cannot confirm counts as unreachable.
 
-    def test_a_head_contained_by_a_ref_is_reachable(self):
-        with patch(f"{_MODULE}._run_git", return_value="refs/heads/main\n"):
-            assert stale_head_is_reachable(_SHA) is True
-
-    def test_a_head_no_ref_contains_is_unreachable(self):
-        with patch(f"{_MODULE}._run_git", return_value="\n"):
-            assert stale_head_is_reachable(_SHA) is False
-
-    def test_a_git_failure_counts_as_unreachable(self):
-        with patch(f"{_MODULE}._run_git", side_effect=RuntimeError("boom")):
-            assert stale_head_is_reachable(_SHA) is False
-
-    def test_a_missing_head_counts_as_unreachable(self):
-        assert stale_head_is_reachable(None) is False
-        assert stale_head_is_reachable("") is False
-
-    def test_a_missing_head_costs_no_git_call(self):
-        with patch(f"{_MODULE}._run_git") as runner:
-            stale_head_is_reachable(None)
-        runner.assert_not_called()
-
-
-def _report(*decisions: Decision) -> GcReport:
-    return GcReport(
-        timestamp="2026-08-05T00:00:00Z",
-        base_ref=_BASE,
-        apply=True,
-        main_worktree=_MAIN,
-        total_worktrees=len(decisions),
-        decisions=list(decisions),
-    )
-
-
-def _prune_stale(path: str) -> Decision:
-    return Decision(path, None, remove=True, reason=PRUNE_STALE)
-
-
-def _keep_unreachable(path: str) -> Decision:
-    return Decision(path, None, remove=False, reason=KEEP_STALE_UNREACHABLE)
-
-
-class TestNoBlanketPrune:
-    """The data-loss path this change removed must not come back.
-
-    ``git worktree prune`` takes no path argument, so it drops every entry git
-    considers prunable: entries that went stale after the plan was built, and
-    entries this tool deliberately held back because no ref contains their
-    HEAD. ``git worktree remove`` works on a stale entry, so per-path removal
-    covers the same ground without that reach.
+    ``run_git`` is a parameter, so these pass a stub instead of patching a
+    module global. The stub is the whole dependency, which is what makes the
+    fail-safe cases below cheap to state.
     """
 
-    def test_the_module_exposes_no_blanket_prune_helper(self):
-        import scripts.maintenance.gc_worktrees as module
+    def test_a_head_contained_by_a_ref_is_reachable(self):
+        assert _gc_reasons.stale_head_is_reachable(_SHA, lambda _: "refs/heads/main\n") is True
 
-        assert not hasattr(module, "prune_worktrees")
+    def test_a_head_no_ref_contains_is_unreachable(self):
+        assert _gc_reasons.stale_head_is_reachable(_SHA, lambda _: "\n") is False
 
-    def test_apply_never_shells_out_to_worktree_prune(self):
-        report = _report(_prune_stale("/gone/a"))
-        calls: list[list[str]] = []
+    def test_a_git_failure_counts_as_unreachable(self):
+        def boom(_):
+            raise RuntimeError("boom")
 
-        def record(args, **_kwargs):
-            calls.append(args)
-            return ""
+        assert _gc_reasons.stale_head_is_reachable(_SHA, boom) is False
 
-        with patch(f"{_MODULE}._run_git", side_effect=record):
-            apply_removals(report)
-        assert not any("prune" in c for c in calls), calls
+    def test_a_missing_head_counts_as_unreachable(self):
+        assert _gc_reasons.stale_head_is_reachable(None, lambda _: "") is False
+        assert _gc_reasons.stale_head_is_reachable("", lambda _: "") is False
 
-
-class TestApply:
-    """Stale entries are removed per path, like any other candidate."""
-
-    def test_a_stale_candidate_goes_through_remove_worktree(self):
-        report = _report(_prune_stale("/gone/a"))
-        with patch(f"{_MODULE}.remove_worktree") as remove:
-            apply_removals(report)
-        remove.assert_called_once_with("/gone/a")
-        assert report.removed == ["/gone/a"]
-
-    def test_a_kept_unreachable_entry_is_never_touched(self):
-        report = _report(_prune_stale("/gone/a"), _keep_unreachable("/gone/b"))
-        with patch(f"{_MODULE}.remove_worktree") as remove:
-            apply_removals(report)
-        assert [c.args[0] for c in remove.call_args_list] == ["/gone/a"]
-        assert "/gone/b" not in report.removed
-
-    def test_one_unsafe_entry_does_not_block_the_safe_ones(self):
-        """The withheld-prune design punished 61 safe entries for 1 unsafe one."""
-        report = _report(
-            _keep_unreachable("/gone/x"),
-            *(_prune_stale(f"/gone/{i}") for i in range(5)),
-        )
-        with patch(f"{_MODULE}.remove_worktree"):
-            apply_removals(report)
-        assert report.removed == [f"/gone/{i}" for i in range(5)]
-
-    def test_a_failed_removal_is_recorded_and_not_claimed_as_removed(self):
-        report = _report(_prune_stale("/gone/a"), _prune_stale("/gone/b"))
-
-        def fail_on_a(path: str) -> None:
-            if path == "/gone/a":
-                raise RuntimeError("still locked")
-
-        with patch(f"{_MODULE}.remove_worktree", side_effect=fail_on_a):
-            apply_removals(report)
-        assert report.removed == ["/gone/b"]
-        assert any("/gone/a" in e and "still locked" in e for e in report.remove_errors)
-
-    def test_a_live_candidate_and_a_stale_one_take_the_same_path(self):
-        live = Decision("/repo/wt", "feat/x", remove=True, reason="fully pushed")
-        report = _report(live, _prune_stale("/gone/a"))
-        with patch(f"{_MODULE}.remove_worktree") as remove:
-            apply_removals(report)
-        assert [c.args[0] for c in remove.call_args_list] == ["/repo/wt", "/gone/a"]
+    def test_a_missing_head_costs_no_git_call(self):
+        calls = []
+        _gc_reasons.stale_head_is_reachable(None, lambda a: calls.append(a) or "")
+        assert calls == []
 
 
-class TestPlanMatchesApply:
-    """The contract the old code broke: the plan must predict what apply does."""
+class TestStagedContentWarning:
+    """The report tells operators to run prune, so it must check what prune destroys.
 
-    def test_apply_removes_exactly_the_paths_the_plan_named(self):
-        report = _report(
-            _prune_stale("/gone/a"),
-            _prune_stale("/gone/b"),
-            _keep_unreachable("/gone/c"),
-            Decision("/repo/d", "feat/d", remove=False, reason="uncommitted changes"),
-        )
-        planned = [d.path for d in report.candidates]
-        with patch(f"{_MODULE}.remove_worktree"):
-            apply_removals(report)
-        assert report.removed == planned
+    Verified against real git: ``git worktree prune`` deletes the admin
+    directory including the orphaned index, and a blob that was ``git add``ed
+    but never committed has no other anchor. Recommending prune without
+    checking would hand the operator a silent data-loss path.
+    """
 
-    def test_a_kept_stale_entry_is_not_listed_as_a_candidate(self):
-        report = _report(_keep_unreachable("/gone/b"))
-        assert report.candidates == []
-        assert [d.path for d in report.kept] == ["/gone/b"]
+    def test_a_clean_index_gets_the_plain_reason(self):
+        decision = _decide(_stale(), staged="clean")
+        assert decision.reason == KEEP_STALE
+
+    def test_staged_content_warns_and_names_the_recovery_command(self):
+        decision = _decide(_stale(), staged="staged", admin="/repo/.git/worktrees/wt")
+        assert "WARNING" in decision.reason
+        assert "GIT_INDEX_FILE=/repo/.git/worktrees/wt/index" in decision.reason
+        assert "git checkout-index" in decision.reason
+
+    def test_an_unreadable_index_discloses_the_gap_instead_of_claiming_either(self):
+        """A git failure must not read as 'staged work' or as 'nothing there'."""
+        decision = _decide(_stale(), staged="unknown")
+        assert "cannot be ruled out" in decision.reason
+        assert "WARNING" not in decision.reason
+
+    def test_an_unlocatable_admin_entry_says_so(self):
+        decision = _decide(_stale(), admin=None)
+        assert "could not locate its admin entry" in decision.reason
+
+    def test_the_warning_is_read_before_the_command(self):
+        """The reason ends with a runnable command; a skimmer must hit the warning first."""
+        reason = _decide(_stale(), staged="staged").reason
+        assert reason.index("WARNING") < reason.index("git worktree remove")
+
+    def test_a_clean_entry_carries_no_warning_at_all(self):
+        """Warning on every entry is the same as warning on none."""
+        assert _decide(_stale(), staged="clean").reason == KEEP_STALE
+
+    def test_an_unreachable_head_never_suppresses_the_staged_warning(self):
+        """Rescuing HEAD rescues nothing in the index; both losses need their own command.
+
+        This inverts an earlier assertion that treated the unreachable HEAD as
+        outranking the staged index. Verified against real git: one entry can
+        carry an unreachable HEAD, staged blobs, and reflog-only commits at the
+        same time, and ``git branch`` recovers only the first. A reader who
+        followed the old single-reason output lost the other two.
+        """
+        decision = _decide(_stale(), reachable=False, staged="staged")
+        assert KEEP_STALE_UNREACHABLE in decision.reason
+        assert "its index holds staged work" in decision.reason
+
+    def test_the_head_rescue_is_read_before_the_index_rescue(self):
+        """Both appear; the committed work is still the first thing to save."""
+        reason = _decide(_stale(), reachable=False, staged="staged").reason
+        assert reason.index(KEEP_STALE_UNREACHABLE) < reason.index("its index holds staged work")
+
+    def test_no_warning_ends_in_a_period_that_would_corrupt_its_command(self):
+        """``git branch rescue/x <sha>.`` fails with ``bad object``."""
+        reason = _decide(_stale(), reachable=False, staged="staged").reason
+        assert f"{_SHA}." not in reason
+        assert "--prefix=<somewhere>/." not in reason
+
+
+class TestReflogWarning:
+    """The admin reflog is the only anchor for a detached worktree's abandoned commits."""
+
+    @staticmethod
+    def _reason(orphans, staged: str = "clean") -> str:
+        with patch(
+            f"{_MODULE}._gc_reasons._gc_stale.unreachable_reflog_commits", return_value=orphans
+        ):
+            return _decide(_stale(), staged=staged).reason
+
+    def test_an_abandoned_commit_is_named_with_a_rescue_command(self):
+        sha = "a" * 40
+        reason = self._reason([sha])
+        assert "WARNING" in reason
+        assert f"git branch rescue/{sha[:12]} {sha}" in reason
+
+    def test_no_orphans_means_no_warning(self):
+        assert self._reason([]) == KEEP_STALE
+
+    def test_an_unreadable_reflog_discloses_the_gap_instead_of_claiming_either(self):
+        reason = self._reason(None)
+        assert "WARNING" not in reason
+        assert "could not be read" in reason
+
+    def test_only_three_rescue_commands_are_printed_and_the_rest_are_counted(self):
+        reason = self._reason([f"{i:040x}" for i in range(7)])
+        assert reason.count("git branch rescue/") == 3
+        assert "and 4 more" in reason
+
+    def test_both_warnings_appear_when_index_and_reflog_are_both_at_risk(self):
+        reason = self._reason(["b" * 40], staged="staged")
+        assert "its index holds staged work" in reason
+        assert "its reflog is the only anchor" in reason
+        assert reason.index("WARNING") < reason.index("git worktree remove")
