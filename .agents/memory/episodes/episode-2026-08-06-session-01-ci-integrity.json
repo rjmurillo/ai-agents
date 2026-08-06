@@ -1,0 +1,120 @@
+{
+  "id": "episode-2026-08-06-session-01-ci-integrity",
+  "session": "2026-08-06-session-01-ci-integrity",
+  "timestamp": "2026-08-06T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix CI and tooling integrity issues #4695, #4690, #4709, and #4350.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-06T22:22:47+00:00",
+      "type": "milestone",
+      "content": "Created dedicated worktree fix/ci-integrity-4695 from origin/main and set worktree core.bare false.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-06-session-01-ci-integrity"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-06T22:24:00+00:00",
+      "type": "milestone",
+      "content": "Read full issue threads for #4695, #4690, #4709, and #4350 with gh issue view --comments.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-06-session-01-ci-integrity"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-06T22:50:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4695 by verifying GraphQL before accepting an empty issue list.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-06-session-01-ci-integrity"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-06T23:05:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4690 by classifying rate limit refusals from failing response headers and probing with gh api -i.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-06-session-01-ci-integrity"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-06T23:20:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4709 by serializing act jobs for multi-job workflows and making contention retries visible.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-06-session-01-ci-integrity"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-06T23:35:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4350 by adding a main push failure alert job backed by a tested Python issue notifier.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-06-session-01-ci-integrity"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-06T23:45:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted tests and negative controls. Each new test went red when its implementation was reverted and green after reapplying.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-01-ci-integrity"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-06T22:41:25+00:00",
+      "type": "commit",
+      "content": "Commit: 7ea1efcf39c7809e49350876ebdd98edd2568233",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-06-session-01-ci-integrity"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 82,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

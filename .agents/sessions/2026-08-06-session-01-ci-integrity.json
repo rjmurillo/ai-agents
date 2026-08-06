@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1,
+    "date": "2026-08-06",
+    "branch": "fix/ci-integrity-4695",
+    "startingCommit": "a4129aa44d5f9a8e35d87d702c07ff2824ec9a1b",
+    "objective": "Fix CI and tooling integrity issues #4695, #4690, #4709, and #4350."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Serena activate_project tool was unavailable; Serena initial_instructions was called and project instructions were read."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Serena initial_instructions called."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .agents/HANDOFF.md."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "This file."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "git branch reported fix/ci-integrity-4695 and core.bare was false."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Worked in dedicated worktree branch fix/ci-integrity-4695."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Listed .claude/skills/github/scripts Python files."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .serena/memories/usage-mandatory.md."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read memory-index plus GitHub rate limit and missing-state memories."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "All four issues triaged, fixed, and covered by negative controls."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": ".agents/HANDOFF.md was read only and not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "No durable new memory was required; existing rate limit and missing-state memories already cover the learned pattern."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "No authored markdown files were modified."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Work commits end at 7ea1efcf39c7809e49350876ebdd98edd2568233."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Targeted tests and negative controls passed before session log commit; full required validation is run after this log commit."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-06T22:22:47Z",
+      "entry": "Created dedicated worktree fix/ci-integrity-4695 from origin/main and set worktree core.bare false."
+    },
+    {
+      "time": "2026-08-06T22:24:00Z",
+      "entry": "Read full issue threads for #4695, #4690, #4709, and #4350 with gh issue view --comments."
+    },
+    {
+      "time": "2026-08-06T22:50:00Z",
+      "entry": "Fixed #4695 by verifying GraphQL before accepting an empty issue list."
+    },
+    {
+      "time": "2026-08-06T23:05:00Z",
+      "entry": "Fixed #4690 by classifying rate limit refusals from failing response headers and probing with gh api -i."
+    },
+    {
+      "time": "2026-08-06T23:20:00Z",
+      "entry": "Fixed #4709 by serializing act jobs for multi-job workflows and making contention retries visible."
+    },
+    {
+      "time": "2026-08-06T23:35:00Z",
+      "entry": "Fixed #4350 by adding a main push failure alert job backed by a tested Python issue notifier."
+    },
+    {
+      "time": "2026-08-06T23:45:00Z",
+      "entry": "Ran targeted tests and negative controls. Each new test went red when its implementation was reverted and green after reapplying."
+    }
+  ],
+  "endingCommit": "7ea1efcf39c7809e49350876ebdd98edd2568233",
+  "nextSteps": []
+}
