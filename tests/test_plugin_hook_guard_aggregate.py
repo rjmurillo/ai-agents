@@ -140,7 +140,6 @@ def test_guard_result_runs_even_when_dependencies_fail() -> None:
 
 def test_windows_is_covered_on_a_real_windows_runner() -> None:
     """Windows is the platform the customer reported, so it cannot be dropped."""
-    yaml = pytest.importorskip("yaml")
     workflow_path = _REPO_ROOT / ".github" / "workflows" / "installed-plugin-hook-guard.yml"
     text = workflow_path.read_text(encoding="utf-8")
     assert "windows-latest" in text
