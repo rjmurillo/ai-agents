@@ -22,11 +22,13 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts" / "eval"))
 
 from _anthropic_api import call_api, load_api_key  # noqa: E402
+from _eval_common import MalformedProviderMetadataError  # noqa: E402
 
 VALIDATOR = REPO / ".claude/skills/spec-generator/scripts/validate_spec_frontmatter.py"
 MODEL = "claude-sonnet-4-20250514"
@@ -34,18 +36,51 @@ MODEL = "claude-sonnet-4-20250514"
 # Adversarial features: each tempts a documented drift (priority=medium,
 # category=tooling, task status=ready, design missing status/priority).
 FEATURES = [
-    {"id": "REQ-001", "type": "requirement",
-     "desc": "Users can reset their password via email. This is a medium-priority functional feature."},
-    {"id": "REQ-002", "type": "requirement",
-     "desc": "Add a build tooling script that lints config files. It is a tooling and infrastructure concern."},
-    {"id": "TASK-001", "type": "task",
-     "desc": "Implement the password-reset endpoint. It is ready to start, small, about one hour of work."},
-    {"id": "TASK-002", "type": "task",
-     "desc": "Refactor the auth module to remove duplication. Currently in progress, medium effort."},
-    {"id": "DESIGN-001", "type": "design",
-     "desc": "Design the session state machine that persists phase transitions. High priority, traces REQ-001."},
-    {"id": "REQ-003", "type": "requirement",
-     "desc": "The system shall encrypt all data at rest. Critical, non-functional."},
+    {
+        "id": "REQ-001",
+        "type": "requirement",
+        "desc": (
+            "Users can reset their password via email. This is a "
+            "medium-priority functional feature."
+        ),
+    },
+    {
+        "id": "REQ-002",
+        "type": "requirement",
+        "desc": (
+            "Add a build tooling script that lints config files. It is a "
+            "tooling and infrastructure concern."
+        ),
+    },
+    {
+        "id": "TASK-001",
+        "type": "task",
+        "desc": (
+            "Implement the password-reset endpoint. It is ready to start, "
+            "small, about one hour of work."
+        ),
+    },
+    {
+        "id": "TASK-002",
+        "type": "task",
+        "desc": (
+            "Refactor the auth module to remove duplication. Currently in "
+            "progress, medium effort."
+        ),
+    },
+    {
+        "id": "DESIGN-001",
+        "type": "design",
+        "desc": (
+            "Design the session state machine that persists phase transitions. "
+            "High priority, traces REQ-001."
+        ),
+    },
+    {
+        "id": "REQ-003",
+        "type": "requirement",
+        "desc": "The system shall encrypt all data at rest. Critical, non-functional.",
+    },
 ]
 
 USER_TMPL = (
@@ -88,14 +123,26 @@ def validate(block: str) -> tuple[bool, str]:
     return proc.returncode == 0, proc.stdout.strip()
 
 
-def run_prompt(api_key: str, prompt_text: str, feature: dict, runs: int) -> dict:
+def run_prompt(
+    api_key: str,
+    prompt_text: str,
+    feature: dict[str, str],
+    runs: int,
+) -> dict[str, Any]:
     valid = 0
     details = []
     for _ in range(runs):
         user = USER_TMPL.format(**feature)
         try:
-            raw = call_api(api_key, [{"role": "user", "content": user}],
-                           system=prompt_text, model=MODEL, max_tokens=800)
+            raw = call_api(
+                api_key,
+                [{"role": "user", "content": user}],
+                system=prompt_text,
+                model=MODEL,
+                max_tokens=800,
+            )
+        except MalformedProviderMetadataError:
+            raise
         except Exception as exc:
             details.append({"ok": False, "err": str(exc)[:120]})
             continue
@@ -128,8 +175,13 @@ def main() -> int:
         b_valid += b["valid"]
         a_valid += a["valid"]
         total += args.runs
-        results["features"].append({"id": feat["id"], "type": feat["type"], "before": b, "after": a})
-        print(f"{feat['id']:11} agent(before)={b['valid']}/{args.runs}  skill(after)={a['valid']}/{args.runs}")
+        results["features"].append(
+            {"id": feat["id"], "type": feat["type"], "before": b, "after": a}
+        )
+        print(
+            f"{feat['id']:11} agent(before)={b['valid']}/{args.runs}  "
+            f"skill(after)={a['valid']}/{args.runs}"
+        )
 
     results["summary"] = {
         "before_valid": b_valid, "after_valid": a_valid, "total": total,
@@ -137,8 +189,14 @@ def main() -> int:
         "delta": round((a_valid - b_valid) / total, 4),
     }
     Path(args.output).write_text(json.dumps(results, indent=2), encoding="utf-8")
-    print(f"\nAGENT  valid frontmatter: {b_valid}/{total} ({results['summary']['before_rate']:.0%})")
-    print(f"SKILL  valid frontmatter: {a_valid}/{total} ({results['summary']['after_rate']:.0%})")
+    print(
+        f"\nAGENT  valid frontmatter: {b_valid}/{total} "
+        f"({results['summary']['before_rate']:.0%})"
+    )
+    print(
+        f"SKILL  valid frontmatter: {a_valid}/{total} "
+        f"({results['summary']['after_rate']:.0%})"
+    )
     print(f"delta: {results['summary']['delta']:+.0%}  -> {args.output}")
     return 0
 

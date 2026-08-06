@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from _eval_errors import MalformedProviderMetadataError
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -63,6 +65,26 @@ QUOTA_BILLED_PROVIDERS: frozenset[str] = frozenset(
 )
 
 
+def safe_http_error_message(provider_surface: str, status_code: int) -> str:
+    """Return a fixed HTTP error that contains no provider-controlled body."""
+    if status_code in (401, 403):
+        category = "auth"
+    elif status_code == 408:
+        category = "timeout"
+    elif status_code == 429:
+        category = "rate_limit"
+    elif 500 <= status_code < 600:
+        category = "server_error"
+    elif 400 <= status_code < 500:
+        category = "client_error"
+    else:
+        category = "http_error"
+    return (
+        f"{provider_surface} returned HTTP {status_code}: error={category}; "
+        "provider response redacted"
+    )
+
+
 def cost_basis(provider: str | None) -> str:
     """Return how *provider* bills: ``"usd"`` per token or ``"requests"``.
 
@@ -86,6 +108,31 @@ def cost_basis(provider: str | None) -> str:
     """
     selected = (provider or os.environ.get("EVAL_PROVIDER") or "anthropic").strip().lower()
     return "requests" if selected in QUOTA_BILLED_PROVIDERS else "usd"
+
+
+def require_str_or_none(value: object, field: str) -> str | None:
+    """Return `value` when it is a string or absent; raise when it is neither.
+
+    This is the shared write policy for object-typed provider provenance.
+
+    Coercing a malformed value to `None` instead records "the provider
+    supplied nothing" for a value the provider did supply.
+
+    Canonical reader contract, verbatim from
+    `scripts/eval/_run_persistence.py::_validate_payload`:
+        f"{line_context} field 'system_fingerprint' has wrong type "
+        f"(expected str or null, got {type(fingerprint).__name__})"
+
+    Different than canonical: this helper raises
+    `MalformedProviderMetadataError` at the provider boundary. The canonical
+    reader raises `MalformedRunRecordError` while decoding an archive. Both
+    accept only a string or null for this field (issue #4123).
+    """
+    if value is None or isinstance(value, str):
+        return value
+    raise MalformedProviderMetadataError(
+        f"provider returned a non-string {field} ({type(value).__name__})"
+    )
 
 
 def aggregate_multi_run_scores(
