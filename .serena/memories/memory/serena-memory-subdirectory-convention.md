@@ -28,10 +28,10 @@ memory recorded that. `search_memory.py` was not, and nothing failed loudly.
 
 `.claude/skills/memory/scripts/search_memory.py` enumerated with a
 non-recursive `glob("*.md")`, so it only ever saw top-level files. After the
-migration moved 829 memories into subdirectories, the search reached 123 of 974
-files, or 12.6% of the corpus, and missed all 851 nested ones. It returned no
-error and no warning. It returned
-a confident empty result.
+migration moved 829 memories into subdirectories. By the later issue #4655
+measurement, the corpus had grown to 974 files, with 851 nested. The search
+reached only the 123 top-level files, or 12.6% of that later corpus. It returned
+no error and no warning. It returned a confident empty result.
 
 The practical consequence is worse than a slow search. The house rule "search
 the corpus before writing a memory" silently could not work for any nested
@@ -72,7 +72,7 @@ Verified against two existing entries, which reproduce exactly:
 ```python
 import tiktoken
 enc = tiktoken.get_encoding("cl100k_base")
-len(enc.encode(open(path).read()))
+len(enc.encode(open(path, encoding="utf-8").read()))
 ```
 
 Do not compute or type that number yourself. `.claude/rules/knowledge-persistence.md`
