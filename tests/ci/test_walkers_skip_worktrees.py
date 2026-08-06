@@ -1,9 +1,10 @@
 """Repo-root walkers must skip registered worktrees.
 
-A registered worktree holds a full second copy of the tree. Two gates walked
+A registered worktree holds a full second copy of the tree. Three gates walked
 the repository root without skipping them, so each parsed ~92,000 Python
-files instead of ~6,800 and tripped the 120s pytest-timeout, blocking every
-push from a clone that uses worktrees.
+files instead of ~6,800 and tripped a 120s timeout, blocking every push from a
+clone that uses worktrees. Two are pytest gates; the third is the unreachable
+statement scanner lefthook runs as `check_unreachable_after_terminator.py .`.
 
 This is the same bug issue #4160 fixed in `_python_sources`, recurring in
 siblings that did not inherit the fix. Both halves of that fix are load
@@ -16,7 +17,7 @@ bearing and both are asserted here:
    worktrees are laid out.
 
 Exit codes (ADR-035):
-    0 - both walkers skip worktrees and stay scoped to the walk root
+    0 - every walker skips worktrees and stays scoped to the walk root
     1 - a walker regressed
 """
 
@@ -26,6 +27,7 @@ import subprocess
 from pathlib import Path, PurePosixPath
 from unittest.mock import patch
 
+import scripts.validation.check_unreachable_after_terminator as unreachable
 import tests.test_no_duplicate_module_level_defs as dupes
 import tests.test_no_verify_prohibition as noverify
 
@@ -159,11 +161,49 @@ class TestNoTrackedFileHidesBehindTheSkip:
         )
 
 
+class TestUnreachableWalker:
+    """The lefthook gate `check_unreachable_after_terminator.py .` walks the repo root."""
+
+    def test_worktree_file_is_not_scanned(self, tmp_path: Path) -> None:
+        real = tmp_path / "real.py"
+        real.write_text("x = 1\n", encoding="utf-8")
+        wt = tmp_path / "worktrees" / "wf_1" / "copy.py"
+        wt.parent.mkdir(parents=True)
+        wt.write_text("x = 1\n", encoding="utf-8")
+
+        found = unreachable._iter_paths([tmp_path])
+
+        assert real in found
+        assert wt not in found
+
+    def test_root_named_worktrees_keeps_its_files(self, tmp_path: Path) -> None:
+        """The relative-parts half. Absolute matching would skip the root whole."""
+        root = tmp_path / "worktrees"
+        root.mkdir()
+        kept = root / "real.py"
+        kept.write_text("x = 1\n", encoding="utf-8")
+
+        found = unreachable._iter_paths([root])
+
+        assert found == [kept], f"walker went silent under a worktrees root, got {found}"
+
+    def test_explicit_file_argument_is_never_skipped(self, tmp_path: Path) -> None:
+        """A file named on the command line is scanned even inside a worktree."""
+        wt = tmp_path / "worktrees" / "wf_1" / "copy.py"
+        wt.parent.mkdir(parents=True)
+        wt.write_text("x = 1\n", encoding="utf-8")
+
+        assert unreachable._iter_paths([wt]) == [wt]
+
+
 class TestSkipSetContract:
     """The skip constant itself carries worktrees."""
 
     def test_worktrees_in_skip_set(self) -> None:
         assert "worktrees" in dupes._SKIP
+
+    def test_worktrees_in_unreachable_skip_set(self) -> None:
+        assert "worktrees" in unreachable._SKIP
 
 
 if __name__ == "__main__":  # pragma: no cover - manual smoke run
