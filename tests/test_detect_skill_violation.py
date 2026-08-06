@@ -231,15 +231,15 @@ class TestCheckFileForViolations:
         return tmp_path
 
     def test_detects_gh_pr_command(self, test_repo: Path) -> None:
-        """Detects gh pr command."""
+        """Detects gh pr command in a Markdown command block."""
         test_file = test_repo / "test.md"
-        test_file.write_text("Run: gh pr create --title 'Test'")
+        test_file.write_text("```bash\ngh pr create --title 'Test'\n```\n")
 
         result = check_file_for_violations(test_repo, "test.md")
 
         assert result is not None
         assert result.file == "test.md"
-        assert result.line == 1
+        assert result.line == 2
 
     def test_detects_gh_issue_command(self, test_repo: Path) -> None:
         """Detects gh issue command."""
@@ -252,13 +252,24 @@ class TestCheckFileForViolations:
         assert result.file == "test.ps1"
 
     def test_detects_gh_api_command(self, test_repo: Path) -> None:
-        """Detects gh api command."""
+        """Detects gh api command in a Markdown command block."""
         test_file = test_repo / "test.md"
-        test_file.write_text("gh api /repos/owner/repo/pulls")
+        test_file.write_text("```bash\ngh api /repos/owner/repo/pulls\n```\n")
 
         result = check_file_for_violations(test_repo, "test.md")
 
         assert result is not None
+
+    def test_ignores_gh_api_prose_in_markdown(self, test_repo: Path) -> None:
+        """Plain memory prose can mention gh api without tripping the gate."""
+        test_file = test_repo / "memory-index.md"
+        test_file.write_text(
+            "|github raw gh api usage: [memory](github.md) (12)|\n"
+        )
+
+        result = check_file_for_violations(test_repo, "memory-index.md")
+
+        assert result is None
 
     def test_returns_none_for_clean_file(self, test_repo: Path) -> None:
         """Returns None for file without violations."""
@@ -278,7 +289,7 @@ class TestCheckFileForViolations:
     def test_finds_correct_line_number(self, test_repo: Path) -> None:
         """Reports correct line number for violation."""
         test_file = test_repo / "test.md"
-        test_file.write_text("Line 1\nLine 2\ngh pr merge 123\nLine 4")
+        test_file.write_text("Line 1\n```bash\ngh pr merge 123\n```\nLine 5")
 
         result = check_file_for_violations(test_repo, "test.md")
 
@@ -299,7 +310,7 @@ class TestDetectViolations:
     def test_repo(self, tmp_path: Path) -> Path:
         """Create a test repository structure."""
         (tmp_path / "clean.md").write_text("No violations")
-        (tmp_path / "violation1.md").write_text("gh pr create")
+        (tmp_path / "violation1.md").write_text("```bash\ngh pr create\n```\n")
         (tmp_path / "violation2.ps1").write_text("gh issue list")
         return tmp_path
 

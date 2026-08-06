@@ -45,6 +45,18 @@ GH_PATTERNS = (
     re.compile(r"gh\s+repo\s+"),
 )
 
+COMMAND_BLOCK_LANGUAGES = frozenset({
+    "bash",
+    "console",
+    "powershell",
+    "ps1",
+    "pwsh",
+    "shell",
+    "sh",
+    "terminal",
+    "zsh",
+})
+
 # File extensions to check
 VALID_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 
@@ -253,18 +265,36 @@ def check_file_for_violations(
     except (OSError, UnicodeDecodeError):
         return None
 
-    for pattern in GH_PATTERNS:
-        if pattern.search(content):
-            # Find line number
-            lines = content.split("\n")
-            for i, line in enumerate(lines, 1):
-                if pattern.search(line):
-                    return Violation(
-                        file=file_path,
-                        pattern=pattern.pattern,
-                        line=i,
-                    )
+    for line_number, line in _scannable_lines(full_path, content):
+        for pattern in GH_PATTERNS:
+            if pattern.search(line):
+                return Violation(
+                    file=file_path,
+                    pattern=pattern.pattern,
+                    line=line_number,
+                )
     return None
+
+
+def _scannable_lines(full_path: Path, content: str) -> list[tuple[int, str]]:
+    lines = content.split("\n")
+    if full_path.suffix != ".md":
+        return list(enumerate(lines, 1))
+
+    scannable: list[tuple[int, str]] = []
+    in_command_block = False
+    for line_number, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            language = stripped.removeprefix("```").strip().lower()
+            in_command_block = (
+                not in_command_block
+                and language.split(maxsplit=1)[0] in COMMAND_BLOCK_LANGUAGES
+            )
+            continue
+        if in_command_block:
+            scannable.append((line_number, line))
+    return scannable
 
 
 def detect_violations(
