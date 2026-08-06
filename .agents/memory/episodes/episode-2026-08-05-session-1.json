@@ -1,0 +1,138 @@
+{
+  "id": "episode-2026-08-05-session-1",
+  "session": "2026-08-05-session-1",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Triage and fix issues 4509 and 4514, mutation prove them, push, and open a PR",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triage issues 4509 and 4514",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "error",
+      "content": "Triage issues 4509 and 4514      Both reproduced on current origin/main. Issue 4509 missed bold inline code paths with line suffixes. Issue 4514 failed after inserting one unrelated line above the pytest TOML section.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read linked GitHub threads",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked existing worktrees",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented line-suffixed file mention parsing",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replaced absolute pyproject line citations",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated skill mirrors",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated fixes",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation proved fixes",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-05-session-1"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T06:42:59+00:00",
+      "type": "commit",
+      "content": "Commit: 3161e31d2c",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-1"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 4514,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
