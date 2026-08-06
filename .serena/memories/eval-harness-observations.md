@@ -119,6 +119,11 @@
 - Enumerate every session directory entry under a deadline. Apply the entry
   cap to all entries, the candidate cap only to fresh regular transcripts, and
   read JSONL with bounded `readline` calls.
+- Reject symlinked or non-regular transcript components. POSIX opens each path
+  component with `dir_fd` and `O_NOFOLLOW`; Windows validates root, session,
+  and file handles against reparse points and final-path containment.
+- Reject non-real, non-finite, and non-positive timeouts. Cleanup must force
+  kill and reap children, then fail if any reader remains live.
 - The default home-derived session root must be absolute, just like explicit
   session and Copilot home overrides. A relative home resolves differently in
   the parent checkout and the isolated child working directory.
