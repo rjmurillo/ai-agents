@@ -657,6 +657,8 @@ class TestCheckMemoryIndexReferences:
     ) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (
+                "| keywords | file |\n"
+                "|---|---|\n"
                 "| keywords | prefix [entry](shared.md) |\n"
             ),
             "shared.md": "content",
@@ -675,12 +677,39 @@ class TestCheckMemoryIndexReferences:
         )
 
     @pytest.mark.parametrize(
+        "reference_content",
+        [
+            "[two][dup]\n\n[dup]: shared.md\n",
+            "[two][]\n\n[two]: shared.md\n",
+            "[dup]\n\n[dup]: shared.md\n",
+        ],
+    )
+    def test_reference_links_resolve_and_count(
+        self,
+        tmp_path: Path,
+        reference_content: str,
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "[one](shared.md)\n\n"
+                f"{reference_content}"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is False
+        assert result.duplicate_references == ["shared"]
+
+    @pytest.mark.parametrize(
         "unsupported_content",
         [
-            "| hidden | [two][dup] |\n[dup]: shared.md\n",
-            "| hidden | [two][] |\n[two]: shared.md\n",
-            "| hidden | [dup] |\n[dup]: shared.md\n",
-            "[dup]: shared.md\n",
+            "| hidden | [two][missing] |\n",
             (
                 "| hidden | "
                 "[outer [inner](shared.md)](other.md) |\n"
@@ -691,16 +720,13 @@ class TestCheckMemoryIndexReferences:
             ),
         ],
     )
-    def test_unsupported_link_syntax_fails_closed(
+    def test_unresolved_or_nested_link_syntax_fails_closed(
         self,
         tmp_path: Path,
         unsupported_content: str,
     ) -> None:
         create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| direct | [one](shared.md) |\n"
-                f"{unsupported_content}"
-            ),
+            "memory-index.md": unsupported_content,
             "shared.md": "content",
             "other.md": "content",
         })
@@ -713,7 +739,8 @@ class TestCheckMemoryIndexReferences:
 
         assert result.passed is False
         assert any(
-            "unsupported" in issue
+            "unresolved link syntax" in issue
+            or "images are unsupported" in issue
             for issue in result.issues
         )
 
@@ -751,6 +778,80 @@ class TestCheckMemoryIndexReferences:
             ),
             "shared.md": "content",
             "other.md": "content",
+        })
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is True
+
+    @pytest.mark.parametrize(
+        "multiline_link",
+        [
+            "[two](\nshared.md\n)",
+            '[two](shared.md\n "title")',
+        ],
+    )
+    def test_multiline_link_duplicate_counted(
+        self, tmp_path: Path, multiline_link: str
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| direct: [one](shared.md)\n"
+                f"| hidden: {multiline_link}\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is False
+        assert result.duplicate_references == ["shared"]
+
+    def test_invalid_backtick_fence_does_not_hide_link(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| direct: [one](shared.md)\n"
+                "``` bad`info\n"
+                "| hidden: [two](shared.md)\n"
+                "```\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is False
+        assert result.duplicate_references == ["shared"]
+
+    def test_valid_fences_and_code_spans_ignore_links(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| direct: [one](shared.md)\n"
+                "`[inline](shared.md)`\n"
+                "````markdown\n"
+                "[fenced](shared.md)\n"
+                "````\n"
+                "~~~markdown\n"
+                "[tilde](shared.md)\n"
+                "~~~\n"
+            ),
+            "shared.md": "content",
         })
 
         result = check_memory_index_references(
@@ -816,11 +917,7 @@ class TestCheckMemoryIndexReferences:
         ("destination", "decoy_path"),
         [
             ("shared%2Emd", "shared%2Emd.md"),
-            ("shared&period;md", "shared&period;md.md"),
-            ("<shared.md>", "<shared.md>.md"),
-            ('shared.md "title"', 'shared.md "title".md'),
             ("shared.md(foo)", "shared.md(foo).md"),
-            (r"shared\.md", "shared/.md"),
             ("shared.md?view", "shared.md?view.md"),
             ("shared.md#section", "shared.md#section.md"),
         ],
@@ -850,6 +947,35 @@ class TestCheckMemoryIndexReferences:
             for issue in result.issues
         )
         assert result.duplicate_references == []
+
+    @pytest.mark.parametrize(
+        "destination",
+        [
+            "shared&period;md",
+            "<shared.md>",
+            'shared.md "title"',
+            r"shared\.md",
+        ],
+    )
+    def test_parser_normalized_alias_counts_as_duplicate(
+        self, tmp_path: Path, destination: str
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| direct: [one](shared.md)\n"
+                f"| alias: [two]({destination})\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is False
+        assert result.duplicate_references == ["shared"]
 
     def test_symbolic_link_target_rejected(
         self, tmp_path: Path

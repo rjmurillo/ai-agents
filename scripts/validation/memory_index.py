@@ -33,9 +33,17 @@ import os
 import posixpath
 import re
 import subprocess
+import sys
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+# Script entry points need the repository path before shared-module imports.
+from scripts.utils.markdown_parser import _create_parser  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -175,17 +183,7 @@ _MARKDOWN_LINK_PATTERN: re.Pattern[str] = re.compile(
     r"\[([^\]]+)\]\(([^)]+)\)"
 )
 _URL_PERCENT_ESCAPE_PATTERN = re.compile(r"%[0-9A-Fa-f]{2}")
-_COMMONMARK_ENTITY_PATTERN = re.compile(
-    r"&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);"
-)
-_FENCE_START_PATTERN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
-_LINK_DEFINITION_PATTERN = re.compile(
-    r"^ {0,3}\[([^\[\]]+)\]:\s*\S"
-)
-_REFERENCE_LINK_PATTERN = re.compile(
-    r"!?\[([^\[\]]+)\]\[([^\[\]]*)\]"
-)
-_BRACKET_LABEL_PATTERN = re.compile(r"(?<!!)\[([^\[\]]+)\]")
+_MARKDOWN_PARSER = _create_parser()
 
 
 def _resolve_memory_reference(
@@ -216,16 +214,12 @@ def _invalid_destination_reason(destination: str) -> str | None:
     """Return why a Markdown destination is unsafe to canonicalize."""
     if _URL_PERCENT_ESCAPE_PATTERN.search(destination):
         return "URL percent escape"
-    if _COMMONMARK_ENTITY_PATTERN.search(destination):
-        return "CommonMark character reference"
-    if "<" in destination or ">" in destination:
-        return "CommonMark angle-bracket destination"
     if any(character.isspace() for character in destination):
-        return "CommonMark destination title or whitespace"
+        return "whitespace"
     if "(" in destination or ")" in destination:
-        return "CommonMark balanced-parenthesis destination"
+        return "parenthesis"
     if "\\" in destination:
-        return "CommonMark backslash escape"
+        return "backslash"
     if "?" in destination:
         return "query"
     if "#" in destination:
@@ -233,156 +227,88 @@ def _invalid_destination_reason(destination: str) -> str | None:
     return None
 
 
-def _mask_inline_code(line: str) -> str:
-    """Blank complete backtick code spans without crossing lines."""
-    masked = list(line)
-    index = 0
-    while index < len(line):
-        if line[index] != "`":
-            index += 1
-            continue
-        run_end = index
-        while run_end < len(line) and line[run_end] == "`":
-            run_end += 1
-        delimiter = line[index:run_end]
-        close = line.find(delimiter, run_end)
-        if close < 0:
-            index = run_end
-            continue
-        for mask_index in range(index, close + len(delimiter)):
-            masked[mask_index] = " "
-        index = close + len(delimiter)
-    return "".join(masked)
-
-
-def _mask_markdown_code(content: str) -> str:
-    """Blank fenced code blocks and inline code spans."""
-    masked_lines: list[str] = []
-    fence_character: str | None = None
-    fence_length = 0
-    for line in content.splitlines():
-        fence_match = _FENCE_START_PATTERN.match(line)
-        if fence_character is None and fence_match:
-            fence = fence_match.group(1)
-            fence_character = fence[0]
-            fence_length = len(fence)
-            masked_lines.append("")
-            continue
-        if fence_character is not None:
-            close_pattern = re.compile(
-                rf"^ {{0,3}}{re.escape(fence_character)}"
-                rf"{{{fence_length},}}\s*$"
-            )
-            if close_pattern.match(line):
-                fence_character = None
-                fence_length = 0
-            masked_lines.append("")
-            continue
-        masked_lines.append(_mask_inline_code(line))
-    return "\n".join(masked_lines)
-
-
-def _normalize_reference_label(label: str) -> str:
-    """Normalize a CommonMark reference label for matching."""
-    return " ".join(label.split()).casefold()
-
-
-def _unsupported_link_syntax_issues(content: str) -> list[str]:
-    """Reject link syntax outside the validator's inline-link subset."""
-    issues: list[str] = []
-    definitions: set[str] = set()
-    for line in content.splitlines():
-        definition = _LINK_DEFINITION_PATTERN.match(line)
-        if definition:
-            definitions.add(
-                _normalize_reference_label(definition.group(1))
-            )
-            issues.append(
-                "P1 VALIDITY: memory-index contains unsupported "
-                f"link definition: {line.strip()!r}"
-            )
-
-    for reference in _REFERENCE_LINK_PATTERN.finditer(content):
-        issues.append(
-            "P1 VALIDITY: memory-index contains unsupported "
-            f"reference-style link: {reference.group(0)!r}"
-        )
-
-    bracket_depth = 0
-    for character in content:
-        if character == "[":
-            if bracket_depth:
-                issues.append(
-                    "P1 VALIDITY: memory-index contains unsupported "
-                    "nested link or image brackets"
-                )
-                break
-            bracket_depth = 1
-        elif character == "]" and bracket_depth:
-            bracket_depth = 0
-
-    for label_match in _BRACKET_LABEL_PATTERN.finditer(content):
-        suffix = content[label_match.end():]
-        if suffix.startswith(("(", "[", ":")):
-            continue
-        label = _normalize_reference_label(label_match.group(1))
-        if label in definitions:
-            issues.append(
-                "P1 VALIDITY: memory-index contains unsupported "
-                f"shortcut reference: {label_match.group(0)!r}"
-            )
-    return issues
-
-
 def _extract_memory_reference_names(
     content: str,
 ) -> tuple[list[str], list[str]]:
-    """Extract plain relative reference names and reject ambiguous syntax."""
-    content = _mask_markdown_code(content)
-    file_refs: list[str] = []
-    issues = _unsupported_link_syntax_issues(content)
-    for line in content.splitlines():
-        match = _TABLE_ROW_PATTERN.match(line)
-        if match:
-            file_entry = match.group(2).strip()
-            skip_values = {
-                "File", "Essential Memories", "Memory", "Memory Index"
-            }
-            if file_entry in skip_values or re.match(r"^-+$", file_entry):
-                continue
-            link_matches = list(
-                _MARKDOWN_LINK_PATTERN.finditer(file_entry)
-            )
-            if link_matches:
-                unparsed = _MARKDOWN_LINK_PATTERN.sub("", file_entry)
-                if unparsed.strip(" ,"):
-                    issues.append(
-                        "P1 VALIDITY: memory-index file cell contains "
-                        f"unparsed content: {file_entry!r}"
-                    )
-                file_refs.extend(
-                    link_match.group(0)
-                    for link_match in link_matches
-                )
-            else:
-                file_refs.extend(
-                    f.strip() for f in file_entry.split(",") if f.strip()
-                )
+    """Extract references from the CommonMark token stream."""
+    issues: list[str] = []
+    destinations: list[str] = []
+    inside_table = False
+    inside_file_cell = False
+    table_cell_index = 0
+    try:
+        tokens = _MARKDOWN_PARSER.parse(content)
+    except (RuntimeError, ValueError) as exc:
+        return [], [f"P1 VALIDITY: Markdown parse failed: {exc}"]
+
+    for token in tokens:
+        if token.type == "table_open":
+            inside_table = True
+        elif token.type == "table_close":
+            inside_table = False
+        elif token.type == "tr_open":
+            table_cell_index = 0
+        elif token.type == "td_open":
+            inside_file_cell = table_cell_index == 1
+            table_cell_index += 1
+        elif token.type == "td_close":
+            inside_file_cell = False
+        elif token.type != "inline":
             continue
 
-        stripped = line.strip()
-        if stripped.startswith("|") and not stripped.startswith("|---"):
-            file_refs.extend(
-                link_match.group(0)
-                for link_match in _MARKDOWN_LINK_PATTERN.finditer(stripped)
+        should_collect = not inside_table or inside_file_cell
+        if not should_collect:
+            continue
+        children = token.children or []
+        inline_destinations: list[str] = []
+        plain_text: list[str] = []
+        link_depth = 0
+        for child in children:
+            if child.type == "link_open":
+                link_depth += 1
+                href = child.attrGet("href")
+                if not isinstance(href, str):
+                    issues.append(
+                        "P1 VALIDITY: parsed link has no destination"
+                    )
+                else:
+                    inline_destinations.append(href)
+            elif child.type == "link_close":
+                link_depth = max(link_depth - 1, 0)
+            elif child.type == "image":
+                issues.append(
+                    "P1 VALIDITY: memory-index images are unsupported"
+                )
+            elif child.type == "text" and link_depth == 0:
+                plain_text.append(child.content)
+                is_section_marker = bool(
+                    re.fullmatch(r"\[[^\[\]\n]+\]", child.content.strip())
+                )
+                if not is_section_marker and (
+                    "[" in child.content or "](" in child.content
+                ):
+                    issues.append(
+                        "P1 VALIDITY: memory-index contains "
+                        "unresolved link syntax"
+                    )
+        destinations.extend(inline_destinations)
+        unparsed_text = "".join(plain_text).strip(" ,")
+        if inside_file_cell and inline_destinations and unparsed_text:
+            issues.append(
+                "P1 VALIDITY: memory-index file cell contains "
+                f"unparsed content: {unparsed_text!r}"
             )
+        if inside_file_cell and not inline_destinations:
+            file_entry = "".join(plain_text).strip()
+            if file_entry:
+                destinations.extend(
+                    item.strip()
+                    for item in file_entry.split(",")
+                    if item.strip()
+                )
 
     reference_names: list[str] = []
-    for file_ref in file_refs:
-        parsed_link = _MARKDOWN_LINK_PATTERN.search(file_ref)
-        destination = (
-            parsed_link.group(2) if parsed_link else file_ref.strip()
-        )
+    for destination in destinations:
         invalid_reason = _invalid_destination_reason(destination)
         if invalid_reason:
             issues.append(
