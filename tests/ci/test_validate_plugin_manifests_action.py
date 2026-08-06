@@ -15,8 +15,15 @@ _PYPROJECT_PATH = _REPO_ROOT / "pyproject.toml"
 
 def _action_steps(action_text: str) -> list[dict[str, object]]:
     parsed = yaml.safe_load(action_text)
-    runs = parsed.get("runs", {})
-    return runs.get("steps", [])
+    if not isinstance(parsed, dict):
+        return []
+    runs = parsed.get("runs")
+    if not isinstance(runs, dict):
+        return []
+    steps = runs.get("steps")
+    if not isinstance(steps, list):
+        return []
+    return steps
 
 
 def _install_commands(action_text: str) -> list[str]:

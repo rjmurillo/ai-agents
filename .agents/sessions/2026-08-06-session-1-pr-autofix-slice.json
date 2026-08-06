@@ -11,85 +11,85 @@
     "sessionStart": {
       "serenaActivated": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "Serena activate_project tool was unavailable; Serena initial_instructions was called and project instructions were read."
+        "complete": true,
+        "evidence": "Serena activate_project tool was unavailable; Serena initial_instructions was called and project instructions were read."
       },
       "serenaInstructions": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "Serena initial_instructions called at session start."
+        "complete": true,
+        "evidence": "Serena initial_instructions called at session start."
       },
       "handoffRead": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "Read .agents/HANDOFF.md."
+        "complete": true,
+        "evidence": "Read .agents/HANDOFF.md."
       },
       "sessionLogCreated": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "This file."
+        "complete": true,
+        "evidence": "This file."
       },
       "branchVerified": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "git branch reported main before creating fix/plugin-manifest-pytest-timeout from origin/main."
+        "complete": true,
+        "evidence": "git branch reported main before creating fix/plugin-manifest-pytest-timeout from origin/main."
       },
       "notOnMain": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "Created and worked on fix/plugin-manifest-pytest-timeout."
+        "complete": true,
+        "evidence": "Created and worked on fix/plugin-manifest-pytest-timeout."
       },
       "skillScriptsListed": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "Listed .claude/skills/*/SKILL.md before committing."
+        "complete": true,
+        "evidence": "Listed .claude/skills/*/SKILL.md before committing."
       },
       "usageMandatoryRead": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "Read .serena/memories/usage-mandatory.md."
+        "complete": true,
+        "evidence": "Read .serena/memories/usage-mandatory.md."
       },
       "constraintsRead": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+        "complete": true,
+        "evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
       },
       "memoriesLoaded": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "Read .serena/memories/memory-index.md and usage-mandatory.md."
+        "complete": true,
+        "evidence": "Read .serena/memories/memory-index.md and usage-mandatory.md."
       }
     },
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "Assigned slice triaged; live fix implemented and targeted tests passed."
+        "complete": true,
+        "evidence": "Assigned slice triaged; live fix implemented and targeted tests passed."
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": ".agents/HANDOFF.md was read only and not modified."
+        "complete": true,
+        "evidence": ".agents/HANDOFF.md was read only and not modified."
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "No durable new memory was required; existing memories were read and no memory file was changed."
+        "complete": true,
+        "evidence": "No durable new memory was required; existing memories were read and no memory file was changed."
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "No markdown files were modified."
+        "complete": true,
+        "evidence": "No markdown files were modified."
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "Implementation committed in cfe5e28d36745e2758f81dab4a9e7b4b74361d5e."
+        "complete": true,
+        "evidence": "Implementation committed in cfe5e28d36745e2758f81dab4a9e7b4b74361d5e."
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "uv run python scripts/validate_session_json.py passed after setting endingCommit."
+        "complete": true,
+        "evidence": "uv run python scripts/validate_session_json.py passed after setting endingCommit."
       }
     }
   },
