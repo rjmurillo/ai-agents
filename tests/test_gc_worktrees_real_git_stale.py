@@ -473,3 +473,59 @@ def test_a_locked_stale_entry_still_reports_its_staged_work(
     assert isinstance(reason, str)
     assert "locked" in reason, reason
     assert "git checkout-index" in reason, reason
+
+
+def test_a_worktree_moved_onto_another_s_old_path_does_not_make_it_healthy(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The marker is there, and it belongs to somebody else.
+
+    Delete worktree A, move worktree B onto A's path, and A's directory holds
+    a ``.git`` file again. Checking that the marker exists calls A healthy, so
+    every probe that follows reads B's admin record and reports it as A's:
+    B's index, B's reflog, B's HEAD. A's own staged work is then invisible.
+    """
+    victim = _add_worktree_branch(git_sandbox, "feat/victim")
+    (victim / "staged.txt").write_text("only staged\n", encoding="utf-8")
+    _git(victim, "add", "staged.txt")
+    squatter = _add_worktree_branch(git_sandbox, "feat/squatter")
+
+    shutil.rmtree(victim)
+    shutil.move(str(squatter), str(victim))
+    assert (victim / ".git").is_file(), "the moved worktree brought its marker along"
+
+    report = _run_gc_json(git_sandbox, monkeypatch, capsys)
+    reason = _decision_for(report, victim)["reason"]
+    assert isinstance(reason, str)
+    assert _decision_for(report, victim)["remove"] is False
+    assert "stale admin entry" in reason, reason
+    assert "git checkout-index" in reason, "the victim's staged work must still be named"
+
+
+def test_an_admin_record_overwritten_by_a_file_is_not_an_empty_one(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``ENOTDIR`` is corruption, and corruption is not "nothing staged".
+
+    Replacing the admin directory's ``logs`` subtree with a regular file makes
+    every ``stat`` under it raise ``NotADirectoryError``. Reading that as
+    absence reports a clean, reflog-free entry for a record that has been
+    damaged, which is the state most likely to be hiding something.
+    """
+    worktree = _add_worktree_branch(git_sandbox, "feat/enotdir")
+    _write_and_commit(worktree, "work.txt", "committed\n", "work")
+    admin = git_sandbox.main / ".git" / "worktrees" / "feat-enotdir"
+    shutil.rmtree(worktree)
+    shutil.rmtree(admin / "logs")
+    (admin / "logs").write_text("not a directory\n", encoding="utf-8")
+
+    report = _run_gc_json(git_sandbox, monkeypatch, capsys)
+    decision = _decision_for(report, worktree)
+    reason = decision["reason"]
+    assert isinstance(reason, str)
+    assert decision["remove"] is False
+    assert "reflog could not be read" in reason, reason
