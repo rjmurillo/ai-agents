@@ -70,6 +70,78 @@ def test_copilot_asymmetric_powershell_fails(tmp_path: Path) -> None:
     assert any(".powershell" in v for v in violations)
 
 
+# -- Degraded-trigger asymmetry fixtures (issue #4672) ----------------------
+# Each removes one guard from the powershell form while keeping the bash form
+# intact.  The validator must catch the drift.
+
+
+def _strip_pwsh_guard(pwsh: str, marker: str) -> str:
+    """Remove one semicolon-delimited guard statement from a powershell command.
+
+    Finds the statement containing *marker* and deletes it (including the
+    trailing semicolon separator) so the command is syntactically valid but
+    structurally asymmetric with the bash form.
+    """
+    parts = pwsh.split("; ")
+    return "; ".join(p for p in parts if marker not in p)
+
+
+def test_copilot_asymmetric_root_unresolvable(tmp_path: Path) -> None:
+    """Powershell missing the root-unresolvable guard must be a violation."""
+
+    def mutate(doc: dict) -> None:
+        entry = next(iter(doc["hooks"].values()))[0]
+        entry["powershell"] = _strip_pwsh_guard(
+            entry["powershell"], "Plugin root unresolvable"
+        )
+
+    _, violations, config = gate._check_copilot(_copilot_root(tmp_path, mutate))
+    assert config == 0
+    assert any(".powershell" in v for v in violations), violations
+
+
+def test_copilot_asymmetric_interpreter_absent(tmp_path: Path) -> None:
+    """Powershell missing the interpreter-absent guard must be a violation."""
+
+    def mutate(doc: dict) -> None:
+        entry = next(iter(doc["hooks"].values()))[0]
+        entry["powershell"] = _strip_pwsh_guard(
+            entry["powershell"], "No Python interpreter found"
+        )
+
+    _, violations, config = gate._check_copilot(_copilot_root(tmp_path, mutate))
+    assert config == 0
+    assert any(".powershell" in v for v in violations), violations
+
+
+def test_copilot_asymmetric_dispatcher_missing(tmp_path: Path) -> None:
+    """Powershell missing the dispatcher-exists guard must be a violation."""
+
+    def mutate(doc: dict) -> None:
+        entry = next(iter(doc["hooks"].values()))[0]
+        entry["powershell"] = _strip_pwsh_guard(
+            entry["powershell"], "Dispatcher missing"
+        )
+
+    _, violations, config = gate._check_copilot(_copilot_root(tmp_path, mutate))
+    assert config == 0
+    assert any(".powershell" in v for v in violations), violations
+
+
+def test_copilot_asymmetric_interpreter_failed(tmp_path: Path) -> None:
+    """Powershell missing the exit 126/127 guard must be a violation."""
+
+    def mutate(doc: dict) -> None:
+        entry = next(iter(doc["hooks"].values()))[0]
+        entry["powershell"] = _strip_pwsh_guard(
+            entry["powershell"], "Python interpreter failed to start"
+        )
+
+    _, violations, config = gate._check_copilot(_copilot_root(tmp_path, mutate))
+    assert config == 0
+    assert any(".powershell" in v for v in violations), violations
+
+
 def test_copilot_direct_session_start_requires_shell_suppression(tmp_path: Path) -> None:
     def mutate(doc: dict) -> None:
         doc["hooks"]["SessionStart"] = [
