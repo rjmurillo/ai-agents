@@ -316,6 +316,49 @@ class TestTooOldPythonDegrades:
         assert "python.org/downloads" in stderr
 
 
+class TestBootstrapVersionSkew:
+    """A _bootstrap.py that predates PluginInfrastructureError must degrade."""
+
+    def test_old_bootstrap_without_symbol_allows(self, tmp_path: Path) -> None:
+        """Fifth degraded trigger: version skew between _dispatch.py and _bootstrap.py."""
+        root = tmp_path / "plugin"
+        lib = root / "lib"
+        lib.mkdir(parents=True)
+        _copy_dispatch_lib(lib)
+        event_dir = root / "hooks" / "PreToolUse"
+        event_dir.mkdir(parents=True)
+        # Write an older _bootstrap.py that lacks PluginInfrastructureError
+        (event_dir / "_bootstrap.py").write_text(
+            "from pathlib import Path\nimport sys\n\n"
+            "def ensure_plugin_paths(event_dir):\n"
+            "    root = Path(event_dir).resolve().parents[2]\n"
+            "    lib = root / 'lib'\n"
+            "    if not lib.is_dir():\n"
+            "        print('lib missing', file=sys.stderr)\n"
+            "        sys.exit(2)\n"
+            "    sys.path.insert(0, str(lib))\n",
+            encoding="utf-8",
+        )
+        gd.write_entrypoint(event_dir, "PreToolUse")
+        gd.write_manifest(event_dir, "PreToolUse", ["shim.py"], mode="gate")
+        (event_dir / "shim.py").write_text(
+            "import sys\nsys.exit(0)\n", encoding="utf-8"
+        )
+
+        proc = _run_dispatch(
+            event_dir / "_dispatch.py",
+            BASH_PAYLOAD,
+            env_override={"COPILOT_PLUGIN_ROOT": str(root)},
+        )
+        assert proc.returncode == 0, (
+            f"Expected degrade, got exit {proc.returncode}\n"
+            f"{proc.stderr.decode()}"
+        )
+        stderr = proc.stderr.decode()
+        assert "WARNING" in stderr
+        assert "hooks DISABLED" in stderr
+
+
 class TestWarningTextContent:
     """Warning messages must be specific and actionable."""
 

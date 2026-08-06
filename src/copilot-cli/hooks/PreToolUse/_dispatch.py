@@ -28,7 +28,20 @@ if sys.version_info < (3, 10):
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _bootstrap import PluginInfrastructureError, ensure_plugin_paths  # noqa: E402
+
+class _InfraError(Exception):
+    # Local fallback for PluginInfrastructureError. Avoids a hard coupling to
+    # _bootstrap.py: if that file predates the symbol (version skew from a
+    # partial upgrade), the dispatcher degrades instead of crashing (#4672).
+    pass
+
+
+try:
+    from _bootstrap import PluginInfrastructureError  # noqa: E402
+except ImportError:
+    PluginInfrastructureError = _InfraError  # noqa: E402
+
+from _bootstrap import ensure_plugin_paths  # noqa: E402
 
 # Defensive hook-payload ceiling (#3074, ADR-066, CWE-400). Long-session
 # apply_patch calls can cross a few MiB, and no measured host maximum exists.
@@ -189,7 +202,7 @@ def _main() -> int:
     mode = None
     try:
         ensure_plugin_paths()
-    except (PluginInfrastructureError, ImportError, OSError) as exc:
+    except (PluginInfrastructureError, ImportError, OSError, TypeError) as exc:
         # Infrastructure failure: the dispatch machinery could not load.
         # Allow the tool call (exit 0) to keep the plugin usable. A plugin
         # that denies every call forces uninstall, removing all protection.
