@@ -11,6 +11,8 @@ import os
 import subprocess
 import sys
 import time
+import warnings as _w
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Add the scripts directory to path for imports
@@ -34,15 +36,20 @@ def _git(args: list[str], cwd: str) -> subprocess.CompletedProcess[str]:
 
 
 def _init_repo(tmp_path: Path) -> Path:
-    """Create a bare origin and a clone as the working repo."""
+    """Create a bare origin and a clone as the working repo.
+
+    Explicitly sets the default branch to ``main`` so the fixture is
+    independent of the runner's ``init.defaultBranch`` setting.
+    """
     origin = tmp_path / "origin.git"
     origin.mkdir()
-    _git(["init", "--bare"], str(origin))
+    _git(["init", "--bare", "-b", "main"], str(origin))
     repo = tmp_path / "repo"
     _git(["clone", str(origin), str(repo)], str(tmp_path))
     _git(["config", "user.email", "t@t.com"], str(repo))
     _git(["config", "user.name", "Test"], str(repo))
-    # Create initial commit on main
+    # Create initial commit on main and push so origin/main exists
+    _git(["checkout", "-b", "main"], str(repo))
     (repo / "README.md").write_text("init\n")
     _git(["add", "README.md"], str(repo))
     _git(["commit", "-m", "initial"], str(repo))
@@ -396,7 +403,6 @@ class TestSessionLogSelectorTieBreak:
 
     def test_returns_newest_when_multiple_match(self, tmp_path: Path) -> None:
         """When two logs match the same branch, the newest by mtime wins."""
-        from datetime import UTC, datetime
 
         sessions_dir = tmp_path / "sessions"
         sessions_dir.mkdir()
@@ -419,7 +425,6 @@ class TestSessionLogSelectorTieBreak:
 
     def test_returns_none_when_no_match(self, tmp_path: Path) -> None:
         """Returns None when no log matches the branch."""
-        from datetime import UTC, datetime
 
         sessions_dir = tmp_path / "sessions"
         sessions_dir.mkdir()
@@ -444,7 +449,6 @@ class TestSessionLogSelectorTieBreak:
 
     def test_does_not_return_wrong_branch_log(self, tmp_path: Path) -> None:
         """Absent branch identity must NOT return another session's log."""
-        from datetime import UTC, datetime
 
         sessions_dir = tmp_path / "sessions"
         sessions_dir.mkdir()
@@ -465,8 +469,6 @@ class TestSessionLogSelectorTieBreak:
 
     def test_skips_unreadable_newest_log(self, tmp_path: Path, monkeypatch: object) -> None:
         """An unreadable newest candidate is skipped; older readable one wins."""
-        import warnings as w
-        from datetime import UTC, datetime
         from unittest.mock import patch
 
         sessions_dir = tmp_path / "sessions"
@@ -490,8 +492,8 @@ class TestSessionLogSelectorTieBreak:
         from git_hook_policy import _session_log_for_branch
 
         with patch.object(Path, "stat", fake_stat):
-            with w.catch_warnings(record=True) as caught:
-                w.simplefilter("always")
+            with _w.catch_warnings(record=True) as caught:
+                _w.simplefilter("always")
                 result = _session_log_for_branch(sessions_dir, "fix/test")
 
         assert result == older, "Should fall back to readable older log"
