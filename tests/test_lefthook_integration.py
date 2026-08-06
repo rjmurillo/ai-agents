@@ -2016,7 +2016,10 @@ def test_root_hygiene_allowlist_matches_current_tracked_root(
     assert policy.check_root_hygiene(sorted(root_entries), PROJECT_ROOT) == 0
 
 
-def test_root_hygiene_blocks_staged_root_scratch_file(tmp_path: Path) -> None:
+def test_root_hygiene_blocks_staged_root_scratch_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "README.md", "tracked\n")
@@ -2024,6 +2027,10 @@ def test_root_hygiene_blocks_staged_root_scratch_file(tmp_path: Path) -> None:
     _git(repo, "add", "scratch-notes.txt")
 
     assert policy.check_root_hygiene(["scratch-notes.txt"], repo) == 1
+    assert (
+        "scripts/validation/git_hook_policy.py:ALLOWED_REPO_ROOT_ENTRIES"
+        in capsys.readouterr().err
+    )
 
 
 def test_root_hygiene_allows_deleting_disallowed_root_file(tmp_path: Path) -> None:

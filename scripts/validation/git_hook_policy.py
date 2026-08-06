@@ -1667,6 +1667,11 @@ def check_root_hygiene(paths: Sequence[str], repo_root: Path) -> int:
     for path in violations:
         print(f"  {path}", file=sys.stderr)
     print(
+        "Allow legitimate entries in "
+        "scripts/validation/git_hook_policy.py:ALLOWED_REPO_ROOT_ENTRIES.",
+        file=sys.stderr,
+    )
+    print(
         "Move scratch output under .agents/scratch/, an ignored subdirectory, "
         "or a workspace outside the repository.",
         file=sys.stderr,
