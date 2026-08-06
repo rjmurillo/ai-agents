@@ -37,7 +37,6 @@ import argparse
 import datetime
 import json
 import os
-import subprocess
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -396,148 +395,10 @@ def render_outcomes(outcomes: list[ActionOutcome], *, mutate: bool) -> str:
     return "\n".join(lines)
 
 
-class CliGitHubGateway:
-    """Production gateway. Talks to issues through the gh CLI.
 
-    Reuses the gh issue surface the github skill scripts use. Reads go through
-    ``gh issue view``; mutations through ``gh issue close`` and ``gh issue edit``.
-    """
-
-    def __init__(self, owner: str, repo: str, *, timeout: float = 30.0) -> None:
-        self._repo = f"{owner}/{repo}"
-        self._timeout = timeout
-
-    def get_issue_state(self, issue: int) -> IssueState | None:
-        result = self._run(
-            ["gh", "issue", "view", str(issue), "--repo", self._repo,
-             "--json", "number,state,labels"],
-        )
-        if result is None or result.returncode != 0:
-            return None
-        try:
-            data = json.loads(result.stdout)
-        except (json.JSONDecodeError, ValueError):
-            return None
-        raw_labels = data.get("labels")
-        labels_list = raw_labels if isinstance(raw_labels, list) else []
-        labels = frozenset(
-            str(label.get("name") or "")
-            for label in labels_list
-            if isinstance(label, dict)
-        )
-        raw_number = data.get("number")
-        number = int(raw_number) if raw_number is not None else issue
-        raw_state = data.get("state")
-        state = str(raw_state) if raw_state is not None else ""
-        return IssueState(
-            number=number,
-            state=state,
-            labels=labels,
-        )
-
-    def close_issue(self, issue: int) -> bool:
-        result = self._run(
-            ["gh", "issue", "close", str(issue), "--repo", self._repo],
-        )
-        return result is not None and result.returncode == 0
-
-    def add_labels(self, issue: int, labels: Sequence[str]) -> bool:
-        command = ["gh", "issue", "edit", str(issue), "--repo", self._repo]
-        for label in labels:
-            command.extend(["--add-label", label])
-        result = self._run(command)
-        return result is not None and result.returncode == 0
-
-    def commit_exists(self, sha: str) -> bool:
-        result = self._run(["gh", "api", f"repos/{self._repo}/commits/{sha}"])
-        return result is not None and result.returncode == 0
-
-    def pr_is_merged(self, pr: int) -> bool:
-        result = self._run(
-            ["gh", "pr", "view", str(pr), "--repo", self._repo,
-             "--json", "state"],
-        )
-        if result is None or result.returncode != 0:
-            return False
-        try:
-            data = json.loads(result.stdout)
-        except (json.JSONDecodeError, ValueError):
-            return False
-        if not isinstance(data, dict):
-            return False
-        raw_state = data.get("state")
-        state = "" if raw_state is None else str(raw_state)
-        return state.upper() == "MERGED"
-
-    def get_issue_comments(self, issue: int) -> list[IssueComment] | None:
-        result = self._run(
-            ["gh", "api", f"repos/{self._repo}/issues/{issue}/comments?per_page=100"],
-        )
-        if result is None or result.returncode != 0:
-            return None
-        try:
-            raw = json.loads(result.stdout)
-        except (json.JSONDecodeError, ValueError):
-            return None
-        if not isinstance(raw, list):
-            return None
-        comments: list[IssueComment] = []
-        for item in raw:
-            if not isinstance(item, dict):
-                continue
-            user = item.get("user") or {}
-            created = item.get("created_at", "")
-            if not created:
-                continue
-            try:
-                ts = datetime.datetime.fromisoformat(created.replace("Z", "+00:00"))
-            except (ValueError, AttributeError):
-                continue
-            comments.append(IssueComment(
-                author=user.get("login", ""),
-                author_type=user.get("type", ""),
-                created_at=ts,
-                url=item.get("html_url", ""),
-                body=item.get("body", ""),
-            ))
-        return comments
-
-    def get_pr_merge_time(self, pr: int) -> datetime.datetime | None:
-        result = self._run(
-            ["gh", "pr", "view", str(pr), "--repo", self._repo,
-             "--json", "mergedAt"],
-        )
-        if result is None or result.returncode != 0:
-            return None
-        try:
-            data = json.loads(result.stdout)
-        except (json.JSONDecodeError, ValueError):
-            return None
-        if not isinstance(data, dict):
-            return None
-        merged_at = data.get("mergedAt", "")
-        if not merged_at:
-            return None
-        try:
-            return datetime.datetime.fromisoformat(
-                str(merged_at).replace("Z", "+00:00"),
-            )
-        except (ValueError, AttributeError):
-            return None
-
-    def _run(self, command: list[str]) -> subprocess.CompletedProcess[str] | None:
-        try:
-            return subprocess.run(
-                command,
-                capture_output=True,
-                encoding="utf-8",
-                errors="replace",
-                env=dict(os.environ, LC_ALL="C"),
-                check=False,
-                timeout=self._timeout,
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            return None
+# Concrete gateway implementations live in scripts/triage_gateway.py to keep
+# this file under the 500-line limit. Imported at call time in main() to avoid
+# a circular import (the gateway module imports IssueState from this module).
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -598,13 +459,16 @@ def main(argv: list[str] | None = None, *, gateway: GitHubGateway | None = None)
         )
         return 2
     if gateway is None:
-        # A configured repo lets dry-run read real state for an accurate preview
-        # (would-close vs already-closed). Without one, fall back to an offline
-        # gateway that plans against unknown state and refuses every mutation.
+        # Late import to avoid circular dependency: triage_gateway imports
+        # IssueState from this module.
+        from scripts.triage_gateway import CliGitHubGateway, OfflineGateway
+
+        # A configured repo lets dry-run read real state for an accurate
+        # preview. Without one, fall back to the offline gateway.
         gateway = (
             CliGitHubGateway(args.owner, args.repo)
             if args.owner and args.repo
-            else _OfflineGateway()
+            else OfflineGateway()
         )
 
     outcomes = run_batch(actions, gateway, mutate=mutate)
@@ -621,38 +485,6 @@ def main(argv: list[str] | None = None, *, gateway: GitHubGateway | None = None)
         print(f"{failed} action(s) failed against the GitHub API", file=sys.stderr)
         return 3
     return 0
-
-
-class _OfflineGateway:
-    """Fallback gateway when no repository is configured.
-
-    Used only for an offline dry-run with no --owner/--repo. It returns ``None``
-    for state so close/relabel actions plan against an unknown issue, the safe
-    default for a preview that must not touch the API, and refuses every
-    mutation. ``main`` never selects this gateway when mutation is authorized,
-    because that path requires owner and repo.
-    """
-
-    def get_issue_state(self, issue: int) -> IssueState | None:
-        return None
-
-    def close_issue(self, issue: int) -> bool:  # pragma: no cover - never called offline
-        raise RuntimeError("offline gateway must not mutate")
-
-    def add_labels(self, issue: int, labels: Sequence[str]) -> bool:  # pragma: no cover
-        raise RuntimeError("offline gateway must not mutate")
-
-    def commit_exists(self, sha: str) -> bool:  # pragma: no cover - state is None first
-        return False
-
-    def pr_is_merged(self, pr: int) -> bool:  # pragma: no cover - state is None first
-        return False
-
-    def get_issue_comments(self, issue: int) -> list[IssueComment] | None:  # pragma: no cover
-        return None
-
-    def get_pr_merge_time(self, pr: int) -> datetime.datetime | None:  # pragma: no cover
-        return None
 
 
 if __name__ == "__main__":

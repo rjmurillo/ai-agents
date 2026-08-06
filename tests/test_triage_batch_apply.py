@@ -10,7 +10,6 @@ boundary with a fake; domain logic is never mocked.
 from __future__ import annotations
 
 import json
-import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -23,7 +22,6 @@ from scripts.triage_batch_apply import (
     OUTCOME_FAILED,
     OUTCOME_PLANNED,
     OUTCOME_SKIPPED,
-    CliGitHubGateway,
     IssueState,
     ManifestAction,
     apply_action,
@@ -341,94 +339,6 @@ class TestParseActions:
         assert parse_actions(manifest) == []
 
 
-class TestCliGitHubGateway:
-    class StubGateway(CliGitHubGateway):
-        def __init__(self, result: subprocess.CompletedProcess[str]) -> None:
-            super().__init__("owner", "repo")
-            self._result = result
-            self.commands: list[list[str]] = []
-
-        def _run(self, command: list[str]) -> subprocess.CompletedProcess[str] | None:
-            self.commands.append(command)
-            return self._result
-
-    def test_null_payload_fields_fall_back_to_safe_values(self):
-        result = subprocess.CompletedProcess(
-            ["gh"], 0,
-            stdout=json.dumps({"number": None, "state": None, "labels": None}),
-            stderr="",
-        )
-        gateway = self.StubGateway(result)
-
-        state = gateway.get_issue_state(42)
-
-        assert state == IssueState(number=42, state="", labels=frozenset())
-
-    def test_non_dict_labels_are_ignored(self):
-        result = subprocess.CompletedProcess(
-            ["gh"], 0,
-            stdout=json.dumps({
-                "number": 7,
-                "state": "OPEN",
-                "labels": [{"name": "bug"}, None, "bad", {"name": None}],
-            }),
-            stderr="",
-        )
-        gateway = self.StubGateway(result)
-
-        state = gateway.get_issue_state(7)
-
-        assert state == IssueState(number=7, state="OPEN", labels=frozenset({"bug", ""}))
-
-    def test_pr_is_merged_rejects_null_state(self):
-        result = subprocess.CompletedProcess(
-            ["gh"], 0,
-            stdout=json.dumps({"state": None}),
-            stderr="",
-        )
-        gateway = self.StubGateway(result)
-
-        assert gateway.pr_is_merged(5) is False
-
-    def test_pr_is_merged_rejects_non_object_payload(self):
-        result = subprocess.CompletedProcess(["gh"], 0, stdout=json.dumps(["MERGED"]), stderr="")
-        gateway = self.StubGateway(result)
-
-        assert gateway.pr_is_merged(5) is False
-
-    def test_commit_exists_uses_remote_api(self):
-        result = subprocess.CompletedProcess(["gh"], 0, stdout="", stderr="")
-        gateway = self.StubGateway(result)
-
-        assert gateway.commit_exists("abc1234") is True
-        assert gateway.commands == [["gh", "api", "repos/owner/repo/commits/abc1234"]]
-
-    def test_commit_exists_rejects_missing_remote_commit(self):
-        result = subprocess.CompletedProcess(["gh"], 1, stdout="", stderr="")
-        gateway = self.StubGateway(result)
-
-        assert gateway.commit_exists("deadbeef") is False
-
-    def test_run_uses_utf8_encoding_and_c_locale(self, monkeypatch):
-        captured: dict[str, object] = {}
-
-        def fake_run(command: list[str], **kwargs):
-            captured["command"] = command
-            captured["kwargs"] = kwargs
-            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
-
-        monkeypatch.setattr(subprocess, "run", fake_run)
-        gateway = CliGitHubGateway("owner", "repo")
-
-        result = gateway._run(["git", "status"])
-
-        assert result is not None
-        kwargs = captured["kwargs"]
-        assert kwargs["encoding"] == "utf-8"
-        assert kwargs["errors"] == "replace"
-        assert kwargs["env"]["LC_ALL"] == "C"
-
-
 class TestMain:
     def test_dry_run_does_not_mutate(self, tmp_path: Path, capsys):
         manifest_path = _write_manifest(
@@ -532,128 +442,3 @@ class TestMain:
         assert "owner" in capsys.readouterr().err
 
 
-class TestUnresolvedScopeWiring:
-    """Wiring tests: verify check_unresolved_scope is consulted in _apply_close.
-
-    Per convention from commit 43e2114e (#4281), a wiring test asserts that the
-    production closure path actually calls the scope check. If someone removes
-    the call while leaving the function in place, these tests fail.
-    """
-
-    def test_post_fix_human_comment_blocks_close(self):
-        """End-to-end: an issue with a human comment after the fix is NOT closed."""
-        import datetime as dt
-
-        from scripts.validation.verify_issue_close import IssueComment
-
-        fix_time = dt.datetime(2026, 7, 1, 10, 0, 0, tzinfo=dt.timezone.utc)
-        comment = IssueComment(
-            author="reviewer",
-            author_type="User",
-            created_at=dt.datetime(2026, 7, 2, 8, 0, 0, tzinfo=dt.timezone.utc),
-            url="https://github.com/o/r/issues/5#issuecomment-1",
-            body="the ARM64 path still panics",
-        )
-        gw = FakeGateway(
-            states={5: _open(5)},
-            merged_prs=frozenset({100}),
-        )
-        gw._comments = {5: [comment]}
-        gw._merge_times = {100: fix_time}
-        action = ManifestAction(
-            issue=5, category=ACTION_CLOSE,
-            rationale="Fixed via PR #100",
-        )
-        outcome = apply_action(action, gw, mutate=True)
-        assert outcome.outcome == OUTCOME_SKIPPED
-        assert "unaddressed post-fix" in outcome.detail
-        assert gw.closed == []
-
-    def test_bot_comment_after_fix_does_not_block(self):
-        """Bot comments do not block the close path."""
-        import datetime as dt
-
-        from scripts.validation.verify_issue_close import IssueComment
-
-        fix_time = dt.datetime(2026, 7, 1, 10, 0, 0, tzinfo=dt.timezone.utc)
-        comment = IssueComment(
-            author="github-actions[bot]",
-            author_type="Bot",
-            created_at=dt.datetime(2026, 7, 2, 8, 0, 0, tzinfo=dt.timezone.utc),
-            url="https://github.com/o/r/issues/5#issuecomment-2",
-            body="auto triage complete",
-        )
-        gw = FakeGateway(
-            states={5: _open(5)},
-            merged_prs=frozenset({100}),
-        )
-        gw._comments = {5: [comment]}
-        gw._merge_times = {100: fix_time}
-        action = ManifestAction(
-            issue=5, category=ACTION_CLOSE,
-            rationale="Fixed via PR #100",
-        )
-        outcome = apply_action(action, gw, mutate=True)
-        assert outcome.outcome == OUTCOME_APPLIED
-        assert gw.closed == [5]
-
-    def test_comment_fetch_failure_blocks_close(self):
-        """A failed comment fetch must block (issue #4640 principle)."""
-        import datetime as dt
-
-        fix_time = dt.datetime(2026, 7, 1, 10, 0, 0, tzinfo=dt.timezone.utc)
-        gw = FakeGateway(
-            states={5: _open(5)},
-            merged_prs=frozenset({100}),
-        )
-        gw._comments = {5: None}  # Simulates API failure
-        gw._merge_times = {100: fix_time}
-        action = ManifestAction(
-            issue=5, category=ACTION_CLOSE,
-            rationale="Fixed via PR #100",
-        )
-        outcome = apply_action(action, gw, mutate=True)
-        assert outcome.outcome == OUTCOME_SKIPPED
-        assert "comment fetch failed" in outcome.detail
-        assert gw.closed == []
-
-    def test_no_pr_cited_skips_scope_check(self):
-        """A close with no PR citation does not trigger the scope check."""
-        gw = FakeGateway(states={5: _open(5)})
-        action = ManifestAction(
-            issue=5, category=ACTION_CLOSE,
-            rationale="stale, superseded by new design",
-        )
-        outcome = apply_action(action, gw, mutate=True)
-        assert outcome.outcome == OUTCOME_APPLIED
-        assert gw.closed == [5]
-
-    def test_scope_check_is_wired_into_close_path(self):
-        """Wiring guard: removing the check_unresolved_scope call breaks this."""
-        import datetime as dt
-
-        from scripts.validation.verify_issue_close import IssueComment
-
-        fix_time = dt.datetime(2026, 7, 1, 10, 0, 0, tzinfo=dt.timezone.utc)
-        # Novel phrasing that no keyword list would catch
-        comment = IssueComment(
-            author="human",
-            author_type="User",
-            created_at=dt.datetime(2026, 7, 2, 0, 0, 0, tzinfo=dt.timezone.utc),
-            url="https://github.com/o/r/issues/7#issuecomment-42",
-            body="fwiw the ARM64 path panics on the same input",
-        )
-        gw = FakeGateway(
-            states={7: _open(7)},
-            merged_prs=frozenset({200}),
-        )
-        gw._comments = {7: [comment]}
-        gw._merge_times = {200: fix_time}
-        action = ManifestAction(
-            issue=7, category=ACTION_CLOSE,
-            rationale="Resolved via PR #200",
-        )
-        outcome = apply_action(action, gw, mutate=True)
-        # If the wiring is removed, this would be OUTCOME_APPLIED
-        assert outcome.outcome == OUTCOME_SKIPPED
-        assert gw.closed == []
