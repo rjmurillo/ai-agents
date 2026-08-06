@@ -170,10 +170,10 @@ class TestReflogProbeUnknowns:
             "scripts.maintenance._gc_stale._regular_file",
             return_value=None,
         ):
-            assert _gc_stale.unreachable_reflog_commits(tmp_path, "/repo", 5.0) is None
+            assert _gc_stale.unreachable_admin_commits(tmp_path, "/repo", 5.0) is None
 
     def test_an_absent_reflog_holds_nothing(self, tmp_path):
-        assert _gc_stale.unreachable_reflog_commits(tmp_path, "/repo", 5.0) == []
+        assert _gc_stale.unreachable_admin_commits(tmp_path, "/repo", 5.0) == []
 
 
 class TestStagedContentProbe:
@@ -309,7 +309,7 @@ class TestAdminDirLookup:
 
 
 class TestReflogProbe:
-    """``unreachable_reflog_commits`` answers with a list, or admits it cannot."""
+    """``unreachable_admin_commits`` answers with a list, or admits it cannot."""
 
     @staticmethod
     def _probe(tmp_path, lines: str, existing: str, unreachable: str):
@@ -321,11 +321,11 @@ class TestReflogProbe:
             SimpleNamespace(returncode=0, stdout=unreachable),
         ]
         with patch("scripts.maintenance._gc_stale.subprocess.run", side_effect=outputs):
-            return _gc_stale.unreachable_reflog_commits(admin, "/repo", 5.0)
+            return _gc_stale.unreachable_admin_commits(admin, "/repo", 5.0)
 
     def test_a_missing_reflog_is_no_risk(self, tmp_path):
         (tmp_path / "wt").mkdir()
-        assert _gc_stale.unreachable_reflog_commits(tmp_path / "wt", "/repo", 5.0) == []
+        assert _gc_stale.unreachable_admin_commits(tmp_path / "wt", "/repo", 5.0) == []
 
     def test_the_null_oid_is_never_treated_as_a_commit(self, tmp_path):
         null, new = "0" * 40, "c" * 40
@@ -363,7 +363,7 @@ class TestReflogProbe:
             "scripts.maintenance._gc_stale.subprocess.run",
             return_value=SimpleNamespace(returncode=128, stdout=""),
         ):
-            assert _gc_stale.unreachable_reflog_commits(admin, "/repo", 5.0) is None
+            assert _gc_stale.unreachable_admin_commits(admin, "/repo", 5.0) is None
 
     def test_a_timeout_is_unknown_not_safe(self, tmp_path):
         admin = tmp_path / "wt"
@@ -373,12 +373,62 @@ class TestReflogProbe:
             "scripts.maintenance._gc_stale.subprocess.run",
             side_effect=subprocess.TimeoutExpired("git", 5.0),
         ):
-            assert _gc_stale.unreachable_reflog_commits(admin, "/repo", 5.0) is None
+            assert _gc_stale.unreachable_admin_commits(admin, "/repo", 5.0) is None
 
     def test_a_reflog_of_only_null_oids_costs_no_subprocess(self, tmp_path):
         admin = tmp_path / "wt"
         (admin / "logs").mkdir(parents=True)
         (admin / "logs" / "HEAD").write_text(f"{'0' * 40} {'0' * 40} x\n", encoding="utf-8")
         with patch("scripts.maintenance._gc_stale.subprocess.run") as run:
-            assert _gc_stale.unreachable_reflog_commits(admin, "/repo", 5.0) == []
+            assert _gc_stale.unreachable_admin_commits(admin, "/repo", 5.0) == []
         run.assert_not_called()
+
+
+class TestWorktreeLocalRefProbe:
+    """``refs/`` under the admin directory is an anchor no main-repo query sees."""
+
+    @staticmethod
+    def _admin(tmp_path, name: str | None = None, content: str = "") -> Path:
+        admin = tmp_path / "wt"
+        (admin / "logs").mkdir(parents=True, exist_ok=True)
+        (admin / "logs" / "HEAD").write_text("", encoding="utf-8")
+        if name is not None:
+            ref = admin / "refs" / name
+            ref.parent.mkdir(parents=True, exist_ok=True)
+            ref.write_text(content, encoding="utf-8")
+        return admin
+
+    def test_no_refs_directory_is_no_risk(self, tmp_path):
+        assert _gc_stale._worktree_ref_oids(self._admin(tmp_path)) == []
+
+    def test_a_ref_file_contributes_its_object_id(self, tmp_path):
+        oid = "d" * 40
+        admin = self._admin(tmp_path, "worktree/mywork", f"{oid}\n")
+        assert _gc_stale._worktree_ref_oids(admin) == [oid]
+
+    def test_a_symbolic_ref_anchors_nothing_on_its_own(self, tmp_path):
+        admin = self._admin(tmp_path, "worktree/alias", "ref: refs/heads/main\n")
+        assert _gc_stale._worktree_ref_oids(admin) == []
+
+    def test_the_null_oid_is_not_a_commit(self, tmp_path):
+        admin = self._admin(tmp_path, "bisect/bad", f"{'0' * 40}\n")
+        assert _gc_stale._worktree_ref_oids(admin) == []
+
+    def test_a_ref_file_that_does_not_parse_answers_unknown(self, tmp_path):
+        admin = self._admin(tmp_path, "worktree/broken", "not an object id\n")
+        assert _gc_stale._worktree_ref_oids(admin) is None
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores the mode bits")
+    def test_an_unreadable_ref_answers_unknown_rather_than_no_risk(self, tmp_path):
+        """A real chmod, not a patched read: the failure has to come from the OS."""
+        admin = self._admin(tmp_path, "worktree/mywork", f"{'e' * 40}\n")
+        ref = admin / "refs" / "worktree" / "mywork"
+        ref.chmod(0o000)
+        try:
+            assert _gc_stale._worktree_ref_oids(admin) is None
+        finally:
+            ref.chmod(0o644)
+
+    def test_an_unknown_ref_makes_the_whole_answer_unknown(self, tmp_path):
+        admin = self._admin(tmp_path, "worktree/broken", "not an object id\n")
+        assert _gc_stale.unreachable_admin_commits(admin, "/repo", 5.0) is None

@@ -103,7 +103,7 @@ class TestReflogWarning:
     @staticmethod
     def _reason(orphans, staged: str = "clean") -> str:
         with patch(
-            f"{MODULE}._gc_reasons._gc_stale.unreachable_reflog_commits", return_value=orphans
+            f"{MODULE}._gc_reasons._gc_stale.unreachable_admin_commits", return_value=orphans
         ):
             return decide_stale(stale_worktree(), staged=staged).reason
 

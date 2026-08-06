@@ -146,7 +146,7 @@ def _staged_warning(admin: Path, head: str | None, main_path: str) -> str:
 
 def _reflog_warning(admin: Path, main_path: str) -> str:
     """Which commits the admin reflog alone anchors, or why that is unknown."""
-    orphans = _gc_stale.unreachable_reflog_commits(admin, main_path, _GIT_TIMEOUT_SECONDS)
+    orphans = _gc_stale.unreachable_admin_commits(admin, main_path, _GIT_TIMEOUT_SECONDS)
     if orphans is None:
         return "its reflog could not be read, so abandoned commits cannot be ruled out"
     if not orphans:

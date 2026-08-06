@@ -181,15 +181,23 @@ def _nothing_at(path: Path) -> bool:
     return False
 
 
-def unreachable_reflog_commits(admin: Path, repo_dir: str, timeout: float) -> list[str] | None:
-    """Which commits does this worktree's reflog alone still anchor?
+def unreachable_admin_commits(admin: Path, repo_dir: str, timeout: float) -> list[str] | None:
+    """Which commits does this worktree's admin directory alone still anchor?
 
-    ``HEAD`` is per worktree, and so is its reflog. A detached worktree that
-    commits and then checks out something else leaves that commit anchored by
-    ``logs/HEAD`` and nothing under ``refs/``. Deleting the admin directory
-    deletes the reflog with it, and the commit becomes collectable. Verified
-    against real git: ``for-each-ref --contains`` reports no ref, and after the
-    entry goes the commit shows up under ``fsck --unreachable``.
+    Two anchors live in there and both die with the directory. The first is the
+    reflog: ``HEAD`` is per worktree and so is ``logs/HEAD``, so a worktree that
+    commits and then checks something else out leaves that commit named by the
+    reflog and by nothing under the repository's ``refs/``. The second is the
+    worktree's own refs. ``refs/worktree/``, ``refs/bisect/``, and
+    ``refs/rewritten/`` are per-worktree namespaces stored under the admin
+    directory, so ``rev-list --not --all`` in the main repository cannot see
+    them and neither can ``for-each-ref``.
+
+    Verified against real git 2.43.0 on both: a commit held only by
+    ``refs/worktree/`` survives ``git worktree remove`` as an unreachable object
+    and is gone after ``git gc --prune=now``, and the reflog case reports no
+    containing ref before removal and shows up under ``fsck --unreachable``
+    after it.
 
     ``None`` means the question could not be answered, which callers disclose
     rather than read as "nothing to lose". An empty list means nothing here is
@@ -198,6 +206,10 @@ def unreachable_reflog_commits(admin: Path, repo_dir: str, timeout: float) -> li
     candidates = _reflog_oids(admin)
     if candidates is None:
         return None
+    local_refs = _worktree_ref_oids(admin)
+    if local_refs is None:
+        return None
+    candidates = list(dict.fromkeys(candidates + local_refs))
     if not candidates:
         return []
     known = _existing_objects(candidates, repo_dir, timeout)
@@ -245,6 +257,42 @@ def _reflog_oids(admin: Path) -> list[str] | None:
             seen[field] = None
     if text.strip() and not understood:
         return None
+    return list(seen)
+
+
+def _worktree_ref_oids(admin: Path) -> list[str] | None:
+    """Every object id named by a ref stored under this worktree's admin dir.
+
+    ``git worktree remove`` deletes the admin directory, and these refs go with
+    it. Nothing in the main repository names them, so the ordinary reachability
+    question answers "reachable" for a commit only one of them holds.
+
+    A symbolic ref names another ref rather than an object, so it anchors
+    nothing on its own and contributes no candidate. A ref file that holds text
+    this cannot parse answers "unknown", the same way the reflog reader does:
+    reading an unparsed anchor as empty is the silent all-clear this probe
+    exists to prevent.
+    """
+    root = admin / "refs"
+    try:
+        if not root.is_dir():
+            return []
+        entries = [entry for entry in root.rglob("*") if entry.is_file()]
+    except OSError:
+        return None
+    seen: dict[str, None] = {}
+    for entry in entries:
+        try:
+            text = entry.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            return None
+        if not text or text.startswith("ref:"):
+            continue
+        field = text.split()[0]
+        if not _OID.fullmatch(field):
+            return None
+        if not _NULL_OID.fullmatch(field):
+            seen[field] = None
     return list(seen)
 
 
