@@ -19,6 +19,7 @@ PR is ever required to be current before merging, and there is nothing to make
 it current automatically:
 
 ```
+# Historical measurement before the 2026-08-05 ruleset change:
 gh api repos/rjmurillo/ai-agents/rules/branches/main
   -> "strict_required_status_checks_policy": false
 grep -rln merge_group .github/workflows/

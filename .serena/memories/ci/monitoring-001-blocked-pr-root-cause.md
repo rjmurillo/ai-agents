@@ -72,9 +72,8 @@ The principle above holds. Three of its specifics no longer match the repo:
    **Current measurement, 2026-08-05.** The ruleset sets that policy to `true`.
    Being behind main blocks the merge. Updating the branch clears that
    freshness blocker, but other gates may remain. Measured across the 56 open
-   PRs that day: 41
-   BEHIND, 13 DIRTY, 1 BLOCKED, 0 CLEAN. Those sum to 55, so one PR held a
-   state I did not record.
+   PRs that day: 41 BEHIND, 13 DIRTY, 1 BLOCKED, 0 CLEAN. Those sum to 55. I
+   did not record one PR's state.
 2. "Awaiting review" is rarely the answer. `required_approving_review_count`
    is 0. What does block is `required_review_thread_resolution: true`, so an
    unresolved thread, not a missing approval.

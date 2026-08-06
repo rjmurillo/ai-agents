@@ -9,8 +9,8 @@ not holding anything.
 
 A repo-wide GraphQL query for `mergeStateStatus` across every open PR can come
 back almost entirely `UNKNOWN`. Measured 2026-08-05: 53 of 55 open PRs returned
-`UNKNOWN` in one call, minutes after a per-PR REST read had returned a definite
-`blocked` for one of them.
+`UNKNOWN` in one call, minutes after a per-PR REST read had returned
+`mergeable_state: blocked` for one of them.
 
 The tempting inference is that bulk queries serve stale or lazily-computed data
 and that only per-PR access forces GitHub to compute the real value. That is
