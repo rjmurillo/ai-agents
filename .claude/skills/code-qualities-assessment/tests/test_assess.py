@@ -508,6 +508,45 @@ def test_changed_only_respects_target_directory(
     ]
 
 
+def test_regression_mode_passes_when_target_has_no_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / "src").mkdir()
+    _commit(tmp_path, "src/unchanged.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    (tmp_path / "other").mkdir()
+    _commit(tmp_path, "other/changed.py", _FOCUSED, "other change")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--target", "src", *_regression_argv()[2:]]) == 0
+    assert json.loads(capsys.readouterr().out)["summary"]["file_count"] == 0
+
+
+def test_changed_only_resolves_glob_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = _write(tmp_path, "first.py", _FOCUSED)
+    second = _write(tmp_path, "second.py", _FOCUSED)
+    monkeypatch.chdir(tmp_path)
+    changes = [
+        ChangedFile("M", Path("first.py"), Path("first.py")),
+        ChangedFile("M", Path("second.py"), Path("second.py")),
+    ]
+    with patch.object(
+        _mod,
+        "_glob_target_matches",
+        return_value={first.resolve(), second.resolve()},
+    ) as resolve_glob:
+        files = get_files_to_assess("*.py", True, changed_files=changes)
+
+    assert files == [Path("first.py"), Path("second.py")]
+    resolve_glob.assert_called_once_with("*.py")
+
+
 def test_changed_only_rejects_option_like_base() -> None:
     """CWE-88: an option-like --base is rejected before git runs."""
     with pytest.raises(ValueError):

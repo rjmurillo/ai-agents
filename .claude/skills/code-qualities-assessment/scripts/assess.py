@@ -541,11 +541,15 @@ def get_files_to_assess(
 
     if changed_only:
         changes = changed_files if changed_files is not None else get_changed_files(base)
+        target_path = Path(target)
+        glob_matches = None
+        if not target_path.is_file() and not target_path.is_dir():
+            glob_matches = _glob_target_matches(target)
         files = [
             change.head_path
             for change in changes
             if change.head_path is not None
-            and _target_contains(change.head_path, target)
+            and _target_contains(change.head_path, target, glob_matches)
         ]
     else:
         target_path = Path(target)
@@ -577,10 +581,22 @@ def _resolve_in_workspace(path: Path, label: str) -> Path:
     return resolved
 
 
-def _target_contains(file_path: Path, target: str) -> bool:
-    """Return whether *file_path* belongs to the requested target scope."""
+def _glob_target_matches(target: str) -> set[Path]:
+    """Resolve one glob target into a reusable candidate set."""
     from glob import glob
 
+    return {
+        _resolve_in_workspace(Path(match), "assessment candidate")
+        for match in glob(target, recursive=True)
+    }
+
+
+def _target_contains(
+    file_path: Path,
+    target: str,
+    glob_matches: set[Path] | None = None,
+) -> bool:
+    """Return whether *file_path* belongs to the requested target scope."""
     resolved_file = _resolve_in_workspace(file_path, "assessment candidate")
     target_path = Path(target)
     if target_path.is_file():
@@ -592,10 +608,7 @@ def _target_contains(file_path: Path, target: str) -> bool:
             return True
         except ValueError:
             return False
-    matches = {
-        _resolve_in_workspace(Path(match), "assessment candidate")
-        for match in glob(target, recursive=True)
-    }
+    matches = glob_matches if glob_matches is not None else _glob_target_matches(target)
     return resolved_file in matches
 
 
@@ -1589,11 +1602,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if not files:
-        if (
-            gate_mode == "regression"
-            and changed_files
-            and all(change.head_path is None for change in changed_files)
-        ):
+        if gate_mode == "regression" and changed_files is not None:
             report = _render_report(args.format, [], [], config, gate_mode)
             _write_report(report, args.output)
             return 0
