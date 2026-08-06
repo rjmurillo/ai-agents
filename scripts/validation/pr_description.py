@@ -67,6 +67,8 @@ _EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
 # the greedy body group (`tsconfig.spec.json` -> `tsconfig.spec.json`).
 _EXT_BOUNDARY = r"(?![A-Za-z0-9_/\\]|\.[A-Za-z0-9_])"
 
+_LINE_SUFFIX = r"(?::\d+(?::\d+)?)?"
+
 # Default label name that bypasses CRITICAL description-validation failures.
 # Mirrors the existing 'commit-limit-bypass' pattern in pr-validation.yml.
 DEFAULT_BYPASS_LABEL = "description-validation-bypass"
@@ -155,15 +157,16 @@ _REFERENCE_SECTION_PREFIXES: tuple[str, ...] = (
 # Every pattern appends `_EXT_BOUNDARY` after the captured extension so the
 # match cannot terminate inside a longer real extension (issue #1874).
 FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(rf"`([^`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}`"),  # inline code
-    re.compile(rf"\*\*([^*]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\*\*"),  # bold
+    re.compile(rf"`([^`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}{_LINE_SUFFIX}`"),  # inline code
+    re.compile(rf"\*\*([^*]+\.({_EXT_GROUP})){_EXT_BOUNDARY}{_LINE_SUFFIX}\*\*"),  # bold
     re.compile(
         rf"^\s*[-*+]\s+`?([^\s`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}`?",
         re.MULTILINE,
     ),  # list items (optionally backtick-wrapped)
-    re.compile(rf"\[([^\]]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\]"),  # markdown links
+    re.compile(rf"\[([^\]]+\.({_EXT_GROUP})){_EXT_BOUNDARY}{_LINE_SUFFIX}\]"),  # markdown links
     re.compile(
-        rf"\]\(((?!(?:https?:|ftp:|//|www\.))[^)]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\)",
+        rf"\]\(((?!(?:https?:|ftp:|//|www\.))[^)]+\.({_EXT_GROUP}))"
+        rf"{_EXT_BOUNDARY}{_LINE_SUFFIX}\)",
         re.IGNORECASE,
     ),  # markdown link targets [label](path.ext) (issue #2113)
 ]
