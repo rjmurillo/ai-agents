@@ -97,6 +97,7 @@
 | Partial pages emitted success | Warning promotion and connection validation | Completeness is data, not an assumption. |
 | Path prefix check allowed escape | `Path.resolve().relative_to()` | Lexical prefixes are not containment. |
 | First final push failed | Retrospective gate exposed missing evidence | Run push-policy prerequisites before the first final push. |
+| Shallow CI lacked a historical test SHA | Replaced the duplicate history-dependent test with synthetic rename coverage | Regression tests must create their own Git history. |
 
 ## Phase 3: Decisions
 

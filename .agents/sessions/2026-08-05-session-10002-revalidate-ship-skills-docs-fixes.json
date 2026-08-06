@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation, latest-main validation, and session evidence committed through 95413a9b7."
+        "Evidence": "All implementation, CI remediation, and validation changes committed through e8a7e522e."
       },
       "validationPassed": {
         "level": "MUST",
@@ -137,7 +137,7 @@
     },
     {
       "task": "Run validation",
-      "result": "Post-merge focused suite passed 440 tests. Final full relevant suite passed 23,734 tests with 33 skipped. Ruff, mypy, generators, drift, install parity, portability, plugin version, live GraphQL probes, 21 killing mutations, five surviving controls, and pre_pr 46 of 46 passed."
+      "result": "Final full relevant suite passed 23,757 tests with 33 skipped. Ruff, mypy, generators, drift, install parity, portability, plugin version, live GraphQL probes, 40 killing mutations, five surviving controls, and pre_pr 46 of 46 passed."
     },
     {
       "task": "Complete independent artifact review",
@@ -150,9 +150,13 @@
     {
       "task": "Run retrospective",
       "result": "Captured root cause, boundary matrix actions, atomic learnings, and push-gate evidence in .agents/retrospective/2026-08-06-skills-docs-p2.md."
+    },
+    {
+      "task": "Repair CI-only failure",
+      "result": "Removed a duplicate historical-SHA rename test that failed in shallow CI, retained synthetic rename coverage, and updated the guard corpus after the author lookup moved to GraphQL."
     }
   ],
-  "endingCommit": "95413a9b7",
+  "endingCommit": "e8a7e522e",
   "nextSteps": [
     "Ship the focused #4381 trigger-axis documentation patch.",
     "Issue #4498 remains open for correction-queue worktree ref safety.",

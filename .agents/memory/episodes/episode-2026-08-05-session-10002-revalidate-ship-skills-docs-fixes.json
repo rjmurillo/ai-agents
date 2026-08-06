@@ -88,7 +88,9 @@
         "e008",
         "e010",
         "e012",
-        "e014"
+        "e014",
+        "e016",
+        "e017"
       ],
       "leads_to": [
         "e009"
@@ -186,6 +188,41 @@
       "caused_by": [
         "e013"
       ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "test",
+      "content": "Run validation       Final full relevant suite passed 23,757 tests with 33 skipped. Ruff, mypy, generators, drift, install parity, portability, plugin version, live GraphQL probes, 40 killing mutations, five surviving controls, and pre_pr 46 of 46 passed.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repair CI-only failure",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-06T04:38:16+00:00",
+      "type": "commit",
+      "content": "Commit: e8a7e522e",
+      "caused_by": [
+        "e015"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-10002-revalidate-ship-skills-docs-fixes"
     }
@@ -195,7 +232,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 3
   },
   "lessons": []
