@@ -129,6 +129,173 @@ class TestValidateWorkflowYamlScope:
         mock_run.assert_not_called()
 
 
+class TestWorkflowYamlTargets:
+    """Unit tests for ``_workflow_yaml_targets``, the branch-scoping helper.
+
+    Covers the scoping contract added for correctness-preserving scoping:
+    changed subset, composite-action exclusion, and deleted-file exclusion.
+    The base-ref/command-failure scoping contract itself (shared by every
+    gate that calls ``_changed_paths_since_base``) is proven once in
+    ``tests/validation_pre_pr/test_changed_paths_since_base.py``, not
+    re-verified here.
+    """
+
+    @pytest.mark.parametrize(
+        ("diff_stdout", "on_disk", "expected"),
+        [
+            (
+                "README.md\0.github/workflows/ci.yml",
+                ".github/workflows/ci.yml",
+                [".github/workflows/ci.yml"],
+            ),
+            (".github/actions/composite/action.yml", ".github/actions/composite/action.yml", []),
+            (".github/workflows/removed.yml", None, []),
+        ],
+        ids=["changed-subset-returned", "composite-action-excluded-2346", "deleted-file-excluded"],
+    )
+    def test_filtering_contract(
+        self,
+        tmp_path: Path,
+        diff_stdout: str,
+        on_disk: str | None,
+        expected: list[str],
+    ) -> None:
+        """Only ``.github/workflows/*.yml|yaml`` files still on disk qualify;
+        a changed composite ``action.yml`` must never reach actionlint (#2346)
+        and a diff entry with no matching working-tree file cannot be linted.
+
+        ``diff_stdout`` is NUL-delimited (matching the ``-z`` flag the shared
+        helper now always passes); ``mock_run.return_value`` applies
+        uniformly to all three underlying git calls the helper makes, so the
+        same changed-set surfaces via each of the three sources.
+        """
+        from checks_tooling import _workflow_yaml_targets
+
+        if on_disk is not None:
+            path = tmp_path / on_disk
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("stub\n", encoding="utf-8")
+        with patch("checks_tooling._resolve_branch_base_ref", return_value="origin/main"):
+            with patch("checks_tooling._run_subprocess") as mock_run:
+                mock_run.return_value = (0, diff_stdout, "")
+                assert _workflow_yaml_targets(tmp_path) == expected
+
+
+class TestWorkflowYamlTargetsWorktreeOnly:
+    """Real-repo regression: a workflow file edited only in the worktree
+    (never committed, and here not even staged) must still be scoped in.
+
+    Guards the specific gate wiring (``_workflow_yaml_targets``'s extension
+    and path filtering) against the union added to the shared
+    ``_changed_paths_since_base`` helper; the union mechanics themselves are
+    covered generically in ``test_changed_paths_since_base.py``.
+    """
+
+    def test_uncommitted_workflow_edit_is_scoped_in(
+        self,
+        tmp_path: Path,
+        make_repo_with_base: Any,
+        no_gh: None,
+    ) -> None:
+        from checks_tooling import _workflow_yaml_targets
+
+        repo = make_repo_with_base(tmp_path)
+        wf_dir = repo / ".github" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "ci.yml").write_text("on: push\n", encoding="utf-8")
+        # Deliberately NOT committed and NOT staged: pure worktree edit.
+
+        assert _workflow_yaml_targets(repo) == [".github/workflows/ci.yml"]
+
+
+class TestValidateWorkflowYamlScoping:
+    """Wiring tests: ``validate_workflow_yaml`` honors the three scope outcomes."""
+
+    def test_empty_scope_passes_without_invoking_actionlint(self, tmp_path: Path) -> None:
+        wf_dir = tmp_path / ".github" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "ci.yml").write_text("on: push\n", encoding="utf-8")
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/actionlint"):
+            with patch("checks_tooling._workflow_yaml_targets", return_value=[]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    assert validate_workflow_yaml(tmp_path) is True
+        mock_run.assert_not_called()
+
+    def test_scoped_subset_is_passed_to_actionlint(self, tmp_path: Path) -> None:
+        wf_dir = tmp_path / ".github" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "ci.yml").write_text("on: push\n", encoding="utf-8")
+        (wf_dir / "release.yml").write_text("on: push\n", encoding="utf-8")
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/actionlint"):
+            with patch(
+                "checks_tooling._workflow_yaml_targets",
+                return_value=[".github/workflows/ci.yml"],
+            ):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (0, "", "")
+                    assert validate_workflow_yaml(tmp_path) is True
+
+        command = mock_run.call_args.args[0]
+        assert command == ["actionlint", str(tmp_path / ".github/workflows/ci.yml")]
+
+    def test_none_scope_falls_back_to_full_directory_glob(self, tmp_path: Path) -> None:
+        """An unproven scope (no base ref / diff failure) must not skip the check."""
+        wf_dir = tmp_path / ".github" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "ci.yml").write_text("on: push\n", encoding="utf-8")
+        (wf_dir / "release.yml").write_text("on: push\n", encoding="utf-8")
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/actionlint"):
+            with patch("checks_tooling._workflow_yaml_targets", return_value=None):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (0, "", "")
+                    assert validate_workflow_yaml(tmp_path) is True
+
+        command = mock_run.call_args.args[0]
+        assert command[0] == "actionlint"
+        assert len(command) == 3  # actionlint + both workflow files
+
+    def test_scoped_command_failure_still_fails(self, tmp_path: Path) -> None:
+        wf_dir = tmp_path / ".github" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "ci.yml").write_text("on: push\n", encoding="utf-8")
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/actionlint"):
+            with patch(
+                "checks_tooling._workflow_yaml_targets",
+                return_value=[".github/workflows/ci.yml"],
+            ):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (1, "ci.yml:1:1: some error [syntax-check]", "")
+                    assert validate_workflow_yaml(tmp_path) is False
+
+    def test_scoped_path_with_space_is_quoted_as_a_single_argv_element(
+        self, tmp_path: Path
+    ) -> None:
+        """A path with a space must survive as one argv element, not split.
+
+        ``_run_subprocess`` invokes actionlint via ``subprocess.run`` with a
+        list (no shell), so this is really a test that the file list is built
+        from ``repo_root / path`` without any shell-style joining that could
+        split on whitespace.
+        """
+        wf_dir = tmp_path / ".github" / "workflows"
+        wf_dir.mkdir(parents=True)
+        weird = wf_dir / "release notes.yml"
+        weird.write_text("on: push\n", encoding="utf-8")
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/actionlint"):
+            with patch(
+                "checks_tooling._workflow_yaml_targets",
+                return_value=[".github/workflows/release notes.yml"],
+            ):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (0, "", "")
+                    assert validate_workflow_yaml(tmp_path) is True
+
+        command = mock_run.call_args.args[0]
+        assert command == ["actionlint", str(tmp_path / ".github/workflows/release notes.yml")]
+        # Exactly one argv element for the file, not two from a whitespace split.
+        assert len(command) == 2
+
+
 class TestValidateVendorPortability:
     """The vendor-portability gate wraps check_vendor_portability.py (#2050).
 
