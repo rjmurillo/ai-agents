@@ -15,12 +15,12 @@ generated tree. Parsing `.claude/rules/*.md` gives a wrong answer, wrong in both
 directions.
 
 There is also no single answer. The two destination trees disagree, measured at
-`0c75045d6`:
+`b2729ee54`:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 8 rules, 72,291 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 11 rules, 79,823 bytes |
+| `.github/instructions` | Copilot in this repository | 8 rules, 70,375 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 11 rules, 77,907 bytes |
 
 `governance`, `secret-redaction`, and `session-logs` are narrowly scoped here and
 always-on in the plugin. A vendor install pays 7,532 bytes every turn that this

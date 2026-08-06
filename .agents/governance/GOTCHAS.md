@@ -53,7 +53,6 @@ and what a vendored install loses without it>. Issue #2050. -->
 
 Both the canonical file and its `src/copilot-cli/` mirror carry the marker,
 because the checker scans both trees.
-
 ## A bare directory argument to taste-lints is a silent false pass
 
 `taste_lints.py --rules file-size <dir>` with the directory as a **positional**
@@ -80,7 +79,6 @@ found" reads identically either way.
 
 Authored file size is a **hard error at 501 lines** and a warning from 301 to
 500, so a file that silently skipped the check can block a later commit.
-
 ## A commit touching `.agents/` must carry the session log
 
 `session-policy` rejects any commit that stages a file under `.agents/` unless
@@ -90,7 +88,6 @@ the JSON session log is staged in that **same** commit. Splitting the work into
 Symptom: a commit touching `.agents/analysis/` or `.agents/architecture/` is
 rejected while the identical change under any other path commits fine. See also
 "Session log ordering" below, which governs when the log may first be staged.
-
 ## Session log ordering
 
 Create the session log **untracked in the worktree before the first commit**,
@@ -103,7 +100,6 @@ protocol literally (create and stage at start) cannot pass both gates.
 
 Symptom: a commit is rejected by one of the two policies no matter which order
 you try. Refs #3904.
-
 ## Never record `endingCommit` and then amend
 
 `endingCommit` must name a commit that is still reachable:
@@ -131,7 +127,6 @@ endingCommit '<sha>' names a commit that is not an ancestor of HEAD
 ```
 
 Refs #3618.
-
 ## The same `endingCommit` error also fires when you never amended anything
 
 The tell is that the log it validated is not yours. Do not rely on the
@@ -170,7 +165,6 @@ nor the base it used, so the natural next move is to re-validate your own log,
 which passes and sends you looking for a gate bug. And the same stale ref makes
 `git diff main..HEAD` report thousands of phantom deletions, so the two symptoms
 show up together and look like one catastrophic branch problem.
-
 ## Run validation with `uv run python`, never bare `python3`
 
 `scripts/validation/checks_spec.py` shells out to child validators with
@@ -180,7 +174,6 @@ markdown_it` because the dependency lives in the project venv.
 
 Symptom: `uv run python scripts/validation/pre_pr.py` reports failures that have
 nothing to do with your change. Refs #3938.
-
 ## Instruction-budget ceilings ratchet to measured size
 
 `scripts/validation/instruction_budget.py` enforces a ceiling that was set from
@@ -190,7 +183,6 @@ say the corpus is small.
 
 Compare against the goal, not the ceiling. The always-on corpus is roughly 95KB
 on a `.py` edit.
-
 ## Security suppression comments block commits, merges, and pushes
 
 `git_hook_policy.py` runs the same security suppression policy at pre-commit,
@@ -208,7 +200,6 @@ destination file, because the suppression becomes active at that boundary.
 
 Existing suppressions on `main` remain grandfathered unless the change makes
 them newly active. Refs #3940, #4049, #4051, and #4052.
-
 ## The push blocks at 21 commits, and the check runs at push time
 
 The pre-push `push-ref-policy` hook hard-fails at more than 20 commits ahead of
@@ -223,7 +214,6 @@ Relief is the `commit-limit-bypass` label on the PR, and nothing else. Squashing
 is often the wrong repair, because the five-file atomic-commit rule then makes
 the collapsed commit a violation of a different rule. Prefer the label when the
 branch is one coherent thread, and split into a second PR when it is not.
-
 ## Never revert a source file with `git checkout` to negative-control a fix
 
 Negative-controlling a fix means reverting the source, confirming the new tests
@@ -247,7 +237,6 @@ one behavior to regress will see several.
 Symptom: a control that should fail passes instead, because the sabotage never
 applied to the code you thought you were editing. Check `git status` before
 concluding the test is weak.
-
 ## The mypy and ruff gates are ratchets, not clean-tree checks
 
 `git_hook_policy.py mypy` tolerates the pre-existing error count in a file and
@@ -257,7 +246,6 @@ eight will fail the push with all nine printed.
 
 Symptom: a wall of errors on lines you did not touch. Count them against the
 merge base before assuming the change is yours.
-
 ## A branch behind main fails the count ratchets on a number it never touched
 
 The count ratchets (`ruff_count_ratchet.py`, `taste_count_ratchet.py`,
@@ -310,7 +298,6 @@ HEAD` accepts, so the record breaks only when history rewrites that specific
 commit. Amending `HEAD` is safe whenever the recorded commit stays reachable,
 which includes `HEAD~1` and anything older. It is unsafe only when the commit
 you are rewriting *is* the recorded one; there, add a follow-up commit instead.
-
 ## One file crossing 500 lines fails four pre-push jobs with three messages
 
 `taste_lints.py` treats a file over 500 lines as an error and a file over 300
@@ -357,7 +344,6 @@ uv run --frozen python scripts/ci/taste_count_ratchet.py
 
 It reads `git ls-files`, so an unstaged new file is invisible to it and the
 count looks fine right up until the push.
-
 ## Eval harness
 
 These matter only when running `scripts/eval/`. Full detail lives in
@@ -373,7 +359,6 @@ These matter only when running `scripts/eval/`. Full detail lives in
 - A single eval run cannot resolve a delta under about 1.0 on a 0-5 scale.
   Measured run-to-run spread on identical inputs was 0.94 on Opus 5 and 1.11 on
   Sol 5.6. Run four times per model and count sign consistency, not means.
-
 ## The PR description gate blocks on paths and on dashes
 
 `scripts/validation/pr_description.py --ci` runs as `PR Validation / Validate
@@ -426,7 +411,6 @@ at byte level before editing.
 
 The validator takes `--pr-number` and fetches the **live** body, so push and
 update the PR before running it locally.
-
 ## Spec coverage blocks when the PR body has no checked acceptance boxes
 
 `Validate Spec Coverage` fails with this, and the reason names a rule rather
@@ -481,29 +465,24 @@ gh run view --job "$JOB_ID" --log | sed 's/\x1b\[[0-9;]*m//g' | grep -P 'VERDICT
 ```
 
 Refs #4369 for the stale comment defect.
-
 ## Never put a literal pipe inside a Markdown table cell
 
 Escape it as `\|` or reword. A bare `|` breaks rendering and trips bot
 table-format flags.
-
 ## Reference skill scripts by plugin root, not a bare `.claude/` path
 
 Use `"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..."`. A
 bare `.claude/skills/...` path fails under Copilot CLI and trips
 `check_skill_md_exec_portability.py`.
-
 ## `gh pr view --json reviewThreads` is not a valid field
 
 The field does not exist on that command and the error does not suggest the
 alternative. Use `gh api graphql` with a `reviewThreads` query on the pull
 request instead.
-
 ## Workspace byte-gate
 
 Moved to `.agents/governance/WORKSPACE-BUDGET.md`: per-file ceilings, the
 shared total, the silent-disable failure, and where the gate lives.
-
 ## Concurrent pushes: use a per-branch lock, not a global one
 
 The race a push lock exists to prevent is a lost ref update: two writers push
@@ -542,7 +521,6 @@ Notes:
 
 Issue #4283 documents the measured 28-waiter convoy produced by the global lock
 and the first-principles analysis of why the race is per-ref.
-
 ## A script under `scripts/ci/` needs a workflow caller, not just a lefthook job
 
 `tests/ci/test_ci_scripts_are_wired.py` parses `.github/workflows/**` and
@@ -561,7 +539,6 @@ call site.
 Add the workflow step in the same change that adds the script. A ratchet with a
 fixed floor takes no `--base-ref` and needs no `git fetch --depth=1` preamble;
 copy the neighbouring step only if your guard actually diffs against a base.
-
 ## An autofix is not a gate: pair every repair with a verifier
 
 `memory-token-update` (`lefthook.yml`) rewrites every `.serena/memories/`
@@ -581,7 +558,6 @@ Two rules follow, and both are load-bearing:
 - **"Cannot verify" must not exit zero.** The repair degrades to a warning when
   `tiktoken` is missing. The verifier exits 2 instead. A gate that goes green
   because it checked nothing is worse than no gate.
-
 ## Grep the handler, not the job name
 
 A lefthook job name, its `git_hook_policy.py` subcommand string, and the Python
@@ -594,7 +570,6 @@ diagnostic cycle on issue #4441.
 Correct probe: `git grep -n "<function_name>"` to find the handler, read the
 `(subcommand, handler)` tuple near it, then grep that subcommand string in
 `lefthook.yml`.
-
 ## "All validations passed" in a push log does not mean the branch reached the remote
 
 The repo's push wrapper runs `scripts/validation/pre_pr.py` first, and that
@@ -618,7 +593,6 @@ predictable from the outside. The wrapper runs `pre_pr.py` first and only then
 calls `git push`, so a commit created during that window can be picked up, and
 one created after the transfer starts will not be. Measured both ways. Do not
 reason about it: read the sha off the remote and compare.
-
 ## Never measure a gate from a detached HEAD
 
 `scripts/detect_scope_explosion.py` returns 0 on a detached `HEAD` for staged
@@ -636,7 +610,6 @@ is how issue #4544 came to be closed as already-fixed while still reproducing,
 and the retraction had to be retracted. When you probe any gate, attach `HEAD`
 first with `git checkout -B probe/<name> <sha>` rather than
 `git worktree add --detach`, and treat a detached PASS as no result at all.
-
 ## The CLI e2e pre-push jobs need a Copilot token, and fail fast without one
 
 `plugin-load-e2e` and `hook-anchoring-e2e` shell out to the real `copilot`
@@ -716,7 +689,6 @@ seconds. The same two tests passed in 27.92 seconds under `RUN_CLI_E2E=1` with
 `COPILOT_GITHUB_TOKEN` set, and skipped silently with the token set but
 `RUN_CLI_E2E` unset. Those four durations are author-reported from the push
 console; no log artifact is committed.
-
 ## Editing any `.claude/rules/*.md` file changes a number the doctrine asserts
 
 `model-context-doctrine.md` states the shipped plugin tree's always-on size as
@@ -753,3 +725,107 @@ the way out, so the same rule is smaller in the plugin tree than on disk. And th
 two 8KB multipliers move independently: the `.py`-edit multiplier can hold steady
 while the always-on one shifts, so re-measure both rather than assuming one
 tracks the other.
+## An empty `endingCommit` breaks the episode store on the next push
+
+The pre-commit hook extracts an episode from every staged session log. It reads
+`files_changed` from the staged diff, but `commits` from the SHAs the log names,
+and a first commit has none: the commit being created has no SHA yet, and
+`endingCommit` is still `""`. The episode therefore ships with `commits: 0`
+beside a non-zero `files_changed`, which is exactly the pair
+`validate_metrics_consistency` rejects.
+
+Nothing fails at commit time. The push fails, minutes later, in the full suite:
+
+```text
+tests/skills/memory/test_extract_session_episode.py::
+  TestValidateModeRejectsUnusableEventIds::test_the_committed_episode_store_is_clean
+AssertionError: metrics violations grew to 22 (was 21); new episodes with
+commits==0 but metrics.files_changed>0 must be fixed
+```
+
+That count is a ratchet, so raising it is not the fix. Record the SHA and let
+the extractor derive the number, which is what it is built to do:
+
+```bash
+# set "endingCommit" in the session log to the commit you just made, then
+uv run --frozen python .claude/skills/memory/scripts/extract_session_episode.py \
+  .agents/sessions/<log>.json --preserve
+```
+
+`--preserve` recomputes `metrics.commits` from the commit-event stream, so the
+value stays derived rather than hand-set. Commit the log and the regenerated
+episode together as the follow-up commit the section above already requires.
+
+Watch for the interaction: `session-policy` forces any `.agents/` change to
+stage a session log, so a governance or architecture edit cannot avoid creating
+an episode, and the first such commit on a branch always produces a violating
+one. The follow-up commit is not optional bookkeeping; it is what keeps the
+branch pushable.
+## Two green PRs can merge into a red main, and the count ratchets will not warn
+
+The count ratchets compare one scalar baseline against a count taken over the
+whole tree. Neither number is scoped to your diff, so the gate cannot tell
+"this branch added a violation" from "this branch lowered the allowance while
+somebody else added one." Each PR is measured only against the baseline in
+force while it is open.
+
+That leaves a race. On 2026-08-03, PR #4476 lowered the taste baseline from 596
+to 595 after removing a violation. PR #4414 grew `.agents/governance/GOTCHAS.md`
+past the 500-line ceiling, adding one. Both were green. Both merged. `main`
+went red at 596 against a baseline of 595, and neither author did anything
+wrong.
+
+This is a different failure from the branch-behind case above. There the branch
+is stale and merging main fixes it. Here main itself is broken, so merging main
+*imports* the failure. Every branch that syncs afterward fails a gate it never
+touched, and the message reads the same in both cases.
+
+Two consequences worth knowing before you spend an hour on it:
+
+Measure main before blaming your branch. A pristine worktree at `origin/main`
+answers this in seconds and is the only way to tell the two cases apart:
+
+```bash
+git worktree add --detach <path> origin/main
+cd <path> && uv run --frozen python scripts/ci/taste_count_ratchet.py
+```
+
+And the usual "diff my per-file counts against `origin/main`" recipe returns
+nothing when main is the thing that is red, because your branch and main are
+both at the higher number. Diff against the commit that last wrote the baseline
+file instead:
+
+```bash
+git log -1 --format=%h -- scripts/ci/taste_count_baseline.txt
+```
+
+Check out that commit in a detached worktree and diff its violation list
+against HEAD's. The offender is the one net-new entry.
+## Deleting code turns main red on the taste-count baseline
+
+The taste ratchet script passes on `count <= baseline`, so removing a violation
+looks free. A separate test does not:
+`tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree`
+asserts `count == baseline` exactly, because a baseline above the real count is
+dead allowance that lets violations creep back in unnoticed.
+
+The consequence is counter-intuitive and it has already landed on main twice.
+Anyone who deletes code, or adds a `taste-lint: ignore` directive, lowers the
+count and must lower `scripts/ci/taste_count_baseline.txt` in the same commit.
+Nobody expects a deletion to require a lint-baseline edit, and the pre-push
+ratchet stays green while it happens, so the failure surfaces only in the full
+suite after the merge.
+
+Measured on this repository:
+
+| Commit | Count | Baseline | Exact-match test |
+|---|---|---|---|
+| `a355a9e27^` | 594 | 595 | red |
+| `a355a9e27` (#4428, added an ignore and lowered the baseline) | 593 | 593 | green |
+| `ad61b51c4` (#4101, deleted a recovery path) | 592 | 593 | red |
+
+Check before you push with
+`uv run --frozen python scripts/ci/taste_count_ratchet.py`. It prints
+`OK (count == baseline N)` when the two agree and `OK. N violations <= baseline M`
+when they do not, and only the first form passes the test. Raising a baseline to
+clear a blocked push is still prohibited; this is the opposite direction.

@@ -934,7 +934,11 @@ class TestBotSkipGuardClassification:
     _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
         {
             "Checkout repository",
-            # Tool setup is throughput-only. It cannot validate repository contents.
+            # Tool setup is throughput-only. It cannot validate repository
+            # contents, so skipping it on a bot PR removes no measurement. That
+            # holds only because the unguarded half of this job installs uv for
+            # itself; `test_unguarded_uv_consumers_have_an_unguarded_install`
+            # enforces it, so this justification cannot rot silently.
             "Setup uv",
             "Setup PowerShell",
             "Validate PR Description vs Diff",
@@ -947,6 +951,7 @@ class TestBotSkipGuardClassification:
             "Enforce Blocking Issues",
         }
     )
+
     def test_adr006_ratchet_is_unconditional(self) -> None:
         """Positive: the ADR-006 gate must run for bot-authored PRs.
 
@@ -965,6 +970,86 @@ class TestBotSkipGuardClassification:
         assert "if" not in step, (
             f"ADR-006 ratchet must be unconditional, found: if: {step.get('if')!r}"
         )
+
+    def _assert_unguarded_uv_consumers_have_an_unguarded_install(self) -> None:
+        """Assert `Setup uv` self-serves the unguarded half of the job.
+
+        The job installs uv twice on purpose. The guarded install serves the
+        guarded prefix; a second, unguarded install serves the unguarded
+        steps that follow it. That is what makes skipping the guarded one
+        harmless on a bot PR.
+
+        If someone deletes the second install as redundant, every unguarded
+        `uv` step breaks on bot PRs and the `Setup uv` allowlist entry stops
+        being justified. Pin the invariant rather than asserting it in a
+        comment nobody re-checks.
+        """
+        steps = self._host_steps()
+        installs = [
+            i
+            for i, step in enumerate(steps)
+            if "setup-uv" in str(step.get("uses", ""))
+            and not self._has_bot_skip_guard_component(step.get("if"))
+        ]
+        consumers = [
+            (i, str(step.get("name", "")))
+            for i, step in enumerate(steps)
+            if "uv " in str(step.get("run", ""))
+            and not self._has_bot_skip_guard_component(step.get("if"))
+        ]
+        assert consumers, "expected at least one unguarded uv consumer to protect"
+        assert installs, (
+            "no unguarded uv install in the job, so every unguarded uv step "
+            f"breaks when the bot-skip guard fires: {[n for _, n in consumers]!r}"
+        )
+        first_install = min(installs)
+        orphans = [name for i, name in consumers if i < first_install]
+        assert not orphans, (
+            f"unguarded uv steps run before the first unguarded uv install: {orphans!r}. "
+            "They inherit the guarded install and break on bot PRs."
+        )
+
+    def test_unguarded_uv_consumers_have_an_unguarded_install(self) -> None:
+        """`Setup uv` is allowlisted only while the unguarded half self-serves."""
+        self._assert_unguarded_uv_consumers_have_an_unguarded_install()
+
+    def test_unguarded_uv_install_must_precede_its_consumers(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Edge: an install that lands after a consumer does not serve it.
+
+        Presence alone is not enough. A consumer sitting above the unguarded
+        install inherits the guarded one, so it still breaks on a bot PR.
+        """
+        steps = [
+            {"name": "Early consumer", "run": "uv run --frozen python x.py"},
+            {"name": "Setup uv late", "uses": "astral-sh/setup-uv@abc"},
+        ]
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: steps))
+
+        with pytest.raises(AssertionError, match="Early consumer"):
+            self._assert_unguarded_uv_consumers_have_an_unguarded_install()
+
+    def test_unguarded_uv_check_requires_a_consumer_to_protect(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Edge: with no unguarded consumer the check is vacuous, so it fails.
+
+        A job whose uv steps are all guarded would pass the install assertion
+        for the wrong reason. Fail instead, so the guard cannot quietly stop
+        measuring anything.
+        """
+        steps = [
+            {
+                "name": "Guarded consumer",
+                "run": "uv run --frozen python x.py",
+                "if": self.BOT_SKIP_GUARD,
+            }
+        ]
+        monkeypatch.setattr(type(self), "_host_steps", classmethod(lambda cls: steps))
+
+        with pytest.raises(AssertionError, match="at least one unguarded uv consumer"):
+            self._assert_unguarded_uv_consumers_have_an_unguarded_install()
 
     def test_no_security_gate_is_skip_guarded(self) -> None:
         """Negative: every skip-guarded step must be throughput-motivated.

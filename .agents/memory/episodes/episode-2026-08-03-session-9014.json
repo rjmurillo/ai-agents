@@ -1,0 +1,175 @@
+{
+  "id": "episode-2026-08-03-session-9014",
+  "session": "2026-08-03-session-9014",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair origin/main, which fails the taste count ratchet and the subprocess encoding validator and so blocks every push in the repository",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T20:40:29+00:00",
+      "type": "commit",
+      "content": "Commit: 380d09b1d",
+      "caused_by": [
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013"
+      ],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T20:49:39+00:00",
+      "type": "commit",
+      "content": "Commit: 3d3660f23",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced all seven of main's test failures on a pristine worktree detached at b2729ee54",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "test",
+      "content": "Reproduced all seven of main's test failures on a pristine worktree detached at b2729ee54   1   7 failed, 31 passed. Every failure predates this branch; main was red in nine ways, not the two recorded on #4500.",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "error",
+      "content": "Reproduced all seven of main's test failures on a pristine worktree detached at b2729ee54   1   7 failed, 31 passed. Every failure predates this branch; main was red in nine ways, not the two recorded on #4500.",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Traced the M7 mutation literal against git log -S to find why it matched zero times",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Walked the always-on byte total across 40 commits before touching the doctrine figures",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran an adversarial review on gemini-3.1-pro-preview and verified both findings against the artifacts",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Negative-controlled the new workflow test by deleting the second uv install",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "error",
+      "content": "Negative-controlled the new workflow test by deleting the second uv install   5   Failed naming all seven orphaned steps, then restored clean. Two monkeypatched tests cover the ordering branch and reject the vacuous case.",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Investigated an unattributed strip of the GOTCHAS.md taste-lint ignore",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main after verifying the real remote tip, then found and fixed a tenth failure on main",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a retrospective after the push gate demanded one, and the material was already owed",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-03-session-9014"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 12,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 6
+  },
+  "lessons": []
+}
