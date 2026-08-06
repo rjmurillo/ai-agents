@@ -312,7 +312,7 @@ during that window means "not yet", not "failed". Re-check before re-pushing.
 Tailing the push log has the same hazard, because the file is still being
 written and the tail lands in the middle of hook output.
 
-## The shared budget has a root cause, and it is one secret
+## The shared budget had a root cause, and it was one secret
 
 `BOT_PAT` authenticates as `rjmurillo` (user ID `6811113`), not the
 `rjmurillo-bot` service account (`250269933`) that ADR-026 Decision 5
@@ -323,16 +323,17 @@ $ gh api user --jq .id              # 6811113   (interactive session)
 $ gh api users/rjmurillo-bot --jq .id  # 250269933
 ```
 
-`.github/actions/ai-review/action.yml` "Build context" (lines 183 to 190) sets
-`GH_TOKEN` from `inputs.bot-pat` and nothing else, and 22 sites match
+At measurement time, `.github/actions/ai-review/action.yml` "Build context"
+set `GH_TOKEN` from `inputs.bot-pat`, and 22 sites matched
 `bot-pat: ${{ secrets.BOT_PAT }}`. Name that pattern when citing the count: a
 bare grep for `secrets.BOT_PAT` returns 56 hits across 12 files. That step's
 403 named `6811113`.
 
-So the isolation ADR-026 describes is configured but not effective, and the
-"shared budget" measurements above are its symptom rather than an intrinsic
-constraint. Do not design around the shared budget as if it were permanent, and
-do not propose a throttling hook to work around it. Re-issuing the secret from
-the bot account gives CI its own buckets. Tracked as issue #4607.
+Later on 2026-08-05, `origin/main` changed read paths to
+`${{ inputs.github-token || github.token || inputs.bot-pat }}`. Repository reads
+now prefer the runner token and no longer require the shared `BOT_PAT` budget.
+Copilot calls and write operations still use `bot-pat` where their permissions
+require it. Issue #4607 remains open.
 
-
+The earlier shared-budget measurements describe historical behavior, not the
+current read path. Do not design around that shared read budget as permanent.

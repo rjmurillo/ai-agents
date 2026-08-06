@@ -6,6 +6,7 @@
 - **Agents**: Copilot CLI (Claude Opus 5) orchestrator, 21 background fix-cluster agents, GPT-5.6 Sol adversarial reviewer
 - **Task Type**: Feature
 - **Outcome**: Partial
+- **Failure Mode**: FM-9, confident-incorrectness recurrence
 
 ### Provenance of figures
 
@@ -52,11 +53,11 @@ issues filed for defects the session proved rather than guessed.
 | Stage | Result | Cost |
 |---|---|---|
 | Built Copilot CLI eval provider, ran 8 variance runs | Conclusion reversed | Delivered |
-| Adversarial rounds to convergence, PR #4124 | Objective complete | Delivered |
+| Adversarial rounds to convergence, [PR #4124](https://github.com/rjmurillo/ai-agents/pull/4124) | Objective complete | Delivered |
 | Fleet mode, 21 parallel agents (self-reported) | PR queue drained | Delivered |
 | Agent polling exhausted the shared API budget | CI went red | Outage |
 | 13 pushes rejected on drift or local defects | Rework | ~3 hours |
-| BOT_PAT identity traced to root cause | Issue #4607 | Delivered |
+| BOT_PAT identity traced to root cause | [Issue #4607](https://github.com/rjmurillo/ai-agents/issues/4607) | Delivered |
 
 ### Outcome Classification
 
@@ -189,7 +190,8 @@ the moment you cite the constant.
 
 1. Fix `BOT_PAT` (issue #4607). Everything else gets cheaper once the budget
    stops being shared.
-2. Add `merge_group` triggers before any merge queue is enabled. The set is
+2. Add `merge_group` triggers before any merge queue is enabled. Owner:
+   repository maintainer. The set is
    every workflow emitting one of the 17 required checks in ruleset
    `11104075`, which is 12 of the 62 workflow files; none of the 62 declares
    `merge_group` today. Enabling first wedges every merge permanently.
@@ -211,7 +213,7 @@ the moment you cite the constant.
 
 - **Statement**: A threshold constant with no production caller is not a gate.
 - **Atomicity Score**: 91%
-- **Evidence**: `MAX_BASELINE_SLACK = 5` sits beside the ratchet, and every
+- **Evidence**: `MAX_BASELINE_SLACK = 6` sits beside the ratchet, and every
   caller of `baseline_health` is a test.
 - **Skill Operation**: ADD
 - **Target Skill ID**: n/a
@@ -293,7 +295,7 @@ the moment you cite the constant.
   "skill_id": "governance-a-configured-control-needs-a-test",
   "statement": "A configured control with no test is an assumption.",
   "context": "When an ADR or config claims an identity, boundary, or isolation holds.",
-  "evidence": "2026-08-05: ADR-026 Decision 5 configures a bot identity that gh api user --jq .id shows is not in effect. Issue #4607.",
+  "evidence": "2026-08-05: ADR-026 Decision 5 configures a bot identity that gh api user --jq .id shows is not in effect. https://github.com/rjmurillo/ai-agents/issues/4607",
   "atomicity": 90
 }
 ```

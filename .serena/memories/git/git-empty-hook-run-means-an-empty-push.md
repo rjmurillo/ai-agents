@@ -192,7 +192,7 @@ Check liveness before concluding anything:
 
 ```bash
 git ls-remote origin "$BRANCH"                       # empty is ambiguous
-ps -eo cmd | grep -c "[g]it push origin HEAD:$BRANCH"  # 0 means it really ended
+pgrep -af 'git push origin' | grep -Fc "$BRANCH"     # 0 means it really ended
 ```
 
 Only when the process count is 0 does an empty `ls-remote` mean the push

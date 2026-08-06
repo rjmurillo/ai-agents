@@ -44,22 +44,21 @@ two real outages on 2026-08-03, at baselines 595 and 593.
 
 ## The arithmetic that trips it
 
-`MAX_BASELINE_SLACK = 5` (`count_ratchet.py:186`). Its docstring says it was
-calibrated against a largest-observed collision of two concurrent PRs.
+`MAX_BASELINE_SLACK = 6` (`count_ratchet.py:186`). Its docstring says six
+covers a seven-PR merge queue group.
 
 For `n` PRs that each lower the true count by `d` while writing the same new
-baseline, combined slack is `(n-1) * d`, and the check fails when that exceeds
-5:
+baseline, combined slack is `(n-1) * d`, and the check fails when that exceeds 6:
 
 | Scenario | Slack | Result |
 |---|---|---|
-| 6 PRs remove a violation each, baseline untouched | 6 | fails |
-| 6 PRs each write `B-1` | 5 | passes |
-| 7 PRs each write `B-1` | 6 | fails |
+| 7 PRs remove a violation each, baseline untouched | 7 | fails |
+| 7 PRs each write `B-1` | 6 | passes |
+| 8 PRs each write `B-1` | 7 | fails |
 
 A merge queue makes the collision count a scheduling parameter rather than an
-accident, so a ceiling calibrated at two is the wrong size for a queue that
-batches seven. Tracked as issue #4608.
+accident. The current ceiling covers seven branches that each lower the count
+once and write the same baseline. Issue #4608 remains open.
 
 ## Recipe
 

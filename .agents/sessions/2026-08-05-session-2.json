@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit 758f34343 carries the memory update and this log."
+        "Evidence": "Commit f1a805fc531ea17aa62517c39ba7deedf30f091a is the final branch tip for this session."
       },
       "validationPassed": {
         "level": "MUST",
@@ -108,8 +108,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-05-pr-queue-and-doctrine.md"
       }
     }
   },
@@ -120,7 +120,7 @@
     },
     {
       "action": "Opened PR #4616 for the session record branch",
-      "detail": "new_pr.py passed all six pre-creation validations including the em dash and escaped-newline checks. The body lists exactly the six files in the diff, because the CI description gate compares the body against the changed file set."
+      "detail": "new_pr.py passed all six pre-creation validations, including the prohibited-dash and escaped-newline checks. The PR body matched the diff at creation time."
     },
     {
       "action": "Resolved review thread PRRT_kwDOQoWRls6Wh-Ig on PR #4598, then corrected my own reply",
@@ -167,6 +167,6 @@
       "detail": "main carried .agents/sessions/2026-08-05-session-9999.json for branch fix/4519-4520-coupling-diffbase while this branch carried a different session under the same name. Different sessions, not a diverged one, so merging the workLogs would have falsified both records. Kept main copy at 9999 and re-filed this session as session-2."
     }
   ],
-  "endingCommit": "758f343430581bd3cbfd4f7d779bf045fb5fb1aa",
+  "endingCommit": "f1a805fc531ea17aa62517c39ba7deedf30f091a",
   "nextSteps": []
 }

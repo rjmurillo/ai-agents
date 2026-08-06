@@ -28,6 +28,10 @@ The merge surfaces as add/add on two files, the session log and its episode unde
 
 The rename needs two edits, not one. The number lives inside the file as `session.number` as well as in the filename, and `validate_session_json.py` compares them and fails the mismatch by name. The field is `session.number`, not `sessionNumber`.
 
+Regenerate the episode from the renamed log. Do not rename the episode by hand.
+Each event also carries `_source_session`, which the extractor uses for
+cross-session deduplication.
+
 `new_session_log.py` already prevents this. `_auto_detect_session_number` takes the max of the local working-tree scan and the numbers on `origin/main` specifically so parallel branches do not reuse a number. Bypassing it is what creates the collision.
 
 ## The Solution

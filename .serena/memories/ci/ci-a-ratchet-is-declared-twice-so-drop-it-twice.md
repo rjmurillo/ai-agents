@@ -24,10 +24,10 @@ position on both sides. Merging `main` into any branch that added a ratchet
 conflicts in both files at once, and the merge base at the hunk is empty:
 
 ```text
-<<<<<<< HEAD
+marker: <<<<<<< HEAD
         "cli-exit-contract-ratchet",
-||||||| 5ec85be51
-=======
+marker: ||||||| 5ec85be51
+marker: =======
         "memory-index-token-ratchet",
 ```
 
