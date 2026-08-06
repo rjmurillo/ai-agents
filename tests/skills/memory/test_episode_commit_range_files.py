@@ -97,7 +97,7 @@ class TestRangeFilesChanged:
             ese._range_files_changed(_SHA_A, _SHA_B, "/some/where")
         argv = run.call_args[0][0]
         assert argv[:3] == ["git", "-C", "/some/where"]
-        assert f"{_SHA_A}..{_SHA_B}" in argv
+        assert f"{_SHA_A}...{_SHA_B}" in argv
 
     def test_runs_git_with_clean_env_and_c_locale(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Inherited git env vars would point the command at another repo, and
