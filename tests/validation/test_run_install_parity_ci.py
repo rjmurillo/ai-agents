@@ -202,7 +202,9 @@ def test_main_with_malformed_pr_base_ref_fails_closed(
 
     fetch_calls: list[str] = []
 
-    monkeypatch.setattr(runner, "fetch_base_ref", lambda base_ref: fetch_calls.append(base_ref))
+    monkeypatch.setattr(
+        runner, "fetch_base_ref", lambda base_ref: (fetch_calls.append(base_ref), 0)[1]
+    )
     monkeypatch.setattr(runner, "resolve_base", lambda base_ref: f"origin/{base_ref}")
     monkeypatch.setattr(runner, "run", lambda cmd, *, check=False, timeout=60: (0, "OK\n", ""))
 
@@ -267,12 +269,15 @@ def test_fetch_base_ref_still_repairs_a_genuinely_shallow_clone(
     base.fetch_base_ref("main")
 
     fetches = [c for c in calls if c[:2] == ["git", "fetch"]]
-    assert any("--depth=200" in token for c in fetches for token in c), calls
     assert any("--unshallow" in token for c in fetches for token in c), calls
+    # One round trip, not two: --unshallow fetches the ref as well as
+    # completing history, so a preceding --depth fetch bought nothing.
+    assert len(fetches) == 1, calls
 
 
-def test_fetch_base_ref_raises_when_the_repair_did_not_take(
+def test_fetch_base_ref_reports_config_error_when_the_repair_did_not_take(
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """The defect this replaces: a swallowed `--unshallow` failure.
 
@@ -280,8 +285,56 @@ def test_fetch_base_ref_raises_when_the_repair_did_not_take(
     `rev-parse` was authoritative. It is not: `rev-parse` resolves a base ref
     perfectly well on a grafted clone, so every range measured afterwards was
     wrong rather than absent.
+
+    Asserted as a return code rather than an exception because neither caller
+    wraps this in a try block, so a raise would exit 1 with a traceback where
+    the exit-code contract calls for 2, and where both callers already return 2
+    for their other config failures.
     """
     _record_calls(monkeypatch, ["true", "true"])
 
-    with pytest.raises(RuntimeError, match="still shallow"):
-        base.fetch_base_ref("main")
+    assert base.fetch_base_ref("main") == 2
+    assert "still shallow" in capsys.readouterr().err
+
+
+def test_both_runners_propagate_the_shallow_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove the wiring, not only the guard.
+
+    `fetch_base_ref` returning 2 proves the helper detected the graft. It
+    proves nothing about whether either runner acts on it, and an unwired
+    caller was the exact shape of the original defect. Driving each `main()`
+    and asserting on the integer it returns is what closes that.
+    """
+    monkeypatch.setenv("PR_BASE_REF", "main")
+    monkeypatch.setattr(base, "fetch_base_ref", lambda _ref: 2)
+    monkeypatch.setattr(runner, "fetch_base_ref", lambda _ref: 2)
+
+    assert runner.main() == 2
+
+
+def test_fetch_base_ref_does_not_graft_when_the_probe_cannot_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unanswerable probe must not take the branch that writes the graft.
+
+    `_is_shallow_repository` returns None when git could not answer, which a
+    30 second `rev-parse` timeout is enough to cause. Branching on `is False`
+    sent that case into `--depth=200`, grafting a clone that may well be
+    complete, which is the exact defect this function exists to remove.
+    """
+    calls: list[list[str]] = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(list(argv))
+        if argv[:2] == ["git", "rev-parse"]:
+            return 2, "", "TimeoutExpired: git rev-parse"
+        return 0, "", ""
+
+    monkeypatch.setattr(base, "run", fake_run)
+
+    assert base.fetch_base_ref("main") == 0
+    fetches = [c for c in calls if c[:2] == ["git", "fetch"]]
+    assert len(fetches) == 1, calls
+    assert not any("--depth" in token for token in fetches[0]), fetches[0]

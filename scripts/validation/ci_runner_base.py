@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -72,7 +73,7 @@ def run(
     return proc.returncode, proc.stdout, proc.stderr
 
 
-def fetch_base_ref(base_ref: str) -> None:
+def fetch_base_ref(base_ref: str) -> int:
     """Fetch the base ref without leaving a shallow graft behind.
 
     The previous form ran `--depth=200` unconditionally and then `--unshallow`,
@@ -89,29 +90,46 @@ def fetch_base_ref(base_ref: str) -> None:
     So: do not graft a complete clone at all, and when the clone really is
     shallow, verify the repair took instead of assuming it.
 
-    Raises:
-        RuntimeError: the clone is still shallow after the repair attempt.
-    """
-    if _is_shallow_repository() is False:
-        run(["git", "fetch", "--no-tags", "origin", base_ref], check=False, timeout=120)
-        return
+    An unrepaired graft is reported as a return value, not an exception. It is
+    an expected environment condition rather than a programming error, both
+    callers already return 2 for their other config failures, and a raise here
+    would leave `main()` with no handler, so Python would exit 1 with a
+    traceback instead of the 2 the exit-code contract calls for.
 
-    run(
-        ["git", "fetch", "--no-tags", "--depth=200", "origin", base_ref],
-        check=False,
-        timeout=60,
-    )
+    The probe is three-valued, and the two checks below deliberately treat the
+    unanswerable case differently. Only a confirmed `True` justifies
+    `--depth=200`, because an unanswerable probe taking that branch would graft
+    a clone that may well be complete, which is the exact defect this function
+    exists to remove and would be reachable through nothing worse than a
+    `rev-parse` timeout. The post-check goes the other way and treats anything
+    but a confirmed `False` as still shallow, because there the safe answer is
+    to refuse rather than to measure.
+
+    Returns:
+        0  the base ref is fetched and the clone has complete history
+        2  the clone is still shallow, so no range measured from here is valid
+    """
+    if _is_shallow_repository() is not True:
+        run(["git", "fetch", "--no-tags", "origin", base_ref], check=False, timeout=120)
+        return 0
+
+    # `--unshallow` fetches the ref AND completes the history, so the old
+    # `--depth=200` fetch that preceded it was a second network round trip and
+    # a second timeout window that preserved no invariant.
     run(
         ["git", "fetch", "--no-tags", "--unshallow", "origin", base_ref],
         check=False,
-        timeout=120,
+        timeout=180,
     )
     if _is_shallow_repository() is not False:
-        raise RuntimeError(
-            "repository is still shallow after --unshallow, so any range "
-            "measured from here would silently widen. Run "
-            "`git fetch --unshallow origin` and retry."
+        print(
+            "error: repository is still shallow after --unshallow, so any "
+            "range measured from here would silently widen rather than fail. "
+            "Run `git fetch --unshallow origin` and retry.",
+            file=sys.stderr,
         )
+        return 2
+    return 0
 
 
 def _is_shallow_repository() -> bool | None:

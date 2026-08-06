@@ -27,7 +27,9 @@ import run_plugin_version_bump_ci as runner
 def _stub_happy_path(monkeypatch) -> list[str]:
     """Wire fetch/resolve/run to a clean pass; return the fetch-call log."""
     fetch_calls: list[str] = []
-    monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: fetch_calls.append(ref))
+    monkeypatch.setattr(
+        runner, "fetch_base_ref", lambda ref: (fetch_calls.append(ref), 0)[1]
+    )
     monkeypatch.setattr(runner, "resolve_base", lambda ref: f"origin/{ref}")
     monkeypatch.setattr(
         runner, "run", lambda *a, **k: (0, "plugin-version-bump: OK\n", "")
@@ -71,7 +73,7 @@ def test_main_returns_2_when_base_unresolvable(
     monkeypatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv("PR_BASE_REF", "main")
-    monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: None)
+    monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: 0)
     monkeypatch.setattr(runner, "resolve_base", lambda ref: None)
 
     rc = runner.main()
@@ -87,7 +89,7 @@ def test_main_returns_2_when_validator_missing(
     monkeypatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setenv("PR_BASE_REF", "main")
-    monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: None)
+    monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: 0)
     monkeypatch.setattr(runner, "resolve_base", lambda ref: "origin/main")
     # Point REPO_ROOT at an empty dir so the validator file is absent.
     monkeypatch.setattr(runner, "REPO_ROOT", REPO_ROOT / "no" / "such" / "tree")
@@ -103,7 +105,7 @@ def test_main_returns_2_when_validator_missing(
 
 def test_main_forwards_validator_violation_exit(monkeypatch, capsys) -> None:
     monkeypatch.setenv("PR_BASE_REF", "main")
-    monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: None)
+    monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: 0)
     monkeypatch.setattr(runner, "resolve_base", lambda ref: "origin/main")
     monkeypatch.setattr(
         runner, "run", lambda *a, **k: (1, "plugin-version-bump: NOT BUMPED\n", "")
@@ -117,7 +119,7 @@ def test_main_forwards_validator_violation_exit(monkeypatch, capsys) -> None:
 
 def test_main_forwards_validator_config_error_exit(monkeypatch, capsys) -> None:
     monkeypatch.setenv("PR_BASE_REF", "main")
-    monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: None)
+    monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: 0)
     monkeypatch.setattr(runner, "resolve_base", lambda ref: "origin/main")
     monkeypatch.setattr(
         runner, "run", lambda *a, **k: (2, "", "plugin-version-bump: CONFIG ERROR\n")
@@ -132,7 +134,7 @@ def test_main_forwards_validator_config_error_exit(monkeypatch, capsys) -> None:
 def test_main_passes_resolved_base_to_validator(monkeypatch) -> None:
     """The runner forwards the resolved base ref to the validator's --base."""
     monkeypatch.setenv("PR_BASE_REF", "main")
-    monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: None)
+    monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: 0)
     monkeypatch.setattr(runner, "resolve_base", lambda ref: "deadbeef")
 
     seen: dict[str, list[str]] = {}
