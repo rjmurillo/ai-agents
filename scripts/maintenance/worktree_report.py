@@ -55,6 +55,16 @@ class Decision:
     branch: str | None
     remove: bool
     reason: str
+    head: str | None = None
+    """The commit this decision was made about, for removals.
+
+    ``--apply`` re-reads the repository and then refuses to remove a candidate
+    whose HEAD has moved. Reading that HEAD after the recheck decided means a
+    commit landing between the two reads becomes the value compared against,
+    so it matches itself. Carrying the HEAD the decision was actually made on
+    is what makes the comparison mean anything. ``None`` on a keep, which is
+    never compared.
+    """
 
     @property
     def kept(self) -> bool:

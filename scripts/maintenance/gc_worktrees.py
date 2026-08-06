@@ -270,7 +270,13 @@ def decide(
         """
         loss = _gc_reasons.reflog_only_work(worktree.path, main_path, _run_git)
         if not loss:
-            return Decision(worktree.path, worktree.branch, remove=True, reason=reason)
+            return Decision(
+                worktree.path,
+                worktree.branch,
+                remove=True,
+                reason=reason,
+                head=worktree.head,
+            )
         return Decision(
             worktree.path,
             worktree.branch,
