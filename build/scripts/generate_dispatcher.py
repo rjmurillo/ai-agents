@@ -178,14 +178,7 @@ if sys.version_info < (__MIN_PYTHON_MAJOR__, __MIN_PYTHON_MINOR__):
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _bootstrap import ensure_plugin_paths  # noqa: E402
-
-try:
-    from _bootstrap import PluginInfrastructureError  # noqa: E402
-except ImportError:
-    PluginInfrastructureError = type(  # noqa: E402
-        "PluginInfrastructureError", (Exception,), {}
-    )
+from _bootstrap import PluginInfrastructureError, ensure_plugin_paths  # noqa: E402
 
 # Defensive hook-payload ceiling (#3074, ADR-066, CWE-400). Long-session
 # apply_patch calls can cross a few MiB, and no measured host maximum exists.

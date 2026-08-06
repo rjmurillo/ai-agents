@@ -721,6 +721,18 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "scripts that auto-detect the repository via gh repo view fail only "
         "in local act, not in CI where GH_TOKEN and repo info are available.",
     ),
+    (
+        None,
+        lambda text: (
+            "Vanilla Windows" in text
+            and "Assert precondition" in text
+            and "Row is not vanilla" in text
+        ),
+        "act maps windows-latest to a Linux container that ships Python, so "
+        "the Vanilla Windows precondition assertion ('Row is not vanilla') "
+        "correctly fires. This fails only in local act; the real Windows "
+        "runner scrubs Python from PATH before the assertion runs.",
+    ),
 )
 
 # ``_run`` stringifies a stage timeout as ``TimeoutExpired: ...`` (the exception
