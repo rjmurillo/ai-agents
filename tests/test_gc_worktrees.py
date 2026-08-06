@@ -311,7 +311,7 @@ class TestBuildReport:
 class TestApplyRemovals:
     """Removal execution. Only runs on candidates; never in dry-run."""
 
-    def test_apply_removes_each_candidate_and_prunes(self):
+    def test_apply_removes_each_candidate(self):
         report = GcReport(
             timestamp="t",
             base_ref=_BASE,
@@ -325,11 +325,9 @@ class TestApplyRemovals:
         )
         with (
             patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
         ):
             apply_removals(report)
         assert [c.args[0] for c in remove.call_args_list] == ["/repo/a", "/repo/b"]
-        prune.assert_called_once()
         assert report.removed == ["/repo/a", "/repo/b"]
 
     def test_apply_records_removal_errors_without_aborting(self):
@@ -353,7 +351,6 @@ class TestApplyRemovals:
                 "scripts.maintenance.gc_worktrees.remove_worktree",
                 side_effect=fail_on_a,
             ),
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees"),
         ):
             apply_removals(report)
         assert report.removed == ["/repo/b"]

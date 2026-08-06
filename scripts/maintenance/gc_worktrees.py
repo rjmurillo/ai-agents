@@ -251,18 +251,21 @@ def decide(
     if worktree.locked:
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_LOCKED)
 
-    if worktree.prunable:
-        if stale_head_is_reachable(worktree.head):
-            return Decision(worktree.path, worktree.branch, remove=True, reason=PRUNE_STALE)
-        return Decision(
-            worktree.path, worktree.branch, remove=False, reason=KEEP_STALE_UNREACHABLE
-        )
-
     if is_occupied(worktree.path, cwds):
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_OCCUPIED)
 
     if not inspect:
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_TIME_BUDGET)
+
+    if worktree.prunable:
+        if stale_head_is_reachable(worktree.head):
+            return Decision(worktree.path, worktree.branch, remove=True, reason=PRUNE_STALE)
+        return Decision(
+            worktree.path,
+            worktree.branch,
+            remove=False,
+            reason=f"{KEEP_STALE_UNREACHABLE}; rescue with git branch <name> {worktree.head}",
+        )
 
     try:
         if has_uncommitted_changes(worktree.path):
@@ -296,19 +299,6 @@ def decide(
 def remove_worktree(path: str) -> None:
     """Remove a worktree via ``git worktree remove``. Raises on failure."""
     _run_git(["worktree", "remove", path])
-
-
-def prune_worktrees() -> str:
-    """Prune dead worktree admin entries. Returns git's stdout (may be empty).
-
-    ``git worktree prune`` takes no path argument: it prunes every entry git
-    considers prunable. It can be made selective only by locking the entries to
-    skip, since a locked entry is never pruned. This tool does not do that: a
-    lock is user-visible state, and a process interrupted between the lock and
-    the unlock would strand it, silently blocking later cleanup. So when any
-    stale entry is unsafe, the whole prune is withheld instead.
-    """
-    return _run_git(["worktree", "prune", "-v"])
 
 
 def stale_head_is_reachable(head: str | None) -> bool:
@@ -424,17 +414,19 @@ def build_report(
 
 
 def apply_removals(report: GcReport) -> None:
-    """Remove the candidate worktrees, then prune admin entries.
+    """Remove exactly the candidate worktrees the plan named.
 
     Records each success in ``report.removed`` and each failure in
-    ``report.remove_errors`` without aborting the batch. Pruning runs once
-    after removals to clean up any orphaned admin entries.
+    ``report.remove_errors`` without aborting the batch. Every removal is
+    per-path, including stale entries whose directory is already gone, which
+    ``git worktree remove`` handles. Nothing runs a blanket
+    ``git worktree prune``: prune takes no path argument, so it would also drop
+    admin records this run never evaluated, and any entry held back for safety.
 
     Refuses to mutate anything when the report is partial. A truncated run
     inspects whichever worktrees the clock allowed, so applying it would remove
-    a different set than the dry run a reader reviewed, and ``git worktree
-    prune`` would still drop admin records for worktrees this run never looked
-    at. Rerun with ``--time-budget 0`` to get a complete, reviewable plan.
+    a different set than the dry run a reader reviewed. Rerun with
+    ``--time-budget 0`` to get a complete, reviewable plan.
 
     Refuses just as hard when the occupancy scan was unavailable. A failed
     ``/proc`` read yields an empty set of process working directories, and an
@@ -460,30 +452,11 @@ def apply_removals(report: GcReport) -> None:
         return
 
     for decision in report.candidates:
-        if decision.reason == PRUNE_STALE:
-            continue
         try:
             remove_worktree(decision.path)
             report.removed.append(decision.path)
         except RuntimeError as exc:
             report.remove_errors.append(f"{decision.path}: {exc}")
-
-    unreachable = [d for d in report.decisions if d.reason == KEEP_STALE_UNREACHABLE]
-    if unreachable:
-        report.remove_errors.append(
-            f"prune withheld: {len(unreachable)} stale entr(y/ies) hold a HEAD that no "
-            "ref contains, and prune takes no path argument. Rescue "
-            "them first with git branch <name> <sha>, then rerun: "
-            + ", ".join(f"{d.path}" for d in unreachable[:5])
-        )
-        return
-
-    try:
-        stale = [d for d in report.candidates if d.reason == PRUNE_STALE]
-        prune_worktrees()
-        report.removed.extend(d.path for d in stale)
-    except RuntimeError as exc:
-        report.remove_errors.append(f"prune: {exc}")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

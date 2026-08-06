@@ -19,6 +19,7 @@ from scripts.maintenance.gc_worktrees import (
     KEEP_LOCKED,
     KEEP_MAIN,
     KEEP_STALE_UNREACHABLE,
+    KEEP_TIME_BUDGET,
     PRUNE_STALE,
     Decision,
     GcReport,
@@ -96,7 +97,22 @@ class TestDecide:
     def test_a_stale_entry_whose_head_is_unreachable_is_kept(self):
         decision = _decide(_stale(), reachable=False)
         assert decision.remove is False
-        assert decision.reason == KEEP_STALE_UNREACHABLE
+        assert decision.reason.startswith(KEEP_STALE_UNREACHABLE)
+
+    def test_the_kept_reason_carries_the_sha_needed_to_rescue_it(self):
+        """A path alone is not actionable; the rescue command needs the SHA."""
+        decision = _decide(_stale(), reachable=False)
+        assert f"git branch <name> {_SHA}" in decision.reason
+
+    def test_a_stale_entry_past_the_time_budget_costs_no_reachability_call(self):
+        """The budget guard must precede the subprocess the check spawns."""
+        with patch(f"{_MODULE}.stale_head_is_reachable") as reachable:
+            decision = decide(
+                _stale(), _MAIN, _BASE, cwds=frozenset(), inspect=False
+            )
+        reachable.assert_not_called()
+        assert decision.reason == KEEP_TIME_BUDGET
+        assert decision.remove is False
 
     def test_a_stale_entry_never_reaches_the_git_inspection_path(self):
         """The old code ran git in a directory that no longer exists.
@@ -169,85 +185,95 @@ def _keep_unreachable(path: str) -> Decision:
     return Decision(path, None, remove=False, reason=KEEP_STALE_UNREACHABLE)
 
 
-class TestApply:
-    """Apply must prune stale entries without ever calling ``worktree remove``."""
+class TestNoBlanketPrune:
+    """The data-loss path this change removed must not come back.
 
-    def test_a_stale_candidate_is_never_passed_to_remove_worktree(self):
+    ``git worktree prune`` takes no path argument, so it drops every entry git
+    considers prunable: entries that went stale after the plan was built, and
+    entries this tool deliberately held back because no ref contains their
+    HEAD. ``git worktree remove`` works on a stale entry, so per-path removal
+    covers the same ground without that reach.
+    """
+
+    def test_the_module_exposes_no_blanket_prune_helper(self):
+        import scripts.maintenance.gc_worktrees as module
+
+        assert not hasattr(module, "prune_worktrees")
+
+    def test_apply_never_shells_out_to_worktree_prune(self):
         report = _report(_prune_stale("/gone/a"))
-        with (
-            patch(f"{_MODULE}.remove_worktree") as remove,
-            patch(f"{_MODULE}.prune_worktrees"),
-        ):
-            apply_removals(report)
-        remove.assert_not_called()
+        calls: list[list[str]] = []
 
-    def test_a_stale_candidate_is_reported_as_removed_after_the_prune(self):
-        report = _report(_prune_stale("/gone/a"), _prune_stale("/gone/b"))
-        with (
-            patch(f"{_MODULE}.remove_worktree"),
-            patch(f"{_MODULE}.prune_worktrees") as prune,
-        ):
-            apply_removals(report)
-        prune.assert_called_once()
-        assert report.removed == ["/gone/a", "/gone/b"]
-        assert report.remove_errors == []
+        def record(args, **_kwargs):
+            calls.append(args)
+            return ""
 
-    def test_one_unreachable_entry_withholds_the_prune_for_all_of_them(self):
+        with patch(f"{_MODULE}._run_git", side_effect=record):
+            apply_removals(report)
+        assert not any("prune" in c for c in calls), calls
+
+
+class TestApply:
+    """Stale entries are removed per path, like any other candidate."""
+
+    def test_a_stale_candidate_goes_through_remove_worktree(self):
+        report = _report(_prune_stale("/gone/a"))
+        with patch(f"{_MODULE}.remove_worktree") as remove:
+            apply_removals(report)
+        remove.assert_called_once_with("/gone/a")
+        assert report.removed == ["/gone/a"]
+
+    def test_a_kept_unreachable_entry_is_never_touched(self):
         report = _report(_prune_stale("/gone/a"), _keep_unreachable("/gone/b"))
-        with (
-            patch(f"{_MODULE}.remove_worktree"),
-            patch(f"{_MODULE}.prune_worktrees") as prune,
-        ):
+        with patch(f"{_MODULE}.remove_worktree") as remove:
             apply_removals(report)
-        prune.assert_not_called()
-        assert report.removed == []
+        assert [c.args[0] for c in remove.call_args_list] == ["/gone/a"]
+        assert "/gone/b" not in report.removed
 
-    def test_the_withheld_prune_names_the_entry_to_rescue(self):
-        report = _report(_keep_unreachable("/gone/b"))
-        with (
-            patch(f"{_MODULE}.remove_worktree"),
-            patch(f"{_MODULE}.prune_worktrees"),
-        ):
+    def test_one_unsafe_entry_does_not_block_the_safe_ones(self):
+        """The withheld-prune design punished 61 safe entries for 1 unsafe one."""
+        report = _report(
+            _keep_unreachable("/gone/x"),
+            *(_prune_stale(f"/gone/{i}") for i in range(5)),
+        )
+        with patch(f"{_MODULE}.remove_worktree"):
             apply_removals(report)
-        (message,) = report.remove_errors
-        assert "prune withheld" in message
-        assert "/gone/b" in message
-        assert "git branch <name> <sha>" in message
+        assert report.removed == [f"/gone/{i}" for i in range(5)]
 
-    def test_a_live_candidate_still_goes_through_remove_worktree(self):
+    def test_a_failed_removal_is_recorded_and_not_claimed_as_removed(self):
+        report = _report(_prune_stale("/gone/a"), _prune_stale("/gone/b"))
+
+        def fail_on_a(path: str) -> None:
+            if path == "/gone/a":
+                raise RuntimeError("still locked")
+
+        with patch(f"{_MODULE}.remove_worktree", side_effect=fail_on_a):
+            apply_removals(report)
+        assert report.removed == ["/gone/b"]
+        assert any("/gone/a" in e and "still locked" in e for e in report.remove_errors)
+
+    def test_a_live_candidate_and_a_stale_one_take_the_same_path(self):
         live = Decision("/repo/wt", "feat/x", remove=True, reason="fully pushed")
         report = _report(live, _prune_stale("/gone/a"))
-        with (
-            patch(f"{_MODULE}.remove_worktree") as remove,
-            patch(f"{_MODULE}.prune_worktrees"),
-        ):
+        with patch(f"{_MODULE}.remove_worktree") as remove:
             apply_removals(report)
-        remove.assert_called_once_with("/repo/wt")
-        assert report.removed == ["/repo/wt", "/gone/a"]
-
-    def test_a_failing_prune_is_reported_and_the_paths_are_not_claimed(self):
-        report = _report(_prune_stale("/gone/a"))
-        with (
-            patch(f"{_MODULE}.remove_worktree"),
-            patch(f"{_MODULE}.prune_worktrees", side_effect=RuntimeError("locked")),
-        ):
-            apply_removals(report)
-        assert report.removed == []
-        assert any("prune: locked" in e for e in report.remove_errors)
+        assert [c.args[0] for c in remove.call_args_list] == ["/repo/wt", "/gone/a"]
 
 
 class TestPlanMatchesApply:
     """The contract the old code broke: the plan must predict what apply does."""
 
-    def test_every_entry_apply_prunes_appears_in_the_plan_as_a_candidate(self):
-        report = _report(_prune_stale("/gone/a"), _prune_stale("/gone/b"))
-        planned = {d.path for d in report.candidates}
-        with (
-            patch(f"{_MODULE}.remove_worktree"),
-            patch(f"{_MODULE}.prune_worktrees"),
-        ):
+    def test_apply_removes_exactly_the_paths_the_plan_named(self):
+        report = _report(
+            _prune_stale("/gone/a"),
+            _prune_stale("/gone/b"),
+            _keep_unreachable("/gone/c"),
+            Decision("/repo/d", "feat/d", remove=False, reason="uncommitted changes"),
+        )
+        planned = [d.path for d in report.candidates]
+        with patch(f"{_MODULE}.remove_worktree"):
             apply_removals(report)
-        assert set(report.removed) == planned
+        assert report.removed == planned
 
     def test_a_kept_stale_entry_is_not_listed_as_a_candidate(self):
         report = _report(_keep_unreachable("/gone/b"))

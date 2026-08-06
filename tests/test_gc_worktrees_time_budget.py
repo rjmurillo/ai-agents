@@ -253,24 +253,21 @@ class TestPartialReportsRefuseToMutate:
         )
         with (
             patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
         ):
             apply_removals(report)
         remove.assert_not_called()
-        prune.assert_not_called()
         assert report.removed == []
 
-    def test_a_partial_report_with_no_candidates_still_refuses_to_prune(self):
-        """Q1: zero candidates does not make pruning safe on a partial report."""
+    def test_a_partial_report_with_no_candidates_still_refuses(self):
+        """Q1: zero candidates does not make a partial report safe to apply."""
         report = self._report(
             [Decision("/repo/z", "feat/z", remove=False, reason=KEEP_TIME_BUDGET)]
         )
-        with (
-            patch("scripts.maintenance.gc_worktrees.remove_worktree"),
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
-        ):
+        with patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove:
             apply_removals(report)
-        prune.assert_not_called()
+        remove.assert_not_called()
+        assert report.removed == []
+        assert any("not inspected" in e for e in report.remove_errors)
 
     def test_the_refusal_names_the_remedy(self):
         report = self._report(
@@ -278,7 +275,6 @@ class TestPartialReportsRefuseToMutate:
         )
         with (
             patch("scripts.maintenance.gc_worktrees.remove_worktree"),
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees"),
         ):
             apply_removals(report)
         assert len(report.remove_errors) == 1
@@ -296,11 +292,9 @@ class TestPartialReportsRefuseToMutate:
         )
         with (
             patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
         ):
             apply_removals(report)
         assert [c.args[0] for c in remove.call_args_list] == ["/repo/a"]
-        prune.assert_called_once()
         assert report.remove_errors == []
 
 
@@ -334,11 +328,9 @@ class TestApplyRefusesWhenOccupancyWasUnavailable:
         )
         with (
             patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
         ):
             apply_removals(report)
         remove.assert_not_called()
-        prune.assert_not_called()
         assert report.removed == []
 
     def test_the_refusal_names_proc_and_the_remedy(self):
@@ -349,7 +341,6 @@ class TestApplyRefusesWhenOccupancyWasUnavailable:
         )
         with (
             patch("scripts.maintenance.gc_worktrees.remove_worktree"),
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees"),
         ):
             apply_removals(report)
         assert len(report.remove_errors) == 1
@@ -369,30 +360,27 @@ class TestApplyRefusesWhenOccupancyWasUnavailable:
         )
         with (
             patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
         ):
             apply_removals(report)
         assert [c.args[0] for c in remove.call_args_list] == ["/repo/a"]
-        prune.assert_called_once()
         assert report.remove_errors == []
 
-    def test_an_unavailable_scan_with_no_candidates_still_refuses_to_prune(self):
-        """Edge: zero candidates does not make pruning safe.
+    def test_an_unavailable_scan_with_no_candidates_still_refuses(self):
+        """Edge: zero candidates does not make an unreadable scan safe.
 
-        ``git worktree prune`` drops admin records for directories that are
-        gone. With occupancy unknown the run has no standing to assert anything
-        about the tree, so the whole mutation is withheld, not just removals.
+        With occupancy unknown the run has no standing to assert anything about
+        the tree, so the whole mutation is withheld, not just the removals it
+        happened to plan.
         """
         report = self._report(
             [Decision("/repo/b", "feat/b", remove=False, reason=KEEP_MAIN)],
             occupancy_unavailable=True,
         )
-        with (
-            patch("scripts.maintenance.gc_worktrees.remove_worktree"),
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
-        ):
+        with patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove:
             apply_removals(report)
-        prune.assert_not_called()
+        remove.assert_not_called()
+        assert report.removed == []
+        assert any("/proc" in e for e in report.remove_errors)
 
     def test_occupancy_outranks_a_partial_report(self):
         """Edge: both refusals apply; the data-loss one is reported.
@@ -410,7 +398,6 @@ class TestApplyRefusesWhenOccupancyWasUnavailable:
         )
         with (
             patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees"),
         ):
             apply_removals(report)
         remove.assert_not_called()
