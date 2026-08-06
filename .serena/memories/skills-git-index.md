@@ -14,3 +14,5 @@
 | diff direction reversed minus lines predates misread restore | [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) |
 | worktree stale entry directory gone remove by path prune locked | [git/git-a-worktree-whose-directory-is-gone-can-still-be-removed-by-path](git/git-a-worktree-whose-directory-is-gone-can-still-be-removed-by-path.md) |
 | worktree path newline porcelain parse split -z fails safe | [git/git-a-newline-in-a-worktree-path-splits-porcelain-but-fails-safe](git/git-a-newline-in-a-worktree-path-splits-porcelain-but-fails-safe.md) |
+| status porcelain empty suspended merge MERGE_HEAD orphan worktree remove index.lock | [git/git-porcelain-is-silent-about-a-suspended-operation](git/git-porcelain-is-silent-about-a-suspended-operation.md) |
+| checkout-index prefix directory not created writes nothing unmerged stages gitlink recovery | [git/git-checkout-index-skips-the-prefix-directory-when-it-writes-nothing](git/git-checkout-index-skips-the-prefix-directory-when-it-writes-nothing.md) |
