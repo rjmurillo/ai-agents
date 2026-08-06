@@ -318,7 +318,7 @@ def test_doctrine_source_basis_figure_and_delta_are_consistent() -> None:
 
 
 def test_doctrine_plugin_tree_figures_match_the_shipped_tree() -> None:
-    """The plugin tree diverges from `.github/instructions`; pin both sides."""
+    """The plugin tree must match `.github/instructions`; pin both sides."""
     figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
     plugin_tree = REPO_ROOT / "src" / "copilot-cli" / "instructions"
     files, total = _tree_always_on(plugin_tree)
@@ -328,9 +328,14 @@ def test_doctrine_plugin_tree_figures_match_the_shipped_tree() -> None:
         f"{files} / {total}"
     )
     repo_files, repo_total = _tree_always_on(MIRROR_DIR)
-    assert (files, total) != (repo_files, repo_total), (
-        "the two instruction trees no longer diverge, so the passage "
-        "explaining why they differ is obsolete"
+    assert (files, total) == (repo_files, repo_total), (
+        "the plugin tree diverged from `.github/instructions` "
+        f"({files} rules / {total} bytes versus {repo_files} / {repo_total}). "
+        "Before issue #4317 an internal-only glob was dropped rather than "
+        "skipped, leaving an empty scope that defaulted to `**`, so a "
+        "repository-internal rule shipped to every consumer as always-on. "
+        "A gap here means that failure direction has returned: find the rule "
+        "present in one tree and not the other, and check its source scope."
     )
 
 
