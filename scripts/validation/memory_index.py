@@ -288,6 +288,7 @@ def _load_base_reference_counts(
             ["git", "rev-parse", "--show-toplevel"],
             cwd=memory_path,
             text=True,
+            encoding="utf-8",
             capture_output=True,
             check=False,
         )
@@ -302,6 +303,7 @@ def _load_base_reference_counts(
             ["git", "merge-base", base_ref, "HEAD"],
             cwd=repo_root,
             text=True,
+            encoding="utf-8",
             capture_output=True,
             check=False,
         )
@@ -313,6 +315,7 @@ def _load_base_reference_counts(
             ["git", "show", f"{merge_base}:{relative_index}"],
             cwd=repo_root,
             text=True,
+            encoding="utf-8",
             capture_output=True,
             check=False,
         )
