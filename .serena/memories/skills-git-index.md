@@ -13,3 +13,4 @@
 | unique commits discard ahead already-up-to-date destroy unpushed cherry-pick | [git/git-list-unique-commits-before-any-reset](git/git-list-unique-commits-before-any-reset.md) |
 | diff direction reversed minus lines predates misread restore | [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) |
 | worktree stale entry directory gone remove by path prune locked | [git/git-a-worktree-whose-directory-is-gone-can-still-be-removed-by-path](git/git-a-worktree-whose-directory-is-gone-can-still-be-removed-by-path.md) |
+| worktree path newline porcelain parse split -z fails safe | [git/git-a-newline-in-a-worktree-path-splits-porcelain-but-fails-safe](git/git-a-newline-in-a-worktree-path-splits-porcelain-but-fails-safe.md) |
