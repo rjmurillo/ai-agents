@@ -1,0 +1,253 @@
+{
+  "id": "episode-2026-08-06-session-10003-review-pending-checkout-changes-update",
+  "session": "2026-08-06-session-10003-review-pending-checkout-changes-update",
+  "timestamp": "2026-08-06T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Review pending checkout changes, update pull requests, and clean repository worktrees",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-06T05:40:00+00:00",
+      "type": "milestone",
+      "content": "Repair PR 4616 review records",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-06T06:35:00+00:00",
+      "type": "milestone",
+      "content": "Correct generated episode file count",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-06T06:30:00+00:00",
+      "type": "milestone",
+      "content": "Diagnose session commit failure",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-06T07:25:00+00:00",
+      "type": "milestone",
+      "content": "Implement authoritative episode metrics",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-06T07:38:00+00:00",
+      "type": "milestone",
+      "content": "Correct session records and allocator claim",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-06T09:26:23+00:00",
+      "type": "milestone",
+      "content": "Restore historical episode chronology",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-06T10:39:43+00:00",
+      "type": "milestone",
+      "content": "Integrate concurrent remote branch update",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-06T11:22:09+00:00",
+      "type": "milestone",
+      "content": "Update PR branch from main",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-06T05:52:30+00:00",
+      "type": "commit",
+      "content": "Commit: c23d399893a9e4d1634cf145f827310c04784a49",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-06T06:43:34+00:00",
+      "type": "commit",
+      "content": "Commit: 5d208f6af1082ad9bd2d50069c932668bd88ee91",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-06T07:35:46+00:00",
+      "type": "commit",
+      "content": "Commit: d3035b6e4faf227b02ddfb5a1d857bf1c71b7c5e",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-06T07:41:30+00:00",
+      "type": "commit",
+      "content": "Commit: 1abd17d9360317eb83b90130dc85650a4c8be224",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-06T08:08:45+00:00",
+      "type": "commit",
+      "content": "Commit: 5cf35eb3575f8be042c1e309f92c57f999e6ba82",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e006",
+        "e014"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-06T09:26:23+00:00",
+      "type": "commit",
+      "content": "Commit: 3bf304722e0025b708df9661a3841d3c27e63856",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-06T09:53:35+00:00",
+      "type": "commit",
+      "content": "Commit: fb90ea45a601234fdf1f3f9f331ac969b42215ad",
+      "caused_by": [
+        "e006",
+        "e014"
+      ],
+      "leads_to": [
+        "e007",
+        "e016"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-06T10:39:43+00:00",
+      "type": "commit",
+      "content": "Commit: 609b314e5a6ed63332fa193f4644683067740590",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-06T11:01:42+00:00",
+      "type": "commit",
+      "content": "Commit: 7cc5c3e70f2f136de29554d4d8e52d2c5c95e90e",
+      "caused_by": [
+        "e007",
+        "e016"
+      ],
+      "leads_to": [
+        "e008",
+        "e018"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-06T11:22:09+00:00",
+      "type": "commit",
+      "content": "Commit: bb30860ac61d4b62654653b0f6b67658d9594653",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 342,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 10,
+    "files_changed": 15
+  },
+  "lessons": []
+}
