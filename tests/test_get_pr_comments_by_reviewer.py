@@ -251,6 +251,25 @@ class TestMain:
         assert exc.value.code == 3
         assert '"success": true' not in capsys.readouterr().out.lower()
 
+    def test_graphql_timeout_exits_3(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        with patch(
+            f"{_MODULE}.assert_gh_authenticated",
+        ), patch(
+            f"{_MODULE}.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            f"{_MODULE}.gh_graphql",
+            side_effect=subprocess.TimeoutExpired("gh", 30),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "42"])
+
+        assert exc.value.code == 3
+        assert '"success": true' not in capsys.readouterr().out.lower()
+
     def test_no_comments(self, capsys):
         author_response = _author_response()
         with patch(

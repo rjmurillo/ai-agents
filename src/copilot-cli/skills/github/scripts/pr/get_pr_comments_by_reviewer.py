@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import warnings
 from datetime import UTC, datetime
@@ -405,7 +406,7 @@ def main(argv: list[str] | None = None) -> int:
             comment_type=args.comment_type,
             exclude_self_comments=not args.include_self_comments,
         )
-    except RuntimeError as exc:
+    except (RuntimeError, subprocess.TimeoutExpired) as exc:
         error_and_exit(f"Failed to get PR comments: {exc}", 3)
 
     print(json.dumps(result, indent=2))
