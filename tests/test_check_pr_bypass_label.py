@@ -10,6 +10,8 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 from pathlib import Path
+
+_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "validation" / "check_pr_bypass_label.py"
 from types import SimpleNamespace
 
 import pytest
@@ -158,3 +160,35 @@ def test_main_prints_status_and_returns_code(monkeypatch, capsys):
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
+
+
+class TestUsesRestNotGraphQL:
+    """The bypass must survive an exhausted GraphQL budget.
+
+    `gh pr view` is GraphQL, and GraphQL is the first budget to exhaust when
+    several agents work one repository. Measured during a fleet session:
+    graphql 0 of 5000 remaining while core REST still had 4921. In that state
+    the commit-limit ceiling lost its only sanctioned relief, and the customer
+    fix for issue #4672 could not be pushed. Refs #4690.
+    """
+
+    def test_source_does_not_call_gh_pr_view(self) -> None:
+        source = _SCRIPT_PATH.read_text(encoding="utf-8")
+        code = "\n".join(
+            line for line in source.splitlines() if not line.strip().startswith("#")
+        )
+        assert '"pr", "view"' not in code, "gh pr view is GraphQL; use the REST pulls endpoint"
+
+    def test_source_does_not_call_gh_repo_view(self) -> None:
+        """The repository lookup must not reintroduce the GraphQL dependency."""
+        source = _SCRIPT_PATH.read_text(encoding="utf-8")
+        code = "\n".join(
+            line for line in source.splitlines() if not line.strip().startswith("#")
+        )
+        assert '"repo", "view"' not in code, (
+            "gh repo view is GraphQL; derive the repository from the git remote"
+        )
+
+    def test_source_uses_the_rest_pulls_endpoint(self) -> None:
+        source = _SCRIPT_PATH.read_text(encoding="utf-8")
+        assert "/pulls" in source and '"api"' in source
