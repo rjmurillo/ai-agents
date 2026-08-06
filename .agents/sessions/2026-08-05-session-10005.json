@@ -187,9 +187,45 @@
     {
       "step": "lesson",
       "evidence": "validate_session_json.py scans evidence on completed MUST items for tokens implying the item was skipped, and TODO is one of them on a word boundary, so 'Todo list updated' flags against correct evidence. The escapes are uneven: deferred and pending are suppressed after an affirmative word plus a clause boundary, skipped is suppressed after a bare number for pytest summaries, and TODO, TBD, N/A, will run, will validate and not available have none. Measured against _has_contradiction. Recorded as .serena/memories/session/session-writing-todo-in-evidence-trips-the-contradiction-scanner.md."
+    },
+    {
+      "step": "review",
+      "evidence": "Round 5 adversarial review on GPT 5.6 Sol raised seven findings. Each was tested against real git before being accepted. Sol #2 held: git checkout-index -a exits 0 and writes zero files for an index holding only unmerged stages, and exports a 160000 gitlink as an empty directory, losing the recorded commit. Both silent. Probed in ~/src/scratch/ckidx."
+    },
+    {
+      "step": "fix",
+      "evidence": "The printed recovery command now copies the index file itself, because the index is the only artifact holding the conflicted stages and the gitlink SHAs. Three real-git tests cover it: unmerged stages preserved, gitlink preserved, and the existing skip-worktree test extended to assert the index copy landed. Commit 078671502."
+    },
+    {
+      "step": "fix",
+      "evidence": "Sol #5 held: the rescue chain joined with ; so a shell reports the status of the last command and a failed first rescue read as a completed rescue. Joined with && instead. The test pre-creates the first rescue branch to block it, then asserts non-zero exit and that the second branch was never created. Under ; the chain exits 0 and the test fails."
+    },
+    {
+      "step": "review",
+      "evidence": "Sol #7 was tested by applying the exact proposed revert, bypassing removable() on the branch path, and all 410 tests still passed. The merged-to-base and fully-pushed path, which nearly every worktree takes, could skip the reflog-only-work check with zero failures. A real-git test now covers it and the revert fails. Commit cba06ab53."
+    },
+    {
+      "step": "review",
+      "evidence": "Sol #6 was rejected after building both reachable constructions and running the real tool against them. A newline in a worktree path splits git worktree list --porcelain, verified on git 2.43.0. With a worktree occupying the truncated path, removal targets that worktree and a commit stranded in the newline worktree survived in the odb. With nothing occupying it, build_report returned remove=False with 'could not locate its admin entry'. Neither construction loses a commit, so -z was not adopted. Commit aaefc7b9c."
+    },
+    {
+      "step": "refactor",
+      "evidence": "The taste count ratchet regressed to 584 against baseline 583 because tests/test_gc_worktrees_real_git_stale.py reached 529 lines over the 500 limit. Four real-git suites each carried a private copy of the same sandbox builder, roughly ninety lines repeated four times. Extracted to tests/gc_real_git.py with the fixture in tests/conftest.py, 252 lines removed, ratchet back to 583. Commits 52fe6bb83 and bfa4a2dc5."
+    },
+    {
+      "step": "lesson",
+      "evidence": "Importing a pytest fixture by name into a suite that also names it as a test parameter reads to ruff as a redefinition, F811. Conftest discovery has no such problem. Ruff isort also splits an aliased import block into one statement per alias, so dropping the aliases entirely produced one clean import line. Recorded as .serena/memories/testing/testing-a-revert-experiment-that-injects-code-runs-it-for-real.md context."
+    },
+    {
+      "step": "fix",
+      "evidence": "The memory index count ratchet failed at 427 against baseline 425 because the three memories this branch wrote were referenced by no domain index, which makes them unreachable through the retrieval path AGENTS.md points at. Added entries to skills-git-index.md, skills-session-init-index.md and skills-validation-index.md; ratchet back to 424. Commit baf8ccbdd."
+    },
+    {
+      "step": "verify",
+      "evidence": "Full suite: 23809 passed, 33 skipped, 2 warnings in 657.65s. taste count ratchet: OK, count == baseline 583. memory index count ratchet: OK, 424 violations <= baseline 425."
     }
   ],
-  "endingCommit": "9baa6f704",
+  "endingCommit": "aaefc7b9c",
   "nextSteps": [
     "Open the PR stacked on #4694 rather than waiting for it to merge; rebase onto main after #4694 lands",
     "Return to branch A, the reachability memory fix, which is still unpushed",
