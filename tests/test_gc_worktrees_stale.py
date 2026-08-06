@@ -22,7 +22,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.maintenance import _gc_parse, _gc_reasons
+from scripts.maintenance import _gc_parse, _gc_reasons, _gc_stale, worktree_report
 from scripts.maintenance.gc_worktrees import (
     KEEP_LOCKED,
     KEEP_MAIN,
@@ -84,7 +84,7 @@ def _decide(
         ),
         patch(f"{_MODULE}._gc_reasons._gc_stale.staged_content_state", return_value=staged),
     ):
-        return decide(worktree, _MAIN, _BASE, cwds=frozenset(), path_exists=lambda _: present)
+        return decide(worktree, _MAIN, _BASE, cwds=frozenset(), checkout_present=lambda _: present)
 
 
 def _parse(text: str) -> list[Worktree]:
@@ -92,15 +92,30 @@ def _parse(text: str) -> list[Worktree]:
     return _gc_parse.list_worktrees(lambda _: text)
 
 
-def _stale(path: str = "/gone/wt", **kwargs) -> Worktree:
-    fields = {
-        "branch": None,
-        "head": _SHA,
-        "detached": True,
-        "prunable": "gitdir file points to non-existent location",
-    }
-    fields.update(kwargs)
-    return Worktree(path=path, **fields)
+def _stale(
+    path: str = "/gone/wt",
+    *,
+    branch: str | None = None,
+    head: str | None = _SHA,
+    locked: bool = False,
+    bare: bool = False,
+    detached: bool = True,
+    prunable: str | None = "gitdir file points to non-existent location",
+) -> Worktree:
+    """Build a stale-entry ``Worktree``, one field at a time.
+
+    Spelled out rather than splatted from a dict so that a typo in a field
+    name fails here instead of silently constructing a different worktree.
+    """
+    return Worktree(
+        path=path,
+        branch=branch,
+        head=head,
+        locked=locked,
+        bare=bare,
+        detached=detached,
+        prunable=prunable,
+    )
 
 
 class TestPorcelainParsing:
@@ -171,7 +186,7 @@ class TestDecide:
     def test_the_kept_reason_carries_the_sha_needed_to_rescue_it(self):
         """A path alone is not actionable; the rescue command needs the SHA."""
         decision = _decide(_stale(), reachable=False)
-        assert f"git branch rescue/{_SHA[:12]} {_SHA}" in decision.reason
+        assert f"git branch gc-rescue-{_SHA} {_SHA}" in decision.reason
 
     def test_a_missing_head_never_renders_as_a_literal_none(self):
         """``git branch <name> None`` is a command that cannot work and looks like one that can."""
@@ -208,9 +223,9 @@ class TestDecide:
     def test_no_stale_entry_is_ever_a_removal_candidate(self):
         """The blanket guarantee, independent of any single reason string."""
         for reachable in (True, False):
-            for extra in ({}, {"branch": "feat/x", "detached": False}):
-                decision = _decide(_stale(**extra), reachable=reachable)
-                assert decision.remove is False, (reachable, extra)
+            for worktree in (_stale(), _stale(branch="feat/x", detached=False)):
+                decision = _decide(worktree, reachable=reachable)
+                assert decision.remove is False, (reachable, worktree)
 
     def test_a_locked_stale_entry_stays_locked(self):
         decision = _decide(_stale(locked=True), reachable=True)
@@ -251,11 +266,31 @@ class TestReachability:
     def test_a_head_no_ref_contains_is_unreachable(self):
         assert _gc_reasons.stale_head_is_reachable(_SHA, lambda _: "\n") is False
 
-    def test_a_git_failure_counts_as_unreachable(self):
+    def test_a_git_failure_is_unknown_not_unreachable(self):
+        """Both keep the worktree; only one of them is a fact.
+
+        "No ref contains its HEAD" is a measurement. When the subprocess
+        raised, nobody took it.
+        """
+
         def boom(_):
             raise RuntimeError("boom")
 
-        assert _gc_reasons.stale_head_is_reachable(_SHA, boom) is False
+        assert _gc_reasons.stale_head_is_reachable(_SHA, boom) is None
+
+    def test_the_warning_says_unknown_rather_than_unreachable_after_a_failure(self):
+        """The three-valued answer has to reach the sentence the reader sees."""
+
+        def boom(_):
+            raise RuntimeError("boom")
+
+        unknown = _gc_reasons._head_warning(_SHA, boom)
+        measured = _gc_reasons._head_warning(_SHA, lambda _: "\n")
+        assert worktree_report.KEEP_STALE_HEAD_UNKNOWN in unknown, unknown
+        assert worktree_report.KEEP_STALE_UNREACHABLE in measured, measured
+        assert worktree_report.KEEP_STALE_UNREACHABLE not in unknown, unknown
+        for warning in (unknown, measured):
+            assert f"git branch gc-rescue-{_SHA} {_SHA}" in warning, warning
 
     def test_a_missing_head_counts_as_unreachable(self):
         assert _gc_reasons.stale_head_is_reachable(None, lambda _: "") is False
@@ -324,7 +359,7 @@ class TestStagedContentWarning:
         assert reason.index(KEEP_STALE_UNREACHABLE) < reason.index("its index holds staged work")
 
     def test_no_warning_ends_in_a_period_that_would_corrupt_its_command(self):
-        """``git branch rescue/x <sha>.`` fails with ``bad object``."""
+        """``git branch gc-rescue-x <sha>.`` fails with ``bad object``."""
         reason = _decide(_stale(), reachable=False, staged="staged").reason
         assert f"{_SHA}." not in reason
         assert "--prefix=<somewhere>/." not in reason
@@ -344,7 +379,7 @@ class TestReflogWarning:
         sha = "a" * 40
         reason = self._reason([sha])
         assert "WARNING" in reason
-        assert f"git branch rescue/{sha[:12]} {sha}" in reason
+        assert f"git branch gc-rescue-{sha} {sha}" in reason
 
     def test_no_orphans_means_no_warning(self):
         assert self._reason([]) == KEEP_STALE
@@ -356,7 +391,7 @@ class TestReflogWarning:
 
     def test_only_three_rescue_commands_are_printed_and_the_rest_are_counted(self):
         reason = self._reason([f"{i:040x}" for i in range(7)])
-        assert reason.count("git branch rescue/") == 3
+        assert reason.count("git branch gc-rescue-") == 3
         assert "and 4 more" in reason
 
     def test_both_warnings_appear_when_index_and_reflog_are_both_at_risk(self):
@@ -364,3 +399,31 @@ class TestReflogWarning:
         assert "its index holds staged work" in reason
         assert "its reflog is the only anchor" in reason
         assert reason.index("WARNING") < reason.index("git worktree remove")
+
+
+class TestCheckoutPresence:
+    """A pathname is not an identity.
+
+    ``decide`` treats a missing checkout as a stale entry. Asking whether the
+    *directory* is there answers a weaker question than the one that matters:
+    delete a worktree and put an ordinary directory at the same path and the
+    entry reads as healthy while its admin record points at something that is
+    no longer that worktree. The ``.git`` marker is what makes it that
+    worktree, so that is what gets asked.
+    """
+
+    def test_a_linked_checkout_carries_the_marker(self, tmp_path):
+        checkout = tmp_path / "wt"
+        checkout.mkdir()
+        (checkout / ".git").write_text("gitdir: /repo/.git/worktrees/wt\n", encoding="utf-8")
+        assert _gc_stale.linked_checkout_present(str(checkout)) is True
+
+    def test_a_replacement_directory_does_not(self, tmp_path):
+        """The case a bare ``exists`` call cannot see."""
+        replacement = tmp_path / "wt"
+        replacement.mkdir()
+        assert Path(replacement).exists() is True
+        assert _gc_stale.linked_checkout_present(str(replacement)) is False
+
+    def test_an_absent_path_is_absent(self, tmp_path):
+        assert _gc_stale.linked_checkout_present(str(tmp_path / "gone")) is False

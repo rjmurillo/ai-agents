@@ -78,7 +78,7 @@ def _decide(
         ),
         patch(f"{_MODULE}._gc_reasons._gc_stale.staged_content_state", return_value=staged),
     ):
-        return decide(worktree, _MAIN, _BASE, cwds=frozenset(), path_exists=lambda _: present)
+        return decide(worktree, _MAIN, _BASE, cwds=frozenset(), checkout_present=lambda _: present)
 
 
 def _parse(text: str) -> list[Worktree]:
@@ -86,24 +86,90 @@ def _parse(text: str) -> list[Worktree]:
     return _gc_parse.list_worktrees(lambda _: text)
 
 
-def _stale(path: str = "/gone/wt", **kwargs) -> Worktree:
-    fields = {
-        "branch": None,
-        "head": _SHA,
-        "detached": True,
-        "prunable": "gitdir file points to non-existent location",
-    }
-    fields.update(kwargs)
-    return Worktree(path=path, **fields)
+def _stale(
+    path: str = "/gone/wt",
+    *,
+    branch: str | None = None,
+    head: str | None = _SHA,
+    locked: bool = False,
+    bare: bool = False,
+    detached: bool = True,
+    prunable: str | None = "gitdir file points to non-existent location",
+) -> Worktree:
+    """Build a stale-entry ``Worktree``, one field at a time.
+
+    Spelled out rather than splatted from a dict so that a typo in a field
+    name fails here instead of silently constructing a different worktree.
+    """
+    return Worktree(
+        path=path,
+        branch=branch,
+        head=head,
+        locked=locked,
+        bare=bare,
+        detached=detached,
+        prunable=prunable,
+    )
+
+
+class TestRegularFileProbe:
+    """``_regular_file`` separates "not there" from "could not ask"."""
+
+    def test_a_real_file_is_true(self, tmp_path):
+        target = tmp_path / "index"
+        target.write_bytes(b"x")
+        assert _gc_stale._regular_file(target) is True
+
+    def test_an_absent_file_is_false(self, tmp_path):
+        assert _gc_stale._regular_file(tmp_path / "missing") is False
+
+    def test_a_path_under_a_file_is_false(self, tmp_path):
+        """``a/b`` where ``a`` is a file raises NotADirectoryError, not ENOENT."""
+        (tmp_path / "a").write_bytes(b"x")
+        assert _gc_stale._regular_file(tmp_path / "a" / "b") is False
+
+    def test_a_directory_is_unknown_not_absent(self, tmp_path):
+        """A directory where an index belongs is corrupt, not empty."""
+        (tmp_path / "index").mkdir()
+        assert _gc_stale._regular_file(tmp_path / "index") is None
+
+    def test_a_stat_failure_is_unknown(self, tmp_path):
+        """A permission denial is the case ``Path.is_file`` hides."""
+        with patch.object(Path, "stat", side_effect=PermissionError(13, "denied")):
+            assert _gc_stale._regular_file(tmp_path / "index") is None
+
+    def test_a_broken_symlink_is_absent(self, tmp_path):
+        """``stat`` follows the link and raises ENOENT, which is real absence."""
+        link = tmp_path / "index"
+        link.symlink_to(tmp_path / "nowhere")
+        assert _gc_stale._regular_file(link) is False
+
+
+class TestReflogProbeUnknowns:
+    """An unreadable reflog is not an empty one."""
+
+    def test_an_unreadable_reflog_is_unknown_not_empty(self, tmp_path):
+        with patch(
+            "scripts.maintenance._gc_stale._regular_file",
+            return_value=None,
+        ):
+            assert _gc_stale.unreachable_reflog_commits(tmp_path, "/repo", 5.0) is None
+
+    def test_an_absent_reflog_holds_nothing(self, tmp_path):
+        assert _gc_stale.unreachable_reflog_commits(tmp_path, "/repo", 5.0) == []
 
 
 class TestStagedContentProbe:
     """``staged_content_state`` is three-valued because git has three answers."""
 
     @staticmethod
-    def _probe(returncode: int, index_exists: bool = True):
+    def _probe(returncode: int, index_exists: bool | None = True):
+        """``index_exists=None`` means the ``stat`` itself failed."""
         with (
-            patch("pathlib.Path.is_file", return_value=index_exists),
+            patch(
+                "scripts.maintenance._gc_stale._regular_file",
+                return_value=index_exists,
+            ),
             patch(
                 "scripts.maintenance._gc_stale.subprocess.run",
                 return_value=SimpleNamespace(returncode=returncode),
@@ -124,9 +190,19 @@ class TestStagedContentProbe:
     def test_a_missing_index_is_clean(self):
         assert self._probe(1, index_exists=False) == _gc_stale.CLEAN
 
+    def test_an_unreadable_index_is_unknown_not_clean(self):
+        """A stat that fails is not evidence the index is absent.
+
+        ``Path.is_file`` answers ``False`` for a permission denial exactly as
+        it does for a file that is not there. Reading the first as "no index,
+        nothing staged" hands back a clean bill for a question git was never
+        asked.
+        """
+        assert self._probe(1, index_exists=None) == _gc_stale.UNKNOWN
+
     def test_a_timeout_is_unknown(self):
         with (
-            patch("pathlib.Path.is_file", return_value=True),
+            patch("scripts.maintenance._gc_stale._regular_file", return_value=True),
             patch(
                 "scripts.maintenance._gc_stale.subprocess.run",
                 side_effect=subprocess.TimeoutExpired("git", 5.0),
@@ -139,7 +215,7 @@ class TestStagedContentProbe:
     def test_the_probe_runs_in_the_repo_not_the_admin_directory(self):
         """git refuses the admin dir outright when safe.bareRepository is explicit."""
         with (
-            patch("pathlib.Path.is_file", return_value=True),
+            patch("scripts.maintenance._gc_stale._regular_file", return_value=True),
             patch(
                 "scripts.maintenance._gc_stale.subprocess.run",
                 return_value=SimpleNamespace(returncode=0),

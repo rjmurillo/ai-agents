@@ -97,15 +97,30 @@ def _parse(text: str) -> list[Worktree]:
     return _gc_parse.list_worktrees(lambda _: text)
 
 
-def _stale(path: str = "/gone/wt", **kwargs) -> Worktree:
-    fields = {
-        "branch": None,
-        "head": _SHA,
-        "detached": True,
-        "prunable": "gitdir file points to non-existent location",
-    }
-    fields.update(kwargs)
-    return Worktree(path=path, **fields)
+def _stale(
+    path: str = "/gone/wt",
+    *,
+    branch: str | None = None,
+    head: str | None = _SHA,
+    locked: bool = False,
+    bare: bool = False,
+    detached: bool = True,
+    prunable: str | None = "gitdir file points to non-existent location",
+) -> Worktree:
+    """Build a stale-entry ``Worktree``, one field at a time.
+
+    Spelled out rather than splatted from a dict so that a typo in a field
+    name fails here instead of silently constructing a different worktree.
+    """
+    return Worktree(
+        path=path,
+        branch=branch,
+        head=head,
+        locked=locked,
+        bare=bare,
+        detached=detached,
+        prunable=prunable,
+    )
 
 
 def _report(*decisions: Decision) -> GcReport:

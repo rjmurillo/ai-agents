@@ -210,7 +210,9 @@ def test_the_warning_survives_being_run_from_a_subdirectory(
     assert gc_worktrees.main(["--json"]) == 0
     report = json.loads(capsys.readouterr().out)
 
-    assert "WARNING" in _decision_for(report, worktree)["reason"]
+    reason = _decision_for(report, worktree)["reason"]
+    assert isinstance(reason, str)
+    assert "WARNING" in reason, reason
 
 
 def test_a_moved_worktree_is_marked_prunable_yet_still_works(
@@ -389,7 +391,7 @@ def test_the_report_warns_when_a_reflog_only_commit_would_be_orphaned(
     reason = decision["reason"]
     assert isinstance(reason, str)
     assert "WARNING" in reason, reason
-    assert f"git branch rescue/{orphan[:12]} {orphan}" in reason, reason
+    assert f"git branch gc-rescue-{orphan} {orphan}" in reason, reason
 
 
 def test_the_report_stays_quiet_when_the_reflog_holds_nothing_unreachable(
@@ -406,7 +408,7 @@ def test_the_report_stays_quiet_when_the_reflog_holds_nothing_unreachable(
 
     reason = _decision_for(report, worktree)["reason"]
     assert isinstance(reason, str)
-    assert "rescue/" not in reason, reason
+    assert "gc-rescue-" not in reason, reason
 
 
 def test_all_three_loss_channels_are_reported_together(
@@ -447,8 +449,8 @@ def test_all_three_loss_channels_are_reported_together(
     reason = _decision_for(report, worktree)["reason"]
     assert isinstance(reason, str)
 
-    assert f"git branch rescue/{head[:12]} {head}" in reason, reason
-    assert f"git branch rescue/{abandoned[:12]} {abandoned}" in reason, reason
+    assert f"git branch gc-rescue-{head} {head}" in reason, reason
+    assert f"git branch gc-rescue-{abandoned} {abandoned}" in reason, reason
     assert "git checkout-index" in reason, reason
     assert f"{head}." not in reason, "a trailing period turns the sha into a bad object"
 
