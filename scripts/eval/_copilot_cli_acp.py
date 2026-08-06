@@ -426,12 +426,7 @@ def _join_readers(
 
     streams.stop_readers.set()
     streams.process_tree.terminate(force=True)
-    if deadline <= time.monotonic():
-        raise subprocess.TimeoutExpired(streams.process.args, timeout) from None
-    phase_deadline = min(
-        deadline,
-        time.monotonic() + _READER_JOIN_SECONDS,
-    )
+    phase_deadline = time.monotonic() + _FORCE_REAP_SECONDS
     for reader in (streams.stdout_thread, streams.stderr_thread):
         reader.join(max(0.0, phase_deadline - time.monotonic()))
     return not streams.stdout_thread.is_alive() and not streams.stderr_thread.is_alive()
@@ -465,7 +460,9 @@ def _wait_for_process(
             timeout=_remaining_process_wait(streams, deadline, timeout)
         )
     try:
-        return process.wait(timeout=first_wait)
+        return process.wait(
+            timeout=_remaining_process_wait(streams, deadline, timeout)
+        )
     except subprocess.TimeoutExpired:
         streams.process_tree.terminate(force=False)
     try:

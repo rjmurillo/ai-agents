@@ -131,24 +131,41 @@ def _open_transcript(
             tuple[int, os.stat_result],
             open_windows_transcript(root, session_name, provider_label),
         )
-    else:
-        root_descriptor = os.open(root, directory_flags)
+
+    def close_parent(
+        parent_descriptor: int,
+        transcript_descriptor: int | None,
+    ) -> None:
         try:
-            session_descriptor = os.open(
-                session_name,
-                directory_flags,
-                dir_fd=root_descriptor,
+            os.close(parent_descriptor)
+        except BaseException:
+            if transcript_descriptor is not None:
+                try:
+                    os.close(transcript_descriptor)
+                except OSError:
+                    pass
+            raise
+
+    descriptor: int | None = None
+    root_descriptor = os.open(root, directory_flags)
+    try:
+        session_descriptor = os.open(
+            session_name,
+            directory_flags,
+            dir_fd=root_descriptor,
+        )
+        try:
+            descriptor = os.open(
+                "events.jsonl",
+                file_flags,
+                dir_fd=session_descriptor,
             )
-            try:
-                descriptor = os.open(
-                    "events.jsonl",
-                    file_flags,
-                    dir_fd=session_descriptor,
-                )
-            finally:
-                os.close(session_descriptor)
         finally:
-            os.close(root_descriptor)
+            close_parent(session_descriptor, descriptor)
+    finally:
+        close_parent(root_descriptor, descriptor)
+    if descriptor is None:
+        raise OSError("Copilot transcript descriptor was unavailable")
 
     try:
         metadata = os.fstat(descriptor)

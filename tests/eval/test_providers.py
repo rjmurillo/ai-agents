@@ -1918,6 +1918,39 @@ def test_transcript_descriptor_closes_when_fstat_fails(
     assert len(closed) == 3
 
 
+def test_transcript_descriptor_closes_when_parent_close_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    descriptors = iter([10, 11, 12])
+    closed: list[int] = []
+
+    monkeypatch.setattr(
+        transcript_module.os,
+        "open",
+        lambda *args, **kwargs: next(descriptors),
+    )
+    monkeypatch.setattr(
+        transcript_module.os,
+        "close",
+        lambda descriptor: (
+            (_ for _ in ()).throw(OSError("parent close failed"))
+            if descriptor == 11
+            else closed.append(descriptor)
+        ),
+    )
+
+    with pytest.raises(OSError, match="parent close failed"):
+        transcript_module._open_transcript(
+            tmp_path,
+            "session",
+            "Copilot CLI",
+        )
+
+    assert 12 in closed
+
+
 def test_symlinked_transcript_is_refused(tmp_path: Path) -> None:
     target = tmp_path / "target.jsonl"
     target.write_text("", encoding="utf-8")

@@ -1126,6 +1126,86 @@ def test_expired_request_still_force_kills_and_reaps_the_child() -> None:
     assert process.reaped is True
 
 
+def test_process_wait_recomputes_remaining_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    waits: list[float] = []
+
+    class FakeProcess:
+        returncode = None
+
+        def wait(self, timeout: float) -> int:
+            waits.append(timeout)
+            return 0
+
+    class FakeTree:
+        def wait_for_exit_before_reap(self, timeout: float) -> bool:
+            return False
+
+        def terminate(self, *, force: bool) -> None:
+            return None
+
+    streams = cast(
+        Any,
+        SimpleNamespace(
+            process=FakeProcess(),
+            process_tree=FakeTree(),
+        ),
+    )
+    remaining = iter([1.0, 0.25])
+    monkeypatch.setattr(
+        acp_module,
+        "_remaining_process_wait",
+        lambda *args, **kwargs: next(remaining),
+    )
+
+    assert (
+        acp_module._wait_for_process(
+            streams,
+            deadline=time.monotonic() + 1.0,
+            timeout=1.0,
+        )
+        == 0
+    )
+    assert waits == [0.25]
+
+
+def test_reader_cleanup_gets_a_post_kill_join_window() -> None:
+    class FakeReader:
+        alive = True
+
+        def join(self, timeout: float) -> None:
+            return None
+
+        def is_alive(self) -> bool:
+            return self.alive
+
+    stdout = FakeReader()
+    stderr = FakeReader()
+
+    class FakeTree:
+        def terminate(self, *, force: bool) -> None:
+            stdout.alive = False
+            stderr.alive = False
+
+    streams = cast(
+        Any,
+        SimpleNamespace(
+            process=SimpleNamespace(args=["copilot"]),
+            process_tree=FakeTree(),
+            stop_readers=threading.Event(),
+            stdout_thread=stdout,
+            stderr_thread=stderr,
+        ),
+    )
+
+    assert acp_module._join_readers(
+        streams,
+        deadline=time.monotonic() - 1.0,
+        timeout=0.1,
+    )
+
+
 def test_stop_process_refuses_live_reader_leaks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
