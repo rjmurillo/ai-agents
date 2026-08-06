@@ -147,6 +147,8 @@ def run_windows(install_root: Path, consumer_cwd: Path) -> tuple[int, str]:
         input=_PAYLOAD,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env=env,
         cwd=str(consumer_cwd),
         check=False,
@@ -168,7 +170,7 @@ def run_linux_container(image: str, install_root: Path, consumer_cwd: Path) -> t
     probe = subprocess.run(
         ["docker", "run", "--rm", image, "sh", "-c",
          "command -v python3 || command -v python || echo NONE"],
-        capture_output=True, text=True, check=False,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
     )
     # An empty result and a failed invocation are different things. Treating a
     # failed docker call as "an interpreter resolved" reports a confusing
@@ -195,7 +197,8 @@ def run_linux_container(image: str, install_root: Path, consumer_cwd: Path) -> t
             "-e", "CLAUDE_PLUGIN_ROOT=/plugin",
             image, "bash", "-c", script,
         ],
-        input=_PAYLOAD, capture_output=True, text=True, check=False,
+        input=_PAYLOAD, capture_output=True, text=True,
+        encoding="utf-8", errors="replace", check=False,
     )
     return proc.returncode, proc.stdout + proc.stderr
 
