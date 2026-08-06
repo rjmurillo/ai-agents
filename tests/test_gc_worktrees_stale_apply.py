@@ -89,7 +89,7 @@ def _decide(
         ),
         patch(f"{_MODULE}._gc_reasons._gc_stale.staged_content_state", return_value=staged),
     ):
-        return decide(worktree, _MAIN, _BASE, cwds=frozenset(), path_exists=lambda _: present)
+        return decide(worktree, _MAIN, _BASE, cwds=frozenset(), checkout_present=lambda _: present)
 
 
 def _parse(text: str) -> list[Worktree]:

@@ -26,6 +26,7 @@ from scripts.maintenance.gc_worktrees import (
     is_occupied,
     occupied_paths,
 )
+from tests.gc_worktree_fixtures import no_reflog_only_work  # noqa: F401
 
 _MAIN = "/repo/main"
 _BASE = "origin/main"
@@ -34,11 +35,11 @@ _BASE = "origin/main"
 def _decide(path: str, cwds: frozenset[str], **kwargs) -> object:
     """Decide over a synthetic path that stands for a healthy, present worktree.
 
-    ``path_exists`` is pinned rather than left to a real ``stat`` because these
+    ``checkout_present`` is pinned rather than left to a real ``stat`` because these
     paths are invented. Without it every case here would read as a stale entry
     and pick up diagnostics that this file is not about.
     """
-    kwargs.setdefault("path_exists", lambda _: True)
+    kwargs.setdefault("checkout_present", lambda _: True)
     return decide(
         Worktree(path=path, branch="feat/x"),
         _MAIN,
@@ -143,7 +144,7 @@ class TestDecide:
             _MAIN,
             _BASE,
             cwds=frozenset({"/repo/wt1"}),
-            path_exists=lambda _: True,
+            checkout_present=lambda _: True,
         )
         assert d.reason == KEEP_LOCKED
 

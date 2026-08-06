@@ -33,6 +33,7 @@ from scripts.maintenance.gc_worktrees import (
     format_report,
     is_merged_to_base,
 )
+from tests.gc_worktree_fixtures import no_reflog_only_work  # noqa: F401
 
 _MODULE = "scripts.maintenance.gc_worktrees"
 
@@ -186,14 +187,14 @@ class TestDecide:
     def test_keeps_locked_worktree(self):
         """``/repo/wt`` stands for a present directory, so no stale diagnostics."""
         wt = Worktree(path="/repo/wt", branch="feat/x", locked=True)
-        decision = decide(wt, _MAIN, _BASE, path_exists=lambda _: True)
+        decision = decide(wt, _MAIN, _BASE, checkout_present=lambda _: True)
         assert decision.remove is False
         assert decision.reason == KEEP_LOCKED
 
     def test_a_locked_worktree_whose_directory_is_gone_says_more_than_locked(self):
         """Git omits ``prunable`` for locked entries, so the stat is what catches it."""
         wt = Worktree(path="/repo/wt", branch="feat/x", locked=True)
-        decision = decide(wt, _MAIN, _BASE, path_exists=lambda _: False)
+        decision = decide(wt, _MAIN, _BASE, checkout_present=lambda _: False)
         assert decision.remove is False
         assert decision.reason.startswith(KEEP_LOCKED)
         assert decision.reason != KEEP_LOCKED
