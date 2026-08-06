@@ -15,8 +15,28 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 from scripts.validation import git_hook_policy as policy
+
+_LEFTHOOK = Path(__file__).resolve().parents[2] / "lefthook.yml"
+
+
+def _find_job(jobs: object, name: str) -> dict[str, object] | None:
+    if not isinstance(jobs, list):
+        return None
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+        if job.get("name") == name:
+            return job
+        group = job.get("group")
+        nested_jobs = group.get("jobs") if isinstance(group, dict) else None
+        found = _find_job(nested_jobs, name)
+        if found is not None:
+            return found
+    return None
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -41,12 +61,17 @@ def _make_completed(
 
 def test_pre_push_uses_the_fail_closed_unreachable_gate() -> None:
     """Pre-push must not revive the filesystem-walking legacy scanner."""
-    config = Path("lefthook.yml").read_text(encoding="utf-8")
-    job = config.split("- name: python-unreachable-statements", maxsplit=1)[1]
-    job = job.split("- name:", maxsplit=1)[0]
+    config = yaml.safe_load(_LEFTHOOK.read_text(encoding="utf-8"))
+    assert isinstance(config, dict)
+    pre_push = config.get("pre-push")
+    assert isinstance(pre_push, dict)
+    job = _find_job(pre_push.get("jobs"), "python-unreachable-statements")
+    assert job is not None
+    run = job.get("run")
+    assert isinstance(run, str)
 
-    assert "scripts/validation/check_unreachable_code.py ." in job
-    assert "check_unreachable_after_terminator.py" not in job
+    assert "scripts/validation/check_unreachable_code.py ." in run
+    assert "check_unreachable_after_terminator.py" not in run
 
 
 class TestBudgetExhaustionMessage:
