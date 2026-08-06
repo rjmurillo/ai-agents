@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import subprocess
 import sys
 import uuid
 from collections.abc import Iterator
@@ -22,6 +23,8 @@ from tests.git_config_isolation import (  # noqa: E402
     snapshot_git_config_env,
     strip_git_config_hooks_path,
 )
+
+_NUMBERED_GIT_CONFIG = re.compile(r"^GIT_CONFIG_(KEY|VALUE)_\d+$")
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -52,10 +55,25 @@ def _isolate_git_config_for_test_git() -> Iterator[None]:
     """
     snapshot = snapshot_git_config_env(os.environ)
     strip_git_config_hooks_path(os.environ)
-    if not os.environ.get("GIT_CONFIG_COUNT"):
-        os.environ["GIT_CONFIG_COUNT"] = "1"
-        os.environ["GIT_CONFIG_KEY_0"] = "commit.gpgsign"
-        os.environ["GIT_CONFIG_VALUE_0"] = "false"
+    # Every remaining indexed entry is inherited, so it belongs to some outer
+    # process and applies to every git command a test runs, including commands
+    # against the test's own sandbox. Deferring to it, which is what the
+    # previous "only inject when the count is unset" guard did, meant any
+    # caller using the indexed mechanism silently disarmed this protection. The
+    # Copilot CLI harness sets GIT_CONFIG_COUNT=3 for safe.bareRepository, so on
+    # that harness the protection was never active and the test guarding it
+    # reported a skip rather than a failure. Clearing first makes index 0 free
+    # by construction. The snapshot above is restored on teardown, so the
+    # caller's configuration survives the session. Refs #2548, #4717.
+    for name in [
+        key
+        for key in os.environ
+        if key == "GIT_CONFIG_COUNT" or _NUMBERED_GIT_CONFIG.match(key)
+    ]:
+        del os.environ[name]
+    os.environ["GIT_CONFIG_COUNT"] = "1"
+    os.environ["GIT_CONFIG_KEY_0"] = "commit.gpgsign"
+    os.environ["GIT_CONFIG_VALUE_0"] = "false"
     try:
         yield
     finally:
@@ -100,14 +118,42 @@ _GIT_POINTER_VARS = (
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
 )
 
-# Config injected through the environment applies to every git command in that
-# environment, including commands a test runs against its own sandbox. Git
-# exports this family to hooks, and the pre-commit and pre-push stages run
-# pytest, so a test launched from a hook inherits configuration it never set
-# and cannot see. Refs #4717.
+# The suite owns exactly this injection (see the session fixture above), so the
+# per-test sanitizer must not remove it. Everything else in the GIT_CONFIG
+# family is inherited and therefore hostile.
+_SUITE_OWNED_GIT_CONFIG = {
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "commit.gpgsign",
+    "GIT_CONFIG_VALUE_0": "false",
+}
+
 _GIT_CONFIG_ENV_VARS = ("GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS")
 
-_NUMBERED_GIT_CONFIG = re.compile(r"^GIT_CONFIG_(KEY|VALUE)_\d+$")
+
+def _local_env_vars() -> tuple[str, ...]:
+    """Every repository-scoped variable git itself honors.
+
+    Asking git beats maintaining the list by hand. The hand-written version
+    missed ``GIT_CONFIG``, which redirects ``git config`` writes at an arbitrary
+    file and so is a write path into the real checkout, along with
+    ``GIT_GRAFT_FILE``, ``GIT_SHALLOW_FILE``, ``GIT_REPLACE_REF_BASE``,
+    ``GIT_NO_REPLACE_OBJECTS``, and ``GIT_IMPLICIT_WORK_TREE``. Refs #4717.
+
+    Falls back to the hand-written set if git is unavailable, since an
+    environment with no git cannot run the tests this protects anyway.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--local-env-vars"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return _GIT_POINTER_VARS
+    names = tuple(line.strip() for line in result.stdout.splitlines() if line.strip())
+    return names or _GIT_POINTER_VARS
 
 
 def _sanitize_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -118,13 +164,24 @@ def _sanitize_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     delete: git ignores the pairs without it, but a later ``GIT_CONFIG_COUNT``
     set by code under test would make the stale pairs live again. The numbered
     pairs are therefore removed alongside the count.
+
+    The suite's own ``commit.gpgsign=false`` injection is preserved. Removing it
+    disarmed the protection from issue #2548 for every test and turned the test
+    guarding it into a silent skip, which is a worse outcome than the leak this
+    function exists to stop.
     """
-    for name in _GIT_POINTER_VARS + _GIT_CONFIG_ENV_VARS:
+    suite_owns_config = all(
+        os.environ.get(name) == value
+        for name, value in _SUITE_OWNED_GIT_CONFIG.items()
+    )
+    for name in set(_local_env_vars()) | set(_GIT_POINTER_VARS):
+        if suite_owns_config and name in _SUITE_OWNED_GIT_CONFIG:
+            continue
         monkeypatch.delenv(name, raising=False)
     for name in [key for key in os.environ if _NUMBERED_GIT_CONFIG.match(key)]:
+        if suite_owns_config and name in _SUITE_OWNED_GIT_CONFIG:
+            continue
         monkeypatch.delenv(name, raising=False)
-
-
 
 
 @pytest.fixture(autouse=True)

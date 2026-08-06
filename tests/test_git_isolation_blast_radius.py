@@ -16,14 +16,15 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from tests.conftest import (
-    _GIT_CONFIG_ENV_VARS,
     _GIT_POINTER_VARS,
     _NUMBERED_GIT_CONFIG,
+    _SUITE_OWNED_GIT_CONFIG,
 )
 
 _HOSTILE_CONFIG = {
@@ -79,11 +80,23 @@ def test_pointer_vars_are_unset_without_tmp_path() -> None:
     )
 
 
-def test_config_injection_vars_are_unset() -> None:
-    """``GIT_CONFIG_*`` applies to every git command and must not survive."""
-    leaked = [name for name in _GIT_CONFIG_ENV_VARS if name in os.environ]
-    leaked += [k for k in os.environ if _NUMBERED_GIT_CONFIG.match(k)]
-    assert not leaked, f"git config injection vars leaked into the test: {leaked}"
+def test_only_suite_owned_git_config_survives() -> None:
+    """``GIT_CONFIG_*`` applies to every git command, so nothing inherited may survive.
+
+    The suite deliberately owns one injection, ``commit.gpgsign=false``, which
+    keeps host signing configuration from rejecting fixture commits (#2548).
+    Everything else in the family is inherited and must be gone.
+    """
+    assert "GIT_CONFIG_PARAMETERS" not in os.environ
+    observed = {
+        key: os.environ[key]
+        for key in os.environ
+        if key == "GIT_CONFIG_COUNT" or _NUMBERED_GIT_CONFIG.match(key)
+    }
+    assert observed == _SUITE_OWNED_GIT_CONFIG, (
+        "git config the suite does not own leaked into the test: "
+        f"{observed} != {_SUITE_OWNED_GIT_CONFIG}"
+    )
 
 
 # The module that builds real repositories and real worktrees with ``tempfile``
@@ -120,13 +133,36 @@ def test_hostile_environment_at_startup_cannot_reach_the_decoy(
     hostile["GIT_INDEX_FILE"] = str(decoy_repo / ".git" / "index")
     hostile.update(_HOSTILE_CONFIG)
 
-    subprocess.run(
-        ["python", "-m", "pytest", _AT_RISK_MODULE, "-q", "-p", "no:randomly"],
+    child = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            _AT_RISK_MODULE,
+            "-q",
+            "-p",
+            "no:randomly",
+        ],
         cwd=str(repo_root),
         env=hostile,
         capture_output=True,
         text=True,
         check=False,
+    )
+
+    # Without this the control is a false green. If the child never starts, for
+    # example because the interpreter on PATH has no pytest, it touches nothing
+    # and the decoy assertions below pass while having proven nothing.
+    # sys.executable rather than "python" for the same reason: the suite runs
+    # under a uv-managed virtualenv that a bare "python" need not resolve to.
+    assert child.returncode == 0, (
+        "the child pytest did not run to completion, so the decoy assertions "
+        f"below would prove nothing. exit={child.returncode}\n"
+        f"stdout:\n{child.stdout}\nstderr:\n{child.stderr}"
+    )
+    assert " passed" in child.stdout, (
+        "the child pytest collected no tests, so nothing exercised the "
+        f"fixture. stdout:\n{child.stdout}"
     )
 
     assert _head(decoy_repo) == before, (

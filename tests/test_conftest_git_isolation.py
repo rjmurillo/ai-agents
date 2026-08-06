@@ -126,8 +126,8 @@ class TestHostileGitDirIsUnsetByFixture:
         assert "GIT_DIR" in deleted, (
             "pointer vars must be unset even when the test has no tmp_path"
         )
-        assert "GIT_CONFIG_COUNT" in deleted, (
-            "config injection vars must be unset even without tmp_path"
+        assert "GIT_CONFIG_PARAMETERS" in deleted, (
+            "inherited config injection must be unset even without tmp_path"
         )
         assert "GIT_CEILING_DIRECTORIES" not in setenvs, (
             "GIT_CEILING_DIRECTORIES must not be set when tmp_path is absent"
