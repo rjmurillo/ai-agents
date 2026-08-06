@@ -535,6 +535,7 @@ def get_files_to_assess(
     changed_only: bool,
     base: str | None = None,
     changed_files: list[ChangedFile] | None = None,
+    target_glob_matches: set[Path] | None = None,
 ) -> list[Path]:
     """Get files to assess, using the PR base when one is supplied."""
     from glob import glob
@@ -542,8 +543,12 @@ def get_files_to_assess(
     if changed_only:
         changes = changed_files if changed_files is not None else get_changed_files(base)
         target_path = Path(target)
-        glob_matches = None
-        if not target_path.is_file() and not target_path.is_dir():
+        glob_matches = target_glob_matches
+        if (
+            glob_matches is None
+            and not target_path.is_file()
+            and not target_path.is_dir()
+        ):
             glob_matches = _glob_target_matches(target)
         files = [
             change.head_path
@@ -640,13 +645,18 @@ def _target_exists_at_revision(target: str, revision: str) -> bool:
     return any(name == prefix or name.startswith(f"{prefix}/") for name in names)
 
 
-def _target_is_known(target: str, revision: str) -> bool:
+def _target_is_known(
+    target: str,
+    revision: str,
+    glob_matches: set[Path] | None = None,
+) -> bool:
     """Return whether target exists in HEAD or matched the comparison base."""
     target_path = Path(target)
     if target_path.exists():
         return True
     if any(character in target for character in "*?["):
-        if _glob_target_matches(target):
+        matches = glob_matches if glob_matches is not None else _glob_target_matches(target)
+        if matches:
             return True
     return _target_exists_at_revision(target, revision)
 
@@ -1619,6 +1629,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.changed_only and gate_mode == "regression" and args.base is not None:
             comparison_base = resolve_comparison_base(args.base)
             base_is_comparison = True
+        target_glob_matches = None
+        resolved_target = Path(target_path)
+        if (
+            args.changed_only
+            and not resolved_target.is_file()
+            and not resolved_target.is_dir()
+        ):
+            target_glob_matches = _glob_target_matches(target_path)
         changed_files = (
             get_changed_files(
                 comparison_base,
@@ -1632,6 +1650,7 @@ def main(argv: list[str] | None = None) -> int:
             args.changed_only,
             comparison_base,
             changed_files,
+            target_glob_matches,
         )
     except (RuntimeError, ValueError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
@@ -1643,7 +1662,11 @@ def main(argv: list[str] | None = None) -> int:
     if not files:
         if gate_mode == "regression" and changed_files is not None:
             assert comparison_base is not None
-            if not _target_is_known(target_path, comparison_base):
+            if not _target_is_known(
+                target_path,
+                comparison_base,
+                target_glob_matches,
+            ):
                 print(f"ERROR: --target does not match HEAD or base: {args.target}", file=sys.stderr)
                 return 1
             report = _render_report(args.format, [], [], config, gate_mode)
