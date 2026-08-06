@@ -188,10 +188,11 @@ def _main() -> int:
         # Fail-open on infrastructure keeps the plugin installed so the next
         # release still protects the user (#4672).
         print(
-            f"project-toolkit@ai-agents: INFRASTRUCTURE FAILURE: "
+            "project-toolkit@ai-agents WARNING: hooks DISABLED "
+            "(your session is unaffected). "
             f"{type(exc).__name__}: {_diag(str(exc))}. "
-            f"Hook ALLOWING to avoid blocking all tool calls. "
-            f"Reinstall the plugin or check your Python environment.",
+            "Reinstall the plugin or install Python >= 3.10: "
+            "https://www.python.org/downloads/",
             file=sys.stderr,
         )
         return 0
@@ -225,10 +226,11 @@ def _main() -> int:
     except ImportError as exc:
         # hook_dispatch module missing: infrastructure failure, not policy.
         print(
-            f"project-toolkit@ai-agents: INFRASTRUCTURE FAILURE: "
+            "project-toolkit@ai-agents WARNING: hooks DISABLED "
+            "(your session is unaffected). "
             f"{type(exc).__name__}: {_diag(str(exc))}. "
-            f"Hook ALLOWING to avoid blocking all tool calls. "
-            f"Reinstall the plugin or check your Python environment.",
+            "Reinstall the plugin or install Python >= 3.10: "
+            "https://www.python.org/downloads/",
             file=sys.stderr,
         )
         return 0

@@ -70,40 +70,54 @@ from regen_guard import detect_reason_strict as regen_detect_reason
 # "timeoutSec": timeout_sec
 # The dispatcher swaps {rel} to point at the per-event _dispatch.py but keeps
 # root resolution and shell shape identical.
+# Minimum Python version required by the hook runtime. Oldest version still
+# receiving security patches as of 2026. The hook code uses f-strings (3.6+)
+# and `from __future__ import annotations` (3.7+), but we declare 3.10 as the
+# supported floor to match the Python lifecycle.
+_MIN_PYTHON_MAJOR = 3
+_MIN_PYTHON_MINOR = 10
+
+_WARN_PREFIX = "project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected)."
+
 _BASH_TEMPLATE = (
     '_ptr="${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT}}}}"; '
+    '_warn="project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected)."; '
     'if [ -z "$_ptr" ]; then '
-    'echo "project-toolkit@ai-agents: plugin root unresolvable '
-    '(COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT both empty). '
-    'Hook allowing to avoid blocking all tool calls. '
-    'Reinstall the plugin or set COPILOT_PLUGIN_ROOT." >&2; exit 0; fi; '
+    'echo "$_warn Plugin root unresolvable (COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT both empty). '
+    'Reinstall the plugin: copilot plugin install project-toolkit@ai-agents" >&2; exit 0; fi; '
     '_interp="python3"; '
+    'if ! command -v "$_interp" >/dev/null 2>&1; then _interp="python"; fi; '
     'if ! command -v "$_interp" >/dev/null 2>&1; then '
-    'echo "project-toolkit@ai-agents: interpreter \'$_interp\' not found on PATH. '
-    'Hook allowing to avoid blocking all tool calls. '
-    'Install Python 3 or ensure python3 is on PATH." >&2; exit 0; fi; '
+    'echo "$_warn No Python interpreter found. '
+    'Install Python >= {min_maj}.{min_min}: https://www.python.org/downloads/" >&2; exit 0; fi; '
+    'if ! "$_interp" -c "import sys; sys.exit(0 if sys.version_info >= ({min_maj},{min_min}) else 1)" 2>/dev/null; then '
+    'echo "$_warn Python >= {min_maj}.{min_min} required but $(\"$_interp\" --version 2>&1) found. '
+    'Upgrade: https://www.python.org/downloads/" >&2; exit 0; fi; '
     '"$_interp" -u "$_ptr/hooks/{event}/_dispatch.py"'
 )
 _PWSH_TEMPLATE = (
     '$_ptr = if ($env:COPILOT_PLUGIN_ROOT) {{ $env:COPILOT_PLUGIN_ROOT }} '
     'elseif ($env:CLAUDE_PLUGIN_ROOT) {{ $env:CLAUDE_PLUGIN_ROOT }} else {{ $null }}; '
+    '$_warn = "project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected)."; '
     'if (-not $_ptr) {{ '
-    'Write-Host "project-toolkit@ai-agents: plugin root unresolvable '
-    '(COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT both empty). '
-    'Hook allowing to avoid blocking all tool calls. '
-    'Reinstall the plugin or set COPILOT_PLUGIN_ROOT." -ForegroundColor Yellow; '
+    'Write-Host "$_warn Plugin root unresolvable (COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT both empty). '
+    'Reinstall the plugin: copilot plugin install project-toolkit@ai-agents" -ForegroundColor Yellow; '
     'exit 0 }}; '
-    '$_interp = "py"; '
-    'if (-not (Get-Command $_interp -ErrorAction SilentlyContinue)) {{ '
-    '$_interp = "python3"; '
-    'if (-not (Get-Command $_interp -ErrorAction SilentlyContinue)) {{ '
-    '$_interp = "python"; '
-    'if (-not (Get-Command $_interp -ErrorAction SilentlyContinue)) {{ '
-    'Write-Host "project-toolkit@ai-agents: no Python interpreter found (py, python3, python). '
-    'Hook allowing to avoid blocking all tool calls. '
-    'Install Python 3." -ForegroundColor Yellow; '
-    'exit 0 }} }} }}; '
-    '& $_interp -3 -u "$_ptr/hooks/{event}/_dispatch.py"'
+    '$_interp = $null; '
+    'foreach ($c in @("py","python3","python")) {{ '
+    'if (Get-Command $c -ErrorAction SilentlyContinue) {{ $_interp = $c; break }} }}; '
+    'if (-not $_interp) {{ '
+    'Write-Host "$_warn No Python interpreter found. '
+    'Install Python >= {min_maj}.{min_min}: https://www.python.org/downloads/" -ForegroundColor Yellow; '
+    'exit 0 }}; '
+    '$_ver = & $_interp -c "import sys; print(sys.version_info[0],sys.version_info[1])" 2>$null; '
+    'if ($_ver) {{ $parts = $_ver.Split(\" \"); '
+    'if ([int]$parts[0] -lt {min_maj} -or ([int]$parts[0] -eq {min_maj} -and [int]$parts[1] -lt {min_min})) {{ '
+    '$_pv = & $_interp --version 2>&1; '
+    'Write-Host "$_warn Python >= {min_maj}.{min_min} required but $_pv found. '
+    'Upgrade: https://www.python.org/downloads/" -ForegroundColor Yellow; '
+    'exit 0 }} }}; '
+    '& $_interp -u "$_ptr/hooks/{event}/_dispatch.py"'
 )
 
 _ENTRYPOINT = """\
@@ -297,10 +311,11 @@ def _main() -> int:
         # Fail-open on infrastructure keeps the plugin installed so the next
         # release still protects the user (#4672).
         print(
-            f"project-toolkit@ai-agents: INFRASTRUCTURE FAILURE: "
+            "project-toolkit@ai-agents WARNING: hooks DISABLED "
+            "(your session is unaffected). "
             f"{type(exc).__name__}: {_diag(str(exc))}. "
-            f"Hook ALLOWING to avoid blocking all tool calls. "
-            f"Reinstall the plugin or check your Python environment.",
+            "Reinstall the plugin or install Python >= 3.10: "
+            "https://www.python.org/downloads/",
             file=sys.stderr,
         )
         return 0
@@ -334,10 +349,11 @@ def _main() -> int:
     except ImportError as exc:
         # hook_dispatch module missing: infrastructure failure, not policy.
         print(
-            f"project-toolkit@ai-agents: INFRASTRUCTURE FAILURE: "
+            "project-toolkit@ai-agents WARNING: hooks DISABLED "
+            "(your session is unaffected). "
             f"{type(exc).__name__}: {_diag(str(exc))}. "
-            f"Hook ALLOWING to avoid blocking all tool calls. "
-            f"Reinstall the plugin or check your Python environment.",
+            "Reinstall the plugin or install Python >= 3.10: "
+            "https://www.python.org/downloads/",
             file=sys.stderr,
         )
         return 0
@@ -379,9 +395,9 @@ def dispatcher_entry(event: str, timeout_sec: int, matcher: str | None = None) -
     dispatcher's in-process filtering (unchanged).
     """
     entry: dict[str, Any] = {
-        "bash": _BASH_TEMPLATE.format(event=event),
+        "bash": _BASH_TEMPLATE.format(event=event, min_maj=_MIN_PYTHON_MAJOR, min_min=_MIN_PYTHON_MINOR),
         "cwd": ".",
-        "powershell": _PWSH_TEMPLATE.format(event=event),
+        "powershell": _PWSH_TEMPLATE.format(event=event, min_maj=_MIN_PYTHON_MAJOR, min_min=_MIN_PYTHON_MINOR),
         "timeoutSec": timeout_sec,
         "type": "command",
     }
