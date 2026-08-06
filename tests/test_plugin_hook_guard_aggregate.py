@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -236,3 +238,42 @@ def test_vanilla_rows_keep_logic_out_of_the_workflow() -> None:
         if "windows-latest" in str(job.get("runs-on", "")) + str(job.get("strategy", ""))
     ]
     assert windows_jobs, "at least one job must run on a real Windows runner"
+
+
+def test_assert_guard_jobs_succeeded_cli_exits_nonzero(tmp_path: Path) -> None:
+    """Drive the real CLI, not the imported helper.
+
+    The exit-contract ratchet credits a nonzero assertion only when it shares a
+    test function with an invocation of that script's main or a subprocess call
+    naming its path. That narrowness is deliberate: a looser rule credited
+    workflow-wiring assertions, which are the first test an extraction PR
+    writes and which prove nothing about the CLI.
+    """
+    script = _REPO_ROOT / ".github" / "scripts" / "assert_guard_jobs_succeeded.py"
+    env = dict(os.environ)
+    env["NEEDS_JSON"] = json.dumps({"vanilla-windows": {"result": "failure"}})
+    proc = subprocess.run(
+        [sys.executable, str(script)],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(tmp_path),
+        check=False,
+    )
+    assert proc.returncode != 0
+    assert "vanilla-windows" in proc.stderr
+
+
+def test_assert_guard_jobs_succeeded_cli_exits_zero_when_all_pass(tmp_path: Path) -> None:
+    script = _REPO_ROOT / ".github" / "scripts" / "assert_guard_jobs_succeeded.py"
+    env = dict(os.environ)
+    env["NEEDS_JSON"] = json.dumps({"vanilla-windows": {"result": "success"}})
+    proc = subprocess.run(
+        [sys.executable, str(script)],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(tmp_path),
+        check=False,
+    )
+    assert proc.returncode == 0

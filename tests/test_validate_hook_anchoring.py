@@ -106,7 +106,7 @@ def test_copilot_asymmetric_interpreter_absent(tmp_path: Path) -> None:
     def mutate(doc: dict) -> None:
         entry = next(iter(doc["hooks"].values()))[0]
         entry["powershell"] = _strip_pwsh_guard(
-            entry["powershell"], "No Python interpreter found"
+            entry["powershell"], "No suitable Python interpreter found"
         )
 
     _, violations, config = gate._check_copilot(_copilot_root(tmp_path, mutate))
