@@ -160,22 +160,29 @@ def _ensure_reviewer(
     ``Copilot``.
     """
     canonical: str = canonicalize_login(login, account_id)
-    entry = None
+    entry: dict[str, Any] | None = None
+    entry_key: str | None = None
     if account_id is not None:
-        entry = next(
-            (
-                candidate
-                for candidate in reviewer_map.values()
-                if account_id in candidate["actor_ids"]
-            ),
-            None,
-        )
-        if entry is not None:
-            canonical = entry["login"]
+        for key, candidate in reviewer_map.items():
+            if account_id in candidate["actor_ids"]:
+                entry = candidate
+                entry_key = key
+                canonical = candidate["login"]
+                break
     if entry is None:
-        entry = reviewer_map.get(canonical)
+        canonical_entry = reviewer_map.get(canonical)
+        if canonical_entry is not None and (
+            account_id is None
+            or not canonical_entry["actor_ids"]
+            or account_id in canonical_entry["actor_ids"]
+        ):
+            entry = canonical_entry
+            entry_key = canonical
     if entry is None:
-        entry = reviewer_map[canonical] = {
+        entry_key = canonical
+        if entry_key in reviewer_map:
+            entry_key = f"{canonical}#{account_id}"
+        entry = reviewer_map[entry_key] = {
             "login": canonical,
             "type": user_type,
             "is_bot": _is_bot(canonical, user_type),
@@ -188,7 +195,8 @@ def _ensure_reviewer(
         entry["aliases"].append(login)
     if account_id is not None and account_id not in entry["actor_ids"]:
         entry["actor_ids"].append(account_id)
-    return canonical
+    assert entry_key is not None
+    return entry_key
 
 
 def _graphql_variables(
@@ -400,7 +408,15 @@ def _finalize_reviewers(
         reviewers = [reviewer for reviewer in reviewers if not reviewer["is_bot"]]
     if exclude_author:
         author_key = canonicalize_login(pr_author, pr_author_id)
-        reviewers = [reviewer for reviewer in reviewers if reviewer["login"] != author_key]
+        reviewers = [
+            reviewer
+            for reviewer in reviewers
+            if not (
+                pr_author_id in reviewer["actor_ids"]
+                if pr_author_id is not None and reviewer["actor_ids"]
+                else reviewer["login"] == author_key
+            )
+        ]
     reviewers.sort(key=lambda reviewer: reviewer["total_comments"], reverse=True)
     return reviewers
 

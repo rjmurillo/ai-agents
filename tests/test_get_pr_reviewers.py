@@ -334,6 +334,31 @@ class TestMain:
             "coderabbitai[bot]",
         ]
 
+    def test_shared_login_keeps_distinct_account_ids_separate(self, capsys):
+        comments = [
+            _comment("shared-service", 101, "Bot"),
+            _comment("shared-service", 202, "Bot"),
+        ]
+        with _api(author=_actor("alice", 1), review_comments=comments):
+            assert main(["--pull-request", "20"]) == 0
+
+        reviewers = _output(capsys)["reviewers"]
+        assert len(reviewers) == 2
+        assert {tuple(reviewer["actor_ids"]) for reviewer in reviewers} == {
+            (101,),
+            (202,),
+        }
+
+    def test_exclude_author_uses_id_when_aliases_differ(self, capsys):
+        comments = [_comment("coderabbitai[bot]", 136622811, "Bot")]
+        with _api(
+            author=_actor("coderabbitai", 136622811, "Bot"),
+            review_comments=comments,
+        ):
+            assert main(["--pull-request", "20", "--exclude-author"]) == 0
+
+        assert _output(capsys)["reviewers"] == []
+
     def test_request_and_review_pagination(self, capsys):
         request_pages = [
             _connection([_request_node(_actor("alice", 1))], next_cursor="r2"),
