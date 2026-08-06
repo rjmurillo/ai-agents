@@ -194,7 +194,7 @@
     },
     {
       "step": "fix",
-      "evidence": "The printed recovery command now copies the index file itself, because the index is the only artifact holding the conflicted stages and the gitlink SHAs. Three real-git tests cover it: unmerged stages preserved, gitlink preserved, and the existing skip-worktree test extended to assert the index copy landed. Commit 078671502."
+      "evidence": "The printed recovery command now copies the index file itself, because the index is the only artifact holding the conflicted stages and the gitlink SHAs. Three real-git tests cover it: unmerged stages preserved, gitlink preserved, and the existing skip-worktree test extended to assert the index copy landed. Commit e529dac7b."
     },
     {
       "step": "fix",
@@ -202,15 +202,15 @@
     },
     {
       "step": "review",
-      "evidence": "Sol #7 was tested by applying the exact proposed revert, bypassing removable() on the branch path, and all 410 tests still passed. The merged-to-base and fully-pushed path, which nearly every worktree takes, could skip the reflog-only-work check with zero failures. A real-git test now covers it and the revert fails. Commit cba06ab53."
+      "evidence": "Sol #7 was tested by applying the exact proposed revert, bypassing removable() on the branch path, and all 410 tests still passed. The merged-to-base and fully-pushed path, which nearly every worktree takes, could skip the reflog-only-work check with zero failures. A real-git test now covers it and the revert fails. Commit 4235b3e5e."
     },
     {
       "step": "review",
-      "evidence": "Sol #6 was rejected after building both reachable constructions and running the real tool against them. A newline in a worktree path splits git worktree list --porcelain, verified on git 2.43.0. With a worktree occupying the truncated path, removal targets that worktree and a commit stranded in the newline worktree survived in the odb. With nothing occupying it, build_report returned remove=False with 'could not locate its admin entry'. Neither construction loses a commit, so -z was not adopted. Commit aaefc7b9c."
+      "evidence": "Sol #6 was rejected after building both reachable constructions and running the real tool against them. A newline in a worktree path splits git worktree list --porcelain, verified on git 2.43.0. With a worktree occupying the truncated path, removal targets that worktree and a commit stranded in the newline worktree survived in the odb. With nothing occupying it, build_report returned remove=False with 'could not locate its admin entry'. Neither construction loses a commit, so -z was not adopted. Commit 45db3efb7."
     },
     {
       "step": "refactor",
-      "evidence": "The taste count ratchet regressed to 584 against baseline 583 because tests/test_gc_worktrees_real_git_stale.py reached 529 lines over the 500 limit. Four real-git suites each carried a private copy of the same sandbox builder, roughly ninety lines repeated four times. Extracted to tests/gc_real_git.py with the fixture in tests/conftest.py, 252 lines removed, ratchet back to 583. Commits 52fe6bb83 and bfa4a2dc5."
+      "evidence": "The taste count ratchet regressed to 584 against baseline 583 because tests/test_gc_worktrees_real_git_stale.py reached 529 lines over the 500 limit. Four real-git suites each carried a private copy of the same sandbox builder, roughly ninety lines repeated four times. Extracted to tests/gc_real_git.py with the fixture in tests/conftest.py, 252 lines removed, ratchet back to 583. Commits c791aaef7 and df5d7e8ff."
     },
     {
       "step": "lesson",
@@ -218,7 +218,7 @@
     },
     {
       "step": "fix",
-      "evidence": "The memory index count ratchet failed at 427 against baseline 425 because the three memories this branch wrote were referenced by no domain index, which makes them unreachable through the retrieval path AGENTS.md points at. Added entries to skills-git-index.md, skills-session-init-index.md and skills-validation-index.md; ratchet back to 424. Commit baf8ccbdd."
+      "evidence": "The memory index count ratchet failed at 427 against baseline 425 because the three memories this branch wrote were referenced by no domain index, which makes them unreachable through the retrieval path AGENTS.md points at. Added entries to skills-git-index.md, skills-session-init-index.md and skills-validation-index.md; ratchet back to 424. Commit efc27ee9b."
     },
     {
       "step": "verify",
@@ -242,19 +242,19 @@
     },
     {
       "step": "implement",
-      "evidence": "Commit 9ae701d3e. Recovery chain is now 'mkdir -p RECOVERY_DIR && GIT_INDEX_FILE=<q> git -C <q repo> checkout-index ... && cp <q> RECOVERY_DIR/index'. command_of in tests/gc_real_git.py replaces five copies of the same slice-and-substitute block and asserts the substituted path does not exist. Tests now run the chain from outside any repository."
+      "evidence": "Commit 66e16a2c1. Recovery chain is now 'mkdir -p RECOVERY_DIR && GIT_INDEX_FILE=<q> git -C <q repo> checkout-index ... && cp <q> RECOVERY_DIR/index'. command_of in tests/gc_real_git.py replaces five copies of the same slice-and-substitute block and asserts the substituted path does not exist. Tests now run the chain from outside any repository."
     },
     {
       "step": "verify",
-      "evidence": "Revert-proof on 9ae701d3e: dropping the mkdir fails 3 tests, dropping git -C fails 3 tests, restored 8 pass."
+      "evidence": "Revert-proof on 66e16a2c1: dropping the mkdir fails 3 tests, dropping git -C fails 3 tests, restored 8 pass."
     },
     {
       "step": "implement",
-      "evidence": "Commit 87aa7499a. _gc_stale.in_progress_operation reads MERGE_HEAD, CHERRY_PICK_HEAD, REVERT_HEAD, BISECT_LOG, rebase-merge, rebase-apply, sequencer from the admin directory named by the checkout's own .git marker. Two file reads, no subprocess, because the decision path's time budget already carries three git calls."
+      "evidence": "Commit 274b2c472. _gc_stale.in_progress_operation reads MERGE_HEAD, CHERRY_PICK_HEAD, REVERT_HEAD, BISECT_LOG, rebase-merge, rebase-apply, sequencer from the admin directory named by the checkout's own .git marker. Two file reads, no subprocess, because the decision path's time budget already carries three git calls."
     },
     {
       "step": "verify",
-      "evidence": "Revert-proof on 87aa7499a: making the probe answer None fails 9 tests, dropping only the decision-path wiring fails the merge reproduction, restored 14 pass. tests/test_gc_worktrees_real_git_operations.py also pins admin_dir_from_marker against git rev-parse --absolute-git-dir, so the marker tests cannot pass against a directory git never reads."
+      "evidence": "Revert-proof on 274b2c472: making the probe answer None fails 9 tests, dropping only the decision-path wiring fails the merge reproduction, restored 14 pass. tests/test_gc_worktrees_real_git_operations.py also pins admin_dir_from_marker against git rev-parse --absolute-git-dir, so the marker tests cannot pass against a directory git never reads."
     },
     {
       "step": "reproduce",
@@ -262,11 +262,11 @@
     },
     {
       "step": "implement",
-      "evidence": "Commit 25fd4bdaf. index.lock rides in the same marker tuple at no extra cost. The commit message states plainly that this narrows rather than closes the race. The test asserts git's current behaviour so a future git that honours the lock reports the guard as redundant."
+      "evidence": "Commit a8c9f1f95. index.lock rides in the same marker tuple at no extra cost. The commit message states plainly that this narrows rather than closes the race. The test asserts git's current behaviour so a future git that honours the lock reports the guard as redundant."
     },
     {
       "step": "implement",
-      "evidence": "Commit 4fc61e053. .claude/rules/testing.md MUST 12 forbids a test whose fixture supplies the precondition the code under test must establish. Both generated mirrors regenerated with build/scripts/generate_rules.py. Two memories written and indexed in skills-git-index.md in the same change. No plugin manifest bump: ADR-092 removed the version key, confirmed absent from both manifests and both marketplace files."
+      "evidence": "Commit fbc60b24a. .claude/rules/testing.md MUST 12 forbids a test whose fixture supplies the precondition the code under test must establish. Both generated mirrors regenerated with build/scripts/generate_rules.py. Two memories written and indexed in skills-git-index.md in the same change. No plugin manifest bump: ADR-092 removed the version key, confirmed absent from both manifests and both marketplace files."
     },
     {
       "step": "diagnose",
@@ -274,11 +274,11 @@
     },
     {
       "step": "implement",
-      "evidence": "Commit 151744601. The probe runs per candidate in _gc_apply's removal loop. The test starts the merge from inside the existing apply-window hook, which fires after revalidate returns. Revert-proof: dropping the probe fails that test; a negative control asserts an untouched candidate is still removed."
+      "evidence": "Commit e6b526f74. The probe runs per candidate in _gc_apply's removal loop. The test starts the merge from inside the existing apply-window hook, which fires after revalidate returns. Revert-proof: dropping the probe fails that test; a negative control asserts an untouched candidate is still removed."
     },
     {
       "step": "implement",
-      "evidence": "Commit 339cbd7b8. The probe moved into removable(), the single site constructing a remove=True Decision, so no reordering of the checks above can bypass it. It also runs less often, since removable is reached only by candidates. Revert-proof: 2 failures."
+      "evidence": "Commit 36fca84c6. The probe moved into removable(), the single site constructing a remove=True Decision, so no reordering of the checks above can bypass it. It also runs less often, since removable is reached only by candidates. Revert-proof: 2 failures."
     },
     {
       "step": "verify",
@@ -286,10 +286,10 @@
     },
     {
       "step": "verify",
-      "evidence": "Full suite 23826 passed, 33 skipped, 3 warnings in 668.66s at 4fc61e053. All 119 gc tests pass at 339cbd7b8. taste count ratchet OK, count == baseline 583. memory index count ratchet OK, 424 <= baseline 425."
+      "evidence": "Full suite 23826 passed, 33 skipped, 3 warnings in 668.66s at fbc60b24a. All 119 gc tests pass at 36fca84c6. taste count ratchet OK, count == baseline 583. memory index count ratchet OK, 424 <= baseline 425."
     }
   ],
-  "endingCommit": "339cbd7b8",
+  "endingCommit": "36fca84c6",
   "nextSteps": [
     "Open the PR stacked on #4694 rather than waiting for it to merge; rebase onto main after #4694 lands",
     "Return to branch A, the reachability memory fix, which is still unpushed",
