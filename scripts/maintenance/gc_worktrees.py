@@ -53,14 +53,18 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from scripts.maintenance import _gc_remote
+    from scripts.maintenance import _gc_apply, _gc_parse, _gc_reasons, _gc_remote
 else:
     try:
-        from scripts.maintenance import _gc_remote
+        from scripts.maintenance import _gc_apply, _gc_parse, _gc_reasons, _gc_remote
     except ModuleNotFoundError:
+        import _gc_apply
+        import _gc_parse
+        import _gc_reasons
         import _gc_remote
 
 from scripts.maintenance.worktree_occupancy import (
@@ -76,10 +80,8 @@ from scripts.maintenance.worktree_report import (
     KEEP_LOCKED,
     KEEP_MAIN,
     KEEP_OCCUPIED,
-        KEEP_STALE_UNREACHABLE,
     KEEP_TIME_BUDGET,
     KEEP_UNPUSHED,
-    PRUNE_STALE,
     Decision,
     GcReport,
     Worktree,
@@ -127,51 +129,6 @@ def _run_git(args: list[str], cwd: str | None = None) -> str:
     return result.stdout.strip()
 
 
-def _apply_attribute(worktree: Worktree, line: str) -> None:
-    """Apply one porcelain attribute line to the current worktree record.
-
-    ``HEAD``, ``branch``, ``bare``, ``detached``, ``locked``, and ``prunable``
-    are the lines that may follow a ``worktree <path>`` line. Unknown lines are
-    ignored.
-    """
-    if line.startswith("HEAD "):
-        worktree.head = line[len("HEAD ") :].strip()
-    elif line.startswith("branch "):
-        worktree.branch = line[len("branch ") :].strip().removeprefix("refs/heads/")
-    elif line == "bare":
-        worktree.bare = True
-    elif line == "detached":
-        worktree.detached = True
-    elif line == "locked" or line.startswith("locked "):
-        worktree.locked = True
-    elif line == "prunable" or line.startswith("prunable "):
-        worktree.prunable = line[len("prunable ") :].strip() or "prunable"
-
-
-def list_worktrees() -> list[Worktree]:
-    """Parse ``git worktree list --porcelain`` into Worktree records.
-
-    The porcelain format groups attributes per worktree, separated by blank
-    lines. Each group starts with a ``worktree <path>`` line; attribute lines
-    follow and are applied by ``_apply_attribute``.
-    """
-    raw = _run_git(["worktree", "list", "--porcelain"])
-    worktrees: list[Worktree] = []
-    current: Worktree | None = None
-
-    for line in raw.splitlines():
-        if line.startswith("worktree "):
-            if current is not None:
-                worktrees.append(current)
-            current = Worktree(path=line[len("worktree ") :].strip())
-        elif current is not None:
-            _apply_attribute(current, line)
-
-    if current is not None:
-        worktrees.append(current)
-    return worktrees
-
-
 def has_uncommitted_changes(path: str) -> bool:
     """Return True when the worktree has staged or unstaged changes."""
     return bool(_run_git(["status", "--porcelain"], cwd=path))
@@ -217,6 +174,31 @@ def is_merged_to_base(path: str, base_ref: str) -> bool:
     raise RuntimeError(msg)
 
 
+def _path_exists(path: str) -> bool:
+    """One ``stat``, named so ``decide`` can take it as a default argument."""
+    return Path(path).exists()
+
+
+def _is_stale(worktree: Worktree, path_exists: Callable[[str], bool]) -> bool:
+    """Report whether the worktree's directory is gone, by git's word or by stat.
+
+    ``prunable`` is git's own answer and is the reliable signal for an unlocked
+    entry. Verified against real git: git omits it for a locked worktree whose
+    directory has been deleted, because a locked entry is never a prune
+    candidate and git does not compute the marker. Trusting ``prunable`` alone
+    would let a locked stale entry report ``locked`` and nothing more, hiding
+    the orphaned index and reflog from the reader who is about to unlock it.
+
+    ``path_exists`` is a seam so a test states what it means rather than
+    depending on whether its synthetic path happens to be absent from the
+    machine running the suite. In production it is one ``stat``, and it cannot
+    fire on a healthy worktree, whose directory is present by definition. A
+    transient mount failure would produce a warning that keeps the worktree,
+    which is the fail-safe direction.
+    """
+    return bool(worktree.prunable) or not path_exists(worktree.path)
+
+
 def decide(
     worktree: Worktree,
     main_path: str,
@@ -227,6 +209,7 @@ def decide(
     cwds: frozenset[str] = frozenset(),
     remote_head_refs: frozenset[str] | None = None,
     origin_upstreams: dict[str, str] | None = None,
+    path_exists: Callable[[str], bool] = _path_exists,
 ) -> Decision:
     """Decide whether a worktree is safe to remove. KEEP on any doubt.
 
@@ -240,6 +223,17 @@ def decide(
     it sits below the gate and a spent budget reports ``KEEP_TIME_BUDGET``
     rather than ``KEEP_DETACHED``. Both keep the worktree, so the fail-safe
     invariant holds either way.
+
+    A ``prunable`` worktree is always kept. The marker means git cannot find
+    the working tree, and three different situations produce it: the directory
+    was deleted and abandoned, the directory was deleted while its index still
+    held staged content, or the directory was **moved and is still in use**.
+    Nothing in the admin record separates them, and removing the entry silently
+    orphans staged blobs in the second case and breaks a live checkout in the
+    third. So the report names the entry, lists everything clearing it would
+    destroy, and stops there. ``git worktree repair <new-path>`` restores the
+    moved case without losing anything; per-path ``git worktree remove <path>``
+    clears the deleted case without touching any sibling.
     """
     protected_paths = {main_path}
     if current_path:
@@ -248,23 +242,48 @@ def decide(
         reason = KEEP_BARE if worktree.bare else KEEP_MAIN
         return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
 
+    def kept(reason: str) -> Decision:
+        """Attach the stale-entry risk to whichever structural reason won.
+
+        A locked or occupied entry that has lost its directory holds exactly
+        the same at-risk index and reflog as any other stale entry. Returning
+        the structural reason alone tells a reader who later unlocks it that
+        there was nothing else to know, and clearing it then destroys the same
+        work. The time-budget path is deliberately excluded: it exists to skip
+        this work, and the report already discloses those entries as
+        uninspected.
+
+        Staleness here is not ``prunable`` alone. Verified against real git:
+        git suppresses the ``prunable`` marker for a locked worktree even when
+        its directory is gone, because it will not prune a locked entry
+        regardless. So a missing directory counts on its own. That check costs
+        one ``stat`` and cannot fire on a healthy worktree, whose directory is
+        present by definition.
+        """
+        if _is_stale(worktree, path_exists):
+            return Decision(
+                worktree.path,
+                worktree.branch,
+                remove=False,
+                reason=f"{reason}; {_gc_reasons.stale_keep_reason(worktree, main_path, _run_git)}",
+            )
+        return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
+
     if worktree.locked:
-        return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_LOCKED)
+        return kept(KEEP_LOCKED) if inspect else _keep(worktree, KEEP_LOCKED)
 
     if is_occupied(worktree.path, cwds):
-        return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_OCCUPIED)
+        return kept(KEEP_OCCUPIED) if inspect else _keep(worktree, KEEP_OCCUPIED)
 
     if not inspect:
-        return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_TIME_BUDGET)
+        return _keep(worktree, KEEP_TIME_BUDGET)
 
     if worktree.prunable:
-        if stale_head_is_reachable(worktree.head):
-            return Decision(worktree.path, worktree.branch, remove=True, reason=PRUNE_STALE)
         return Decision(
             worktree.path,
             worktree.branch,
             remove=False,
-            reason=f"{KEEP_STALE_UNREACHABLE}; rescue with git branch <name> {worktree.head}",
+            reason=_gc_reasons.stale_keep_reason(worktree, main_path, _run_git),
         )
 
     try:
@@ -296,33 +315,9 @@ def decide(
     return Decision(worktree.path, worktree.branch, remove=True, reason=pushed)
 
 
-def remove_worktree(path: str) -> None:
-    """Remove a worktree via ``git worktree remove``. Raises on failure."""
-    _run_git(["worktree", "remove", path])
-
-
-def stale_head_is_reachable(head: str | None) -> bool:
-    """Is a stale worktree's HEAD still contained by some ref?
-
-    Pruning a stale admin entry deletes the last ref that keeps a detached HEAD
-    alive, so its commits become garbage-collectable. Every stale entry on this
-    machine was contained when measured, but the tool must not assume that. An
-    unreadable or ambiguous answer counts as unreachable, which keeps the
-    fail-safe direction: refuse to prune rather than risk losing commits.
-
-    ``for-each-ref`` walks every ref, not just branches and tags, so a commit
-    anchored only by ``refs/stash``, ``refs/remotes`` or ``refs/notes`` counts
-    as contained. It does not see another worktree's detached HEAD, which is
-    unreachable by this measure and therefore kept. Measured at 0.066s per call
-    against 3269 refs.
-    """
-    if not head:
-        return False
-    try:
-        found = _run_git(["for-each-ref", "--contains", head, "--count=1", "--format=%(refname)"])
-    except RuntimeError:
-        return False
-    return bool(found.strip())
+def _keep(worktree: Worktree, reason: str) -> Decision:
+    """A kept decision with no further inspection attached."""
+    return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
 
 
 def build_report(
@@ -366,7 +361,7 @@ def build_report(
     direction: an uninspected worktree can never be proposed for removal.
     """
     deadline = clock() + time_budget if time_budget and time_budget > 0 else None
-    worktrees = list_worktrees()
+    worktrees = _gc_parse.list_worktrees(_run_git)
     occupancy = Occupancy(cwds, 0, proc_available=True) if cwds is not None else occupied_paths()
     live_cwds = occupancy.cwds
     main_path = worktrees[0].path if worktrees else ""
@@ -413,52 +408,6 @@ def build_report(
     return report
 
 
-def apply_removals(report: GcReport) -> None:
-    """Remove exactly the candidate worktrees the plan named.
-
-    Records each success in ``report.removed`` and each failure in
-    ``report.remove_errors`` without aborting the batch. Every removal is
-    per-path, including stale entries whose directory is already gone, which
-    ``git worktree remove`` handles. Nothing runs a blanket
-    ``git worktree prune``: prune takes no path argument, so it would also drop
-    admin records this run never evaluated, and any entry held back for safety.
-
-    Refuses to mutate anything when the report is partial. A truncated run
-    inspects whichever worktrees the clock allowed, so applying it would remove
-    a different set than the dry run a reader reviewed. Rerun with
-    ``--time-budget 0`` to get a complete, reviewable plan.
-
-    Refuses just as hard when the occupancy scan was unavailable. A failed
-    ``/proc`` read yields an empty set of process working directories, and an
-    empty set is indistinguishable from "every worktree is vacant" at the point
-    ``is_occupied`` consults it. Every worktree then clears the occupancy check
-    on no evidence, so applying the plan can delete a directory a live process
-    is sitting in. The dry run stays useful because the report discloses the
-    gap; only the mutation is withheld.
-    """
-    if report.occupancy_unavailable:
-        report.remove_errors.append(
-            "refused: the occupancy scan could not read /proc, so no worktree "
-            "was checked for a live process; rerun where /proc is readable "
-            "before applying"
-        )
-        return
-
-    if report.unevaluated:
-        report.remove_errors.append(
-            f"refused: {len(report.unevaluated)} worktree(s) were not inspected; "
-            "rerun with --time-budget 0 for a complete plan before applying"
-        )
-        return
-
-    for decision in report.candidates:
-        try:
-            remove_worktree(decision.path)
-            report.removed.append(decision.path)
-        except RuntimeError as exc:
-            report.remove_errors.append(f"{decision.path}: {exc}")
-
-
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
@@ -499,7 +448,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         report = build_report(base_ref=args.base, apply=args.apply, time_budget=args.time_budget)
         if args.apply:
-            apply_removals(report)
+            _gc_apply.apply_removals(
+                report,
+                lambda: build_report(report.base_ref, apply=True),
+                _run_git,
+            )
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

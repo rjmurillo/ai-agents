@@ -32,6 +32,13 @@ _BASE = "origin/main"
 
 
 def _decide(path: str, cwds: frozenset[str], **kwargs) -> object:
+    """Decide over a synthetic path that stands for a healthy, present worktree.
+
+    ``path_exists`` is pinned rather than left to a real ``stat`` because these
+    paths are invented. Without it every case here would read as a stale entry
+    and pick up diagnostics that this file is not about.
+    """
+    kwargs.setdefault("path_exists", lambda _: True)
     return decide(
         Worktree(path=path, branch="feat/x"),
         _MAIN,
@@ -136,6 +143,7 @@ class TestDecide:
             _MAIN,
             _BASE,
             cwds=frozenset({"/repo/wt1"}),
+            path_exists=lambda _: True,
         )
         assert d.reason == KEEP_LOCKED
 
@@ -148,7 +156,9 @@ class TestReportInvariant:
             Worktree(path="/repo/wt2", branch="feat/2"),
         ]
         with (
-            patch("scripts.maintenance.gc_worktrees.list_worktrees", return_value=worktrees),
+            patch(
+                "scripts.maintenance.gc_worktrees._gc_parse.list_worktrees", return_value=worktrees
+            ),
             patch("scripts.maintenance.gc_worktrees._run_git", return_value=_MAIN),
             patch("scripts.maintenance.gc_worktrees.has_uncommitted_changes", return_value=False),
             patch("scripts.maintenance.gc_worktrees.is_merged_to_base", return_value=True),
@@ -162,7 +172,9 @@ class TestReportInvariant:
     def test_detection_is_invoked_when_no_override_is_supplied(self):
         worktrees = [Worktree(path=_MAIN, branch="main")]
         with (
-            patch("scripts.maintenance.gc_worktrees.list_worktrees", return_value=worktrees),
+            patch(
+                "scripts.maintenance.gc_worktrees._gc_parse.list_worktrees", return_value=worktrees
+            ),
             patch("scripts.maintenance.gc_worktrees._run_git", return_value=_MAIN),
             patch(
                 "scripts.maintenance.gc_worktrees.occupied_paths",

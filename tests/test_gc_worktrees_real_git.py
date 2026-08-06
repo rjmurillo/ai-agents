@@ -1,9 +1,18 @@
-"""Real git regression tests for worktree garbage collection."""
+"""Real git regression tests for worktree garbage collection: merge status.
+
+These build an actual repository with actual worktrees and run the real tool
+over it, because the safety contract is about what git reports, not about what
+a mock was told to report. A squash merge in particular breaks patch-id
+equivalence, so ``git cherry`` cannot see it and only a real repository proves
+the detection works.
+
+The stale-entry cases, where a worktree's directory is gone and its admin
+record is all that is left, live in ``test_gc_worktrees_real_git_stale.py``.
+"""
 
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import tempfile
 from collections.abc import Iterator
@@ -211,55 +220,3 @@ def test_squash_detection_is_load_bearing_negative_control(
     decision = _decision_for(report, worktree)
     assert decision["remove"] is False
     assert decision["reason"] == gc_worktrees.KEEP_UNPUSHED
-
-
-def _make_stale_worktree(sandbox: GitSandbox, branch: str) -> tuple[Path, str]:
-    """Register a worktree, commit in it, then delete the directory."""
-    worktree = _add_worktree_branch(sandbox, branch)
-    _write_and_commit(worktree, "work.txt", f"{branch}\n", "work")
-    head = _git(worktree, "rev-parse", "HEAD").stdout.strip()
-    shutil.rmtree(worktree)
-    return worktree, head
-
-
-def test_a_stale_entry_is_a_prune_candidate_not_an_inspection_failure(
-    git_sandbox: GitSandbox,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """The plan must name a stale entry, not report that git could not read it."""
-    worktree, _ = _make_stale_worktree(git_sandbox, "feat/stale")
-
-    report = _run_gc_json(git_sandbox, monkeypatch, capsys)
-
-    decision = _decision_for(report, worktree)
-    assert decision["remove"] is True
-    assert decision["reason"] == gc_worktrees.PRUNE_STALE
-
-
-def test_git_worktree_remove_really_works_on_a_stale_entry(
-    git_sandbox: GitSandbox,
-) -> None:
-    """The load-bearing assumption behind per-path removal.
-
-    Dropping the blanket ``git worktree prune`` is only safe because
-    ``git worktree remove`` accepts an entry whose directory is already gone.
-    That is a claim about git itself, so it is pinned against real git rather
-    than a mock.
-    """
-    worktree, head = _make_stale_worktree(git_sandbox, "feat/stale-remove")
-    listing = _git(git_sandbox.main, "worktree", "list", "--porcelain").stdout
-    assert "prunable" in listing
-
-    subprocess.run(
-        ["git", "worktree", "remove", str(worktree)],
-        cwd=git_sandbox.main,
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-
-    remaining = _git(git_sandbox.main, "worktree", "list", "--porcelain").stdout
-    assert str(worktree) not in remaining
-    assert _git(git_sandbox.main, "cat-file", "-t", head).stdout.strip() == "commit"
