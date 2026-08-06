@@ -9,6 +9,10 @@ inputs:
   bot-pat:
     description: 'GitHub PAT for authentication checks'
     required: true
+  github-token:
+    description: 'Runner-scoped GitHub token for GitHub API reads'
+    required: false
+    default: ''
   copilot-token:
     description: 'Copilot token to validate (falls back to bot-pat)'
     required: false
@@ -38,7 +42,7 @@ runs:
       id: check
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.bot-pat }}
+        GH_TOKEN: ${{ inputs.github-token || github.token || inputs.bot-pat }}
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot-token || inputs.bot-pat }}
       run: |
         python3 "${GITHUB_ACTION_PATH}/../../../scripts/ci/check_agent_infrastructure.py"
