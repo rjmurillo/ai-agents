@@ -20,9 +20,9 @@ AI_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "ai-review" / "action.yml
 AGENT_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "agent-review" / "action.yml"
 AI_PR_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ai-pr-quality-gate.yml"
 BUILD_AI_REVIEW_CONTEXT = REPO_ROOT / "scripts" / "ci" / "build_ai_review_context.py"
+SESSION_PROTOCOL_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ai-session-protocol.yml"
 SHARED_PAT_CANDIDATE_WORKFLOWS = (
     REPO_ROOT / ".github" / "workflows" / "ai-spec-validation.yml",
-    REPO_ROOT / ".github" / "workflows" / "ai-session-protocol.yml",
     REPO_ROOT / ".github" / "workflows" / "ai-metrics-analysis.yml",
     REPO_ROOT / ".github" / "workflows" / "pr-maintenance.yml",
     REPO_ROOT / ".github" / "workflows" / "ai-issue-triage.yml",
@@ -332,6 +332,19 @@ class TestSharedPatCandidateWorkflows:
                 for match in self._find_values(item, needle)
             ]
         return []
+
+    def test_session_protocol_gh_consumers_use_runner_token(self) -> None:
+        workflow = yaml.safe_load(SESSION_PROTOCOL_WORKFLOW.read_text(encoding="utf-8"))
+        gh_token_steps = [
+            step
+            for job in workflow["jobs"].values()
+            for step in job.get("steps", [])
+            if (step.get("env") or {}).get("GH_TOKEN")
+        ]
+
+        assert len(gh_token_steps) == 2
+        for step in gh_token_steps:
+            assert step["env"]["GH_TOKEN"] == "${{ github.token }}"
 
 
 class TestBuildAiReviewContextAuthBoundary:
