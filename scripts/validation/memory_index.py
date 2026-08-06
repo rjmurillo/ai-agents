@@ -289,6 +289,7 @@ def _load_base_reference_counts(
             cwd=memory_path,
             text=True,
             encoding="utf-8",
+            errors="replace",
             capture_output=True,
             check=False,
         )
@@ -304,6 +305,7 @@ def _load_base_reference_counts(
             cwd=repo_root,
             text=True,
             encoding="utf-8",
+            errors="replace",
             capture_output=True,
             check=False,
         )
@@ -316,6 +318,7 @@ def _load_base_reference_counts(
             cwd=repo_root,
             text=True,
             encoding="utf-8",
+            errors="replace",
             capture_output=True,
             check=False,
         )
