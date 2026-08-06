@@ -295,8 +295,8 @@ class TestMain:
         result = main(["--quick", "--skip-tests"])
         assert result == 0
         out = capsys.readouterr().out
-        assert "Verify" in out or "verify" in out
-        assert "ls-remote" in out or "git" in out
+        assert "Verify the push landed" in out
+        assert "git ls-remote origin" in out
 
     @patch("subprocess.run")
     @patch("shutil.which")

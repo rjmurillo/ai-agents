@@ -725,29 +725,20 @@ the way out, so the same rule is smaller in the plugin tree than on disk. And th
 two 8KB multipliers move independently: the `.py`-edit multiplier can hold steady
 while the always-on one shifts, so re-measure both rather than assuming one
 tracks the other.
-## Concurrent pushes: use push_slot2.sh, not a manual flock
+## Concurrent pushes: use the per-branch push lock
 
-The canonical push script is `~/src/scratch/push_slot2.sh`. Use it for all
-pushes. Do not write your own flock loop; that is the #4366 defect.
+Every writer for a branch must use the same lock path. Key the lock on the
+branch name so unrelated branches do not wait behind each other.
 
-```text
-nohup bash ~/src/scratch/push_slot2.sh > ~/src/scratch/<branch>_rc.txt 2>&1 &
+```bash
+BR=$(git branch --show-current)
+SLUG=$(printf '%s' "$BR" | tr '/' '-')
+mkdir -p "$HOME/src/scratch/locks"
+flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push origin "$BR"
 ```
 
-Then poll `~/src/scratch/<branch>_rc.txt`. Empty means still running. `SLOT=N
-PUSH_RC=0` is success. `SLOT=none PUSH_RC=99` means all slots stayed busy past
-the deadline.
-
-The script uses `$HOME/src/scratch/pushlocks/aiagents-push-N.lock` (N in 0-3).
-Lock files must NOT live in `/tmp`: this machine reclaimed `/tmp` mid-session,
-destroying committed work. A reclaimable lock file silently becomes a no-op
-when it vanishes under a live holder.
-
-The script sweeps all 4 slots non-blocking and re-runs after a jittered sleep
-if all are busy. No caller ever blocks on a specific slot, so idle slots are
-always reachable. A blocking fixed-slot fallback recreates a convoy.
-
-Issue #4283 documents the 28-waiter convoy from global locking.
+Keep lock files outside `/tmp`. See `.claude/rules/push-lock.md` for the
+canonical rule and Issue #4366 for the failure caused by competing lock paths.
 Issue #4366 documents the three-scheme split and the convoy from a
 fixed-slot fallback.
 
