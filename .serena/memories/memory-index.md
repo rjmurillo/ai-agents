@@ -72,6 +72,7 @@
 
 [CI/CD and Workflows]
 |spec coverage acceptance criteria checkbox observe signal non-blocking required check push-pr body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
+|mutation harness restore failure truncate empty target sibling replace scratch pycache: [ci/mutation-harness-restore-failure-safe-writes](ci/mutation-harness-restore-failure-safe-writes.md) (360)
 |BOT_PAT github.token runner token AI review read calls rate limit budget user id: [ci/ci-ai-review-read-calls-use-runner-token](ci/ci-ai-review-read-calls-use-runner-token.md) (284)
 |count ratchet baseline branch freshness behind main stale higher baseline merge origin/main: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (822)
 |stale detached HEAD shared checkout verify wrong commit git show ref path worktree parse fresh input stale tooling already fixed upstream script version skew session end validation failed inflated diff base resolve_comparison_base: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (1497)
