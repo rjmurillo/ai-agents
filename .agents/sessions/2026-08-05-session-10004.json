@@ -171,9 +171,37 @@
     {
       "step": "verify",
       "evidence": "7 passed in 0.19s on the guard; the two previously timing-out gates now 20 passed in 75.83s against a 120s budget, was 2 failed in 292.99s. ruff clean on all three files."
+    },
+    {
+      "step": "triage",
+      "evidence": "Push got past python-tests (760s, previously failing at 1047s) and failed on two further gates: python-unreachable-statements timed out at 120s, pre-pr-validation failed at 202s."
+    },
+    {
+      "step": "root-cause",
+      "evidence": "check_unreachable_after_terminator.py carries a byte-identical copy of the same two-part defect and lefthook hands it the repository root. The first blast radius scan was scoped to tests/ and structurally could not have found a script under scripts/validation/."
+    },
+    {
+      "step": "scope",
+      "evidence": "Rescanned every python script lefthook invokes: 25 total, 5 with a recursive glob, 1 receiving a root that contains worktrees. The other four are scoped to .serena/memories, staged-only, or already passing inside budget (build_all.py --check at 108s)."
+    },
+    {
+      "step": "triage",
+      "evidence": "pre-pr-validation reproduced clean locally, all 35 checks PASS. Treated as collateral from the sibling timeout under load rather than fixed speculatively."
+    },
+    {
+      "step": "fix",
+      "evidence": "Applied both halves to the third walker plus a scope note citing #4160. Walk drops 98,769 to 6,783 (93.1%); gate goes from 120s timeout to 20.9s."
+    },
+    {
+      "step": "verify",
+      "evidence": "Revert sensitivity proven per half: dropping worktrees from _SKIP fails 2 tests, absolute parts fails test_root_named_worktrees_keeps_its_files with the file it should have kept. 11 passed in 0.22s."
+    },
+    {
+      "step": "lesson",
+      "evidence": "git checkout -- silently destroyed the uncommitted fix while undoing a revert experiment in the same file. Caught only because the half-2 result was implausibly identical to half-1. Switched to byte-exact backup plus diff confirmation."
     }
   ],
-  "endingCommit": "082957159",
+  "endingCommit": "f6677e7ea",
   "nextSteps": [
     "Push branch and open PR.",
     "Re-push the blocked docs/git-cat-file-proves-existence-not-reachability branch once this lands."
