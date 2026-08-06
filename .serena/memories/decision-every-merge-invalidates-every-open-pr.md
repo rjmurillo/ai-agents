@@ -25,6 +25,12 @@ grep -rln merge_group .github/workflows/
   -> (nothing)
 ```
 
+**That `false` is a 2026-08-03 reading and is no longer true. Strict is `true`
+today, deliberately, and must stay on. See "Do not correct
+`strict_required_status_checks_policy` back to `false`" below, and issue #4646.
+The `merge_group` half still holds: no workflow answers that event, and a merge
+queue cannot be enabled on this repository anyway.**
+
 The consequence is stronger than "branches go stale". The count ratchets compare
 a branch's whole tree against a baseline integer that main lowers whenever main
 clears violations. So **every merge invalidates every other open PR**, and a
@@ -140,11 +146,20 @@ than it is to be drift.
 as one.** `scripts/ci/merge_tree_ratchet_check.py` (issue #4398) is blocking on
 every pull request: it runs in job `validate-pr` of `pr-validation.yml`, whose
 name `Validate PR` is one of the 17 required contexts, with no `if` guard and no
-`continue-on-error`. But it evaluates only the five ratchets registered in
-`scripts/ci/merge_tree_ratchet_registry.py` (ruff count, taste count,
-type-ignore count, memory-index count, CLI exit contract) against the merged
-result. Strict is what makes the other sixteen required contexts run against a
-tree containing current `main`.
+`continue-on-error`. But it evaluates only three ratchets against the merged
+result: ruff count, taste count, and type-ignore count, which are the three
+modules it imports at `scripts/ci/merge_tree_ratchet_check.py:61-63` and the
+three keys of `_baseline_map` at lines 259 to 262. Strict is what makes the
+other sixteen required contexts run against a tree containing current `main`.
+
+Do not cite a five-ratchet registry here. An earlier draft of this memory said
+`scripts/ci/merge_tree_ratchet_check.py` reads five ratchets from
+`scripts/ci/merge_tree_ratchet_registry.py`. That file does not exist on `main`.
+It exists only on the unmerged branch `fix/pr4545-review-remediation`, added by
+commit `a30dc42600`, and `git merge-base --is-ancestor a30dc42600 origin/main`
+reports it is not an ancestor. The claim reached this memory from a subagent
+report that had read the other branch, and it was committed without checking the
+path resolved. Verify the import list before quoting a count.
 
 The uncovered class is the one that caused the incident. `Run Python Tests`
 carries whole-tree assertions, including the pinned corpus figures in
