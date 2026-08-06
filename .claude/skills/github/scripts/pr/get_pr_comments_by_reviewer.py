@@ -118,6 +118,42 @@ def _fetch_pr_author(owner: str, repo: str, pr_number: int) -> tuple[str, int | 
     return _actor_login(author, "PR author"), _account_id(author)
 
 
+def _reviewer_entry(
+    reviewer_map: dict[str, dict[str, Any]],
+    login: str,
+    user_type: str,
+    actor_id: int | None,
+) -> dict[str, Any]:
+    """Return an ID-first reviewer entry while preserving observed aliases."""
+    if actor_id is not None:
+        for candidate in reviewer_map.values():
+            if actor_id in candidate["actor_ids"]:
+                return candidate
+
+    existing_entry = reviewer_map.get(login)
+    if existing_entry is not None and (
+        actor_id is None
+        or not existing_entry["actor_ids"]
+        or actor_id in existing_entry["actor_ids"]
+    ):
+        return existing_entry
+
+    key = login if login not in reviewer_map else f"{login}#{actor_id}"
+    entry = {
+        "login": login,
+        "user_type": user_type,
+        "total_comments": 0,
+        "review_comments": 0,
+        "issue_comments": 0,
+        "prs": [],
+        "comments": [],
+        "aliases": [],
+        "actor_ids": [],
+    }
+    reviewer_map[key] = entry
+    return entry
+
+
 def get_pr_comments_by_reviewer(
     owner: str,
     repo: str,
@@ -218,7 +254,12 @@ def get_pr_comments_by_reviewer(
                 continue
             actor_id = comment["actor_id"]
             login = canonicalize_login(observed, actor_id)
-            if exclude_self_comments and login == author_key:
+            is_self_comment = (
+                actor_id == pr_author_id
+                if actor_id is not None and pr_author_id is not None
+                else login == author_key
+            )
+            if exclude_self_comments and is_self_comment:
                 continue
             if include_set and login not in include_set:
                 continue
@@ -231,20 +272,12 @@ def get_pr_comments_by_reviewer(
             if until_dt and created_dt and created_dt > until_dt:
                 continue
 
-            if login not in reviewer_map:
-                reviewer_map[login] = {
-                    "login": login,
-                    "user_type": comment["user_type"],
-                    "total_comments": 0,
-                    "review_comments": 0,
-                    "issue_comments": 0,
-                    "prs": [],
-                    "comments": [],
-                    "aliases": [],
-                    "actor_ids": [],
-                }
-
-            entry = reviewer_map[login]
+            entry = _reviewer_entry(
+                reviewer_map,
+                login,
+                comment["user_type"],
+                actor_id,
+            )
             if observed not in entry["aliases"]:
                 entry["aliases"].append(observed)
             if actor_id is not None and actor_id not in entry["actor_ids"]:

@@ -519,6 +519,40 @@ class TestGetPrCommentsByReviewer:
         assert reviewers["github-copilot[bot]"]["actor_ids"] == [175728472]
         assert reviewers["copilot-swe-agent[bot]"]["actor_ids"] == [198982749]
 
+    def test_shared_account_id_merges_different_aliases(self):
+        result = self._run(
+            review_comments=[
+                _make_review_comment(
+                    "coderabbitai[bot]",
+                    user_type="Bot",
+                    actor_id=136622811,
+                ),
+                _make_review_comment(
+                    "coderabbitai",
+                    user_type="Bot",
+                    actor_id=136622811,
+                ),
+            ],
+        )
+        assert result["total_reviewers"] == 1
+        assert sorted(result["reviewers"][0]["aliases"]) == [
+            "coderabbitai",
+            "coderabbitai[bot]",
+        ]
+
+    def test_shared_login_keeps_distinct_ids_separate(self):
+        result = self._run(
+            review_comments=[
+                _make_review_comment("shared-service", actor_id=101),
+                _make_review_comment("shared-service", actor_id=202),
+            ],
+        )
+        assert result["total_reviewers"] == 2
+        assert {tuple(entry["actor_ids"]) for entry in result["reviewers"]} == {
+            (101,),
+            (202,),
+        }
+
     def test_distinct_humans_stay_separate(self):
         result = self._run(
             review_comments=[
@@ -583,3 +617,13 @@ class TestGetPrCommentsByReviewer:
         )
         assert result["total_comments"] == 1
         assert [r["login"] for r in result["reviewers"]] == ["github-copilot[bot]"]
+
+    def test_different_id_with_same_login_is_not_a_self_comment(self):
+        result = self._run(
+            review_comments=[
+                _make_review_comment("shared-service", actor_id=101)
+            ],
+            pr_author="shared-service",
+            pr_author_id=202,
+        )
+        assert result["total_comments"] == 1
