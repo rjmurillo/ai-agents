@@ -19,102 +19,21 @@ the condition with real git and then reads the report back.
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import subprocess
-import tempfile
-from collections.abc import Iterator
-from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 
-from scripts.maintenance import gc_worktrees
-
-
-@dataclass(frozen=True, slots=True)
-class GitSandbox:
-    """A disposable repository with an origin remote and linked worktrees."""
-
-    root: Path
-    main: Path
-    remote: Path
-
-
-def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        check=check,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-
-
-def _write_and_commit(cwd: Path, relative_path: str, content: str, message: str) -> None:
-    path = cwd / relative_path
-    path.write_text(content, encoding="utf-8")
-    _git(cwd, "add", relative_path)
-    _git(cwd, "commit", "-m", message)
-
-
-@pytest.fixture
-def git_sandbox() -> Iterator[GitSandbox]:
-    temp_parent = Path(__file__).resolve().parents[1] / ".pytest_tmp" / "gc_worktrees"
-    temp_parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="gc-healthy-", dir=temp_parent) as temp_dir:
-        root = Path(temp_dir)
-        remote = root / "origin.git"
-        main = root / "repo"
-        subprocess.run(
-            ["git", "init", "--bare", "--initial-branch=main", str(remote)],
-            check=True,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        )
-        subprocess.run(
-            ["git", "clone", str(remote), str(main)],
-            check=True,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        )
-        _git(main, "config", "user.email", "test@example.com")
-        _git(main, "config", "user.name", "Test User")
-        _git(main, "config", "commit.gpgsign", "false")
-        _write_and_commit(main, "base.txt", "base\n", "base")
-        _git(main, "push", "-u", "origin", "main")
-        yield GitSandbox(root=root, main=main, remote=remote)
-
-
-def _run_gc_json(
-    sandbox: GitSandbox,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> dict[str, object]:
-    monkeypatch.chdir(sandbox.main)
-    code = gc_worktrees.main(["--json"])
-    captured = capsys.readouterr()
-    assert code == 0
-    assert captured.err == ""
-    return json.loads(captured.out)
-
-
-def _decision_for(report: dict[str, object], path: Path) -> dict[str, object]:
-    decisions = report["decisions"]
-    assert isinstance(decisions, list)
-    matches = [d for d in decisions if isinstance(d, dict) and d["path"] == str(path)]
-    assert len(matches) == 1
-    return matches[0]
-
-
-def _reason_of(report: dict[str, object], path: Path) -> str:
-    reason = _decision_for(report, path)["reason"]
-    assert isinstance(reason, str)
-    return reason
+from tests.gc_real_git import (
+    GitSandbox,
+    decision_for,
+    git,
+    reason_of,
+    run_gc_json,
+    write_and_commit,
+)
 
 
 def _abandon_commits(sandbox: GitSandbox, worktree: Path, count: int) -> list[str]:
@@ -123,14 +42,14 @@ def _abandon_commits(sandbox: GitSandbox, worktree: Path, count: int) -> list[st
     Each commit is left anchored by nothing but this worktree's own reflog:
     no branch points at it, and HEAD has moved away.
     """
-    base = _git(worktree, "rev-parse", "HEAD").stdout.strip()
+    base = git(worktree, "rev-parse", "HEAD").stdout.strip()
     abandoned = []
     for index in range(count):
-        _write_and_commit(worktree, f"orphan{index}.txt", f"{index}\n", f"abandoned {index}")
-        abandoned.append(_git(worktree, "rev-parse", "HEAD").stdout.strip())
-        _git(worktree, "checkout", "--detach", base)
+        write_and_commit(worktree, f"orphan{index}.txt", f"{index}\n", f"abandoned {index}")
+        abandoned.append(git(worktree, "rev-parse", "HEAD").stdout.strip())
+        git(worktree, "checkout", "--detach", base)
     for oid in abandoned:
-        assert _git(sandbox.main, "for-each-ref", "--contains", oid).stdout == ""
+        assert git(sandbox.main, "for-each-ref", "--contains", oid).stdout == ""
     return abandoned
 
 
@@ -145,19 +64,19 @@ def test_a_clean_merged_worktree_is_kept_when_its_reflog_is_a_commits_only_ancho
     the base. Nothing about those three facts covers the commit it made and
     then walked away from, which only its reflog names.
     """
-    head = _git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
+    head = git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
     worktree = git_sandbox.root / "healthy-detached"
-    _git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), head)
+    git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), head)
     [orphan] = _abandon_commits(git_sandbox, worktree, 1)
 
     assert worktree.is_dir()
-    assert _git(worktree, "status", "--porcelain").stdout == ""
+    assert git(worktree, "status", "--porcelain").stdout == ""
 
-    report = _run_gc_json(git_sandbox, monkeypatch, capsys)
+    report = run_gc_json(git_sandbox, monkeypatch, capsys)
 
-    decision = _decision_for(report, worktree)
+    decision = decision_for(report, worktree)
     assert decision["remove"] is False, decision["reason"]
-    reason = _reason_of(report, worktree)
+    reason = reason_of(report, worktree)
     assert f"git branch gc-rescue-{orphan} {orphan}" in reason, reason
 
 
@@ -172,15 +91,15 @@ def test_a_clean_merged_worktree_with_nothing_at_risk_is_still_removed(
     came back as a keep, the gate would be answering "unknown" for everything
     and the positive case above would prove nothing.
     """
-    head = _git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
+    head = git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
     worktree = git_sandbox.root / "healthy-plain"
-    _git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), head)
+    git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), head)
 
-    report = _run_gc_json(git_sandbox, monkeypatch, capsys)
+    report = run_gc_json(git_sandbox, monkeypatch, capsys)
 
-    decision = _decision_for(report, worktree)
+    decision = decision_for(report, worktree)
     assert decision["remove"] is True, decision["reason"]
-    assert "gc-rescue-" not in _reason_of(report, worktree)
+    assert "gc-rescue-" not in reason_of(report, worktree)
 
 
 def test_the_printed_rescue_command_runs_verbatim_for_several_commits(
@@ -194,12 +113,12 @@ def test_the_printed_rescue_command_runs_verbatim_for_several_commits(
     reads as one call with four arguments and rejects. The test pastes what the
     report printed into a shell and requires both branches to exist after.
     """
-    head = _git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
+    head = git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
     worktree = git_sandbox.root / "healthy-two-orphans"
-    _git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), head)
+    git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), head)
     first, second = _abandon_commits(git_sandbox, worktree, 2)
 
-    reason = _reason_of(_run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
     start = reason.index("git branch gc-rescue-")
     end = reason.find(" |", start)
     command = reason[start:] if end == -1 else reason[start:end]
@@ -217,7 +136,7 @@ def test_the_printed_rescue_command_runs_verbatim_for_several_commits(
     )
     assert result.returncode == 0, result.stderr
     for oid in (first, second):
-        assert _git(git_sandbox.main, "rev-parse", f"gc-rescue-{oid}").stdout.strip() == oid
+        assert git(git_sandbox.main, "rev-parse", f"gc-rescue-{oid}").stdout.strip() == oid
 
 
 def test_the_index_recovery_command_exports_a_skip_worktree_entry(
@@ -237,13 +156,13 @@ def test_the_index_recovery_command_exports_a_skip_worktree_entry(
     carries it and that the blob comes back.
     """
     worktree = git_sandbox.root / "skip-worktree-index"
-    _git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), "HEAD")
+    git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), "HEAD")
     (worktree / "staged.txt").write_text("unique staged blob\n", encoding="utf-8")
-    _git(worktree, "add", "staged.txt")
-    _git(worktree, "update-index", "--skip-worktree", "staged.txt")
+    git(worktree, "add", "staged.txt")
+    git(worktree, "update-index", "--skip-worktree", "staged.txt")
     shutil.rmtree(worktree)
 
-    reason = _reason_of(_run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
     assert "--ignore-skip-worktree-bits" in reason, reason
 
     start = reason.index("GIT_INDEX_FILE=")
@@ -280,21 +199,21 @@ def test_the_index_recovery_command_preserves_unmerged_stages(
     every stage went with the removal. The copied index is what carries them.
     """
     worktree = git_sandbox.root / "unmerged-index"
-    _git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), "HEAD")
-    _git(worktree, "checkout", "-b", "gc-left")
+    git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), "HEAD")
+    git(worktree, "checkout", "-b", "gc-left")
     (worktree / "conflict.txt").write_text("left side\n", encoding="utf-8")
-    _git(worktree, "add", "conflict.txt")
-    _git(worktree, "commit", "-m", "left")
-    _git(worktree, "checkout", "--detach", "HEAD~1")
+    git(worktree, "add", "conflict.txt")
+    git(worktree, "commit", "-m", "left")
+    git(worktree, "checkout", "--detach", "HEAD~1")
     (worktree / "conflict.txt").write_text("right side\n", encoding="utf-8")
-    _git(worktree, "add", "conflict.txt")
-    _git(worktree, "commit", "-m", "right")
-    merge = _git(worktree, "merge", "gc-left", check=False)
+    git(worktree, "add", "conflict.txt")
+    git(worktree, "commit", "-m", "right")
+    merge = git(worktree, "merge", "gc-left", check=False)
     assert merge.returncode != 0, "the merge has to conflict for the index to hold stages"
-    assert _git(worktree, "ls-files", "-u").stdout.strip(), "no unmerged stages were staged"
+    assert git(worktree, "ls-files", "-u").stdout.strip(), "no unmerged stages were staged"
     shutil.rmtree(worktree)
 
-    reason = _reason_of(_run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
     start = reason.index("GIT_INDEX_FILE=")
     end = reason.find(" |", start)
     command = (reason[start:] if end == -1 else reason[start:end]).replace(
@@ -339,12 +258,12 @@ def test_the_index_recovery_command_preserves_a_gitlink(
     the commit the entry pointed at.
     """
     worktree = git_sandbox.root / "gitlink-index"
-    _git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), "HEAD")
-    pointed_at = _git(worktree, "rev-parse", "HEAD").stdout.strip()
-    _git(worktree, "update-index", "--add", "--cacheinfo", f"160000,{pointed_at},sub")
+    git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), "HEAD")
+    pointed_at = git(worktree, "rev-parse", "HEAD").stdout.strip()
+    git(worktree, "update-index", "--add", "--cacheinfo", f"160000,{pointed_at},sub")
     shutil.rmtree(worktree)
 
-    reason = _reason_of(_run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
     start = reason.index("GIT_INDEX_FILE=")
     end = reason.find(" |", start)
     command = (reason[start:] if end == -1 else reason[start:end]).replace(
@@ -387,18 +306,18 @@ def test_a_failing_rescue_stops_the_chain_and_shows_in_the_exit_code(
     one commit stayed unanchored. A shell reports the status of the last
     command in a ``;`` list, so only ``&&`` surfaces it.
     """
-    head = _git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
+    head = git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
     worktree = git_sandbox.root / "healthy-blocked-rescue"
-    _git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), head)
+    git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), head)
     first, second = _abandon_commits(git_sandbox, worktree, 2)
 
-    reason = _reason_of(_run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
     start = reason.index("git branch gc-rescue-")
     end = reason.find(" |", start)
     command = reason[start:] if end == -1 else reason[start:end]
     blocked = command[len("git branch ") :].split()[0]
     survivor = second if blocked.endswith(first) else first
-    _git(git_sandbox.main, "branch", blocked, head)
+    git(git_sandbox.main, "branch", blocked, head)
 
     result = subprocess.run(
         command,
@@ -410,7 +329,7 @@ def test_a_failing_rescue_stops_the_chain_and_shows_in_the_exit_code(
     )
     assert result.returncode != 0, "a blocked rescue that exits 0 reads as a completed rescue"
     assert (
-        _git(
+        git(
             git_sandbox.main, "rev-parse", "--verify", f"gc-rescue-{survivor}", check=False
         ).returncode
         != 0
@@ -429,17 +348,17 @@ def test_a_worktree_on_a_merged_branch_is_kept_when_its_reflog_is_a_commits_only
     nothing but its own reflog, and this is the most-travelled path in the
     tool, so a removal here is the likeliest way to lose work.
     """
-    head = _git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
+    head = git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
     worktree = git_sandbox.root / "healthy-merged-branch-orphan"
-    _git(git_sandbox.main, "worktree", "add", "-b", "gc-merged-branch", str(worktree), head)
-    _write_and_commit(worktree, "orphan.txt", "x\n", "abandoned on a branch")
-    abandoned = _git(worktree, "rev-parse", "HEAD").stdout.strip()
-    _git(worktree, "reset", "--hard", head)
-    assert _git(git_sandbox.main, "for-each-ref", "--contains", abandoned).stdout == ""
+    git(git_sandbox.main, "worktree", "add", "-b", "gc-merged-branch", str(worktree), head)
+    write_and_commit(worktree, "orphan.txt", "x\n", "abandoned on a branch")
+    abandoned = git(worktree, "rev-parse", "HEAD").stdout.strip()
+    git(worktree, "reset", "--hard", head)
+    assert git(git_sandbox.main, "for-each-ref", "--contains", abandoned).stdout == ""
 
-    report = _run_gc_json(git_sandbox, monkeypatch, capsys)
+    report = run_gc_json(git_sandbox, monkeypatch, capsys)
 
-    decision = _decision_for(report, worktree)
+    decision = decision_for(report, worktree)
     assert decision["branch"] == "gc-merged-branch", decision
     reason = decision["reason"]
     assert isinstance(reason, str), decision

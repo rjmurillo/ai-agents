@@ -21,73 +21,19 @@ the object database back.
 
 from __future__ import annotations
 
-import subprocess
-import tempfile
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from scripts.maintenance import _gc_apply, gc_worktrees
-
-
-@dataclass(frozen=True, slots=True)
-class GitSandbox:
-    """A disposable repository with an origin remote and linked worktrees."""
-
-    root: Path
-    main: Path
-    remote: Path
-
-
-def _git(cwd: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    ).stdout.strip()
-
-
-def _write_and_commit(cwd: Path, relative_path: str, content: str, message: str) -> str:
-    (cwd / relative_path).write_text(content, encoding="utf-8")
-    _git(cwd, "add", relative_path)
-    _git(cwd, "commit", "-m", message)
-    return _git(cwd, "rev-parse", "HEAD")
-
-
-@pytest.fixture
-def git_sandbox() -> Iterator[GitSandbox]:
-    temp_parent = Path(__file__).resolve().parents[1] / ".pytest_tmp" / "gc_worktrees"
-    temp_parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="gc-apply-", dir=temp_parent) as temp_dir:
-        root = Path(temp_dir)
-        remote = root / "origin.git"
-        main = root / "repo"
-        subprocess.run(
-            ["git", "init", "--bare", "--initial-branch=main", str(remote)],
-            check=True,
-            capture_output=True,
-        )
-        subprocess.run(["git", "clone", str(remote), str(main)], check=True, capture_output=True)
-        for key, value in (
-            ("user.email", "test@example.com"),
-            ("user.name", "Test User"),
-            ("commit.gpgsign", "false"),
-        ):
-            _git(main, "config", key, value)
-        _write_and_commit(main, "base.txt", "base\n", "base")
-        _git(main, "push", "-u", "origin", "main")
-        yield GitSandbox(root=root, main=main, remote=remote)
+from tests.gc_real_git import GitSandbox, git, write_and_commit
 
 
 def _merged_candidate(sandbox: GitSandbox, name: str) -> Path:
     """A worktree that every ordinary check calls safe to remove."""
     worktree = sandbox.root / name
-    _git(sandbox.main, "worktree", "add", "--detach", str(worktree), "main")
+    git(sandbox.main, "worktree", "add", "--detach", str(worktree), "main")
     return worktree
 
 
@@ -116,9 +62,9 @@ def _apply_with(
 
 def _unreachable(sandbox: GitSandbox, commit: str) -> bool:
     """Does the object survive with no ref reaching it?"""
-    if _git(sandbox.main, "cat-file", "-t", commit) != "commit":
+    if git(sandbox.main, "cat-file", "-t", commit).stdout.strip() != "commit":
         return False
-    return _git(sandbox.main, "for-each-ref", "--contains", commit) == ""
+    return git(sandbox.main, "for-each-ref", "--contains", commit).stdout.strip() == ""
 
 
 def test_a_commit_landing_inside_the_apply_window_is_not_removed(
@@ -136,7 +82,7 @@ def test_a_commit_landing_inside_the_apply_window_is_not_removed(
     landed: list[str] = []
 
     def commit_inside_the_window() -> None:
-        landed.append(_write_and_commit(worktree, "late.txt", "late\n", "late"))
+        landed.append(write_and_commit(worktree, "late.txt", "late\n", "late"))
 
     report = _apply_with(git_sandbox, monkeypatch, commit_inside_the_window)
 
@@ -157,17 +103,19 @@ def test_a_worktree_that_commits_and_goes_back_is_not_removed(
     is now the sole anchor for something finds it.
     """
     worktree = _merged_candidate(git_sandbox, "aba")
-    before = _git(worktree, "rev-parse", "HEAD")
+    before = git(worktree, "rev-parse", "HEAD").stdout.strip()
     stranded: list[str] = []
 
     def commit_and_reset() -> None:
-        stranded.append(_write_and_commit(worktree, "gone.txt", "gone\n", "gone"))
-        _git(worktree, "reset", "--hard", before)
+        stranded.append(write_and_commit(worktree, "gone.txt", "gone\n", "gone"))
+        git(worktree, "reset", "--hard", before)
 
     report = _apply_with(git_sandbox, monkeypatch, commit_and_reset)
 
     assert stranded, "the interference hook never ran"
-    assert _git(worktree, "rev-parse", "HEAD") == before, "HEAD must be back where it started"
+    assert git(worktree, "rev-parse", "HEAD").stdout.strip() == before, (
+        "HEAD must be back where it started"
+    )
     assert str(worktree) not in report.removed, report.remove_errors
     assert _unreachable(git_sandbox, stranded[0]), "the stranded commit must still be in the odb"
 
