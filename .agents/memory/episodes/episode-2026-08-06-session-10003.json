@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-06-session-10003",
+  "session": "2026-08-06-session-10003",
+  "timestamp": "2026-08-06T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record push-time and repo-state traps measured during the 95-issue triage fleet session",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-06T05:10:00+00:00",
+      "type": "milestone",
+      "content": "Recorded four measured push-time and repository-state traps in GOTCHAS",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-10003"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}

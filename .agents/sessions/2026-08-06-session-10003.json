@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10003,
+    "date": "2026-08-06",
+    "branch": "docs/verification-discipline",
+    "startingCommit": "976b43a89",
+    "objective": "Record push-time and repo-state traps measured during the 95-issue triage fleet session"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions called at session start; memories read and written via serena tools"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions returned the Serena manual; symbolic tools used for memory reads and writes"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/GOTCHAS.md and AGENTS.md before touching governance files"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/session-init/scripts and .claude/skills/session-end/scripts; used new_session_log_json.py and complete_session_log.py rather than hand-writing the log"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md Skill-First section and .claude/rules/testing.md before editing governance docs"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/GOTCHAS.md in full, including the .agents session-log commit rule this change obeys"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read decision-measure-against-fresh-worktree-not-stale-checkout and searched the corpus with search_memory.py before recording new traps, to avoid duplicating existing entries"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/verification-discipline"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/verification-discipline"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "976b43a89"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session log workLog, nextSteps, and sessionEnd populated before staging"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified; ADR-014 keeps it read-only"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Five memories written this session: github-rate-limit-endpoint-lies-under-secondary-limit, merge-queue-requires-merge-group-triggers-first, agent-tests-confirm-belief-not-behavior, staged-file-in-shared-checkout-fakes-a-red-main, green-pytest-is-not-a-green-push"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run and reported 'Linting: 0 files' because .agents/** is excluded; recorded as zero-scope rather than treated as a pass"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GOTCHAS.md and this log are staged together in one commit, which is what the .agents session-policy requires. endingCommit is left empty on purpose: the SHA cannot exist before the commit that contains this file, and GOTCHAS warns against recording it and then amending."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py run against this log; dash scan reports 0 em-dashes and 0 en-dashes in GOTCHAS.md"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-06T05:10:00Z",
+      "action": "Recorded four measured push-time and repository-state traps in GOTCHAS",
+      "files": [
+        ".agents/governance/GOTCHAS.md"
+      ],
+      "outcome": "Added: a green pytest run is not a green push, measured on a branch that passed 23693 tests and was rejected by five gates; a staged file in the shared checkout fakes a red main, measured as baseline 583 versus tree 587 from 68 staged additions; core.bare=true appears during push and breaks every worktree, with the worktree-level immunization that survives a shared-config flip; and when several unrelated checks fail at once, suspect the substrate."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Find the writer that sets core.bare=true during the pre-push stage (issue #4698).",
+    "Consider a fast repository health check that fails when core.bare is true alongside a work tree."
+  ],
+  "sessionEnd": {
+    "timestamp": "2026-08-06T05:12:00Z",
+    "summary": "Recorded four repository traps measured during a 95-issue triage fleet session. Each entry states the symptom as it actually prints, the measurement that distinguishes it from a real defect, and the repair.",
+    "handoffUpdated": false,
+    "qaStatus": "not-applicable",
+    "qaJustification": "Documentation only. GOTCHAS.md is excluded from markdownlint by the .agents/ ignore pattern, confirmed by a run reporting 0 files linted, so a lint pass would be a zero-scope false pass rather than evidence."
+  }
+}
