@@ -19,6 +19,7 @@ Related: Issue #2761 (worktree accumulation starves the markdown LSP).
 
 from __future__ import annotations
 
+import shlex
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -35,6 +36,7 @@ else:
 
 from scripts.maintenance.worktree_report import (
     KEEP_STALE,
+    KEEP_STALE_HEAD_UNKNOWN,
     KEEP_STALE_UNREACHABLE,
     Worktree,
 )
@@ -83,13 +85,36 @@ def stale_keep_reason(worktree: Worktree, main_path: str, run_git: Callable[...,
     return f"{lead}{KEEP_STALE}"
 
 
+def reflog_only_work(worktree_path: str, main_path: str, run_git: Callable[..., str]) -> str:
+    """What a healthy candidate would still lose, or "" when it would lose nothing.
+
+    A worktree can be clean, merged, and fully pushed and still be the only
+    thing anchoring a commit. Check a branch out, commit, check something else
+    out: the commit is now named by nothing but that worktree's own reflog, and
+    every ordinary check reports the entry as safe to remove. ``git worktree
+    remove`` deletes the admin directory, the reflog goes with it, and the
+    commit becomes unreachable.
+
+    The stale path already probes for this. Running the same probe on healthy
+    removal candidates is what stops the report from calling an entry safe when
+    it is not. An unreadable probe answers "keep", because the question this
+    asks is whether removal is provably lossless, and an unknown is not a no.
+    """
+    admin = _gc_stale.admin_dir_for(worktree_path, partial(run_git, cwd=main_path), main_path)
+    if admin is None:
+        return "its admin entry could not be located, so abandoned commits cannot be ruled out"
+    return _reflog_warning(admin, main_path)
+
+
 def _head_warning(head: str | None, run_git: Callable[..., str]) -> str:
     """Whether clearing the entry abandons its detached HEAD."""
     if not head:
         return "its recorded HEAD is missing, so nothing about it could be rescued"
-    if stale_head_is_reachable(head, run_git):
+    reachable = stale_head_is_reachable(head, run_git)
+    if reachable:
         return ""
-    return f"WARNING: {KEEP_STALE_UNREACHABLE}. Rescue first: git branch rescue/{head[:12]} {head}"
+    finding = KEEP_STALE_UNREACHABLE if reachable is False else KEEP_STALE_HEAD_UNKNOWN
+    return f"WARNING: {finding}. Rescue first: git branch gc-rescue-{head} {head}"
 
 
 def _staged_warning(admin: Path, head: str | None, main_path: str) -> str:
@@ -101,10 +126,11 @@ def _staged_warning(admin: Path, head: str | None, main_path: str) -> str:
         return ""
     if state == _gc_stale.UNKNOWN:
         return "its index could not be read, so staged work cannot be ruled out"
+    index = shlex.quote(str(admin / "index"))
     return (
         "WARNING: its index holds staged work that no commit carries, and clearing the "
-        f"entry deletes that index. Recover first: GIT_INDEX_FILE={admin / 'index'} "
-        "git checkout-index -a --prefix=<somewhere>/"
+        f"entry deletes that index. Recover first: GIT_INDEX_FILE={index} "
+        "git checkout-index -a --ignore-skip-worktree-bits --prefix=RECOVERY_DIR/"
     )
 
 
@@ -115,22 +141,34 @@ def _reflog_warning(admin: Path, main_path: str) -> str:
         return "its reflog could not be read, so abandoned commits cannot be ruled out"
     if not orphans:
         return ""
-    rescues = " ".join(f"git branch rescue/{sha[:12]} {sha}" for sha in orphans[:3])
-    more = "" if len(orphans) <= 3 else f" (and {len(orphans) - 3} more)"
+    rescues = "; ".join(f"git branch gc-rescue-{sha} {sha}" for sha in orphans[:3])
+    more = (
+        ""
+        if len(orphans) <= 3
+        else (
+            f" (and {len(orphans) - 3} more, named in "
+            f"{shlex.quote(str(admin / 'logs' / 'HEAD'))}, which the removal deletes)"
+        )
+    )
     return (
         f"WARNING: its reflog is the only anchor for {len(orphans)} commit(s), and "
         f"clearing the entry deletes it. Rescue first: {rescues}{more}"
     )
 
 
-def stale_head_is_reachable(head: str | None, run_git: Callable[..., str]) -> bool:
+def stale_head_is_reachable(head: str | None, run_git: Callable[..., str]) -> bool | None:
     """Is a stale worktree's HEAD still contained by some ref?
 
     Pruning a stale admin entry deletes the last ref that keeps a detached HEAD
     alive, so its commits become garbage-collectable. Every stale entry on this
-    machine was contained when measured, but the tool must not assume that. An
-    unreadable or ambiguous answer counts as unreachable, which keeps the
-    fail-safe direction: refuse to prune rather than risk losing commits.
+    machine was contained when measured, but the tool must not assume that.
+
+    Three-valued, because git has three answers. ``None`` means git refused or
+    failed to answer. Both ``False`` and ``None`` keep the worktree, so the
+    fail-safe direction is unchanged, but they are not the same sentence: the
+    report used to state "no ref contains its HEAD" after a subprocess error,
+    which asserts as a measured fact something nobody measured. A missing HEAD
+    is ``False`` rather than unknown: there is no commit to contain.
 
     ``for-each-ref`` walks every ref, not just branches and tags, so a commit
     anchored only by ``refs/stash``, ``refs/remotes`` or ``refs/notes`` counts
@@ -143,5 +181,5 @@ def stale_head_is_reachable(head: str | None, run_git: Callable[..., str]) -> bo
     try:
         found = run_git(["for-each-ref", "--contains", head, "--count=1", "--format=%(refname)"])
     except RuntimeError:
-        return False
+        return None
     return bool(found.strip())

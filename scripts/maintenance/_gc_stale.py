@@ -15,6 +15,8 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+from scripts.maintenance.worktree_report import Worktree
+
 GitRunner = Callable[[list[str]], str]
 
 _OID = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
@@ -105,7 +107,10 @@ def staged_content_state(admin: Path, head: str, repo_dir: str, timeout: float) 
     stay quiet on ``CLEAN``, and disclose the gap on ``UNKNOWN``.
     """
     index = admin / "index"
-    if not index.is_file():
+    present = _regular_file(index)
+    if present is None:
+        return UNKNOWN
+    if not present:
         return CLEAN
     try:
         result = subprocess.run(
@@ -125,6 +130,29 @@ def staged_content_state(admin: Path, head: str, repo_dir: str, timeout: float) 
     if result.returncode == 1:
         return STAGED
     return UNKNOWN
+
+
+def _regular_file(path: Path) -> bool | None:
+    """Is ``path`` a regular file? ``None`` when the question could not be asked.
+
+    ``Path.is_file`` swallows every ``OSError`` and answers ``False``, so a
+    permission denial, a dead symlink chain, and a genuinely absent file all
+    look identical. The first two are unknowns. Reporting them as "the file is
+    not there, so nothing is at risk" is the same silent all-clear that let a
+    worktree holding the only copy of a commit be listed for removal.
+
+    ``False`` is reserved for genuine absence. Something that is present but
+    not a regular file, a directory or a socket where an index or a reflog
+    belongs, is a state this probe does not understand, so it answers unknown
+    rather than treating a corrupt admin record as an empty one.
+    """
+    try:
+        mode = path.stat().st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    except OSError:
+        return None
+    return True if mode & 0o170000 == 0o100000 else None
 
 
 def unreachable_reflog_commits(admin: Path, repo_dir: str, timeout: float) -> list[str] | None:
@@ -170,7 +198,10 @@ def _reflog_oids(admin: Path) -> list[str] | None:
     test is "did any field look like an id" rather than "did any survive".
     """
     log = admin / "logs" / "HEAD"
-    if not log.is_file():
+    present = _regular_file(log)
+    if present is None:
+        return None
+    if not present:
         return []
     try:
         text = log.read_text(encoding="utf-8", errors="replace")
@@ -224,3 +255,39 @@ def _run(args: list[str], repo_dir: str, timeout: float, stdin: list[str]) -> st
     if result.returncode != 0:
         return None
     return result.stdout
+
+def linked_checkout_present(path: str) -> bool:
+    """Is a live linked checkout still sitting at ``path``?
+
+    Asks for the ``.git`` marker rather than the directory, because a bare
+    ``exists`` verifies a pathname and not an identity. Delete a worktree and
+    recreate an ordinary directory at the same path and ``exists`` still says
+    yes, so the entry reads as healthy while its admin record points at
+    something that is no longer that worktree. Verified against real git: a
+    linked worktree always carries a ``.git`` file holding ``gitdir:``, and a
+    replacement directory does not. The main worktree, whose ``.git`` is a
+    directory, never reaches here; ``decide`` returns ``KEEP_MAIN`` above.
+
+    One ``stat``, named so ``decide`` can take it as a default argument.
+    """
+    return (Path(path) / ".git").exists()
+
+
+def is_stale(worktree: Worktree, checkout_present: Callable[[str], bool]) -> bool:
+    """Report whether the worktree's directory is gone, by git's word or by stat.
+
+    ``prunable`` is git's own answer and is the reliable signal for an unlocked
+    entry. Verified against real git: git omits it for a locked worktree whose
+    directory has been deleted, because a locked entry is never a prune
+    candidate and git does not compute the marker. Trusting ``prunable`` alone
+    would let a locked stale entry report ``locked`` and nothing more, hiding
+    the orphaned index and reflog from the reader who is about to unlock it.
+
+    ``checkout_present`` is a seam so a test states what it means rather than
+    depending on whether its synthetic path happens to be absent from the
+    machine running the suite. In production it is one ``stat`` for the
+    ``.git`` marker, and it cannot fire on a healthy worktree, which carries
+    that marker by definition. A transient mount failure would produce a
+    warning that keeps the worktree, which is the fail-safe direction.
+    """
+    return bool(worktree.prunable) or not checkout_present(worktree.path)

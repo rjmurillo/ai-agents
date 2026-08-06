@@ -23,11 +23,15 @@ KEEP_GIT_ERROR = "git inspection failed"
 KEEP_TIME_BUDGET = "not inspected (time budget exhausted)"
 KEEP_OCCUPIED = "in use by a running process"
 KEEP_STALE_UNREACHABLE = "working tree gone and no ref contains its HEAD"
+KEEP_STALE_HEAD_UNKNOWN = (
+    "working tree gone and git could not say whether any ref contains its HEAD"
+)
 KEEP_STALE = (
     "stale admin entry; git cannot tell a deleted worktree from a moved one. "
     "If it moved, git worktree repair <new-path> restores it. If it is gone, "
     "git worktree remove <path> clears this entry and no other"
 )
+KEEP_REFLOG_ONLY = "would have been removed, but its reflog is the only anchor for work"
 
 
 @dataclass

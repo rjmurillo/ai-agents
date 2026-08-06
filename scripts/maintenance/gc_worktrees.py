@@ -53,19 +53,25 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from scripts.maintenance import _gc_apply, _gc_parse, _gc_reasons, _gc_remote
+    from scripts.maintenance import _gc_apply, _gc_parse, _gc_reasons, _gc_remote, _gc_stale
 else:
     try:
-        from scripts.maintenance import _gc_apply, _gc_parse, _gc_reasons, _gc_remote
+        from scripts.maintenance import (
+            _gc_apply,
+            _gc_parse,
+            _gc_reasons,
+            _gc_remote,
+            _gc_stale,
+        )
     except ModuleNotFoundError:
         import _gc_apply
         import _gc_parse
         import _gc_reasons
         import _gc_remote
+        import _gc_stale
 
 from scripts.maintenance.worktree_occupancy import (
     Occupancy,
@@ -80,6 +86,7 @@ from scripts.maintenance.worktree_report import (
     KEEP_LOCKED,
     KEEP_MAIN,
     KEEP_OCCUPIED,
+    KEEP_REFLOG_ONLY,
     KEEP_TIME_BUDGET,
     KEEP_UNPUSHED,
     Decision,
@@ -174,30 +181,6 @@ def is_merged_to_base(path: str, base_ref: str) -> bool:
     raise RuntimeError(msg)
 
 
-def _path_exists(path: str) -> bool:
-    """One ``stat``, named so ``decide`` can take it as a default argument."""
-    return Path(path).exists()
-
-
-def _is_stale(worktree: Worktree, path_exists: Callable[[str], bool]) -> bool:
-    """Report whether the worktree's directory is gone, by git's word or by stat.
-
-    ``prunable`` is git's own answer and is the reliable signal for an unlocked
-    entry. Verified against real git: git omits it for a locked worktree whose
-    directory has been deleted, because a locked entry is never a prune
-    candidate and git does not compute the marker. Trusting ``prunable`` alone
-    would let a locked stale entry report ``locked`` and nothing more, hiding
-    the orphaned index and reflog from the reader who is about to unlock it.
-
-    ``path_exists`` is a seam so a test states what it means rather than
-    depending on whether its synthetic path happens to be absent from the
-    machine running the suite. In production it is one ``stat``, and it cannot
-    fire on a healthy worktree, whose directory is present by definition. A
-    transient mount failure would produce a warning that keeps the worktree,
-    which is the fail-safe direction.
-    """
-    return bool(worktree.prunable) or not path_exists(worktree.path)
-
 
 def decide(
     worktree: Worktree,
@@ -209,7 +192,7 @@ def decide(
     cwds: frozenset[str] = frozenset(),
     remote_head_refs: frozenset[str] | None = None,
     origin_upstreams: dict[str, str] | None = None,
-    path_exists: Callable[[str], bool] = _path_exists,
+    checkout_present: Callable[[str], bool] = _gc_stale.linked_checkout_present,
 ) -> Decision:
     """Decide whether a worktree is safe to remove. KEEP on any doubt.
 
@@ -260,7 +243,7 @@ def decide(
         one ``stat`` and cannot fire on a healthy worktree, whose directory is
         present by definition.
         """
-        if _is_stale(worktree, path_exists):
+        if _gc_stale.is_stale(worktree, checkout_present):
             return Decision(
                 worktree.path,
                 worktree.branch,
@@ -268,6 +251,25 @@ def decide(
                 reason=f"{reason}; {_gc_reasons.stale_keep_reason(worktree, main_path, _run_git)}",
             )
         return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
+
+    def removable(reason: str) -> Decision:
+        """A removal, unless the entry's own reflog is the last anchor for work.
+
+        Clean, merged, and fully pushed all describe the current HEAD. They say
+        nothing about commits the worktree reached and left, which its own
+        reflog alone still names. Removing the entry deletes that reflog, so the
+        last question asked before proposing a removal is whether the removal is
+        provably lossless. An unreadable probe answers no.
+        """
+        loss = _gc_reasons.reflog_only_work(worktree.path, main_path, _run_git)
+        if not loss:
+            return Decision(worktree.path, worktree.branch, remove=True, reason=reason)
+        return Decision(
+            worktree.path,
+            worktree.branch,
+            remove=False,
+            reason=f"{KEEP_REFLOG_ONLY} ({reason}); {loss}",
+        )
 
     if worktree.locked:
         return kept(KEEP_LOCKED) if inspect else _keep(worktree, KEEP_LOCKED)
@@ -293,7 +295,7 @@ def decide(
         reason = "merged to base"
         if worktree.detached or worktree.branch is None:
             if merged:
-                return Decision(worktree.path, worktree.branch, remove=True, reason=reason)
+                return removable(reason)
             return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_DETACHED)
         if (
             not merged
@@ -312,7 +314,7 @@ def decide(
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_GIT_ERROR)
 
     pushed = reason if merged else "fully pushed"
-    return Decision(worktree.path, worktree.branch, remove=True, reason=pushed)
+    return removable(pushed)
 
 
 def _keep(worktree: Worktree, reason: str) -> Decision:
