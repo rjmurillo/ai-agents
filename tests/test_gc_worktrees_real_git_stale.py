@@ -371,7 +371,7 @@ def test_all_three_loss_channels_are_reported_together(
 
     assert f"git branch gc-rescue-{head} {head}" in reason, reason
     assert f"git branch gc-rescue-{abandoned} {abandoned}" in reason, reason
-    assert "git checkout-index" in reason, reason
+    assert "checkout-index" in reason, reason
     assert f"{head}." not in reason, "a trailing period turns the sha into a bad object"
 
 
@@ -392,7 +392,7 @@ def test_a_locked_stale_entry_still_reports_its_staged_work(
     reason = decision_for(report, worktree)["reason"]
     assert isinstance(reason, str)
     assert "locked" in reason, reason
-    assert "git checkout-index" in reason, reason
+    assert "checkout-index" in reason, reason
 
 
 def test_a_worktree_moved_onto_another_s_old_path_does_not_make_it_healthy(
@@ -421,7 +421,7 @@ def test_a_worktree_moved_onto_another_s_old_path_does_not_make_it_healthy(
     assert isinstance(reason, str)
     assert decision_for(report, victim)["remove"] is False
     assert "stale admin entry" in reason, reason
-    assert "git checkout-index" in reason, "the victim's staged work must still be named"
+    assert "checkout-index" in reason, "the victim's staged work must still be named"
 
 
 def test_an_admin_record_overwritten_by_a_file_is_not_an_empty_one(

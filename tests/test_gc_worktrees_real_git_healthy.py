@@ -28,6 +28,7 @@ import pytest
 
 from tests.gc_real_git import (
     GitSandbox,
+    command_of,
     decision_for,
     git,
     reason_of,
@@ -119,9 +120,7 @@ def test_the_printed_rescue_command_runs_verbatim_for_several_commits(
     first, second = _abandon_commits(git_sandbox, worktree, 2)
 
     reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
-    start = reason.index("git branch gc-rescue-")
-    end = reason.find(" |", start)
-    command = reason[start:] if end == -1 else reason[start:end]
+    command = command_of(reason, "git branch gc-rescue-")
     assert command.count("git branch") == 2, command
 
     result = subprocess.run(
@@ -165,24 +164,21 @@ def test_the_index_recovery_command_exports_a_skip_worktree_entry(
     reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
     assert "--ignore-skip-worktree-bits" in reason, reason
 
-    start = reason.index("GIT_INDEX_FILE=")
-    end = reason.find(" |", start)
-    command = (reason[start:] if end == -1 else reason[start:end]).replace(
-        "RECOVERY_DIR", str(tmp_path)
-    )
+    command = command_of(reason, "mkdir -p RECOVERY_DIR", tmp_path / "recovery")
     result = subprocess.run(
         # A reader pastes this into a shell, so the test has to run it as one.
         # Spelled as argv so the interpreter is named here rather than inherited
         # from whatever the caller's environment happens to point sh at.
         ["bash", "-c", command],
-        cwd=git_sandbox.main,
+        cwd=tmp_path,  # outside any repo: the printed command has to carry its own -C
         capture_output=True,
         text=True,
         encoding="utf-8",
     )
     assert result.returncode == 0, result.stderr
-    assert (tmp_path / "staged.txt").read_text(encoding="utf-8") == "unique staged blob\n"
-    assert (tmp_path / "index").exists(), "the copied index is the half that recovers the rest"
+    recovered = tmp_path / "recovery"
+    assert (recovered / "staged.txt").read_text(encoding="utf-8") == "unique staged blob\n"
+    assert (recovered / "index").exists(), "the copied index is the half that recovers the rest"
 
 
 def test_the_index_recovery_command_preserves_unmerged_stages(
@@ -214,27 +210,23 @@ def test_the_index_recovery_command_preserves_unmerged_stages(
     shutil.rmtree(worktree)
 
     reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
-    start = reason.index("GIT_INDEX_FILE=")
-    end = reason.find(" |", start)
-    command = (reason[start:] if end == -1 else reason[start:end]).replace(
-        "RECOVERY_DIR", str(tmp_path)
-    )
+    command = command_of(reason, "mkdir -p RECOVERY_DIR", tmp_path / "recovery")
     result = subprocess.run(
         command,
-        cwd=git_sandbox.main,
+        cwd=tmp_path,  # outside any repo: the printed command has to carry its own -C
         shell=True,
         capture_output=True,
         text=True,
         encoding="utf-8",
     )
     assert result.returncode == 0, result.stderr
-    assert not (tmp_path / "conflict.txt").exists(), (
+    assert not (tmp_path / "recovery" / "conflict.txt").exists(), (
         "checkout-index is expected to skip it; the point is that the copy does not"
     )
     stages = subprocess.run(
         ["git", "ls-files", "-s", "-u"],
         cwd=git_sandbox.main,
-        env={**os.environ, "GIT_INDEX_FILE": str(tmp_path / "index")},
+        env={**os.environ, "GIT_INDEX_FILE": str(tmp_path / "recovery" / "index")},
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -264,27 +256,23 @@ def test_the_index_recovery_command_preserves_a_gitlink(
     shutil.rmtree(worktree)
 
     reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
-    start = reason.index("GIT_INDEX_FILE=")
-    end = reason.find(" |", start)
-    command = (reason[start:] if end == -1 else reason[start:end]).replace(
-        "RECOVERY_DIR", str(tmp_path)
-    )
+    command = command_of(reason, "mkdir -p RECOVERY_DIR", tmp_path / "recovery")
     result = subprocess.run(
         command,
-        cwd=git_sandbox.main,
+        cwd=tmp_path,  # outside any repo: the printed command has to carry its own -C
         shell=True,
         capture_output=True,
         text=True,
         encoding="utf-8",
     )
     assert result.returncode == 0, result.stderr
-    assert list((tmp_path / "sub").iterdir()) == [], (
+    assert list((tmp_path / "recovery" / "sub").iterdir()) == [], (
         "checkout-index is expected to empty it; the point is that the copy is not empty"
     )
     entries = subprocess.run(
         ["git", "ls-files", "-s"],
         cwd=git_sandbox.main,
-        env={**os.environ, "GIT_INDEX_FILE": str(tmp_path / "index")},
+        env={**os.environ, "GIT_INDEX_FILE": str(tmp_path / "recovery" / "index")},
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -312,9 +300,7 @@ def test_a_failing_rescue_stops_the_chain_and_shows_in_the_exit_code(
     first, second = _abandon_commits(git_sandbox, worktree, 2)
 
     reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
-    start = reason.index("git branch gc-rescue-")
-    end = reason.find(" |", start)
-    command = reason[start:] if end == -1 else reason[start:end]
+    command = command_of(reason, "git branch gc-rescue-")
     blocked = command[len("git branch ") :].split()[0]
     survivor = second if blocked.endswith(first) else first
     git(git_sandbox.main, "branch", blocked, head)

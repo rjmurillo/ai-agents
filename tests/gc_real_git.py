@@ -20,6 +20,7 @@ avoids the cross-device cases that have nothing to do with what is under test.
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -88,3 +89,23 @@ def reason_of(report: dict[str, object], path: Path) -> str:
     reason = decision_for(report, path)["reason"]
     assert isinstance(reason, str)
     return reason
+
+
+def command_of(reason: str, start_marker: str, recovery_dir: Path | None = None) -> str:
+    """The runnable chain a reader would paste, sliced out of ``reason``.
+
+    The reason text mixes a runnable command with prose, delimited by ``" | "``.
+    A reader copies from the start of the chain to that delimiter, so the tests
+    have to slice the same way or they prove nothing about what the reader runs.
+    ``recovery_dir`` substitutes every ``RECOVERY_DIR`` placeholder; pass a path
+    that does not exist yet, because creating it is the command's job.
+    """
+    start = reason.index(start_marker)
+    end = reason.find(" |", start)
+    command = reason[start:] if end == -1 else reason[start:end]
+    if recovery_dir is None:
+        return command
+    assert not recovery_dir.exists(), (
+        "substituting a directory that already exists hides whether the command creates it"
+    )
+    return command.replace("RECOVERY_DIR", shlex.quote(str(recovery_dir)))

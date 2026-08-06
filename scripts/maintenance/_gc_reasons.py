@@ -127,15 +127,19 @@ def _staged_warning(admin: Path, head: str | None, main_path: str) -> str:
     if state == _gc_stale.UNKNOWN:
         return "its index could not be read, so staged work cannot be ruled out"
     index = shlex.quote(str(admin / "index"))
+    repo = shlex.quote(main_path)
     return (
         "WARNING: its index holds staged work that no commit carries, and clearing the "
-        f"entry deletes that index. Recover first: GIT_INDEX_FILE={index} "
-        "git checkout-index -a --ignore-skip-worktree-bits --prefix=RECOVERY_DIR/ && "
+        f"entry deletes that index. Recover first: mkdir -p RECOVERY_DIR && "
+        f"GIT_INDEX_FILE={index} git -C {repo} checkout-index -a "
+        "--ignore-skip-worktree-bits --prefix=RECOVERY_DIR/ && "
         f"cp {index} RECOVERY_DIR/index | the copied index is the part that recovers "
         "everything: checkout-index writes only merged, non-submodule entries, and "
         "verified against real git it exits 0 while writing no files for an index of "
         "unmerged stages and an empty directory for a submodule entry, losing the "
-        "recorded commit. Read the copy with "
+        "recorded commit. It also creates RECOVERY_DIR only when it writes at least "
+        "one file, so the mkdir is what lets the copy land in the very cases the copy "
+        "exists for. Read the copy with "
         "GIT_INDEX_FILE=RECOVERY_DIR/index git ls-files -s -u"
     )
 

@@ -321,7 +321,7 @@ class TestStagedContentWarning:
         decision = _decide(_stale(), staged="staged", admin="/repo/.git/worktrees/wt")
         assert "WARNING" in decision.reason
         assert "GIT_INDEX_FILE=/repo/.git/worktrees/wt/index" in decision.reason
-        assert "git checkout-index" in decision.reason
+        assert "checkout-index" in decision.reason
 
     def test_an_unreadable_index_discloses_the_gap_instead_of_claiming_either(self):
         """A git failure must not read as 'staged work' or as 'nothing there'."""
