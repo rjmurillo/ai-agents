@@ -314,3 +314,53 @@ class TestWarningTextContent:
         assert "python.org/downloads" in stderr
         # Must NOT contain a raw stack trace
         assert "Traceback" not in stderr
+
+
+class TestVersionAgreement:
+    """The minimum Python version stated in three places must agree:
+    1. generate_dispatcher.py (_MIN_PYTHON_MAJOR, _MIN_PYTHON_MINOR)
+    2. The bash template version check in hooks.json
+    3. README.md prerequisite statement
+    If a future change raises the floor, this test forces all three to move.
+    """
+
+    def test_generator_and_hooks_json_agree(self, tmp_path: Path) -> None:
+        """The version in hooks.json must match the generator constants."""
+        import re
+
+        repo = Path(__file__).resolve().parents[2]
+        gen_path = repo / "build" / "scripts" / "generate_dispatcher.py"
+        source = gen_path.read_text()
+        maj = int(
+            re.search(r"_MIN_PYTHON_MAJOR\s*=\s*(\d+)", source).group(1)
+        )
+        minor = int(
+            re.search(r"_MIN_PYTHON_MINOR\s*=\s*(\d+)", source).group(1)
+        )
+
+        hooks_json = repo / "src" / "copilot-cli" / "hooks" / "hooks.json"
+        content = hooks_json.read_text()
+        assert f"({maj},{minor})" in content, (
+            f"hooks.json does not contain ({maj},{minor})"
+        )
+
+    def test_readme_states_correct_version(self) -> None:
+        """README.md must name the same minimum version as the generator."""
+        import re
+
+        repo = Path(__file__).resolve().parents[2]
+        gen_path = repo / "build" / "scripts" / "generate_dispatcher.py"
+        source = gen_path.read_text()
+        maj = int(
+            re.search(r"_MIN_PYTHON_MAJOR\s*=\s*(\d+)", source).group(1)
+        )
+        minor = int(
+            re.search(r"_MIN_PYTHON_MINOR\s*=\s*(\d+)", source).group(1)
+        )
+
+        readme = repo / "README.md"
+        text = readme.read_text()
+        version_str = f"{maj}.{minor}"
+        assert f"Python {version_str}" in text, (
+            f"README.md does not mention 'Python {version_str}'"
+        )
