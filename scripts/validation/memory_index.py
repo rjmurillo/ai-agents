@@ -178,6 +178,14 @@ _URL_PERCENT_ESCAPE_PATTERN = re.compile(r"%[0-9A-Fa-f]{2}")
 _COMMONMARK_ENTITY_PATTERN = re.compile(
     r"&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);"
 )
+_FENCE_START_PATTERN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+_LINK_DEFINITION_PATTERN = re.compile(
+    r"^ {0,3}\[([^\[\]]+)\]:\s*\S"
+)
+_REFERENCE_LINK_PATTERN = re.compile(
+    r"!?\[([^\[\]]+)\]\[([^\[\]]*)\]"
+)
+_BRACKET_LABEL_PATTERN = re.compile(r"(?<!!)\[([^\[\]]+)\]")
 
 
 def _resolve_memory_reference(
@@ -225,12 +233,114 @@ def _invalid_destination_reason(destination: str) -> str | None:
     return None
 
 
+def _mask_inline_code(line: str) -> str:
+    """Blank complete backtick code spans without crossing lines."""
+    masked = list(line)
+    index = 0
+    while index < len(line):
+        if line[index] != "`":
+            index += 1
+            continue
+        run_end = index
+        while run_end < len(line) and line[run_end] == "`":
+            run_end += 1
+        delimiter = line[index:run_end]
+        close = line.find(delimiter, run_end)
+        if close < 0:
+            index = run_end
+            continue
+        for mask_index in range(index, close + len(delimiter)):
+            masked[mask_index] = " "
+        index = close + len(delimiter)
+    return "".join(masked)
+
+
+def _mask_markdown_code(content: str) -> str:
+    """Blank fenced code blocks and inline code spans."""
+    masked_lines: list[str] = []
+    fence_character: str | None = None
+    fence_length = 0
+    for line in content.splitlines():
+        fence_match = _FENCE_START_PATTERN.match(line)
+        if fence_character is None and fence_match:
+            fence = fence_match.group(1)
+            fence_character = fence[0]
+            fence_length = len(fence)
+            masked_lines.append("")
+            continue
+        if fence_character is not None:
+            close_pattern = re.compile(
+                rf"^ {{0,3}}{re.escape(fence_character)}"
+                rf"{{{fence_length},}}\s*$"
+            )
+            if close_pattern.match(line):
+                fence_character = None
+                fence_length = 0
+            masked_lines.append("")
+            continue
+        masked_lines.append(_mask_inline_code(line))
+    return "\n".join(masked_lines)
+
+
+def _normalize_reference_label(label: str) -> str:
+    """Normalize a CommonMark reference label for matching."""
+    return " ".join(label.split()).casefold()
+
+
+def _unsupported_link_syntax_issues(content: str) -> list[str]:
+    """Reject link syntax outside the validator's inline-link subset."""
+    issues: list[str] = []
+    definitions: set[str] = set()
+    for line in content.splitlines():
+        definition = _LINK_DEFINITION_PATTERN.match(line)
+        if definition:
+            definitions.add(
+                _normalize_reference_label(definition.group(1))
+            )
+            issues.append(
+                "P1 VALIDITY: memory-index contains unsupported "
+                f"link definition: {line.strip()!r}"
+            )
+
+    for reference in _REFERENCE_LINK_PATTERN.finditer(content):
+        issues.append(
+            "P1 VALIDITY: memory-index contains unsupported "
+            f"reference-style link: {reference.group(0)!r}"
+        )
+
+    bracket_depth = 0
+    for character in content:
+        if character == "[":
+            if bracket_depth:
+                issues.append(
+                    "P1 VALIDITY: memory-index contains unsupported "
+                    "nested link or image brackets"
+                )
+                break
+            bracket_depth = 1
+        elif character == "]" and bracket_depth:
+            bracket_depth = 0
+
+    for label_match in _BRACKET_LABEL_PATTERN.finditer(content):
+        suffix = content[label_match.end():]
+        if suffix.startswith(("(", "[", ":")):
+            continue
+        label = _normalize_reference_label(label_match.group(1))
+        if label in definitions:
+            issues.append(
+                "P1 VALIDITY: memory-index contains unsupported "
+                f"shortcut reference: {label_match.group(0)!r}"
+            )
+    return issues
+
+
 def _extract_memory_reference_names(
     content: str,
 ) -> tuple[list[str], list[str]]:
     """Extract plain relative reference names and reject ambiguous syntax."""
+    content = _mask_markdown_code(content)
     file_refs: list[str] = []
-    issues: list[str] = []
+    issues = _unsupported_link_syntax_issues(content)
     for line in content.splitlines():
         match = _TABLE_ROW_PATTERN.match(line)
         if match:

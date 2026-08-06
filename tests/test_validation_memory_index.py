@@ -674,6 +674,93 @@ class TestCheckMemoryIndexReferences:
             for issue in result.issues
         )
 
+    @pytest.mark.parametrize(
+        "unsupported_content",
+        [
+            "| hidden | [two][dup] |\n[dup]: shared.md\n",
+            "| hidden | [two][] |\n[two]: shared.md\n",
+            "| hidden | [dup] |\n[dup]: shared.md\n",
+            "[dup]: shared.md\n",
+            (
+                "| hidden | "
+                "[outer [inner](shared.md)](other.md) |\n"
+            ),
+            (
+                "| hidden | "
+                "[outer ![inner](shared.md)](other.md) |\n"
+            ),
+        ],
+    )
+    def test_unsupported_link_syntax_fails_closed(
+        self,
+        tmp_path: Path,
+        unsupported_content: str,
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| direct | [one](shared.md) |\n"
+                f"{unsupported_content}"
+            ),
+            "shared.md": "content",
+            "other.md": "content",
+        })
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is False
+        assert any(
+            "unsupported" in issue
+            for issue in result.issues
+        )
+
+    def test_unsupported_link_syntax_in_code_is_ignored(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| direct | [one](shared.md) |\n"
+                "`[inline][ref]`\n"
+                "```markdown\n"
+                "[ref]: shared.md\n"
+                "[outer [inner](shared.md)](other.md)\n"
+                "```\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is True
+        assert result.duplicate_references == []
+
+    def test_normal_inline_links_still_pass(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| first | [one](shared.md) |\n"
+                "| second | [two](other.md) |\n"
+            ),
+            "shared.md": "content",
+            "other.md": "content",
+        })
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is True
+
     def test_dot_alias_counts_as_same_target(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (
