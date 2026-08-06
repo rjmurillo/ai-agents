@@ -103,6 +103,58 @@ def _review_threads(owner: str, repo: str, pr: int) -> dict:
     return review_threads
 
 
+def _load_pr_data(repo_flag: str, pr: int) -> dict:
+    pr_result = subprocess.run(
+        ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", _JSON_FIELDS],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    if pr_result.returncode != 0:
+        err_msg = pr_result.stderr or pr_result.stdout
+        if "not found" in err_msg:
+            error_and_exit(f"PR #{pr} not found in {repo_flag}", 2)
+        error_and_exit(f"Failed to get PR #{pr}: {err_msg}", 3)
+
+    pr_data = json.loads(pr_result.stdout)
+    if "statusCheckRollup" not in pr_data:
+        error_and_exit(
+            f"Failed to get PR #{pr}: statusCheckRollup missing from response",
+            3,
+        )
+    return pr_data
+
+
+def _review_thread_nodes(owner: str, repo: str, pr: int) -> tuple[dict, list[dict]]:
+    review_threads = _review_threads(owner, repo, pr)
+    review_thread_nodes = review_threads.get("nodes")
+    if review_thread_nodes is None:
+        error_and_exit(
+            f"Failed to get review threads for PR #{pr}: reviewThreads.nodes missing",
+            3,
+        )
+    return review_threads, review_thread_nodes
+
+
+def _review_counts(reviews_raw: list[object]) -> dict[str, int]:
+    review_counts: dict[str, int] = {}
+    for rev in reviews_raw:
+        state = rev.get("state", "UNKNOWN") if isinstance(rev, dict) else "UNKNOWN"
+        review_counts[state] = review_counts.get(state, 0) + 1
+    return review_counts
+
+
+def _check_context_total_count(status_check_rollup: object) -> int | None:
+    check_contexts = (
+        status_check_rollup.get("contexts")
+        if isinstance(status_check_rollup, dict)
+        else None
+    )
+    return check_contexts.get("totalCount") if isinstance(check_contexts, dict) else None
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Get context and metadata for a GitHub PR.",
@@ -144,27 +196,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_flag = f"{owner}/{repo}"
     fmt = get_output_format(args.output_format)
 
-    pr_result = subprocess.run(
-        ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", _JSON_FIELDS],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
-    )
-
-    if pr_result.returncode != 0:
-        err_msg = pr_result.stderr or pr_result.stdout
-        if "not found" in err_msg:
-            error_and_exit(f"PR #{pr} not found in {repo_flag}", 2)
-        error_and_exit(f"Failed to get PR #{pr}: {err_msg}", 3)
-
-    pr_data = json.loads(pr_result.stdout)
-    if "statusCheckRollup" not in pr_data:
-        error_and_exit(
-            f"Failed to get PR #{pr}: statusCheckRollup missing from response",
-            3,
-        )
-
+    pr_data = _load_pr_data(repo_flag, pr)
     labels = [label.get("name", "") for label in pr_data.get("labels", [])]
     author = pr_data.get("author")
     merged_by = pr_data.get("mergedBy")
@@ -173,22 +205,8 @@ def main(argv: list[str] | None = None) -> int:
     auto_merge = pr_data.get("autoMergeRequest")
     reviews_raw = pr_data.get("reviews") or []
     status_check_rollup = pr_data.get("statusCheckRollup")
-    check_contexts = (
-        status_check_rollup.get("contexts")
-        if isinstance(status_check_rollup, dict)
-        else None
-    )
-    review_threads = _review_threads(owner, repo, pr)
-    review_thread_nodes = review_threads.get("nodes")
-    if review_thread_nodes is None:
-        error_and_exit(
-            f"Failed to get review threads for PR #{pr}: reviewThreads.nodes missing",
-            3,
-        )
-    review_counts: dict[str, int] = {}
-    for rev in reviews_raw:
-        state = rev.get("state", "UNKNOWN") if isinstance(rev, dict) else "UNKNOWN"
-        review_counts[state] = review_counts.get(state, 0) + 1
+    review_threads, review_thread_nodes = _review_thread_nodes(owner, repo, pr)
+    review_counts = _review_counts(reviews_raw)
 
     data: dict[str, object] = {
         "number": pr_data.get("number"),
@@ -217,8 +235,8 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(status_check_rollup, dict)
             else None
         ),
-        "status_check_context_total_count": (
-            check_contexts.get("totalCount") if isinstance(check_contexts, dict) else None
+        "status_check_context_total_count": _check_context_total_count(
+            status_check_rollup
         ),
         "review_threads": review_thread_nodes,
         "review_thread_total_count": review_threads.get("totalCount"),

@@ -286,10 +286,13 @@ def _scannable_lines(full_path: Path, content: str) -> list[tuple[int, str]]:
     for line_number, line in enumerate(lines, 1):
         stripped = line.strip()
         if stripped.startswith("```"):
-            language = stripped.removeprefix("```").strip().lower()
+            language_parts = stripped.removeprefix("```").strip().lower().split(
+                maxsplit=1
+            )
+            language = language_parts[0] if language_parts else ""
             in_command_block = (
                 not in_command_block
-                and language.split(maxsplit=1)[0] in COMMAND_BLOCK_LANGUAGES
+                and language in COMMAND_BLOCK_LANGUAGES
             )
             continue
         if in_command_block:

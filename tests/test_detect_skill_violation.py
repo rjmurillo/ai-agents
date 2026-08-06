@@ -438,7 +438,9 @@ class TestMainFunction:
         from scripts import detect_skill_violation
 
         # Create a file with violation
-        (test_repo / "violation.md").write_text("Run: gh pr create --title test")
+        (test_repo / "violation.md").write_text(
+            "```bash\ngh pr create --title test\n```\n"
+        )
 
         monkeypatch.setattr(
             "sys.argv",
@@ -507,8 +509,10 @@ class TestMainFunction:
         """main() with --file scans only explicitly requested files."""
         from scripts import detect_skill_violation
 
-        (test_repo / "violation.md").write_text("Run: gh pr create --title test")
-        (test_repo / "ignored.md").write_text("Run: gh issue list")
+        (test_repo / "violation.md").write_text(
+            "```bash\ngh pr create --title test\n```\n"
+        )
+        (test_repo / "ignored.md").write_text("```bash\ngh issue list\n```\n")
 
         monkeypatch.setattr(
             "sys.argv",
@@ -525,7 +529,7 @@ class TestMainFunction:
 
         assert result == 0
         captured = capsys.readouterr()
-        assert "violation.md:1" in captured.out
+        assert "violation.md:2" in captured.out
         assert "ignored.md" not in captured.out
 
     def test_main_invalid_repo(
