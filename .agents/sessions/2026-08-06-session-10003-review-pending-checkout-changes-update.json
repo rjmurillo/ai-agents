@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Extractor fix committed as d3035b6e4faf227b02ddfb5a1d857bf1c71b7c5e"
+        "Evidence": "Session commits: c23d399893a9e4d1634cf145f827310c04784a49, 5d208f6af1082ad9bd2d50069c932668bd88ee91, d3035b6e4faf227b02ddfb5a1d857bf1c71b7c5e, 1abd17d9360317eb83b90130dc85650a4c8be224"
       },
       "validationPassed": {
         "level": "MUST",
@@ -115,27 +115,40 @@
   },
   "workLog": [
     {
+      "time": "2026-08-06T05:40:00+00:00",
+      "task": "Repair PR 4616 review records",
+      "outcome": "Corrected conflict-marker claims, push-liveness guidance, session evidence, retrospective classification, and memory drift"
+    },
+    {
+      "time": "2026-08-06T06:35:00+00:00",
       "task": "Correct generated episode file count",
       "outcome": "Changed files_changed from merged-range count 95 to PR-owned count 10"
     },
     {
+      "time": "2026-08-06T06:30:00+00:00",
       "task": "Diagnose session commit failure",
       "outcome": "Confirmed singular session hook bypasses the creation-mode fix and added measured evidence to issue #4425"
     },
     {
-      "task": "Resolve Sol record-integrity findings",
-      "outcome": "Added authoritative episode metrics, regeneration tests, generated mirror, and corrected the allocator claim"
+      "time": "2026-08-06T07:25:00+00:00",
+      "task": "Implement authoritative episode metrics",
+      "outcome": "Added extractor precedence, regeneration tests, and the generated Copilot mirror"
+    },
+    {
+      "time": "2026-08-06T07:38:00+00:00",
+      "task": "Correct session records and allocator claim",
+      "outcome": "Recorded comparison metadata, regenerated episodes, and removed the false collision-free allocation claim"
     }
   ],
   "episodeMetrics": {
-    "filesChanged": 14,
+    "filesChanged": 15,
     "comparison": {
       "kind": "gitCommitRange",
       "base": "f19336728",
-      "head": "d3035b6e4faf227b02ddfb5a1d857bf1c71b7c5e"
+      "head": "1abd17d9360317eb83b90130dc85650a4c8be224"
     }
   },
-  "endingCommit": "d3035b6e4faf227b02ddfb5a1d857bf1c71b7c5e",
+  "endingCommit": "1abd17d9360317eb83b90130dc85650a4c8be224",
   "nextSteps": [
     "Push PR #4616 branch and apply corrected PR body",
     "Resolve PR #4616 review threads",

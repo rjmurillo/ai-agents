@@ -9,58 +9,125 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-08-06T00:00:00+00:00",
+      "timestamp": "2026-08-06T05:40:00+00:00",
       "type": "milestone",
-      "content": "Correct generated episode file count",
+      "content": "Repair PR 4616 review records",
       "caused_by": [],
       "leads_to": [
-        "e004"
+        "e006"
       ],
       "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-06T00:00:00+00:00",
+      "timestamp": "2026-08-06T06:35:00+00:00",
       "type": "milestone",
-      "content": "Diagnose session commit failure",
-      "caused_by": [],
+      "content": "Correct generated episode file count",
+      "caused_by": [
+        "e003"
+      ],
       "leads_to": [
-        "e004"
+        "e007"
       ],
       "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
     },
     {
       "id": "e003",
-      "timestamp": "2026-08-06T00:00:00+00:00",
+      "timestamp": "2026-08-06T06:30:00+00:00",
       "type": "milestone",
-      "content": "Resolve Sol record-integrity findings",
-      "caused_by": [],
+      "content": "Diagnose session commit failure",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-06T07:25:00+00:00",
+      "type": "milestone",
+      "content": "Implement authoritative episode metrics",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-06T07:38:00+00:00",
+      "type": "milestone",
+      "content": "Correct session records and allocator claim",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-06T05:52:30+00:00",
+      "type": "commit",
+      "content": "Commit: c23d399893a9e4d1634cf145f827310c04784a49",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-06T06:43:34+00:00",
+      "type": "commit",
+      "content": "Commit: 5d208f6af1082ad9bd2d50069c932668bd88ee91",
+      "caused_by": [
+        "e002"
+      ],
       "leads_to": [
         "e004"
       ],
       "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
     },
     {
-      "id": "e004",
+      "id": "e008",
       "timestamp": "2026-08-06T07:35:46+00:00",
       "type": "commit",
       "content": "Commit: d3035b6e4faf227b02ddfb5a1d857bf1c71b7c5e",
       "caused_by": [
-        "e001",
-        "e002",
-        "e003"
+        "e004"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-06T07:41:30+00:00",
+      "type": "commit",
+      "content": "Commit: 1abd17d9360317eb83b90130dc85650a4c8be224",
+      "caused_by": [
+        "e005"
       ],
       "leads_to": [],
       "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
     }
   ],
   "metrics": {
-    "duration_minutes": null,
+    "duration_minutes": 118,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 14
+    "commits": 4,
+    "files_changed": 15
   },
   "lessons": []
 }
