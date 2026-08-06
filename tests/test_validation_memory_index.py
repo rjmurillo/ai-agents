@@ -508,21 +508,46 @@ class TestCheckMemoryIndexReferences:
         assert result.duplicate_references == ["shared"]
         assert any("P0 DUPLICATE" in issue for issue in result.issues)
 
-    def test_known_duplicate_target_path_does_not_expand_scope(
-        self, tmp_path: Path
+    @pytest.mark.parametrize(
+        "file_name",
+        [
+            "adr-reference-index",
+            "memory/memory-token-efficiency",
+            "memory/passive-context-vs-skills-vercel-research",
+            "project/project-labels-milestones",
+            "skills-copilot-index",
+        ],
+    )
+    @pytest.mark.parametrize(
+        ("reference_count", "expected_pass"),
+        [(1, True), (2, True), (3, False)],
+    )
+    def test_inherited_duplicate_target_allows_only_current_count(
+        self,
+        tmp_path: Path,
+        file_name: str,
+        reference_count: int,
+        expected_pass: bool,
     ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| first: [first](skills-copilot-index.md)\n"
-                "| second: [second](skills-copilot-index.md)\n"
-            ),
-            "skills-copilot-index.md": "content",
-        })
+        target = tmp_path / f"{file_name}.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("content")
+        rows = "".join(
+            f"| keywords {index}: [entry {index}]({file_name}.md)\n"
+            for index in range(reference_count)
+        )
+        (tmp_path / "memory-index.md").write_text(rows)
 
         result = check_memory_index_references(tmp_path, [])
 
-        assert result.passed is True
-        assert result.duplicate_references == []
+        assert result.passed is expected_pass
+        expected_duplicates = [] if expected_pass else [file_name]
+        assert result.duplicate_references == expected_duplicates
+        if not expected_pass:
+            assert any(
+                "3 times, allowed 2" in issue
+                for issue in result.issues
+            )
 
     def test_broken_reference(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
@@ -903,15 +928,16 @@ class TestMain:
         exit_code = main(["--path", str(tmp_path), "--ci"])
         assert exit_code == 1
 
-    def test_duplicate_memory_index_target_ci_fails(
+    def test_inherited_memory_index_target_over_limit_ci_fails(
         self, tmp_path: Path
     ) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (
-                "| first keywords: [first](shared.md)\n"
-                "| second keywords: [second](shared.md)\n"
+                "| first keywords: [first](skills-copilot-index.md)\n"
+                "| second keywords: [second](skills-copilot-index.md)\n"
+                "| third keywords: [third](skills-copilot-index.md)\n"
             ),
-            "shared.md": "content",
+            "skills-copilot-index.md": "content",
         })
 
         exit_code = main(["--path", str(tmp_path), "--ci"])

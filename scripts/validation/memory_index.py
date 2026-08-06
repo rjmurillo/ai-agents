@@ -31,6 +31,7 @@ import dataclasses
 import json
 import os
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -172,13 +173,13 @@ _MARKDOWN_LINK_PATTERN: re.Pattern[str] = re.compile(
     r"\[([^\]]+)\]\(([^)]+)\)"
 )
 # Issue #4705 adds a ratchet, not a cleanup of inherited duplicate paths.
-_KNOWN_DUPLICATE_MEMORY_REFS: frozenset[str] = frozenset({
-    "adr-reference-index",
-    "memory/memory-token-efficiency",
-    "memory/passive-context-vs-skills-vercel-research",
-    "project/project-labels-milestones",
-    "skills-copilot-index",
-})
+_ALLOWED_MEMORY_REF_COUNTS: dict[str, int] = {
+    "adr-reference-index": 2,
+    "memory/memory-token-efficiency": 2,
+    "memory/passive-context-vs-skills-vercel-research": 2,
+    "project/project-labels-milestones": 2,
+    "skills-copilot-index": 2,
+}
 
 
 def find_domain_indices(memory_path: Path) -> list[DomainIndex]:
@@ -546,22 +547,19 @@ def check_memory_index_references(
             file_name = file_ref.strip()
         normalized_refs.append(file_name)
 
-    seen_refs: set[str] = set()
-    for file_name in normalized_refs:
-        is_new_duplicate = (
-            file_name in seen_refs
-            and file_name not in _KNOWN_DUPLICATE_MEMORY_REFS
-        )
-        if is_new_duplicate and file_name not in result.duplicate_references:
+    reference_counts = Counter(normalized_refs)
+    for file_name, observed_count in reference_counts.items():
+        allowed_count = _ALLOWED_MEMORY_REF_COUNTS.get(file_name, 1)
+        if observed_count > allowed_count:
             result.passed = False
             result.duplicate_references.append(file_name)
             result.issues.append(
                 f"P0 DUPLICATE: memory-index references "
-                f"{file_name}.md multiple times"
+                f"{file_name}.md {observed_count} times, "
+                f"allowed {allowed_count}"
             )
-        seen_refs.add(file_name)
 
-    for file_name in dict.fromkeys(normalized_refs):
+    for file_name in reference_counts:
 
         ref_path = memory_path / f"{file_name}.md"
 
