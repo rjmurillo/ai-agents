@@ -401,7 +401,7 @@ class TestGetChangedFiles:
         assert exit_code == 2
 
     def test_corrupt_object_db_exits_3(self, tmp_path: Path) -> None:
-        """Valid ref but object-DB failure (bad GIT_OBJECT_DIRECTORY) => exit 3."""
+        """Valid ref but object-DB failure (rc 128) => exit 3."""
         self._init_repo(tmp_path)
         real_run = subprocess.run
 
@@ -421,6 +421,29 @@ class TestGetChangedFiles:
                 "--phases", "1",
             ])
         assert exit_code == 3
+
+    def test_localized_stderr_invalid_ref_exits_2(self, tmp_path: Path) -> None:
+        """Localized git with rc1 (unresolved ref) => exit 2, not pattern match."""
+        self._init_repo(tmp_path)
+        real_run = subprocess.run
+
+        def localized_verify(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "--verify" in cmd:
+                # Non-English stderr, but rc 1 signals unresolved ref
+                raise subprocess.CalledProcessError(
+                    1, cmd,
+                    stderr="fatale: unbekannte Revision 'no-such-ref'",
+                )
+            return real_run(*args, **kwargs)
+
+        with patch.object(subprocess, "run", side_effect=localized_verify):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "no-such-ref",
+                "--phases", "1",
+            ])
+        assert exit_code == 2
 
     def test_non_git_repo_exits_3(self, tmp_path: Path) -> None:
         """Non-git directory is an environment error => exit 3."""
