@@ -1,6 +1,5 @@
 """Tests for complete_session_log.py session completion script."""
 
-import os
 import sys
 from contextlib import ExitStack
 from pathlib import Path
@@ -248,7 +247,7 @@ class TestUncommittedChanges:
 
 class TestMainNormalizesExcludePathToRelative:
     """Integration: main() relpath's session_path for porcelain exclusion."""
-    def _run(self, tmp_path, *, relpath_se=None):
+    def _run(self, tmp_path, *, relpath_patch=None):
         sessions = tmp_path / ".agents" / "sessions"
         sessions.mkdir(parents=True)
         sf = sessions / "2026-08-06-session-1-test.json"
@@ -265,23 +264,24 @@ class TestMainNormalizesExcludePathToRelative:
             patch("complete_session_log._test_uncommitted_changes",
                   side_effect=lambda exclude_path=None: (captured.append(exclude_path), False)[1]),
             patch("complete_session_log.resolve_artifact_root", return_value=sessions)]
-        if relpath_se:
-            patches.append(patch("complete_session_log.os.path.relpath", side_effect=relpath_se))
+        if relpath_patch is not None:
+            patches.append(patch("complete_session_log.os.path.relpath", **relpath_patch))
         with ExitStack() as s:
-            for p in patches:
-                s.enter_context(p)
+            [s.enter_context(p) for p in patches]
             complete_session_log.main(["--session-path", str(sf)])
         return captured[0] if captured else "NOT_CALLED"
 
-    def test_exclude_path_is_repo_relative(self, tmp_path):
-        got = self._run(tmp_path)
-        assert not os.path.isabs(got), f"must be relative, got {got!r}"
-        assert got == ".agents/sessions/2026-08-06-session-1-test.json"
+    def test_in_repo_path_is_excluded(self, tmp_path):
+        assert self._run(tmp_path) == ".agents/sessions/2026-08-06-session-1-test.json"
 
+    def test_dotdot_prefixed_name_inside_repo_is_excluded(self, tmp_path):
+        got = self._run(tmp_path, relpath_patch={"return_value": "..foo/sessions/s.json"})
+        assert got == "..foo/sessions/s.json"
+
+    def test_actual_parent_traversal_yields_none(self, tmp_path):
+        assert self._run(tmp_path, relpath_patch={"return_value": "../outside/s.json"}) is None
     def test_cross_drive_valueerror_yields_none(self, tmp_path):
-        """Windows cross-drive: relpath raises ValueError, exclude becomes None."""
-        got = self._run(tmp_path, relpath_se=ValueError("path is on mount 'D:'"))
-        assert got is None, f"cross-drive must yield None, got {got!r}"
+        assert self._run(tmp_path, relpath_patch={"side_effect": ValueError("D:")}) is None
 
 
 class TestPathContainment:

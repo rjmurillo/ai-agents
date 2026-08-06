@@ -565,7 +565,7 @@ def main(argv: list[str] | None = None) -> int:
     _session_rel: str | None = None
     try:
         candidate = os.path.relpath(session_path, repo_root)
-        if not candidate.startswith(".."):
+        if not (candidate == os.pardir or candidate.startswith(os.pardir + os.sep)):
             _session_rel = candidate
     except ValueError:
         pass
