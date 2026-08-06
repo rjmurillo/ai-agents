@@ -285,7 +285,7 @@ def parse_lessons(lines: list[str]) -> list[str]:
 
 def parse_metrics(lines: list[str]) -> dict:
     """Extract metrics from session log."""
-    metrics: dict[str, int | None] = {
+    metrics: dict[str, int] = {
         "duration_minutes": 0,
         "tool_calls": 0,
         "errors": 0,
@@ -1191,23 +1191,25 @@ def json_metrics(data: dict) -> dict:
     raw_tool_calls = metrics_block.get("toolCalls")
     tool_calls = int(raw_tool_calls) if raw_tool_calls is not None else None
 
-    metrics = {
-        "duration_minutes": duration,
-        "tool_calls": tool_calls,
-        "errors": 0,
-        "recoveries": 0,
-        "commits": commit_count,
-        "files_changed": 0,
-    }
+    error_count = 0
+    files_changed = 0
     for entry in worklogs:
         text = _entry_text(entry)
         fail = _valid_fail_match(text)
         if fail:
-            metrics["errors"] += int(fail.group(1))
+            error_count += int(fail.group(1))
         files = _FILES_RE.search(text)
         if files:
-            metrics["files_changed"] += int(files.group(1))
-    return metrics
+            files_changed += int(files.group(1))
+
+    return {
+        "duration_minutes": duration,
+        "tool_calls": tool_calls,
+        "errors": error_count,
+        "recoveries": 0,
+        "commits": commit_count,
+        "files_changed": files_changed,
+    }
 
 
 def _learning_entry_text(item: dict) -> str:
