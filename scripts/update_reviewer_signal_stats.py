@@ -172,8 +172,8 @@ def get_comments_by_reviewer(
         # reviewers in the committed statistics (issue #4378).
         pr_author_data = pr.get("author") or {}
         pr_author = canonicalize_login(
-            pr_author_data.get("login", ""),
-            pr_author_data.get("databaseId"),
+            (pr_author_data.get("login") or ""),
+            pr_author_data.get("databaseId")  # int | None,
         )
 
         threads = pr.get("reviewThreads", {}).get("nodes", [])
@@ -184,9 +184,9 @@ def get_comments_by_reviewer(
 
             for comment in comments_nodes:
                 comment_author_data = comment.get("author") or {}
-                comment_author_id = comment_author_data.get("databaseId")
+                comment_author_id = comment_author_data.get("databaseId")  # int | None
                 comment_author = canonicalize_login(
-                    comment_author_data.get("login", ""),
+                    (comment_author_data.get("login") or ""),
                     comment_author_id,
                 )
 
