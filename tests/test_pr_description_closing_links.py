@@ -112,6 +112,21 @@ class TestInlineCodeSpan:
         for i in issues:
             assert i.severity == "CRITICAL"
 
+    def test_double_backtick_span_is_detected(self):
+        """Double-backtick code spans must be caught (issue #3827)."""
+        body = "Adds a scan. ``Fixes #123``."
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert "inline code span" in issues[0].issue_type
+
+    def test_triple_backtick_inline_span(self):
+        """Triple-backtick inline span (not a fence) is also caught."""
+        body = "See ```Closes #456``` for details."
+        issues = validate_closing_links(body, "main", "main")
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+
 
 class TestFencedCodeBlock:
     """Closing keyword inside a fenced block should be CRITICAL."""

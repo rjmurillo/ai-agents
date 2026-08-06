@@ -633,10 +633,11 @@ _AUTO_CLOSE_KW: re.Pattern[str] = re.compile(
     re.IGNORECASE,
 )
 
-# Single-backtick inline code span, non-greedy, does not cross newlines.
-# Matches: `...closing keyword #N...`
-# Excludes triple-backtick fences by the negative lookahead/behind.
-_INLINE_CODE_SPAN: re.Pattern[str] = re.compile(r"(?<!`)`(?!`)(?P<content>[^`\n]+?)(?<!`)`(?!`)")
+# GFM inline code span: one or more backticks as the opening fence, closed by
+# the same-length backtick run. Does not cross newlines. Handles single (`),
+# double (``), triple (```) etc. The previous pattern only matched single
+# backticks, missing ``...`` spans entirely (issue #3827).
+_INLINE_CODE_SPAN: re.Pattern[str] = re.compile(r"(?<!`)(`+)(?!`)[^\n]+?(?<!`)\1(?!`)")
 
 # Fenced code block: backtick or tilde fence with optional language tag.
 _FENCED_CODE_BLOCK: re.Pattern[str] = re.compile(
