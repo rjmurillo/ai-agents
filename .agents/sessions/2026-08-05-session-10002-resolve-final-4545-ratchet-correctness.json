@@ -148,5 +148,14 @@
   "endingCommit": "ae246e755",
   "nextSteps": [
     "Route Lefthook and subprocess materialization changes to security PIV before merge."
-  ]
+  ],
+  "retrospective": {
+    "learnings captured": true,
+    "key_learnings": [
+      "A new module under scripts/ci must either be workflow-invoked or listed in _NOT_WORKFLOW_INVOKED. merge_tree_materialization.py and merge_tree_ratchet_registry.py are libraries behind the workflow-invoked merge_tree_ratchet_check.py, so they belong on the allowlist with a reason, not wired into a workflow of their own.",
+      "Fail-closed base resolution broke two pre_pr tests whose blanket subprocess mock returned empty stdout for every command. An empty answer from git symbolic-ref is what a broken remote HEAD looks like, so the crude mock started testing the failure path. A per-command mock keeps those tests on the pass path.",
+      "_normalize_remote_head was stubbed by every test that touched it and covered only by accident through that blanket mock. Direct positive, negative, and edge tests now cover it, verified by mutating the origin/ prefix guard and watching three of them fail.",
+      "The full pre-push suite takes about 12 minutes here, so reproducing a hook failure by rerunning the same command costs more than reading which jobs the push reported and reproducing only those."
+    ]
+  }
 }

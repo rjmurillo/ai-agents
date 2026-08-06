@@ -148,5 +148,14 @@
   "endingCommit": "955af9fb6",
   "nextSteps": [
     "Route lefthook.yml to security PIV before merge."
-  ]
+  ],
+  "retrospective": {
+    "learnings captured": true,
+    "key_learnings": [
+      "Rebuilding on the live PR head in a clean worktree, with archive/pr4545-local-a0387bc21 pinning the old local tip, made the diverged local branch disposable instead of something to merge.",
+      "Cherry-picking five of six unpublished commits was the right split. The sixth lowered the Ruff baseline from 43 to 31, which is a policy change about main's ceiling, not part of this PR's correctness fix, so it belongs in its own review.",
+      "Mutation controls that fail on both restored defects are what separate a test that covers a fix from a test that merely runs beside it.",
+      "The root lefthook.yml change arrived through a recovered commit rather than a deliberate edit, so the security PIV requirement is easy to miss when reading only the final diff."
+    ]
+  }
 }

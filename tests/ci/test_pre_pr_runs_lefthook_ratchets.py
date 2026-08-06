@@ -310,3 +310,74 @@ class TestValidatorBehaviour:
             assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is False
         run.assert_not_called()
         assert "could not refresh origin/main" in capsys.readouterr().err
+
+
+class TestNormalizeRemoteHead:
+    """Direct cover for `_normalize_remote_head` (issue #4251).
+
+    Every other test in this module stubs it out, so its own branches were
+    exercised only incidentally, through a pre_pr test whose blanket
+    ``stdout = ""`` mock happened to hit the empty-output path.
+
+    Coverage:
+
+    - positive: a symbolic ref resolves to the branch it points at.
+    - negative: empty output and a non-`origin/` answer each fail closed,
+      because a base ref that is not a remote-tracking branch would silently
+      measure the ratchet against the wrong tree.
+    - edge: a base ref that is not remote HEAD passes through untouched, with
+      no subprocess call at all.
+    """
+
+    _REMOTE_HEAD = "refs/remotes/origin/HEAD"
+
+    def test_passes_through_a_ref_that_is_not_remote_head(self) -> None:
+        with patch.object(checks_ratchet, "_run_subprocess") as run:
+            assert (
+                checks_ratchet._normalize_remote_head(REPO_ROOT, "origin/main")
+                == "origin/main"
+            )
+        run.assert_not_called()
+
+    def test_resolves_remote_head_to_its_branch(self) -> None:
+        with patch.object(
+            checks_ratchet, "_run_subprocess", return_value=(0, "origin/main\n", "")
+        ):
+            assert (
+                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
+                == "origin/main"
+            )
+
+    def test_empty_output_fails_closed(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with patch.object(checks_ratchet, "_run_subprocess", return_value=(0, "", "")):
+            assert (
+                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
+                is None
+            )
+        assert "cannot resolve remote HEAD" in capsys.readouterr().err
+
+    def test_answer_outside_the_origin_namespace_fails_closed(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with patch.object(
+            checks_ratchet, "_run_subprocess", return_value=(0, "upstream/main", "")
+        ):
+            assert (
+                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
+                is None
+            )
+        assert "cannot resolve remote HEAD" in capsys.readouterr().err
+
+    def test_nonzero_exit_reports_stderr(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with patch.object(
+            checks_ratchet, "_run_subprocess", return_value=(128, "", "not a ref")
+        ):
+            assert (
+                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
+                is None
+            )
+        assert "not a ref" in capsys.readouterr().err

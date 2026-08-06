@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -31,6 +32,25 @@ def _sequence_with_passing_doc_interpreter() -> tuple[Any, ...]:
         else gate
         for gate in sequence
     )
+
+
+def _healthy_git_run(*args: Any, **_kwargs: Any) -> Any:
+    """Model a working toolchain: every tool exits 0, git answers plausibly.
+
+    A blanket ``stdout = ""`` makes ``git symbolic-ref --short
+    refs/remotes/origin/HEAD`` look like a repository with no remote HEAD, and
+    the count-ratchet gate fails closed on exactly that. Answering per command
+    keeps these tests on the all-pass path without feeding a branch name to
+    every other gate that reads stdout.
+    """
+    argv = args[0] if args else []
+    if "symbolic-ref" in argv:
+        stdout = "origin/main"
+    elif "rev-parse" in argv:
+        stdout = "0" * 40
+    else:
+        stdout = ""
+    return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
 
 
 class TestFindLatestSessionLog:
@@ -219,9 +239,7 @@ class TestMain:
         mock_run: Any,
         _mock_sequence: Any,
     ) -> None:
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
+        mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
         # Quick mode should skip path normalization, planning, agent drift, yaml style
@@ -240,9 +258,7 @@ class TestMain:
         mock_run: Any,
         _mock_sequence: Any,
     ) -> None:
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
+        mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
         # All external tools pass
