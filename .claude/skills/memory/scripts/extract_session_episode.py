@@ -1341,24 +1341,46 @@ def _dedupe_decisions(existing: list, new: list) -> list[dict]:
 
 
 def _preserved_timestamp(entry: dict, midnight: str | None) -> str | None:
-    """Midnight for every event except a commit, which keeps its real date.
+    """Keep source time when present, otherwise use deterministic midnight.
 
-    Normalization exists because milestone timestamps fall back to wall clock
-    and are not reproducible. A commit event's timestamp is a deterministic
-    function of the SHA already in its content, so normalizing it buys no
-    idempotence and costs the only evidence that separates a commit from a
-    same-day milestone. Without it ``_event_order_relation`` sees equal
-    timestamps, returns None per the #3464 incomparability rule, and every
-    milestone-to-commit edge is dropped on regeneration (issue #4071).
+    Normalization exists because untimestamped milestone entries fall back to
+    the session timestamp and are not reproducible. Explicit work-log
+    timestamps are source data, not wall clock noise, and preserve needs them to
+    keep post-commit milestones after the commits they describe (issue #4588).
+
+    A commit event's timestamp is a deterministic function of the SHA already
+    in its content, so normalizing it buys no idempotence and costs the only
+    evidence that separates a commit from a same-day milestone. Without it
+    ``_event_order_relation`` sees equal timestamps, returns None per the #3464
+    incomparability rule, and every milestone-to-commit edge is dropped on
+    regeneration (issue #4071).
 
     Falls back to the stored timestamp before midnight so a git-less run
     (shallow clone, rebased SHA) cannot re-flatten an already-correct artifact.
     """
     if _norm(entry.get("type")) != "commit":
-        return midnight
+        timestamp = entry.get("timestamp")
+        if timestamp and timestamp != midnight:
+            return timestamp
+        return midnight or timestamp
     sha = _commit_sha(entry)
     real = _git_commit_timestamp(sha) if sha else None
     return real or entry.get("timestamp") or midnight
+
+
+def _maybe_update_event_timestamp(
+    target: dict[str, Any],
+    incoming: dict[str, Any],
+    midnight: str | None,
+) -> None:
+    """Upgrade a duplicate event from synthesized midnight to source time."""
+    incoming_timestamp = _preserved_timestamp(incoming, midnight)
+    current_timestamp = target.get("timestamp")
+    if not incoming_timestamp:
+        return
+    if current_timestamp and (current_timestamp != midnight or incoming_timestamp == midnight):
+        return
+    target["timestamp"] = incoming_timestamp
 
 
 def _dedupe_events(
@@ -1382,12 +1404,15 @@ def _dedupe_events(
         if source and session_id and source != session_id:
             continue  # cross-session stamp: evict
         filtered_existing.append(entry)
+    positions: dict[tuple[str, str], int] = {}
     for evt in filtered_existing + list(new):
         entry = _as_dict(evt)
         key = (_norm(entry.get("type")), _norm(entry.get("content")))
         if key in seen:
+            _maybe_update_event_timestamp(out[positions[key]], entry, midnight)
             continue
         seen.add(key)
+        positions[key] = len(out)
         entry = dict(entry)
         stamped = _preserved_timestamp(entry, midnight)
         if stamped:
@@ -1768,7 +1793,7 @@ def _event_refs(evt: dict[str, Any], key: str) -> list[str]:
     refs: list[str] = []
     for ref in raw:
         if not isinstance(ref, str) or not ref:
-            msg = f"event {event_id} field {key} contains a non-string ref"
+            msg = f"event {event_id} field {key} contains invalid ref {ref!r}"
             raise EpisodeValidationError(msg, 2)
         refs.append(ref)
     return refs
@@ -1817,7 +1842,26 @@ def _add_causal_references(
         adjacency[ref].add(event_id)
 
 
-def validate_episode_causal_graph(events: list[dict[str, Any]]) -> dict[str, datetime]:
+def _validate_causal_order(
+    events: list[dict[str, Any]],
+    timestamps: dict[str, datetime],
+    adjacency: dict[str, set[str]],
+) -> None:
+    by_id = {str(evt["id"]): evt for evt in events}
+    for source_id, target_ids in adjacency.items():
+        for target_id in target_ids:
+            relation = _event_order_relation(by_id[source_id], by_id[target_id], timestamps)
+            if relation == 1:
+                raise EpisodeValidationError(
+                    f"event {source_id} leads to earlier event {target_id}", 1
+                )
+
+
+def validate_episode_causal_graph(
+    events: list[dict[str, Any]],
+    *,
+    validate_order: bool = True,
+) -> dict[str, datetime]:
     """Validate event ids, event types, timestamps, references, and acyclicity."""
     ids: set[str] = set()
     parsed: dict[str, datetime] = {}
@@ -1832,6 +1876,8 @@ def validate_episode_causal_graph(events: list[dict[str, Any]]) -> dict[str, dat
     for evt in events:
         _add_causal_references(evt, ids, adjacency)
 
+    if validate_order:
+        _validate_causal_order(events, parsed, adjacency)
     _validate_dag(adjacency)
     return parsed
 
@@ -2042,7 +2088,7 @@ def _link_sequential_events(events: list[dict[str, Any]]) -> None:
     existing values (including curated edges on a loaded episode) are replaced
     by the regenerated chain rather than retained.
     """
-    timestamps = validate_episode_causal_graph(events)
+    timestamps = validate_episode_causal_graph(events, validate_order=False)
     ids = {str(evt["id"]) for evt in events}
     edges = _immediate_causal_edges(events, timestamps)
 
@@ -2187,6 +2233,64 @@ def validate_commit_order(events: Any) -> list[str]:
     return problems
 
 
+def _event_causal_edges(evt: Any) -> list[tuple[str, str]]:
+    if not isinstance(evt, dict) or not isinstance(evt.get("id"), str):
+        return []
+    event_id = str(evt["id"])
+    return [(event_id, ref) for ref in _event_refs(evt, "leads_to")] + [
+        (ref, event_id) for ref in _event_refs(evt, "caused_by")
+    ]
+
+
+def _causal_order_problem(
+    source: str,
+    target: str,
+    by_id: dict[str, dict[str, Any]],
+) -> str | None:
+    source_event = by_id.get(source)
+    target_event = by_id.get(target)
+    if source_event is None or target_event is None:
+        return f"causal edge {source} -> {target} references unknown event"
+    try:
+        timestamps = {
+            source: _parse_causal_timestamp(source_event),
+            target: _parse_causal_timestamp(target_event),
+        }
+        relation = _event_order_relation(source_event, target_event, timestamps)
+    except (EpisodeValidationError, KeyError) as exc:
+        return f"causal edge {source} -> {target} cannot be ordered: {exc}"
+    if relation == 1:
+        return f"event {source} leads to earlier event {target}"
+    return None
+
+
+def validate_causal_edge_order(events: Any) -> list[str]:
+    """Return one message when a causal edge runs backward by event ordering."""
+    if not isinstance(events, list):
+        return []
+    by_id = {
+        str(evt.get("id")): evt
+        for evt in events
+        if isinstance(evt, dict) and isinstance(evt.get("id"), str)
+    }
+    problems: list[str] = []
+    checked: set[tuple[str, str]] = set()
+    for evt in events:
+        try:
+            edges = _event_causal_edges(evt)
+        except EpisodeValidationError as exc:
+            problems.append(str(exc))
+            continue
+        for source, target in edges:
+            if (source, target) in checked:
+                continue
+            checked.add((source, target))
+            problem = _causal_order_problem(source, target, by_id)
+            if problem:
+                problems.append(problem)
+    return problems
+
+
 def _edge_count(events: list) -> int:
     """Total ``leads_to`` edges across ``events``."""
     return sum(len(_as_list(_as_dict(evt).get("leads_to"))) for evt in events)
@@ -2247,7 +2351,7 @@ def validate_episode_file(path: Path) -> list[str]:
     events = data.get("events")
     problems = validate_event_ids(events)
     if not problems:
-        problems = validate_commit_order(events)
+        problems = [*validate_commit_order(events), *validate_causal_edge_order(events)]
     problems = [*problems, *validate_metrics_consistency(data.get("metrics"))]
     return [f"{path}: {problem}" for problem in problems]
 
