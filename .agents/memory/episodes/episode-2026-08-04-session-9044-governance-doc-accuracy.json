@@ -126,7 +126,9 @@
       "caused_by": [
         "e009"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
     },
     {
@@ -139,6 +141,17 @@
         "e004"
       ],
       "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-06T19:40:10+00:00",
+      "type": "commit",
+      "content": "Commit: 60793c17fbbeb04fd8d44cdad151807b513e671f",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
     }
   ],
   "metrics": {
@@ -146,8 +159,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 15
+    "commits": 5,
+    "files_changed": 214
   },
   "lessons": []
 }
