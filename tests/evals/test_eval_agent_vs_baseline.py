@@ -18,6 +18,7 @@ import re
 import sys
 from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -3121,12 +3122,163 @@ class TestAdapterTotalWallBudget:
         assert fast.calls == 3
 
 
-class TestAdapterNonPositiveMaxRetries:
-    """Invalid retry counts are caller mistakes, not provider failures."""
+class TestTransportsRefuseAMalformedFingerprint:
+    """Both adapter transports raise on a present non-string fingerprint.
 
-    @pytest.mark.parametrize("max_retries", [0, -1, False])
-    def test_non_positive_max_retries_raise_without_transport(
-        self, max_retries: int, capsys: pytest.CaptureFixture[str]
+    Before #4123 each coerced it to `None`, which records "the provider
+    supplied no fingerprint" for a response that supplied one. The archive
+    reader (`_run_persistence`) already refuses that shape, so the coercion
+    made its guard unable to fire on anything this codebase wrote. Refs #4123.
+    """
+
+    @pytest.mark.parametrize("malformed", [123, 4.5, True, {"id": "fp"}, ["fp"]])
+    def test_provider_transport_raises_on_a_non_string_fingerprint(
+        self, malformed: object
+    ) -> None:
+        class _Provider:
+            def __init__(self) -> None:
+                self.system_fingerprint = malformed
+
+            def complete(self, **kwargs: object) -> str:
+                return "answer"
+
+        transport = adapter_mod._OpenAIProviderTransport(_Provider(), seed=None)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            transport("prompt", "gpt-4o", "")
+        assert transport.system_fingerprint is None
+
+    def test_provider_transport_accepts_a_string_and_an_absent_value(self) -> None:
+        class _Provider:
+            def __init__(self, fingerprint: object) -> None:
+                self.system_fingerprint = fingerprint
+
+            def complete(self, **kwargs: object) -> str:
+                return "answer"
+
+        good = adapter_mod._OpenAIProviderTransport(_Provider("fp-1"), seed=None)
+        assert good("prompt", "gpt-4o", "") == "answer"
+        assert good.system_fingerprint == "fp-1"
+
+        absent = adapter_mod._OpenAIProviderTransport(_Provider(None), seed=None)
+        assert absent("prompt", "gpt-4o", "") == "answer"
+        assert absent.system_fingerprint is None
+
+    @pytest.mark.parametrize("malformed", [123, {"id": "fp"}])
+    def test_anthropic_transport_raises_on_a_non_string_fingerprint(
+        self, monkeypatch: pytest.MonkeyPatch, malformed: object
+    ) -> None:
+        def _call_api(**kwargs: object) -> str:
+            metadata = kwargs["metadata"]
+            assert isinstance(metadata, dict)
+            metadata["system_fingerprint"] = malformed
+            return "answer"
+
+        monkeypatch.setattr(adapter_mod, "call_api", _call_api)
+        transport = adapter_mod._AnthropicTransport("key", seed=None)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            transport("prompt", "claude-sonnet-4-6", "")
+        assert transport.system_fingerprint is None
+
+    def test_call_model_propagates_malformed_provider_metadata(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        class _Provider:
+            def __init__(self) -> None:
+                self.system_fingerprint: object = 123
+                self.calls = 0
+
+            def complete(self, **kwargs: object) -> str:
+                self.calls += 1
+                return "answer"
+
+        provider = _Provider()
+        transport = adapter_mod._OpenAIProviderTransport(provider, seed=None)
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            adapter.call_model(
+                prompt="x",
+                model_id="gpt-4o",
+                fixture_id="F-FP",
+                variant="agent",
+                run_index=0,
+            )
+
+        assert provider.calls == 1
+        assert capsys.readouterr().err == ""
+
+    def test_call_model_validates_the_injected_transport_seam(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        class _Transport:
+            system_fingerprint: object = {"id": "fp"}
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def __call__(self, prompt: str, model_id: str, system: str) -> str:
+                self.calls += 1
+                return "answer"
+
+        transport = _Transport()
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            adapter.call_model(
+                prompt="x",
+                model_id="gpt-4o",
+                fixture_id="F-FP-SEAM",
+                variant="agent",
+                run_index=0,
+            )
+
+        assert transport.calls == 1
+        assert capsys.readouterr().err == ""
+
+    @pytest.mark.parametrize("fingerprint", [None, "", "fp-1"])
+    def test_call_model_accepts_valid_fingerprint_states(
+        self, fingerprint: str | None
+    ) -> None:
+        class _Transport:
+            def __init__(self) -> None:
+                self.system_fingerprint = fingerprint
+                self.calls = 0
+
+            def __call__(self, prompt: str, model_id: str, system: str) -> str:
+                self.calls += 1
+                return "answer"
+
+        transport = _Transport()
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+
+        result = adapter.call_model(
+            prompt="x",
+            model_id="gpt-4o",
+            fixture_id="F-FP-VALID",
+            variant="agent",
+            run_index=0,
+        )
+
+        assert result.outcome == "success"
+        assert result.system_fingerprint == fingerprint
+        assert transport.calls == 1
+
+
+class TestAdapterInvalidMaxRetries:
+    """Invalid retry budgets are refused instead of becoming provider errors.
+
+    Before #4121 the loop was skipped and the fallthrough returned
+    `outcome="error"` with `ERR_UNKNOWN`, which is indistinguishable from a
+    real provider failure and counted toward the provider error total for a
+    call the provider never received. The refusal is visible; the fabricated
+    record was not.
+    """
+
+    @pytest.mark.parametrize("max_retries", [0, -1, False, True, 1.5, "3"])
+    def test_invalid_max_retries_is_rejected(
+        self, max_retries: object, capsys: pytest.CaptureFixture[str]
     ) -> None:
         calls: list[str] = []
 
@@ -3135,17 +3287,39 @@ class TestAdapterNonPositiveMaxRetries:
             raise AssertionError("transport must not be called")
 
         adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
-        with pytest.raises(ValueError, match="max_retries must be a positive integer"):
+        with pytest.raises(ValueError, match="max_retries must be an integer >= 1"):
             adapter.call_model(
                 prompt="x",
                 model_id="claude-sonnet-4-6",
                 fixture_id="F-MR",
                 variant="agent",
                 run_index=0,
-                max_retries=max_retries,
+                max_retries=cast(int, max_retries),
             )
+        # The guard fires before anything else: no transport call, no log.
         assert calls == []
         assert capsys.readouterr().err == ""
+
+    def test_max_retries_of_one_still_makes_exactly_one_call(self) -> None:
+        """The boundary the guard admits. 1 is valid and calls once."""
+        calls: list[str] = []
+
+        def transport(prompt: str, model_id: str, system: str) -> str:
+            calls.append(model_id)
+            return "ok"
+
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        result = adapter.call_model(
+            prompt="x",
+            model_id="claude-sonnet-4-6",
+            fixture_id="F-MR1",
+            variant="agent",
+            run_index=0,
+            max_retries=1,
+        )
+        assert calls == ["claude-sonnet-4-6"]
+        assert result.outcome == "success"
+        assert result.attempts == 1
 
 
 # ---------------------------------------------------------------------------
@@ -4074,12 +4248,29 @@ class TestEveryRegisteredProviderIsClassified:
         added = str(EVAL_DIR) not in sys.path
         if added:
             sys.path.insert(0, str(EVAL_DIR))
+        module_name = "_providers_registry_audit"
+        previous = sys.modules.get(module_name)
         try:
-            providers_mod = _load_module("_providers.py", "_providers")
+            providers_mod = _load_module("_providers.py", module_name)
         finally:
+            if previous is None:
+                sys.modules.pop(module_name, None)
+            else:
+                sys.modules[module_name] = previous
             if added and str(EVAL_DIR) in sys.path:
                 sys.path.remove(str(EVAL_DIR))
         return set(providers_mod._REGISTRY)
+
+    def test_registry_audit_preserves_the_provider_module(self):
+        missing = object()
+        existing = sys.modules.get("_providers", missing)
+
+        self._registry_names()
+
+        if existing is missing:
+            assert "_providers" not in sys.modules
+        else:
+            assert sys.modules["_providers"] is existing
 
     def test_registry_and_classification_cover_the_same_names(self):
         """Adding a provider without classifying how it bills fails here."""

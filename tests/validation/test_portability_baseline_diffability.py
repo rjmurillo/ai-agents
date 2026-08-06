@@ -21,8 +21,11 @@ from pathlib import Path
 
 import pytest
 
-from scripts.validation import portability_baseline
-from scripts.validation.portability_baseline import refuse_undiffable_baseline
+from scripts.validation import portability_baseline, portability_git
+from scripts.validation.portability_baseline import (
+    refuse_diff_suppressed_baseline,
+    refuse_undiffable_baseline,
+)
 from scripts.validation.portability_common import resolve_checked_baseline
 
 
@@ -243,6 +246,46 @@ class TestAnUnanswerableAttributeIsRefused:
         _unanswerable_check_attr(monkeypatch)
         assert refuse_undiffable_baseline(repo, _baseline(repo)) is True
 
+    def test_check_attr_timeout_names_the_failed_probe(
+        self,
+        repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        def answer(args: tuple[str, ...]) -> subprocess.CompletedProcess[bytes]:
+            return subprocess.CompletedProcess(
+                args,
+                portability_git.GIT_TIMEOUT_RETURN_CODE,
+                stdout=b"",
+                stderr=b"git command timed out after 30s",
+            )
+
+        _only_check_attr(monkeypatch, answer)
+
+        assert refuse_undiffable_baseline(repo, _baseline(repo)) is True
+        error = capsys.readouterr().err
+        assert "checking the baseline diff attribute" in error
+        assert "timed out" in error
+
+    def test_write_guard_check_attr_timeout_names_the_failed_probe(
+        self,
+        repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        timed_out = subprocess.CompletedProcess(
+            ["git", "check-attr"],
+            portability_git.GIT_TIMEOUT_RETURN_CODE,
+            stdout=b"",
+            stderr=b"git command timed out after 30s",
+        )
+        monkeypatch.setattr(portability_baseline, "_run_git", lambda *_args: timed_out)
+
+        assert refuse_diff_suppressed_baseline(repo, _baseline(repo)) is True
+        error = capsys.readouterr().err
+        assert "checking the baseline diff attribute" in error
+        assert "timed out" in error
+
 
 class TestTheAttributeActuallyHidesTheNumber:
     def test_the_lowered_count_is_invisible_once_the_attribute_lands(self, repo: Path) -> None:
@@ -433,6 +476,25 @@ class TestEnvironmentOnlyWorktreeIsNotVacuouslyAllowed:
             "there is no repository. This is the vacuity that issue #4258 fixes: "
             "absence must be proven by the tool answering, not by the tool being silenced."
         )
+
+    def test_guard_refuses_when_repository_probe_times_out(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}\n')
+        timed_out = subprocess.CompletedProcess(
+            ["git", "rev-parse"],
+            portability_git.GIT_TIMEOUT_RETURN_CODE,
+            b"",
+            b"git command timed out after 30s",
+        )
+        monkeypatch.setattr(portability_baseline, "run_git", lambda *_args: timed_out)
+
+        assert refuse_undiffable_baseline(tmp_path, baseline) is True
+        assert "git command timed out after 30s" in capsys.readouterr().err
 
     def test_guard_allows_when_no_git_pointer_vars_are_set_and_no_repo_exists(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
