@@ -9,177 +9,317 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T07:26:24+00:00",
       "type": "milestone",
       "content": "Verified the memory branch push landed by SHA rather than by elapsed time",
-      "caused_by": [],
-      "leads_to": [
+      "caused_by": [
         "e014"
+      ],
+      "leads_to": [
+        "e002"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T07:53:51+00:00",
       "type": "milestone",
       "content": "Opened PR #4616 for the session record branch",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e015"
+      ],
       "leads_to": [
-        "e014"
+        "e005"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e003",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T08:00:38+00:00",
       "type": "milestone",
       "content": "Resolved review thread PRRT_kwDOQoWRls6Wh-Ig on PR #4598, then corrected my own reply",
-      "caused_by": [],
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [
-        "e014"
+        "e004",
+        "e016"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T08:16:32+00:00",
       "type": "milestone",
       "content": "Wrote the session retrospective",
-      "caused_by": [],
+      "caused_by": [
+        "e003"
+      ],
       "leads_to": [
-        "e014"
+        "e006"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e005",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T07:57:28+00:00",
       "type": "milestone",
       "content": "Ran the pre-push preflight before pushing PR #4598 instead of after",
-      "caused_by": [],
+      "caused_by": [
+        "e002"
+      ],
       "leads_to": [
-        "e014"
+        "e003"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e006",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T08:33:29+00:00",
       "type": "milestone",
       "content": "Resolved PR #4587 merge conflict",
-      "caused_by": [],
+      "caused_by": [
+        "e004",
+        "e016"
+      ],
       "leads_to": [
-        "e014"
+        "e007",
+        "e010",
+        "e017"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e007",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T09:06:24+00:00",
       "type": "milestone",
       "content": "Acted on the Sol adversarial audit of the retrospective",
-      "caused_by": [],
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [
-        "e014"
+        "e008",
+        "e018"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e008",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T09:30:37+00:00",
       "type": "milestone",
       "content": "Merged main into the memory branch and resolved two conflicts by intent",
-      "caused_by": [],
+      "caused_by": [
+        "e007",
+        "e010",
+        "e017"
+      ],
       "leads_to": [
-        "e014"
+        "e009",
+        "e019"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e009",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T09:42:07+00:00",
       "type": "milestone",
       "content": "Wrote a memory after measuring its central claim, and corrected its recipe",
-      "caused_by": [],
+      "caused_by": [
+        "e008",
+        "e018"
+      ],
       "leads_to": [
-        "e014"
+        "e012"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e010",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T09:06:24+00:00",
       "type": "milestone",
       "content": "Corrected an unreproducible number in the section about rigor",
-      "caused_by": [],
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [
-        "e014"
+        "e008",
+        "e018"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e011",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T10:23:07+00:00",
       "type": "milestone",
       "content": "Proved the shared-budget chain end to end from a CI log, and found half of issue 4547 fixed",
-      "caused_by": [],
+      "caused_by": [
+        "e012"
+      ],
       "leads_to": [
-        "e014"
+        "e013",
+        "e021"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e012",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T10:15:22+00:00",
       "type": "milestone",
       "content": "Read the response header instead of the rate_limit payload, and they contradicted",
-      "caused_by": [],
+      "caused_by": [
+        "e009",
+        "e019"
+      ],
       "leads_to": [
-        "e014"
+        "e011",
+        "e020"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e013",
-      "timestamp": "2026-08-05T00:00:00+00:00",
+      "timestamp": "2026-08-05T11:18:01+00:00",
       "type": "milestone",
       "content": "Resolved a session-log filename collision between two concurrent agents",
-      "caused_by": [],
+      "caused_by": [
+        "e011",
+        "e020"
+      ],
       "leads_to": [
-        "e014"
+        "e022"
       ],
       "_source_session": "2026-08-05-session-2"
     },
     {
       "id": "e014",
+      "timestamp": "2026-08-05T06:34:13+00:00",
+      "type": "commit",
+      "content": "Commit: 758f343430581bd3cbfd4f7d779bf045fb5fb1aa",
+      "caused_by": [],
+      "leads_to": [
+        "e001",
+        "e015"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-05T07:26:24+00:00",
+      "type": "commit",
+      "content": "Commit: 9b21b499583eec4b70251aa4b9c89b5332b37634",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-05T08:16:32+00:00",
+      "type": "commit",
+      "content": "Commit: c1b92aa58a617e1d54ccbb700ddc0cb979081aa8",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-05T09:06:24+00:00",
+      "type": "commit",
+      "content": "Commit: eeea83ffe4264ddddd21cd0a3a602f0e52546d14",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008",
+        "e018"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-05T09:30:37+00:00",
+      "type": "commit",
+      "content": "Commit: 4b92a2c6356d8b94e5166e9978f705f026fc6892",
+      "caused_by": [
+        "e007",
+        "e010",
+        "e017"
+      ],
+      "leads_to": [
+        "e009",
+        "e019"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-05T09:42:07+00:00",
+      "type": "commit",
+      "content": "Commit: de14211f46c0e8e0363f55002ac1234cbbd7f7fb",
+      "caused_by": [
+        "e008",
+        "e018"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-05T10:23:07+00:00",
+      "type": "commit",
+      "content": "Commit: 7a7fe051e7af12a5560630051672d7571e3b1259",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e013",
+        "e021"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-05T11:18:01+00:00",
+      "type": "commit",
+      "content": "Commit: d34766e1babf0762a14d2445229aa9c076895ff3",
+      "caused_by": [
+        "e011",
+        "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-05-session-2"
+    },
+    {
+      "id": "e022",
       "timestamp": "2026-08-05T11:36:46+00:00",
       "type": "commit",
       "content": "Commit: f1a805fc531ea17aa62517c39ba7deedf30f091a",
       "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005",
-        "e006",
-        "e007",
-        "e008",
-        "e009",
-        "e010",
-        "e011",
-        "e012",
-        "e013"
+        "e013",
+        "e021"
       ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-2"
     }
   ],
   "metrics": {
-    "duration_minutes": null,
+    "duration_minutes": 231,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 9,
     "files_changed": 10
   },
   "lessons": []
