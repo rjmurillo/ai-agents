@@ -63,9 +63,6 @@ class ConfigError(RuntimeError):
     """Configuration prevents context output generation."""
 
 
-_outputs.CONFIG_ERROR_TYPE = ConfigError
-
-
 class GhLaunchError(RuntimeError):
     """The gh process could not be launched."""
 

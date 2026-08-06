@@ -18,9 +18,6 @@ class OutputConfigError(RuntimeError):
     """Output environment is missing required GitHub Actions fields."""
 
 
-CONFIG_ERROR_TYPE: type[Exception] = OutputConfigError
-
-
 def sanitize_file_identifier(value: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._")
     return cleaned or "local"
@@ -51,14 +48,14 @@ def append_multiline_output(output_path: Path, key: str, value: str) -> None:
 def write_outputs(review_context: ReviewContextLike) -> None:
     github_output = os.environ.get("GITHUB_OUTPUT")
     if not github_output:
-        raise CONFIG_ERROR_TYPE("GITHUB_OUTPUT is required")
+        raise OutputConfigError("GITHUB_OUTPUT is required")
 
     output_path = Path(github_output)
     run_id = os.environ.get("GITHUB_RUN_ID", "local")
     context_identifier = sanitize_file_identifier(os.environ.get("PR_NUMBER") or run_id)
     runner_temp = os.environ.get("RUNNER_TEMP")
     if not runner_temp:
-        raise CONFIG_ERROR_TYPE("RUNNER_TEMP is required")
+        raise OutputConfigError("RUNNER_TEMP is required")
     workspace = Path(runner_temp).resolve()
     workspace.mkdir(parents=True, exist_ok=True)
     context_file = workspace / f"ai-review-context-pr{context_identifier}.txt"
