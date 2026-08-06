@@ -15,19 +15,19 @@ generated tree. Parsing `.claude/rules/*.md` gives a wrong answer, wrong in both
 directions.
 
 There is also no single answer per tree by default, so always name the tree with
-the number. The two destination trees agree today, measured at `4459b886a`:
+the number. The two destination trees agree today, measured at `a4129aa44`:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 8 rules, 70,375 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 8 rules, 70,375 bytes |
+| `.github/instructions` | Copilot in this repository | 8 rules, 71,033 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 8 rules, 71,033 bytes |
 
 Membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`,
 `knowledge-persistence`, `lsp-first`, `search-before-building`, `universal`,
 `voice`.
 
 Those bytes are whole generated files, frontmatter included. The same eight
-rules measure 70,510 bytes at `.claude/rules/`, 135 more, because the generator
+rules measure 71,168 bytes at `.claude/rules/`, 135 more, because the generator
 drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. Name the
 tree whenever you quote a figure; a gap of about that size is a basis mismatch,
 not staleness.
