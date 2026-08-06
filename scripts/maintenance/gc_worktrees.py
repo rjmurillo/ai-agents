@@ -310,9 +310,10 @@ def decide(
                 worktree.path,
                 worktree.branch,
                 remove=False,
-                reason=f"{operation} is still in progress here, and the commits it holds "
-                "live only in the worktree's own admin directory, which the removal "
-                "deletes. Finish or abort it first",
+                reason=f"{operation} here. Clearing the entry deletes the admin "
+                "directory that holds it, along with any commit anchored only there. "
+                "Finish it, abort it, or clear a lock a crashed git left behind, "
+                "then re-run",
             )
         merged = is_merged_to_base(worktree.path, base_ref)
         reason = "merged to base"

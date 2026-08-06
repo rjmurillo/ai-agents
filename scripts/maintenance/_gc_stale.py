@@ -338,14 +338,22 @@ def linked_checkout_present(path: str) -> bool:
 # holds a commit no branch, no tag, and no reflog entry reaches, so the porcelain
 # check, the HEAD comparison, and the reflog re-probe all pass and the commit is
 # orphaned by the removal. ``git worktree remove`` does not guard this either.
+# ``index.lock`` rides along because it is the same question asked of the same
+# directory: is anything working here right now. Verified against real git
+# 2.43.0 that ``git worktree remove`` deletes a worktree whose index is locked,
+# exits 0, and says nothing, so a commit being written at that moment is lost.
+# A lock left behind by a crashed git reads the same way and keeps the entry,
+# which is the safe direction and one the reason text tells the reader how to
+# clear.
 _OPERATION_MARKERS: tuple[tuple[str, str], ...] = (
-    ("MERGE_HEAD", "an unfinished merge"),
-    ("CHERRY_PICK_HEAD", "an unfinished cherry-pick"),
-    ("REVERT_HEAD", "an unfinished revert"),
-    ("BISECT_LOG", "an unfinished bisect"),
-    ("rebase-merge", "an unfinished rebase"),
-    ("rebase-apply", "an unfinished rebase"),
-    ("sequencer", "an unfinished sequencer run"),
+    ("MERGE_HEAD", "an unfinished merge is running"),
+    ("CHERRY_PICK_HEAD", "an unfinished cherry-pick is running"),
+    ("REVERT_HEAD", "an unfinished revert is running"),
+    ("BISECT_LOG", "an unfinished bisect is running"),
+    ("rebase-merge", "an unfinished rebase is running"),
+    ("rebase-apply", "an unfinished rebase is running"),
+    ("sequencer", "an unfinished sequencer run is waiting"),
+    ("index.lock", "another git process is holding the index lock"),
 )
 
 

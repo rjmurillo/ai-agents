@@ -90,13 +90,14 @@ def test_the_commit_an_interrupted_merge_holds_is_reachable_from_nothing_else(
 @pytest.mark.parametrize(
     ("name", "marker", "expected"),
     [
-        ("MERGE_HEAD", "MERGE_HEAD", "an unfinished merge"),
-        ("CHERRY_PICK_HEAD", "CHERRY_PICK_HEAD", "an unfinished cherry-pick"),
-        ("REVERT_HEAD", "REVERT_HEAD", "an unfinished revert"),
-        ("BISECT_LOG", "BISECT_LOG", "an unfinished bisect"),
-        ("rebase-merge", "rebase-merge", "an unfinished rebase"),
-        ("rebase-apply", "rebase-apply", "an unfinished rebase"),
-        ("sequencer", "sequencer", "an unfinished sequencer run"),
+        ("MERGE_HEAD", "MERGE_HEAD", "an unfinished merge is running"),
+        ("CHERRY_PICK_HEAD", "CHERRY_PICK_HEAD", "an unfinished cherry-pick is running"),
+        ("REVERT_HEAD", "REVERT_HEAD", "an unfinished revert is running"),
+        ("BISECT_LOG", "BISECT_LOG", "an unfinished bisect is running"),
+        ("rebase-merge", "rebase-merge", "an unfinished rebase is running"),
+        ("rebase-apply", "rebase-apply", "an unfinished rebase is running"),
+        ("sequencer", "sequencer", "an unfinished sequencer run is waiting"),
+        ("index.lock", "index.lock", "another git process is holding the index lock"),
     ],
 )
 def test_every_operation_marker_git_can_write_is_recognised(
@@ -153,7 +154,7 @@ def test_a_real_interrupted_rebase_is_refused(
     rebase = git(worktree, "rebase", "gc-rebase-side", check=False)
     assert rebase.returncode != 0, "the rebase has to stop for a marker to exist"
 
-    assert _gc_stale.in_progress_operation(str(worktree)) == "an unfinished rebase"
+    assert _gc_stale.in_progress_operation(str(worktree)) == "an unfinished rebase is running"
     decision = decision_for(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
     assert decision["remove"] is False, decision["reason"]
 
@@ -199,3 +200,30 @@ def test_the_probe_costs_no_subprocess(
 
     monkeypatch.setattr(subprocess, "run", _refuse)
     assert _gc_stale.in_progress_operation(str(worktree)) is None
+
+
+def test_a_locked_index_is_refused_because_git_would_remove_it_anyway(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """git worktree remove ignores index.lock, so the refusal has to come from here.
+
+    Confirmed against real git 2.43.0: with the lock in place the removal
+    succeeds, exits 0, and prints no warning, which means a commit being written
+    at that moment goes with the directory. Asserted below rather than described,
+    because a future git that started honouring the lock would make this guard
+    redundant and the assertion is what would say so.
+    """
+    worktree = _detached_worktree(git_sandbox, "locked-index")
+    admin = _gc_stale.admin_dir_from_marker(str(worktree))
+    assert admin is not None
+    (admin / "index.lock").write_text("", encoding="utf-8")
+
+    decision = decision_for(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    assert decision["remove"] is False, decision["reason"]
+    assert "index lock" in str(decision["reason"])
+
+    removal = git(git_sandbox.main, "worktree", "remove", str(worktree), check=False)
+    assert removal.returncode == 0, "git still ignores the lock; drop this guard when it stops"
+    assert not worktree.exists()
