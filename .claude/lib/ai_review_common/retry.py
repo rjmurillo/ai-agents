@@ -52,6 +52,10 @@ def invoke_with_retry(
         raise ValueError(
             f"max_retries must be an integer >= 1, got {max_retries!r}"
         )
+    if type(initial_delay) is not int or initial_delay < 0:
+        raise ValueError(
+            f"initial_delay must be a nonnegative integer, got {initial_delay!r}"
+        )
 
     delay = initial_delay
     last_error: Exception | None = None

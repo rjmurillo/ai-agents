@@ -281,6 +281,26 @@ class TestInvokeWithRetry:
         assert invoke_with_retry(_once, max_retries=1, initial_delay=0) == "ok"
         assert len(calls) == 1
 
+    @pytest.mark.parametrize("initial_delay", [-1, False, True, 1.5, "1"])
+    def test_invalid_initial_delay_is_rejected_before_the_first_attempt(
+        self,
+        initial_delay,
+    ):
+        calls = []
+
+        def _never_called():
+            calls.append(1)
+            return "unreachable"
+
+        with pytest.raises(ValueError, match="initial_delay must be a nonnegative integer"):
+            invoke_with_retry(
+                _never_called,
+                max_retries=1,
+                initial_delay=initial_delay,
+            )
+
+        assert calls == []
+
 
 # ---------------------------------------------------------------------------
 # Workflow: logging
