@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session commits: c23d399893a9e4d1634cf145f827310c04784a49, 5d208f6af1082ad9bd2d50069c932668bd88ee91, d3035b6e4faf227b02ddfb5a1d857bf1c71b7c5e, 1abd17d9360317eb83b90130dc85650a4c8be224"
+        "Evidence": "Session commits: c23d399893a9e4d1634cf145f827310c04784a49, 5d208f6af1082ad9bd2d50069c932668bd88ee91, d3035b6e4faf227b02ddfb5a1d857bf1c71b7c5e, 1abd17d9360317eb83b90130dc85650a4c8be224, and 3bf304722e0025b708df9661a3841d3c27e63856"
       },
       "validationPassed": {
         "level": "MUST",
@@ -138,6 +138,11 @@
       "time": "2026-08-06T07:38:00+00:00",
       "task": "Correct session records and allocator claim",
       "outcome": "Recorded comparison metadata, regenerated episodes, and removed the false collision-free allocation claim"
+    },
+    {
+      "time": "2026-08-06T09:26:23+00:00",
+      "task": "Restore historical episode chronology",
+      "outcome": "Recorded all nine session commits, added source-backed timestamps, regenerated the episode at nine commits and ten files, and passed an independent Sol review"
     }
   ],
   "episodeMetrics": {
@@ -145,10 +150,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "f19336728",
-      "head": "1abd17d9360317eb83b90130dc85650a4c8be224"
+      "head": "3bf304722e0025b708df9661a3841d3c27e63856"
     }
   },
-  "endingCommit": "1abd17d9360317eb83b90130dc85650a4c8be224",
+  "endingCommit": "3bf304722e0025b708df9661a3841d3c27e63856",
   "nextSteps": [
     "Push PR #4616 branch and apply corrected PR body",
     "Resolve PR #4616 review threads",
