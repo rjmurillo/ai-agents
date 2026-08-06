@@ -136,3 +136,51 @@ def test_a_candidate_with_nothing_stranded_is_still_removed(
     assert report.removed == [str(worktree)], report.remove_errors
     assert report.remove_errors == []
     assert not worktree.exists()
+
+
+def test_a_merge_started_inside_the_apply_window_is_not_removed(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The third way through the window, and the one both earlier guards miss.
+
+    ``git merge --no-commit --no-ff`` against a parent whose tree matches HEAD
+    moves no HEAD, so the comparison passes, and writes no reflog entry, so the
+    reflog probe passes. ``MERGE_HEAD`` is the only thing reaching the other
+    parent, and it lives in the directory the removal deletes.
+
+    The merge is started after ``revalidate`` returns, so the decision path
+    never sees it and only the per-candidate probe can.
+    """
+    worktree = _merged_candidate(git_sandbox, "window-merge")
+    stranded: list[str] = []
+
+    def interfere() -> None:
+        other = git(
+            worktree, "commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "orphan"
+        ).stdout.strip()
+        git(worktree, "merge", "--no-commit", "--no-ff", other, check=False)
+        stranded.append(other)
+
+    report = _apply_with(git_sandbox, monkeypatch, interfere)
+
+    assert str(worktree) not in report.removed, report.removed
+    assert any("unfinished merge" in error for error in report.remove_errors), report.remove_errors
+    survives = git(git_sandbox.main, "cat-file", "-e", stranded[0], check=False)
+    assert survives.returncode == 0, "the commit the merge held is still in the object database"
+
+
+def test_the_window_probe_still_removes_an_untouched_candidate(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The negative control for the probe added to the removal loop.
+
+    A probe that refused unconditionally would satisfy the test above and stop
+    the tool removing anything at all.
+    """
+    worktree = _merged_candidate(git_sandbox, "window-untouched")
+    report = _apply_with(git_sandbox, monkeypatch, lambda: None)
+
+    assert str(worktree) in report.removed, report.remove_errors
+    assert not worktree.exists()

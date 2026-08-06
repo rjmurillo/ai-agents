@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-from scripts.maintenance import _gc_reasons
+from scripts.maintenance import _gc_reasons, _gc_stale
 from scripts.maintenance.worktree_report import GcReport
 
 
@@ -74,6 +74,13 @@ def apply_removals(
     it started while the commit survives with nothing but that worktree's
     reflog naming it. No comparison of HEAD against HEAD can see that one.
 
+    The suspended-operation probe is run again here too, for the same reason
+    and against the same window. A ``git merge --no-commit`` started after the
+    recheck moves no HEAD and writes no reflog entry, so neither check above
+    can see it, and the commit it holds is anchored only by a pseudo-ref inside
+    the directory about to be deleted. The probe costs two file reads and no
+    subprocess, so closing this window is nearly free.
+
     So the reflog probe is run again for each candidate immediately before its
     own removal, after the HEAD check. It asks the question that actually
     matters, whether removing this entry orphans a commit, against the
@@ -124,6 +131,12 @@ def apply_removals(
         orphaned = _gc_reasons.reflog_only_work(decision.path, fresh.main_worktree, run_git)
         if orphaned:
             report.remove_errors.append(f"{decision.path}: skipped, {orphaned}")
+            continue
+        operation = _gc_stale.in_progress_operation(decision.path)
+        if operation is not None:
+            report.remove_errors.append(
+                f"{decision.path}: skipped, {operation} since the recheck"
+            )
             continue
         try:
             remove_worktree(decision.path, run_git)
