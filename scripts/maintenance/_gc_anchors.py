@@ -37,36 +37,50 @@ def reflog_oids(admin: Path) -> list[str] | None:
     A file that holds text but yields no recognizable object id at all was not
     understood, so it answers "unknown" rather than "nothing at risk". Reading
     a truncated or unexpectedly encoded reflog as empty is the same silent
-    all-clear the rest of this probe is built to avoid. Lines that parse and
-    name only the null id are understood and carry no risk, which is why the
-    test is "did any field look like an id" rather than "did any survive".
+    all-clear the rest of this probe is built to avoid.
     """
     logs = walk_files(admin / "logs")
     if logs is None:
         return None
     seen: dict[str, None] = {}
     for log in logs:
-        present = regular_file(log)
-        if present is None:
+        text = _reflog_text(log)
+        if text is None:
             return None
-        if not present:
-            continue
-        try:
-            text = log.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            return None
-        understood = False
-        for line in text.splitlines():
-            for field in line.split(" ")[:2]:
-                if not _OID.fullmatch(field):
-                    continue
-                understood = True
-                if _NULL_OID.fullmatch(field):
-                    continue
-                seen[field] = None
-        if text.strip() and not understood:
+        if not _collect_reflog_oids(text, seen):
             return None
     return list(seen)
+
+
+def _reflog_text(log: Path) -> str | None:
+    """The reflog's contents, ``""`` when it is not there, ``None`` when unreadable."""
+    present = regular_file(log)
+    if present is None:
+        return None
+    if not present:
+        return ""
+    try:
+        return log.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def _collect_reflog_oids(text: str, seen: dict[str, None]) -> bool:
+    """Add every non-null id in ``text`` to ``seen``. ``False`` if it made no sense.
+
+    Lines that parse and name only the null id are understood and carry no
+    risk, which is why the test is "did any field look like an id" rather than
+    "did any survive".
+    """
+    understood = False
+    for line in text.splitlines():
+        for field in line.split(" ")[:2]:
+            if not _OID.fullmatch(field):
+                continue
+            understood = True
+            if not _NULL_OID.fullmatch(field):
+                seen[field] = None
+    return understood or not text.strip()
 
 
 def walk_files(root: Path) -> list[Path] | None:
@@ -101,17 +115,24 @@ def walk_files(root: Path) -> list[Path] | None:
             entries = list(os.scandir(pending.pop()))
         except OSError:
             return None
-        for entry in entries:
-            try:
-                if entry.is_symlink() and entry.is_dir():
-                    return None
-                if entry.is_dir():
-                    pending.append(Path(entry.path))
-                elif entry.is_file():
-                    found.append(Path(entry.path))
-            except OSError:
-                return None
+        if not _route_entries(entries, pending, found):
+            return None
     return sorted(found)
+
+
+def _route_entries(entries: list[os.DirEntry[str]], pending: list[Path], found: list[Path]) -> bool:
+    """Send each entry to the walk queue or the results. ``False`` if one is opaque."""
+    for entry in entries:
+        try:
+            if entry.is_symlink() and entry.is_dir():
+                return False
+            if entry.is_dir():
+                pending.append(Path(entry.path))
+            elif entry.is_file():
+                found.append(Path(entry.path))
+        except OSError:
+            return False
+    return True
 
 
 def worktree_ref_oids(admin: Path) -> list[str] | None:
