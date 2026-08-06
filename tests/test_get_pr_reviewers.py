@@ -95,6 +95,7 @@ def _api(
     issue_comments: list[dict] | None = None,
     graphql_error: RuntimeError | None = None,
     legacy_author: Any = None,
+    legacy_error: BaseException | None = None,
 ):
     requests = list(request_pages or [_connection([])])
     reviews = list(review_pages or [_connection([])])
@@ -138,6 +139,7 @@ def _api(
     ), patch(
         f"{_MODULE}.subprocess.run",
         return_value=pr_view,
+        side_effect=legacy_error,
     ):
         yield
 
@@ -201,6 +203,16 @@ class TestMain:
         with _api(graphql_error=RuntimeError("server error")):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "10"])
+        assert exc.value.code == 3
+
+    def test_legacy_author_timeout_exits_3(self):
+        with _api(
+            author=_actor("alice", 1),
+            legacy_error=subprocess.TimeoutExpired("gh", 30),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "10"])
+
         assert exc.value.code == 3
 
     @pytest.mark.parametrize("failing_endpoint", ["pulls", "issues"])

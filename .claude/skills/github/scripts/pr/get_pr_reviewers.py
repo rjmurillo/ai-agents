@@ -308,24 +308,27 @@ def _fetch_review_authors(owner: str, repo: str, pr: int) -> list[dict[str, Any]
 
 def _fetch_legacy_author(owner: str, repo: str, pr: int) -> str:
     """Return the legacy ``gh pr view --json author`` login."""
-    result = subprocess.run(
-        [
-            "gh",
-            "pr",
-            "view",
-            str(pr),
-            "--repo",
-            f"{owner}/{repo}",
-            "--json",
-            "author",
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "view",
+                str(pr),
+                "--repo",
+                f"{owner}/{repo}",
+                "--json",
+                "author",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("Legacy PR author lookup timed out") from exc
     if result.returncode != 0:
         message = result.stderr.strip() or result.stdout.strip()
         raise RuntimeError(f"Legacy PR author lookup failed: {message}")
