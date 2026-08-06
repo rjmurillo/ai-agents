@@ -21,7 +21,13 @@ Based on the above changes:
    1. Determine the type of change that maps to conventional commit type followed by a 3-5 word description (e.g., fix/parser-log-enrichment)
 2. Push the branch to origin
 3. Read @.github/PULL_REQUEST_TEMPLATE.md
-4. Write a new file adapting the template to describe THIS branch's changes (e.g. /tmp/PR-123-BODY.md):
+4. Create a per-run PR body path with Python's `tempfile.NamedTemporaryFile`, then write the adapted template to that file:
+
+   ```bash
+   mkdir -p .agents/scratch
+   BODY_FILE="$(python3 -c 'import tempfile; body_file = tempfile.NamedTemporaryFile("w", encoding="utf-8", prefix="pr-body-", suffix=".md", dir=".agents/scratch", delete=False); print(body_file.name); body_file.close()')"
+   ```
+
    - **Fill in** all sections with actual change information from git diff
    - **Replace** placeholder comments with substantive content
    - **Check** appropriate Type of Change boxes based on actual changes
@@ -33,14 +39,14 @@ Based on the above changes:
 
    ```bash
    SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-   python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "<conventional commit title>" --body-file /tmp/PR-123-BODY.md
+   python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "<conventional commit title>" --body-file "$BODY_FILE"
    ```
 
-   - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
-   - Body SHOULD include GitHub issue linking keywords to auto-close issues:
-     - `Closes #123`: auto-closes issue when PR merges
-     - `Fixes #456`: auto-fixes issue when PR merges
-     - `Resolves #789`: auto-resolves issue when PR merges
-   - Ensure PR template sections are completed
+- Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
+- Body SHOULD include GitHub issue linking keywords to auto-close issues:
+  - `Closes #123`: auto-closes issue when PR merges
+  - `Fixes #456`: auto-fixes issue when PR merges
+  - `Resolves #789`: auto-resolves issue when PR merges
+- Ensure PR template sections are completed
 
 You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message. Do not use any other tools or do anything else. Do not send any other text or messages besides these tool calls.

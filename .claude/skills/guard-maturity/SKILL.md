@@ -82,8 +82,24 @@ push guards already emit the right `EVENT=` lines on stderr per
 you can capture events ad-hoc:
 
 ```bash
-git push 2>&1 | tee /tmp/push.log
-grep '^EVENT=' /tmp/push.log >> .agents/telemetry/$(date +push-guard-events-%G-%V).jsonl
+PUSH_LOG="$(python3 - <<'PY'
+from pathlib import Path
+import tempfile
+
+Path(".agents/scratch").mkdir(parents=True, exist_ok=True)
+with tempfile.NamedTemporaryFile(
+    "w",
+    encoding="utf-8",
+    prefix="push-",
+    suffix=".log",
+    dir=".agents/scratch",
+    delete=False,
+) as push_log:
+    print(push_log.name)
+PY
+)"
+git push 2>&1 | tee "$PUSH_LOG"
+grep '^EVENT=' "$PUSH_LOG" >> .agents/telemetry/$(date +push-guard-events-%G-%V).jsonl
 ```
 
 Then run the aggregator + classifier as above.
