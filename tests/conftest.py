@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import sys
+import tempfile
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
@@ -16,6 +18,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.validation.models import ValidationResult  # noqa: E402
+from tests.gc_real_git import GitSandbox, git, write_and_commit  # noqa: E402
 from tests.git_config_isolation import (  # noqa: E402
     restore_git_config_env,
     snapshot_git_config_env,
@@ -163,18 +166,15 @@ def assert_validation_result(
         warning_substring: Substring that must appear in at least one warning.
     """
     assert result.is_valid is is_valid, (
-        f"Expected is_valid={is_valid}, got {result.is_valid}. "
-        f"Errors: {result.errors}"
+        f"Expected is_valid={is_valid}, got {result.is_valid}. Errors: {result.errors}"
     )
     if error_count is not None:
         assert len(result.errors) == error_count, (
-            f"Expected {error_count} errors, got {len(result.errors)}: "
-            f"{result.errors}"
+            f"Expected {error_count} errors, got {len(result.errors)}: {result.errors}"
         )
     if warning_count is not None:
         assert len(result.warnings) == warning_count, (
-            f"Expected {warning_count} warnings, got {len(result.warnings)}: "
-            f"{result.warnings}"
+            f"Expected {warning_count} warnings, got {len(result.warnings)}: {result.warnings}"
         )
     if error_substring is not None:
         assert any(error_substring in e for e in result.errors), (
@@ -182,8 +182,7 @@ def assert_validation_result(
         )
     if warning_substring is not None:
         assert any(warning_substring in w for w in result.warnings), (
-            f"No warning contains '{warning_substring}'. "
-            f"Warnings: {result.warnings}"
+            f"No warning contains '{warning_substring}'. Warnings: {result.warnings}"
         )
 
 
@@ -199,3 +198,44 @@ def temp_test_dir(tmp_path: Path) -> Path:
     test_dir = tmp_path / "test_workspace"
     test_dir.mkdir(parents=True, exist_ok=True)
     return test_dir
+
+
+@pytest.fixture
+def git_sandbox() -> Iterator[GitSandbox]:
+    """A disposable repository with an origin remote, for the worktree GC suites.
+
+    Lives here rather than beside its helpers in ``tests/gc_real_git`` so the
+    four suites that use it get it by pytest discovery. Importing a fixture by
+    name makes the parameter that requests it read as a redefinition.
+
+    ``.pytest_tmp`` sits inside the repository on purpose: these tests register
+    worktrees and git records absolute paths, so keeping the sandbox on the same
+    filesystem avoids cross-device behavior that has nothing to do with the
+    thing under test.
+    """
+    temp_parent = Path(__file__).resolve().parents[1] / ".pytest_tmp" / "gc_worktrees"
+    temp_parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="gc-", dir=temp_parent) as temp_dir:
+        root = Path(temp_dir)
+        remote = root / "origin.git"
+        main = root / "repo"
+        subprocess.run(
+            ["git", "init", "--bare", "--initial-branch=main", str(remote)],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        subprocess.run(
+            ["git", "clone", str(remote), str(main)],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        git(main, "config", "user.email", "test@example.com")
+        git(main, "config", "user.name", "Test User")
+        git(main, "config", "commit.gpgsign", "false")
+        write_and_commit(main, "base.txt", "base\n", "base")
+        git(main, "push", "-u", "origin", "main")
+        yield GitSandbox(root=root, main=main, remote=remote)
