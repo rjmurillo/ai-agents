@@ -1008,6 +1008,123 @@ def _pr_validation_steps() -> list[dict]:
     return steps
 
 
+def _pr_validation_jobs() -> dict:
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    return data.get("jobs", {})
+
+
+_MERGE_BASE_CONSUMERS = ("merge_tree_ratchet_check.py", "count_ratchet.py")
+
+
+def _strip_shell_comments(script: str) -> str:
+    return "\n".join(
+        line for line in script.splitlines() if not line.lstrip().startswith("#")
+    )
+
+
+def _step_dicts(job: dict) -> list[dict]:
+    return [step for step in job.get("steps", []) if isinstance(step, dict)]
+
+
+def _run_blocks(steps: list[dict]) -> list[str]:
+    return [
+        _strip_shell_comments(step["run"])
+        for step in steps
+        if isinstance(step.get("run"), str)
+    ]
+
+
+def _uses_merge_base(run_blocks: list[str]) -> bool:
+    return any(
+        consumer in block
+        for consumer in _MERGE_BASE_CONSUMERS
+        for block in run_blocks
+    )
+
+
+def _depth_limited_fetch_offenders(job_id: str, run_blocks: list[str]) -> list[str]:
+    if any("--depth" in block for block in run_blocks):
+        return [f"{job_id}: depth-limited fetch in run block"]
+    return []
+
+
+def _checkout_depth_offenders(job_id: str, steps: list[dict]) -> list[str]:
+    offenders: list[str] = []
+    for step in steps:
+        uses = step.get("uses")
+        if not isinstance(uses, str) or not uses.startswith("actions/checkout"):
+            continue
+        depth = (step.get("with") or {}).get("fetch-depth")
+        if str(depth) == "0":
+            continue
+        name = step.get("name") or uses
+        shown = "<default, depth 1>" if depth is None else repr(depth)
+        offenders.append(f"{job_id}: checkout {name!r} has fetch-depth {shown}")
+    return offenders
+
+
+def _history_offenders_for_merge_base_jobs(jobs: dict) -> tuple[list[str], list[str]]:
+    offenders: list[str] = []
+    checked: list[str] = []
+    for job_id, job in jobs.items():
+        steps = _step_dicts(job)
+        run_blocks = _run_blocks(steps)
+        if not _uses_merge_base(run_blocks):
+            continue
+
+        checked.append(job_id)
+        offenders.extend(_depth_limited_fetch_offenders(job_id, run_blocks))
+        offenders.extend(_checkout_depth_offenders(job_id, steps))
+    return offenders, checked
+
+
+def test_merge_base_jobs_keep_complete_history() -> None:
+    """Every job that needs a merge base must avoid shallow history.
+
+    The graft is job-scoped, not step-scoped. One earlier shallow fetch writes
+    .git/shallow, and the later merge-tree ratchet then fails with unrelated
+    histories.
+    """
+    offenders, checked = _history_offenders_for_merge_base_jobs(_pr_validation_jobs())
+
+    assert checked == ["validate-pr"]
+    assert offenders == []
+
+
+def test_merge_base_history_guard_catches_both_shallow_routes() -> None:
+    """Negative control: the matcher catches a shallow checkout and fetch."""
+    jobs = yaml.safe_load(
+        "validate:\n"
+        "  steps:\n"
+        "    - name: Checkout repository\n"
+        "      uses: actions/checkout@v7\n"
+        "    - run: git fetch --depth=1 origin main\n"
+        "    - run: python scripts/ci/merge_tree_ratchet_check.py\n"
+    )
+
+    offenders, checked = _history_offenders_for_merge_base_jobs(jobs)
+
+    assert checked == ["validate"]
+    assert any("depth-limited fetch" in item for item in offenders)
+    assert any("fetch-depth <default, depth 1>" in item for item in offenders)
+
+
+def test_merge_base_history_guard_ignores_unrelated_shallow_jobs() -> None:
+    """Edge control: shallow fetches are out of scope without a consumer."""
+    jobs = yaml.safe_load(
+        "lint:\n"
+        "  steps:\n"
+        "    - uses: actions/checkout@v7\n"
+        "    - run: git fetch --depth=1 origin main\n"
+        "    - run: uv run --frozen ruff check .\n"
+    )
+
+    offenders, checked = _history_offenders_for_merge_base_jobs(jobs)
+
+    assert checked == []
+    assert offenders == []
+
+
 def test_merge_tree_ratchet_fetches_base_at_full_depth() -> None:
     """Issue #4518: the merge-tree step's base fetch must not be shallow.
 

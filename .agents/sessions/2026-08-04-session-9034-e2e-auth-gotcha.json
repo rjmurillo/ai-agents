@@ -1,0 +1,212 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9034,
+    "date": "2026-08-04",
+    "branch": "docs/e2e-auth-gotcha",
+    "startingCommit": "5cc4a4f52",
+    "objective": "Record why the two CLI e2e pre-push jobs fail fast without a Copilot token, after that failure rejected a push whose full test suite had already passed"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP is rooted at the primary checkout and cannot reach this worktree; used the committed .serena/memories/ tree, which AGENTS.md names as the fallback."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the committed memory index in .serena/memories/ before writing; searched it and origin/main for prior coverage of plugin-load-e2e and found none."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read only under ADR-014; it is absent from git status --short."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No skill scripts were needed; the change is one markdown section in .agents/governance/GOTCHAS.md."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the Skill-First table in AGENTS.md and confirmed no skill owns appending to GOTCHAS.md."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md; the change touches no Python, no workflow YAML, and no plugin manifest."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git grep -il plugin-load-e2e against origin/main returned no markdown, confirming the fact was undocumented rather than duplicated."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current reports docs/e2e-auth-gotcha."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch created with git worktree add -b docs/e2e-auth-gotcha origin/main; not main or master."
+      },
+      "gitStatusVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status --short showed only .agents/governance/GOTCHAS.md before staging."
+      },
+      "startingCommitNoted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "5cc4a4f52, and git rev-list --count HEAD..origin/main reported 0 behind at branch creation."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This block."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md is untouched; it does not appear in git status --short."
+      },
+      "serenaMemoryUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not written. The fact is a push-time trap that belongs with the other pre-push gotchas, and GOTCHAS.md is the file AGENTS.md points at for those. A second copy in Serena would drift from it."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 excludes .agents/** and reported 'Linting: 0 files', so that run proves nothing and is not cited as evidence. The pre-commit markdown-check and markdown-autofix hooks did examine the staged file and both passed, as did staged-dash-policy."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Four commits on docs/e2e-auth-gotcha: the GOTCHAS section plus this log, the session-logs.md rule 2 correction plus both regenerated mirrors, a merge of origin/main to pick up the lowered taste baseline, and the adversarial-review fixes to GOTCHAS.md and session-logs.md."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py on this file, plus the full lefthook pre-commit group."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Tracked in the session todo list; no GitHub issue is opened by this change."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Now warranted and queued, not skipped. The adversarial review (grok-4.5) found three High-severity factual errors in the GOTCHAS section as first written: it claimed the two e2e jobs run after python-tests when all three are siblings in one parallel group, it published a union of two distinct per-job glob lists as if it were one list, and it attributed the trigger to the branch's own diff. Three wrong published claims in one section clears the larger-mistake bar."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Traced a rejected push to its real cause instead of the suspected one",
+      "detail": "A push of test/vacuous-assertion-anti-pattern passed python-tests in 1071.94 seconds and then failed plugin-load-e2e at 13.03 seconds and hook-anchoring-e2e at 16.73 seconds. The short durations resembled a concurrency flake. Reading the assertion text instead showed both tests shell out to the real copilot binary and fail on an empty credential."
+    },
+    {
+      "action": "Confirmed no credential was exported",
+      "detail": "COPILOT_GITHUB_TOKEN, GH_TOKEN, and GITHUB_TOKEN were all empty while gh auth status reported an active login, so a gh auth login alone does not satisfy the CLI."
+    },
+    {
+      "action": "Discarded a first probe that proved nothing",
+      "detail": "Running the two test files with only the token set finished in 0.40 seconds with 5 skips. The CLI cases gate on RUN_CLI_E2E, which scripts/validation/git_hook_policy.py sets for the hook, so the pass was vacuous."
+    },
+    {
+      "action": "Ran the discriminating pair",
+      "detail": "With RUN_CLI_E2E=1 and COPILOT_GITHUB_TOKEN set, the two previously failing tests passed in 27.92 seconds, a duration consistent with reaching the CLI. Against the recorded 13.03 and 16.73 second failures without the token, this isolates the credential as the cause and rules out concurrency."
+    },
+    {
+      "action": "Checked for an existing entry before adding one",
+      "detail": "git grep -il plugin-load-e2e against origin/main matched no markdown. The adjacent GOTCHAS section on concurrent pushes already prescribes a per-branch lock and argues against global serialization, so the new entry cites it rather than contradicting it."
+    },
+    {
+      "action": "Appended the entry to GOTCHAS.md",
+      "detail": "One section naming the two jobs, their globs, the three credential variables, the two diagnosis traps, and the measured durations on both sides of the control."
+    },
+    {
+      "action": "Push rejected a second time, on a real test failure this time",
+      "detail": "tests/skills/memory/test_extract_session_episode.py::TestValidateModeRejectsUnusableEventIds::test_the_committed_episode_store_is_clean failed: metrics violations grew to 22 (cap 21). Reproduced locally in 0.31s."
+    },
+    {
+      "action": "Traced the ratchet trip to this branch's own episode",
+      "detail": "The episode carried metrics.commits=0 with files_changed=3. json_metrics derives commits from _collect_shas(data), which reads endingCommit; the log had endingCommit empty, so the count was zero."
+    },
+    {
+      "action": "Set endingCommit to 8494a1600 and regenerated the episode",
+      "detail": "extract_session_episode.py <log> --preserve. metrics.commits went 0 -> 1. Full file now passes: 278 passed in 7.77s."
+    },
+    {
+      "action": "Corrected .claude/rules/session-logs.md rule 2",
+      "detail": "The rule called an empty endingCommit 'only a warning'. It is a warning to the session validator but silently produces commits=0, which trips the episode-store ratchet inside python-tests and rejects the push after ~18 minutes. Named the consequence and the regeneration step."
+    },
+    {
+      "action": "Regenerated both rule mirrors",
+      "detail": "build/scripts/generate_rules.py wrote 54 files; .github/instructions/session-logs.instructions.md and src/copilot-cli/instructions/session-logs.instructions.md updated. No plugin manifest bump: validate_plugin_version_bump.py requires the version field to be absent."
+    },
+    {
+      "timestamp": "2026-08-04T14:05:00Z",
+      "action": "Ran an adversarial review of the GOTCHAS section on grok-4.5, a different model family than the author.",
+      "outcome": "Three High, three Medium, one Low, each with file:line evidence and an explicit passed-checks table. Every High held up under independent verification."
+    },
+    {
+      "timestamp": "2026-08-04T14:20:00Z",
+      "action": "Verified High 1 and High 2 against lefthook.yml rather than trusting the review.",
+      "outcome": "Confirmed both. lefthook.yml opens a parallel group at :390 and python-tests, hook-anchoring-e2e, and plugin-load-e2e are all siblings in it, so the sequential story was false. The two e2e jobs carry separate glob lists; the section had published a partial union of them."
+    },
+    {
+      "timestamp": "2026-08-04T14:35:00Z",
+      "action": "Tested the hypothesis that the merge of origin/main, not the branch's own diff, armed both e2e jobs.",
+      "outcome": "Confirmed and measured. The push range 6eeeb8cac..35d87fd6b covers 367 files and hits both glob sets, while the branch's own diff against main touched seven files and no gated path. Lefthook expands {push_files} over the push range, so merging main arms every glob-gated job."
+    },
+    {
+      "timestamp": "2026-08-04T14:50:00Z",
+      "action": "Rewrote the GOTCHAS section around the verified mechanism and applied the two Medium findings to session-logs.md.",
+      "outcome": "The section now describes the parallel group, points at lefthook.yml for the per-job globs instead of reproducing a wrong union, and adds the merge-arms-globs rule with the 367-file measurement. The rule now gives the full three-source order _collect_shas reads and frames the cost as the python-tests pre-push job rather than a remote one."
+    },
+    {
+      "timestamp": "2026-08-04T15:05:00Z",
+      "action": "Diagnosed why both in-flight pushes were rejected despite passing the full suite.",
+      "outcome": "Same cause on both branches: the taste-count-ratchet baseline was stale at 586 while origin/main had lowered it to 584. merge-tree-ratchet had already pre-computed that the merged tree passes at 584, which is the signal that a merge is the fix. Merged origin/main into both worktrees cleanly."
+    },
+    {
+      "timestamp": "2026-08-04T15:40:00Z",
+      "action": "Pushed both branches after merging main and hit two new failures, neither of which was the original one.",
+      "outcome": "The rule edit in this branch grew the shipped plugin tree from 82,299 to 83,331 bytes, which turned the doctrine figure guard red inside python-tests. Updated the sentence in model-context-doctrine.md, recomputed the vendor-cost figure that no test checks (12,956), and regenerated the mirror."
+    },
+    {
+      "timestamp": "2026-08-04T15:55:00Z",
+      "action": "Investigated the other branch's e2e failure, which reported the Copilot token as expired or revoked.",
+      "outcome": "Transient, not a credential problem. The same test passed in 24.99 seconds a few minutes later using a token from the same gh auth token call. The failure text names one cause while the service's own message in the same output says the token may still be valid. Documented the 25-second reproduction so nobody rotates a working credential."
+    },
+    {
+      "timestamp": "2026-08-04T16:05:00Z",
+      "action": "Recorded the rule-edit trap in GOTCHAS as its own section.",
+      "outcome": "Editing any .claude/rules file moves a byte count the doctrine asserts, and the guard sits in python-tests, so the cost is the full suite. Named the four rules that are narrowly scoped in .github/instructions and always-on in the plugin tree, which is why the two figures drift independently."
+    },
+    {
+      "timestamp": "2026-08-04T21:40:00Z",
+      "action": "Recorded the taste-count ratchet trap after a sibling branch tripped it.",
+      "outcome": "One test file grew from 402 to 691 lines, crossed the 500-line taste-lint error threshold, and raised the whole-repo count by one. That single increment failed four pre-push jobs with three different messages, and the fourth was a test-suite failure that reads as unrelated. Recorded the direct check, the staging requirement the ratchet has, and why merge-tree-ratchet's merge-or-rebase advice is wrong for this case."
+    }
+  ],
+  "endingCommit": "c6c61fbf5",
+  "nextSteps": [
+    "If the token requirement should also gate CI rather than only local pushes, issue #3275 is the open thread for provisioning COPILOT_GITHUB_TOKEN to the smoke job.",
+    "Consider whether git_hook_policy.py should fail with a named remediation when no credential variable is set, instead of letting the suite report an assertion failure that reads like a flake."
+  ]
+}

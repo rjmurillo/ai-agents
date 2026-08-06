@@ -478,7 +478,7 @@ def run_assessment(
             "documented_symbols": documented_count,
             "coverage_pct": round(coverage_pct, 1),
         },
-        "changed_files": sorted(changed_files) if changed_files else None,
+        "changed_files": sorted(changed_files) if changed_files is not None else None,
     }
 
 

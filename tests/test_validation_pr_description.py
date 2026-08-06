@@ -15,6 +15,7 @@ from scripts.validation.pr_description import (
     _safe_label_for_markdown,
     _safe_label_for_output,
     _strip_informational_sections,
+    extract_all_mentioned_files,
     extract_mentioned_files,
     fetch_pr_data,
     file_matches,
@@ -57,6 +58,60 @@ class TestNormalizePath:
 
     def test_strips_surrounding_backticks(self) -> None:
         assert normalize_path("`foo.yml`") == "foo.yml"
+
+
+class TestLineSuffixMentions:
+    """Regression coverage for file mentions with line suffixes."""
+
+    @pytest.mark.parametrize(
+        ("body", "expected"),
+        [
+            (
+                "## Changes\nUpdated `scripts/validation/pr_description.py:36`.",
+                "scripts/validation/pr_description.py",
+            ),
+            (
+                "## Changes\nUpdated **scripts/validation/pr_description.py:12:5**.",
+                "scripts/validation/pr_description.py",
+            ),
+            (
+                "## Changes\nUpdated [scripts/validation/pr_description.py:0].",
+                "scripts/validation/pr_description.py",
+            ),
+            (
+                "## Changes\nUpdated [parser](scripts/validation/pr_description.py:99).",
+                "scripts/validation/pr_description.py",
+            ),
+        ],
+        ids=["inline", "bold", "markdown-label", "markdown-target"],
+    )
+    def test_line_suffix_mentions_extract_clean_path(self, body: str, expected: str) -> None:
+        assert expected in extract_mentioned_files(body)
+
+    def test_bold_file_mention_with_numbered_prefix_suppresses_warning(self) -> None:
+        body = (
+            '**1. `scripts/mutation_test_proc_group.py:36`** passed encoding="utf-8" without errors'
+        )
+
+        assert extract_all_mentioned_files(body) == {"scripts/mutation_test_proc_group.py"}
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "## Changes\n**Note: 3.14** stays prose.",
+            "## Changes\nUpdated `scripts/validation/pr_description.py:`.",
+            "## Changes\nUpdated **scripts/validation/pr_description.py:**.",
+            "## Changes\nUpdated [parser](scripts/validation/pr_description.py:).",
+        ],
+        ids=[
+            "not-path",
+            "inline-trailing-colon",
+            "bold-trailing-colon",
+            "target-trailing-colon",
+        ],
+    )
+    def test_non_paths_and_incomplete_suffixes_do_not_extract(self, body: str) -> None:
+        assert "scripts/validation/pr_description.py" not in extract_mentioned_files(body)
 
 
 # ---------------------------------------------------------------------------
@@ -412,8 +467,7 @@ class TestExtractMentionedFiles:
 
     def test_notes_for_reviewers_multiword_heading_ignored(self) -> None:
         desc = (
-            "## Summary\nChanged **a.py**.\n\n"
-            "## Notes for Reviewers\n- `b.py` is the prior art\n"
+            "## Summary\nChanged **a.py**.\n\n## Notes for Reviewers\n- `b.py` is the prior art\n"
         )
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
@@ -1308,9 +1362,7 @@ class TestValidatePRDescription:
             "## What\tchanged",
         ],
     )
-    def test_issue_4019_what_changed_heading_extracts_inline_code(
-        self, heading: str
-    ) -> None:
+    def test_issue_4019_what_changed_heading_extracts_inline_code(self, heading: str) -> None:
         """Inline-code paths under '## What changed' are change claims (issue #4019)."""
         mentioned = extract_mentioned_files(f"{heading}\nModified `scripts/foo.py`.\n")
         assert mentioned == ["scripts/foo.py"]
@@ -1322,9 +1374,7 @@ class TestValidatePRDescription:
             "## What Changed",
         ],
     )
-    def test_issue_4019_what_changed_fake_path_is_flagged_as_critical(
-        self, heading: str
-    ) -> None:
+    def test_issue_4019_what_changed_fake_path_is_flagged_as_critical(self, heading: str) -> None:
         """A path under '## What changed' that is absent from the diff must be CRITICAL."""
         description = f"{heading}\nModified `ghost-file.py`.\n"
         mentioned = extract_mentioned_files(description)
@@ -1334,9 +1384,7 @@ class TestValidatePRDescription:
 
     def test_issue_4019_what_was_changed_is_not_a_claim_section(self) -> None:
         """'## What was changed' is NOT in the claim set; inline paths there are informational."""
-        mentioned = extract_mentioned_files(
-            "## What was changed\nModified `scripts/foo.py`.\n"
-        )
+        mentioned = extract_mentioned_files("## What was changed\nModified `scripts/foo.py`.\n")
         assert "scripts/foo.py" not in mentioned
 
     def test_issue_4019_what_changed_is_distinct_from_summary(self) -> None:
@@ -2522,14 +2570,16 @@ class TestValidateClosingLinks:
         """fetch_pr_data must return base_ref and default_branch fields."""
         from unittest.mock import MagicMock, patch
 
-        pr_response = json.dumps({
-            "title": "fix: test",
-            "body": "Fixes #1",
-            "base": {
-                "ref": "feat/branch",
-                "repo": {"default_branch": "main"},
-            },
-        })
+        pr_response = json.dumps(
+            {
+                "title": "fix: test",
+                "body": "Fixes #1",
+                "base": {
+                    "ref": "feat/branch",
+                    "repo": {"default_branch": "main"},
+                },
+            }
+        )
         files_response = json.dumps([])
         labels_response = json.dumps([])
 
