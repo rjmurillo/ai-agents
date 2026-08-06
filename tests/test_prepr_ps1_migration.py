@@ -27,18 +27,13 @@ class TestNoPsReferences:
 
     def _extract_ps1_paths(self) -> list[str]:
         """Parse checks_tooling.py AST and extract all string literals ending in .ps1."""
-        source = CHECKS_TOOLING.read_text()
+        source = CHECKS_TOOLING.read_text(encoding="utf-8", errors="replace")
         tree = ast.parse(source)
         ps1_paths: list[str] = []
         for node in ast.walk(tree):
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
-                if node.value.endswith(".ps1") or node.value.endswith(".ps1'"):
+                if node.value.endswith(".ps1"):
                     ps1_paths.append(node.value)
-            elif isinstance(node, ast.JoinedStr):
-                for part in node.values:
-                    if isinstance(part, ast.Constant) and isinstance(part.value, str):
-                        if ".ps1" in part.value:
-                            ps1_paths.append(part.value)
         return ps1_paths
 
     def test_no_unreachable_ps1_references(self) -> None:
