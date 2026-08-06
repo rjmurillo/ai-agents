@@ -51,7 +51,8 @@
         "e003",
         "e006",
         "e007",
-        "e008"
+        "e008",
+        "e011"
       ],
       "leads_to": [
         "e005"
@@ -126,6 +127,17 @@
         "e009"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Disambiguate skill validation reference",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
       "_source_session": "2026-08-04-session-9044-governance-doc-accuracy"
     }
   ],

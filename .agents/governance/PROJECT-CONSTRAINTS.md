@@ -56,7 +56,7 @@ When making decisions about:
 | Constraint | Source | Verification |
 |------------|--------|--------------|
 | MUST NOT use raw `gh` commands when skill exists | usage-mandatory | Manual helper `scripts/check_skill_exists.py`; code review |
-| MUST check `.claude/skills/` before GitHub operations | usage-mandatory | Session Protocol Phase 4 skill validation |
+| MUST check `.claude/skills/` before GitHub operations | usage-mandatory | Session Protocol "Phase 4: Skill Validation (BLOCKING)" |
 | MUST extend skills if capability missing, not write inline | usage-mandatory | Code review |
 
 **Reference**: Use `mcp__serena__read_memory` with `memory_file_name="usage-mandatory"`

@@ -162,8 +162,16 @@
         ".claude/rules/claude-agents.md",
         ".claude/rules/governance.md"
       ]
+    },
+    {
+      "task": "Disambiguate skill validation reference",
+      "outcome": "Named the exact Session Protocol section after review found three different Phase 4 headings.",
+      "artifacts": [
+        ".agents/governance/PROJECT-CONSTRAINTS.md",
+        ".agents/SESSION-PROTOCOL.md"
+      ]
     }
   ],
-  "endingCommit": "20e1e2d3854f1c94270110a84c653e13b05a68bb",
+  "endingCommit": "",
   "nextSteps": []
 }
