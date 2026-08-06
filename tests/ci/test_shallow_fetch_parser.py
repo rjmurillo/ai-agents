@@ -242,3 +242,110 @@ def test_working_directory_resolution(working_directory: str, detected: bool) ->
         ]
     }
     assert bool(_shallowing_fetches(job)) is detected
+
+
+def test_the_sweep_reads_both_workflow_extensions(tmp_path) -> None:
+    """GitHub Actions accepts `.yaml`, and globbing `*.yml` alone goes blind.
+
+    This repository has already lost coverage that way once: a
+    security-suppression gate dropped `**/*.yaml` on 2026-08-01. The three
+    sibling sweeps under tests/ci all glob both extensions.
+    """
+    from tests.ci import shallow_fetch_workflow_parsing as parsing
+
+    workflows = tmp_path / "workflows"
+    workflows.mkdir()
+    body = "jobs:\n  j:\n    steps:\n      - run: echo hi\n"
+    (workflows / "a.yml").write_text(body, encoding="utf-8")
+    (workflows / "b.yaml").write_text(body, encoding="utf-8")
+
+    original = parsing.WORKFLOW_DIR
+    try:
+        parsing.WORKFLOW_DIR = workflows
+        names = sorted(path.name for path, _ in parsing._workflow_documents())
+    finally:
+        parsing.WORKFLOW_DIR = original
+
+    assert names == ["a.yml", "b.yaml"]
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        pytest.param(
+            'echo "$(git fetch --depth=1 origin main)"',
+            id="a fetch inside a command substitution",
+        ),
+        pytest.param(
+            "git -C .trusted-helper status | git fetch --depth=1 origin main",
+            id="a fetch downstream of a pipe",
+        ),
+    ],
+)
+def test_an_unattributable_shallowing_flag_is_reported_not_dropped(script: str) -> None:
+    """The splitter is not a shell, so it must fail loud where it cannot parse.
+
+    Both of these carry a real shallowing flag that no command the splitter
+    produces owns. Silently dropping them is the failure mode this whole module
+    exists to prevent, so the line is reported instead. A human reading the
+    message can tell in one glance whether it is real, which is not true of a
+    guard that says nothing.
+    """
+    job = {"steps": [{"name": "s", "run": script}]}
+    assert _shallowing_fetches(job) != []
+
+
+def test_a_plain_full_fetch_is_still_not_reported() -> None:
+    """Control for the rule above, which would otherwise be easy to make vacuous."""
+    job = {"steps": [{"name": "s", "run": 'echo "$(git fetch origin main)"'}]}
+    assert _shallowing_fetches(job) == []
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        pytest.param("", 1, id="an empty string is the action default of 1"),
+        pytest.param("   ", 1, id="whitespace only is the action default of 1"),
+        pytest.param(None, 1, id="YAML null reaches the action as an empty input"),
+    ],
+)
+def test_empty_depth_is_the_shallow_default_not_full(raw: object, expected: object) -> None:
+    """`core.getInput(...) || '1'` makes an empty input 1, which is shallow.
+
+    Folding it to 0 would call a genuinely shallow checkout complete, and the
+    invariant would then accuse a job that is allowed to fetch shallowly.
+    """
+    assert _normalized_depth(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("script", "detected"),
+    [
+        pytest.param(
+            "git --git-dir=.git fetch --depth=1 origin main",
+            True,
+            id="dot git IS the root repository git directory",
+        ),
+        pytest.param(
+            "git --git-dir=./.git fetch --depth=1 origin main",
+            True,
+            id="the same directory written relatively",
+        ),
+        pytest.param(
+            "git --git-dir=.trusted-helper/.git fetch --depth=1 origin main",
+            False,
+            id="a nested git directory is still out of scope",
+        ),
+    ],
+)
+def test_git_dir_is_classified_as_a_git_directory_not_a_worktree(
+    script: str, detected: bool
+) -> None:
+    """`--git-dir` takes a git directory, so `-C` path rules do not transfer.
+
+    The root repository's git directory is `.git`, which reads as a non-root
+    WORKTREE path. Reusing the worktree classifier therefore let a genuine root
+    graft through.
+    """
+    job = {"steps": [{"name": "s", "run": script}]}
+    assert bool(_shallowing_fetches(job)) is detected

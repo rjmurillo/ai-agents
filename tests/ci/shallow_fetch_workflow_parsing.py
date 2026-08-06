@@ -12,6 +12,7 @@ so an unresolved expression makes the sweep ask rather than fall silent.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -96,19 +97,24 @@ def _normalized_depth(value: object) -> object:
     if isinstance(value, int):
         return value if value >= 0 else 0
     if isinstance(value, float):
-        import math
-
         floored = math.floor(value)
         return floored if floored >= 0 else 0
     if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            # `core.getInput(...) || '1'` makes an empty input the action's
+            # default of 1, which is shallow. Folding it to 0 would call a
+            # genuinely shallow checkout complete.
+            return DEFAULT_CHECKOUT_DEPTH
         try:
-            number = float(value.strip())
+            number = float(stripped)
         except ValueError:
             return 0
-        import math
-
         floored = math.floor(number)
         return floored if floored >= 0 else 0
+    if value is None:
+        # YAML `~` or a bare key reaches the action as an empty string.
+        return DEFAULT_CHECKOUT_DEPTH
     return 0
 
 
@@ -172,6 +178,23 @@ def _is_root_path(raw: str) -> bool:
     return path in {".", "./"}
 
 
+def _is_root_git_dir(raw: str) -> bool:
+    """True when a `--git-dir` value names the ROOT repository's git directory.
+
+    `--git-dir` takes a git directory, not a worktree, so it is not
+    interchangeable with `-C`. The root repository's git directory is `.git`,
+    which `_is_root_path` correctly calls non-root as a worktree path and which
+    therefore let `git --git-dir=.git fetch --depth=1` through as if it were
+    grafting somewhere else.
+    """
+    path = raw.strip().strip("\"'")
+    if not path:
+        return True
+    if "${{" in path or "GITHUB_WORKSPACE" in path:
+        return True
+    return path.rstrip("/") in {".git", "./.git"}
+
+
 def _targets_root_repository(command: str) -> bool:
     """False only when THIS command is unambiguously anchored to a nested repo.
 
@@ -184,12 +207,14 @@ def _targets_root_repository(command: str) -> bool:
     """
     tokens = command.split()
     for index, token in enumerate(tokens):
-        if token in {"-C", "--git-dir"} and index + 1 < len(tokens):
+        if token == "-C" and index + 1 < len(tokens):
             return _is_root_path(tokens[index + 1])
         if token.startswith("-C") and len(token) > 2:
             return _is_root_path(token[2:])
+        if token == "--git-dir" and index + 1 < len(tokens):
+            return _is_root_git_dir(tokens[index + 1])
         if token.startswith("--git-dir="):
-            return _is_root_path(token.split("=", 1)[1])
+            return _is_root_git_dir(token.split("=", 1)[1])
     return True
 
 
@@ -200,7 +225,9 @@ def _fetch_commands(line: str) -> list[str]:
     from being charged to the fetch, as in
     `git fetch origin main && tool --depth=1`.
     """
-    parts = line.replace("&&", "\n").replace("||", "\n").replace(";", "\n").split("\n")
+    # `||` before `|`, or the two-character operator would be split twice.
+    normalized = line.replace("&&", "\n").replace("||", "\n")
+    parts = normalized.replace("|", "\n").replace(";", "\n").split("\n")
     commands = [part.strip() for part in parts if part.strip()]
     return [
         command
@@ -221,18 +248,52 @@ def _shallowing_fetches(job: Mapping[str, object]) -> list[tuple[str, str]]:
             continue
         name = step.get("name")
         for line in _logical_lines(run):
+            attributed = False
             for command in _fetch_commands(line):
                 if not any(flag in command for flag in SHALLOWING_FETCH_FLAGS):
                     continue
+                attributed = True
                 if not _targets_root_repository(command):
                     continue
                 found.append((str(name), command))
+            if not attributed and _line_hides_a_shallowing_fetch(line):
+                # The splitter is not a shell. A fetch inside `$( ... )`, or
+                # downstream of a pipe, carries a shallowing flag that no
+                # command it produced owns. Reporting the whole line is the
+                # fail-loud answer: a prevention invariant that cannot attribute
+                # a flag must say so rather than fall silent, and a human
+                # reading the message can see in one glance whether it is real.
+                found.append((str(name), line))
     return found
 
 
+def _line_hides_a_shallowing_fetch(line: str) -> bool:
+    """True when a construct the splitter cannot read hides a shallowing fetch.
+
+    Restricted to command substitution, because that is the one shape where a
+    real `git fetch --depth=1` survives with no command owning it. Firing on
+    any unattributed flag instead would report `git fetch origin main && tool
+    --depth=1`, where the flag belongs to a different program and there is no
+    graft at all.
+    """
+    if "fetch" not in line:
+        return False
+    if "$(" not in line and "`" not in line:
+        return False
+    return any(flag in line for flag in SHALLOWING_FETCH_FLAGS)
+
+
 def _workflow_documents() -> list[tuple[Path, object]]:
+    """Every workflow file, under both extensions GitHub Actions accepts.
+
+    Globbing `*.yml` alone is a documented way to go silently blind in this
+    repository: the security-suppression gate lost `**/*.yaml` coverage on
+    2026-08-01 the same way. The three sibling sweeps in `tests/ci/` all glob
+    both, and so does `scripts/ci/adr015_workflow_retention.py`.
+    """
     documents: list[tuple[Path, object]] = []
-    for path in sorted(WORKFLOW_DIR.glob("*.yml")):
+    paths = sorted(WORKFLOW_DIR.glob("*.yml")) + sorted(WORKFLOW_DIR.glob("*.yaml"))
+    for path in paths:
         documents.append((path, yaml.safe_load(path.read_text(encoding="utf-8"))))
     return documents
 
