@@ -1,0 +1,112 @@
+"""Repo-root walkers must skip registered worktrees.
+
+A registered worktree holds a full second copy of the tree. Two gates walked
+the repository root without skipping them, so each parsed ~92,000 Python
+files instead of ~6,800 and tripped the 120s pytest-timeout, blocking every
+push from a clone that uses worktrees.
+
+This is the same bug issue #4160 fixed in `_python_sources`, recurring in
+siblings that did not inherit the fix. Both halves of that fix are load
+bearing and both are asserted here:
+
+1. `worktrees` is in the skip set at all.
+2. The skip is matched against the path *relative to the walk root*. Matching
+   absolute parts makes the gate a silent no-op when the repository itself
+   lives under a directory named `worktrees`, which is exactly how fleet
+   worktrees are laid out.
+
+Exit codes (ADR-035):
+    0 - both walkers skip worktrees and stay scoped to the walk root
+    1 - a walker regressed
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import patch
+
+import tests.test_no_duplicate_module_level_defs as dupes
+import tests.test_no_verify_prohibition as noverify
+
+
+def _make_tree(root: Path) -> None:
+    """Write one real source file and one decoy inside a worktree copy."""
+    (root / "scripts").mkdir(parents=True, exist_ok=True)
+    (root / ".claude" / "worktrees" / "wt_a" / "scripts").mkdir(
+        parents=True, exist_ok=True
+    )
+
+
+class TestDuplicateDefsWalker:
+    """collect_duplicates ignores worktree copies but not the real tree."""
+
+    def test_worktree_duplicate_is_not_reported(self, tmp_path: Path) -> None:
+        _make_tree(tmp_path)
+        decoy = tmp_path / ".claude" / "worktrees" / "wt_a" / "scripts" / "d.py"
+        decoy.write_text("def f():\n    pass\n\n\ndef f():\n    pass\n")
+
+        found = dupes.collect_duplicates(tmp_path)
+
+        assert found == [], f"worktree copy should be skipped, got {found}"
+
+    def test_real_duplicate_is_still_reported(self, tmp_path: Path) -> None:
+        """Negative control: the gate still catches what it exists to catch."""
+        _make_tree(tmp_path)
+        real = tmp_path / "scripts" / "r.py"
+        real.write_text("def g():\n    pass\n\n\ndef g():\n    pass\n")
+
+        found = dupes.collect_duplicates(tmp_path)
+
+        assert [p for p, _, _ in found] == [real], f"expected {real}, got {found}"
+
+    def test_root_named_worktrees_is_not_skipped_whole(self, tmp_path: Path) -> None:
+        """Issue #4160: skipping on absolute parts makes the gate a no-op."""
+        root = tmp_path / "worktrees" / "wt_fix"
+        (root / "scripts").mkdir(parents=True, exist_ok=True)
+        real = root / "scripts" / "r.py"
+        real.write_text("def h():\n    pass\n\n\ndef h():\n    pass\n")
+
+        found = dupes.collect_duplicates(root)
+
+        assert [p for p, _, _ in found] == [real], (
+            "repo living under a 'worktrees' dir must still be scanned; "
+            f"got {found}"
+        )
+
+
+class TestNoVerifyWalker:
+    """_instruction_files ignores worktree copies but not the real tree."""
+
+    def test_worktree_file_is_excluded_and_real_file_kept(
+        self, tmp_path: Path
+    ) -> None:
+        _make_tree(tmp_path)
+        claude = tmp_path / ".claude"
+        real = claude / "real.md"
+        real.write_text("plain instruction text\n")
+        decoy = claude / "worktrees" / "wt_a" / "decoy.md"
+        decoy.write_text("plain instruction text\n")
+
+        with (
+            patch.object(noverify, "REPO_ROOT", tmp_path),
+            patch.object(noverify, "_INSTRUCTION_ROOTS", (".claude",)),
+        ):
+            files = noverify._instruction_files()
+
+        assert real in files, f"real instruction file dropped; got {files}"
+        assert decoy not in files, f"worktree copy should be excluded; got {files}"
+
+
+class TestSkipSetContract:
+    """The skip constant itself carries worktrees."""
+
+    def test_worktrees_in_skip_set(self) -> None:
+        assert "worktrees" in dupes._SKIP
+
+
+if __name__ == "__main__":  # pragma: no cover - manual smoke run
+    import sys
+
+    import pytest
+
+    sys.exit(pytest.main([__file__, "-q"]))
