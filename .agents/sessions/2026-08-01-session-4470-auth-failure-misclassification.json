@@ -84,7 +84,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "8c1f16335 batch-1 (api.py x2, test_github_core.py); batch-2 pending with probe + e2e test files"
+        "Evidence": "8c1f16335 completed batch 1; 01762d1b9 and 91c4ea727 completed batch 2 with probe and e2e test files"
       },
       "validationPassed": {
         "level": "MUST",
