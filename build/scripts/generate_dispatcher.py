@@ -92,14 +92,26 @@ _BASH_TEMPLATE = (
     'echo "$_warn Plugin root is not a directory: $_ptr. '
     'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
     'exit 0; fi; '
-    '_interp="python3"; '
-    'if ! command -v "$_interp" >/dev/null 2>&1; then _interp="python"; fi; '
-    'if ! command -v "$_interp" >/dev/null 2>&1; then '
-    'echo "$_warn No Python interpreter found. '
-    'Install Python >= {min_maj}.{min_min}: '
-    'https://www.python.org/downloads/" >&2; exit 0; fi; '
+    # Interpreter discovery: preflight each candidate with a version check.
+    # A broken launcher (exits nonzero) or too-old interpreter (< 3.10) moves
+    # to the next candidate. Covers HIGH 3 and HIGH 5 from #4672 review.
+    '_interp=""; '
+    'for _c in python3 python; do '
+    'if command -v "$_c" >/dev/null 2>&1; then '
+    '_ok=$("$_c" -c "import sys;print(int(sys.version_info>=({min_maj},{min_min})))" 2>/dev/null) || _ok=""; '
+    'if [ "$_ok" = "1" ]; then _interp="$_c"; break; fi; '
+    'fi; done; '
+    'if [ -z "$_interp" ]; then '
+    'echo "$_warn No suitable Python interpreter found (need >= {min_maj}.{min_min}). '
+    'Install: https://www.python.org/downloads/" >&2; exit 0; fi; '
+    # Dispatcher must be a regular file and readable (not a directory).
+    'if [ ! -f "$_ptr/hooks/{event}/_dispatch.py" ]; then '
+    'echo "$_warn Dispatcher missing or not a file: '
+    '$_ptr/hooks/{event}/_dispatch.py. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
+    'exit 0; fi; '
     'if [ ! -r "$_ptr/hooks/{event}/_dispatch.py" ]; then '
-    'echo "$_warn Dispatcher missing or unreadable: '
+    'echo "$_warn Dispatcher unreadable: '
     '$_ptr/hooks/{event}/_dispatch.py. '
     'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
     'exit 0; fi; '
@@ -117,33 +129,37 @@ _PWSH_TEMPLATE = (
     '$_warn = "project-toolkit@ai-agents WARNING: hooks DISABLED '
     '(your session is unaffected)."; '
     'if (-not $_ptr) {{ '
-    'Write-Host "$_warn Plugin root unresolvable (COPILOT_PLUGIN_ROOT and '
-    'CLAUDE_PLUGIN_ROOT both empty). '
-    'Reinstall: copilot plugin install project-toolkit@ai-agents" '
-    '-ForegroundColor Yellow; exit 0 }}; '
+    '[Console]::Error.WriteLine("$_warn Plugin root unresolvable '
+    '(COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT both empty). '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
     'if (-not (Test-Path $_ptr -PathType Container)) {{ '
-    'Write-Host "$_warn Plugin root is not a directory: $_ptr. '
-    'Reinstall: copilot plugin install project-toolkit@ai-agents" '
-    '-ForegroundColor Yellow; exit 0 }}; '
+    '[Console]::Error.WriteLine("$_warn Plugin root is not a directory: $_ptr. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
+    # Interpreter discovery: preflight each candidate with version check.
+    # A broken launcher or too-old interpreter moves to the next candidate.
     '$_interp = $null; '
     'foreach ($c in @("py","python3","python")) {{ '
-    'if (Get-Command $c -ErrorAction SilentlyContinue) '
-    '{{ $_interp = $c; break }} }}; '
+    'if (Get-Command $c -ErrorAction SilentlyContinue) {{ '
+    'try {{ $_ok = & $c -c '
+    '"import sys;print(int(sys.version_info>=({min_maj},{min_min})))" '
+    '2>$null; if ($_ok -eq "1") {{ $_interp = $c; break }} }} '
+    'catch {{}} }} }}; '
     'if (-not $_interp) {{ '
-    'Write-Host "$_warn No Python interpreter found. '
-    'Install Python >= {min_maj}.{min_min}: '
-    'https://www.python.org/downloads/" -ForegroundColor Yellow; exit 0 }}; '
+    '[Console]::Error.WriteLine("$_warn No suitable Python interpreter found '
+    '(need >= {min_maj}.{min_min}). '
+    'Install: https://www.python.org/downloads/"); exit 0 }}; '
+    # Dispatcher must be a leaf file (not a directory).
     '$_script = "$_ptr/hooks/{event}/_dispatch.py"; '
-    'if (-not (Test-Path $_script)) {{ '
-    'Write-Host "$_warn Dispatcher missing: $_script. '
-    'Reinstall: copilot plugin install project-toolkit@ai-agents" '
-    '-ForegroundColor Yellow; exit 0 }}; '
+    'if (-not (Test-Path $_script -PathType Leaf)) {{ '
+    '[Console]::Error.WriteLine("$_warn Dispatcher missing or not a file: '
+    '$_script. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
     '& $_interp -u "$_script"; '
     'if ($LASTEXITCODE -eq 126 -or $LASTEXITCODE -eq 127) {{ '
-    'Write-Host "$_warn Python interpreter failed to start '
+    '[Console]::Error.WriteLine("$_warn Python interpreter failed to start '
     '($_interp, exit $LASTEXITCODE). '
     'Install Python >= {min_maj}.{min_min}: '
-    'https://www.python.org/downloads/" -ForegroundColor Yellow; exit 0 }}; '
+    'https://www.python.org/downloads/"); exit 0 }}; '
     'exit $LASTEXITCODE'
 )
 
@@ -179,19 +195,7 @@ if sys.version_info < (__MIN_PYTHON_MAJOR__, __MIN_PYTHON_MINOR__):
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
-class _InfraError(Exception):
-    # Local fallback for PluginInfrastructureError. Avoids a hard coupling to
-    # _bootstrap.py: if that file predates the symbol (version skew from a
-    # partial upgrade), the dispatcher degrades instead of crashing (#4672).
-    pass
-
-
-try:
-    from _bootstrap import PluginInfrastructureError  # noqa: E402
-except ImportError:
-    PluginInfrastructureError = _InfraError  # noqa: E402
-
-from _bootstrap import ensure_plugin_paths  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # Defensive hook-payload ceiling (#3074, ADR-066, CWE-400). Long-session
 # apply_patch calls can cross a few MiB, and no measured host maximum exists.
@@ -351,9 +355,15 @@ def _main() -> int:
     event_dir = Path(__file__).resolve().parent
     mode = None
     try:
+        from _bootstrap import ensure_plugin_paths  # noqa: E402
         ensure_plugin_paths()
-    except (PluginInfrastructureError, ImportError, OSError, TypeError) as exc:
+    except Exception as exc:
         # Infrastructure failure: the dispatch machinery could not load.
+        # Catches ImportError (missing/broken _bootstrap.py, version skew),
+        # PluginInfrastructureError (lib dir missing, plugin root invalid),
+        # TypeError (signature mismatch from partial upgrade), OSError (file
+        # system issues). SystemExit from old _bootstrap.py versions is
+        # BaseException and propagates normally.
         # Allow the tool call (exit 0) to keep the plugin usable. A plugin
         # that denies every call forces uninstall, removing all protection.
         # Fail-open on infrastructure keeps the plugin installed so the next

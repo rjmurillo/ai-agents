@@ -51,7 +51,7 @@ MAX_TIMEOUT = 300
 
 # Pattern to extract script path from command string
 _SCRIPT_PATH_PATTERN = re.compile(
-    r"(?:python3?|\"?\$_interp\"?)\s+(?:-\w+\s+)*\"?([^;>|&\s]+\.py)\"?(?:\s|;|$)"
+    r"(?:python3?|\"?\$(?:_interp|_i)\"?)\s+(?:-\w+\s+)*\"?([^;>|&\s]+\.py)\"?(?:\s|;|$)"
 )
 
 # Plugin registrations address their scripts through the harness-provided

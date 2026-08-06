@@ -117,13 +117,17 @@ def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
         # A shim that returns without calling sys.exit allowed the tool.
         return ALLOW_EXIT
     except SystemExit as exc:
+        # Only an explicit sys.exit() is a policy verdict.
         return _exit_code(exc)
     except Exception as exc:
+        # Shim cannot load/run: not a policy decision. Degrade (#4672).
         print(
-            f"hook-dispatch: shim {name} raised {type(exc).__name__}: {exc}; denying (fail-closed)",
+            f"project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected). "
+            f"Shim {name} raised {type(exc).__name__}: {exc}; infrastructure failure, not a "
+            f"policy denial. Reinstall: copilot plugin install project-toolkit@ai-agents",
             file=sys.stderr,
         )
-        return BLOCK_EXIT
+        return ALLOW_EXIT
 
 
 def _open_capture_stream(fd: int) -> TextIO:
