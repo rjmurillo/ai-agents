@@ -188,8 +188,11 @@ def _resolve_memory_reference(
     """Resolve a memory reference and return its canonical identity."""
     normalized_name = file_name.replace("\\", "/")
     reference_path = memory_path / f"{normalized_name}.md"
-    if reference_path.is_symlink():
-        return None, reference_path, "symbolic link"
+    current_path = memory_path
+    for path_part in Path(f"{normalized_name}.md").parts:
+        current_path /= path_part
+        if current_path.is_symlink():
+            return None, reference_path, "symbolic link"
 
     resolved_ref = reference_path.resolve()
     if not resolved_ref.is_relative_to(resolved_memory):
@@ -211,6 +214,8 @@ def _invalid_destination_reason(destination: str) -> str | None:
         return "CommonMark angle-bracket destination"
     if any(character.isspace() for character in destination):
         return "CommonMark destination title or whitespace"
+    if "(" in destination or ")" in destination:
+        return "CommonMark balanced-parenthesis destination"
     if "\\" in destination:
         return "CommonMark backslash escape"
     if "?" in destination:
@@ -407,7 +412,12 @@ def _load_base_reference_counts(
         target_path = posixpath.normpath(
             f"{relative_memory}/{file_name}.md"
         )
-        if target_path in symlink_paths:
+        has_symlink_component = any(
+            target_path == symlink_path
+            or target_path.startswith(f"{symlink_path}/")
+            for symlink_path in symlink_paths
+        )
+        if has_symlink_component:
             return None, (
                 f"base memory-index target is a symbolic link: "
                 f"{target_path}"

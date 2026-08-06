@@ -518,6 +518,43 @@ class TestCheckMemoryIndexReferences:
             ".serena/memories/shared.md"
         )
 
+    def test_symbolic_link_ancestor_in_base_tree_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        memory_path = tmp_path / ".serena" / "memories"
+        memory_path.mkdir(parents=True)
+        commit_id = "a" * 40
+        base_content = "| keywords: [entry](alias/shared.md)\n"
+        completed = [
+            subprocess.CompletedProcess([], 0, f"{tmp_path}\n", ""),
+            subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
+            subprocess.CompletedProcess([], 0, base_content, ""),
+            subprocess.CompletedProcess(
+                [],
+                0,
+                (
+                    "120000 blob bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    "\t.serena/memories/alias\0"
+                ),
+                "",
+            ),
+        ]
+
+        with patch(
+            "scripts.validation.memory_index.subprocess.run",
+            side_effect=completed,
+        ):
+            counts, error = _load_base_reference_counts(
+                memory_path,
+                "origin/main",
+            )
+
+        assert counts is None
+        assert error == (
+            "base memory-index target is a symbolic link: "
+            ".serena/memories/alias/shared.md"
+        )
+
     def test_valid_references(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (
@@ -658,6 +695,7 @@ class TestCheckMemoryIndexReferences:
             ("shared&period;md", "shared&period;md.md"),
             ("<shared.md>", "<shared.md>.md"),
             ('shared.md "title"', 'shared.md "title".md'),
+            ("shared.md(foo)", "shared.md(foo).md"),
             (r"shared\.md", "shared/.md"),
             ("shared.md?view", "shared.md?view.md"),
             ("shared.md#section", "shared.md#section.md"),
@@ -696,6 +734,29 @@ class TestCheckMemoryIndexReferences:
         (tmp_path / "shared.md").symlink_to("target.md")
         (tmp_path / "memory-index.md").write_text(
             "| keywords: [entry](shared.md)\n"
+        )
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is False
+        assert any(
+            "symbolic link" in issue
+            for issue in result.issues
+        )
+
+    def test_symbolic_link_ancestor_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        target_dir = tmp_path / "target"
+        target_dir.mkdir()
+        (target_dir / "shared.md").write_text("content")
+        (tmp_path / "alias").symlink_to(target_dir, target_is_directory=True)
+        (tmp_path / "memory-index.md").write_text(
+            "| keywords: [entry](alias/shared.md)\n"
         )
 
         result = check_memory_index_references(
