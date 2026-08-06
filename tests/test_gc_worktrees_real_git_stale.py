@@ -448,4 +448,4 @@ def test_an_admin_record_overwritten_by_a_file_is_not_an_empty_one(
     reason = decision["reason"]
     assert isinstance(reason, str)
     assert decision["remove"] is False
-    assert "reflog could not be read" in reason, reason
+    assert "admin directory could not be read" in reason, reason
