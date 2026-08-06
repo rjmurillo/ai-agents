@@ -459,6 +459,27 @@ GENERATED_GLOBS = {
     "memory": (".serena/memories/**/*.md",),
 }
 
+# Generated mirror trees, as (output prefix, source prefix, suffix rewrite).
+# Taken from .agents/governance/GENERATOR-FILES.md, which is the inventory of
+# every tree the build pipeline writes from a canonical source.
+#
+# Editing one rule under .claude/rules/ regenerates two instruction mirrors, so
+# a one-file rule change staged three files and a four-file change was
+# unshippable. Universal rule 5 already exempts hook-generated companions from
+# the five-file limit; the counter simply did not know about these trees.
+# Refs #4671.
+_GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
+    (".github/instructions/", ".claude/rules/", (".instructions.md", ".md")),
+    (
+        "src/copilot-cli/instructions/",
+        ".claude/rules/",
+        (".instructions.md", ".md"),
+    ),
+    ("src/copilot-cli/lib/", ".claude/lib/", None),
+    ("src/copilot-cli/skills/", ".claude/skills/", None),
+    ("src/copilot-cli/hooks/", ".claude/hooks/", None),
+)
+
 # Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
 # Generated companions (episodes, mcp, agents, memory-index) are exempt.
 MAX_AUTHORED_FILES_PER_COMMIT = 5
@@ -2110,7 +2131,30 @@ def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
     return 0
 
 
-def _is_generated(relative_path: str) -> bool:
+def _mirror_source(relative_path: str) -> str | None:
+    """Return the canonical source a generated mirror was built from, or None.
+
+    A path is only a mirror if its canonical source actually exists. That is
+    what separates a generated companion from a file that merely lives under a
+    generated tree: ``src/copilot-cli/lib/invented.py`` with no
+    ``.claude/lib/invented.py`` behind it is authored work and still counts.
+    Exempting by prefix alone would let anything written into an output tree
+    escape the limit, which is a larger hole than the friction it removes.
+    """
+    for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
+        if not relative_path.startswith(output_prefix):
+            continue
+        remainder = relative_path[len(output_prefix):]
+        if suffix_map is not None:
+            output_suffix, source_suffix = suffix_map
+            if not remainder.endswith(output_suffix):
+                continue
+            remainder = remainder[: -len(output_suffix)] + source_suffix
+        return source_prefix + remainder
+    return None
+
+
+def _is_generated(relative_path: str, repo_root: Path | None = None) -> bool:
     """Return True when *relative_path* matches any generated-file pattern."""
     for entries in GENERATED_PATHS.values():
         if relative_path in entries:
@@ -2118,6 +2162,10 @@ def _is_generated(relative_path: str) -> bool:
     for globs in GENERATED_GLOBS.values():
         if any(_matches_generated_glob(relative_path, pat) for pat in globs):
             return True
+    source = _mirror_source(relative_path)
+    if source is not None:
+        root = repo_root if repo_root is not None else Path.cwd()
+        return (root / source).exists()
     return False
 
 
@@ -2160,7 +2208,7 @@ def check_atomic_commit(repo_root: Path) -> int:
     authored: list[str] = []
     generated: list[str] = []
     for path in staged:
-        if _is_generated(path):
+        if _is_generated(path, repo_root):
             generated.append(path)
         else:
             authored.append(path)
