@@ -22,6 +22,22 @@
 
 **Root Cause**: Agents generate session logs from LLM memory instead of copying the canonical template from SESSION-PROTOCOL.md. Agents use sequential numbering without descriptive context.
 
+3. **Collision Between Concurrent Agents**: An agent that invents a placeholder number instead of running the allocator collides with every sibling that invents the same one. Observed 2026-08-05: two branches, `docs/botpat-identity-git-transport-memory` and `fix/4519-4520-coupling-diffbase`, both filed `.agents/sessions/2026-08-05-session-9999.json`. `9999` appears nowhere in `scripts/` or the session-init skill, so both agents picked it independently as an "unknown" placeholder.
+
+The merge surfaces as add/add on two files, the session log and its episode under `.agents/memory/episodes/`. Resolving it by merging the two workLogs is wrong: these are different sessions on different branches, not one diverged file, so a merged log describes a session that never existed and falsifies both records. Keep one file intact, re-file the other under a free number, and update the episode's `id` and `session` fields to match the new name.
+
+The rename needs two edits, not one. The number lives inside the file as `session.number` as well as in the filename, and `validate_session_json.py` compares them and fails the mismatch by name. The field is `session.number`, not `sessionNumber`.
+
+Regenerate the episode from the renamed log. Do not rename the episode by hand.
+Each event also carries `_source_session`, which the extractor uses for
+cross-session deduplication.
+
+`new_session_log.py` prevents reuse visible in the current working tree or on
+`origin/main`. It cannot see a concurrent unmerged branch in another worktree,
+so two agents can still allocate the same next number. The suffix keeps episode
+filenames distinct when objectives differ, but numeric uniqueness requires a
+shared atomic reservation or a collision-resistant identifier.
+
 ## The Solution
 
 Agents MUST use the `/session-init` skill which:
