@@ -2,6 +2,7 @@
 
 import os
 import sys
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -206,15 +207,7 @@ class TestUncommittedChanges:
 
     @patch("complete_session_log.subprocess.run")
     def test_exclude_path_hides_session_log(self, mock_run):
-        """The session log being completed appears dirty in porcelain output.
-        Excluding it lets changesCommitted be set True when everything else
-        is clean. Fixes the second half of issue #4425 (changesCommitted
-        deadlock).
-
-        Git porcelain v1 format: "XY PATH" where XY are 2 status chars and
-        PATH starts at index 3. A modified-unstaged file (not yet staged)
-        shows as " M PATH" (space + M + space + path).
-        """
+        """Excluding the session log makes changesCommitted satisfiable (#4425)."""
         mock_run.return_value = MagicMock(
             returncode=0,
             stdout=" M .agents/sessions/2026-08-03-session-0001.json\n",
@@ -224,11 +217,11 @@ class TestUncommittedChanges:
                 exclude_path=".agents/sessions/2026-08-03-session-0001.json"
             )
             is False
-        ), "Session log must be excluded from uncommitted-changes check"
+        )
 
     @patch("complete_session_log.subprocess.run")
     def test_exclude_path_does_not_hide_other_changes(self, mock_run):
-        """Excluding the session log must not suppress other dirty files."""
+        """Other dirty files are still detected when session log is excluded."""
         mock_run.return_value = MagicMock(
             returncode=0,
             stdout=(
@@ -241,11 +234,11 @@ class TestUncommittedChanges:
                 exclude_path=".agents/sessions/2026-08-03-session-0001.json"
             )
             is True
-        ), "Other dirty files must still be detected even when session log is excluded"
+        )
 
     @patch("complete_session_log.subprocess.run")
     def test_no_exclude_path_still_reports_dirty(self, mock_run):
-        """Cosmetic: omitting exclude_path preserves original behaviour (no regression)."""
+        """Omitting exclude_path preserves original behaviour."""
         mock_run.return_value = MagicMock(
             returncode=0,
             stdout=" M .agents/sessions/2026-08-03-session-0001.json\n",
@@ -255,30 +248,40 @@ class TestUncommittedChanges:
 
 class TestMainNormalizesExcludePathToRelative:
     """Integration: main() relpath's session_path for porcelain exclusion."""
-
-    @patch("complete_session_log.subprocess.run", return_value=MagicMock(returncode=0))
-    @patch("complete_session_log._run_rework_warning_step", return_value=("n", "n"))
-    @patch("complete_session_log._run_markdown_lint", return_value=(True, "ok"))
-    @patch("complete_session_log._test_serena_memory_updated", return_value=True)
-    @patch("complete_session_log._test_handoff_modified", return_value=False)
-    @patch("complete_session_log._get_ending_commit", return_value="abc1234")
-    @patch("complete_session_log._get_repo_root")
-    def test_exclude_path_is_repo_relative(self, mock_root, _1, _2, _3, _4, _5, _6, tmp_path):
+    def _run(self, tmp_path, *, relpath_se=None):
         sessions = tmp_path / ".agents" / "sessions"
         sessions.mkdir(parents=True)
         sf = sessions / "2026-08-06-session-1-test.json"
         TestMainReworkWarningShape._make_session_json(self, sf)
-        mock_root.return_value = str(tmp_path)
         captured: list[str | None] = []
-        with (
+        patches = [
+            patch("complete_session_log._get_repo_root", return_value=str(tmp_path)),
+            patch("complete_session_log._get_ending_commit", return_value="a1"),
+            patch("complete_session_log._test_handoff_modified", return_value=False),
+            patch("complete_session_log._test_serena_memory_updated", return_value=True),
+            patch("complete_session_log._run_markdown_lint", return_value=(True, "")),
+            patch("complete_session_log._run_rework_warning_step", return_value=("", "")),
+            patch("complete_session_log.subprocess.run", return_value=MagicMock(returncode=0)),
             patch("complete_session_log._test_uncommitted_changes",
                   side_effect=lambda exclude_path=None: (captured.append(exclude_path), False)[1]),
-            patch("complete_session_log.resolve_artifact_root", return_value=sessions),
-        ):
+            patch("complete_session_log.resolve_artifact_root", return_value=sessions)]
+        if relpath_se:
+            patches.append(patch("complete_session_log.os.path.relpath", side_effect=relpath_se))
+        with ExitStack() as s:
+            for p in patches:
+                s.enter_context(p)
             complete_session_log.main(["--session-path", str(sf)])
-        assert captured and not os.path.isabs(captured[0]), (
-            f"exclude_path must be repo-relative, got {captured}")
-        assert captured[0] == os.path.relpath(str(sf), str(tmp_path))
+        return captured[0] if captured else "NOT_CALLED"
+
+    def test_exclude_path_is_repo_relative(self, tmp_path):
+        got = self._run(tmp_path)
+        assert not os.path.isabs(got), f"must be relative, got {got!r}"
+        assert got == ".agents/sessions/2026-08-06-session-1-test.json"
+
+    def test_cross_drive_valueerror_yields_none(self, tmp_path):
+        """Windows cross-drive: relpath raises ValueError, exclude becomes None."""
+        got = self._run(tmp_path, relpath_se=ValueError("path is on mount 'D:'"))
+        assert got is None, f"cross-drive must yield None, got {got!r}"
 
 
 class TestPathContainment:

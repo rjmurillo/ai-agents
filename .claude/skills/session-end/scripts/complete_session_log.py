@@ -559,7 +559,16 @@ def main(argv: list[str] | None = None) -> int:
     # 5. changesCommitted
     # git-porcelain outputs repo-relative paths; session_path is absolute after
     # _validate_path_containment. Convert to relative so the exclusion matches.
-    _session_rel = os.path.relpath(session_path, repo_root)
+    # If session_path is on a different drive (Windows cross-drive) or outside
+    # the repo, relpath raises ValueError or yields a path starting with "..".
+    # In either case git porcelain cannot list the file, so no exclusion needed.
+    _session_rel: str | None = None
+    try:
+        candidate = os.path.relpath(session_path, repo_root)
+        if not candidate.startswith(".."):
+            _session_rel = candidate
+    except ValueError:
+        pass
     has_uncommitted = _test_uncommitted_changes(exclude_path=_session_rel)
     if "changesCommitted" in session_end:
         check = session_end["changesCommitted"]
