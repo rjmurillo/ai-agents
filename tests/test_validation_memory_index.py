@@ -559,6 +559,47 @@ class TestCheckMemoryIndexReferences:
         assert result.duplicate_references == ["shared"]
         assert any("P0 DUPLICATE" in issue for issue in result.issues)
 
+    def test_space_separated_links_count_as_duplicates(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| keywords | [one](shared.md) [two](shared.md) |\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is False
+        assert result.duplicate_references == ["shared"]
+
+    def test_unparsed_file_cell_content_rejected(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| keywords | prefix [entry](shared.md) |\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is False
+        assert any(
+            "unparsed content" in issue
+            for issue in result.issues
+        )
+
     def test_dot_alias_counts_as_same_target(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (

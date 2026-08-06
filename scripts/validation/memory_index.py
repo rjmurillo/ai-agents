@@ -235,9 +235,24 @@ def _extract_memory_reference_names(
             }
             if file_entry in skip_values or re.match(r"^-+$", file_entry):
                 continue
-            file_refs.extend(
-                f.strip() for f in file_entry.split(",") if f.strip()
+            link_matches = list(
+                _MARKDOWN_LINK_PATTERN.finditer(file_entry)
             )
+            if link_matches:
+                unparsed = _MARKDOWN_LINK_PATTERN.sub("", file_entry)
+                if unparsed.strip(" ,"):
+                    issues.append(
+                        "P1 VALIDITY: memory-index file cell contains "
+                        f"unparsed content: {file_entry!r}"
+                    )
+                file_refs.extend(
+                    link_match.group(0)
+                    for link_match in link_matches
+                )
+            else:
+                file_refs.extend(
+                    f.strip() for f in file_entry.split(",") if f.strip()
+                )
             continue
 
         stripped = line.strip()
