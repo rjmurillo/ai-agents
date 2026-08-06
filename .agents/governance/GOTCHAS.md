@@ -142,14 +142,19 @@ a presence check. `sessionEnd.changesCommitted` is a MUST, so it must be
 Complete. Complete requires `endingCommit` to be a non-empty ancestor of `HEAD`
 that differs from `startingCommit`. A log staged in the commit it describes
 cannot satisfy that, because the SHA does not exist until the commit succeeds.
-Every escape is separately blocked:
+Every escape either fails or warns:
 
 ```text
 endingCommit = <the new commit>   impossible, the SHA does not exist yet
 endingCommit = HEAD               "startingCommit and endingCommit are the same"
-endingCommit = ""                 "changesCommitted is complete but endingCommit is empty"
+endingCommit = ""                 WARNING (not a failure): validator warns but does not block
 changesCommitted.Complete = false "Incomplete MUST: sessionEnd.changesCommitted"
 ```
+
+Note: `validate_session_json.py` emits a warning (not an error) when
+`endingCommit` is empty with `changesCommitted` complete. The schema permits
+empty values. This means the empty-endingCommit path is not fully blocked
+by tooling today; the workaround in the next paragraph still applies.
 
 Point the log at commits that already exist. Set `endingCommit` to the session's
 most recent existing commit and `startingCommit` to that commit's parent, then
