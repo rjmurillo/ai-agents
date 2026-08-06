@@ -356,18 +356,20 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
 
     Uses ``git diff diff_base HEAD`` so the result reflects what the commit
     history changed, not the state of the working tree.
+
+    Raises
+    ------
+    subprocess.CalledProcessError
+        When git rejects *diff_base* (e.g. unknown revision).
     """
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--name-only", diff_base, "HEAD", "--"],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=repo_root,
-        )
-        return {f.strip() for f in result.stdout.strip().split("\n") if f.strip()}
-    except subprocess.CalledProcessError:
-        return set()
+    result = subprocess.run(
+        ["git", "diff", "--name-only", diff_base, "HEAD", "--"],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=repo_root,
+    )
+    return {f.strip() for f in result.stdout.strip().split("\n") if f.strip()}
 
 
 def run_assessment(
@@ -1012,7 +1014,15 @@ def main(argv: list[str] | None = None) -> int:
     # Phase 1: Assessment
     if 1 in phases or 2 in phases or 3 in phases:
         print("Phase 1: Assessment...", file=sys.stderr)
-        assessment = run_assessment(target, diff_base=args.diff_base)
+        try:
+            assessment = run_assessment(target, diff_base=args.diff_base)
+        except subprocess.CalledProcessError as exc:
+            print(
+                f"ERROR: --diff-base '{args.diff_base}' rejected by git "
+                f"(exit {exc.returncode}): {exc.stderr or exc.stdout or ''}".rstrip(),
+                file=sys.stderr,
+            )
+            return 1
         (output_dir / "assessment.json").write_text(
             json.dumps(assessment, indent=2), encoding="utf-8"
         )

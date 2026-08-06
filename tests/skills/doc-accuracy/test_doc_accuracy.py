@@ -371,14 +371,33 @@ class TestGetChangedFiles:
             "git", "diff", "--name-only", "origin/main", "HEAD", "--",
         ]
 
-    def test_returns_empty_set_when_git_rejects_base(self, tmp_path: Path) -> None:
-        with patch.object(
-            subprocess,
-            "run",
-            side_effect=subprocess.CalledProcessError(128, "git"),
-        ):
-            result = _get_changed_files("missing-base", tmp_path)
+    def test_invalid_diff_base_exits_1(self, tmp_path: Path) -> None:
+        """Invalid --diff-base must exit 1, not silently pass (#4586)."""
+        subprocess.run(
+            ["git", "init", str(tmp_path)],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit",
+             "--allow-empty", "-m", "init"],
+            check=True, capture_output=True,
+            env={**__import__("os").environ, "GIT_AUTHOR_NAME": "t",
+                 "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
+                 "GIT_COMMITTER_EMAIL": "t@t"},
+        )
+        exit_code = main([
+            "--target", str(tmp_path),
+            "--diff-base", "no-such-ref",
+            "--phases", "1",
+        ])
+        assert exit_code == 1
 
+    def test_valid_empty_diff_returns_empty_set(self, tmp_path: Path) -> None:
+        """Valid diff-base with no changed files returns empty set, not error."""
+        git_result = MagicMock()
+        git_result.stdout = "\n"
+        with patch.object(subprocess, "run", return_value=git_result):
+            result = _get_changed_files("HEAD", tmp_path)
         assert result == set()
 
     def test_ignores_blank_diff_lines(self, tmp_path: Path) -> None:
