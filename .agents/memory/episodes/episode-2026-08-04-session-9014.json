@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-04-session-9014",
+  "session": "2026-08-04-session-9014",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix session-init/end deadlock (#4425), memory-index token drift check (#4441), rework warning merge-commit inflation and evidence cap (#4469), close prose files_changed regression (#4416)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T01:03:01+00:00",
+      "type": "commit",
+      "content": "Commit: d32301338",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9014"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
