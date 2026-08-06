@@ -334,7 +334,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # The budget gate above checks a ceiling; this gate checks the exact figures
     # (byte counts, file counts, multipliers) stated in the doctrine doc, so a
     # rule growing by 400 bytes surfaces locally in under 0.5 seconds instead of
-    # 17 minutes later in CI. Issue #4546.
+    # 17 minutes later in CI. Issue #4285.
     _Gate("Always-on Corpus Claims", _root_only(validate_always_on_corpus_claims)),
 )
 

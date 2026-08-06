@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.validation.checks_tooling import validate_always_on_corpus_claims
 from scripts.validation.pre_pr import (
     ValidationState,
     _find_latest_session_log,
@@ -28,6 +29,16 @@ def _sequence_with_passing_doc_interpreter() -> tuple[Any, ...]:
     return tuple(
         replace(gate, run=lambda _repo_root, _args: True)
         if gate.name == "Documented Interpreter Portability"
+        else gate
+        for gate in sequence
+    )
+
+
+def _sequence_with_failing_python_syntax() -> tuple[Any, ...]:
+    sequence = run_all_validations.__globals__["_SEQUENCE"]
+    return tuple(
+        replace(gate, run=lambda _repo_root, _args: False)
+        if gate.name == "Python Syntax (compile gate)"
         else gate
         for gate in sequence
     )
@@ -346,19 +357,23 @@ class TestHookModeBanner:
         captured = capsys.readouterr()
         assert "Ready to create pull request!" in captured.out
 
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_failing_python_syntax,
+    )
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_hook_mode_failure_does_not_print_either_banner(
-        self, mock_which: Any, mock_run: Any, capsys: pytest.CaptureFixture[str]
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
         """A failing run in hook mode must not print either banner."""
-        # First call (Python syntax) fails; rest pass.
-        mock_run.side_effect = [
-            type("R", (), {"returncode": 1, "stdout": "error", "stderr": ""})(),
-        ] + [
-            type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
-            for _ in range(100)
-        ]
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = ""
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {"SKIP_AUTOFIX": "1"}):
@@ -368,3 +383,11 @@ class TestHookModeBanner:
         captured = capsys.readouterr()
         assert "Ready to create pull request!" not in captured.out
         assert "sibling hook jobs" not in captured.out
+
+
+def test_always_on_corpus_claims_skips_without_test_tree(tmp_path: Path) -> None:
+    (tmp_path / ".github" / "instructions").mkdir(parents=True)
+    missing_script_skip = validate_always_on_corpus_claims.__globals__["MissingScriptSkip"]
+
+    with pytest.raises(missing_script_skip, match="no corpus claim test to run"):
+        validate_always_on_corpus_claims(tmp_path)

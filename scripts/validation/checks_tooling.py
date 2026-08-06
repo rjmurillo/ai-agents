@@ -499,6 +499,12 @@ def validate_always_on_corpus_claims(repo_root: Path) -> bool:
         raise MissingScriptSkip(
             ".github/instructions not present (downstream install); no corpus to check"
         )
+    test_path = repo_root / "tests" / "validation" / "test_always_on_corpus_claims.py"
+    if not test_path.is_file():
+        raise MissingScriptSkip(
+            "tests/validation/test_always_on_corpus_claims.py not present; "
+            "no corpus claim test to run"
+        )
     exit_code, stdout, stderr = _run_subprocess(
         [
             sys.executable,
