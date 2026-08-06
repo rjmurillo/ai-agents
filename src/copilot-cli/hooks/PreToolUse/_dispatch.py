@@ -12,6 +12,20 @@ import sys
 from pathlib import Path, PureWindowsPath
 from typing import cast
 
+# Version check: degrade gracefully on interpreters below the supported floor.
+# This runs inside the already-started Python process (no extra subprocess).
+# Python 3.7+ can parse this file; older versions fail at `from __future__`.
+if sys.version_info < (3, 10):
+    _v = ".".join(str(x) for x in sys.version_info[:3])
+    print(
+        "project-toolkit@ai-agents WARNING: hooks DISABLED (your session is "
+        "unaffected). Python >= 3.10 "
+        "required but Python " + _v + " found. "
+        "Upgrade: https://www.python.org/downloads/",
+        file=sys.stderr,
+    )
+    sys.exit(0)
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _bootstrap import ensure_plugin_paths  # noqa: E402

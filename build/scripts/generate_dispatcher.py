@@ -81,43 +81,70 @@ _WARN_PREFIX = "project-toolkit@ai-agents WARNING: hooks DISABLED (your session 
 
 _BASH_TEMPLATE = (
     '_ptr="${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT}}}}"; '
-    '_warn="project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected)."; '
+    '_warn="project-toolkit@ai-agents WARNING: hooks DISABLED '
+    '(your session is unaffected)."; '
     'if [ -z "$_ptr" ]; then '
-    'echo "$_warn Plugin root unresolvable (COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT both empty). '
-    'Reinstall the plugin: copilot plugin install project-toolkit@ai-agents" >&2; exit 0; fi; '
+    'echo "$_warn Plugin root unresolvable (COPILOT_PLUGIN_ROOT and '
+    'CLAUDE_PLUGIN_ROOT both empty). '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
+    'exit 0; fi; '
+    'if [ ! -d "$_ptr" ]; then '
+    'echo "$_warn Plugin root is not a directory: $_ptr. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
+    'exit 0; fi; '
     '_interp="python3"; '
     'if ! command -v "$_interp" >/dev/null 2>&1; then _interp="python"; fi; '
     'if ! command -v "$_interp" >/dev/null 2>&1; then '
     'echo "$_warn No Python interpreter found. '
-    'Install Python >= {min_maj}.{min_min}: https://www.python.org/downloads/" >&2; exit 0; fi; '
-    'if ! "$_interp" -c "import sys; sys.exit(0 if sys.version_info >= ({min_maj},{min_min}) else 1)" 2>/dev/null; then '
-    'echo "$_warn Python >= {min_maj}.{min_min} required but $(\"$_interp\" --version 2>&1) found. '
-    'Upgrade: https://www.python.org/downloads/" >&2; exit 0; fi; '
-    '"$_interp" -u "$_ptr/hooks/{event}/_dispatch.py"'
+    'Install Python >= {min_maj}.{min_min}: '
+    'https://www.python.org/downloads/" >&2; exit 0; fi; '
+    'if [ ! -r "$_ptr/hooks/{event}/_dispatch.py" ]; then '
+    'echo "$_warn Dispatcher missing or unreadable: '
+    '$_ptr/hooks/{event}/_dispatch.py. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
+    'exit 0; fi; '
+    '"$_interp" -u "$_ptr/hooks/{event}/_dispatch.py"; _rc=$?; '
+    'if [ $_rc -eq 126 ] || [ $_rc -eq 127 ]; then '
+    'echo "$_warn Python interpreter failed to start ($_interp, exit $_rc). '
+    'Install Python >= {min_maj}.{min_min}: '
+    'https://www.python.org/downloads/" >&2; exit 0; fi; '
+    'exit $_rc'
 )
 _PWSH_TEMPLATE = (
     '$_ptr = if ($env:COPILOT_PLUGIN_ROOT) {{ $env:COPILOT_PLUGIN_ROOT }} '
-    'elseif ($env:CLAUDE_PLUGIN_ROOT) {{ $env:CLAUDE_PLUGIN_ROOT }} else {{ $null }}; '
-    '$_warn = "project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected)."; '
+    'elseif ($env:CLAUDE_PLUGIN_ROOT) {{ $env:CLAUDE_PLUGIN_ROOT }} '
+    'else {{ $null }}; '
+    '$_warn = "project-toolkit@ai-agents WARNING: hooks DISABLED '
+    '(your session is unaffected)."; '
     'if (-not $_ptr) {{ '
-    'Write-Host "$_warn Plugin root unresolvable (COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT both empty). '
-    'Reinstall the plugin: copilot plugin install project-toolkit@ai-agents" -ForegroundColor Yellow; '
-    'exit 0 }}; '
+    'Write-Host "$_warn Plugin root unresolvable (COPILOT_PLUGIN_ROOT and '
+    'CLAUDE_PLUGIN_ROOT both empty). '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents" '
+    '-ForegroundColor Yellow; exit 0 }}; '
+    'if (-not (Test-Path $_ptr -PathType Container)) {{ '
+    'Write-Host "$_warn Plugin root is not a directory: $_ptr. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents" '
+    '-ForegroundColor Yellow; exit 0 }}; '
     '$_interp = $null; '
     'foreach ($c in @("py","python3","python")) {{ '
-    'if (Get-Command $c -ErrorAction SilentlyContinue) {{ $_interp = $c; break }} }}; '
+    'if (Get-Command $c -ErrorAction SilentlyContinue) '
+    '{{ $_interp = $c; break }} }}; '
     'if (-not $_interp) {{ '
     'Write-Host "$_warn No Python interpreter found. '
-    'Install Python >= {min_maj}.{min_min}: https://www.python.org/downloads/" -ForegroundColor Yellow; '
-    'exit 0 }}; '
-    '$_ver = & $_interp -c "import sys; print(sys.version_info[0],sys.version_info[1])" 2>$null; '
-    'if ($_ver) {{ $parts = $_ver.Split(\" \"); '
-    'if ([int]$parts[0] -lt {min_maj} -or ([int]$parts[0] -eq {min_maj} -and [int]$parts[1] -lt {min_min})) {{ '
-    '$_pv = & $_interp --version 2>&1; '
-    'Write-Host "$_warn Python >= {min_maj}.{min_min} required but $_pv found. '
-    'Upgrade: https://www.python.org/downloads/" -ForegroundColor Yellow; '
-    'exit 0 }} }}; '
-    '& $_interp -u "$_ptr/hooks/{event}/_dispatch.py"'
+    'Install Python >= {min_maj}.{min_min}: '
+    'https://www.python.org/downloads/" -ForegroundColor Yellow; exit 0 }}; '
+    '$_script = "$_ptr/hooks/{event}/_dispatch.py"; '
+    'if (-not (Test-Path $_script)) {{ '
+    'Write-Host "$_warn Dispatcher missing: $_script. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents" '
+    '-ForegroundColor Yellow; exit 0 }}; '
+    '& $_interp -u "$_script"; '
+    'if ($LASTEXITCODE -eq 126 -or $LASTEXITCODE -eq 127) {{ '
+    'Write-Host "$_warn Python interpreter failed to start '
+    '($_interp, exit $LASTEXITCODE). '
+    'Install Python >= {min_maj}.{min_min}: '
+    'https://www.python.org/downloads/" -ForegroundColor Yellow; exit 0 }}; '
+    'exit $LASTEXITCODE'
 )
 
 _ENTRYPOINT = """\
@@ -134,6 +161,20 @@ import json
 import sys
 from pathlib import Path, PureWindowsPath
 from typing import cast
+
+# Version check: degrade gracefully on interpreters below the supported floor.
+# This runs inside the already-started Python process (no extra subprocess).
+# Python 3.7+ can parse this file; older versions fail at `from __future__`.
+if sys.version_info < (__MIN_PYTHON_MAJOR__, __MIN_PYTHON_MINOR__):
+    _v = ".".join(str(x) for x in sys.version_info[:3])
+    print(
+        "project-toolkit@ai-agents WARNING: hooks DISABLED (your session is "
+        "unaffected). Python >= __MIN_PYTHON_MAJOR__.__MIN_PYTHON_MINOR__ "
+        "required but Python " + _v + " found. "
+        "Upgrade: https://www.python.org/downloads/",
+        file=sys.stderr,
+    )
+    sys.exit(0)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -381,6 +422,8 @@ def _main() -> int:
 sys.exit(_main())
 """
 _ENTRYPOINT = _ENTRYPOINT.replace("__HOOK_STDIN_CEILING_MIB__", str(HOOK_STDIN_CEILING_MIB))
+_ENTRYPOINT = _ENTRYPOINT.replace("__MIN_PYTHON_MAJOR__", str(_MIN_PYTHON_MAJOR))
+_ENTRYPOINT = _ENTRYPOINT.replace("__MIN_PYTHON_MINOR__", str(_MIN_PYTHON_MINOR))
 
 
 def dispatcher_entry(event: str, timeout_sec: int, matcher: str | None = None) -> dict[str, Any]:
@@ -395,9 +438,13 @@ def dispatcher_entry(event: str, timeout_sec: int, matcher: str | None = None) -
     dispatcher's in-process filtering (unchanged).
     """
     entry: dict[str, Any] = {
-        "bash": _BASH_TEMPLATE.format(event=event, min_maj=_MIN_PYTHON_MAJOR, min_min=_MIN_PYTHON_MINOR),
+        "bash": _BASH_TEMPLATE.format(
+            event=event, min_maj=_MIN_PYTHON_MAJOR, min_min=_MIN_PYTHON_MINOR
+        ),
         "cwd": ".",
-        "powershell": _PWSH_TEMPLATE.format(event=event, min_maj=_MIN_PYTHON_MAJOR, min_min=_MIN_PYTHON_MINOR),
+        "powershell": _PWSH_TEMPLATE.format(
+            event=event, min_maj=_MIN_PYTHON_MAJOR, min_min=_MIN_PYTHON_MINOR
+        ),
         "timeoutSec": timeout_sec,
         "type": "command",
     }
