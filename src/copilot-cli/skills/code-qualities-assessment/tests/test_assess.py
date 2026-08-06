@@ -52,6 +52,7 @@ generate_json_report = _mod.generate_json_report
 generate_markdown_report = _mod.generate_markdown_report
 load_config = _mod.load_config
 _parse_changed_files = _mod._parse_changed_files
+_match_path_glob = _mod._match_path_glob
 _resolve_target_path = _mod._resolve_target_path
 parse_args = _mod.parse_args
 
@@ -551,6 +552,25 @@ def test_base_glob_does_not_cross_directory_boundaries(
     monkeypatch.chdir(tmp_path)
 
     assert main(["--target", "src/*.py", *_regression_argv()[2:]]) == 1
+
+
+@pytest.mark.parametrize(
+    ("path", "pattern", "expected"),
+    [
+        ("a.py", "*.py", True),
+        ("nested/a.py", "*.py", False),
+        ("src/a.py", "src/*.py", True),
+        ("src/nested/a.py", "src/*.py", False),
+        ("src/a.py", "src/**/*.py", True),
+        ("src/nested/a.py", "src/**/*.py", True),
+    ],
+)
+def test_path_glob_is_rooted_and_segment_aware(
+    path: str,
+    pattern: str,
+    expected: bool,
+) -> None:
+    assert _match_path_glob(path, pattern) is expected
 
 
 def test_changed_only_resolves_glob_once(

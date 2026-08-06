@@ -28,7 +28,7 @@ import math
 import re
 import sys
 from dataclasses import asdict, dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any
 
 # Language detection by file suffix. Only languages with tuned heuristics are
@@ -639,9 +639,34 @@ def _target_exists_at_revision(target: str, revision: str) -> bool:
         raise RuntimeError(f"git ls-tree failed for target validation at {revision}")
     names = result.stdout.splitlines()
     if any(character in relative_target for character in "*?["):
-        return any(PurePosixPath(name).match(relative_target) for name in names)
+        return any(_match_path_glob(name, relative_target) for name in names)
     prefix = relative_target.rstrip("/")
     return any(name == prefix or name.startswith(f"{prefix}/") for name in names)
+
+
+def _match_path_glob(path: str, pattern: str) -> bool:
+    """Match a root-anchored glob where ``**`` spans zero or more segments."""
+    import fnmatch
+
+    path_parts = tuple(part for part in path.split("/") if part)
+    pattern_parts = tuple(part for part in pattern.split("/") if part)
+
+    def matches(path_index: int, pattern_index: int) -> bool:
+        if pattern_index == len(pattern_parts):
+            return path_index == len(path_parts)
+        part = pattern_parts[pattern_index]
+        if part == "**":
+            return matches(path_index, pattern_index + 1) or (
+                path_index < len(path_parts)
+                and matches(path_index + 1, pattern_index)
+            )
+        return (
+            path_index < len(path_parts)
+            and fnmatch.fnmatchcase(path_parts[path_index], part)
+            and matches(path_index + 1, pattern_index + 1)
+        )
+
+    return matches(0, 0)
 
 
 def _target_is_known(
