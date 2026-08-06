@@ -100,11 +100,15 @@ def main(argv: list[str] | None = None) -> int:
         write_log(f"{agent.capitalize()} category: {categories[agent]}")
 
     code_quality_failures = any(cat == "CODE_QUALITY" for cat in categories.values())
+    security_review_ran = categories.get("security") != "INFRASTRUCTURE"
 
     final = merge_verdicts([verdicts[agent] for agent in _AGENTS])
     write_log(f"Final verdict: {final}")
 
-    if final in ATTENTION_VERDICTS and not code_quality_failures:
+    if not security_review_ran and not code_quality_failures:
+        write_log("Security review did not run - forcing DID_NOT_RUN")
+        final = "DID_NOT_RUN"
+    elif final in ATTENTION_VERDICTS and not code_quality_failures:
         write_log("All failures are INFRASTRUCTURE - downgrading to WARN")
         final = "WARN"
 
@@ -112,7 +116,6 @@ def main(argv: list[str] | None = None) -> int:
     # review that never ran must not be indistinguishable from one that
     # passed. Surface a distinct annotation and a dedicated output so the PR
     # comment and downstream tooling can render a non-ignorable notice.
-    security_review_ran = categories.get("security") != "INFRASTRUCTURE"
     if not security_review_ran:
         write_log("Security review did not run (infrastructure failure)")
         print(

@@ -140,7 +140,7 @@ class TestMain:
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "WARN"
 
-    def test_security_infra_failure_downgrades_to_warn_with_notice(self, tmp_path, monkeypatch):
+    def test_security_infra_failure_forces_did_not_run(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
         verdicts = {a: "PASS" for a in _AGENTS}
         verdicts["security"] = "CRITICAL_FAIL"
@@ -149,22 +149,25 @@ class TestMain:
         rc = main(_make_argv(verdicts, infra))
         assert rc == 0
         outputs = _read_outputs(output_file)
-        assert outputs["final_verdict"] == "WARN"
+        assert outputs["final_verdict"] == "DID_NOT_RUN"
         assert outputs["security_review_ran"] == "false"
 
-    def test_did_not_run_infra_failures_downgrade_to_warn(self, tmp_path, monkeypatch):
+    def test_did_not_run_security_infra_forces_did_not_run(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
-        verdicts = {a: "DID_NOT_RUN" for a in _AGENTS}
-        verdicts["qa"] = "PASS"
-        infra = {a: "true" for a in _AGENTS}
-        infra["qa"] = "false"
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["qa"] = "NEEDS_REVIEW"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+        infra["qa"] = "true"
 
         rc = main(_make_argv(verdicts, infra))
 
         assert rc == 0
         outputs = _read_outputs(output_file)
-        assert outputs["final_verdict"] == "WARN"
+        assert outputs["final_verdict"] == "DID_NOT_RUN"
         assert outputs["security_category"] == "INFRASTRUCTURE"
+        assert outputs["qa_category"] == "INFRASTRUCTURE"
         assert outputs["security_review_ran"] == "false"
 
     def test_outputs_per_agent_verdicts_and_categories(self, tmp_path, monkeypatch):
@@ -254,7 +257,7 @@ class TestSecurityReviewRan:
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["security_review_ran"] == "false"
-        assert outputs["final_verdict"] == "WARN"
+        assert outputs["final_verdict"] == "DID_NOT_RUN"
         captured = capsys.readouterr()
         assert "::warning title=Security review did not run::" in captured.out
 
