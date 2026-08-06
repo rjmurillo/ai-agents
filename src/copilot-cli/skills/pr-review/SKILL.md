@@ -14,8 +14,8 @@ Respond to PR review comments for: the problem statement from the conversation (
 
 Load configuration from `pr-review-config.yaml` for scripts, completion criteria,
 error recovery, and failure handling tables. In this repository it lives at
-`.claude/commands/pr-review-config.yaml`; installed Copilot CLI plugins resolve
-the bundled `commands/pr-review-config.yaml`.
+`.claude/commands/pr-review-config.yaml`. The bundled Copilot CLI copy is a
+reference artifact, not a runnable completion-gate config.
 
 ## Context
 
