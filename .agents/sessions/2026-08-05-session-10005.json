@@ -223,9 +223,73 @@
     {
       "step": "verify",
       "evidence": "Full suite: 23809 passed, 33 skipped, 2 warnings in 657.65s. taste count ratchet: OK, count == baseline 583. memory index count ratchet: OK, 424 violations <= baseline 425."
+    },
+    {
+      "step": "review",
+      "evidence": "Round 6 adversarial review, Gemini 3.1 Pro via rubber-duck, 49 tool calls. Three findings: one Critical, one High, one Medium. Each was reproduced independently against real git before any code changed; none was accepted on the reviewer's framing."
+    },
+    {
+      "step": "reproduce",
+      "evidence": "Critical confirmed end to end in ~/src/scratch/r6/repo. git merge --no-commit --no-ff against a commit-tree parent whose tree matches HEAD leaves git status --porcelain empty and HEAD unmoved, and commit-tree writes no reflog entry. build_report answered remove=True reason 'merged to base', apply_removals removed with zero errors, git fsck --unreachable then listed dcacc6148bc69eaa8ae1c56775ff58f3c47142d0. The commit was orphaned."
+    },
+    {
+      "step": "reproduce",
+      "evidence": "High confirmed in ~/src/scratch/r6b. With an index holding only unmerged stages, git checkout-index -a --prefix=OUT/ exits 0, writes no files, and does not create OUT. The full printed chain then died at cp with 'No such file or directory' and recovered 0 entries, in exactly the case the cp existed to serve."
+    },
+    {
+      "step": "diagnose",
+      "evidence": "The test that should have caught the High substituted pytest's tmp_path for the RECOVERY_DIR placeholder. tmp_path is created by the fixture, so the fixture supplied the precondition the command was required to establish and the test passed against a command that could not work."
+    },
+    {
+      "step": "implement",
+      "evidence": "Commit 9ae701d3e. Recovery chain is now 'mkdir -p RECOVERY_DIR && GIT_INDEX_FILE=<q> git -C <q repo> checkout-index ... && cp <q> RECOVERY_DIR/index'. command_of in tests/gc_real_git.py replaces five copies of the same slice-and-substitute block and asserts the substituted path does not exist. Tests now run the chain from outside any repository."
+    },
+    {
+      "step": "verify",
+      "evidence": "Revert-proof on 9ae701d3e: dropping the mkdir fails 3 tests, dropping git -C fails 3 tests, restored 8 pass."
+    },
+    {
+      "step": "implement",
+      "evidence": "Commit 87aa7499a. _gc_stale.in_progress_operation reads MERGE_HEAD, CHERRY_PICK_HEAD, REVERT_HEAD, BISECT_LOG, rebase-merge, rebase-apply, sequencer from the admin directory named by the checkout's own .git marker. Two file reads, no subprocess, because the decision path's time budget already carries three git calls."
+    },
+    {
+      "step": "verify",
+      "evidence": "Revert-proof on 87aa7499a: making the probe answer None fails 9 tests, dropping only the decision-path wiring fails the merge reproduction, restored 14 pass. tests/test_gc_worktrees_real_git_operations.py also pins admin_dir_from_marker against git rev-parse --absolute-git-dir, so the marker tests cannot pass against a directory git never reads."
+    },
+    {
+      "step": "reproduce",
+      "evidence": "Medium confirmed in ~/src/scratch/r6c. git worktree remove deletes a worktree carrying index.lock, exits 0, prints nothing."
+    },
+    {
+      "step": "implement",
+      "evidence": "Commit 25fd4bdaf. index.lock rides in the same marker tuple at no extra cost. The commit message states plainly that this narrows rather than closes the race. The test asserts git's current behaviour so a future git that honours the lock reports the guard as redundant."
+    },
+    {
+      "step": "implement",
+      "evidence": "Commit 4fc61e053. .claude/rules/testing.md MUST 12 forbids a test whose fixture supplies the precondition the code under test must establish. Both generated mirrors regenerated with build/scripts/generate_rules.py. Two memories written and indexed in skills-git-index.md in the same change. No plugin manifest bump: ADR-092 removed the version key, confirmed absent from both manifests and both marketplace files."
+    },
+    {
+      "step": "diagnose",
+      "evidence": "Own finding, not the reviewer's: revalidate re-runs decide so an operation started before the recheck drops the candidate, but one started between the recheck and a candidate's own removal is seen by neither per-candidate check. A --no-commit merge moves no HEAD and writes no reflog entry."
+    },
+    {
+      "step": "implement",
+      "evidence": "Commit 151744601. The probe runs per candidate in _gc_apply's removal loop. The test starts the merge from inside the existing apply-window hook, which fires after revalidate returns. Revert-proof: dropping the probe fails that test; a negative control asserts an untouched candidate is still removed."
+    },
+    {
+      "step": "implement",
+      "evidence": "Commit 339cbd7b8. The probe moved into removable(), the single site constructing a remove=True Decision, so no reordering of the checks above can bypass it. It also runs less often, since removable is reached only by candidates. Revert-proof: 2 failures."
+    },
+    {
+      "step": "verify",
+      "evidence": "Relative gitdir markers checked against the probe in ~/src/scratch/r7me. git 2.43.0 writes absolute paths even with worktree.useRelativePaths true, that config landed in 2.48, so the relative form was written by hand and git rev-parse --absolute-git-dir confirmed it resolves. The probe still reported the suspended merge."
+    },
+    {
+      "step": "verify",
+      "evidence": "Full suite 23826 passed, 33 skipped, 3 warnings in 668.66s at 4fc61e053. All 119 gc tests pass at 339cbd7b8. taste count ratchet OK, count == baseline 583. memory index count ratchet OK, 424 <= baseline 425."
     }
   ],
-  "endingCommit": "aaefc7b9c",
+  "endingCommit": "339cbd7b8",
   "nextSteps": [
     "Open the PR stacked on #4694 rather than waiting for it to merge; rebase onto main after #4694 lands",
     "Return to branch A, the reachability memory fix, which is still unpushed",
