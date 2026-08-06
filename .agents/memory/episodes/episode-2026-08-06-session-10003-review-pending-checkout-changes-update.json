@@ -14,7 +14,7 @@
       "content": "Correct generated episode file count",
       "caused_by": [],
       "leads_to": [
-        "e003"
+        "e004"
       ],
       "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
     },
@@ -25,18 +25,30 @@
       "content": "Diagnose session commit failure",
       "caused_by": [],
       "leads_to": [
-        "e003"
+        "e004"
       ],
       "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
     },
     {
       "id": "e003",
-      "timestamp": "2026-08-06T05:52:30+00:00",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolve Sol record-integrity findings",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-06T07:35:46+00:00",
       "type": "commit",
-      "content": "Commit: c23d39989",
+      "content": "Commit: d3035b6e4faf227b02ddfb5a1d857bf1c71b7c5e",
       "caused_by": [
         "e001",
-        "e002"
+        "e002",
+        "e003"
       ],
       "leads_to": [],
       "_source_session": "2026-08-06-session-10003-review-pending-checkout-changes-update"
@@ -48,7 +60,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 3
+    "files_changed": 14
   },
   "lessons": []
 }

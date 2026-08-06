@@ -32,7 +32,11 @@ Regenerate the episode from the renamed log. Do not rename the episode by hand.
 Each event also carries `_source_session`, which the extractor uses for
 cross-session deduplication.
 
-`new_session_log.py` already prevents this. `_auto_detect_session_number` takes the max of the local working-tree scan and the numbers on `origin/main` specifically so parallel branches do not reuse a number. Bypassing it is what creates the collision.
+`new_session_log.py` prevents reuse visible in the current working tree or on
+`origin/main`. It cannot see a concurrent unmerged branch in another worktree,
+so two agents can still allocate the same next number. The suffix keeps episode
+filenames distinct when objectives differ, but numeric uniqueness requires a
+shared atomic reservation or a collision-resistant identifier.
 
 ## The Solution
 

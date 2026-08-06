@@ -167,6 +167,15 @@
       "detail": "main carried .agents/sessions/2026-08-05-session-9999.json for branch fix/4519-4520-coupling-diffbase while this branch carried a different session under the same name. Different sessions, not a diverged one, so merging the workLogs would have falsified both records. Kept main copy at 9999 and re-filed this session as session-2."
     }
   ],
+  "episodeMetrics": {
+    "filesChanged": 10,
+    "comparison": {
+      "kind": "githubPullRequest",
+      "pullRequest": 4616,
+      "base": "4ce088f082f4e2ba82975b8918564b8dfd2b1d60",
+      "head": "afae287fab7082cea2d0d565ba5278a6bd2a86fd"
+    }
+  },
   "endingCommit": "f1a805fc531ea17aa62517c39ba7deedf30f091a",
   "nextSteps": []
 }

@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Episode correction and session log staged for one atomic commit; issue #4425 documents the pre-commit ordering constraint"
+        "Evidence": "Extractor fix committed as d3035b6e4faf227b02ddfb5a1d857bf1c71b7c5e"
       },
       "validationPassed": {
         "level": "MUST",
@@ -121,9 +121,21 @@
     {
       "task": "Diagnose session commit failure",
       "outcome": "Confirmed singular session hook bypasses the creation-mode fix and added measured evidence to issue #4425"
+    },
+    {
+      "task": "Resolve Sol record-integrity findings",
+      "outcome": "Added authoritative episode metrics, regeneration tests, generated mirror, and corrected the allocator claim"
     }
   ],
-  "endingCommit": "c23d39989",
+  "episodeMetrics": {
+    "filesChanged": 14,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "f19336728",
+      "head": "d3035b6e4faf227b02ddfb5a1d857bf1c71b7c5e"
+    }
+  },
+  "endingCommit": "d3035b6e4faf227b02ddfb5a1d857bf1c71b7c5e",
   "nextSteps": [
     "Push PR #4616 branch and apply corrected PR body",
     "Resolve PR #4616 review threads",
