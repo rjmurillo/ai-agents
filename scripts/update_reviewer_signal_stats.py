@@ -150,6 +150,28 @@ class SignalStats:
 # ---------------------------------------------------------------------------
 
 
+
+def _is_same_actor(
+    login_a: str,
+    id_a: int | None,
+    login_b: str,
+    id_b: int | None,
+) -> bool:
+    """Return True only when identity is authoritative on both sides.
+
+    Two empty/unknown logins must NOT be treated as the same actor;
+    that would silently discard comments from anonymous or null-login
+    API responses.
+    """
+    # If both have numeric IDs, those are authoritative.
+    if id_a is not None and id_b is not None:
+        return id_a == id_b
+    # Fall back to login comparison, but only when both are non-empty.
+    if login_a and login_b:
+        return login_a == login_b
+    return False
+
+
 def get_comments_by_reviewer(
     prs: list[dict[str, Any]],
 ) -> dict[str, ReviewerStats]:
@@ -171,9 +193,10 @@ def get_comments_by_reviewer(
         # under several logins, so a raw-login key counts it as several
         # reviewers in the committed statistics (issue #4378).
         pr_author_data = pr.get("author") or {}
+        pr_author_id: int | None = pr_author_data.get("databaseId")  # int | None
         pr_author = canonicalize_login(
             (pr_author_data.get("login") or ""),
-            pr_author_data.get("databaseId")  # int | None,
+            pr_author_id,
         )
 
         threads = pr.get("reviewThreads", {}).get("nodes", [])
@@ -190,8 +213,13 @@ def get_comments_by_reviewer(
                     comment_author_id,
                 )
 
-                # Skip self-comments (reviewer commenting on their own PR)
-                if comment_author == pr_author:
+                # Skip self-comments (reviewer commenting on their own PR).
+                # Only exclude when identity is authoritative: a non-empty
+                # login matches, or both sides carry an ID that matches.
+                # Two empty/unknown logins must NOT be treated as equal.
+                if _is_same_actor(
+                    pr_author, pr_author_id, comment_author, comment_author_id
+                ):
                     continue
 
                 if comment_author not in reviewer_stats:

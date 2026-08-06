@@ -253,6 +253,78 @@ class TestCommentsByReviewer:
         result = get_comments_by_reviewer(prs)
         assert "author1" not in result
 
+    def test_both_null_logins_retained_as_separate_actors(self) -> None:
+        """Two anonymous/null-login actors must NOT be collapsed as self."""
+        prs = [
+            {
+                "number": 99,
+                "author": {"login": None, "databaseId": None},
+                "reviewThreads": {
+                    "nodes": [
+                        {
+                            "isResolved": False,
+                            "isOutdated": False,
+                            "comments": {
+                                "nodes": [
+                                    {
+                                        "author": {"login": None, "databaseId": None},
+                                        "body": "anon comment",
+                                        "createdAt": "",
+                                        "path": "f.py",
+                                    }
+                                ]
+                            },
+                        }
+                    ]
+                },
+            }
+        ]
+        result = get_comments_by_reviewer(prs)
+        # The comment must be retained (not dropped as self-comment)
+        assert "" in result
+        assert result[""].total_comments == 1
+
+    def test_one_null_one_named_retained(self) -> None:
+        """A null-login PR author and a named commenter are different actors."""
+        prs = [
+            {
+                "number": 100,
+                "author": {"login": None, "databaseId": None},
+                "reviewThreads": {
+                    "nodes": [
+                        {
+                            "isResolved": False,
+                            "isOutdated": False,
+                            "comments": {
+                                "nodes": [
+                                    {
+                                        "author": {"login": "reviewer1", "databaseId": 42},
+                                        "body": "real review",
+                                        "createdAt": "",
+                                        "path": "g.py",
+                                    }
+                                ]
+                            },
+                        }
+                    ]
+                },
+            }
+        ]
+        result = get_comments_by_reviewer(prs)
+        assert "reviewer1" in result
+
+    def test_equal_non_empty_logins_excluded_as_self(self) -> None:
+        """Same non-empty login on both sides is a self-comment."""
+        prs = [_make_pr(1, "octocat", [("octocat", "Talking to myself")])]
+        result = get_comments_by_reviewer(prs)
+        assert "octocat" not in result
+
+    def test_different_non_empty_logins_retained(self) -> None:
+        """Different non-empty logins are separate actors."""
+        prs = [_make_pr(1, "alice", [("bob", "Good stuff")])]
+        result = get_comments_by_reviewer(prs)
+        assert "bob" in result
+
     def test_allows_cross_author_reviews(self) -> None:
         prs = [_make_pr(1, "someone", [("rjmurillo", "Review comment")])]
         result = get_comments_by_reviewer(prs)
