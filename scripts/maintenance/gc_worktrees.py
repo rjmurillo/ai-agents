@@ -260,14 +260,28 @@ def decide(
         return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
 
     def removable(reason: str) -> Decision:
-        """A removal, unless the entry's own reflog is the last anchor for work.
+        """A removal, unless something in the worktree is still anchoring work.
 
         Clean, merged, and fully pushed all describe the current HEAD. They say
         nothing about commits the worktree reached and left, which its own
-        reflog alone still names. Removing the entry deletes that reflog, so the
-        last question asked before proposing a removal is whether the removal is
-        provably lossless. An unreadable probe answers no.
+        reflog alone still names, and nothing about a suspended merge, rebase,
+        cherry-pick, revert, or bisect, whose pseudo-ref is the only thing
+        reaching the other side. Removing the entry deletes both. So the last
+        questions asked before proposing a removal are whether anything is
+        running here and whether the removal is provably lossless. An
+        unreadable probe answers no.
+
+        Both live here rather than earlier in ``decide`` because this is the
+        one place a ``remove=True`` is constructed, which makes them impossible
+        to bypass by reordering the checks above. The cost of that is a
+        worktree kept for another reason reporting that other reason instead;
+        the operation is only named when it would otherwise have been removed,
+        which is the case that matters.
         """
+        operation = _gc_stale.in_progress_operation(worktree.path)
+        if operation is not None:
+            reason = _gc_reasons.suspended_operation_reason(operation)
+            return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
         loss = _gc_reasons.reflog_only_work(worktree.path, main_path, _run_git)
         if not loss:
             return Decision(
@@ -304,17 +318,6 @@ def decide(
     try:
         if has_uncommitted_changes(worktree.path):
             return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_DIRTY)
-        operation = _gc_stale.in_progress_operation(worktree.path)
-        if operation is not None:
-            return Decision(
-                worktree.path,
-                worktree.branch,
-                remove=False,
-                reason=f"{operation} here. Clearing the entry deletes the admin "
-                "directory that holds it, along with any commit anchored only there. "
-                "Finish it, abort it, or clear a lock a crashed git left behind, "
-                "then re-run",
-            )
         merged = is_merged_to_base(worktree.path, base_ref)
         reason = "merged to base"
         if worktree.detached or worktree.branch is None:

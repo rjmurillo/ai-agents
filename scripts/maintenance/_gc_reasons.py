@@ -196,3 +196,12 @@ def stale_head_is_reachable(head: str | None, run_git: Callable[..., str]) -> bo
     except RuntimeError:
         return None
     return bool(found.strip())
+
+
+def suspended_operation_reason(operation: str) -> str:
+    """Why a worktree in the middle of a git operation is not safe to remove."""
+    return (
+        f"{operation} here. Clearing the entry deletes the admin directory that "
+        "holds it, along with any commit anchored only there. Finish it, abort "
+        "it, or clear a lock a crashed git left behind, then re-run"
+    )
