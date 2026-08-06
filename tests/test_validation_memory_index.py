@@ -16,6 +16,7 @@ import pytest
 from scripts.validation.memory_index import (
     DomainIndex,
     IndexEntry,
+    _load_base_reference_counts,
     build_parser,
     check_domain_prefix_naming,
     check_duplicate_entries,
@@ -467,6 +468,17 @@ class TestCheckMemoryIndexReferences:
         result = check_memory_index_references(tmp_path, indices, Counter())
         assert result.passed is False
         assert any("not found" in i for i in result.issues)
+
+    def test_option_like_base_ref_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        counts, error = _load_base_reference_counts(
+            tmp_path,
+            "--octopus",
+        )
+
+        assert counts is None
+        assert error == "invalid base ref: '--octopus'"
 
     def test_valid_references(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {

@@ -283,6 +283,9 @@ def _load_base_reference_counts(
     base_ref: str,
 ) -> tuple[Counter[str] | None, str | None]:
     """Read canonical memory-index counts from the merge base."""
+    if not base_ref or base_ref.startswith("-"):
+        return None, f"invalid base ref: {base_ref!r}"
+
     try:
         repo_root_result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -301,7 +304,7 @@ def _load_base_reference_counts(
         ).relative_to(repo_root).as_posix()
 
         merge_base_result = subprocess.run(
-            ["git", "merge-base", base_ref, "HEAD"],
+            ["git", "merge-base", "--", base_ref, "HEAD"],
             cwd=repo_root,
             text=True,
             encoding="utf-8",
@@ -312,6 +315,8 @@ def _load_base_reference_counts(
         if merge_base_result.returncode != 0:
             return None, f"could not resolve merge base for {base_ref}"
         merge_base = merge_base_result.stdout.strip()
+        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", merge_base):
+            return None, f"merge base for {base_ref} was not one commit ID"
 
         show_result = subprocess.run(
             ["git", "show", f"{merge_base}:{relative_index}"],
