@@ -49,6 +49,18 @@ main = _mod.main
 build_parser = _mod.build_parser
 
 
+def _review_threads_response(**overrides):
+    review_threads = {"totalCount": 0, "nodes": []}
+    review_threads.update(overrides)
+    return {"repository": {"pullRequest": {"reviewThreads": review_threads}}}
+
+
+@pytest.fixture(autouse=True)
+def _mock_review_threads():
+    with patch("get_pr_context.gh_graphql", return_value=_review_threads_response()):
+        yield
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -84,6 +96,10 @@ def _pr_data(**overrides):
         "deletions": 5,
         "changedFiles": 2,
         "mergeable": "MERGEABLE",
+        "statusCheckRollup": {
+            "state": "SUCCESS",
+            "contexts": {"totalCount": 2, "nodes": []},
+        },
         "mergedAt": None,
         "mergedBy": None,
         "createdAt": "2025-01-01T00:00:00Z",
@@ -186,6 +202,32 @@ class TestMainErrors:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
 
+    def test_missing_status_check_rollup_exits_3(self):
+        """Missing check rollup is an API failure, not an empty result."""
+        pr = json.loads(_pr_json())
+        pr.pop("statusCheckRollup")
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=json.dumps(pr), rc=0),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+    def test_review_threads_fetch_failure_exits_3(self):
+        """GraphQL review-thread failure is not reported as zero threads."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch("get_pr_context.gh_graphql", side_effect=RuntimeError("rate limit")),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
     def test_api_failure_uses_stdout_when_stderr_empty(self):
         """When stderr is empty, error message falls back to stdout."""
         auth_patch, repo_patch = _patch_auth_and_repo()
@@ -238,6 +280,10 @@ class TestMainSuccess:
         assert isinstance(data["changed_files"], int)
         assert data["changed_files"] == 2
         assert data["mergeable"] == "MERGEABLE"
+        assert data["status_check_state"] == "SUCCESS"
+        assert data["status_check_context_total_count"] == 2
+        assert data["review_thread_total_count"] == 0
+        assert data["unresolved_review_threads"] == 0
         assert isinstance(data["merged"], bool)
         assert data["merged"] is False
         assert data["merged_by"] is None
@@ -674,6 +720,29 @@ class TestExtendedMetadata:
         assert rc == 0
         out = json.loads(capsys.readouterr().out)
         assert out["Data"]["review_counts"] == {"APPROVED": 2, "CHANGES_REQUESTED": 1}
+
+    def test_review_threads_count_unresolved(self, capsys):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        threads = [
+            {"id": "PRRT_1", "isResolved": False},
+            {"id": "PRRT_2", "isResolved": True},
+        ]
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch(
+                "get_pr_context.gh_graphql",
+                return_value=_review_threads_response(totalCount=2, nodes=threads),
+            ),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        data = out["Data"]
+        assert data["review_threads"] == threads
+        assert data["review_thread_total_count"] == 2
+        assert data["unresolved_review_threads"] == 1
 
     def test_missing_new_fields_handled_gracefully(self, capsys):
         """API response lacking new fields should not crash."""

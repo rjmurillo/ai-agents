@@ -42,7 +42,9 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (
     assert_gh_authenticated,
+    count_unresolved_threads,
     error_and_exit,
+    gh_graphql,
     resolve_repo_params,
 )
 from github_core.output import (
@@ -54,9 +56,51 @@ from github_core.output import (
 _JSON_FIELDS = (
     "number,title,body,headRefName,headRefOid,baseRefName,baseRefOid,state,author,labels,"
     "reviewRequests,reviews,reviewDecision,commits,additions,deletions,changedFiles,"
-    "mergeable,mergeStateStatus,autoMergeRequest,isDraft,"
+    "mergeable,mergeStateStatus,statusCheckRollup,autoMergeRequest,isDraft,"
     "headRepository,headRepositoryOwner,mergedAt,mergedBy,createdAt,updatedAt"
 )
+
+_REVIEW_THREADS_QUERY = """\
+query($owner: String!, $repo: String!, $number: Int!) {
+    repository(owner: $owner, name: $repo) {
+        pullRequest(number: $number) {
+            reviewThreads(first: 100) {
+                totalCount
+                nodes {
+                    id
+                    isResolved
+                    isOutdated
+                    path
+                    line
+                    startLine
+                    url
+                }
+            }
+        }
+    }
+}"""
+
+
+def _review_threads(owner: str, repo: str, pr: int) -> dict:
+    try:
+        response = gh_graphql(
+            _REVIEW_THREADS_QUERY,
+            {"owner": owner, "repo": repo, "number": pr},
+        )
+    except RuntimeError as exc:
+        error_and_exit(f"Failed to get review threads for PR #{pr}: {exc}", 3)
+
+    pull_request = (response.get("repository") or {}).get("pullRequest")
+    if pull_request is None:
+        error_and_exit(f"PR #{pr} not found in {owner}/{repo}", 2)
+
+    review_threads = pull_request.get("reviewThreads")
+    if review_threads is None:
+        error_and_exit(
+            f"Failed to get review threads for PR #{pr}: reviewThreads missing",
+            3,
+        )
+    return review_threads
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -115,6 +159,11 @@ def main(argv: list[str] | None = None) -> int:
         error_and_exit(f"Failed to get PR #{pr}: {err_msg}", 3)
 
     pr_data = json.loads(pr_result.stdout)
+    if "statusCheckRollup" not in pr_data:
+        error_and_exit(
+            f"Failed to get PR #{pr}: statusCheckRollup missing from response",
+            3,
+        )
 
     labels = [label.get("name", "") for label in pr_data.get("labels", [])]
     author = pr_data.get("author")
@@ -123,6 +172,19 @@ def main(argv: list[str] | None = None) -> int:
     head_repo_owner = pr_data.get("headRepositoryOwner") or (head_repo.get("owner") or {})
     auto_merge = pr_data.get("autoMergeRequest")
     reviews_raw = pr_data.get("reviews") or []
+    status_check_rollup = pr_data.get("statusCheckRollup")
+    check_contexts = (
+        status_check_rollup.get("contexts")
+        if isinstance(status_check_rollup, dict)
+        else None
+    )
+    review_threads = _review_threads(owner, repo, pr)
+    review_thread_nodes = review_threads.get("nodes")
+    if review_thread_nodes is None:
+        error_and_exit(
+            f"Failed to get review threads for PR #{pr}: reviewThreads.nodes missing",
+            3,
+        )
     review_counts: dict[str, int] = {}
     for rev in reviews_raw:
         state = rev.get("state", "UNKNOWN") if isinstance(rev, dict) else "UNKNOWN"
@@ -149,6 +211,18 @@ def main(argv: list[str] | None = None) -> int:
         "changed_files": pr_data.get("changedFiles"),
         "mergeable": pr_data.get("mergeable"),
         "merge_state_status": pr_data.get("mergeStateStatus"),
+        "status_check_rollup": status_check_rollup,
+        "status_check_state": (
+            status_check_rollup.get("state")
+            if isinstance(status_check_rollup, dict)
+            else None
+        ),
+        "status_check_context_total_count": (
+            check_contexts.get("totalCount") if isinstance(check_contexts, dict) else None
+        ),
+        "review_threads": review_thread_nodes,
+        "review_thread_total_count": review_threads.get("totalCount"),
+        "unresolved_review_threads": count_unresolved_threads(review_thread_nodes),
         "auto_merge": auto_merge is not None,
         "auto_merge_method": (
             auto_merge.get("mergeMethod") if isinstance(auto_merge, dict) else None
