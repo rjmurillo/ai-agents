@@ -2183,6 +2183,48 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         source = inspect.getsource(vsj.main)
         assert "args.scope_from_git and not existing_log" in source
 
+    def test_the_hook_passes_creation_mode_for_a_new_log(self) -> None:
+        """A new log gets --creation-mode so the hook does not reject it at
+        session-start before session-end has run (issue #4425)."""
+        from scripts.validation import git_hook_policy, session_scope
+
+        commands: list[list[str]] = []
+
+        def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        stub, _ = self._stub(added=("new.json",), tracked=("new.json",))
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(session_scope, "_git", stub),
+        ):
+            git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
+        assert commands, "expected at least one validate_session_json invocation"
+        assert "--creation-mode" in commands[0], (
+            "new log must get --creation-mode so session-start commit is accepted"
+        )
+
+    def test_the_hook_does_not_pass_creation_mode_for_an_existing_log(self) -> None:
+        """An already-committed log must NOT get --creation-mode (issue #4425)."""
+        from scripts.validation import git_hook_policy, session_scope
+
+        commands: list[list[str]] = []
+
+        def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        stub, _ = self._stub(tracked=("old.json",))
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(session_scope, "_git", stub),
+        ):
+            git_hook_policy.validate_branch_sessions(["old.json"], Path.cwd())
+        assert commands, "expected at least one validate_session_json invocation"
+        assert "--creation-mode" not in commands[0]
+        assert "--existing-log" in commands[0]
+
 
 def _log_with_evidence(**items: str) -> dict:
     """A valid log whose named checklist items carry the given evidence.

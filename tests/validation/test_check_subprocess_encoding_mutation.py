@@ -71,9 +71,11 @@ def _run_mutation(
 
     checker.write_text(mutated, encoding="utf-8")
     _purge_cache(repo_root)
-    rc = _run_tests(repo_root)
-    checker.write_text(original_source, encoding="utf-8")
-    _purge_cache(repo_root)
+    try:
+        rc = _run_tests(repo_root)
+    finally:
+        checker.write_text(original_source, encoding="utf-8")
+        _purge_cache(repo_root)
 
     restored = checker.read_text(encoding="utf-8")
     if restored != original_source:
