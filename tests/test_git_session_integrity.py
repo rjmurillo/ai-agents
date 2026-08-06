@@ -462,3 +462,37 @@ class TestSessionLogSelectorTieBreak:
         # Ask for empty string: must also return None
         result_empty = _session_log_for_branch(sessions_dir, "")
         assert result_empty is None
+
+    def test_skips_unreadable_newest_log(self, tmp_path: Path, monkeypatch: object) -> None:
+        """An unreadable newest candidate is skipped; older readable one wins."""
+        import warnings as w
+        from datetime import UTC, datetime
+        from unittest.mock import patch
+
+        sessions_dir = tmp_path / "sessions"
+        sessions_dir.mkdir()
+
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        older = self._make_session_log(
+            sessions_dir, f"{today}-session-1.json", "fix/test", mtime_offset=-100
+        )
+        unreadable = self._make_session_log(
+            sessions_dir, f"{today}-session-2.json", "fix/test", mtime_offset=0
+        )
+
+        real_stat = Path.stat
+
+        def fake_stat(self_path: Path, *, follow_symlinks: bool = True) -> os.stat_result:
+            if self_path == unreadable:
+                raise OSError("simulated unreadable")
+            return real_stat(self_path, follow_symlinks=follow_symlinks)
+
+        from git_hook_policy import _session_log_for_branch
+
+        with patch.object(Path, "stat", fake_stat):
+            with w.catch_warnings(record=True) as caught:
+                w.simplefilter("always")
+                result = _session_log_for_branch(sessions_dir, "fix/test")
+
+        assert result == older, "Should fall back to readable older log"
+        assert any("Skipping unreadable session log" in str(m.message) for m in caught)

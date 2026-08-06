@@ -882,9 +882,20 @@ def _session_log_for_branch(sessions_dir: Path, branch: str) -> Path | None:
     candidates = _recent_session_candidates(sessions_dir)
     if candidates is None:
         return None
+    # Build (mtime, path) pairs, skipping unreadable files.
+    timed: list[tuple[float, Path]] = []
+    for p in candidates:
+        try:
+            timed.append((p.stat().st_mtime, p))
+        except OSError:
+            warnings.warn(
+                f"Skipping unreadable session log: {p.name}",
+                UserWarning,
+                stacklevel=2,
+            )
     # Sort by mtime descending so the first match is the newest.
-    by_mtime = sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)
-    for candidate in by_mtime:
+    timed.sort(key=lambda t: t[0], reverse=True)
+    for _, candidate in timed:
         if _session_branch(candidate) == branch:
             return candidate
     return None
