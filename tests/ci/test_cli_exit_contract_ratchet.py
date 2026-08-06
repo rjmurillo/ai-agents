@@ -432,3 +432,4 @@ class TestLocalMainScopeGateBehavior:
             ),
         )
         assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
+
