@@ -330,6 +330,14 @@ class TestRunAssessment:
         (tmp_path / "changed.md").write_text("# Changed\n`PublicThing`\n")
         (tmp_path / "unchanged.md").write_text("# Unchanged\n")
         (tmp_path / "code.py").write_text("def PublicThing():\n    pass\n")
+        subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "add", "."], check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "init"],
+            check=True, capture_output=True,
+        )
 
         with patch.object(mod, "_get_changed_files", return_value={"changed.md"}):
             result = run_assessment(
@@ -346,6 +354,14 @@ class TestRunAssessment:
 
     def test_diff_base_empty_change_set_yields_no_docs(self, tmp_path: Path) -> None:
         (tmp_path / "unchanged.md").write_text("# Unchanged\n")
+        subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "add", "."], check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "init"],
+            check=True, capture_output=True,
+        )
 
         with patch.object(mod, "_get_changed_files", return_value=set()):
             result = run_assessment(
@@ -479,6 +495,47 @@ class TestGetChangedFiles:
         assert all(t is not None for t in ls_files_timeout_seen), (
             "ls-files subprocess.run called without timeout kwarg"
         )
+
+    def test_ls_files_error_with_diff_base_exits_3(self, tmp_path: Path) -> None:
+        """ls-files CalledProcessError in diff-base mode => exit 3, not rglob fallback."""
+        self._init_repo(tmp_path)
+        real_run = subprocess.run
+
+        def fail_ls_files(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "ls-files" in cmd:
+                raise subprocess.CalledProcessError(
+                    128, cmd, stderr="fatal: index corrupted",
+                )
+            return real_run(*args, **kwargs)
+
+        with patch.object(subprocess, "run", side_effect=fail_ls_files):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD",
+                "--phases", "1",
+            ])
+        assert exit_code == 3
+
+    def test_no_diff_base_ls_files_fallback_works(self, tmp_path: Path) -> None:
+        """Without diff-base, ls-files failure falls back to rglob (exit 0)."""
+        self._init_repo(tmp_path)
+        real_run = subprocess.run
+
+        def fail_ls_files(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "ls-files" in cmd:
+                raise subprocess.CalledProcessError(
+                    128, cmd, stderr="fatal: index corrupted",
+                )
+            return real_run(*args, **kwargs)
+
+        with patch.object(subprocess, "run", side_effect=fail_ls_files):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--phases", "1",
+            ])
+        assert exit_code == 0
 
     def test_valid_empty_diff_exits_0(self, tmp_path: Path) -> None:
         """Valid diff-base with no changed files passes (exit 0)."""

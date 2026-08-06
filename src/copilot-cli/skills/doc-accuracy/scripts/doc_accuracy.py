@@ -171,13 +171,17 @@ class _GitError(Exception):
         self.exit_code = exit_code
 
 
-def _iter_git_files(repo_root: Path):
+def _iter_git_files(repo_root: Path, *, require_git: bool = False):
     """Yield ``Path`` objects for every file tracked by git in ``repo_root``.
 
     Uses ``git ls-files --cached --others --exclude-standard`` so that paths
     listed in ``.gitignore`` (generated files, caches, vendored trees) are
     excluded automatically. Falls back to ``repo_root.rglob("*")`` when the
-    directory is not inside a git repository.
+    directory is not inside a git repository and *require_git* is ``False``.
+
+    When *require_git* is ``True`` (diff-base/Git-scoped mode), a
+    ``_GitError(3)`` is raised instead of falling back, because rglob
+    would silently bypass the Git-backed scoping contract.
     """
     try:
         result = subprocess.run(
@@ -196,8 +200,14 @@ def _iter_git_files(repo_root: Path):
             if rel:
                 yield repo_root / rel
         return
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
+    except subprocess.CalledProcessError as exc:
+        if require_git:
+            raise _GitError(
+                3, f"ls-files: git index error: {(exc.stderr or '').strip()}",
+            ) from exc
+    except FileNotFoundError:
+        if require_git:
+            raise _GitError(3, "ls-files: git binary not found") from None
     yield from repo_root.rglob("*")
 
 
@@ -450,7 +460,7 @@ def run_assessment(
     source_symbols: list[SourceSymbol] = []
     symbol_names: set[str] = set()
 
-    for p in _iter_git_files(repo_root):
+    for p in _iter_git_files(repo_root, require_git=diff_base is not None):
         if not p.is_file() or _should_exclude(p, repo_root):
             continue
 
@@ -513,7 +523,7 @@ def run_assessment(
 
     # Find benchmark files
     benchmark_files = []
-    for p in _iter_git_files(repo_root):
+    for p in _iter_git_files(repo_root, require_git=diff_base is not None):
         if not p.is_file() or _should_exclude(p, repo_root):
             continue
         name = p.name.lower()
