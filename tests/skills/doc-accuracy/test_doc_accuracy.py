@@ -393,6 +393,41 @@ class TestGetChangedFiles:
         ])
         assert exit_code == 3
 
+    def test_bare_repo_exits_3(self, tmp_path: Path) -> None:
+        """Bare repo returns rc0 with stdout 'false'; must still exit 3."""
+        subprocess.run(
+            ["git", "init", "--bare", str(tmp_path / "bare.git")],
+            capture_output=True, check=True,
+        )
+        exit_code = main([
+            "--target", str(tmp_path / "bare.git"),
+            "--diff-base", "HEAD",
+            "--phases", "1",
+        ])
+        assert exit_code == 3
+
+    def test_worktree_false_stdout_exits_3(self, tmp_path: Path) -> None:
+        """rev-parse rc0 but stdout 'false' (bare/non-worktree) => exit 3."""
+        real_run = subprocess.run
+
+        def mock_worktree_false(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "--is-inside-work-tree" in cmd:
+                result = MagicMock()
+                result.stdout = "false\n"
+                result.returncode = 0
+                return result
+            return real_run(*args, **kwargs)
+
+        self._init_repo(tmp_path)
+        with patch.object(subprocess, "run", side_effect=mock_worktree_false):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD",
+                "--phases", "1",
+            ])
+        assert exit_code == 3
+
     def test_missing_git_exits_3(self, tmp_path: Path) -> None:
         """Missing git binary is an environment error => exit 3."""
         with patch.object(
@@ -479,11 +514,20 @@ class TestGetChangedFiles:
         assert exit_code == 0
 
     def test_ignores_blank_diff_lines(self, tmp_path: Path) -> None:
-        git_result = MagicMock()
-        git_result.stdout = "doc.md\n\nscript.py\n"
+        self._init_repo(tmp_path)
+        real_run = subprocess.run
 
-        with patch.object(subprocess, "run", return_value=git_result):
-            result = _get_changed_files("main", tmp_path)
+        def selective_mock(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "diff" in cmd and "--name-only" in cmd:
+                result = MagicMock()
+                result.stdout = "doc.md\n\nscript.py\n"
+                result.returncode = 0
+                return result
+            return real_run(*args, **kwargs)
+
+        with patch.object(subprocess, "run", side_effect=selective_mock):
+            result = _get_changed_files("HEAD", tmp_path)
 
         assert result == {"doc.md", "script.py"}
 

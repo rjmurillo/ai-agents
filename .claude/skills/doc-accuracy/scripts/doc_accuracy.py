@@ -383,7 +383,7 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     """
     # Phase 1: verify git environment
     try:
-        subprocess.run(
+        wt_result = subprocess.run(
             ["git", "-C", str(repo_root), "rev-parse", "--is-inside-work-tree"],
             capture_output=True, text=True, check=True, timeout=_GIT_TIMEOUT,
         )
@@ -392,6 +392,10 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
             3, f"rev-parse: not a git repository: "
             f"{(exc.stderr or '').strip()}",
         ) from exc
+    if wt_result.stdout.strip().lower() != "true":
+        raise _GitError(
+            3, "rev-parse: not inside a git work tree",
+        )
 
     # Phase 2: verify the revision exists
     try:
