@@ -85,6 +85,21 @@ job that actually failed:
 error: failed to push some refs
 ```
 
+### The glove is only a verdict inside the summary block
+
+`🥊` also appears in lefthook's banner on every run, passing or failing:
+
+```
+│ 🥊 lefthook  v2.1.10   hook:  pre-commit │
+```
+
+That one is the logo. It carries no verdict, and grepping the log for `🥊`
+returns it alongside any real failures, so a commit whose hooks all passed
+still shows two or three hits. The verdict markers live only in the block that
+starts with `summary:`, where every job gets a `✔️` or a `🥊`. Count those, or
+confirm `grep -c "✖"` is 0. On a clean merge commit the summary showed 13 `✔️`
+and no failure markers while the banner still printed the glove twice.
+
 ## The second decoy: a hook that passed reads as a push that succeeded
 
 `pre_pr.py` ends its own output with these two lines:
