@@ -3,23 +3,18 @@ name: Installed Plugin Hook Guard
 # allow tool calls from a consumer environment, on all three target platforms.
 # Includes "vanilla" rows that genuinely lack Python, proving the degraded path.
 
+# Deliberately NOT path-filtered. This guard protects a customer-facing
+# failure mode that has recurred three times and cost three uninstalls
+# (#4672). A paths filter would leave it silent for changes that break the
+# hooks indirectly, for example an edit to a lib module, a generator, an
+# action, or a dependency pin. A path-filtered required check also never
+# reports on unrelated pull requests, which stalls merges rather than
+# guarding anything. Cost is a few minutes per run; a missed regression
+# costs a customer.
 on:
   pull_request:
-    paths:
-      - 'src/copilot-cli/**'
-      - '.claude/hooks/**'
-      - 'build/scripts/generate_dispatcher.py'
-      - 'build/scripts/generate_hooks*.py'
-      - 'scripts/ci/test_installed_plugin_hooks.py'
-      - '.github/actions/test-installed-plugin-hooks/**'
-      - '.github/workflows/installed-plugin-hook-guard.yml'
   push:
     branches: [main]
-    paths:
-      - 'src/copilot-cli/**'
-      - '.claude/hooks/**'
-      - 'build/scripts/generate_dispatcher.py'
-      - 'build/scripts/generate_hooks*.py'
 
 concurrency:
   group: plugin-hook-guard-${{ github.ref }}
@@ -278,3 +273,29 @@ jobs:
           export RUN_INSTALLED_PLUGIN_HOOK_E2E=1
 
           uv run --frozen pytest tests/e2e/test_installed_plugin_hook_e2e.py -v
+
+  # Single aggregate status so branch protection can require ONE context
+  # instead of every matrix leg by name. It must fail when any upstream job
+  # fails OR is skipped or cancelled: a required check that reports success
+  # because its dependencies never ran is the exact false-green this guard
+  # exists to prevent.
+  guard-result:
+    name: Plugin Hook Guard Result
+    if: always()
+    needs:
+      - hook-positive
+      - hook-negative-env
+      - vanilla-linux
+      - vanilla-windows
+      - e2e-installed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Assert every guard job succeeded
+        shell: bash
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python3 .github/scripts/assert_guard_jobs_succeeded.py
