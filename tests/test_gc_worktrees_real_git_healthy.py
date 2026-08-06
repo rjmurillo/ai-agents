@@ -415,3 +415,33 @@ def test_a_failing_rescue_stops_the_chain_and_shows_in_the_exit_code(
         ).returncode
         != 0
     ), "the chain must stop at the failure rather than carry on past it"
+
+
+def test_a_worktree_on_a_merged_branch_is_kept_when_its_reflog_is_a_commits_only_anchor(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The branch path has to ask the same question the detached path asks.
+
+    Merged and fully pushed both describe where the branch points now. A
+    worktree that committed and reset still has that commit anchored by
+    nothing but its own reflog, and this is the most-travelled path in the
+    tool, so a removal here is the likeliest way to lose work.
+    """
+    head = _git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
+    worktree = git_sandbox.root / "healthy-merged-branch-orphan"
+    _git(git_sandbox.main, "worktree", "add", "-b", "gc-merged-branch", str(worktree), head)
+    _write_and_commit(worktree, "orphan.txt", "x\n", "abandoned on a branch")
+    abandoned = _git(worktree, "rev-parse", "HEAD").stdout.strip()
+    _git(worktree, "reset", "--hard", head)
+    assert _git(git_sandbox.main, "for-each-ref", "--contains", abandoned).stdout == ""
+
+    report = _run_gc_json(git_sandbox, monkeypatch, capsys)
+
+    decision = _decision_for(report, worktree)
+    assert decision["branch"] == "gc-merged-branch", decision
+    reason = decision["reason"]
+    assert isinstance(reason, str), decision
+    assert decision["remove"] is False, reason
+    assert abandoned in reason, reason
