@@ -12,6 +12,7 @@ import importlib.util
 import json
 import runpy
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -221,6 +222,39 @@ class TestRunDispatch:
         assert marker.exists()
         assert "registered shim missing on disk: missing.py" in capsys.readouterr().err
 
+    def test_observer_timeout_logs_and_continues(self, tmp_path, capsys):
+        marker = tmp_path / "later-ran"
+        names = [
+            _write_shim(
+                tmp_path,
+                "slow.py",
+                "import time\n"
+                "time.sleep(10)\n",
+            ),
+            _write_shim(
+                tmp_path,
+                "later.py",
+                f"from pathlib import Path\nPath(r'{marker}').touch()\n",
+            ),
+        ]
+
+        start = time.monotonic()
+        rc = run_dispatch(
+            tmp_path,
+            names,
+            b"{}",
+            {"slow.py": 0.1},
+            short_circuit=False,
+        )
+        elapsed = time.monotonic() - start
+
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert elapsed < 2
+        assert marker.exists()
+        assert "shim slow.py timed out after 0.1s" in captured.err
+        assert "observer slow.py exited 2; continuing" in captured.err
+
     def test_shim_uncaught_exception_fails_closed(self, tmp_path):
         names = [_write_shim(tmp_path, "boom.py", "raise RuntimeError('kaboom')\n")]
         rc = run_dispatch(tmp_path, names, b"{}")
@@ -232,6 +266,31 @@ class TestRunDispatch:
         rc = run_dispatch(tmp_path, names, b"{}", {"slow.py": 0})
 
         assert rc == 2
+
+    def test_shim_timeout_fails_closed_and_stops_later_guard(self, tmp_path, capsys):
+        marker = tmp_path / "later-ran"
+        names = [
+            _write_shim(
+                tmp_path,
+                "slow.py",
+                "import time\n"
+                "time.sleep(10)\n",
+            ),
+            _write_shim(
+                tmp_path,
+                "later.py",
+                f"from pathlib import Path\nPath(r'{marker}').touch()\n",
+            ),
+        ]
+
+        start = time.monotonic()
+        rc = run_dispatch(tmp_path, names, b"{}", {"slow.py": 0.1})
+        elapsed = time.monotonic() - start
+
+        assert rc == 2
+        assert elapsed < 2
+        assert not marker.exists()
+        assert "shim slow.py timed out after 0.1s" in capsys.readouterr().err
 
     def test_orphan_file_not_in_manifest_is_not_run(self, tmp_path):
         rec = tmp_path / "rec.txt"
@@ -775,6 +834,24 @@ class TestRunPermissionDispatch:
         captured = capsys.readouterr()
         assert rc == 2
         assert "invalid timeout 0" in captured.err
+
+    def test_decision_timeout_fails_closed(self, tmp_path, capsys):
+        name = _write_shim(
+            tmp_path,
+            "decision.py",
+            "import time\n"
+            "time.sleep(10)\n",
+        )
+
+        start = time.monotonic()
+        rc = run_permission_dispatch(tmp_path, [name], b"{}", {name: 0.1})
+        elapsed = time.monotonic() - start
+
+        captured = capsys.readouterr()
+        assert rc == 2
+        assert elapsed < 2
+        assert captured.out == ""
+        assert "shim decision.py timed out after 0.1s" in captured.err
 
     def test_nonzero_decision_exit_propagates_without_stdout(self, tmp_path, capsys):
         name = _write_shim(

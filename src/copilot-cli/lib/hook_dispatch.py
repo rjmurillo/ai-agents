@@ -1,53 +1,17 @@
-"""In-process hook dispatcher for Copilot CLI (ADR-068, addresses #2295).
+"""Consolidated Copilot CLI hook dispatcher (ADR-068, #2295).
 
-ADR-068 records a historical Copilot CLI 1.0.57 incident with one process per
-registered matcher shim. The aggregate Python interpreter cold-start (~200 ms
-each, ~40 shims) caused host kills that denied benign tools (false
-fail-closed).
+ADR-068 replaced one Python process per matcher shim with one dispatcher process
+per event after Copilot CLI host kills denied benign tools. Untimed shims still
+run in process through ``runpy`` to preserve that startup win. Shims with
+timeout metadata run in a child Python process, because a timed-out in-process
+thread cannot be killed safely.
 
-This dispatcher collapses N per-shim processes into one. The host spawns a
-single interpreter per event; each shim then runs *in process* via ``runpy``,
-so the interpreter cold-start is paid once instead of N times.
-
-Design contract (the security-critical part):
-
-- **Manifest-driven, not directory-driven.** The shim list is supplied by the
-  caller from the generator's registered-entry list (the same source as
-  ``hooks.json``). Orphaned ``invoke_*.py`` files on disk are never executed.
-- **Gate vs observe mode (ADR-068, #2342).** ``run_dispatch`` takes a
-  ``short_circuit`` flag. In gate mode (``PreToolUse``) the first shim that exits
-  non-zero denies the tool; the dispatcher returns that code and stops
-  (fail-closed, ADR-066). A registered shim missing on disk, or an unexpected
-  exception while running a shim, is a denial (exit 2), never a silent allow. A
-  shim's own internal fail-open (its ``main`` returning 0 on its own error) is
-  preserved, because the dispatcher only observes the shim's final exit code.
-  Per-shim timeout metadata is validated, but not enforced with daemon threads:
-  a timed-out Python thread cannot be killed and can leave child processes
-  running after hook success. The host owns the cumulative event timeout and
-  kills the whole dispatcher process if that budget is exhausted. In observe
-  mode every shim runs regardless of an earlier non-zero exit; failures are
-  logged and the dispatcher returns 0, matching the old host behavior where
-  the host ran all observer entries before consolidation. Current generated
-  observers are ``PostToolUse``, ``PreCompact``, ``SessionStart``, and
-  ``UserPromptSubmit``. Unclassified events, including ``SessionEnd``, remain
-  direct until their output and failure contracts are reviewed.
-- **stdin replay.** Each shim reads ``sys.stdin.buffer``; the dispatcher rewinds
-  a fresh stream of the original bytes before each shim, so every shim inspects
-  exactly the payload the host delivered (no #2290 schema mutation).
-- **Observer output translation.** Copilot parses at most one final JSON
-  document per command hook. PostToolUse shim stdout is merged in registration
-  order into one documented ``additionalContext`` response. SessionStart and
-  PreCompact stdout is captured at the Python stream, file-descriptor, and
-  inherited child-process levels, then discarded because current producers
-  include branch-controlled repository prose that must not reach model-visible
-  channels. UserPromptSubmit output is also discarded because Copilot documents
-  no output field for that event and does not document stderr as a model-context
-  channel. Only successful observers contribute; partial stdout from a failing
-  observer is discarded.
-- **Host-timeout residual.**
-  ``.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`` records:
-  "A `timeoutSec: 2` probe timed out and failed open, then executed the tool."
-  A timeout can therefore allow a tool before later guards run.
+- The manifest supplies the shim list. Orphaned ``invoke_*.py`` files never run.
+- Gate mode stops at the first non-zero shim and fails closed (ADR-066).
+- Observe mode logs non-zero shims, continues siblings, and returns 0.
+- stdin is replayed, and observer output follows the event policy.
+- A host timeout can still kill the whole dispatcher and may fail open, per the
+  accepted ADR-068 residual.
 """
 
 from __future__ import annotations
@@ -79,6 +43,7 @@ from hook_dispatch_protocol import observe_output_policy  # noqa: E402,F401
 from hook_dispatch_protocol import (  # noqa: E402
     record_discarded_observer_output as _record_discarded_observer_output,
 )
+from hook_dispatch_timeout import run_timed_shim as _run_timed_shim  # noqa: E402
 
 # Hook exit-code convention (Claude/Copilot PreToolUse): 0 allow, 2 block.
 ALLOW_EXIT = 0
@@ -109,8 +74,16 @@ def _exit_code(exc: SystemExit) -> int:
     return 1
 
 
-def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
+def _run_shim(
+    shim_path: Path,
+    name: str,
+    raw_stdin: bytes,
+    timeout_sec: float | None = None,
+) -> int:
     """Run one shim and translate its outcome to a hook exit code."""
+    if timeout_sec is not None:
+        code, _, _ = _run_timed_shim(shim_path, name, raw_stdin, timeout_sec)
+        return code
     _install_stdin(raw_stdin)
     try:
         runpy.run_path(str(shim_path), run_name="__main__")
@@ -295,8 +268,22 @@ def _run_capturing_process_stdout(
     return code, raw_stdout
 
 
-def _run_shim_capturing_stdout(shim_path: Path, name: str, raw_stdin: bytes) -> tuple[int, str]:
+def _run_shim_capturing_stdout(
+    shim_path: Path,
+    name: str,
+    raw_stdin: bytes,
+    timeout_sec: float | None = None,
+) -> tuple[int, str]:
     """Run one shim while retaining every process stdout path."""
+    if timeout_sec is not None:
+        code, raw_stdout, _ = _run_timed_shim(
+            shim_path,
+            name,
+            raw_stdin,
+            timeout_sec,
+            capture_stdout=True,
+        )
+        return code, raw_stdout
     return _run_capturing_process_stdout(
         name,
         lambda: _run_shim(shim_path, name, raw_stdin),
@@ -307,8 +294,18 @@ def _run_shim_capturing_output(
     shim_path: Path,
     name: str,
     raw_stdin: bytes,
+    timeout_sec: float | None = None,
 ) -> tuple[int, str, str]:
     """Run one shim while retaining every process stdout and stderr path."""
+    if timeout_sec is not None:
+        return _run_timed_shim(
+            shim_path,
+            name,
+            raw_stdin,
+            timeout_sec,
+            capture_stdout=True,
+            capture_stderr=True,
+        )
     return _run_capturing_process_output(
         name,
         lambda: _run_shim(shim_path, name, raw_stdin),
@@ -350,7 +347,12 @@ def run_permission_dispatch(
         code = _validate_timeout(name, timeout_sec)
         if code is not None:
             return code
-        code, raw_stdout = _run_shim_capturing_stdout(shim_path, name, raw_stdin)
+        code, raw_stdout = _run_shim_capturing_stdout(
+            shim_path,
+            name,
+            raw_stdin,
+            timeout_sec,
+        )
         if code != ALLOW_EXIT:
             return code
         response = _copilot_permission_response(raw_stdout, name)
@@ -451,16 +453,18 @@ def run_dispatch(
                             shim_path,
                             name,
                             raw_stdin,
+                            timeout_sec,
                         )
                     else:
                         code, raw_stdout = _run_shim_capturing_stdout(
                             shim_path,
                             name,
                             raw_stdin,
+                            timeout_sec,
                         )
                         raw_stderr = ""
                 else:
-                    code = _run_shim(shim_path, name, raw_stdin)
+                    code = _run_shim(shim_path, name, raw_stdin, timeout_sec)
 
             discarded_output = False
             if capture_observer_output and output_policy == "discard":
