@@ -21,14 +21,13 @@ Design contract (the security-critical part):
   exception while running a shim, is a denial (exit 2), never a silent allow. A
   shim's own internal fail-open (its ``main`` returning 0 on its own error) is
   preserved, because the dispatcher only observes the shim's final exit code.
-  Per-shim timeout metadata is validated, but not enforced with daemon threads:
-  a timed-out Python thread cannot be killed and can leave child processes
-  running after hook success. The host owns the cumulative event timeout and
-  kills the whole dispatcher process if that budget is exhausted. In observe
-  mode every shim runs regardless of an earlier non-zero exit; failures are
-  logged and the dispatcher returns 0, matching the old host behavior where
-  the host ran all observer entries before consolidation. Current generated
-  observers are ``PostToolUse``, ``PreCompact``, ``SessionStart``, and
+  Per-shim timeout metadata is validated and enforced by running timed shims in
+  a child Python process. A timed-out in-process Python thread cannot be killed,
+  so only timed shims pay that child-process cost. In observe mode every shim
+  runs regardless of an earlier non-zero exit; failures are logged and the
+  dispatcher returns 0, matching the old host behavior where the host ran all
+  observer entries before consolidation. Current generated observers are
+  ``PostToolUse``, ``PreCompact``, ``SessionStart``, and
   ``UserPromptSubmit``. Unclassified events, including ``SessionEnd``, remain
   direct until their output and failure contracts are reviewed.
 - **stdin replay.** Each shim reads ``sys.stdin.buffer``; the dispatcher rewinds
@@ -56,6 +55,7 @@ import io
 import json
 import os
 import runpy
+import subprocess
 import sys
 import tempfile
 from collections.abc import Callable
@@ -84,6 +84,44 @@ from hook_dispatch_protocol import (  # noqa: E402
 ALLOW_EXIT = 0
 BLOCK_EXIT = 2
 
+_SHIM_RUNNER = r"""
+from __future__ import annotations
+
+import io
+import runpy
+import sys
+
+
+def _exit_code(exc: SystemExit) -> int:
+    code = exc.code
+    if code is None:
+        return 0
+    if isinstance(code, int):
+        return code
+    return 1
+
+
+raw_stdin = sys.stdin.buffer.read()
+sys.stdin = io.TextIOWrapper(
+    io.BufferedReader(io.BytesIO(raw_stdin)),
+    encoding="utf-8",
+    errors="strict",
+)
+shim_path = sys.argv[1]
+name = sys.argv[2]
+try:
+    runpy.run_path(shim_path, run_name="__main__")
+except SystemExit as exc:
+    sys.exit(_exit_code(exc))
+except Exception as exc:
+    print(
+        f"hook-dispatch: shim {name} raised {type(exc).__name__}: {exc}; denying (fail-closed)",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+sys.exit(0)
+"""
+
 
 def _install_stdin(raw: bytes) -> None:
     """Point ``sys.stdin`` at a fresh stream over ``raw``.
@@ -109,8 +147,60 @@ def _exit_code(exc: SystemExit) -> int:
     return 1
 
 
-def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
+def _decode_completed_stream(value: bytes | None) -> str:
+    if value is None:
+        return ""
+    return value.decode("utf-8", errors="replace")
+
+
+def _run_shim_process(
+    shim_path: Path,
+    name: str,
+    raw_stdin: bytes,
+    timeout_sec: float,
+    *,
+    capture_stdout: bool = False,
+    capture_stderr: bool = False,
+) -> tuple[int, str, str]:
+    """Run one timed shim in a child process so timeout can kill it."""
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-c", _SHIM_RUNNER, str(shim_path), name],
+            input=raw_stdin,
+            stdout=subprocess.PIPE if capture_stdout else None,
+            stderr=subprocess.PIPE if capture_stderr else None,
+            check=False,
+            timeout=timeout_sec,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            f"hook-dispatch: shim {name} timed out after {timeout_sec:g}s; denying (fail-closed)",
+            file=sys.stderr,
+        )
+        return BLOCK_EXIT, "", ""
+    except OSError as exc:
+        print(
+            f"hook-dispatch: shim {name} failed to launch: {exc}; denying (fail-closed)",
+            file=sys.stderr,
+        )
+        return BLOCK_EXIT, "", ""
+    return (
+        completed.returncode,
+        _decode_completed_stream(completed.stdout),
+        _decode_completed_stream(completed.stderr),
+    )
+
+
+def _run_shim(
+    shim_path: Path,
+    name: str,
+    raw_stdin: bytes,
+    timeout_sec: float | None = None,
+) -> int:
     """Run one shim and translate its outcome to a hook exit code."""
+    if timeout_sec is not None:
+        code, _, _ = _run_shim_process(shim_path, name, raw_stdin, timeout_sec)
+        return code
     _install_stdin(raw_stdin)
     try:
         runpy.run_path(str(shim_path), run_name="__main__")
@@ -295,8 +385,22 @@ def _run_capturing_process_stdout(
     return code, raw_stdout
 
 
-def _run_shim_capturing_stdout(shim_path: Path, name: str, raw_stdin: bytes) -> tuple[int, str]:
+def _run_shim_capturing_stdout(
+    shim_path: Path,
+    name: str,
+    raw_stdin: bytes,
+    timeout_sec: float | None = None,
+) -> tuple[int, str]:
     """Run one shim while retaining every process stdout path."""
+    if timeout_sec is not None:
+        code, raw_stdout, _ = _run_shim_process(
+            shim_path,
+            name,
+            raw_stdin,
+            timeout_sec,
+            capture_stdout=True,
+        )
+        return code, raw_stdout
     return _run_capturing_process_stdout(
         name,
         lambda: _run_shim(shim_path, name, raw_stdin),
@@ -307,8 +411,18 @@ def _run_shim_capturing_output(
     shim_path: Path,
     name: str,
     raw_stdin: bytes,
+    timeout_sec: float | None = None,
 ) -> tuple[int, str, str]:
     """Run one shim while retaining every process stdout and stderr path."""
+    if timeout_sec is not None:
+        return _run_shim_process(
+            shim_path,
+            name,
+            raw_stdin,
+            timeout_sec,
+            capture_stdout=True,
+            capture_stderr=True,
+        )
     return _run_capturing_process_output(
         name,
         lambda: _run_shim(shim_path, name, raw_stdin),
@@ -350,7 +464,12 @@ def run_permission_dispatch(
         code = _validate_timeout(name, timeout_sec)
         if code is not None:
             return code
-        code, raw_stdout = _run_shim_capturing_stdout(shim_path, name, raw_stdin)
+        code, raw_stdout = _run_shim_capturing_stdout(
+            shim_path,
+            name,
+            raw_stdin,
+            timeout_sec,
+        )
         if code != ALLOW_EXIT:
             return code
         response = _copilot_permission_response(raw_stdout, name)
@@ -451,16 +570,18 @@ def run_dispatch(
                             shim_path,
                             name,
                             raw_stdin,
+                            timeout_sec,
                         )
                     else:
                         code, raw_stdout = _run_shim_capturing_stdout(
                             shim_path,
                             name,
                             raw_stdin,
+                            timeout_sec,
                         )
                         raw_stderr = ""
                 else:
-                    code = _run_shim(shim_path, name, raw_stdin)
+                    code = _run_shim(shim_path, name, raw_stdin, timeout_sec)
 
             discarded_output = False
             if capture_observer_output and output_policy == "discard":
