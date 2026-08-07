@@ -178,6 +178,8 @@ def _verify_empty_issue_result(fmt: str) -> None:
             ["gh", "api", "graphql", "-f", "query={viewer{login}}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
             check=False,
         )
@@ -204,7 +206,13 @@ def _verify_empty_issue_result(fmt: str) -> None:
 def _run_issue_list(list_args: list[str], fmt: str) -> list[object]:
     try:
         result = subprocess.run(
-            list_args, capture_output=True, text=True, timeout=30, check=False,
+            list_args,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
         )
     except subprocess.TimeoutExpired:
         _exit_with_error("Timed out waiting for gh issue list.", 3, fmt, "Timeout")
