@@ -114,11 +114,6 @@ def _run_shim(
     the dispatcher can terminate. Untimed shims keep the in-process path, which
     is the startup win ADR-068 exists for.
     """
-    if timeout_sec is not None:
-        code, _, _ = _run_timed_shim(shim_path, name, raw_stdin, timeout_sec)
-        return code
-
-    _install_stdin(raw_stdin)
     try:
         check_shim_loads(shim_path)
     except ShimLoadError as exc:
@@ -130,6 +125,12 @@ def _run_shim(
             file=sys.stderr,
         )
         return ALLOW_EXIT
+
+    if timeout_sec is not None:
+        code, _, _ = _run_timed_shim(shim_path, name, raw_stdin, timeout_sec)
+        return code
+
+    _install_stdin(raw_stdin)
 
     try:
         execute_shim(shim_path)

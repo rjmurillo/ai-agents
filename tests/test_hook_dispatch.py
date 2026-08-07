@@ -230,23 +230,43 @@ class TestRunDispatch:
         assert marker.exists()
         assert "registered shim missing on disk: missing.py" in capsys.readouterr().err
 
-    def test_observer_timeout_logs_and_continues(self, tmp_path, capsys):
-        marker = tmp_path / "later-ran"
+    def test_gate_shim_timeout_is_enforced(self, tmp_path, capsys):
+        """A hung gate shim blocks the tool call, so its timeout is enforced."""
+        names = [_write_shim(tmp_path, "slow.py", "import time\ntime.sleep(10)\n")]
+
+        start = time.monotonic()
+        rc = run_dispatch(tmp_path, names, b"{}", {"slow.py": 0.1})
+        elapsed = time.monotonic() - start
+
+        assert elapsed < 5, "the gate shim was not terminated at its timeout"
+        assert rc == 2, "a timed-out gate shim must fail closed"
+        assert "timed out" in capsys.readouterr().err
+
+    def test_observe_mode_does_not_enforce_shim_timeouts(self, tmp_path, capsys):
+        """Observe mode ignores timeout metadata, deliberately.
+
+        Enforcing it once made the dispatcher report success while a slow
+        observer was still running, orphaning work behind a hook that had
+        already finished. The host owns the event timeout, and an observer
+        cannot block a tool call, so there is nothing here worth that risk.
+        Pinned from the other side by
+        test_timeout_metadata_does_not_background_observer_work in
+        tests/build_scripts/test_generate_dispatcher.py, which asserts the
+        observer runs to completion; this asserts the dispatcher does not cut
+        it off. Refs #4706.
+        """
+        marker = tmp_path / "observer-finished"
         names = [
             _write_shim(
                 tmp_path,
                 "slow.py",
                 "import time\n"
-                "time.sleep(10)\n",
-            ),
-            _write_shim(
-                tmp_path,
-                "later.py",
-                f"from pathlib import Path\nPath(r'{marker}').touch()\n",
+                "from pathlib import Path\n"
+                "time.sleep(0.3)\n"
+                f"Path(r'{marker}').touch()\n",
             ),
         ]
 
-        start = time.monotonic()
         rc = run_dispatch(
             tmp_path,
             names,
@@ -254,14 +274,12 @@ class TestRunDispatch:
             {"slow.py": 0.1},
             short_circuit=False,
         )
-        elapsed = time.monotonic() - start
 
-        captured = capsys.readouterr()
         assert rc == 0
-        assert elapsed < 2
-        assert marker.exists()
-        assert "shim slow.py timed out after 0.1s" in captured.err
-        assert "observer slow.py exited 2; continuing" in captured.err
+        assert marker.exists(), (
+            "observe mode cut off a shim at its timeout; the dispatcher would "
+            "report success with the observer still running"
+        )
 
     def test_shim_uncaught_exception_fails_closed(self, tmp_path):
         names = [_write_shim(tmp_path, "boom.py", "raise RuntimeError('kaboom')\n")]
@@ -276,6 +294,27 @@ class TestRunDispatch:
         err = capsys.readouterr().err
         assert "WARNING: hooks DISABLED" in err
         assert "SyntaxError" in err
+
+    def test_timed_shim_syntax_error_degrades_with_warning(self, tmp_path, capsys):
+        """Timed shims use the same load-failure degrade path."""
+        marker = tmp_path / "later-ran"
+        names = [
+            _write_shim(tmp_path, "bad.py", "def broken(:\n"),
+            _write_shim(
+                tmp_path,
+                "later.py",
+                f"from pathlib import Path\nPath(r'{marker}').touch()\n",
+            ),
+        ]
+
+        rc = run_dispatch(tmp_path, names, b"{}", {"bad.py": 0.1})
+
+        assert rc == 0
+        assert marker.exists()
+        err = capsys.readouterr().err
+        assert "WARNING: hooks DISABLED" in err
+        assert "SyntaxError" in err
+        assert "timed out" not in err
 
     def test_shim_runtime_error_denies_not_degrades(self, tmp_path, capsys):
         """A shim that loads then raises is an execution failure: deny."""
