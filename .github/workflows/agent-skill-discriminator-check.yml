@@ -55,6 +55,7 @@ jobs:
             agents:
               - '.claude/agents/**.md'
               - 'templates/agents/**.shared.md'
+              - 'scripts/validation/agent_skill_discriminator_baseline.json'
               - 'scripts/validation/check_agent_skill_discriminator.py'
               - '.github/workflows/agent-skill-discriminator-check.yml'
 
