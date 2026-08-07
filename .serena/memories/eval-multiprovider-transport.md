@@ -22,9 +22,9 @@ HTTP 410
           "message":"GitHub Models is temporarily unavailable as part of a scheduled retirement brownout."}}
 ```
 
-The body still says "temporarily." That is no longer true, and the stale wording has a consequence: `_is_provider_outage` in `scripts/eval/eval-prompt-change.py` matches on that text, so an eval routed through this provider now exits neutral rather than red. A gate wired this way reports success while grading nothing. Tracked in #4339.
+The body still says "temporarily." That is no longer true. PR #4422 resolved #4339 by removing the retirement markers from `_is_provider_outage`, so HTTP 410 now surfaces as an execution fault with exit code 3 instead of a neutral provider-outage skip. The `/spec` quality gate grades through the default Anthropic provider.
 
-So this memory's escape hatch below is only half available. `openai`, `codex`, and `anthropic-sdk` remain; `github` and `github-models` do not. #4002 additionally reports that `--provider` is a dead flag and that a plan-time USD gate blocks non-Anthropic models, so confirm reachability before depending on any of them.
+Working routed providers include `openai`, `codex`, `anthropic-sdk`, `copilot`, and `copilot-cli`; `github` and `github-models` do not. Issue #4002 resolved the provider flag and quota-billed cost gate defects.
 
 ## Apply when
 

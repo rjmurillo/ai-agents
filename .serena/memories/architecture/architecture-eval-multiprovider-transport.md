@@ -10,10 +10,10 @@ dependency-free urllib path, so no existing baseline moves.
 2026-07-16 and 2026-07-23. Probed on 2026-08-02,
 `https://models.github.ai/inference` returns HTTP 410. The design below is still
 an accurate description of the seam; only the reachability of the `github` and
-`github-models` rows changed. The 410 body still says "temporarily
-unavailable," which `_is_provider_outage` matches, so an eval routed through
-either row exits neutral and its gate reports success while grading nothing.
-Tracked in #4339, with #4002 covering a separate `--provider` defect.
+`github-models` rows changed. PR #4422 resolved #4339 by removing the retirement
+text from `_is_provider_outage`, so HTTP 410 now surfaces as an execution fault
+with exit code 3. Issue #4002 also resolved the provider flag and quota-billed
+cost gate defects.
 
 ## Design (Open/Closed)
 
@@ -34,6 +34,8 @@ Tracked in #4339, with #4002 covering a separate `--provider` defect.
   folded into a leading system-role message.
 - `anthropic-sdk` is an optional provider via the `anthropic` SDK; the default
   `anthropic` provider stays on urllib.
+- `copilot` and `copilot-cli` shell out to the installed Copilot CLI and need no
+  API key.
 - Providers normalize SDK errors to the exact message shapes
   `_anthropic_api.call_api` already emits (`<Provider> API returned HTTP
   <code>: ...`, `...timed out...`), so `_eval_api_adapter._categorize_error`
