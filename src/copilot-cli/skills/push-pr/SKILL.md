@@ -1,7 +1,7 @@
 ---
 name: push-pr
 description: Commit, push, and open a PR
-allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:*/pr/new_pr.py*), Bash(git diff:*), Bash(git branch:*), Bash(mkdir:-p .agents/scratch), Write
+allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:*/pr/new_pr.py*), Bash(git diff:*), Bash(git branch:*), Edit(.agents/scratch/pr-body-*.md)
 user-invocable: true
 ---
 
@@ -21,15 +21,17 @@ Based on the above changes:
    1. Determine the type of change that maps to conventional commit type followed by a 3-5 word description (e.g., fix/parser-log-enrichment)
 2. Push the branch to origin
 3. Read @.github/PULL_REQUEST_TEMPLATE.md
-4. Create `.agents/scratch`, choose a unique per-run PR body filename, then use
-   the Write tool to write the adapted template:
+4. Run the secure path allocator:
 
    ```bash
-   mkdir -p .agents/scratch
-   BODY_FILE=".agents/scratch/pr-body-<unique-uuid>.md"
+   SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+   python3 "$SCRIPTS_DIR/pr/new_pr.py" --prepare-body-file
    ```
 
-   - Replace `<unique-uuid>` with a new UUID before writing the file
+   - Copy the returned path exactly. Do not store it in a shell variable because
+     each tool call runs in a fresh shell.
+   - Use the Edit tool to replace `<!-- replace with PR body -->` in that exact
+     file with the adapted template.
    - **Fill in** all sections with actual change information from git diff
    - **Replace** placeholder comments with substantive content
    - **Check** appropriate Type of Change boxes based on actual changes
@@ -41,7 +43,7 @@ Based on the above changes:
 
    ```bash
    SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
-   python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "<conventional commit title>" --body-file "$BODY_FILE"
+   python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "<conventional commit title>" --body-file ".agents/scratch/pr-body-<returned-uuid>.md"
    ```
 
 - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)

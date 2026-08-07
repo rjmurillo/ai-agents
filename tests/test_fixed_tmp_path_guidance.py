@@ -35,17 +35,19 @@ def test_guidance_uses_unique_per_run_paths():
                 "tempfile.mktemp",
                 "tempfile.mkstemp",
                 "tempfile.TemporaryDirectory",
-                "pr-body-<unique-uuid>.md",
+                "new_pr.py\" --prepare-body-file",
             )
         )
 
 
-def test_push_pr_uuid_path_is_writable_by_its_tool_allowlist():
+def test_push_pr_body_path_is_confined_by_its_tool_allowlist():
     for relative_path in (
         Path(".claude/commands/push-pr.md"),
         Path("src/copilot-cli/skills/push-pr/SKILL.md"),
     ):
         text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
-        assert "pr-body-<unique-uuid>.md" in text
-        assert "Write" in text.split("---", maxsplit=2)[1]
+        assert 'new_pr.py" --prepare-body-file' in text
+        frontmatter = text.split("---", maxsplit=2)[1]
+        assert "Edit(.agents/scratch/pr-body-*.md)" in frontmatter
+        assert ", Write" not in frontmatter
         assert "python3 -c" not in text
