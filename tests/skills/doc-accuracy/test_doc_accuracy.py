@@ -177,6 +177,7 @@ class TestSourceSymbol:
 
 class TestRunAssessment:
     def test_scans_directory(self, tmp_path: Path) -> None:
+        (tmp_path / ".git").write_text("gitdir: missing\n")
         (tmp_path / "README.md").write_text("# Hello\n`MyFunc`\n")
         (tmp_path / "main.py").write_text("def MyFunc():\n    pass\n")
 
@@ -338,6 +339,14 @@ class TestRunAssessment:
             ["git", "-C", str(tmp_path), "add", "."], check=True, capture_output=True,
         )
         subprocess.run(
+            ["git", "-C", str(tmp_path), "config", "user.name", "t"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "config", "user.email", "t@t"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "init"],
             check=True, capture_output=True,
         )
@@ -360,6 +369,14 @@ class TestRunAssessment:
         subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
         subprocess.run(
             ["git", "-C", str(tmp_path), "add", "."], check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "config", "user.name", "t"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "config", "user.email", "t@t"],
+            check=True, capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "init"],
@@ -433,6 +450,21 @@ class TestGetChangedFiles:
             ])
         assert exit_code == 3
 
+    def test_ref_to_missing_object_exits_3(self, tmp_path: Path) -> None:
+        """A resolved ref with a missing object is an external Git failure."""
+        self._init_repo(tmp_path)
+        missing_oid = "1234567890abcdef1234567890abcdef12345678"
+        ref = tmp_path / ".git" / "refs" / "heads" / "missing-object"
+        ref.write_text(f"{missing_oid}\n")
+
+        exit_code = main([
+            "--target", str(tmp_path),
+            "--diff-base", "missing-object",
+            "--phases", "1",
+        ])
+
+        assert exit_code == 3
+
     def test_localized_stderr_invalid_ref_exits_2(self, tmp_path: Path) -> None:
         """Localized git with rc1 (unresolved ref) => exit 2, not pattern match."""
         self._init_repo(tmp_path)
@@ -456,10 +488,14 @@ class TestGetChangedFiles:
             ])
         assert exit_code == 2
 
-    def test_non_git_repo_exits_3(self, tmp_path: Path) -> None:
-        """Non-git directory is an environment error => exit 3."""
+    def test_invalid_git_directory_exits_3(self, tmp_path: Path) -> None:
+        """Invalid Git metadata is an environment error => exit 3."""
+        repo = tmp_path / "not-a-repo"
+        repo.mkdir()
+        (repo / ".git").write_text("gitdir: missing\n")
+
         exit_code = main([
-            "--target", str(tmp_path),
+            "--target", str(repo),
             "--diff-base", "HEAD",
             "--phases", "1",
         ])
@@ -793,8 +829,6 @@ class TestGetChangedFiles:
             check=True, capture_output=True,
         )
 
-        home = tmp_path / "home"
-        home.mkdir()
         sentinel = tmp_path / "global-fsmonitor-ran"
         hook = tmp_path / "global-fsmonitor.py"
         hook.write_text(
@@ -803,6 +837,8 @@ class TestGetChangedFiles:
             f"Path({str(sentinel)!r}).write_text('ran')\n",
         )
         hook.chmod(0o755)
+        home = tmp_path / "home"
+        home.mkdir()
         subprocess.run(
             [
                 "git", "config", "--file", str(home / ".gitconfig"),
@@ -810,15 +846,75 @@ class TestGetChangedFiles:
             ],
             check=True, capture_output=True,
         )
+        inherited_env = os.environ.copy()
+        inherited_env["HOME"] = str(home)
+        inherited_env.pop("GIT_CONFIG_GLOBAL", None)
+        inherited_env.pop("GIT_CONFIG_NOSYSTEM", None)
         subprocess.run(
             ["git", "-C", str(repo), "status", "--porcelain"],
             check=True, capture_output=True,
-            env={**os.environ, "HOME": str(home)},
+            env=inherited_env,
         )
         assert sentinel.exists(), "global fsmonitor probe did not execute"
         sentinel.unlink()
 
-        with patch.dict(os.environ, {"HOME": str(home)}, clear=False):
+        with patch.dict(os.environ, inherited_env, clear=True):
+            exit_code = main([
+                "--target", str(repo),
+                "--diff-base", "HEAD~1",
+                "--phases", "1",
+            ])
+        assert exit_code == 0
+        assert not sentinel.exists()
+
+    def test_system_fsmonitor_config_is_ignored(self, tmp_path: Path) -> None:
+        """System-level core.fsmonitor cannot execute during the scan."""
+        import os
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        self._init_repo(repo)
+        (repo / "a.md").write_text("# A\n")
+        subprocess.run(
+            ["git", "-C", str(repo), "add", "."],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "add a"],
+            check=True, capture_output=True,
+        )
+
+        sentinel = tmp_path / "system-fsmonitor-ran"
+        hook = tmp_path / "system-fsmonitor.py"
+        hook.write_text(
+            f"#!{sys.executable}\n"
+            "from pathlib import Path\n"
+            f"Path({str(sentinel)!r}).write_text('ran')\n",
+        )
+        hook.chmod(0o755)
+        system_config = tmp_path / "system.gitconfig"
+        subprocess.run(
+            [
+                "git", "config", "--file", str(system_config),
+                "core.fsmonitor", str(hook),
+            ],
+            check=True, capture_output=True,
+        )
+        inherited_env = {
+            **os.environ,
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_SYSTEM": str(system_config),
+        }
+        inherited_env.pop("GIT_CONFIG_NOSYSTEM", None)
+        subprocess.run(
+            ["git", "-C", str(repo), "status", "--porcelain"],
+            check=True, capture_output=True,
+            env=inherited_env,
+        )
+        assert sentinel.exists(), "system fsmonitor probe did not execute"
+        sentinel.unlink()
+
+        with patch.dict(os.environ, inherited_env, clear=True):
             exit_code = main([
                 "--target", str(repo),
                 "--diff-base", "HEAD~1",
@@ -918,6 +1014,7 @@ class TestGetChangedFiles:
             "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE", "GIT_INDEX_FILE",
             "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_PREFIX",
             "GIT_SHALLOW_FILE", "GIT_COMMON_DIR",
+            "git_dir", "Git_Work_Tree", "git_object_directory",
         ]
         prefix_vars = ["GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0",
                        "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM",
@@ -1022,22 +1119,25 @@ class TestGetChangedFiles:
 
         assert "changed.md" in _get_changed_files("HEAD~1", tmp_path)
 
-    def test_blob_and_tree_revisions_exit_2(self, tmp_path: Path) -> None:
-        """Existing non-commit objects are invalid diff-base configuration."""
+    def test_blob_and_tree_revision_expressions_exit_2(
+        self, tmp_path: Path
+    ) -> None:
+        """Valid non-commit revisions are invalid diff-base configuration."""
         self._init_repo(tmp_path)
-        blob = subprocess.run(
-            ["git", "-C", str(tmp_path), "hash-object", "-w", "--stdin"],
-            check=True, capture_output=True, text=True, input="blob\n",
-        ).stdout.strip()
-        tree = subprocess.run(
-            ["git", "-C", str(tmp_path), "rev-parse", "HEAD^{tree}"],
-            check=True, capture_output=True, text=True,
-        ).stdout.strip()
+        (tmp_path / "README.md").write_text("# Readme\n")
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "add", "README.md"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "add readme"],
+            check=True, capture_output=True,
+        )
 
-        for object_id in (blob, tree):
+        for revision in ("HEAD^{tree}", "HEAD:README.md"):
             exit_code = main([
                 "--target", str(tmp_path),
-                "--diff-base", object_id,
+                "--diff-base", revision,
                 "--phases", "1",
             ])
             assert exit_code == 2
@@ -1095,15 +1195,21 @@ class TestGetChangedFiles:
             ])
         assert exit_code == 3
 
-    def test_every_git_boundary_call_has_timeout(self, tmp_path: Path) -> None:
-        """Every scanner-owned Git subprocess carries the timeout."""
+    def test_every_git_boundary_call_is_isolated_and_timed(
+        self, tmp_path: Path
+    ) -> None:
+        """Every scanner-owned Git subprocess disables inherited execution."""
+        import os
+
         self._init_repo(tmp_path)
         real_run = subprocess.run
-        observed: list[tuple[list[str], object]] = []
+        observed: list[tuple[list[str], object, dict[str, str]]] = []
 
         def recording_run(*args, **kwargs):
             cmd = args[0] if args else kwargs.get("args", [])
-            observed.append((cmd, kwargs.get("timeout")))
+            observed.append(
+                (cmd, kwargs.get("timeout"), kwargs.get("env", {})),
+            )
             return real_run(*args, **kwargs)
 
         with patch.object(subprocess, "run", side_effect=recording_run):
@@ -1111,7 +1217,15 @@ class TestGetChangedFiles:
             list(_iter_git_files(tmp_path, require_git=True))
 
         assert observed
-        assert all(timeout == mod._GIT_TIMEOUT for _, timeout in observed)
+        for command, timeout, env in observed:
+            assert timeout == mod._GIT_TIMEOUT
+            assert command[0] == "git"
+            assert "--no-replace-objects" in command
+            config_index = command.index("-c")
+            assert command[config_index + 1] == "core.fsmonitor=false"
+            assert env["GIT_CONFIG_NOSYSTEM"] == "1"
+            assert env["GIT_CONFIG_GLOBAL"] == os.devnull
+            assert env["GIT_CONFIG_SYSTEM"] == os.devnull
 
     def test_windows_paths_normalize_to_git_separators(self) -> None:
         """Repository-relative paths use slashes on Windows."""

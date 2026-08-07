@@ -453,15 +453,12 @@ def _count_code_blocks(content: str) -> int:
 def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     """Get files changed between diff_base and HEAD (committed changes only).
 
-    Uses a deterministic five-phase validation sequence:
+    Uses a deterministic validation sequence:
 
     1. Verify git work-tree environment (sanitized env, ``-C repo_root``).
-    2. Resolve *diff_base* to a commit OID.
-       rc 1 = unknown ref => config exit 2.
-    3. Resolve HEAD to a commit OID.
-    4. Verify OID object accessibility (``cat-file -e <oid>^{commit}``).
-       Failure = object storage/corruption => external exit 3.
-    5. Diff by resolved OIDs using NUL-separated output (``-z``).
+    2. Resolve each revision to an OID and verify object accessibility.
+    3. Resolve ``<revision>^{commit}``; non-commit bases are config exit 2.
+    4. Diff by resolved commit OIDs using NUL-separated output (``-z``).
 
     All git commands use ``_git_env()`` to strip inherited repository-
     selection variables (GIT_DIR, GIT_WORK_TREE, etc.).
@@ -496,7 +493,48 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
 
     def resolve_commit(ref: str, *, invalid_exit: int) -> str:
         try:
-            oid_result = subprocess.run(
+            raw_result = subprocess.run(
+                _git_command(
+                    repo_root,
+                    "rev-parse", "--verify", "--quiet", "--end-of-options",
+                    ref,
+                ),
+                capture_output=True, check=True,
+                timeout=_GIT_TIMEOUT, env=env,
+            )
+        except subprocess.CalledProcessError as exc:
+            if exc.returncode == 1:
+                raise _GitError(
+                    invalid_exit, f"rev-parse: unknown revision '{ref}'",
+                ) from exc
+            raise _GitError(
+                3, f"rev-parse: failed to resolve '{ref}' "
+                f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
+            ) from exc
+
+        raw_oid_bytes = raw_result.stdout.strip()
+        if re.fullmatch(
+            rb"(?:[0-9a-f]{40}|[0-9a-f]{64})", raw_oid_bytes
+        ) is None:
+            raise _GitError(
+                3, f"rev-parse: malformed object ID for '{ref}'",
+            )
+        raw_oid = raw_oid_bytes.decode("ascii")
+
+        try:
+            subprocess.run(
+                _git_command(repo_root, "cat-file", "-e", raw_oid),
+                capture_output=True, check=True,
+                timeout=_GIT_TIMEOUT, env=env,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise _GitError(
+                3, f"cat-file: object {raw_oid[:12]} not accessible "
+                f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
+            ) from exc
+
+        try:
+            commit_result = subprocess.run(
                 _git_command(
                     repo_root,
                     "rev-parse", "--verify", "--quiet", "--end-of-options",
@@ -507,18 +545,31 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
             )
         except subprocess.CalledProcessError as exc:
             if exc.returncode == 1:
+                try:
+                    subprocess.run(
+                        _git_command(repo_root, "cat-file", "-e", raw_oid),
+                        capture_output=True, check=True,
+                        timeout=_GIT_TIMEOUT, env=env,
+                    )
+                except subprocess.CalledProcessError as missing_exc:
+                    raise _GitError(
+                        3, f"cat-file: object {raw_oid[:12]} not accessible "
+                        f"(rc {missing_exc.returncode}): "
+                        f"{_decode_stderr(missing_exc.stderr)}",
+                    ) from missing_exc
                 raise _GitError(
-                    invalid_exit, f"rev-parse: invalid commit revision '{ref}'",
+                    invalid_exit,
+                    f"rev-parse: invalid commit revision '{ref}'",
                 ) from exc
             raise _GitError(
-                3, f"rev-parse: failed to resolve '{ref}' "
+                3, f"rev-parse: failed to peel '{ref}' to a commit "
                 f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
             ) from exc
 
-        oid_bytes = oid_result.stdout.strip()
+        oid_bytes = commit_result.stdout.strip()
         if re.fullmatch(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid_bytes) is None:
             raise _GitError(
-                3, f"rev-parse: malformed object ID for '{ref}'",
+                3, f"rev-parse: malformed commit ID for '{ref}'",
             )
         oid = oid_bytes.decode("ascii")
 
@@ -530,16 +581,16 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
             )
         except subprocess.CalledProcessError as exc:
             raise _GitError(
-                3, f"cat-file: object {oid[:12]} not accessible "
+                3, f"cat-file: commit {oid[:12]} not accessible "
                 f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
             ) from exc
         return oid
 
-    # Phases 2-4: resolve and verify immutable commit IDs.
+    # Phases 2-3: resolve and verify immutable commit IDs.
     oid = resolve_commit(diff_base, invalid_exit=2)
     head_oid = resolve_commit("HEAD", invalid_exit=3)
 
-    # Phase 5: diff by resolved OIDs, NUL-separated output.
+    # Phase 4: diff by resolved OIDs, NUL-separated output.
     try:
         result = subprocess.run(
             _git_command(
