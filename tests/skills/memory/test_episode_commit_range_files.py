@@ -195,6 +195,59 @@ class TestExtractorUsesTheCommitRange:
         # The prose says 99. The range says 3. The range wins.
         assert episode["metrics"]["files_changed"] == 3
 
+    def test_authoritative_count_beats_staged_range_and_prose(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        log, start, end = self._build(repo, tmp_path, changed=3)
+        data = json.loads(log.read_text(encoding="utf-8"))
+        data["episodeMetrics"] = {
+            "filesChanged": 10,
+            "comparison": {
+                "kind": "githubPullRequest",
+                "pullRequest": 4616,
+                "base": start,
+                "head": end,
+            },
+        }
+        log.write_text(json.dumps(data), encoding="utf-8")
+        (repo / "staged.txt").write_text("staged\n", encoding="utf-8")
+        _git("add", "staged.txt", cwd=repo)
+        out = tmp_path / "episodes"
+
+        rc = ese.main([str(log), "--output-path", str(out), "--force"])
+
+        assert rc == 0
+        episode = json.loads((out / "episode-2026-08-03-session-1.json").read_text())
+        assert episode["metrics"]["files_changed"] == 10
+
+    def test_authoritative_count_replaces_larger_preserved_metric(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        log, start, end = self._build(repo, tmp_path, changed=3)
+        data = json.loads(log.read_text(encoding="utf-8"))
+        data["episodeMetrics"] = {
+            "filesChanged": 10,
+            "comparison": {
+                "kind": "githubPullRequest",
+                "pullRequest": 4616,
+                "base": start,
+                "head": end,
+            },
+        }
+        log.write_text(json.dumps(data), encoding="utf-8")
+        out = tmp_path / "episodes"
+        assert ese.main([str(log), "--output-path", str(out), "--force"]) == 0
+        episode_file = out / "episode-2026-08-03-session-1.json"
+        episode = json.loads(episode_file.read_text(encoding="utf-8"))
+        episode["metrics"]["files_changed"] = 95
+        episode_file.write_text(json.dumps(episode), encoding="utf-8")
+
+        rc = ese.main([str(log), "--output-path", str(out), "--preserve"])
+
+        assert rc == 0
+        preserved = json.loads(episode_file.read_text(encoding="utf-8"))
+        assert preserved["metrics"]["files_changed"] == 10
+
     def test_prose_still_answers_when_the_range_is_unusable(
         self, repo: Path, tmp_path: Path
     ) -> None:
