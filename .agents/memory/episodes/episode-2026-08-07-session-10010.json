@@ -1,61 +1,61 @@
 {
-  "id": "episode-2026-08-07-session-10009",
-  "session": "2026-08-07-session-10009",
+  "id": "episode-2026-08-07-session-10010",
+  "session": "2026-08-07-session-10010",
   "timestamp": "2026-08-07T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Hotfix portability validator symlink containment regressions from PR 4551",
+  "task": "Prepare PR #4762 for landing without merging",
   "decisions": [],
   "events": [
     {
       "id": "e001",
       "timestamp": "2026-08-07T00:00:00+00:00",
       "type": "milestone",
-      "content": "Created a fresh worktree from origin/main and opened branch hotfix-portability-symlinks.",
+      "content": "Acquired the PR lease and ran live-state, readiness, completion, review-thread, and required-check gates.",
       "caused_by": [],
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-07-session-10009"
+      "_source_session": "2026-08-07-session-10010"
     },
     {
       "id": "e002",
       "timestamp": "2026-08-07T00:00:00+00:00",
       "type": "milestone",
-      "content": "Reviewed portability validator scan paths and shared coverage helpers.",
+      "content": "Refreshed main after a SHA audit and merged current main into the branch.",
       "caused_by": [],
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-07-session-10009"
+      "_source_session": "2026-08-07-session-10010"
     },
     {
       "id": "e003",
       "timestamp": "2026-08-07T00:00:00+00:00",
       "type": "milestone",
-      "content": "Applied the shared containment fix and added regressions.",
+      "content": "Closed the descendant scripts-directory containment gap and added regression coverage.",
       "caused_by": [],
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-07-session-10009"
+      "_source_session": "2026-08-07-session-10010"
     },
     {
       "id": "e004",
       "timestamp": "2026-08-07T00:00:00+00:00",
       "type": "milestone",
-      "content": "Created tracking issue #4759 and ran targeted validation.",
+      "content": "Backfilled session 10009 commit metadata and regenerated its episode artifact.",
       "caused_by": [],
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-07-session-10009"
+      "_source_session": "2026-08-07-session-10010"
     },
     {
       "id": "e005",
-      "timestamp": "2026-08-07T19:09:35+00:00",
+      "timestamp": "2026-08-07T20:49:29+00:00",
       "type": "commit",
-      "content": "Commit: fb30c790dc50df765065317b630d6e276a5ef8c2",
+      "content": "Commit: 4bd7890864bfd29dc64d5cb96180d87a27031021",
       "caused_by": [
         "e001",
         "e002",
@@ -63,7 +63,7 @@
         "e004"
       ],
       "leads_to": [],
-      "_source_session": "2026-08-07-session-10009"
+      "_source_session": "2026-08-07-session-10010"
     }
   ],
   "metrics": {

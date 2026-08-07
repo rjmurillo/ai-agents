@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10010,
+    "date": "2026-08-07",
+    "branch": "hotfix-portability-symlinks",
+    "startingCommit": "fb30c790d",
+    "objective": "Prepare PR #4762 for landing without merging"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tooling initialized in this session; activate_project is not exposed in this harness."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions at session start."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Viewed .agents/HANDOFF.md."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts and inspected PR helper usage."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read mem:usage-mandatory."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Viewed AGENTS.md, .claude/rules/universal.md, and .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read mem:memory-index, mem:new-pr-stale-main-ref-trap, mem:pr-review/live-state-gate-expires-during-the-work, mem:validation/validation-pr-gates, mem:ci/measure-main-before-blaming-the-pr, mem:security/pr4247-review, mem:skills-session-init-index, mem:skills-protocol-index, mem:skills-github-cli-index, mem:git/git-lock-pushes-per-branch-not-globally, mem:github/github-dismissed-reviews-block-automerge, and mem:pr-review/pr-review-007-merge-state-verification."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "hotfix-portability-symlinks"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On hotfix-portability-symlinks"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified a clean worktree before edits and re-checked status after validations."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "fb30c790d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Completed the required validation, review-thread, lease, and branch-state checks before commit."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated mem:validation/descendant-symlink-portability-containment with the scripts-dir containment gap and regression note."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files changed in this session; markdown hooks skipped by path scope."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This commit records the landing-preparation fixes, review-artifact repairs, and session log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/validation/test_portability_scan_coverage_refusal.py tests/validation/test_check_skill_md_exec_portability.py -x; uv run ruff check scripts/validation/check_skill_md_exec_portability.py tests/validation/test_portability_scan_coverage_refusal.py."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Acquired the PR lease and ran live-state, readiness, completion, review-thread, and required-check gates.",
+      "result": "PR #4762 was open and actionable, CI was green, auto-merge was not armed, the branch was BEHIND main, and three unresolved review threads remained."
+    },
+    {
+      "action": "Refreshed main after a SHA audit and merged current main into the branch.",
+      "result": "Verified the remote PR head matched local HEAD at fb30c790dc50df765065317b630d6e276a5ef8c2, fast-forwarded local main to 4bd7890864bfd29dc64d5cb96180d87a27031021, and merged main cleanly."
+    },
+    {
+      "action": "Closed the descendant scripts-directory containment gap and added regression coverage.",
+      "result": "The exec portability checker now refuses escaped scripts directories before Path.is_dir() or iterdir(), and the regression matrix now covers escaped scripts/ symlinks under both shipped skill roots."
+    },
+    {
+      "action": "Backfilled session 10009 commit metadata and regenerated its episode artifact.",
+      "result": "Session 10009 now records endingCommit fb30c790dc50df765065317b630d6e276a5ef8c2, and its episode reports commits=1 and files_changed=6."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}

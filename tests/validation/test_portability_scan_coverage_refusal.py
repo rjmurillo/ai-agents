@@ -324,6 +324,25 @@ class TestDescendantSymlinkEscapes:
         sys.platform == "win32",
         reason="Symlinks require privileges on Windows",
     )
+    @pytest.mark.parametrize("root_name", ROOT_NAMES)
+    def test_exec_checker_refuses_descendant_scripts_directory_symlink_escape(
+        self, tmp_path: Path, root_name: str
+    ) -> None:
+        self._seed_scan_roots(tmp_path)
+        outside = self._outside_path(tmp_path, "outside-scripts-dir")
+        skill_dir = tmp_path / root_name / "alpha"
+        (skill_dir / "scripts").symlink_to(outside, target_is_directory=True)
+        baseline, before = self._baseline(tmp_path)
+
+        rc = cep.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+
+        assert rc == 2
+        assert baseline.read_bytes() == before
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
     @pytest.mark.parametrize("module", [cmp, cep])
     @pytest.mark.parametrize("root_name", ROOT_NAMES)
     def test_update_baseline_treats_tracked_escape_as_missing(

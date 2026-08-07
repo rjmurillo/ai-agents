@@ -231,6 +231,7 @@ def _iter_skill_files(repo_root: Path, skill_root: Path) -> list[Path]:
         paths.extend(_iter_reference_markdown(root_resolved, references_dir))
 
     scripts_dir = skill_root / "scripts"
+    _refuse_exec_escape(root_resolved, scripts_dir, "Skill directory")
     if scripts_dir.is_dir():
         for path in sorted(scripts_dir.iterdir()):
             if "__pycache__" in path.parts:
