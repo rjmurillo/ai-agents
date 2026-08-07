@@ -451,7 +451,7 @@ pre-push:
 
           - name: python-unreachable-statements
             timeout: 2m
-            run: uv run --frozen python scripts/validation/check_unreachable_after_terminator.py .
+            run: uv run --frozen python scripts/validation/check_unreachable_code.py .
             glob: "**/*.py"
           - name: merge-tree-ratchet
             timeout: 5m

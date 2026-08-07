@@ -4997,9 +4997,7 @@ def test_push_policy_ignores_a_directory_named_like_the_git_am_marker(
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "tracked.txt", "base\n")
-    rebase_apply = Path(
-        _git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip()
-    )
+    rebase_apply = Path(_git(repo, "rev-parse", "--git-path", "rebase-apply").stdout.strip())
     if not rebase_apply.is_absolute():
         rebase_apply = repo / rebase_apply
     (rebase_apply / policy.GIT_AM_MARKER).mkdir(parents=True)
@@ -5228,9 +5226,7 @@ def test_non_fast_forward_skips_non_branch_refs(tmp_path: Path) -> None:
     # local=branch_b, remote=branch_a: genuinely divergent (non-ancestor).
     # If the branch guard were absent, this would reach the ancestry check
     # and return 1.  The guard must fire and return 0 first.
-    push_ref = _make_push_ref(
-        branch_b_sha, branch_a_sha, remote_ref="refs/tags/v1.0.0"
-    )
+    push_ref = _make_push_ref(branch_b_sha, branch_a_sha, remote_ref="refs/tags/v1.0.0")
 
     result = policy._check_non_fast_forward(push_ref, repo)
 
@@ -6632,15 +6628,15 @@ def test_workflow_local_maps_secret_skip_but_blocks_tool_gap(
     assert policy.run_workflow_local([".github/workflows/test.yml"], tmp_path) == 3
 
 
-def test_cli_e2e_skip_is_visible(
+def test_cli_e2e_skip_override_fails_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv("SKIP_CLI_E2E", "true")
 
-    assert policy.run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", tmp_path) == 0
-    assert "SKIP_CLI_E2E=true" in capsys.readouterr().out
+    assert policy.run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", tmp_path) == 2
+    assert "cannot bypass" in capsys.readouterr().err
 
 
 def test_advisories_warn_but_generators_block_before_staging(
@@ -6784,14 +6780,14 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
     assert "COPILOT_PLUGIN_ROOT" not in env
 
 
-def test_cli_e2e_without_cli_is_advisory(
+def test_cli_e2e_without_cli_fails_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
     monkeypatch.setattr(policy.shutil, "which", lambda _name: None)
 
-    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 2
 
 
 def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
@@ -10133,9 +10129,7 @@ class TestRangeSuppressionBackstop:
     def test_one_removal_cannot_pay_for_two_additions(self, tmp_path: Path) -> None:
         repo = self._repo(tmp_path)
         base = _commit_file(repo, "source.py", f"a = 1  {self.NOSEC}\n")
-        head = _commit_file(
-            repo, "source.py", f"b = 2  {self.NOSEC}\nc = 3  {self.NOSEC}\n"
-        )
+        head = _commit_file(repo, "source.py", f"b = 2  {self.NOSEC}\nc = 3  {self.NOSEC}\n")
 
         assert policy.check_range_suppressions(base, head, repo) == 1
 
@@ -10218,6 +10212,8 @@ class TestRangeSuppressionBackstop:
         monkeypatch.setattr(policy, "_run_git", failing_git)
 
         assert policy.check_range_suppressions(base, head, repo) == 2
+
+
 # ---------------------------------------------------------------------------
 # _semgrep_command excludes python36/37 compatibility families (#4217 unblock)
 # ---------------------------------------------------------------------------
@@ -10231,20 +10227,16 @@ def test_semgrep_command_excludes_python36_compat_family() -> None:
     errors, producing false positives that block legitimate pushes.
     """
     cmd = policy._semgrep_command("auto", ["path/to/file.py"])
-    exclude_values = [
-        cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"
-    ]
-    assert any(
-        "python.lang.compatibility.python36" in v for v in exclude_values
-    ), f"python36 compat family not excluded. --exclude-rule values: {exclude_values}"
+    exclude_values = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"]
+    assert any("python.lang.compatibility.python36" in v for v in exclude_values), (
+        f"python36 compat family not excluded. --exclude-rule values: {exclude_values}"
+    )
 
 
 def test_semgrep_command_excludes_python37_compat_family() -> None:
     """_semgrep_command must exclude the python37 compatibility rule family."""
     cmd = policy._semgrep_command("auto", ["path/to/file.py"])
-    exclude_values = [
-        cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"
-    ]
-    assert any(
-        "python.lang.compatibility.python37" in v for v in exclude_values
-    ), f"python37 compat family not excluded. --exclude-rule values: {exclude_values}"
+    exclude_values = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"]
+    assert any("python.lang.compatibility.python37" in v for v in exclude_values), (
+        f"python37 compat family not excluded. --exclude-rule values: {exclude_values}"
+    )
