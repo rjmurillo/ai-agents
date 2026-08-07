@@ -100,7 +100,16 @@ def main(argv: list[str] | None = None) -> int:
         write_log(f"{agent.capitalize()} category: {categories[agent]}")
 
     code_quality_failures = any(cat == "CODE_QUALITY" for cat in categories.values())
-    security_review_ran = categories.get("security") != "INFRASTRUCTURE"
+    # Read the verdict itself, not only its category. get_category maps
+    # DID_NOT_RUN to CODE_QUALITY when infra_flag is false, so a security review
+    # that plainly did not run reads as "ran" whenever that flag is missing or
+    # mis-set. The gate then passes a pull request whose security review never
+    # happened, which is the failure this whole change exists to close, reached
+    # through the classifier instead of through the aggregate.
+    security_review_ran = (
+        categories.get("security") != "INFRASTRUCTURE"
+        and verdicts.get("security") != "DID_NOT_RUN"
+    )
 
     final = merge_verdicts([verdicts[agent] for agent in _AGENTS])
     write_log(f"Final verdict: {final}")

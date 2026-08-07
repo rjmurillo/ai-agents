@@ -152,6 +152,37 @@ class TestMain:
         assert outputs["final_verdict"] == "DID_NOT_RUN"
         assert outputs["security_review_ran"] == "false"
 
+    def test_did_not_run_security_without_infra_flag_still_forces_did_not_run(
+        self, tmp_path, monkeypatch
+    ):
+        """The infra flag must not be able to launder a DID_NOT_RUN security review.
+
+        get_category maps DID_NOT_RUN to CODE_QUALITY when infra_flag is false,
+        so deriving "did it run" from the category alone reads a review that
+        plainly did not run as having run. The gate then passes a pull request
+        with no security review, reached through the classifier rather than
+        through the aggregate. Refs #4654.
+        """
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "false"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["security_review_ran"] == "false", (
+            "a DID_NOT_RUN security verdict was reported as having run because "
+            "its infra flag was false"
+        )
+        # merge_verdicts already maps DID_NOT_RUN to UNKNOWN, which blocks a
+        # PASS on its own, so the forcing branch is not what saves this case.
+        # The assertion that matters is security_review_ran above: the gate must
+        # not record the review as having happened.
+        assert outputs["final_verdict"] != "PASS"
+
     def test_did_not_run_security_infra_forces_did_not_run(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
         verdicts = {a: "PASS" for a in _AGENTS}
