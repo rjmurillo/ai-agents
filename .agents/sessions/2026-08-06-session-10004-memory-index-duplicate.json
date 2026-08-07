@@ -89,12 +89,12 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No markdown files changed"
+        "Evidence": "pre_pr.py --markdown-lint-only: 8 of 13 files linted"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 1f6dbd4a3)"
+        "Evidence": "All changes committed (HEAD: 6d7467b564)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -114,7 +114,12 @@
       "reworkWarning": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "rework-warning: scripts/validation/memory_index.py edited 15 times\nrework-warning: tests/test_validation_memory_index.py edited 13 times"
+        "Evidence": "rework-warning: scripts/validation/memory_index.py edited 15 times\nrework-warning: tests/test_validation_memory_index.py edited 14 times"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-07-pr-4735-closing-review.md"
       }
     }
   },
@@ -140,10 +145,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "00a95ad5a",
-      "head": "b79d60c4b"
+      "head": "6d7467b5647862b26bd8c34e79f7a719d149f4ef"
     }
   },
-  "endingCommit": "b79d60c4b",
+  "endingCommit": "6d7467b564",
   "nextSteps": [
     "Commit, push, and open the corrective pull request"
   ]

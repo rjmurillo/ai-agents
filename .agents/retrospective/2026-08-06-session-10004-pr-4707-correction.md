@@ -190,3 +190,8 @@ a successful push.
 | Exact-head negative control | ai-agents-debugging-playbook | High | Do not duplicate |
 | External pytest root | `.claude/rules/testing.md` | High | Do not duplicate |
 | Session evidence first | session-end | High | Do not duplicate |
+
+## Review Correction: 2026-08-07
+
+PR #4735 tracks the four Action Sequence items above. Copilot CLI owns each
+item until the replacement branch is pushed and all review threads resolve.
