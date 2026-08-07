@@ -43,7 +43,6 @@ from scripts.validation.pr_commit_count import (
     MAIN_MERGE_BLOCK_THRESHOLD,
     main_first_parent_shas,
 )
-from scripts.validation.session_scope import new_session_logs
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1696,6 +1695,54 @@ def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
     return present
 
 
+def _added_session_paths(
+    paths: Sequence[str], repo_root: Path, git_args: Sequence[str]
+) -> set[str]:
+    """Return session-log paths reported as additions by one git diff.
+
+    The diff carries no pathspec. With rename detection enabled, limiting the
+    diff to the caller's paths hides the deletion half and can reclassify a
+    rename as an add. Intersect in Python instead so only true adds receive
+    ``--creation-mode``.
+
+    On any git failure, return every path. ``--creation-mode`` is stricter than
+    ``--existing-log``, so the fail-closed answer keeps an indeterminate probe
+    from silently downgrading validation.
+    """
+    if not paths:
+        return set()
+    result = _run_git(repo_root, list(git_args))
+    if result.returncode != 0:
+        return set(paths)
+    added: set[str] = set()
+    for line in result.stdout.splitlines():
+        parts = line.split("\t", 1)
+        if len(parts) != 2:
+            continue
+        status, name = parts
+        if status.startswith("A"):
+            added.add(name.strip())
+    return {path for path in paths if path in added}
+
+
+def _added_session_paths_in_index(paths: Sequence[str], repo_root: Path) -> set[str]:
+    """Return session-log paths staged as adds in the current commit."""
+    return _added_session_paths(
+        paths,
+        repo_root,
+        ["diff", "--cached", "--name-status", "-M", "--diff-filter=A"],
+    )
+
+
+def _added_session_paths_in_head(paths: Sequence[str], repo_root: Path) -> set[str]:
+    """Return session-log paths added by the current ``HEAD`` commit."""
+    return _added_session_paths(
+        paths,
+        repo_root,
+        ["diff-tree", "--root", "--name-status", "-M", "--diff-filter=A", "-r", "HEAD"],
+    )
+
+
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if _merge_in_progress(repo_root):
         return 0
@@ -1707,7 +1754,7 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if not sessions:
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
-    new_logs = new_session_logs(sessions, repo_root)
+    new_logs = _added_session_paths_in_index(sessions, repo_root)
     for session in sessions:
         command = [
             sys.executable,
@@ -1716,9 +1763,9 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
             "--pre-commit",
         ]
         if session in new_logs:
-            # New logs are committed at session start before sessionEnd items
-            # are populated. --creation-mode skips sessionEnd compliance checks
-            # so a pristine log can be committed at session start (issue #4425).
+            # Only the staged add that creates the log gets --creation-mode.
+            # Later commits that edit the same path must run the full checklist
+            # instead of skipping protocol-compliance checks forever.
             command.append("--creation-mode")
         result = _run_command(command, repo_root)
         if result.returncode != 0:
@@ -6282,20 +6329,16 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
         for raw_path in paths
         if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
     ]
-    new_logs = new_session_logs(session_paths, repo_root)
+    new_logs = _added_session_paths_in_head(session_paths, repo_root)
     for path in session_paths:
         command = [sys.executable, "scripts/validate_session_json.py", path]
         if path not in new_logs:
             command.append("--existing-log")
         else:
-            # New logs are committed at session start before sessionEnd items
-            # are populated. Without --creation-mode the validator enforces
-            # the full sessionEnd MUST set, which cannot be satisfied at that
-            # point, and the log is never dirty except for the log itself,
-            # so complete_session_log.py cannot mark changesCommitted either.
-            # --creation-mode skips sessionEnd compliance checks so a pristine
-            # log can be committed at session start and completed at session end.
-            # Fixes #4425.
+            # Only the commit that introduces the path gets --creation-mode.
+            # A later commit on the same branch must validate the log as an
+            # existing record so protocol-compliance checks cannot be skipped
+            # forever after the first add.
             command.append("--creation-mode")
         result = _run_command(command, repo_root)
         _print_process_output(result)
