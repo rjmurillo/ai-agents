@@ -5,6 +5,8 @@ from pathlib import Path
 
 import yaml
 
+from scripts.ci.merge_tree_ratchet_registry import RATCHETS, trigger_globs
+
 LEFTHOOK_PATH = Path(__file__).parent.parent / "lefthook.yml"
 
 
@@ -63,6 +65,25 @@ class TestMemoryTierGateEnforcement:
             f"memory-index-count-ratchet cannot catch a PR that raises the "
             f"baseline without --base-ref: {run!r}"
         )
+
+    def test_merge_tree_ratchet_watches_memory_index_baseline(self) -> None:
+        job = self._find_job("merge-tree-ratchet")
+        glob = job.get("glob", [])
+        assert "scripts/ci/memory_index_count_baseline.txt" in glob, (
+            "merge-tree-ratchet does not run when the memory-index baseline changes"
+        )
+
+    def test_merge_tree_ratchet_globs_equal_registry_union(self) -> None:
+        job = self._find_job("merge-tree-ratchet")
+        assert set(job.get("glob", [])) == trigger_globs()
+
+    def test_cli_exit_contract_ratchet_watches_baseline_only_changes(self) -> None:
+        job = self._find_job("cli-exit-contract-ratchet")
+        assert "scripts/ci/cli_exit_contract_baseline.txt" in job.get("glob", [])
+
+    def test_every_registered_baseline_triggers_the_merge_tree(self) -> None:
+        merge_globs = trigger_globs()
+        assert {ratchet.baseline_path for ratchet in RATCHETS} <= merge_globs
 
     def test_memory_index_job_has_ci_flag(self) -> None:
         job = self._find_job("memory-index")
