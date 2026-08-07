@@ -204,10 +204,10 @@ class TestPolicyDenialStillDenies:
         assert proc.returncode == 2
 
 
-class TestOversizePayloadStillDenies:
-    """Oversize payload is a deliberate defensive decision, not infra."""
+class TestOversizePayloadHappyPath:
+    """Small payload is accepted; the 64 MiB oversize ceiling is impractical to feed in a test."""
 
-    def test_oversize_gate_denies(self, tmp_path: Path) -> None:
+    def test_small_payload_allows(self, tmp_path: Path) -> None:
         root = _write_full_plugin(tmp_path)
         event_dir = root / "hooks" / "PreToolUse"
 

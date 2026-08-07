@@ -16,8 +16,8 @@ Usage:
       --consumer-cwd <tmp>/consumer-repo
 
 Optional flags:
-  --negative-env    Run in degraded mode: unset plugin root vars and hide the
-                    interpreter. Asserts the hook still ALLOWS (fail-open).
+  --negative-env    Run in degraded mode: point plugin root to a nonexistent
+                    path. Asserts the hook still ALLOWS (fail-open).
 """
 
 from __future__ import annotations
