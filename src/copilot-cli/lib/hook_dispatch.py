@@ -48,7 +48,7 @@ _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-import output_capture
+import output_capture  # noqa: E402
 from hook_dispatch_protocol import (  # noqa: E402
     OUTPUT_POLICIES as _OUTPUT_POLICIES,
 )
@@ -64,7 +64,7 @@ from hook_dispatch_protocol import (  # noqa: E402
 from hook_dispatch_protocol import (  # noqa: E402
     record_discarded_observer_output as _record_discarded_observer_output,
 )
-from shim_loader import ShimLoadError, execute_shim, load_shim
+from shim_loader import ShimLoadError, execute_shim, load_shim  # noqa: E402
 
 # Hook exit-code convention (Claude/Copilot PreToolUse): 0 allow, 2 block.
 ALLOW_EXIT = 0
