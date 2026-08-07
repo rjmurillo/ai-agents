@@ -165,7 +165,13 @@ def main() -> int:
     for event in events_to_test:
         dispatch_py = _find_dispatcher(args.install_root, event)
         if dispatch_py is None:
-            print(f"SKIP: no dispatcher for {event}")
+            # A missing dispatcher is a failure, not a skip. Skipping made the
+            # guard report success after executing nothing: delete both
+            # dispatchers and failures stayed 0. A required check that passes
+            # on an empty run is worse than no check, because it certifies the
+            # exact breakage it exists to catch. Refs #4672.
+            print(f"FAIL: no dispatcher for {event} in {args.install_root}")
+            failures += 1
             continue
 
         if negative_env:

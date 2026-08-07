@@ -191,13 +191,25 @@ def _main() -> int:
     try:
         from _bootstrap import ensure_plugin_paths  # noqa: E402
         ensure_plugin_paths()
-    except Exception as exc:
+    except (Exception, SystemExit) as exc:
         # Infrastructure failure: the dispatch machinery could not load.
         # Catches ImportError (missing/broken _bootstrap.py, version skew),
         # PluginInfrastructureError (lib dir missing, plugin root invalid),
         # TypeError (signature mismatch from partial upgrade), OSError (file
-        # system issues). SystemExit from old _bootstrap.py versions is
-        # BaseException and propagates normally.
+        # system issues).
+        #
+        # SystemExit is caught here on purpose. It is a BaseException, so a
+        # bare `except Exception` misses it, and every _bootstrap.py shipped
+        # before this change calls sys.exit(2) for a missing plugin root or
+        # lib directory. A partial upgrade pairing this dispatcher with one of
+        # those therefore exited 2 and denied every PreToolUse call: the exact
+        # customer-wide denial this fail-open path exists to prevent, arriving
+        # through the one exception type the handler did not cover.
+        #
+        # The scope is deliberately this bootstrap import only. A SystemExit
+        # raised later, from shim execution, must still deny, because
+        # degrading there would convert "crash the guard" into "bypass the
+        # guard".
         # Allow the tool call (exit 0) to keep the plugin usable. A plugin
         # that denies every call forces uninstall, removing all protection.
         # Fail-open on infrastructure keeps the plugin installed so the next
