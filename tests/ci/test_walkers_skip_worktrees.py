@@ -16,16 +16,19 @@ bearing and both are asserted here:
    lives under a directory named `worktrees`, which is exactly how fleet
    worktrees are laid out.
 
-Exit codes (ADR-035):
-    0 - every walker skips worktrees and stays scoped to the walk root
-    1 - a walker regressed
+Test outcomes:
+    pass - every walker skips worktrees and stays scoped to the walk root
+    fail - a walker regressed
 """
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path, PurePosixPath
 from unittest.mock import patch
+
+import pytest
 
 import scripts.validation.check_unreachable_after_terminator as unreachable
 import tests.test_no_duplicate_module_level_defs as dupes
@@ -138,14 +141,16 @@ class TestNoTrackedFileHidesBehindTheSkip:
 
     _KNOWN = frozenset({".agents/projects/v0.3.0/worktrees/.gitkeep"})
 
+    @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
     def test_no_new_tracked_path_lands_under_a_worktrees_dir(self) -> None:
         repo = Path(__file__).resolve().parents[2]
         out = subprocess.run(
             ["git", "ls-files", "-z"],
             cwd=repo,
             capture_output=True,
-            text=True,
             check=True,
+            encoding="utf-8",
+            errors="replace",
         ).stdout
         offenders = sorted(
             f
