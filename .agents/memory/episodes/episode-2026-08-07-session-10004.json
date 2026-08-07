@@ -120,7 +120,32 @@
         "e006",
         "e007",
         "e008",
-        "e009"
+        "e009",
+        "e011"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Learnings captured for retrospective policy.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-07T02:20:04+00:00",
+      "type": "commit",
+      "content": "Commit: 049e84090",
+      "caused_by": [
+        "e010"
       ],
       "leads_to": [],
       "_source_session": "2026-08-07-session-10004"
@@ -131,7 +156,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 2
   },
   "lessons": []

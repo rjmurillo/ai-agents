@@ -158,9 +158,14 @@
       "step": 9,
       "action": "Ran required pre-push validation commands.",
       "evidence": "Full pytest passed; git_hook_policy.py mypy over changed Python files passed; merge_tree_ratchet_check.py passed; pre_pr.py passed."
+    },
+    {
+      "step": 10,
+      "action": "Learnings captured for retrospective policy.",
+      "evidence": "A full-corpus ratchet should baseline known candidates and fail only new entries; direct-path scripts that import scripts.* need a package-safe invocation or path bootstrap."
     }
   ],
-  "endingCommit": "2760b2d73",
+  "endingCommit": "049e84090",
   "nextSteps": [
     "Push branch fix/discriminator-triage-cluster.",
     "Open PR with issue reproduction and negative-control evidence.",
