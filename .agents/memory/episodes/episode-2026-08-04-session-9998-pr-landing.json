@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-04-session-9998-pr-landing",
+  "session": "2026-08-04-session-9998-pr-landing",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Drive PRs 4459, 4477, 4479, 4484 to terminal states. All four were conflicting/stale. Resolved by merging origin/main into each branch, fixing taste-count baselines, addressing review threads, and pushing for CI verification.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T01:12:20+00:00",
+      "type": "commit",
+      "content": "Commit: 58e397235",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9998-pr-landing"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

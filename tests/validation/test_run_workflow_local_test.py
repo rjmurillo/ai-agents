@@ -8,8 +8,10 @@ external commands (actionlint, gh act, docker) are mocked; no Docker required.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -18,7 +20,7 @@ _VALIDATION_DIR = str(REPO_ROOT / "scripts" / "validation")
 if _VALIDATION_DIR not in sys.path:
     sys.path.insert(0, _VALIDATION_DIR)
 
-import run_workflow_local_test as w  # noqa: E402
+import run_workflow_local_test as w
 
 WF = ".github/workflows/x.yml"
 
@@ -724,6 +726,60 @@ def test_act_dryrun_stage_runs_each_file_and_stops_on_failure(monkeypatch, tmp_p
     res = w._act_dryrun_stage(["a.yml", "b.yml"], tmp_path)
     assert res.ok is False
     assert calls == ["a.yml"]  # stopped after first failure
+
+
+def test_act_stage_runs_multi_job_workflow_jobs_serially(monkeypatch, tmp_path):
+    wf = tmp_path / WF
+    wf.parent.mkdir(parents=True)
+    wf.write_text(
+        "\n".join(
+            [
+                "name: x",
+                "on: push",
+                "jobs:",
+                "  first:",
+                "    runs-on: ubuntu-latest",
+                "    steps:",
+                "      - run: echo first",
+                "  second:",
+                "    runs-on: ubuntu-latest",
+                "    steps:",
+                "      - run: echo second",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    calls = []
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        calls.append(cmd)
+        return 0, "", ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert res.ok is True
+    assert calls == [
+        ["gh", "act", "-j", "first", "-W", WF],
+        ["gh", "act", "-j", "second", "-W", WF],
+    ]
+
+
+def test_act_contention_retry_is_visible(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        calls.append(cmd)
+        if len(calls) == 1:
+            return 1, "", "failed to create container"
+        return 0, "", ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert res.ok is True
+    assert len(calls) == 2
+    assert "retried once after act contention" in res.detail
 
 
 # --- linked-worktree GIT_DIR handling (#2344) ----------------------------
@@ -1790,3 +1846,75 @@ def test_actionlint_timeout_fails_with_the_cause(monkeypatch, tmp_path) -> None:
 
     assert res.ok is False
     assert "killed by the stage timeout" in res.detail
+
+
+# --- process-group teardown (#3948) --------------------------------------
+
+
+@pytest.mark.skipif(not hasattr(os, "killpg"), reason="POSIX-only")
+def test_run_calls_killpg_safe_on_timeout() -> None:
+    """On timeout, _run calls _killpg_safe to kill the process group.
+
+    Without _killpg_safe, only the direct child is killed (proc.kill() path),
+    and grandchildren such as the gh-act artifact server survive to hold ports
+    (Issue #3948).  This mock-based test verifies the kill path fires.
+    """
+    killed_pids: list[int] = []
+    original = w._killpg_safe
+
+    def recording(pid: int) -> None:
+        killed_pids.append(pid)
+        original(pid)
+
+    with mock.patch.object(w, "_killpg_safe", side_effect=recording):
+        rc, _out, _err = w._run([sys.executable, "-c", "import time; time.sleep(30)"], timeout=1)
+
+    assert rc == -1  # timed out
+    assert len(killed_pids) >= 1, "_killpg_safe was never called on timeout"
+
+
+def test_run_baseline_success_still_works() -> None:
+    """Positive: a fast command succeeds and its output is captured."""
+    rc, out, err = w._run([sys.executable, "-c", "print('ok')"], timeout=5)
+    assert rc == 0
+    assert "ok" in out
+    assert err == ""
+
+
+def test_run_process_group_guard_does_not_signal_own_group() -> None:
+    """_killpg_safe must not signal the caller's own process group.
+
+    start_new_session=True creates a new session so the child's PGID differs
+    from ours. Verify _killpg_safe with our own PID does nothing (the guard
+    compares PGIDs and returns early).
+    """
+    import os
+
+    # If pgid == our own pgid the function returns without signalling.
+    # Calling it with our own PID must not raise or kill this process.
+    w._killpg_safe(os.getpid())  # must not raise or kill
+
+
+@pytest.mark.skipif(not hasattr(os, "killpg"), reason="POSIX-only")
+def test_run_passes_start_new_session_to_popen() -> None:
+    """Popen is called with start_new_session=True on POSIX (#3948 guard).
+
+    If start_new_session=False, the child's PGID matches ours. _killpg_safe
+    then short-circuits (same group = us), and no group kill fires.
+    """
+    import subprocess as _subprocess
+
+    popen_calls: list[dict] = []
+    real_popen = _subprocess.Popen
+
+    def recording_popen(*args, **kwargs):
+        popen_calls.append({"start_new_session": kwargs.get("start_new_session")})
+        return real_popen(*args, **kwargs)
+
+    with mock.patch("run_workflow_local_test.subprocess.Popen", side_effect=recording_popen):
+        w._run([sys.executable, "-c", "print('hi')"], timeout=5)
+
+    assert popen_calls, "Popen was never called"
+    assert popen_calls[0]["start_new_session"] is True, (
+        f"start_new_session={popen_calls[0]['start_new_session']!r}; expected True"
+    )

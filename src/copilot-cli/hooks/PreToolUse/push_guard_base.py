@@ -96,8 +96,8 @@ if _lib_dir is None or not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from hook_utilities import get_project_directory  # noqa: E402
-from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
+from hook_utilities import get_project_directory
+from hook_utilities.guards import skip_if_consumer_repo
 
 # Re-export for sibling guards that delegate plugin path resolution to
 # _bootstrap. They import via this module so the static path-resolution

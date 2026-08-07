@@ -38,6 +38,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Protocol
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
@@ -62,6 +63,7 @@ from scripts.validation.token_budget import estimate_token_count
 __all__ = [
     "DEFAULT_CEILINGS_BYTES",
     "INSTRUCTIONS_SUBDIR",
+    "BudgetVerdict",
     "ExtensionResult",
     "InstructionFile",
     "UnsupportedApplyToError",
@@ -77,6 +79,7 @@ __all__ = [
     "measure_extension",
     "parse_applyto",
     "parse_ceiling_override",
+    "parse_reserve",
 ]
 
 
@@ -112,6 +115,7 @@ def measure_extension(
     files: list[InstructionFile],
     ext: str,
     ceiling_bytes: int,
+    reserve_bytes: int = 0,
 ) -> ExtensionResult:
     """Sum the always-on budget for one extension across all instruction files."""
     matched = [f for f in files if is_language_universal(set(f.patterns), ext)]
@@ -121,16 +125,46 @@ def measure_extension(
         total_bytes=sum(f.size_bytes for f in matched),
         estimated_tokens=sum(f.estimated_tokens for f in matched),
         ceiling_bytes=ceiling_bytes,
+        reserve_bytes=reserve_bytes,
     )
 
 
-def evaluate(repo_root: Path, ceilings: dict[str, int]) -> list[ExtensionResult]:
+def evaluate(
+    repo_root: Path,
+    ceilings: dict[str, int],
+    reserve_bytes: int = 0,
+) -> list[ExtensionResult]:
     """Measure the always-on budget for every configured extension."""
     files = load_instruction_files(repo_root)
     return [
-        measure_extension(files, ext, ceilings[ext])
+        measure_extension(files, ext, ceilings[ext], reserve_bytes)
         for ext in sorted(ceilings)
     ]
+
+
+class BudgetVerdict(Protocol):
+    """The two flags `_status_of` reads, narrower than the whole measurement.
+
+    Declared structurally rather than taking `ExtensionResult` directly so the
+    FAIL-over-WARN ordering stays observable. `ExtensionResult.under_reserve`
+    is guarded on `over_budget`, so the concrete type can never report both
+    flags at once and cannot exercise the precedence at all.
+    """
+
+    @property
+    def over_budget(self) -> bool: ...
+
+    @property
+    def under_reserve(self) -> bool: ...
+
+
+def _status_of(result: BudgetVerdict) -> str:
+    """Classify one measurement as FAIL, WARN, or PASS."""
+    if result.over_budget:
+        return "FAIL"
+    if result.under_reserve:
+        return "WARN"
+    return "PASS"
 
 
 def format_table(results: list[ExtensionResult]) -> str:
@@ -138,15 +172,15 @@ def format_table(results: list[ExtensionResult]) -> str:
     lines: list[str] = []
     header = (
         f"{'Ext':<6} {'Files':>6} {'Bytes':>9} "
-        f"{'Ceiling':>9} {'Tokens~':>9} {'Usage':>8} {'Status':>7}"
+        f"{'Ceiling':>9} {'Headroom':>9} {'Tokens~':>9} {'Usage':>8} {'Status':>7}"
     )
     lines.append(header)
     lines.append("-" * len(header))
     for r in results:
-        status = "FAIL" if r.over_budget else "PASS"
         lines.append(
             f"{r.extension:<6} {len(r.matched_files):>6} {r.total_bytes:>9} "
-            f"{r.ceiling_bytes:>9} {r.estimated_tokens:>9} {r.usage_percent:>7.1f}% {status:>7}"
+            f"{r.ceiling_bytes:>9} {r.headroom_bytes:>9} {r.estimated_tokens:>9} "
+            f"{r.usage_percent:>7.1f}% {_status_of(r):>7}"
         )
     return "\n".join(lines)
 
@@ -161,8 +195,11 @@ def format_json(results: list[ExtensionResult]) -> str:
             "total_bytes": r.total_bytes,
             "estimated_tokens": r.estimated_tokens,
             "ceiling_bytes": r.ceiling_bytes,
+            "headroom_bytes": r.headroom_bytes,
+            "reserve_bytes": r.reserve_bytes,
             "usage_percent": r.usage_percent,
             "over_budget": r.over_budget,
+            "under_reserve": r.under_reserve,
         }
         for r in results
     ]
@@ -185,6 +222,19 @@ def parse_ceiling_override(value: str) -> tuple[str, int]:
         msg = f"Ceiling must be positive, got {ceiling}."
         raise argparse.ArgumentTypeError(msg)
     return ext, ceiling
+
+
+def parse_reserve(value: str) -> int:
+    """Parse a non-negative reserve size in bytes."""
+    try:
+        reserve = int(value)
+    except ValueError:
+        msg = f"Reserve must be an integer, got '{value}'."
+        raise argparse.ArgumentTypeError(msg) from None
+    if reserve < 0:
+        msg = f"Reserve must be non-negative, got {reserve}."
+        raise argparse.ArgumentTypeError(msg)
+    return reserve
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -218,6 +268,17 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="EXT:BYTES",
         help="Override ceiling for an extension (e.g., '.py:200000'). Repeatable.",
     )
+    parser.add_argument(
+        "--reserve",
+        type=parse_reserve,
+        default=os.environ.get("INSTRUCTION_BUDGET_RESERVE", "0"),
+        metavar="BYTES",
+        help=(
+            "Bytes of headroom to keep free below the ceiling so concurrent "
+            "merges cannot breach it (env: INSTRUCTION_BUDGET_RESERVE, "
+            "default: 0, meaning no reserve)."
+        ),
+    )
     return parser
 
 
@@ -242,11 +303,12 @@ def main(argv: list[str] | None = None) -> int:
         ceilings[ext] = ceiling
 
     try:
-        results = evaluate(repo_path, ceilings)
+        results = evaluate(repo_path, ceilings, args.reserve)
     except UnsupportedApplyToError as exc:
         print(f"Error: unsupported applyTo in an instruction file: {exc}", file=sys.stderr)
         return 2
     any_over = any(r.over_budget for r in results)
+    any_under_reserve = any(r.under_reserve for r in results)
 
     if args.output_format == "json":
         print(format_json(results))
@@ -262,11 +324,27 @@ def main(argv: list[str] | None = None) -> int:
             print("  1. Move situational or book-derived rules to task-invoked skills (#3419).")
             print("  2. Scope rules with a narrower applyTo instead of '**' or '**/*.<ext>'.")
             print("  3. If a raise is truly justified, edit DEFAULT_CEILINGS_BYTES and say why.")
+        elif any_under_reserve:
+            print()
+            print(
+                f"WARN: headroom is below the {args.reserve}-byte reserve. "
+                "A concurrent merge can push the corpus over the ceiling."
+            )
+            print()
+            print("Why this gates before the ceiling is reached:")
+            print("  Required checks are not strict here, so two branches each measured")
+            print("  against the same base can both pass and still breach once merged.")
+            print("  The reserve is the room kept free for that second merge.")
+            print()
+            print("Action Required:")
+            print("  1. Deduplicate restated guidance across instruction files.")
+            print("  2. Scope rules with a narrower applyTo instead of '**' or '**/*.<ext>'.")
+            print("  3. Move situational or book-derived rules to task-invoked skills (#3419).")
         else:
             print()
             print("PASS: All languages within the always-on instruction ceiling.")
 
-    if any_over and args.ci:
+    if (any_over or any_under_reserve) and args.ci:
         return 1
     return 0
 

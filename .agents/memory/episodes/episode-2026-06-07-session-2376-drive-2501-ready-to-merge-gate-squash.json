@@ -12,7 +12,9 @@
       "type": "milestone",
       "content": "Created PR worktree at .worktrees/pr-2501 and read three unresolved review threads using GitHub skill scripts.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e002",
@@ -20,7 +22,9 @@
       "type": "milestone",
       "content": "Fixed Copilot frontmatter validator fence parsing and repository-root path anchoring, with tests for the regression and path escape.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e003",
@@ -28,7 +32,9 @@
       "type": "milestone",
       "content": "Made the validate-generated-agents workflow install PyYAML before running the frontmatter validator.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e004",
@@ -36,7 +42,9 @@
       "type": "milestone",
       "content": "Ran focused tests, generated-agent validation, build-all check, workflow dry-run, ruff, security scan, and security review.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e005",
@@ -44,7 +52,9 @@
       "type": "milestone",
       "content": "Ran full pre_pr with SKIP_WORKFLOW_LOCAL_TEST=true after a separate validate-generated-agents dry-run succeeded.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e006",
@@ -52,14 +62,23 @@
       "type": "milestone",
       "content": "Committed frontmatter review fixes as 3bc1e1a84d46.",
       "caused_by": [],
-      "leads_to": []
+      "leads_to": [
+        "e007"
+      ]
     },
     {
       "id": "e007",
-      "timestamp": "2026-06-07T00:00:00+00:00",
+      "timestamp": "2026-06-07T19:45:45+00:00",
       "type": "commit",
       "content": "Commit: 3bc1e1a84d46",
-      "caused_by": [],
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
       "leads_to": []
     }
   ],

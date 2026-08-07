@@ -43,6 +43,11 @@ _REPO_ROOT = _SCRIPT_DIR.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 sys.path.insert(0, str(_SCRIPT_DIR))
+from portability_baseline import (  # noqa: E402  (path set above)
+    refuse_oversized_baseline,
+    refuse_symlinked_baseline,
+    refuse_undiffable_baseline,
+)
 from skill_frontmatter import parse_frontmatter  # noqa: E402  (path set above)
 
 # Single source of truth for pricing lives with the eval harness.
@@ -462,7 +467,7 @@ def run_check(
     unchanged. This is the draining ratchet: existing debt is reported, never
     fails CI, and new debt is blocked so the baseline can only shrink.
     """
-    resolved_today = today or datetime.now(timezone.utc).date()  # noqa: UP017
+    resolved_today = today or datetime.now(timezone.utc).date()
     units = scan_units(repo_root)
     manifest = load_manifest(manifest_path)
     baseline, frozen_count = load_baseline(baseline_path)
@@ -545,8 +550,21 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _vet_baseline(repo_root: Path, baseline: Path) -> bool:
+    """Return True if baseline fails any integrity guard (caller should return 2)."""
+    return bool(
+        refuse_symlinked_baseline(repo_root, baseline)
+        or refuse_undiffable_baseline(repo_root, baseline)
+        or refuse_oversized_baseline(baseline)
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+
+    # Refuse a baseline whose diff attribute is unset (issue #4249).
+    if _vet_baseline(_REPO_ROOT, args.baseline):
+        return 2
 
     if args.update_baseline:
         count = write_baseline(scan_units(), args.baseline)

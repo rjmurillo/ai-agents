@@ -22,6 +22,18 @@ tracked count of 361 and made that gate report a phantom regression outside CI.
 Tracked files are the only thing a PR can change, so they are the only thing a
 baseline should freeze.
 
+The baseline is a committed absolute number, so two branches can each remove one
+violation and write the same lowered value. Git merges the identical one-line
+edits without a conflict, and the merged tree is then improved twice against a
+baseline that fell once, which reads as STALE on the default branch (issue
+#4057). Nothing in this module can see the other branch, so the failure text
+offers that as the usual cause and the fix stays a baseline-only commit.
+Blocking the second merge is a branch-policy gate, not a code change here: the
+enforcement point chosen for issue #4057, and the alternatives rejected, are
+recorded in ``.github/AGENTS.md`` under "Ratchet Baselines and the Concurrent
+Merge Race". The regression test that proves the gate blocks lives in
+``tests/ci/test_count_ratchet_concurrent_merge.py``.
+
 Stdlib only: these gates run by path in CI (``python scripts/ci/<name>.py``) and
 must not depend on the project's import graph.
 
@@ -71,6 +83,75 @@ def tracked_files(repo_root: Path, globs: Sequence[str]) -> list[str] | None:
     return [path for path in proc.stdout.split("\0") if path]
 
 
+def _diff_paths(repo_root: Path, spec: str, scope: str) -> frozenset[str]:
+    """Paths named by one ``git diff`` form, or empty with the cause on stderr.
+
+    ``scope`` names what could not be resolved, so the two probes in
+    ``changed_files`` stay distinguishable on stderr when only one fails. Empty
+    on failure: this orders a diagnostic and must never block a push.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "diff", "--name-only", "-z", spec],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            encoding="utf-8",
+            check=False,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        sys.stderr.write(f"diagnostic ordering degraded: git could not be launched: {exc}\n")
+        return frozenset()
+    if proc.returncode != 0:
+        sys.stderr.write(f"diagnostic ordering degraded: git could not resolve {scope}\n")
+        sys.stderr.write(proc.stderr)
+        return frozenset()
+    return frozenset(path for path in proc.stdout.split("\0") if path)
+
+
+def changed_files(repo_root: Path, base_ref: str | None) -> frozenset[str]:
+    """Repo-relative paths this checkout changed, or empty when unknown.
+
+    Used only to order the regression diagnostic, never to change a count. A
+    whole-repo ratchet trips on a total, so the printed list is dominated by
+    historical violations the branch never touched: on issue #3902's own PR the
+    single added violation sat at index 596 of 601 and the 40-line cap hid it.
+    Showing branch-touched files first puts the actionable line on screen.
+
+    Two probes, unioned, because the priority set has to cover the same surface
+    the scan reads. ``tracked_files`` lists the index and the linter then reads
+    each path off disk, so a staged or unstaged edit is counted like any other
+    content. ``base_ref...HEAD`` names committed work only, so a violation
+    introduced by a dirty file was counted, tripped the ratchet, and then
+    sorted in with the historical bulk it was supposed to lead: the exact
+    burying this ordering exists to prevent, and its likeliest local shape,
+    since the pre-push hook scans whatever is on disk. ``git diff HEAD`` closes
+    that. It names staged and unstaged edits to tracked files, including a
+    staged addition, and omits untracked paths, which ``git ls-files`` never
+    offers the linter anyway.
+
+    Three-dot on the committed leg so a branch behind ``base_ref`` is compared
+    against the merge base and does not inherit every file the base changed
+    meanwhile, which would degenerate the priority set to "everything".
+
+    Empty on any failure, which degrades to the previous emission order rather
+    than blocking. The legs fail independently, so one unusable probe still
+    leaves the other probe's paths prioritised. A failure writes the cause to
+    stderr, matching ``tracked_files`` above; an unordered list is
+    indistinguishable from an untouched tree otherwise.
+
+    An absent ``base_ref`` is the documented no-op, not a failure, and stays
+    quiet, the working-tree probe included. A caller that omits ``--base-ref``
+    asked for no ordering at all, and probing anyway would print a degradation
+    note on every run outside a repository.
+    """
+    if not base_ref:
+        return frozenset()
+    committed = _diff_paths(repo_root, f"{base_ref}...HEAD", base_ref)
+    uncommitted = _diff_paths(repo_root, "HEAD", "HEAD")
+    return committed | uncommitted
+
+
 def chunk(paths: Sequence[str], budget: int = ARGV_BUDGET_BYTES) -> list[list[str]]:
     """Split ``paths`` into batches sized in UTF-8 bytes.
 
@@ -100,6 +181,52 @@ def read_baseline(path: Path) -> int | None:
         return int(path.read_text(encoding="utf-8").strip())
     except (OSError, ValueError):
         return None
+
+
+MAX_BASELINE_SLACK = 6
+"""How far a baseline may sit above the tree before it must be trued up.
+
+Zero is wrong here, and that is not a style preference. Issue #4057 recorded
+the concurrent-lowering race: two branches each remove one violation and each
+write the same lowered baseline, git merges the identical one-line edits
+without a conflict, and the merged tree has improved twice while the file fell
+once. PR #4214 accepted slack as the resolution, so that "concurrent cleanup
+PRs never conflict on the shared line and the default branch does not go red on
+a change none of them made" (``test_count_ratchet_concurrent_merge``).
+
+Demanding equality re-opens that outage at the test layer: every collision
+reddens the default branch for every contributor until a human notices and
+edits the scalar. The gap is bounded instead, so the accepted slack cannot
+grow into unbounded dead allowance. Six covers a seven-PR merge queue group
+where each branch removes one violation and all seven write the same lowered
+baseline: the merged tree has improved seven times while the scalar fell once,
+leaving six slack. Any pull request may close the gap by writing the measured
+count.
+"""
+
+
+def baseline_health(actual: int, baseline: int, max_slack: int = MAX_BASELINE_SLACK) -> str | None:
+    """Why ``baseline`` fails to describe a tree measuring ``actual``, or None.
+
+    Two distinct failures, because they need opposite fixes. A baseline below
+    the tree means the branch regressed and the violations must go. A baseline
+    too far above it means real improvements were never recorded, and the
+    scalar must be trued up before the gap absorbs a future regression.
+    """
+    if actual > baseline:
+        return (
+            f"baseline is {baseline} but the tree measures {actual}: "
+            f"{actual - baseline} violation(s) were added. Remove them rather "
+            f"than raising the baseline."
+        )
+    slack = baseline - actual
+    if slack > max_slack:
+        return (
+            f"baseline is {baseline} but the tree measures {actual}, a gap of "
+            f"{slack} above the permitted {max_slack}. Improvements went "
+            f"unrecorded; write {actual} into the baseline file."
+        )
+    return None
 
 
 def _baseline_rel(repo_root: Path, baseline: Path) -> str:
@@ -220,6 +347,68 @@ def build_parser(description: str, default_baseline: Path) -> argparse.ArgumentP
     return parser
 
 
+def _above_base_message(base_ref: str, *, label: str, baseline: int, base: int, count: int) -> str:
+    """Report a baseline above the base ref without guessing who raised it.
+
+    Two histories land on identical numbers here: a branch cut before the base
+    ref lowered its baseline, and a branch that raised the baseline itself. A
+    branch behind a base ref that dropped three violations reads
+    ``baseline 334, base 331, count 334``, and so does a branch that added
+    three violations and widened the allowance to cover them. Telling either
+    author which one they are needs the fork point, and two endpoint reads
+    cannot supply it. The base ref also arrives via ``git fetch --depth=1``
+    (``.github/workflows/pytest.yml``), so its history is not guaranteed to be
+    there to read. Naming a cause anyway is the defect issue #4066 was filed
+    for, so this states what was measured and carries both remedies.
+
+    The count is worth stating on its own: when it is one the base ref already
+    allows, nothing in this tree added a violation, and that much IS measured.
+    """
+    measured = f"The measured count is {count}. "
+    if count <= base:
+        measured = (
+            f"The measured count is {count}, which {base_ref} already allows, "
+            f"so nothing in this tree added a violation. "
+        )
+    return (
+        f"{label}: BASELINE ABOVE BASE. This tree records {baseline}, "
+        f"{base_ref} records {base} (+{baseline - base}). {measured}"
+        f"The baseline may only fall. If this branch did not edit the "
+        f"baseline, it is behind {base_ref}: merge or rebase to pick up the "
+        f"lowered value. If it did raise the baseline, restore {base} and fix "
+        f"the violations instead of widening the allowance."
+    )
+
+
+def _base_ref_verdict(
+    args: argparse.Namespace, *, label: str, baseline: int, count: int
+) -> int | None:
+    """Exit code when ``--base-ref`` blocks the run, or None to keep going.
+
+    A baseline above the one at the base ref always blocks. ``count`` has to be
+    measured before this runs so the verdict can report it (issue #4066).
+    """
+    root = args.repo_root.resolve()
+    if baseline_absent_at_ref(root, args.base_ref, args.baseline):
+        print(
+            f"{label}: bootstrap. {args.base_ref} records no baseline yet, "
+            f"so there is no earlier value to raise. The one-directional "
+            f"check starts once this baseline lands."
+        )
+        return None
+    base = baseline_at_ref(root, args.base_ref, args.baseline)
+    if base is None:
+        print(f"error: could not read the baseline at {args.base_ref}", file=sys.stderr)
+        return EXIT_EXTERNAL
+    if baseline <= base:
+        return None
+    print(
+        _above_base_message(args.base_ref, label=label, baseline=baseline, base=base, count=count),
+        file=sys.stderr,
+    )
+    return EXIT_REGRESSION
+
+
 def run(
     args: argparse.Namespace,
     *,
@@ -227,14 +416,16 @@ def run(
     counter: Callable[[Path], int | None],
     scan_error: str,
     regression_advice: str,
-    lister: Callable[[Path], list[str] | None] | None = None,
+    lister: Callable[[Path, frozenset[str]], list[str] | None] | None = None,
 ) -> int:
     """Evaluate one ratchet. ``counter`` returns the current count, or None.
 
-    ``lister`` is an optional function that returns the full violation list.
-    When provided and a regression is detected, the violations are printed to
-    stderr so contributors can see what needs fixing without a separate run
-    (issue #3902).
+    ``lister`` is an optional function that returns the full violation list,
+    given the repo root and the set of paths the branch changed. When provided
+    and a regression is detected, the violations are printed to stderr so
+    contributors can see what needs fixing without a separate run (issue #3902).
+    A lister is expected to order branch-touched files first so the 40-line cap
+    cannot hide the violation that caused the regression.
     """
     baseline = read_baseline(args.baseline)
     if baseline is None:
@@ -247,39 +438,9 @@ def run(
         return EXIT_EXTERNAL
 
     if args.base_ref:
-        root = args.repo_root.resolve()
-        if baseline_absent_at_ref(root, args.base_ref, args.baseline):
-            print(
-                f"{label}: bootstrap. {args.base_ref} records no baseline yet, "
-                f"so there is no earlier value to raise. The one-directional "
-                f"check starts once this baseline lands."
-            )
-        else:
-            base = baseline_at_ref(root, args.base_ref, args.baseline)
-            if base is None:
-                print(
-                    f"error: could not read the baseline at {args.base_ref}",
-                    file=sys.stderr,
-                )
-                return EXIT_EXTERNAL
-            if baseline > base:
-                if count <= base:
-                    print(
-                        f"{label}: BRANCH BEHIND. Baseline file records {baseline}, "
-                        f"but {args.base_ref} records {base} and current count is "
-                        f"{count}. Merge or rebase onto {args.base_ref} to pick up "
-                        "the lowered baseline.",
-                        file=sys.stderr,
-                    )
-                else:
-                    print(
-                        f"{label}: BASELINE RAISED. {base} -> {baseline} "
-                        f"(+{baseline - base}) against {args.base_ref}. The baseline "
-                        f"may only fall. Current count is {count}; fix the "
-                        f"violations instead of widening the allowance.",
-                        file=sys.stderr,
-                    )
-                return EXIT_REGRESSION
+        verdict = _base_ref_verdict(args, label=label, baseline=baseline, count=count)
+        if verdict is not None:
+            return verdict
 
     if count > baseline:
         print(
@@ -288,7 +449,8 @@ def run(
             file=sys.stderr,
         )
         if lister is not None:
-            violations = lister(args.repo_root.resolve())
+            root = args.repo_root.resolve()
+            violations = lister(root, changed_files(root, args.base_ref))
             if violations:
                 max_lines = 40
                 lines = violations[:max_lines]
@@ -310,8 +472,7 @@ def run(
             )
             return EXIT_OK
         print(
-            f"{label}: OK. {count} violations <= baseline {baseline} "
-            f"(-{baseline - count} slack)."
+            f"{label}: OK. {count} violations <= baseline {baseline} (-{baseline - count} slack)."
         )
         return EXIT_OK
 

@@ -566,7 +566,7 @@ def test_workflow_delegates_all_pr_validation_blocks():
     assert "python3 scripts/ci/update_needs_split_label.py --mode add" in workflow
     assert "python3 scripts/ci/update_needs_split_label.py --mode remove" in workflow
     assert "python3 scripts/ci/enforce_pr_validation.py" in workflow
-    assert "python3 scripts/ci/adr006_run_block_scanner.py --max 58" in workflow
+    assert "python3 scripts/ci/adr006_run_block_scanner.py --max 0" in workflow
     assert "gh api `\n            -X DELETE" not in workflow
     assert "Write-Error \"PR has $env:COMMIT_COUNT commits" not in workflow
 
@@ -934,6 +934,8 @@ class TestBotSkipGuardClassification:
     _ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
         {
             "Checkout repository",
+            # Tool setup is throughput-only. It cannot validate repository contents.
+            "Setup uv",
             "Setup PowerShell",
             "Validate PR Description vs Diff",
             "Validate PR Description Standards",
@@ -945,7 +947,6 @@ class TestBotSkipGuardClassification:
             "Enforce Blocking Issues",
         }
     )
-
     def test_adr006_ratchet_is_unconditional(self) -> None:
         """Positive: the ADR-006 gate must run for bot-authored PRs.
 
@@ -996,4 +997,162 @@ class TestBotSkipGuardClassification:
             assert name in all_step_names, (
                 f"_ALLOWED_BEHIND_GUARD contains {name!r} but no step with that name "
                 "exists in the workflow. Remove the stale entry."
+            )
+
+
+def _pr_validation_steps() -> list[dict]:
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    steps: list[dict] = []
+    for job in data.get("jobs", {}).values():
+        steps.extend(job.get("steps", []) or [])
+    return steps
+
+
+def _pr_validation_jobs() -> dict:
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    return data.get("jobs", {})
+
+
+_MERGE_BASE_CONSUMERS = ("merge_tree_ratchet_check.py", "count_ratchet.py")
+
+
+def _strip_shell_comments(script: str) -> str:
+    return "\n".join(
+        line for line in script.splitlines() if not line.lstrip().startswith("#")
+    )
+
+
+def _step_dicts(job: dict) -> list[dict]:
+    return [step for step in job.get("steps", []) if isinstance(step, dict)]
+
+
+def _run_blocks(steps: list[dict]) -> list[str]:
+    return [
+        _strip_shell_comments(step["run"])
+        for step in steps
+        if isinstance(step.get("run"), str)
+    ]
+
+
+def _uses_merge_base(run_blocks: list[str]) -> bool:
+    return any(
+        consumer in block
+        for consumer in _MERGE_BASE_CONSUMERS
+        for block in run_blocks
+    )
+
+
+def _depth_limited_fetch_offenders(job_id: str, run_blocks: list[str]) -> list[str]:
+    if any("--depth" in block for block in run_blocks):
+        return [f"{job_id}: depth-limited fetch in run block"]
+    return []
+
+
+def _checkout_depth_offenders(job_id: str, steps: list[dict]) -> list[str]:
+    offenders: list[str] = []
+    for step in steps:
+        uses = step.get("uses")
+        if not isinstance(uses, str) or not uses.startswith("actions/checkout"):
+            continue
+        depth = (step.get("with") or {}).get("fetch-depth")
+        if str(depth) == "0":
+            continue
+        name = step.get("name") or uses
+        shown = "<default, depth 1>" if depth is None else repr(depth)
+        offenders.append(f"{job_id}: checkout {name!r} has fetch-depth {shown}")
+    return offenders
+
+
+def _history_offenders_for_merge_base_jobs(jobs: dict) -> tuple[list[str], list[str]]:
+    offenders: list[str] = []
+    checked: list[str] = []
+    for job_id, job in jobs.items():
+        steps = _step_dicts(job)
+        run_blocks = _run_blocks(steps)
+        if not _uses_merge_base(run_blocks):
+            continue
+
+        checked.append(job_id)
+        offenders.extend(_depth_limited_fetch_offenders(job_id, run_blocks))
+        offenders.extend(_checkout_depth_offenders(job_id, steps))
+    return offenders, checked
+
+
+def test_merge_base_jobs_keep_complete_history() -> None:
+    """Every job that needs a merge base must avoid shallow history.
+
+    The graft is job-scoped, not step-scoped. One earlier shallow fetch writes
+    .git/shallow, and the later merge-tree ratchet then fails with unrelated
+    histories.
+    """
+    offenders, checked = _history_offenders_for_merge_base_jobs(_pr_validation_jobs())
+
+    assert checked == ["validate-pr"]
+    assert offenders == []
+
+
+def test_merge_base_history_guard_catches_both_shallow_routes() -> None:
+    """Negative control: the matcher catches a shallow checkout and fetch."""
+    jobs = yaml.safe_load(
+        "validate:\n"
+        "  steps:\n"
+        "    - name: Checkout repository\n"
+        "      uses: actions/checkout@v7\n"
+        "    - run: git fetch --depth=1 origin main\n"
+        "    - run: python scripts/ci/merge_tree_ratchet_check.py\n"
+    )
+
+    offenders, checked = _history_offenders_for_merge_base_jobs(jobs)
+
+    assert checked == ["validate"]
+    assert any("depth-limited fetch" in item for item in offenders)
+    assert any("fetch-depth <default, depth 1>" in item for item in offenders)
+
+
+def test_merge_base_history_guard_ignores_unrelated_shallow_jobs() -> None:
+    """Edge control: shallow fetches are out of scope without a consumer."""
+    jobs = yaml.safe_load(
+        "lint:\n"
+        "  steps:\n"
+        "    - uses: actions/checkout@v7\n"
+        "    - run: git fetch --depth=1 origin main\n"
+        "    - run: uv run --frozen ruff check .\n"
+    )
+
+    offenders, checked = _history_offenders_for_merge_base_jobs(jobs)
+
+    assert checked == []
+    assert offenders == []
+
+
+def test_merge_tree_ratchet_fetches_base_at_full_depth() -> None:
+    """Issue #4518: the merge-tree step's base fetch must not be shallow.
+
+    A `--depth=1` fetch writes .git/shallow and severs history traversal, so
+    `git merge-tree` aborts with "refusing to merge unrelated histories" on any
+    branch behind the base. That is the only case this gate exists to judge, so
+    a shallow fetch silences the gate instead of failing loudly.
+
+    The sibling behaviour test in tests/ci/test_merge_tree_ratchet_check.py runs
+    its own fetch, so it cannot see a regression here. This assertion is the one
+    that catches a revert of the workflow line.
+    """
+    matching = [
+        s
+        for s in _pr_validation_steps()
+        if "merge_tree_ratchet_check.py" in (s.get("run") or "")
+    ]
+    assert matching, "the merge-tree ratchet step is missing from pr-validation.yml"
+    for step in matching:
+        run = step["run"]
+        fetch_lines = [
+            ln.strip()
+            for ln in run.splitlines()
+            if ln.strip().startswith("git fetch") and not ln.strip().startswith("#")
+        ]
+        assert fetch_lines, f"step {step.get('name')!r} must fetch the base ref"
+        for line in fetch_lines:
+            assert "--depth" not in line, (
+                f"step {step.get('name')!r} fetches the base shallowly ({line!r}); "
+                "merge-tree needs a merge base. See issue #4518."
             )

@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- one CLI owns scan, ratchet, and atomic update invariants.
 """Interpreter-portability ratchet for documented script invocations (issue #3791).
 
 A document that tells a contributor to run
-
 doc-interpreter-portability: the defect this guard finds, quoted so it can be named
     python3 scripts/sync_adr_protocol.py
-
 is only correct on a machine whose *system* interpreter already has the script's
 third-party dependencies. ``scripts/sync_adr_protocol.py:24`` is ``import yaml``
 and PyYAML is a declared project dependency (``pyproject.toml``), not a stdlib
 module, so on a clean checkout the documented command dies with::
-
     ModuleNotFoundError: No module named 'yaml'
-
 The portable form names the project environment::
-
     uv run python scripts/sync_adr_protocol.py
-
 Why a docs guard and not a code fix:
   PR #3793 tried to delete the ``import yaml`` by hand-rolling a scalar reader.
   It was closed unmerged after review measured six behavioral divergences from
@@ -29,7 +24,6 @@ What it counts:
   (``python3 -u ...``), of a **tracked** ``.py`` file whose module-level import
   closure reaches a module that is neither stdlib
   (``sys.stdlib_module_names``) nor another tracked module in this repository.
-
   Module-level is the operative word. ``scripts/eval/eval-suite.py`` imports
   ``_anthropic_api``, which imports ``anthropic`` inside a function body. That
   import does not run on the documented ``--dry-run`` path, and
@@ -37,7 +31,6 @@ What it counts:
   would be a false positive. Only imports that execute at import time count:
   the module body, plus ``if``/``try``/``with``/``for`` and class bodies nested
   in it, never a function body.
-
   An invocation already prefixed with ``uv run`` does NOT match; that is the
   fixed form. ``#!/usr/bin/env python3`` shebangs do not match (no ``.py``
   operand). Hook registrations such as
@@ -47,26 +40,21 @@ What it counts:
 
 Scope:
   Tracked Markdown **and Python**, minus three exclusions.
-
   Python is in scope because a usage block in a module docstring, and a
   remediation string a script prints to a contributor's terminal, hand over the
   same unrunnable command a Markdown instruction does.
   ``build/generate_agents.py`` printed a "To fix: Run ..." line naming the bare
   interpreter on every drift failure, which is the exact command that dies on a
   clean checkout.
-
   * **Historical roots** (``.agents/sessions/``, ``.agents/retrospective/``,
     ``.agents/architecture/``, and siblings). These are records of what was
     decided or done, not instructions to follow. Rewriting a session log or an
     ADR body to change a command it quotes would falsify the record.
   * **Generated mirrors** (``src/copilot-cli/``, ``src/vs-code-agents/``,
-    ``.github/instructions/``). ``.agents/governance/GENERATOR-FILES.md`` names
-    a generator for each: ``generate_skills.py``/``generate_commands.py`` and
-    ``_build_lib`` write ``src/copilot-cli/``, ``generate_agents.py`` writes
-    ``src/vs-code-agents/``, ``generate_rules.py`` writes
-    ``.github/instructions/``. The fix belongs in the canonical source and
-    arrives here by regeneration.
-
+    ``.github/instructions/``, and generated
+    ``.github/prompts/pr-quality-gate-*.md`` files).
+    ``.agents/governance/GENERATOR-FILES.md`` names a generator for each. The
+    fix belongs in the canonical source and arrives here by regeneration.
     ``src/claude/`` is deliberately NOT on that list. It looks like a mirror and
     is not one. GENERATOR-FILES.md:35 says so in as many words: "``src/claude/``
     is a hand-maintained copy, not a generator output. It was misclassified as a
@@ -78,7 +66,6 @@ Scope:
   * **``tests/``**. Test files construct offending invocations on purpose, as
     fixtures for this guard and for its siblings. Same carve-out shape as the
     ``tests/hooks/fixtures/`` exemption in ``.claude/rules/universal.md``.
-
 Declaring a single line:
   A line carrying ``doc-interpreter-portability:`` plus a reason, on the offense
   itself or on the line directly above it, is skipped. Two live cases, both
@@ -87,7 +74,6 @@ Declaring a single line:
   there and rewording the quote would falsify the citation). Line-scoped on
   purpose: a whole-file opt-out is what this guard's own ``src/claude/``
   exclusion was, and it hid five real offenses.
-
 Baseline ratchet:
   ``doc_interpreter_baseline.json`` grandfathers per-file counts, and it is
   **empty**. Every in-scope file was migrated in the same change that added this
@@ -108,13 +94,44 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
 import re
 import subprocess
 import sys
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from scripts.validation.doc_interpreter_subprocess import (  # noqa: E402
+    python_subprocess_targets as _python_subprocess_targets,
+)
+from scripts.validation.portability_baseline import (  # noqa: E402
+    baseline_write_lock,
+    find_symlinked_component,
+    refuse_oversized_baseline,
+    refuse_symlinked_baseline,
+    refuse_undiffable_baseline,
+    replace_baseline_atomically,
+)
+
 _DEFAULT_BASELINE_NAME = "doc_interpreter_baseline.json"
+_WRITE_LOCK_NAME = ".check-doc-interpreter-portability.write-lock"
+
+
+@dataclass
+class ScanStats:
+    """Record scan coverage."""
+
+    scanned_files: int = 0
+
+
+class ScanError(Exception):
+    """Raised when the validator cannot inspect an in-scope tracked file."""
+
 
 # Records, not instructions. A command quoted inside one of these describes what
 # was run at the time; changing it would rewrite the record.
@@ -152,6 +169,7 @@ GENERATED_ROOTS: tuple[str, ...] = (
     "src/copilot-cli/",
     "src/vs-code-agents/",
 )
+GENERATED_PROMPT_PREFIX: str = ".github/prompts/pr-quality-gate-"
 
 # Test files build offending invocations on purpose, as fixtures for this guard
 # and its siblings. Same shape as the `tests/hooks/fixtures/` carve-out in
@@ -184,15 +202,23 @@ TOKEN_PATTERN = re.compile(r"(?<![\w./-])[\w./-]+(?![\w./-])")
 
 def _run_git(repo_root: Path, *args: str) -> str:
     """Return stdout of a git command run at ``repo_root``."""
-    result = subprocess.run(
-        ["git", *args],
-        cwd=repo_root,
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
+    env = {
+        key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")
+    }
+    try:
+        result = subprocess.run(
+            ["git", "--no-replace-objects", *args],
+            cwd=repo_root,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ScanError("git command timed out after 30 seconds") from exc
     return result.stdout
 
 
@@ -204,7 +230,11 @@ def tracked_files(repo_root: Path, *patterns: str) -> list[str]:
 
 def is_in_scope(rel_path: str) -> bool:
     """Return whether a file carries instructions this guard should gate."""
-    return not rel_path.startswith(HISTORICAL_ROOTS + GENERATED_ROOTS + FIXTURE_ROOTS)
+    generated_prompt = rel_path.startswith(GENERATED_PROMPT_PREFIX) and rel_path.endswith(".md")
+    return not (
+        rel_path.startswith(HISTORICAL_ROOTS + GENERATED_ROOTS + FIXTURE_ROOTS)
+        or generated_prompt
+    )
 
 
 def is_declared(lines: list[str], index: int) -> bool:
@@ -293,6 +323,18 @@ def is_uv_run_prefixed(prefix: str) -> bool:
     return False
 
 
+def _tracked_regular_file(repo_root: Path, rel_path: str) -> Path:
+    path = repo_root / rel_path
+    linked = find_symlinked_component(path, repo_root)
+    if linked is not None:
+        raise ScanError(
+            f"tracked file is reached through a symlink ({linked}): {rel_path}"
+        )
+    if not path.is_file():
+        raise ScanError(f"tracked file is missing or not a regular file: {rel_path}")
+    return path
+
+
 def third_party_imports(
     rel_path: str,
     repo_root: Path,
@@ -305,9 +347,10 @@ def third_party_imports(
         return set()
     seen.add(rel_path)
     try:
-        tree = ast.parse((repo_root / rel_path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, SyntaxError, ValueError):
-        return set()
+        source = _tracked_regular_file(repo_root, rel_path).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+    except (OSError, UnicodeDecodeError, SyntaxError, ValueError) as exc:
+        raise ScanError(f"could not analyze {rel_path}: {exc}") from exc
 
     found: set[str] = set()
     for name in _imported_roots(tree):
@@ -319,6 +362,8 @@ def third_party_imports(
             continue
         for target in local:
             found |= third_party_imports(target, repo_root, tracked_py, seen)
+    for target in _python_subprocess_targets(tree, tracked_py):
+        found |= third_party_imports(target, repo_root, tracked_py, seen)
     return found
 
 
@@ -339,32 +384,56 @@ def find_offenses(line: str, repo_root: Path, tracked_py: set[str]) -> list[tupl
     return offenses
 
 
-def scan(repo_root: Path) -> dict[str, int]:
-    """Return {file path: undeclared unportable invocation count} for in-scope files."""
+def scan(
+    repo_root: Path,
+    details: dict[str, list[str]] | None = None,
+    stats: ScanStats | None = None,
+) -> dict[str, list[str]]:
+    """Return file paths mapped to offending script identities."""
     tracked_py = set(tracked_files(repo_root, "*.py"))
-    counts: dict[str, int] = {}
+    counts: dict[str, list[str]] = {}
     for rel in tracked_files(repo_root, "*.md", "*.py"):
         if not is_in_scope(rel):
             continue
-        path = repo_root / rel
-        if not path.is_file():
-            continue
-        try:
-            lines = path.read_text(encoding="utf-8").splitlines()
-        except (OSError, UnicodeDecodeError):
-            continue
-        total = sum(
-            len(find_offenses(line, repo_root, tracked_py))
-            for index, line in enumerate(lines)
-            if not is_declared(lines, index)
-        )
-        if total:
-            counts[rel] = total
+        scripts = _scan_file(repo_root, rel, tracked_py, details, stats)
+        if scripts:
+            counts[rel] = sorted(set(scripts))
     return counts
 
 
-def load_baseline(path: Path) -> dict[str, int]:
-    """Load the grandfathered per-file counts."""
+def _scan_file(
+    repo_root: Path,
+    rel: str,
+    tracked_py: set[str],
+    details: dict[str, list[str]] | None,
+    stats: ScanStats | None,
+) -> list[str]:
+    path = _tracked_regular_file(repo_root, rel)
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ScanError(f"could not read {rel}: {exc}") from exc
+    if stats is not None:
+        stats.scanned_files += 1
+
+    scripts: list[str] = []
+    for index, line in enumerate(lines):
+        if is_declared(lines, index):
+            continue
+        for script, modules in find_offenses(line, repo_root, tracked_py):
+            scripts.append(script)
+            if details is not None:
+                details.setdefault(rel, []).append(
+                    f"{rel}:{index + 1}: {script} imports {', '.join(modules)}"
+                )
+    return scripts
+
+
+_BaselineValue = list[str] | int
+
+
+def load_baseline(path: Path) -> dict[str, _BaselineValue]:
+    """Load identity entries and legacy per-file counts."""
     if not path.is_file():
         raise FileNotFoundError(f"Baseline file not found: {path}")
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -373,32 +442,56 @@ def load_baseline(path: Path) -> dict[str, int]:
     files = data.get("files", data)
     if not isinstance(files, dict):
         raise ValueError("Baseline 'files' must be a JSON object")
-    baseline: dict[str, int] = {}
+    baseline: dict[str, _BaselineValue] = {}
     for key, value in files.items():
+        if isinstance(value, list):
+            baseline[str(key)] = [str(item) for item in value]
+            continue
         try:
             baseline[str(key)] = int(value)
         except (TypeError, ValueError) as exc:
-            raise ValueError(f"Baseline count for {key!r} is not an integer") from exc
+            raise ValueError(f"Baseline value for {key!r} is not valid") from exc
     return baseline
 
 
 def diff_against_baseline(
-    current: dict[str, int], baseline: dict[str, int]
+    current: dict[str, list[str]],
+    baseline: dict[str, _BaselineValue],
+    details: dict[str, list[str]] | None = None,
 ) -> tuple[list[str], list[str]]:
-    """Return (regressions, improvements) comparing current counts to baseline."""
-    regressions = [
-        f"{rel}: {count} documented bare-interpreter invocation(s) of a script with "
-        f"third-party imports (baseline {baseline.get(rel, 0)}). Use "
-        f"'uv run python <script>' so the project environment supplies the "
-        f"dependencies (issue #3791)."
-        for rel, count in sorted(current.items())
-        if count > baseline.get(rel, 0)
-    ]
-    improvements = [
-        f"{rel}: {current.get(rel, 0)} invocations (baseline {allowed})"
-        for rel, allowed in sorted(baseline.items())
-        if current.get(rel, 0) < allowed
-    ]
+    """Return regressions and improvements without missing equal-count swaps."""
+    regressions: list[str] = []
+    for rel, scripts in sorted(current.items()):
+        baseline_value = baseline.get(rel)
+        offense_details = (
+            f" Offenses: {'; '.join(details.get(rel, []))}" if details else ""
+        )
+        if isinstance(baseline_value, list):
+            new_scripts = sorted(set(scripts) - set(baseline_value))
+            if new_scripts:
+                regressions.append(
+                    f"{rel}: new invocation(s): {', '.join(new_scripts)} "
+                    f"(issue #3791).{offense_details}"
+                )
+            continue
+
+        allowed = int(baseline_value) if baseline_value is not None else 0
+        if len(scripts) > allowed:
+            regressions.append(
+                f"{rel}: {len(scripts)} invocation(s) (baseline {allowed}). "
+                f"Use 'uv run python <script>' (issue #3791).{offense_details}"
+            )
+
+    improvements: list[str] = []
+    for rel, baseline_value in sorted(baseline.items()):
+        current_count = len(current.get(rel, []))
+        allowed = (
+            len(baseline_value) if isinstance(baseline_value, list) else int(baseline_value)
+        )
+        if current_count < allowed:
+            improvements.append(
+                f"{rel}: {current_count} invocations (baseline {allowed})"
+            )
     return regressions, improvements
 
 
@@ -426,30 +519,87 @@ def _resolve_roots(args: argparse.Namespace) -> tuple[Path, Path]:
     return repo_root, baseline
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Run the ratchet."""
-    args = build_parser().parse_args(argv)
-    repo_root, baseline_path = _resolve_roots(args)
-
+def _update_baseline(
+    current: dict[str, list[str]],
+    repo_root: Path,
+    baseline_path: Path,
+    details: dict[str, list[str]],
+) -> int:
+    lock_path = repo_root / _WRITE_LOCK_NAME
     try:
-        current = scan(repo_root)
-    except (OSError, subprocess.CalledProcessError) as exc:
+        with baseline_write_lock(lock_path):
+            return _update_baseline_locked(current, repo_root, baseline_path, details)
+    except OSError as exc:
         print(f"check-doc-interpreter-portability: {exc}", file=sys.stderr)
         return 2
 
-    if args.update_baseline:
-        payload = json.dumps({"files": dict(sorted(current.items()))}, indent=2) + "\n"
-        baseline_path.write_text(payload, encoding="utf-8")
-        print(f"check-doc-interpreter-portability: wrote {baseline_path} ({len(current)} files)")
-        return 0
 
+def _update_baseline_locked(
+    current: dict[str, list[str]],
+    repo_root: Path,
+    baseline_path: Path,
+    details: dict[str, list[str]],
+) -> int:
+    if _baseline_path_is_unsafe(repo_root, baseline_path):
+        return 2
+    if not baseline_path.is_file():
+        print(
+            f"check-doc-interpreter-portability: baseline not found: {baseline_path}",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        previous = load_baseline(baseline_path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"check-doc-interpreter-portability: {exc}", file=sys.stderr)
+        return 2
+    regressions, _ = diff_against_baseline(current, previous, details)
+    if regressions:
+        for line in regressions:
+            print(f"DRIFT {line}", file=sys.stderr)
+        print(
+            "check-doc-interpreter-portability: refusing to raise baseline",
+            file=sys.stderr,
+        )
+        return 1
+
+    payload = json.dumps({"files": dict(sorted(current.items()))}, indent=2) + "\n"
+    replace_baseline_atomically(repo_root, baseline_path, payload)
+    print(f"check-doc-interpreter-portability: wrote {baseline_path} ({len(current)} files)")
+    return 0
+
+
+def _scan_repository(
+    repo_root: Path,
+) -> tuple[dict[str, list[str]], dict[str, list[str]], ScanStats]:
+    git_root = Path(_run_git(repo_root, "rev-parse", "--show-toplevel").strip()).resolve()
+    if repo_root != git_root:
+        raise ScanError(f"repository root must be {git_root}, got {repo_root}")
+    details: dict[str, list[str]] = {}
+    stats = ScanStats()
+    return scan(repo_root, details, stats), details, stats
+
+
+def _baseline_path_is_unsafe(repo_root: Path, baseline_path: Path) -> bool:
+    return (
+        refuse_symlinked_baseline(repo_root, baseline_path)
+        or refuse_undiffable_baseline(repo_root, baseline_path)
+        or refuse_oversized_baseline(baseline_path)
+    )
+
+
+def _validate_against_baseline(
+    current: dict[str, list[str]],
+    baseline_path: Path,
+    details: dict[str, list[str]],
+) -> int:
     try:
         baseline = load_baseline(baseline_path)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"check-doc-interpreter-portability: {exc}", file=sys.stderr)
         return 2
 
-    regressions, improvements = diff_against_baseline(current, baseline)
+    regressions, improvements = diff_against_baseline(current, baseline, details)
     for line in improvements:
         print(f"IMPROVED {line}")
     for line in regressions:
@@ -465,6 +615,30 @@ def main(argv: list[str] | None = None) -> int:
 
     print("check-doc-interpreter-portability: OK")
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run the ratchet."""
+    args = build_parser().parse_args(argv)
+    repo_root, baseline_path = _resolve_roots(args)
+
+    try:
+        current, details, stats = _scan_repository(repo_root)
+    except (OSError, ScanError, subprocess.CalledProcessError) as exc:
+        print(f"check-doc-interpreter-portability: {exc}", file=sys.stderr)
+        return 2
+
+    if stats.scanned_files == 0:
+        print(
+            "check-doc-interpreter-portability: refusing zero-file scan",
+            file=sys.stderr,
+        )
+        return 2
+    if _baseline_path_is_unsafe(repo_root, baseline_path):
+        return 2
+    if args.update_baseline:
+        return _update_baseline(current, repo_root, baseline_path, details)
+    return _validate_against_baseline(current, baseline_path, details)
 
 
 if __name__ == "__main__":

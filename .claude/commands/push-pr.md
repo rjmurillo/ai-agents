@@ -29,6 +29,7 @@ Based on the above changes:
    - **List** specific files changed, test coverage added, security impacts
    - **Do NOT** leave template comments like `<!-- Brief description -->` unfilled
    - **Do NOT** copy the template verbatim - adapt every section to your changes
+   - **Include** an `## Acceptance criteria` heading with `- [ ]` or `* [ ]` bullets. The Validate Spec Coverage job reads these from the PR body, not the linked issue. Any unchecked box makes the signal report FAIL, and that FAIL does not block the merge, so check a box only once the criterion is actually met. Numbered criteria are not recognized.
 5. Create a pull request using the new_pr skill script:
 
    ```bash

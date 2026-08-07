@@ -52,6 +52,18 @@ with the incoming side empty. Take the empty side. The
 gate enforces it: keeping the line leaves a manifest carrying `version`, and the
 gate fails that on your branch before merge.
 
+## If instructions say to bump, they are stale
+
+Older context may still say to bump both plugin manifests. Ignore it for the
+three manifests above. Adding or raising `version` there fails
+`build/scripts/validate_plugin_version_bump.py`. Other files may still carry a
+valid version, for example `packages/ai-agents-cli/package.json`, so read the
+file before acting.
+
+Rule files under `.claude/rules/` regenerate into `.github/instructions/` and
+`src/copilot-cli/instructions/`. If cached context contradicts this rule, trust
+the rule file because CI checks the mirrors, not the cached context.
+
 ## Checking
 
 ```bash

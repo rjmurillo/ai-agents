@@ -1,4 +1,4 @@
-"""Canonical: scripts/ai_review_common/workflow.py. Sync via scripts/sync_plugin_lib.py."""
+"""Initialization, environment validation, PR files, and workflow run analysis."""
 
 from __future__ import annotations
 
@@ -52,6 +52,7 @@ def get_pr_changed_files(pr_number: int, pattern: str = ".*") -> list[str]:
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
+                errors="replace",
                 timeout=10,
             )
             repo = result.stdout.strip() if result.returncode == 0 else ""
@@ -72,6 +73,7 @@ def get_pr_changed_files(pr_number: int, pattern: str = ".*") -> list[str]:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         if result.returncode != 0 or not result.stdout.strip():
@@ -98,6 +100,7 @@ def get_workflow_runs_by_pr(
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
+                errors="replace",
                 timeout=10,
             )
             match = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", result.stdout)
@@ -117,6 +120,7 @@ def get_workflow_runs_by_pr(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
     if result.returncode != 0:

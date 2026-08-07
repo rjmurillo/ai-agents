@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
 # ruff: noqa: E402
 """Narrow Git policies that Lefthook cannot express declaratively."""
 
@@ -12,6 +13,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -60,11 +62,11 @@ ADR_REVIEW_PATH_RE = re.compile(
 ADR_ID_RE = re.compile(r"ADR-\d+", re.IGNORECASE)
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
 ADR_REVIEW_PATTERNS = (
-    re.compile(r"/adr-review"),
-    re.compile(r"adr-review skill"),
-    re.compile(r"ADR Review Protocol"),
-    re.compile(r"multi-agent consensus.{0,200}\bADR\b", re.DOTALL),
-    re.compile(r"\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b", re.DOTALL),
+    # Matches /adr-review, adr-review, adr review, ADR Review Protocol, etc.
+    # Case-insensitive; dot matches the hyphen or space separator (Issue #4135).
+    re.compile(r"\badr.review\b", re.IGNORECASE),
+    re.compile(r"multi-agent consensus.{0,200}\bADR\b", re.DOTALL | re.IGNORECASE),
+    re.compile(r"\barchitect\b.{0,80}\bplanner\b.{0,80}\bqa\b", re.DOTALL | re.IGNORECASE),
 )
 RETROSPECTIVE_EVIDENCE_PATTERNS = (
     re.compile(r"(?i)(##\s*retrospective|retrospective\s*section|learnings?\s*captured)"),
@@ -509,6 +511,33 @@ def _clean_git_env() -> dict[str, str]:
     return env
 
 
+_SUPPORTS_PGROUP = hasattr(os, "killpg")
+
+
+def _killpg_safe(pid: int) -> None:
+    """Send SIGTERM then SIGKILL to the process group containing ``pid``.
+
+    Uses SIGTERM first (giving the group a chance to clean up open resources
+    such as a bound port), then SIGKILL after. Guards against signalling the
+    hook's own process group when setsid did not fire (Windows, or a failed
+    exec where the child kept our PGID).
+    """
+    try:
+        pgid = os.getpgid(pid)
+    except OSError:
+        return
+    if pgid == os.getpgid(0):
+        return
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except OSError:
+        pass
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except OSError:
+        pass
+
+
 def _run_command(
     args: Sequence[str],
     repo_root: Path,
@@ -518,29 +547,57 @@ def _run_command(
     process_env: Mapping[str, str] | None = None,
     timeout_seconds: float = DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[str]:
+    """Run a command and return a CompletedProcess with exit code 3 on timeout.
+
+    On timeout the whole process group is killed via SIGTERM then SIGKILL so
+    grandchildren (e.g. the gh-act artifact server) do not survive to hold
+    ports open (Issue #4217, same defect as #3948 one level up). ``input_text``
+    is written to stdin so callers that previously relied on
+    ``subprocess.run(..., input=)`` keep the same semantics.
+    """
     env = dict(process_env) if process_env is not None else _clean_git_env()
     if extra_env is not None:
         env.update(extra_env)
     command = list(args)
     try:
-        return subprocess.run(
+        proc = subprocess.Popen(
             command,
             cwd=repo_root,
             env=env,
-            input=input_text,
+            stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             encoding="utf-8",
             errors="replace",
-            capture_output=True,
-            check=False,
+            start_new_session=_SUPPORTS_PGROUP,
+        )
+    except OSError as exc:
+        return subprocess.CompletedProcess(command, 3, "", str(exc))
+    try:
+        stdout, stderr = proc.communicate(
+            input=input_text,
             timeout=timeout_seconds,
         )
+        return subprocess.CompletedProcess(command, proc.returncode, stdout, stderr)
     except subprocess.TimeoutExpired as error:
-        stdout = _timeout_text(error.stdout)
+        if _SUPPORTS_PGROUP:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+        stdout_raw, stderr_raw = proc.communicate()
+        stdout = _timeout_text(error.stdout) or stdout_raw
         stderr = _append_timeout_message(
-            _timeout_text(error.stderr),
+            _timeout_text(error.stderr) or stderr_raw,
             _timeout_message(command, timeout_seconds),
         )
         return subprocess.CompletedProcess(command, 3, stdout, stderr)
+    except BaseException:
+        if _SUPPORTS_PGROUP:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+        proc.communicate()
+        raise
 
 
 def _run_command_bytes(
@@ -549,23 +606,45 @@ def _run_command_bytes(
     *,
     timeout_seconds: float = DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[bytes]:
+    """Byte-mode variant of ``_run_command``.
+
+    Kills the process group on timeout for the same reason as ``_run_command``
+    (Issue #4217).
+    """
     command = list(args)
     try:
-        return subprocess.run(
+        proc = subprocess.Popen(
             command,
             cwd=repo_root,
             env=_clean_git_env(),
-            capture_output=True,
-            check=False,
-            timeout=timeout_seconds,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=_SUPPORTS_PGROUP,
         )
+    except OSError as exc:
+        return subprocess.CompletedProcess(command, 3, b"", str(exc).encode())
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout_seconds)
+        return subprocess.CompletedProcess(command, proc.returncode, stdout, stderr)
     except subprocess.TimeoutExpired as error:
-        stdout = _timeout_bytes(error.stdout)
+        if _SUPPORTS_PGROUP:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+        stdout_raw, stderr_raw = proc.communicate()
+        stdout = _timeout_bytes(error.stdout) or stdout_raw
         stderr = _append_timeout_bytes(
-            _timeout_bytes(error.stderr),
+            _timeout_bytes(error.stderr) or stderr_raw,
             _timeout_message(command, timeout_seconds).encode(),
         )
         return subprocess.CompletedProcess(command, 3, stdout, stderr)
+    except BaseException:
+        if _SUPPORTS_PGROUP:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+        proc.communicate()
+        raise
 
 
 def _timeout_text(value: bytes | str | None) -> str:
@@ -794,11 +873,29 @@ def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
 
 
 def _session_log_for_branch(sessions_dir: Path, branch: str) -> Path | None:
-    """Return a recent session log whose branch field is ``branch``."""
+    """Return the newest recent session log whose branch field is ``branch``.
+
+    Tie-break is mtime-newest, matching complete_session_log.py's
+    ``_match_log_for_branch`` so both selectors agree when multiple logs
+    exist for the same branch (issue #4288).
+    """
     candidates = _recent_session_candidates(sessions_dir)
     if candidates is None:
         return None
-    for candidate in sorted(candidates):
+    # Build (mtime, path) pairs, skipping unreadable files.
+    timed: list[tuple[float, Path]] = []
+    for p in candidates:
+        try:
+            timed.append((p.stat().st_mtime, p))
+        except OSError:
+            warnings.warn(
+                f"Skipping unreadable session log: {p.name}",
+                UserWarning,
+                stacklevel=2,
+            )
+    # Sort by mtime descending so the first match is the newest.
+    timed.sort(key=lambda t: t[0], reverse=True)
+    for _, candidate in timed:
         if _session_branch(candidate) == branch:
             return candidate
     return None
@@ -920,23 +1017,26 @@ def _today_session_log(sessions_dir: Path) -> Path | None:
 
 
 def _session_log_for_current_branch(sessions_dir: Path, repo_root: Path) -> Path | None:
-    """Return the session log for the current branch, falling back to mtime.
+    """Return the session log for the current branch, or None.
 
     Calls ``_current_branch`` to identify the active branch, then uses
-    ``_session_log_for_branch`` to find its log deterministically. Falls back
-    to ``_today_session_log`` (newest by mtime) so callers fail open rather
-    than hard-blocking when no branch-specific log exists yet.
+    ``_session_log_for_branch`` to find its log deterministically. Returns
+    ``None`` when the branch cannot be determined (detached HEAD, git
+    unavailable) or when no recent log carries a matching branch field.
 
-    This is the correct replacement for bare ``_today_session_log`` calls
-    in ADR and retrospective gates: concurrent agents on other branches
-    frequently own a newer mtime and the mtime winner names the wrong session.
+    Returning ``None`` rather than the mtime winner prevents the ADR and
+    retrospective gates from judging a commit against a different session's
+    evidence. A caller that needs fail-open behaviour should check the
+    returned value and decide whether to pass or fail on ``None`` itself.
+
+    ``_today_session_log`` (mtime fallback) is intentionally NOT used here;
+    it remains available for ``check_branch_context`` which relies on the
+    mtime ordering to detect co-mingling (issues #682, #3343).
     """
     branch = _current_branch(repo_root)
-    if branch is not None:
-        log = _session_log_for_branch(sessions_dir, branch)
-        if log is not None:
-            return log
-    return _today_session_log(sessions_dir)
+    if branch is None:
+        return None
+    return _session_log_for_branch(sessions_dir, branch)
 
 
 def _split_frontmatter(content: bytes) -> tuple[bytes, bytes]:
@@ -2053,13 +2153,39 @@ def _atomic_commit_paths(diff_output: str) -> list[str]:
     return paths
 
 
+def _merge_brought_paths(repo_root: Path, staged_paths: list[str]) -> set[str]:
+    """Return staged paths brought in by a merge without author modification.
+
+    During a merge commit, ``git diff --cached`` reports ALL files that differ
+    from HEAD, including those the merge parent introduces untouched. To find
+    which files the author actually changed (conflict resolutions, manual edits
+    during merge), we diff the staged content against MERGE_HEAD. Files with no
+    diff against MERGE_HEAD are purely brought in by the merge (issue #4307).
+    """
+    result = _run_git(repo_root, ["rev-parse", "MERGE_HEAD"])
+    if result.returncode != 0:
+        return set()
+    merge_head = result.stdout.strip()
+
+    # Diff the index (staged) against MERGE_HEAD. Files that show NO diff
+    # are identical to the merge parent, meaning the author did not touch them.
+    diff_result = _run_git(
+        repo_root,
+        ["diff", "--cached", "--name-only", "--diff-filter=ACMRD", merge_head],
+    )
+    if diff_result.returncode != 0:
+        return set()
+    author_changed = set(diff_result.stdout.splitlines())
+    return {p for p in staged_paths if p not in author_changed}
+
+
 def check_atomic_commit(repo_root: Path) -> int:
     """Block when authored staged files exceed MAX_AUTHORED_FILES_PER_COMMIT.
 
     Generated companions (episodes, mcp, agents, memory-index) are exempt from
     the count so that a hook-generated sixth file cannot silently produce a
-    policy-violating commit. The function prints the generated files it found
-    so authors can see the full staged set.
+    policy-violating commit. During a merge commit, files brought in by the
+    merge parent without author modification are also exempt (issue #4307).
 
     EXIT CODES:
       0 - staged authored files are within the limit
@@ -2075,15 +2201,28 @@ def check_atomic_commit(repo_root: Path) -> int:
         return 2
 
     staged = _atomic_commit_paths(result.stdout)
+
+    # During a merge, exclude files the merge parent introduces untouched.
+    merge_brought = _merge_brought_paths(repo_root, staged)
+
     authored: list[str] = []
     generated: list[str] = []
+    merge_exempt: list[str] = []
     for path in staged:
-        if _is_generated(path):
+        if path in merge_brought:
+            merge_exempt.append(path)
+        elif _is_generated(path):
             generated.append(path)
         else:
             authored.append(path)
 
     authored_count = len(authored)
+    if merge_exempt:
+        print(
+            f"INFO: {len(merge_exempt)} merge-brought file(s) excluded from "
+            "atomic-commit count.",
+            file=sys.stderr,
+        )
     if generated:
         print(
             f"INFO: {len(generated)} generated file(s) excluded from atomic-commit count:",
@@ -2259,6 +2398,12 @@ def _mypy_result_blocks(
 
 
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
+    if not paths:
+        print(
+            "ERROR: run_mypy called with no file arguments; refusing (bare mypy is a false green)",
+            file=sys.stderr,
+        )
+        return 2
     checked_paths: list[str] = []
     for raw_path in paths:
         path = _safe_relative_path(raw_path)
@@ -2358,6 +2503,31 @@ def _check_no_grafts(repo_root: Path) -> int:
     return 2
 
 
+def _shallow_file(repo_root: Path) -> Path:
+    """Path to `shallow`, which git keeps in the *common* directory.
+
+    `repo_root / ".git" / "shallow"` only resolves in a primary clone. In a
+    linked worktree `.git` is a pointer file, so that path names a child of a
+    file and never exists; in a submodule it points into `.git/modules/<name>`.
+    Asking git keeps all three shapes correct and leaves the shared-versus
+    per-worktree routing where it belongs, with git.
+
+    It matters here because `shallow` is shared: one depth-limited fetch in any
+    worktree grafts every worktree at once, and this repository routinely runs
+    dozens of them. That sharing is contractual, not incidental:
+    gitrepository-layout(5) states the file "is ignored if $GIT_COMMON_DIR is
+    set and $GIT_COMMON_DIR/shallow will be used instead."
+    """
+    result = _run_git(repo_root, ["rev-parse", "--git-path", "shallow"])
+    lines = result.stdout.splitlines()
+    if result.returncode != 0 or len(lines) != 1 or not lines[0]:
+        return repo_root / ".git" / "shallow"
+    shallow_path = Path(lines[0])
+    if not shallow_path.is_absolute():
+        shallow_path = repo_root / shallow_path
+    return shallow_path
+
+
 def _check_history_integrity(repo_root: Path) -> int:
     shallow_result = _run_git(repo_root, ["rev-parse", "--is-shallow-repository"])
     if shallow_result.returncode != 0:
@@ -2368,8 +2538,19 @@ def _check_history_integrity(repo_root: Path) -> int:
         print(f"ERROR: unexpected shallow repository state: {shallow_state}", file=sys.stderr)
         return 2
     if shallow_state == "true":
+        shallow_file = _shallow_file(repo_root)
+        pin_sha = ""
+        if shallow_file.is_file():
+            first_line = shallow_file.read_text(encoding="utf-8").splitlines()
+            pin_sha = first_line[0].strip() if first_line else ""
+        pin_detail = f"{shallow_file} pins history at {pin_sha}." if pin_sha else ""
         print(
-            "ERROR: push validation requires complete Git history; fetch the full history",
+            "ERROR: push validation requires complete Git history."
+            + (f"\n  {pin_detail}" if pin_detail else "")
+            + "\n  A `git fetch --depth=<n>` made this clone shallow,"
+            " most likely while reproducing a CI step locally."
+            "\n  Shared across every worktree, so the fetch may have been in another one."
+            "\n  Fix: git fetch --unshallow origin",
             file=sys.stderr,
         )
         return 2
@@ -2425,6 +2606,48 @@ def check_pushed_suppressions(stream: TextIO, repo_root: Path) -> int:
     for violation in violations:
         print(f"  {violation}", file=sys.stderr)
     return 1
+
+
+def _report_suppression_violations(
+    updates: Sequence[PushUpdate],
+    repo_root: Path,
+) -> int:
+    """Scan each update's range and report every net-new suppression."""
+    violations: list[str] = []
+    for update in updates:
+        paths = _changed_commit_paths(update, repo_root)
+        if paths is None:
+            return 2
+        added_violations = _added_suppression_violations(update, paths, repo_root)
+        if added_violations is None:
+            return 2
+        violations.extend(added_violations)
+    if not violations:
+        return 0
+    print("ERROR: security suppression comments detected in pushed commits:", file=sys.stderr)
+    for violation in violations:
+        print(f"  {violation}", file=sys.stderr)
+    return 1
+
+
+def check_range_suppressions(base: str, head: str, repo_root: Path) -> int:
+    """CI backstop for the no-net-new suppression policy."""
+    head_sha = _resolve_commit(repo_root, head)
+    if head_sha is None:
+        print(f"ERROR: could not resolve head revision: {head}", file=sys.stderr)
+        return 2
+    base_sha = _merge_base(repo_root, base, head_sha) or _resolve_commit(repo_root, base)
+    if base_sha is None:
+        print(f"ERROR: could not resolve base revision: {base}", file=sys.stderr)
+        return 2
+    update = PushUpdate(
+        source=PushRef("HEAD", head_sha, "HEAD", base_sha),
+        base=base_sha,
+        head=head_sha,
+        range_spec=f"{base_sha}..{head_sha}",
+        destination_branch=None,
+    )
+    return _report_suppression_violations([update], repo_root)
 
 
 def _added_suppression_violations(
@@ -3457,6 +3680,21 @@ def _semgrep_command(
     targets: Sequence[str],
     repo_root: Path = REPO_ROOT,
 ) -> list[str]:
+    # python.lang.compatibility.python3{6,7} rules flag arguments like
+    # subprocess Popen(encoding=, errors=) that are valid on Python 3.6+.
+    # This repo requires Python 3.14 (pyproject.toml python_requires >=3.14),
+    # so those compatibility warnings are false positives here.
+    # Full rule IDs required: prefix matching does not suppress with --exclude-rule.
+    exclude_compat_rules = [
+        "--exclude-rule",
+        "python.lang.compatibility.python36.python36-compatibility-Popen1",
+        "--exclude-rule",
+        "python.lang.compatibility.python36.python36-compatibility-Popen2",
+        "--exclude-rule",
+        "python.lang.compatibility.python37.python37-compatibility-Popen1",
+        "--exclude-rule",
+        "python.lang.compatibility.python37.python37-compatibility-Popen2",
+    ]
     return [
         _resolve_semgrep_executable(repo_root),
         "scan",
@@ -3471,6 +3709,7 @@ def _semgrep_command(
         "--max-target-bytes=0",
         "--no-exclude-binary-files",
         "--json",
+        *exclude_compat_rules,
         "--",
         *targets,
     ]
@@ -4831,6 +5070,18 @@ def _is_zero_sha(sha: str) -> bool:
     return len(sha) in ZERO_SHA_LENGTHS and not sha.strip("0")
 
 
+# Documented escape for a maintainer deliberately reworking an unshared branch.
+# Not --no-verify, which .claude/rules/universal.md MUST NOT #2 forbids.
+FORCE_PUSH_ESCAPE_ENV = "FORCE_PUSH_OK"
+
+
+def _resolve_commit(repo_root: Path, ref: str) -> str | None:
+    result = _run_git(repo_root, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
 def _merge_base(repo_root: Path, base: str, head: str) -> str | None:
     result = _run_git(repo_root, ["merge-base", base, head])
     if result.returncode != 0:
@@ -4907,9 +5158,88 @@ def _fetch_origin_main(repo_root: Path) -> None:
         print("WARNING: could not refresh origin/main; using local ref", file=sys.stderr)
 
 
+# Environment variable that allows force-pushing a branch the actor owns.
+# Set to "1" for a single push of a personal feature branch that has been
+# deliberately rebased.  universal.md MUST NOT #1 still applies: this escape
+# is for branches only the author has touched.  Use the 4-slot semaphore
+# described in AGENTS.md to serialize, not this env var.
+FORCE_PUSH_OK_ENV = "FORCE_PUSH_OK"
+
+
+def _check_non_fast_forward(push_ref: PushRef, repo_root: Path) -> int:
+    """Return 1 when push_ref rewrites published history on a branch ref.
+
+    Detects a force push by testing whether the current remote tip
+    (remote_sha) is reachable from what is about to land (local_sha).  If it
+    is not reachable, the push discards commits the remote already has.
+
+    Returns:
+        0 - fast-forward, new branch, deletion, non-branch ref, or env-var
+            escape active.
+        1 - non-fast-forward detected (history rewrite).
+        2 - remote object absent locally; fetch first.
+    """
+    # Only guard branch refs.
+    if _branch_name(push_ref.remote_ref) is None:
+        return 0
+
+    # Deletions and new branches do not rewrite history.
+    if push_ref.is_deletion or push_ref.is_new:
+        return 0
+
+    if os.environ.get(FORCE_PUSH_OK_ENV) == "1":
+        print(
+            f"WARNING: force-push check bypassed via {FORCE_PUSH_OK_ENV}=1 "
+            f"for {push_ref.remote_ref}",
+            file=sys.stderr,
+        )
+        return 0
+
+    # The remote tip must be present locally before we can test ancestry.
+    # merge-base --is-ancestor exits non-zero both for "not an ancestor" and
+    # for "unknown object", so we must distinguish those two cases first.
+    if not _commit_ref_exists(repo_root, push_ref.remote_sha):
+        print(
+            f"ERROR: remote tip {push_ref.remote_sha[:12]} for "
+            f"{push_ref.remote_ref} is not present in the local object store. "
+            "Run 'git fetch' and retry.",
+            file=sys.stderr,
+        )
+        return 2
+
+    result = _run_git(
+        repo_root,
+        ["merge-base", "--is-ancestor", push_ref.remote_sha, push_ref.local_sha],
+    )
+    if result.returncode == 0:
+        # remote_sha is an ancestor of local_sha: fast-forward push.
+        return 0
+
+    # returncode == 1 means not-an-ancestor; anything else is a git error.
+    # Fail closed in both cases.
+    print(
+        f"ERROR: push to {push_ref.remote_ref} is not a fast-forward. "
+        f"Remote tip {push_ref.remote_sha[:12]} is not reachable from "
+        f"{push_ref.local_sha[:12]}. "
+        "This rewrites published history, which universal.md MUST NOT #1 forbids. "
+        f"To override for a personal branch you own, set {FORCE_PUSH_OK_ENV}=1.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def _protected_push_destination(push_ref: PushRef) -> str | None:
     branch = _branch_name(push_ref.remote_ref)
     return branch if branch in {"main", "master"} else None
+
+
+def _check_all_non_fast_forward(refs: list[PushRef], repo_root: Path) -> int:
+    """Run _check_non_fast_forward for each ref; return first non-zero result."""
+    for push_ref in refs:
+        result = _check_non_fast_forward(push_ref, repo_root)
+        if result != 0:
+            return result
+    return 0
 
 
 def check_push_refs(stream: TextIO, repo_root: Path) -> int:
@@ -4934,6 +5264,9 @@ def check_push_refs(stream: TextIO, repo_root: Path) -> int:
     if protected is not None:
         print(f"ERROR: cannot delete or update protected branch '{protected}'", file=sys.stderr)
         return 1
+    nff_result = _check_all_non_fast_forward(refs, repo_root)
+    if nff_result != 0:
+        return nff_result
     active_refs = [push_ref for push_ref in refs if not push_ref.is_deletion]
     if active_refs:
         warn_if_push_files_incomplete(active_refs, repo_root)
@@ -4964,13 +5297,17 @@ def warn_if_push_files_incomplete(
         return
     checked_out_head = head_result.stdout.strip()
     push_base = _run_git(repo_root, ["rev-parse", "--verify", "@{push}"])
-    if (
-        len(push_refs) == 1
-        and push_refs[0].local_sha == checked_out_head
-        and push_base.returncode == 0
-        and push_refs[0].remote_sha == push_base.stdout.strip()
-    ):
-        return
+    if len(push_refs) == 1 and push_refs[0].local_sha == checked_out_head:
+        ref = push_refs[0]
+        # Quiet path 1: configured push target matches the remote SHA.
+        if push_base.returncode == 0 and ref.remote_sha == push_base.stdout.strip():
+            return
+        # Quiet path 2: explicit refspec push (HEAD -> differently-named remote
+        # branch). The local commit is checked-out HEAD, so Lefthook {push_files}
+        # does cover the pushed files. The @{push} target is irrelevant here
+        # because the caller named the destination explicitly.
+        if ref.local_ref != ref.remote_ref:
+            return
     print(
         "WARNING: Lefthook {push_files} quality coverage may be incomplete because "
         "the pushed ref set does not match checked-out HEAD and its configured push "
@@ -4980,14 +5317,157 @@ def warn_if_push_files_incomplete(
     )
 
 
+class _SquashMergeResult:
+    """Result of squash-merge detection for a push ref."""
+
+    __slots__ = ("lost_commits", "warning")
+
+    def __init__(
+        self, lost_commits: list[str] | None = None, warning: str | None = None
+    ) -> None:
+        self.lost_commits = lost_commits
+        self.warning = warning
+
+
+def _probe_squash_state(
+    remote_sha: str, local_sha: str, repo_root: Path
+) -> _SquashMergeResult:
+    """Interrogate git to determine whether a branch was squash-merged.
+
+    Returns a result with:
+    - lost_commits set when squash-merge is confirmed (block).
+    - warning set when the determination is indeterminate (warn and allow).
+    - both None when no squash-merge signature is found (allow silently).
+    """
+    # remote_sha must NOT be an ancestor of origin/main.
+    ancestor_check = _run_git(
+        repo_root,
+        ["merge-base", "--is-ancestor", remote_sha, "origin/main"],
+    )
+    if ancestor_check.returncode == 0:
+        return _SquashMergeResult()  # Normal merge, not squash.
+
+    # Find merge-base between origin/main and the remote tip.
+    base_result = _run_git(
+        repo_root, ["merge-base", "origin/main", remote_sha],
+    )
+    if base_result.returncode != 0:
+        return _SquashMergeResult(
+            warning="could not compute merge-base with origin/main "
+            "(is origin/main fetched?). Cannot determine whether this "
+            "branch was squash-merged. Verify manually before pushing."
+        )
+    merge_base = base_result.stdout.strip()
+    if not merge_base:
+        return _SquashMergeResult(
+            warning="merge-base with origin/main is empty. Cannot determine "
+            "squash-merge state."
+        )
+
+    # Files the branch touched relative to the merge-base.
+    files_result = _run_git(
+        repo_root, ["diff", "--name-only", merge_base, remote_sha],
+    )
+    if files_result.returncode != 0:
+        return _SquashMergeResult(
+            warning="could not diff branch against merge-base. Cannot "
+            "determine squash-merge state."
+        )
+    branch_files = [f for f in files_result.stdout.splitlines() if f.strip()]
+    if not branch_files:
+        return _SquashMergeResult()  # Branch touched no files, not squash.
+
+    # Check if origin/main has identical content for those files.
+    diff_cmd = ["diff", "--name-only", "origin/main", remote_sha, "--"]
+    diff_cmd.extend(branch_files)
+    diff_result = _run_git(repo_root, diff_cmd)
+    if diff_result.returncode != 0:
+        return _SquashMergeResult(
+            warning="could not compare branch content with origin/main. "
+            "Cannot determine squash-merge state."
+        )
+    remaining_diffs = [f for f in diff_result.stdout.splitlines() if f.strip()]
+    if remaining_diffs:
+        return _SquashMergeResult()  # Content differs, not squash-merged.
+
+    # Squash-merge confirmed. List commits that will be orphaned.
+    lost_result = _run_git(
+        repo_root, ["rev-list", "--oneline", f"origin/main..{local_sha}"],
+    )
+    if lost_result.returncode != 0:
+        return _SquashMergeResult(
+            warning="squash-merge signature detected but could not list "
+            "orphaned commits."
+        )
+    lost = [line for line in lost_result.stdout.splitlines() if line.strip()]
+    return _SquashMergeResult(lost_commits=lost if lost else None)
+
+
+def _is_branch_squash_merged(push_ref: PushRef, repo_root: Path) -> _SquashMergeResult:
+    """Detect when a branch's prior content was squash-merged into origin/main.
+
+    Detection (local git only, no API calls):
+    1. The push is to an existing branch (remote_sha is not the zero SHA).
+    2. remote_sha is NOT an ancestor of origin/main (not normally merged).
+    3. The files the branch changed (relative to merge-base with origin/main)
+       are already present on origin/main with identical content.
+
+    Returns a _SquashMergeResult distinguishing three states:
+    - Confirmed squash-merge (lost_commits populated): block.
+    - Indeterminate (warning populated): warn and allow.
+    - No squash signature (both None): allow silently.
+    """
+    if push_ref.is_new or push_ref.is_deletion:
+        return _SquashMergeResult()
+    if not _commit_ref_exists(repo_root, push_ref.remote_sha):
+        return _SquashMergeResult(
+            warning="remote tip is not present in local object store. "
+            "Cannot determine squash-merge state. Run 'git fetch' if unsure."
+        )
+    return _probe_squash_state(push_ref.remote_sha, push_ref.local_sha, repo_root)
+
+
 def _check_push_updates(updates: Sequence[PushUpdate], repo_root: Path) -> int:
     policy_failed = False
     config_failed = False
     for update in updates:
         destination = update.destination_branch
+        if destination is None:
+            # Non-branch refs (tags, notes) -- skip branch policy checks.
+            continue
         if destination in {"main", "master"}:
             print(f"ERROR: cannot push directly to '{destination}'", file=sys.stderr)
             policy_failed = True
+            continue
+        # Issue #4316: block push to a branch whose PR was already squash-merged.
+        # Commits pushed after squash-merge are silently lost (data loss).
+        squash_result = _is_branch_squash_merged(update.source, repo_root)
+        if squash_result.lost_commits:
+            lost_commits = squash_result.lost_commits
+            print(
+                f"ERROR: branch '{destination}' was already squash-merged into main.",
+                file=sys.stderr,
+            )
+            print(
+                f"  {len(lost_commits)} commit(s) will be LOST (orphaned) if pushed:",
+                file=sys.stderr,
+            )
+            for line in lost_commits[:5]:
+                print(f"    {line}", file=sys.stderr)
+            if len(lost_commits) > 5:
+                print(f"    ... and {len(lost_commits) - 5} more", file=sys.stderr)
+            print(
+                "  To recover: create a new branch from main and cherry-pick your work.",
+                file=sys.stderr,
+            )
+            policy_failed = True
+            continue
+        elif squash_result.warning:
+            print(
+                f"WARNING: squash-merge detection indeterminate for '{destination}': "
+                f"{squash_result.warning}",
+                file=sys.stderr,
+            )
         count_result = _check_commit_limit(update, repo_root)
         marker_result = _check_review_marker(update, repo_root)
         plugin_result = _check_plugin_version(update, repo_root)
@@ -5249,7 +5729,7 @@ def run_yamllint(paths: Sequence[str], repo_root: Path) -> int:
 def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
     for path in paths:
-        if _skip_skillforge_path(path):
+        if _skip_skillforge_path(path, repo_root):
             continue
         if _is_skill_frontmatter_only_change(path, repo_root):
             continue
@@ -5266,27 +5746,28 @@ def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
     return 1 if failed else 0
 
 
-def _skip_skillforge_path(path: str) -> bool:
+def _skip_skillforge_path(path: str, repo_root: Path) -> bool:
+    """Skip evals and the command mirrors build/scripts/generate_commands.py writes.
+
+    A mirror is not an authored skill, so the SkillForge schema (Triggers, Process,
+    Verification) does not describe it and editing it is not how you fix it. The
+    mirror set is derived from `.claude/commands/<name>.md`, the generator's own
+    input, so do not restate the names here or in lefthook.yml.
+
+    Derived is not the same as in sync. Nothing regenerates a mirror at commit
+    time, so a command edit that skips the generator ships a stale mirror; one
+    did, leaving the Copilot pr-autofix skill prescribing a push the pre-push
+    guard rejects. `test_committed_command_mirrors_match_the_generator` in
+    tests/build_scripts/test_generate_commands.py is what catches that.
+    """
     if path.startswith("evals/"):
         return True
-    command_mirrors = {
-        "spec",
-        "plan",
-        "build",
-        "test",
-        "ship",
-        "checkpoint",
-        "pr-review",
-        "retro",
-        "sync",
-    }
     parts = PurePosixPath(path).parts
-    return (
-        len(parts) == 5
-        and parts[:3] == ("src", "copilot-cli", "skills")
-        and parts[3] in command_mirrors
-        and parts[4] == "SKILL.md"
-    )
+    if len(parts) != 5 or parts[:3] != ("src", "copilot-cli", "skills"):
+        return False
+    if parts[4] != "SKILL.md":
+        return False
+    return (repo_root / ".claude" / "commands" / f"{parts[3]}.md").is_file()
 
 
 def run_planning_advisory(repo_root: Path) -> int:
@@ -5559,7 +6040,7 @@ def run_pytest(repo_root: Path) -> int:
     # pre-push can block, or the hook outlives lefthook's own deadline and the
     # timeout looks nondeterministic.
     deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
-    for command in _pytest_commands(repo_root):
+    for index, command in enumerate(_pytest_commands(repo_root)):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             print(
@@ -5575,6 +6056,31 @@ def run_pytest(repo_root: Path) -> int:
             timeout_seconds=remaining,
         )
         _print_process_output(result)
+        if result.returncode == 3:
+            # `remaining` is always fractionally below the full budget, even on
+            # the first command, because the deadline and this subtraction call
+            # time.monotonic() at two different instants. Comparing the two
+            # floats therefore cannot tell "earlier commands ate the budget"
+            # from "the first command used all of it", and reporting the former
+            # for a first-command timeout sends the reader hunting for commands
+            # that never ran. The loop index is the exact signal, so use it.
+            if index == 0:
+                print(
+                    "ERROR: pytest suite timed out; the first command "
+                    f"{command} consumed the whole "
+                    f"{TEST_SUITE_TIMEOUT_SECONDS}s budget on its own",
+                    file=sys.stderr,
+                )
+            else:
+                consumed = TEST_SUITE_TIMEOUT_SECONDS - remaining
+                plural = "" if index == 1 else "s"
+                print(
+                    f"ERROR: pytest suite timed out with {remaining:g}s left of "
+                    f"the {TEST_SUITE_TIMEOUT_SECONDS}s budget "
+                    f"({consumed:g}s already consumed by {index} earlier "
+                    f"command{plural} in the suite)",
+                    file=sys.stderr,
+                )
         if result.returncode != 0:
             return result.returncode
     return 0
@@ -5699,7 +6205,52 @@ def additions_advisory(repo_root: Path) -> int:
     return 0
 
 
-def run_cli_e2e(test_file: str, repo_root: Path) -> int:
+def _branch_delta_files(repo_root: Path, base: str = "origin/main") -> set[str] | None:
+    """Return files changed in the true branch delta (``base...HEAD``).
+
+    Returns ``None`` when the base ref is unresolvable so callers can fall back
+    to running unconditionally rather than silently skipping.
+    """
+    result = _run_git(repo_root, ["diff", "--name-only", f"{base}...HEAD"])
+    if result.returncode != 0:
+        return None
+    return {line for line in result.stdout.splitlines() if line.strip()}
+
+
+def _push_files_are_genuine(
+    push_files: Sequence[str],
+    repo_root: Path,
+) -> bool:
+    """Return True when at least one push file exists in the branch delta.
+
+    When ``@{push}`` is unresolvable (new branch), lefthook may include files
+    from upstream commits in ``{push_files}``.  This function confirms that at
+    least one of those files is actually in ``origin/main...HEAD`` so the
+    caller can skip the expensive gate when none are.
+
+    Falls back to ``True`` (run unconditionally) when the delta cannot be
+    computed, so the gate is never weaker than before this guard.
+    """
+    if not push_files:
+        return False
+    delta = _branch_delta_files(repo_root)
+    if delta is None:
+        return True
+    return bool(delta.intersection(push_files))
+
+
+def run_cli_e2e(
+    test_file: str,
+    repo_root: Path,
+    push_files: Sequence[str] | None = None,
+) -> int:
+    if push_files is not None and not _push_files_are_genuine(push_files, repo_root):
+        print(
+            "CLI E2E skipped: none of the glob-matched push files exist in the "
+            "true branch delta (origin/main...HEAD); the file list is contaminated "
+            "by upstream commits the branch is behind"
+        )
+        return 0
     if os.environ.get("SKIP_CLI_E2E") == "true":
         print("CLI E2E skipped (SKIP_CLI_E2E=true)")
         return 0
@@ -5727,6 +6278,12 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
         command = [sys.executable, "scripts/validate_session_json.py", path]
         if path not in new_logs:
             command.append("--existing-log")
+        else:
+            # A log this branch is adding for the first time is being committed
+            # at session-start, before session-end runs. Pass --creation-mode so
+            # the validator skips protocol-compliance checks that can only be
+            # satisfied after the session completes (issue #4425).
+            command.append("--creation-mode")
         result = _run_command(command, repo_root)
         _print_process_output(result)
         failed |= result.returncode != 0
@@ -5965,11 +6522,13 @@ def _handle_additions(args: argparse.Namespace) -> int:
 
 
 def _handle_cli_hook_e2e(args: argparse.Namespace) -> int:
-    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", _repo_root(args))
+    push_files = getattr(args, "files", None)
+    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", _repo_root(args), push_files)
 
 
 def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
-    return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", _repo_root(args))
+    push_files = getattr(args, "files", None)
+    return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", _repo_root(args), push_files)
 
 
 def _handle_sessions(args: argparse.Namespace) -> int:
@@ -5994,6 +6553,10 @@ def _handle_suppressions_push(args: argparse.Namespace) -> int:
 
 def _handle_staged_suppressions(args: argparse.Namespace) -> int:
     return check_staged_suppressions(_repo_root(args))
+
+
+def _handle_suppressions_range(args: argparse.Namespace) -> int:
+    return check_range_suppressions(args.base, args.head, _repo_root(args))
 
 
 def _handle_suppression_diff(args: argparse.Namespace) -> int:
@@ -6056,8 +6619,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("pytest", _handle_pytest),
         ("placeholder-identity", _handle_placeholder_identity),
         ("additions", _handle_additions),
-        ("cli-hook-e2e", _handle_cli_hook_e2e),
-        ("cli-plugin-e2e", _handle_cli_plugin_e2e),
         ("bot-cascade", _handle_bot_cascade),
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
@@ -6071,12 +6632,28 @@ def build_parser() -> argparse.ArgumentParser:
         _add_path_command(subparsers, name, handler)
     for name, handler in simple_commands:
         _add_simple_command(subparsers, name, handler)
+    for name, handler in (
+        ("cli-hook-e2e", _handle_cli_hook_e2e),
+        ("cli-plugin-e2e", _handle_cli_plugin_e2e),
+    ):
+        e2e_cmd = subparsers.add_parser(name)
+        e2e_cmd.add_argument(
+            "--files",
+            nargs="*",
+            default=None,
+            help="Files passed by lefthook {push_files}; used to detect contaminated file sets",
+        )
+        e2e_cmd.set_defaults(handler=handler)
     message = subparsers.add_parser("commit-message")
     message.add_argument("message_path")
     message.set_defaults(handler=_handle_commit_message)
     generated = subparsers.add_parser("stage-generated")
     generated.add_argument("kind", choices=sorted(GENERATED_PATHS | GENERATED_GLOBS))
     generated.set_defaults(handler=_handle_stage_generated)
+    suppression_range = subparsers.add_parser("security-suppressions-range")
+    suppression_range.add_argument("--base", required=True)
+    suppression_range.add_argument("--head", default="HEAD")
+    suppression_range.set_defaults(handler=_handle_suppressions_range)
     suppression_diff = subparsers.add_parser(
         "security-suppressions-diff",
         help="CI backstop: check HEAD..base_ref range for new security suppressions",

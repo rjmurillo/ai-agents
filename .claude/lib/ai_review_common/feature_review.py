@@ -1,4 +1,4 @@
-"""Canonical: scripts/ai_review_common/feature_review.py. Sync via scripts/sync_plugin_lib.py."""
+"""Feature review parsing: recommendation, assignees, labels extraction."""
 
 from __future__ import annotations
 

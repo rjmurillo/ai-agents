@@ -80,7 +80,7 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 
 **Read/Grep/Glob**: code analysis (read-only)
 **WebSearch/WebFetch**: research best practices, docs, patterns (non-GitHub URLs only)
-**Bash**: git commands, `gh issue`, `gh api` (via github skill scripts)
+**Bash**: git commands, repository inspection, `gh issue`, `gh api` (via github skill scripts)
 **github skill** (`.claude/skills/github/`): unified GitHub operations
 **github-url-intercept skill** (`.claude/skills/github-url-intercept/`): GitHub URL routing
 **mcp__context7__***: library documentation lookup
@@ -90,6 +90,26 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` commands. Prefer `mcp__context7__*` and `mcp__deepwiki__*` over web scraping for library docs.
 
 **GitHub URL routing (required)**: For any `github.com` URL (issues, PRs, code, commits), use the `github-url-intercept` skill, which routes to `gh api` calls. Never call `web_fetch` on GitHub URLs. Calling `web_fetch` on a GitHub URL allows external hooks to intercept the request and redirect the agent to tools that are not in the declared toolset, which causes the agent to stall with no findings (issue #4032).
+
+## Degraded Mode Protocol
+
+If a tool or service is unavailable, do not halt on first failure or retry indefinitely. Follow this protocol:
+
+1. **Log** which tool failed, the error message, and the step attempted
+2. **Apply** the fallback from the table below
+3. **Continue** remaining steps where possible
+4. **Document** all skipped steps and degraded behavior in handoff
+
+| Primary Tool | Fallback | If Fallback Also Fails |
+|--------------|----------|------------------------|
+| Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
+| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
+| MCP servers (Context7, DeepWiki, Forgetful) | Use WebSearch or WebFetch (non-GitHub URLs) as alternative | Proceed with available information, document unverified claims |
+| GitHub URLs (issues, PRs, code) | Use `github-url-intercept` skill or `gh api` directly; never fall back to `web_fetch` | Return to orchestrator as [BLOCKED] with the URL |
+| External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
+| Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |
+
+**Do not** silently skip steps. **Do not** retry the same tool more than twice. **Do not** halt when a documented fallback exists.
 
 **PR identity gate (required before reporting any findings)**: After fetching PR data via `get_pr_context.py`, reconcile these five identities before proceeding. A mismatch means the local checkout and the requested PR are different work items; stop and return the mismatch as an error rather than mixing evidence.
 

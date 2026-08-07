@@ -1082,8 +1082,8 @@ gh pr edit [number] --body "[updated body]"
 
 ```bash
 # Count addressed vs total
-ADDRESSED=$(grep -c "^\*\*Status\*\*: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
-WONTFIX=$(grep -c "^\*\*Status\*\*: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
+ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" .agents/pr-comments/PR-[number]/comments.md)
+WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" .agents/pr-comments/PR-[number]/comments.md)
 TOTAL=$TOTAL_COMMENTS
 
 echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
@@ -1168,7 +1168,7 @@ exit_code=$?
 # Handle timeout (exit code 7)
 if [ "$exit_code" -eq 7 ]; then
     echo "[BLOCKED] Timeout waiting for CI checks to complete"
-    pending=$(echo "$checks" | jq -r '.PendingCount')
+    pending=$(echo "$checks" | jq -r '.Data.PendingCount')
     echo "  Pending: $pending check(s) still running"
     exit 1
 fi
@@ -1232,7 +1232,7 @@ echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
 checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
-all_passing=$(echo "$checks" | jq -r '.AllPassing')
+all_passing=$(echo "$checks" | jq -r '.Data.AllPassing')
 ci_status=$([ "$all_passing" = "true" ] && echo "PASS" || echo "BLOCKED")
 echo "[ ] CI checks: $ci_status"
 

@@ -1,0 +1,126 @@
+{
+  "id": "episode-2026-08-03-session-01-fix-new-pr-base-ref",
+  "session": "2026-08-03-session-01-fix-new-pr-base-ref",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix stale local base ref in new_pr.py worktree diffs (issues #4461, #4489)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issues #4461 and #4489 with full comment threads.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-01-fix-new-pr-base-ref"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced stale-base symptom: git diff --name-only main...fix/new-pr-base-ref returned 1918 files; origin/main returned 0.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-01-fix-new-pr-base-ref"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added _resolve_validation_base() helper and --validation-base argument to new_pr.py.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-01-fix-new-pr-base-ref"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated src/copilot-cli mirror via build_all.py.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-01-fix-new-pr-base-ref"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added 11 tests in TestResolveValidationBase and TestMainUsesResolvedValidationBase.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-01-fix-new-pr-base-ref"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated 4 existing tests that broke due to new subprocess.run call in the sequence.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-01-fix-new-pr-base-ref"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation-proved: M1-M4 all killed, cosmetic survived.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-01-fix-new-pr-base-ref"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found pre-existing taste ratchet regression: GOTCHAS.md at 521 lines. Added taste-lint: ignore file-size exemption. Ratchet now OK at 595.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-01-fix-new-pr-base-ref"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-03T20:43:49+00:00",
+      "type": "commit",
+      "content": "Commit: dd5e334894bb5fbfc8c1a357ab28e9048907c25f",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-01-fix-new-pr-base-ref"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}

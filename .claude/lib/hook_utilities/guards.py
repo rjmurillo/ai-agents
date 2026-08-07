@@ -1,4 +1,4 @@
-"""Canonical: scripts/hook_utilities/guards.py. Sync via scripts/sync_plugin_lib.py."""
+"""Plugin-mode guards for hook scripts."""
 
 import json
 import os

@@ -11,6 +11,9 @@ import subprocess
 LABEL_PATTERN = re.compile(r"^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _.-]*[A-Za-z0-9])?$")
 PRIORITY_PATTERN = re.compile(r"^P[0-4]$")
 
+CONFIG_ERROR = 2
+EXTERNAL_ERROR = 3
+
 
 def _run_gh(args: list[str], *, discard_stderr: bool = False) -> subprocess.CompletedProcess[str]:
     stderr = subprocess.DEVNULL if discard_stderr else subprocess.STDOUT
@@ -105,6 +108,20 @@ def _print_summary(*, failed_labels: list[str], failed_creates: list[str]) -> No
 
 
 def apply_labels(*, issue_number: str, labels_json: str, priority: str) -> int:
+    """Apply the triage labels, returning 3 when the issue did not get them.
+
+    Issue #4068: this warned and returned 0 on every failure, so a `gh` outage
+    or a lost token left the issue unlabelled while the workflow step reported
+    green. The shell original ran under ``set -e`` and failed on the same
+    ``gh issue edit``.
+
+    The verdict is ``failed_labels``, not ``failed_creates``. A create failure
+    on its own is routine: ``_existing_label_names`` cannot tell an empty result
+    from a failed lookup, so a transient list failure sends an existing label
+    down the create path, where `gh` rejects it as a duplicate. What matters is
+    whether the label reached the issue, and ``_add_label`` measures that
+    directly.
+    """
     failed_labels: list[str] = []
     failed_creates: list[str] = []
 
@@ -138,12 +155,12 @@ def apply_labels(*, issue_number: str, labels_json: str, priority: str) -> int:
 
     _print_summary(failed_labels=failed_labels, failed_creates=failed_creates)
 
-    return 0
+    return EXTERNAL_ERROR if failed_labels else 0
 
 
 def main(argv: list[str] | None = None) -> int:
     if argv:
-        return 2
+        return CONFIG_ERROR
     return apply_labels(
         issue_number=os.environ.get("ISSUE_NUMBER", ""),
         labels_json=os.environ.get("LABELS_JSON", ""),

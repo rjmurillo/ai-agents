@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, baseline diffability contract needs paired controls in one file.
 """The baseline must stay visible in review, or it protects nothing.
 
 The floor forces a lowered count to appear in a diff. `.gitattributes` can
@@ -20,8 +21,11 @@ from pathlib import Path
 
 import pytest
 
-from scripts.validation import portability_baseline
-from scripts.validation.portability_baseline import refuse_undiffable_baseline
+from scripts.validation import portability_baseline, portability_git
+from scripts.validation.portability_baseline import (
+    refuse_diff_suppressed_baseline,
+    refuse_undiffable_baseline,
+)
 from scripts.validation.portability_common import resolve_checked_baseline
 
 
@@ -242,6 +246,46 @@ class TestAnUnanswerableAttributeIsRefused:
         _unanswerable_check_attr(monkeypatch)
         assert refuse_undiffable_baseline(repo, _baseline(repo)) is True
 
+    def test_check_attr_timeout_names_the_failed_probe(
+        self,
+        repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        def answer(args: tuple[str, ...]) -> subprocess.CompletedProcess[bytes]:
+            return subprocess.CompletedProcess(
+                args,
+                portability_git.GIT_TIMEOUT_RETURN_CODE,
+                stdout=b"",
+                stderr=b"git command timed out after 30s",
+            )
+
+        _only_check_attr(monkeypatch, answer)
+
+        assert refuse_undiffable_baseline(repo, _baseline(repo)) is True
+        error = capsys.readouterr().err
+        assert "checking the baseline diff attribute" in error
+        assert "timed out" in error
+
+    def test_write_guard_check_attr_timeout_names_the_failed_probe(
+        self,
+        repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        timed_out = subprocess.CompletedProcess(
+            ["git", "check-attr"],
+            portability_git.GIT_TIMEOUT_RETURN_CODE,
+            stdout=b"",
+            stderr=b"git command timed out after 30s",
+        )
+        monkeypatch.setattr(portability_baseline, "_run_git", lambda *_args: timed_out)
+
+        assert refuse_diff_suppressed_baseline(repo, _baseline(repo)) is True
+        error = capsys.readouterr().err
+        assert "checking the baseline diff attribute" in error
+        assert "timed out" in error
+
 
 class TestTheAttributeActuallyHidesTheNumber:
     def test_the_lowered_count_is_invisible_once_the_attribute_lands(self, repo: Path) -> None:
@@ -389,3 +433,132 @@ class TestTheAttributeCheckAndTheReadMustLandOnTheSameFile:
         baseline.unlink()
         baseline.symlink_to("hidden.json")
         assert checker.main(argv) == 2, f"{module} read a baseline through a link"
+
+
+class TestEnvironmentOnlyWorktreeIsNotVacuouslyAllowed:
+    """The guard must refuse when GIT_* vars were scrubbed, not vacuously allow.
+
+    Issue #4258: run_git strips every GIT_* variable. An env-only worktree
+    (no .git file, only GIT_DIR + GIT_WORK_TREE) is therefore invisible to
+    run_git, which reports no repository. The old guard treated that as
+    "not a repo -> allow". This is the vacuity: the guard passed because it
+    saw nothing.
+
+    The decisive test: with GIT_DIR in the environment, refuse_undiffable_baseline
+    must REFUSE rather than allow when rev-parse cannot find a repo. A guard
+    that passes here because it saw nothing is the bug this test catches.
+    """
+
+    def test_guard_refuses_when_git_dir_is_set_and_rev_parse_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Vacuity check: the guard must fail on a known-bad input.
+
+        A path with no .git file but GIT_DIR set in the environment is a real
+        checkout that run_git cannot see. The guard must refuse rather than
+        allow, because it was prevented from answering, not because there is
+        no repository. Refs #4258.
+        """
+        # A directory with no .git file -- run_git will find no repository here.
+        bare_dir = tmp_path / "bare"
+        bare_dir.mkdir()
+        baseline = bare_dir / "baseline.json"
+        baseline.write_text('{"files": {}}\n')
+
+        # Simulate the env-only worktree: GIT_DIR is set, but run_git strips it.
+        monkeypatch.setenv("GIT_DIR", str(tmp_path / "fake.git"))
+
+        result = refuse_undiffable_baseline(bare_dir, baseline)
+        assert result is True, (
+            "refuse_undiffable_baseline returned False (allowed) when GIT_DIR was "
+            "set in the environment but run_git stripped it. "
+            "The guard saw no repository because the scrub hid it, not because "
+            "there is no repository. This is the vacuity that issue #4258 fixes: "
+            "absence must be proven by the tool answering, not by the tool being silenced."
+        )
+
+    def test_guard_refuses_when_repository_probe_times_out(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text('{"files": {}}\n')
+        timed_out = subprocess.CompletedProcess(
+            ["git", "rev-parse"],
+            portability_git.GIT_TIMEOUT_RETURN_CODE,
+            b"",
+            b"git command timed out after 30s",
+        )
+        monkeypatch.setattr(portability_baseline, "run_git", lambda *_args: timed_out)
+
+        assert refuse_undiffable_baseline(tmp_path, baseline) is True
+        assert "git command timed out after 30s" in capsys.readouterr().err
+
+    def test_guard_allows_when_no_git_pointer_vars_are_set_and_no_repo_exists(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Control: no GIT_DIR + no repo still allows (vendored copy case).
+
+        This is the existing behaviour for genuinely non-repository paths.
+        The fix must not change it. A vendored copy, unpacked tarball, or
+        fixture directory with no repo and no pointer variables must remain
+        allowed. Refs #4258.
+        """
+        for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR"):
+            monkeypatch.delenv(var, raising=False)
+
+        loose = tmp_path / "loose"
+        loose.mkdir()
+        baseline = loose / "baseline.json"
+        baseline.write_text('{"files": {}}\n')
+
+        result = refuse_undiffable_baseline(loose, baseline)
+        assert result is False, (
+            "refuse_undiffable_baseline returned True (refused) for a path outside "
+            "any repository with no GIT_* pointer variables set. "
+            "The fix for issue #4258 must not block vendored copies and unpacked tarballs."
+        )
+
+    def test_guard_allows_when_a_pointer_var_is_exported_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An empty pointer names no repository, so the scrub hid nothing.
+
+        Presence in ``os.environ`` is not the discriminator; a meaningful value
+        is. Measured on git 2.51: ``GIT_DIR=""`` in a non-repository yields
+        ``fatal: not a git repository: ''`` and resolves no repository, the same
+        outcome as an absent variable. Refusing here would block the vendored
+        copy and unpacked tarball case the allow branch exists for.
+        """
+        loose = tmp_path / "loose"
+        loose.mkdir()
+        baseline = loose / "baseline.json"
+        baseline.write_text('{"files": {}}\n')
+
+        monkeypatch.setenv("GIT_DIR", "")
+
+        assert refuse_undiffable_baseline(loose, baseline) is False, (
+            "refuse_undiffable_baseline refused on an exported-but-empty GIT_DIR. "
+            "An empty pointer names no repository, so the GIT_* scrub cannot have "
+            "hidden one, and the refusal is a false positive against vendored "
+            "copies and unpacked tarballs. Refs #4258."
+        )
+
+    def test_guard_refuses_when_git_work_tree_is_set(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GIT_WORK_TREE also triggers the refusal, not only GIT_DIR."""
+        bare_dir = tmp_path / "bare"
+        bare_dir.mkdir()
+        baseline = bare_dir / "baseline.json"
+        baseline.write_text('{"files": {}}\n')
+
+        monkeypatch.setenv("GIT_WORK_TREE", str(tmp_path / "work"))
+
+        result = refuse_undiffable_baseline(bare_dir, baseline)
+        assert result is True, (
+            "refuse_undiffable_baseline allowed when GIT_WORK_TREE was set. "
+            "GIT_WORK_TREE is also a pointer that run_git strips. Refs #4258."
+        )

@@ -549,3 +549,149 @@ class TestMainDiffAndFiles:
         data = output["Data"]
         assert data["diff"] == "the diff"
         assert data["files"] == ["x.py", "y.py"]
+
+
+# ---------------------------------------------------------------------------
+# Tests: extended metadata fields (issue #3912)
+# ---------------------------------------------------------------------------
+
+
+class TestExtendedMetadata:
+    """Verify the new fields added for issue #3912 are present in output."""
+
+    def test_base_sha_present(self, capsys):
+        pr = _pr_data(
+            baseRefOid="deadbeef0000000000000000000000000000dead",
+        )
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Data"]["base_sha"] == "deadbeef0000000000000000000000000000dead"
+
+    def test_is_draft_false_by_default(self, capsys):
+        pr = _pr_data(isDraft=False)
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Data"]["is_draft"] is False
+
+    def test_is_draft_true(self, capsys):
+        pr = _pr_data(isDraft=True)
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Data"]["is_draft"] is True
+
+    def test_merge_state_status_present(self, capsys):
+        pr = _pr_data(mergeStateStatus="CLEAN")
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Data"]["merge_state_status"] == "CLEAN"
+
+    def test_auto_merge_none(self, capsys):
+        pr = _pr_data(autoMergeRequest=None)
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        data = out["Data"]
+        assert data["auto_merge"] is False
+        assert data["auto_merge_method"] is None
+
+    def test_auto_merge_set(self, capsys):
+        pr = _pr_data(autoMergeRequest={"mergeMethod": "SQUASH"})
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        data = out["Data"]
+        assert data["auto_merge"] is True
+        assert data["auto_merge_method"] == "SQUASH"
+
+    def test_head_repo_fields(self, capsys):
+        pr = _pr_data(headRepository={
+            "name": "ai-agents",
+            "owner": {"login": "rjmurillo"},
+        })
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        data = out["Data"]
+        assert data["head_repo_name"] == "ai-agents"
+        assert data["head_repo_owner"] == "rjmurillo"
+
+    def test_reviews_list(self, capsys):
+        pr = _pr_data(reviews=[
+            {"author": {"login": "reviewer1"}, "state": "APPROVED"},
+        ])
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert len(out["Data"]["reviews"]) == 1
+
+    def test_review_counts_aggregated(self, capsys):
+        pr = _pr_data(reviews=[
+            {"id": "r1", "state": "APPROVED", "author": {"login": "bob"}},
+            {"id": "r2", "state": "APPROVED", "author": {"login": "carol"}},
+            {"id": "r3", "state": "CHANGES_REQUESTED", "author": {"login": "dave"}},
+        ])
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Data"]["review_counts"] == {"APPROVED": 2, "CHANGES_REQUESTED": 1}
+
+    def test_missing_new_fields_handled_gracefully(self, capsys):
+        """API response lacking new fields should not crash."""
+        pr = _pr_data()
+        # Remove new fields to simulate old API response
+        for key in ("baseRefOid", "isDraft", "mergeStateStatus",
+                    "autoMergeRequest", "headRepository", "reviews"):
+            pr.pop(key, None)
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        data = out["Data"]
+        assert data["base_sha"] is None
+        assert data["is_draft"] is False
+        assert data["merge_state_status"] is None
+        assert data["auto_merge"] is False
+        assert data["reviews"] == []

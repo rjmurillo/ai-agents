@@ -112,13 +112,24 @@ _SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
 # on". Both spellings appear across the corpus.
 _BRANCH_EVIDENCE_ITEMS = ("branchVerified", "notOnMain", "verifyBranch")
 
-# Minimum required session start items (must exist in every session log)
+# Minimum required session start items (must exist in every session log).
+#
+# Kept in lockstep with every item ``new_session_log_json.py`` emits at
+# ``"level": "MUST"``. Four MUST items were absent from this set (issue #4405),
+# which made the gate strictly easier to satisfy by deleting a checklist item
+# than by completing it: a deleted key was silent, an incomplete key failed.
+# ``test_every_generator_must_item_is_required`` pins the two lists together so
+# this cannot drift again the next time an item is added to either side.
 SESSION_START_REQUIRED_ITEMS = frozenset(
     {
         "serenaActivated",
         "serenaInstructions",
         "handoffRead",
         "sessionLogCreated",
+        "skillScriptsListed",
+        "usageMandatoryRead",
+        "constraintsRead",
+        "memoriesLoaded",
         "branchVerified",
         "notOnMain",
     }
@@ -639,16 +650,53 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
         # in this file sits below a sys.path insert and so needs an E402
         # suppression, and a new suppression is exactly what the push gate
         # refuses. Function scope needs none, and the module is already loaded.
-        from scripts.validation.session_scope import commit_reachability_problem
+        from scripts.validation.session_scope import (
+            NOT_AN_ANCESTOR,
+            commit_reachability_problem,
+        )
 
         problem = commit_reachability_problem(ending, _PROJECT_ROOT)
         if problem is not None:
-            result.errors.append(
-                f"endingCommit {ending!r} {problem}; the SHA was most likely "
-                "orphaned by amending or rebasing the commit that carried it. "
-                "Record the SHA in a follow-up commit instead of amending "
-                "afterwards (issue #3618)"
+            # State the observation and list only the candidates the check did
+            # not already rule out. Naming one cause sends readers after a
+            # mistake they did not make: this repository merges by squash,
+            # which orphans every branch SHA a session log records. And when
+            # the object is present but unreachable, `git cat-file -e` already
+            # found it here, so it was pushed (issue #4347).
+            causes = (
+                "the PR was squash merged, which orphans the branch SHA; the "
+                "commit was amended or rebased after the log named it"
             )
+            if problem != NOT_AN_ANCESTOR:
+                causes += "; the SHA was never pushed"
+            result.errors.append(
+                f"endingCommit {ending!r} {problem}. Candidate causes, most "
+                f"likely first: {causes}. Record the SHA in a follow-up "
+                "commit (issue #3618)"
+            )
+
+    # A session that committed cannot have its base equal its tip. When the log
+    # is written after the work commit, startingCommit captures HEAD as it
+    # already stands, so the two fields hold the same SHA. The episode extractor
+    # excludes the base commit by design, so the session's only commit vanishes
+    # and the episode records metrics.commits 0. The episode-store ratchet then
+    # blocks the push naming the episode, several steps from the wrong field.
+    # Reject the bad input here instead, where the field is (issue #4415).
+    if (
+        claims_commit
+        and ending
+        and isinstance(starting, str)
+        and len(starting) >= _SHORT_SHA
+        and _same_commit(ending, starting)
+    ):
+        result.errors.append(
+            f"startingCommit and endingCommit are the same commit ({ending!r}) while "
+            "changesCommitted is complete; a session's base cannot also be its tip. "
+            "The log was most likely created after the work commit, so startingCommit "
+            "captured HEAD rather than the base. Set startingCommit to the parent of "
+            "the session's first commit. Left as-is, the extracted episode records "
+            "metrics.commits 0 and the episode-store ratchet blocks the push (issue #4415)"
+        )
 
     if "nextSteps" not in data:
         result.warnings.append(

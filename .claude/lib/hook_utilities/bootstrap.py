@@ -1,4 +1,4 @@
-"""Canonical: scripts/hook_utilities/bootstrap.py. Sync via scripts/sync_plugin_lib.py.
+"""Bootstrap helper for Claude Code hook scripts.
 
 This module provides setup_hook_lib_path() which locates the plugin's lib
 directory and adds it to sys.path. Designed to be called with __file__ to
