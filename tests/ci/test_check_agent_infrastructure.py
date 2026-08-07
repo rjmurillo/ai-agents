@@ -7,12 +7,14 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 from scripts.ci import check_agent_infrastructure as cai
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 ACTION = REPO_ROOT / ".github" / "actions" / "check-agent-infrastructure" / "action.yml"
+AI_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "ai-review" / "action.yml"
 
 
 def _probe(*, gh: bool, auth: bool, copilot: bool) -> cai.Probe:
@@ -79,6 +81,7 @@ class TestAuthProbe:
         cai._probe_auth(probe)
         assert probe.auth_valid is False
         assert "Authentication: FAILED" in probe.summary
+        assert all("bot-pat" not in annotation for annotation in probe.annotations)
 
     def test_a_login_marks_auth_valid(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(cai, "_first_line", lambda _argv: "octocat")
@@ -207,6 +210,18 @@ class TestFirstLine:
 
 
 class TestWorkflowWiring:
+    def test_the_action_accepts_a_runner_github_token(self) -> None:
+        action = yaml.safe_load(ACTION.read_text(encoding="utf-8"))
+        assert "github-token" in action["inputs"]
+
+    def test_the_action_uses_runner_token_for_github_api_reads(self) -> None:
+        action = yaml.safe_load(ACTION.read_text(encoding="utf-8"))
+        step = action["runs"]["steps"][0]
+        assert (
+            step["env"]["GH_TOKEN"]
+            == "${{ inputs.github-token || github.token || inputs.bot-pat }}"
+        )
+
     def test_the_action_invokes_the_script(self) -> None:
         assert "scripts/ci/check_agent_infrastructure.py" in ACTION.read_text(encoding="utf-8")
 
@@ -228,3 +243,23 @@ class TestWorkflowWiring:
             cwd=REPO_ROOT,
         )
         assert "check-agent-infrastructure" not in completed.stdout
+
+
+class TestAiReviewActionAuthWiring:
+    def test_read_only_gh_steps_use_runner_token_before_bot_pat(self) -> None:
+        action = yaml.safe_load(AI_REVIEW_ACTION.read_text(encoding="utf-8"))
+        steps = {step["name"]: step for step in action["runs"]["steps"]}
+        expected = "${{ inputs.github-token || github.token || inputs.bot-pat }}"
+
+        for name in (
+            "Verify GitHub authentication",
+            "Diagnose Copilot CLI",
+            "Build context",
+            "Invoke Copilot CLI (with retry for infrastructure failures)",
+        ):
+            assert steps[name]["env"]["GH_TOKEN"] == expected
+
+    def test_post_analysis_writes_still_use_bot_pat(self) -> None:
+        action = yaml.safe_load(AI_REVIEW_ACTION.read_text(encoding="utf-8"))
+        steps = {step["name"]: step for step in action["runs"]["steps"]}
+        assert steps["Execute post-analysis script"]["env"]["GH_TOKEN"] == "${{ inputs.bot-pat }}"
