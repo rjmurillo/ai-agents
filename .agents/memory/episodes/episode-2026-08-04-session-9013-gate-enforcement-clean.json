@@ -1,0 +1,66 @@
+{
+  "id": "episode-2026-08-04-session-9013-gate-enforcement-clean",
+  "session": "2026-08-04-session-9013-gate-enforcement-clean",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix PR 4402 conflicts and push to fix/eval-record-state for issue #4123.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "merge",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9013-gate-enforcement-clean"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9013-gate-enforcement-clean"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-04-session-9013-gate-enforcement-clean"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T07:25:05+00:00",
+      "type": "commit",
+      "content": "Commit: 1fc5741919943adbbca25e19ad31a539027ab2ee",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9013-gate-enforcement-clean"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}
