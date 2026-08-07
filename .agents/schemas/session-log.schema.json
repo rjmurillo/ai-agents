@@ -161,6 +161,42 @@
         }
       }
     },
+    "episodeMetrics": {
+      "type": "object",
+      "description": "Optional authoritative metrics for episode regeneration when the session commit range includes unrelated history",
+      "required": ["filesChanged", "comparison"],
+      "additionalProperties": false,
+      "properties": {
+        "filesChanged": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Authoritative count of files owned by this session"
+        },
+        "comparison": {
+          "type": "object",
+          "required": ["kind", "base", "head"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["gitCommitRange", "githubPullRequest"]
+            },
+            "pullRequest": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "base": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{7,40}$"
+            },
+            "head": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{7,40}$"
+            }
+          }
+        }
+      }
+    },
     "endingCommit": {
       "type": "string",
       "description": "Git commit SHA at session end (empty if no commit)",
