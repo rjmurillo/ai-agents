@@ -527,18 +527,33 @@ def check_memory_index_references(
             for link_match in _MARKDOWN_LINK_PATTERN.finditer(stripped):
                 file_refs.append(link_match.group(0))
 
-    normalized_refs: list[str] = []
+    normalized_refs: list[tuple[str, Path]] = []
     for raw_ref in file_refs:
         file_name = raw_ref.strip()
         parsed_link = _MARKDOWN_LINK_PATTERN.search(file_name)
         if parsed_link:
-            link_target = parsed_link.group(2)
-            file_name = re.sub(r"\.md$", "", link_target)
-        normalized_refs.append(file_name)
+            file_name = parsed_link.group(2)
+        if not file_name.endswith(".md"):
+            file_name = f"{file_name}.md"
+
+        resolved_ref = (memory_path / file_name).resolve()
+        if not resolved_ref.is_relative_to(resolved_memory):
+            result.passed = False
+            result.broken_references.append(file_name.removesuffix(".md"))
+            result.issues.append(
+                f"P1 VALIDITY: Path traversal detected "
+                f"in memory-index: {file_name}"
+            )
+            continue
+
+        canonical_ref = resolved_ref.relative_to(resolved_memory).as_posix()
+        normalized_refs.append(
+            (canonical_ref.removesuffix(".md"), resolved_ref)
+        )
 
     seen_refs: set[str] = set()
-    unique_refs: list[str] = []
-    for file_name in normalized_refs:
+    unique_refs: list[tuple[str, Path]] = []
+    for file_name, resolved_ref in normalized_refs:
         if file_name in seen_refs:
             result.passed = False
             if file_name not in result.duplicate_references:
@@ -548,22 +563,9 @@ def check_memory_index_references(
                 )
             continue
         seen_refs.add(file_name)
-        unique_refs.append(file_name)
+        unique_refs.append((file_name, resolved_ref))
 
-    for file_name in unique_refs:
-        ref_path = memory_path / f"{file_name}.md"
-
-        # Security: Prevent path traversal (CWE-22).
-        resolved_ref = ref_path.resolve()
-        if not resolved_ref.is_relative_to(resolved_memory):
-            result.passed = False
-            result.broken_references.append(file_name)
-            result.issues.append(
-                f"P1 VALIDITY: Path traversal detected "
-                f"in memory-index: {file_name}.md"
-            )
-            continue
-
+    for file_name, resolved_ref in unique_refs:
         if not resolved_ref.exists():
             result.passed = False
             result.broken_references.append(file_name)
