@@ -136,11 +136,14 @@ def main(argv: list[str] | None = None) -> int:
     # Resolve body content
     body = args.body
     if args.body_file and not body:
-        path = Path(args.body_file)
-        if not path.exists():
-            print(f"Body file not found: {args.body_file}", file=sys.stderr)
-            return 2
-        body = path.read_text(encoding="utf-8")
+        if args.body_file == "-":
+            body = sys.stdin.read()
+        else:
+            path = Path(args.body_file)
+            if not path.exists():
+                print(f"Body file not found: {args.body_file}", file=sys.stderr)
+                return 2
+            body = path.read_text(encoding="utf-8")
 
     full_text = f"{args.title}\n{body}"
 
