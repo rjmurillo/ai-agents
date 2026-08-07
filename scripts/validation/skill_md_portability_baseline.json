@@ -101,7 +101,7 @@
     "templates/agents/task-decomposer.shared.md": 2
   },
   "marker_files": {
-    ".claude/commands/push-pr.md": 2,
+    ".claude/commands/push-pr.md": 1,
     ".claude/skills/SkillForge/TRANSFORMATION_NOTES.md": 13,
     ".claude/skills/adr-generator/SKILL.md": 6,
     ".claude/skills/adr-generator/references/adr-template.md": 1,
@@ -268,7 +268,7 @@
     "src/copilot-cli/skills/panning-for-gold/SKILL.md": 6,
     "src/copilot-cli/skills/pr-comment-responder/SKILL.md": 4,
     "src/copilot-cli/skills/pr-comment-responder/references/workflow.md": 2,
-    "src/copilot-cli/skills/push-pr/SKILL.md": 2,
+    "src/copilot-cli/skills/push-pr/SKILL.md": 1,
     "src/copilot-cli/skills/quality-grades/SKILL.md": 3,
     "src/copilot-cli/skills/requirements-interview/SKILL.md": 5,
     "src/copilot-cli/skills/research-and-incorporate/SKILL.md": 1,
