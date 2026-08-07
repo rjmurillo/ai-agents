@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-08-07-session-10004",
-  "session": "2026-08-07-session-10004",
+  "id": "episode-2026-08-07-session-10008",
+  "session": "2026-08-07-session-10008",
   "timestamp": "2026-08-07T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
@@ -18,7 +18,7 @@
       "leads_to": [
         "e002"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10008"
     },
     {
       "id": "e002",
@@ -31,7 +31,7 @@
       "leads_to": [
         "e003"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10008"
     },
     {
       "id": "e003",
@@ -44,7 +44,7 @@
       "leads_to": [
         "e004"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10008"
     },
     {
       "id": "e004",
@@ -55,7 +55,7 @@
         "e003"
       ],
       "leads_to": [],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10008"
     },
     {
       "id": "e005",
@@ -66,7 +66,7 @@
       "leads_to": [
         "e001"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10008"
     }
   ],
   "metrics": {
