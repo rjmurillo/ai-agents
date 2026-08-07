@@ -91,6 +91,7 @@ from scripts.validation.check_skill_md_drift import (
 )
 from scripts.validation.portability_common import (
     build_portability_parser,
+    refuse_symlinked_scan_root,
     refuse_unsafe_baseline_write,
     write_baseline_json,
 )
@@ -464,7 +465,7 @@ def skills_dirs(root: Path) -> list[Path]:
         if not resolved.is_relative_to(repo_resolved):
             raise OSError(
                 f"Scan root {candidate} resolves to {resolved}, "
-                "which is outside the repository. "
+                "which is outside the repository root. "
                 "A symlinked scan root scans files git does not track. "
                 "Remove the symlink or redirect it inside the repository."
             )
@@ -499,7 +500,7 @@ def extra_scan_dirs(root: Path) -> list[Path]:
         if not resolved.is_relative_to(repo_resolved):
             raise OSError(
                 f"Extra scan dir {candidate} resolves to {resolved}, "
-                "which is outside the repository. "
+                "which is outside the repository root. "
                 "A symlinked scan dir scans files git does not track. "
                 "Remove the symlink or redirect it inside the repository."
             )
@@ -537,9 +538,17 @@ def scan_all(
     When check_drift is True, files with a vendor-portability marker are also
     checked for path drift (issue #4116). drift_failures is empty otherwise.
 
-    Keys in ref_counts and marker_counts are repo-relative posix paths. Keys in
+    Raises OSError when a scan root resolves outside the repository root. This
+    closes the symlink path-traversal risk: Path.is_dir() returns True through a
+    symlink and os.walk follows it, so a symlinked root could read external files
+    and count them as repository content (issue #4212).
+
+    Keys in ref_counts and marker_counts are repo-relative posix paths.
+    ``marker_counts`` covers plugin roots and extra scan dirs because
+    vendor-portability markers in ``.claude/commands`` and
+    ``templates/agents`` feed the same exact-count marker baseline. Keys in
     files_by_root are the posix path of the ``skills/`` dir relative to root,
-    covering plugin roots only (not extra scan dirs); coverage-check semantics
+    covering plugin roots only, not extra scan dirs. Coverage-check semantics
     are preserved from the original ``scanned_markdown_by_root``.
     """
     ref_counts: dict[str, int] = {}
@@ -561,6 +570,8 @@ def scan_all(
             drift_failures.extend(marker_path_drift(text, root, rel_key))
 
     for scan_dir in plugin_dirs:
+        if refuse_symlinked_scan_root(root, scan_dir):
+            raise OSError(f"Scan root {scan_dir} resolves outside the repository root")
         rel_parent = scan_dir.parent.relative_to(root)
         root_key = (rel_parent / scan_dir.name).as_posix()
         scanned = 0
@@ -583,6 +594,8 @@ def scan_all(
         files_by_root[root_key] = scanned
 
     for extra_dir in extra_dirs:
+        if refuse_symlinked_scan_root(root, extra_dir):
+            raise OSError(f"Scan root {extra_dir} resolves outside the repository root")
         rel_parent = extra_dir.parent.relative_to(root)
         for dirpath, dirnames, filenames in os.walk(extra_dir, onerror=_reraise_os_error):
             dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
@@ -1216,7 +1229,6 @@ def _run_update_baseline(
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = _resolve_root(args.repo_root)
-    scanned = skills_dirs(root) + extra_scan_dirs(root)
     missing = missing_required_roots(root)
     if missing:
         absent = ", ".join(f"{name}/skills" for name in missing)
@@ -1230,6 +1242,7 @@ def main(argv: list[str] | None = None) -> int:
     if counts is None:
         return 2
     current, marker_current, scanned_by_root, drift_failures = counts
+    scanned = [root / rel for rel in scanned_by_root]
     drift_current = _drift_counts_from_failures(drift_failures)
 
     if args.update_baseline:

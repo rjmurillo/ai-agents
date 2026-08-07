@@ -114,7 +114,9 @@ ENV/
 # Scheduled-task runtime lock (held while ScheduleWakeup-managed loops run)
 .claude/scheduled_tasks.lock
 
-# Portability-baseline advisory write-locks (created by portability_baseline.py --update-baseline)
+# Advisory lock files left by portability baseline writes (issue #4511).
+# The lock file must persist between runs to avoid inode-replacement races,
+# so deleting it after each run is unsafe. Ignoring it keeps git status clean.
 scripts/validation/.skill_md_portability_baseline.json.write-lock
 scripts/validation/.skill_md_exec_portability_baseline.json.write-lock
 scripts/validation/.skill_portability_baseline.json.write-lock
