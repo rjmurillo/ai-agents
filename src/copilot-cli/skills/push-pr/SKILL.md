@@ -1,7 +1,7 @@
 ---
 name: push-pr
 description: Commit, push, and open a PR
-allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:*/pr/new_pr.py*), Bash(git diff:*), Bash(git branch:*)
+allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:*/pr/new_pr.py*), Bash(git diff:*), Bash(git branch:*), Bash(mkdir:-p .agents/scratch), Write
 user-invocable: true
 ---
 
@@ -21,13 +21,15 @@ Based on the above changes:
    1. Determine the type of change that maps to conventional commit type followed by a 3-5 word description (e.g., fix/parser-log-enrichment)
 2. Push the branch to origin
 3. Read @.github/PULL_REQUEST_TEMPLATE.md
-4. Create a per-run PR body path with Python's `tempfile.NamedTemporaryFile`, then write the adapted template to that file:
+4. Create `.agents/scratch`, choose a unique per-run PR body filename, then use
+   the Write tool to write the adapted template:
 
    ```bash
    mkdir -p .agents/scratch
-   BODY_FILE="$(python3 -c 'import tempfile; body_file = tempfile.NamedTemporaryFile("w", encoding="utf-8", prefix="pr-body-", suffix=".md", dir=".agents/scratch", delete=False); print(body_file.name); body_file.close()')"
+   BODY_FILE=".agents/scratch/pr-body-<unique-uuid>.md"
    ```
 
+   - Replace `<unique-uuid>` with a new UUID before writing the file
    - **Fill in** all sections with actual change information from git diff
    - **Replace** placeholder comments with substantive content
    - **Check** appropriate Type of Change boxes based on actual changes

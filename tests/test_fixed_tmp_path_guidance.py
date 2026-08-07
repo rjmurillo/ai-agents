@@ -25,7 +25,7 @@ def test_guidance_does_not_reintroduce_fixed_tmp_paths():
     assert offenders == []
 
 
-def test_guidance_uses_python_tempfile_for_per_run_paths():
+def test_guidance_uses_unique_per_run_paths():
     for relative_path in _GUIDANCE_FILES[:-1]:
         text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
         assert any(
@@ -35,5 +35,17 @@ def test_guidance_uses_python_tempfile_for_per_run_paths():
                 "tempfile.mktemp",
                 "tempfile.mkstemp",
                 "tempfile.TemporaryDirectory",
+                "pr-body-<unique-uuid>.md",
             )
         )
+
+
+def test_push_pr_uuid_path_is_writable_by_its_tool_allowlist():
+    for relative_path in (
+        Path(".claude/commands/push-pr.md"),
+        Path("src/copilot-cli/skills/push-pr/SKILL.md"),
+    ):
+        text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+        assert "pr-body-<unique-uuid>.md" in text
+        assert "Write" in text.split("---", maxsplit=2)[1]
+        assert "python3 -c" not in text
