@@ -992,3 +992,68 @@ two mirrors, then each consumer plus its mirror plus its test.
 Before citing repository history as evidence about any pre-commit or pre-push
 gate, check the merge strategy. Under squash-merge, main's history records what
 GitHub built, not what any hook ever inspected.
+
+## The semgrep check in CI cannot be reproduced by the semgrep CLI
+
+`semgrep-cloud-platform/scan` is the Semgrep Cloud App running a server-side
+ruleset. This repository ships no semgrep configuration file, so there is
+nothing for a local CLI run to read, and `--config=auto` pulls a different rule
+set entirely.
+
+The consequence is that a clean local run says nothing about the red check:
+
+```bash
+semgrep --config=auto <files>          # 0 findings
+# semgrep-cloud-platform/scan          # 2 blocking findings
+```
+
+Both of those findings were real. One sat beside a genuine defect, a URL parse
+that derived `github.com/owner` from a remote naming no repository.
+
+`p/security-audit` gets closer than `auto` and did reproduce one of the two,
+but it is still a guess at the server's rule set rather than the rule set
+itself:
+
+```bash
+semgrep --config=p/security-audit --config=p/python <files>
+```
+
+A pass from any `--config=` invocation is neither necessary nor sufficient. It
+is a different check, so it cannot clear the remote one and its absence does
+not condemn it.
+
+There is an exact reproduction, and it is worth knowing before you guess at
+rule packs. `semgrep ci`, when logged in, runs the rules configured on Semgrep
+App rather than a pack you name:
+
+```bash
+SEMGREP_APP_TOKEN=<token> semgrep ci
+```
+
+That is the same rule set the CI check uses, so it is the only local command
+whose clean result means anything about the red one. Without a token it cannot
+work, and no `--config` value substitutes for it.
+
+To learn what actually fired without a token, read the finding: the bot posts each one as a pull request
+review comment naming the rule id, the file, and the line. `gh api
+repos/OWNER/REPO/pulls/N/comments` returns them. The check run itself carries
+no annotations and no output text, so the API path that looks most direct is
+the one that tells you nothing.
+
+The scan is not in the branch protection required set, so it does not block a
+merge. That makes it easy to wave through, which is the trap: the two findings
+here were a taint reaching a `subprocess.CompletedProcess` constructor and a
+`compile()` call on file content, and both were worth fixing.
+
+Suppression is not the escape hatch. The `security-suppressions-staged` hook
+rejects any suppression comment in staged changes, which is a stronger stance
+than the "last resort" language elsewhere in the rules. Fix the code or record
+in the diff why the finding is not reachable.
+
+Two different incidents live in this space and the conclusions do not transfer.
+The taint and `compile()` findings above were real defects and were fixed in
+code. Separately, the `python.lang.compatibility.python36.*` rules fire on this
+repository and are false positives, because they assert a Python 3.6 floor
+against `requires-python = ">=3.14"`; that one is tracked in #4725. Do not read
+"the findings were real" as covering the compatibility rules, or #4725 as
+licence to dismiss a taint finding.
