@@ -287,9 +287,33 @@
     {
       "step": "verify",
       "evidence": "Full suite 23826 passed, 33 skipped, 3 warnings in 668.66s at 4fc61e053. All 119 gc tests pass at 339cbd7b8. taste count ratchet OK, count == baseline 583. memory index count ratchet OK, 424 <= baseline 425."
+    },
+    {
+      "step": "diagnose",
+      "evidence": "PR #4708 squash-merged under this branch, severing ancestry. git merge-base --is-ancestor efc27ee9b origin/fix/worktree-walk-timeouts returns 1 while git log --oneline shows the squash at the tip, so the readable signal and the authoritative check disagree. Merge base collapsed and git reported add/add on 17 files both branches carry."
+    },
+    {
+      "step": "verify",
+      "evidence": "Squash is content-faithful: git diff --name-only origin/fix/gc-worktrees-one-decision 0d386e7a5 returns exactly 1 path, tests/ci/test_walkers_skip_worktrees.py, and that path changed on the base side only. Confirms -s ours plus a named restore is sound rather than a guess."
+    },
+    {
+      "step": "implement",
+      "evidence": "Repair merge cbed7c48f in a dedicated worktree: git merge -s ours --no-commit, then git checkout origin/fix/worktree-walk-timeouts -- tests/ci/test_walkers_skip_worktrees.py. Staged set was exactly that one path, 9 insertions 4 deletions."
+    },
+    {
+      "step": "verify",
+      "evidence": "Proved the merge before committing with git write-tree, which writes a tree without moving any ref. diff of the result tree against the base gives 31 paths; diff of the pre-squash parent against this branch gives the same 31. Both comm -23 and comm -13 are empty, so nothing of the base was lost and no branch edit vanished."
+    },
+    {
+      "step": "diagnose",
+      "evidence": "Push refused at 43 commits against a limit of 20. Measured via _unpushed_commit_count semantics: stack-aware 21, branch's own 20, genuinely new 3. Root cause is that GitHub deleted the squashed parent branch on merge, so its ~20 inherited commits stopped being excluded by any other remote ref and began counting here. Over by exactly one, and the one is the repair merge. Applied the sanctioned commit-limit-bypass label with the measurement table on PR #4718."
+    },
+    {
+      "step": "document",
+      "evidence": "Wrote .agents/retrospective/2026-08-06-squash-severed-stack-and-silent-reflog-defaults.md covering three failures classified against FAILURE-MODES.md: a delegated agent that reset and cleaned a shared worktree holding committed work (mode 7), two High silent-default defects in the reflog reader that 262 mock-based tests missed (mode 10), and reading git log as ancestry proof (mode 9). Zero em or en dashes, taste-lints clean."
     }
   ],
-  "endingCommit": "339cbd7b8",
+  "endingCommit": "cbed7c48f",
   "nextSteps": [
     "Open the PR stacked on #4694 rather than waiting for it to merge; rebase onto main after #4694 lands",
     "Return to branch A, the reachability memory fix, which is still unpushed",
