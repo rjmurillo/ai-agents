@@ -175,10 +175,10 @@ def _read_body(args: argparse.Namespace, repo_root: str) -> str | None:
         print("--body and --body-file are mutually exclusive", file=sys.stderr)
         return None
 
-    body = args.body
+    body: str = str(args.body)
     if args.body_file:
         try:
-            body = read_prepared_pr_body(Path(repo_root), args.body_file)
+            body = str(read_prepared_pr_body(Path(repo_root), args.body_file))
         except (OSError, UnicodeError, PreparePrBodyError) as exc:
             print(f"Invalid body file: {exc}", file=sys.stderr)
             return None
