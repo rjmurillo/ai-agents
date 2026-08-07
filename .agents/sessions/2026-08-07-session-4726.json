@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4726,
+    "date": "2026-08-07",
+    "branch": "docs/verify-with-the-same-checker",
+    "startingCommit": "7c73cfe97",
+    "objective": "Add an always-on rule that a local run clears a red remote check only when it is the same checker, and move the semgrep specifics to GOTCHAS"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena active; read and updated architecture/always-on-membership-lives-in-the-mirror"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions returned the Serena manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md and .agents/governance/GOTCHAS.md before editing governance files"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/session-init/scripts/new_session_log_json.py rather than hand-writing this log"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the AGENTS.md Skill-First section; used generate_rules.py and build_all.py rather than editing mirrors by hand"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules/universal.md, testing.md MUST 10, and knowledge-persistence.md to decide rule placement"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the always-on membership memory and the knowledge-persistence rule before choosing a home for the new rule"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/verify-with-the-same-checker"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/verify-with-the-same-checker"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Session base recorded as 7c73cfe97, the tip of origin/main when the branch was cut"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Adversarial review run; both recommendations acted on, including cutting a rule whose cited evidence I verified as false"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified, per ADR-014"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated architecture/always-on-membership-lives-in-the-mirror with the re-measured corpus figures"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on universal.md and GOTCHAS.md; zero issues"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits on docs/verify-with-the-same-checker"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py passed; all three ratchets at baseline; 23802 tests pass"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-07T08:10:00Z",
+      "action": "Added one always-on rule and moved the semgrep specifics to GOTCHAS",
+      "files": [
+        ".claude/rules/universal.md",
+        ".agents/governance/GOTCHAS.md"
+      ],
+      "outcome": "Adversarial review recommended cutting the second rule and shortening the first. Both were right. The cut rule was a general debugging heuristic, and its cited evidence was false: I wrote that a sibling pull request modified the same file at the same lines, and the hunk headers show 4723 touching 542, 904, and 928 while 4701 touched 721. I had published an unverified claim inside the rule written to stop me publishing unverified claims. Always-on growth fell from 1267 bytes to 451."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
