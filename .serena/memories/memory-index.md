@@ -128,6 +128,7 @@
 [Memory and Context]
 |context engineering token optimization progressive disclosure just-in-time token efficiency: [memory/context-engineering-principles](memory/context-engineering-principles.md) (594), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
 |passive context AGENTS.md skills decision-point retrieval-led compression research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (447), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (683), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (623)
+|portability symlink TOCTOU scan_all refuse_symlinked_scan_root: [decision-portability-ratchet-symlink-toctou](decision-portability-ratchet-symlink-toctou.md) (314)
 |instruction budget always-on ceiling applyTo scope headroom rule authoring: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1856)
 |memory index validator one direction unindexed orphan check non-recursive opt-in warn only passes clean: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (784)
 |memory index token count churn recount every row merge conflict stale union resolve lefthook skip merge: [memory-index-token-counts-churn-across-branches](memory-index-token-counts-churn-across-branches.md) (926)
