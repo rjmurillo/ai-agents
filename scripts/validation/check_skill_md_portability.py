@@ -502,7 +502,10 @@ def scan_all(
     symlink and os.walk follows it, so a symlinked root could read external files
     and count them as repository content (issue #4212).
 
-    Keys in ref_counts and marker_counts are repo-relative posix paths. Keys in
+    Keys in ref_counts and marker_counts are repo-relative posix paths.
+    ``marker_counts`` covers plugin roots and extra scan dirs because
+    vendor-portability markers in ``.claude/commands`` and
+    ``templates/agents`` feed the same exact-count marker baseline. Keys in
     files_by_root are the posix path of the ``skills/`` dir relative to root,
     covering plugin roots only, not extra scan dirs. Coverage-check semantics
     are preserved from the original ``scanned_markdown_by_root``.

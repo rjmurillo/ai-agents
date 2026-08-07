@@ -97,6 +97,25 @@ class TestScanAllReturnsSingleSnapshot:
         # Extra dirs are not in scanned_by_root
         assert ".claude/commands" not in scanned
 
+    def test_extra_dirs_contribute_to_marker_counts_not_coverage(
+        self, tmp_path: Path
+    ) -> None:
+        repo = tmp_path / "repo"
+        (repo / ".claude" / "skills").mkdir(parents=True)
+        (repo / "src" / "copilot-cli" / "skills").mkdir(parents=True)
+        commands = repo / ".claude" / "commands"
+        commands.mkdir(parents=True)
+        (commands / "spec.md").write_text(
+            "<!-- vendor-portability: declared -->\nSee .agents/lib/x\n",
+            encoding="utf-8",
+        )
+
+        _, marker_counts, scanned = cmp.scan_all(repo)
+
+        assert marker_counts == {".claude/commands/spec.md": 1}
+        # Extra dirs are not in scanned_by_root
+        assert ".claude/commands" not in scanned
+
 
 class TestScanAllUsedByMain:
     """main() calls scan_all and uses the single-snapshot result."""

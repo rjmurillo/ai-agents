@@ -155,12 +155,14 @@ def resolve_baseline_path(
 ) -> Path | None:
     """Resolve the baseline path, rejecting candidates that escape the repo root.
 
-    Shared checkers that accept `--baseline` and delegate here avoid the defect
-    the copies drifted into independently:
-    both resolved the path before handing it on, which erased the symlink the
-    guard downstream exists to refuse. Returns None when the candidate escapes
-    the root. check_vendor_portability.py defines its own baseline_path() and
-    does not call this function.
+    The portability ratchets that delegate here
+    (`check_skill_portability.py`, `check_skill_md_exec_portability.py`, and
+    `check_skill_md_portability.py`) avoid the defect the copies drifted into
+    independently: both resolved the path before handing it on, which erased
+    the symlink the guard downstream exists to refuse. Returns None when the
+    candidate escapes the root. Other validation scripts, including
+    `check_vendor_portability.py`, keep their own baseline helpers and do not
+    call this function.
     """
     if baseline is None:
         return root / "scripts" / "validation" / default_baseline_name
