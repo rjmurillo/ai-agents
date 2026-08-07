@@ -34,6 +34,10 @@ build_parser = _mod.build_parser
 query_thread_state = _mod.query_thread_state
 
 _UNRESOLVED_STATE: dict = {"id": "PRRT_abc", "isResolved": False}
+_AUTO_MERGE_GUARD_NOOP: dict = {
+    "action": "NOOP",
+    "reason": "auto_merge_not_armed",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -160,6 +164,10 @@ class TestMain:
                 return_value=_UNRESOLVED_STATE,
             ),
             patch(
+                "add_pr_review_thread_reply.guard_auto_merge_before_final_thread_resolution",
+                return_value=_AUTO_MERGE_GUARD_NOOP,
+            ),
+            patch(
                 "add_pr_review_thread_reply.gh_graphql",
                 side_effect=[reply_data, resolve_data],
             ),
@@ -168,6 +176,111 @@ class TestMain:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["thread_resolved"] is True
+        assert output["auto_merge_guard"] == _AUTO_MERGE_GUARD_NOOP
+
+    def test_reply_resolve_guards_auto_merge_before_resolving(self, capsys):
+        reply_data = {
+            "addPullRequestReviewThreadReply": {
+                "comment": {
+                    "id": "node123",
+                    "databaseId": 456,
+                    "url": "https://example.com",
+                    "createdAt": "2025-01-01T00:00:00Z",
+                    "author": {"login": "user1"},
+                },
+            },
+        }
+        resolve_data = {
+            "resolveReviewThread": {
+                "thread": {"id": "PRRT_abc", "isResolved": True},
+            },
+        }
+        calls: list[str] = []
+
+        def fake_graphql(query: str, variables: dict):
+            if "addPullRequestReviewThreadReply" in query:
+                calls.append("reply")
+                return reply_data
+            if "resolveReviewThread" in query:
+                calls.append("resolve")
+                return resolve_data
+            raise AssertionError(query[:80])
+
+        def fake_guard(thread_id: str) -> dict:
+            calls.append("guard")
+            assert thread_id == "PRRT_abc"
+            return {"action": "DISABLED"}
+
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
+            patch(
+                "add_pr_review_thread_reply.guard_auto_merge_before_final_thread_resolution",
+                side_effect=fake_guard,
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                side_effect=fake_graphql,
+            ),
+        ):
+            rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
+
+        assert rc == 0
+        assert calls == ["reply", "guard", "resolve"]
+        output = json.loads(capsys.readouterr().out)
+        assert output["thread_resolved"] is True
+        assert output["auto_merge_guard"]["action"] == "DISABLED"
+
+    def test_guard_failure_leaves_thread_unresolved(self):
+        reply_data = {
+            "addPullRequestReviewThreadReply": {
+                "comment": {
+                    "id": "node123",
+                    "databaseId": 456,
+                    "url": "https://example.com",
+                    "createdAt": "2025-01-01T00:00:00Z",
+                    "author": {"login": "user1"},
+                },
+            },
+        }
+        calls: list[str] = []
+
+        def fake_graphql(query: str, variables: dict):
+            if "addPullRequestReviewThreadReply" in query:
+                calls.append("reply")
+                return reply_data
+            if "resolveReviewThread" in query:
+                calls.append("resolve")
+                return {}
+            raise AssertionError(query[:80])
+
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
+            patch(
+                "add_pr_review_thread_reply.guard_auto_merge_before_final_thread_resolution",
+                side_effect=RuntimeError("pagination incomplete"),
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                side_effect=fake_graphql,
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
+
+        assert exc.value.code == 3
+        assert calls == ["reply"]
 
     def test_thread_not_found_exits_0_skip(self, capsys):
         with (
@@ -221,6 +334,10 @@ class TestMain:
             patch(
                 "add_pr_review_thread_reply.query_thread_state",
                 return_value=_UNRESOLVED_STATE,
+            ),
+            patch(
+                "add_pr_review_thread_reply.guard_auto_merge_before_final_thread_resolution",
+                return_value=_AUTO_MERGE_GUARD_NOOP,
             ),
             patch(
                 "add_pr_review_thread_reply.gh_graphql",

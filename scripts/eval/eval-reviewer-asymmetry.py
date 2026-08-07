@@ -45,6 +45,7 @@ from typing import Any, cast
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _anthropic_api import call_api, load_api_key_for_selected_provider
+from _eval_common import MalformedProviderMetadataError
 
 DEFAULT_MODEL = "claude-sonnet-4-5"  # Released model id; 4.6 is a newer variant.
 DEFAULT_TRIALS = 5
@@ -505,6 +506,22 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _run_eval_or_error(
+    api_key: str,
+    fixtures: list[dict[str, Any]],
+    trials: int,
+    model: str,
+    base_ref: str,
+) -> dict[str, Any] | None:
+    try:
+        return run_eval(api_key, fixtures, trials, model, base_ref)
+    except MalformedProviderMetadataError:
+        raise
+    except RuntimeError as exc:
+        print(f"ERROR during eval: {exc}", file=sys.stderr)
+        return None
+
+
 def main() -> int:
     args = parse_args()
     fixture_dir = (REPO_ROOT / args.fixtures).resolve()
@@ -568,10 +585,14 @@ def main() -> int:
         print(f"ERROR loading API key: {exc}", file=sys.stderr)
         return 2
 
-    try:
-        result = run_eval(api_key, fixtures, args.trials, args.model, args.base_ref)
-    except RuntimeError as exc:
-        print(f"ERROR during eval: {exc}", file=sys.stderr)
+    result = _run_eval_or_error(
+        api_key,
+        fixtures,
+        args.trials,
+        args.model,
+        args.base_ref,
+    )
+    if result is None:
         return 3
 
     output = json.dumps(result, indent=2)

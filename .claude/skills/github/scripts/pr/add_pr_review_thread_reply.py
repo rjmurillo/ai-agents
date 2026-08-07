@@ -37,9 +37,13 @@ if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
     sys.exit(2)
 
+_script_dir = os.path.dirname(__file__)
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
+from auto_merge_guard import guard_auto_merge_before_final_thread_resolution
 from github_core.api import (
     assert_gh_authenticated,
     error_and_exit,
@@ -135,6 +139,37 @@ def _thread_is_actionable(thread_id: str) -> bool:
     return True
 
 
+def _guard_auto_merge_before_resolution(thread_id: str) -> dict[str, Any]:
+    try:
+        return guard_auto_merge_before_final_thread_resolution(thread_id)
+    except RuntimeError as exc:
+        error_and_exit(
+            "Thread reply posted but auto-merge guard failed; "
+            f"thread left unresolved: {exc}",
+            3,
+        )
+
+
+def _resolve_thread_after_reply(thread_id: str) -> bool:
+    try:
+        resolve_data = gh_graphql(
+            _RESOLVE_MUTATION,
+            {"threadId": thread_id},
+        )
+        return (
+            resolve_data
+            .get("resolveReviewThread", {})
+            .get("thread", {})
+            .get("isResolved", False)
+        )
+    except RuntimeError as exc:
+        warnings.warn(
+            f"Thread reply posted but failed to resolve: {exc}",
+            stacklevel=2,
+        )
+        return False
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -168,23 +203,10 @@ def main(argv: list[str] | None = None) -> int:
     comment = cast(dict[str, Any], comment_value)
 
     thread_resolved = False
+    auto_merge_guard: dict[str, Any] | None = None
     if args.resolve:
-        try:
-            resolve_data = gh_graphql(
-                _RESOLVE_MUTATION,
-                {"threadId": args.thread_id},
-            )
-            thread_resolved = (
-                resolve_data
-                .get("resolveReviewThread", {})
-                .get("thread", {})
-                .get("isResolved", False)
-            )
-        except RuntimeError as exc:
-            warnings.warn(
-                f"Thread reply posted but failed to resolve: {exc}",
-                stacklevel=2,
-            )
+        auto_merge_guard = _guard_auto_merge_before_resolution(args.thread_id)
+        thread_resolved = _resolve_thread_after_reply(args.thread_id)
 
     author = comment.get("author")
     output = {
@@ -198,6 +220,8 @@ def main(argv: list[str] | None = None) -> int:
         "author": author.get("login") if author else None,
         "thread_resolved": thread_resolved,
     }
+    if auto_merge_guard is not None:
+        output["auto_merge_guard"] = auto_merge_guard
 
     print(json.dumps(output, indent=2))
     return 0
