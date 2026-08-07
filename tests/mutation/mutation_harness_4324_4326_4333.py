@@ -23,14 +23,25 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _API_TARGET = _REPO_ROOT / "scripts" / "github_core" / "api.py"
 _RATE_TARGET = _REPO_ROOT / "scripts" / "github_core" / "rate_limit.py"
-_NEW_PR_TARGET = _REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr" / "new_pr.py"
+_NEW_PR_TARGET = (
+    _REPO_ROOT
+    / ".claude"
+    / "skills"
+    / "github"
+    / "scripts"
+    / "pr"
+    / "new_pr_validations.py"
+)
 
 _BUILD_AI_TARGET = _REPO_ROOT / "scripts" / "ci" / "build_ai_review_context.py"
 _BUILD_AI_TESTS = ["tests/test_build_ai_review_context.py"]
 
-_API_TESTS = ["tests/test_github_core.py"]
+_API_TESTS = [
+    "tests/test_github_core.py",
+    "tests/test_github_auth_classification.py",
+]
 _RATE_TESTS = ["tests/test_test_rate_limit.py"]
-_NEW_PR_TESTS = ["tests/test_new_pr.py"]
+_NEW_PR_TESTS = ["tests/test_new_pr_repository.py"]
 
 
 def _clear_pycache() -> None:
@@ -109,8 +120,8 @@ def main() -> None:
         _NEW_PR_TARGET,
         _NEW_PR_TESTS,
         "#4324: remove origin/ prefix from candidate",
-        b'    candidate = f"origin/{base}"',
-        b'    candidate = base',
+        b'    remote_ref = f"origin/{pr_base}"',
+        b"    remote_ref = pr_base",
     )
 
     # Mutant 2: remove the returncode check (always use bare base)
@@ -118,8 +129,8 @@ def main() -> None:
         _NEW_PR_TARGET,
         _NEW_PR_TESTS,
         "#4324: return base always instead of checking returncode",
-        b"    if result.returncode == 0:\n        return candidate\n    return base",
-        b"    return base",
+        b"    if result.returncode == 0:\n        return remote_ref\n    return pr_base",
+        b"    return pr_base",
     )
 
     # Inverted control: removing an unrelated comment must NOT kill the suite
@@ -127,7 +138,7 @@ def main() -> None:
         _NEW_PR_TARGET,
         _NEW_PR_TESTS,
         "#4324: inverted control (remove a comment, must survive)",
-        b"    # Get current branch if head not specified\n",
+        b"# Uses Unicode escapes so this source does not contain the prohibited\n",
         b"",
         must_die=False,
     )
@@ -135,26 +146,24 @@ def main() -> None:
     print()
     print("=== Mutation harness: #4326 _TRANSIENT_403_PATTERN ===")
 
-    # Mutant 3: remove 403 from pattern (reverts to pre-fix behavior)
+    # Mutant 3: remove all rate-limit wording recognition.
     run_mutant(
         _API_TARGET,
         _API_TESTS,
-        "#4326: remove 403 match arm from pattern",
-        b"    r\"(?:\"\n"
-        b"    r\"\\(?\\bHTTP\\s+403\\b.*?(?:rate.limit|API rate)\"\n"
-        b"    r\"|\"\n"
-        b"    r\"(?:rate.limit|API rate).*?\\(?\\bHTTP\\s+403\\b\"\n"
-        b"    r\")\",",
-        b"    r\"\\bNEVER_MATCH_XYZ_PLACEHOLDER\\b\",",
+        "#4326: remove rate-limit signature",
+        b'_RATE_LIMIT_SIGNATURE = re.compile(r"rate limit (?:already )?exceeded", re.IGNORECASE)',
+        b'_RATE_LIMIT_SIGNATURE = re.compile(r"NEVER_MATCH_XYZ_PLACEHOLDER")',
     )
 
-    # Mutant 4: remove the 403 check from _is_transient_graphql_error
+    # Mutant 4: classify refusals but stop treating them as retryable.
     run_mutant(
         _API_TARGET,
         _API_TESTS,
-        "#4326: remove 403 check from _is_transient_graphql_error",
-        b"        or _TRANSIENT_403_PATTERN.search(error_msg) is not None\n",
-        b"",
+        "#4326: remove retryable refusal statuses",
+        b"_RETRYABLE_REFUSAL_STATUSES = frozenset(\n"
+        b"    {GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED}\n"
+        b")",
+        b"_RETRYABLE_REFUSAL_STATUSES = frozenset()",
     )
 
     print()
@@ -165,8 +174,8 @@ def main() -> None:
         _BUILD_AI_TARGET,
         _BUILD_AI_TESTS,
         "#4333: change REST endpoint path to wrong value",
-        b'    result = run_gh(["api", f"repos/{repository}/pulls/{pr_number}"])',
-        b'    result = run_gh(["api", f"repos/{repository}/issues/{pr_number}"])',
+        b'    rest = run_gh(["api", f"repos/{repository}/pulls/{pr_number}"])',
+        b'    rest = run_gh(["api", f"repos/{repository}/issues/{pr_number}"])',
     )
 
     # Mutant 6: return wrong field for title
@@ -174,8 +183,8 @@ def main() -> None:
         _BUILD_AI_TARGET,
         _BUILD_AI_TESTS,
         "#4333: return body field as title",
-        b'    title = sanitize_title(str(data.get("title") or ""))',
-        b'    title = sanitize_title(str(data.get("body") or ""))',
+        b'        title=sanitize_title(str(parsed.get("title") or "")),',
+        b'        title=sanitize_title(str(parsed.get("body") or "")),',
     )
 
     print()
