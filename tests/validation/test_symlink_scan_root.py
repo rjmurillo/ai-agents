@@ -109,10 +109,11 @@ class TestMdPortabilityScanAllRejectsSymlinkedRoot:
             "No references here.\n", encoding="utf-8"
         )
 
-        ref_counts, marker_counts, scanned = cmp.scan_all(repo)
+        ref_counts, marker_counts, scanned, drift_failures = cmp.scan_all(repo)
 
         assert ".claude/skills" in scanned
         assert scanned[".claude/skills"] == 1
+        assert drift_failures == []
 
     def test_symlinked_extra_dir_raises(self, tmp_path: Path) -> None:
         outside = tmp_path / "outside_commands"

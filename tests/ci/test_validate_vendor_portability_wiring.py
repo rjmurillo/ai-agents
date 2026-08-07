@@ -88,3 +88,20 @@ def test_prose_portability_baseline_in_filter() -> None:
         f"paths-filter skills block is missing {target!r}. "
         "Without this, a widened baseline bypasses the CI gate."
     )
+
+
+def test_drift_runtime_dependencies_in_filter() -> None:
+    """Every module the checker imports at runtime must be in the paths-filter.
+
+    A PR that changes only one of these alters the checker's behavior while
+    leaving should-run-vendor false, so the job skips the code that changed.
+    """
+    patterns = _filter_patterns()
+    for target in (
+        "scripts/validation/check_skill_md_drift.py",
+        "scripts/validation/tracked_paths.py",
+    ):
+        assert any(target in p for p in patterns), (
+            f"paths-filter skills block is missing {target!r}. "
+            "Without this, a PR that only changes that module skips the check."
+        )

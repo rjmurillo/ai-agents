@@ -1,7 +1,7 @@
 """Tests for single-traversal scan_all (issue #4211, TOCTOU).
 
 The coverage decision and the baseline contents must come from the same
-snapshot. These tests verify that scan_all() returns all three values from
+snapshot. These tests verify that scan_all() returns all four values from
 one traversal, so a tree mutation between walks cannot produce a short
 baseline that passes the coverage check.
 """
@@ -26,23 +26,24 @@ def _make_skill(root: Path, name: str, content: str = "clean\n") -> Path:
 
 
 class TestScanAllReturnsSingleSnapshot:
-    """scan_all returns ref_counts, marker_counts, and scanned_by_root from one walk."""
+    """scan_all returns ref counts, marker counts, coverage, and drift data from one walk."""
 
-    def test_returns_three_dicts(self, tmp_path: Path) -> None:
+    def test_returns_four_values(self, tmp_path: Path) -> None:
         repo = tmp_path / "repo"
         _make_skill(repo, "clean")
         result = cmp.scan_all(repo)
-        assert len(result) == 3
-        ref_counts, marker_counts, scanned_by_root = result
+        assert len(result) == 4
+        ref_counts, marker_counts, scanned_by_root, drift_failures = result
         assert isinstance(ref_counts, dict)
         assert isinstance(marker_counts, dict)
         assert isinstance(scanned_by_root, dict)
+        assert isinstance(drift_failures, list)
 
     def test_ref_counts_match_scan_plugin_roots(self, tmp_path: Path) -> None:
         repo = tmp_path / "repo"
         _make_skill(repo, "with_ref", "See .agents/lib/helper.py\n")
 
-        ref_counts, _, _ = cmp.scan_all(repo)
+        ref_counts, _, _, _ = cmp.scan_all(repo)
         standalone = cmp.scan_plugin_roots(repo)
 
         assert ref_counts == standalone
@@ -54,7 +55,7 @@ class TestScanAllReturnsSingleSnapshot:
         _make_skill(repo, "a")
         _make_skill(repo, "b")
 
-        _, _, scanned = cmp.scan_all(repo)
+        _, _, scanned, _ = cmp.scan_all(repo)
         standalone = cmp.scanned_markdown_by_root(repo)
 
         assert scanned == standalone
@@ -66,7 +67,7 @@ class TestScanAllReturnsSingleSnapshot:
         repo = tmp_path / "repo"
         _make_skill(repo, "marked", content)
 
-        _, marker_counts, _ = cmp.scan_all(repo)
+        _, marker_counts, _, _ = cmp.scan_all(repo)
         standalone = cmp.scan_marker_suppressions(repo)
 
         assert marker_counts == standalone
@@ -76,7 +77,7 @@ class TestScanAllReturnsSingleSnapshot:
         (repo / ".claude" / "skills").mkdir(parents=True)
         (repo / "src" / "copilot-cli" / "skills").mkdir(parents=True)
 
-        _, _, scanned = cmp.scan_all(repo)
+        _, _, scanned, _ = cmp.scan_all(repo)
 
         assert ".claude/skills" in scanned
         assert scanned[".claude/skills"] == 0
@@ -91,7 +92,7 @@ class TestScanAllReturnsSingleSnapshot:
         commands.mkdir(parents=True)
         (commands / "spec.md").write_text("See .agents/lib/x\n", encoding="utf-8")
 
-        ref_counts, _, scanned = cmp.scan_all(repo)
+        ref_counts, _, scanned, _ = cmp.scan_all(repo)
 
         assert ".claude/commands/spec.md" in ref_counts
         # Extra dirs are not in scanned_by_root
@@ -110,7 +111,7 @@ class TestScanAllReturnsSingleSnapshot:
             encoding="utf-8",
         )
 
-        _, marker_counts, scanned = cmp.scan_all(repo)
+        _, marker_counts, scanned, _ = cmp.scan_all(repo)
 
         assert marker_counts == {".claude/commands/spec.md": 1}
         # Extra dirs are not in scanned_by_root
@@ -135,10 +136,10 @@ class TestScanAllUsedByMain:
         call_count = 0
         real_scan_all = cmp.scan_all
 
-        def counting_scan_all(root: Path) -> object:
+        def counting_scan_all(root: Path, *, check_drift: bool = False) -> object:
             nonlocal call_count
             call_count += 1
-            return real_scan_all(root)
+            return real_scan_all(root, check_drift=check_drift)
 
         monkeypatch.setattr(cmp, "scan_all", counting_scan_all)
         cmp.main(["--repo-root", str(repo), "--baseline", str(baseline)])
