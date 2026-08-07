@@ -170,8 +170,14 @@ def _run_gh_pr_view(branch: str | None) -> subprocess.CompletedProcess[str]:
     # An empty body means no PR for this branch, which the caller must be able
     # to tell apart from a failed call. Mirror the "no PR" signal gh emits.
     if proc.returncode == 0 and not proc.stdout.strip():
+        # A literal argv rather than proc.args. The caller only reads the
+        # returncode and streams, so echoing the real command back buys
+        # nothing, and proc.args carries the environment-derived repository
+        # and branch into a value that flows on to other code. Keeping those
+        # out of the returned object means a reader does not have to re-derive
+        # that they were validated above.
         return subprocess.CompletedProcess(
-            proc.args, 1, "", "no pull requests found for branch"
+            ["gh", "api"], 1, "", "no pull requests found for branch"
         )
     return proc
 
