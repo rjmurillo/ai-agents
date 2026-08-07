@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-08-07-session-10004",
-  "session": "2026-08-07-session-10004",
+  "id": "episode-2026-08-07-session-10009",
+  "session": "2026-08-07-session-10009",
   "timestamp": "2026-08-07T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
@@ -16,7 +16,7 @@
       "leads_to": [
         "e010"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10009"
     },
     {
       "id": "e002",
@@ -27,7 +27,7 @@
       "leads_to": [
         "e010"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10009"
     },
     {
       "id": "e003",
@@ -38,7 +38,7 @@
       "leads_to": [
         "e010"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10009"
     },
     {
       "id": "e004",
@@ -49,7 +49,7 @@
       "leads_to": [
         "e010"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10009"
     },
     {
       "id": "e005",
@@ -60,7 +60,7 @@
       "leads_to": [
         "e010"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10009"
     },
     {
       "id": "e006",
@@ -71,7 +71,7 @@
       "leads_to": [
         "e010"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10009"
     },
     {
       "id": "e007",
@@ -82,7 +82,7 @@
       "leads_to": [
         "e010"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10009"
     },
     {
       "id": "e008",
@@ -93,7 +93,7 @@
       "leads_to": [
         "e010"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10009"
     },
     {
       "id": "e009",
@@ -104,7 +104,7 @@
       "leads_to": [
         "e010"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10009"
     },
     {
       "id": "e010",
@@ -126,7 +126,7 @@
       "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10009"
     },
     {
       "id": "e011",
@@ -137,7 +137,7 @@
       "leads_to": [
         "e010"
       ],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10009"
     },
     {
       "id": "e012",
@@ -148,7 +148,7 @@
         "e010"
       ],
       "leads_to": [],
-      "_source_session": "2026-08-07-session-10004"
+      "_source_session": "2026-08-07-session-10009"
     }
   ],
   "metrics": {
