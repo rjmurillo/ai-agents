@@ -721,6 +721,51 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "scripts that auto-detect the repository via gh repo view fail only "
         "in local act, not in CI where GH_TOKEN and repo info are available.",
     ),
+    (
+        # scope is matched against the GitHub event, not a workflow name, so it
+        # must stay None. Narrowness lives in the predicate below, which requires
+        # this workflow's own job and step names to appear on the failing line.
+        None,
+        lambda text: any(
+            "Vanilla Windows" in line
+            and "row is not vanilla" in line.lower()
+            and "still resolve" in line.lower()
+            and "vanilla-windows" in line.lower()
+            for line in text.splitlines()
+        ),
+        "act maps windows-latest to a Linux container that ships Python, so "
+        "the vanilla guard's precondition correctly reports that interpreters "
+        "still resolve and refuses to run a row that is not vanilla. This "
+        "fails only under local act. On a real Windows runner the harness "
+        "removes every interpreter-bearing directory from the PATH the hook "
+        "receives, and the precondition passes. The assertion firing here is "
+        "the guard working, not a defect: a row that silently stopped being "
+        "vanilla would prove nothing.",
+    ),
+    (
+        # scope is matched against the GitHub event, not a workflow name, so it
+        # must stay None. Narrowness lives in the predicate below, which requires
+        # this workflow's own job and step names to appear on the failing line.
+        None,
+        lambda text: any(
+            "VANILLA GUARD CANNOT RUN" in line
+            and "docker" in line.lower()
+            and (
+                "permission denied" in line.lower()
+                or "cannot connect to the docker daemon" in line.lower()
+                or "docker is not available" in line.lower()
+            )
+            for line in text.splitlines()
+        ),
+        "the Vanilla Linux row runs the hook inside a Python-free container, "
+        "which needs a Docker socket. act executes jobs inside a container "
+        "that has no access to one, so the guard reports CANNOT RUN and exits "
+        "3. That is the guard distinguishing an unavailable environment from a "
+        "failing check, which is the behavior we want: the earlier version "
+        "misread the empty output of a failed docker call as an interpreter "
+        "having resolved. Real CI runners provide Docker and this row runs "
+        "there.",
+    ),
 )
 
 # ``_run`` stringifies a stage timeout as ``TimeoutExpired: ...`` (the exception
