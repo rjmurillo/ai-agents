@@ -28,7 +28,10 @@ from scripts.detect_scope_explosion import (
     get_ref_commit,
     main,
     report,
+    rescope_against_pr_base,
     resolve_base_ref,
+    resolve_pr_base_branch,
+    strip_remote_prefix,
 )
 
 if TYPE_CHECKING:
@@ -787,3 +790,302 @@ class TestBypassHintContext:
         report(self._blocked_result(), from_prepush=True)
         out = capsys.readouterr().out
         assert "git stash" not in out
+
+
+class TestStripRemotePrefix:
+    """Tests for strip_remote_prefix."""
+
+    def test_strips_origin(self) -> None:
+        """A remote-qualified ref loses the remote."""
+        assert strip_remote_prefix("origin/main") == "main"
+
+    def test_leaves_plain_name(self) -> None:
+        """A plain branch name passes through untouched."""
+        assert strip_remote_prefix("main") == "main"
+
+    def test_strips_only_the_leading_occurrence(self) -> None:
+        """A branch whose name embeds the prefix keeps the inner text."""
+        assert strip_remote_prefix("origin/feat/origin/thing") == "feat/origin/thing"
+
+    def test_leaves_other_remotes(self) -> None:
+        """Only origin is stripped; another remote is not this script's base."""
+        assert strip_remote_prefix("upstream/main") == "upstream/main"
+
+
+class TestResolvePrBaseBranch:
+    """Tests for resolve_pr_base_branch."""
+
+    def test_returns_base_ref_name(self) -> None:
+        """A successful gh call yields the base branch name."""
+        with (
+            patch(
+                "scripts.detect_scope_explosion.shutil.which",
+                return_value="/usr/bin/gh",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.subprocess.run",
+                return_value=subprocess.CompletedProcess(
+                    args=[], returncode=0, stdout="fix/base-branch\n", stderr=""
+                ),
+            ),
+        ):
+            assert resolve_pr_base_branch() == "fix/base-branch"
+
+    def test_returns_none_when_gh_missing(self) -> None:
+        """No gh on PATH is a normal local state, not an error."""
+        with patch("scripts.detect_scope_explosion.shutil.which", return_value=None):
+            assert resolve_pr_base_branch() is None
+
+    def test_returns_none_on_nonzero_exit(self) -> None:
+        """No open PR (gh exit 1) yields None."""
+        with (
+            patch(
+                "scripts.detect_scope_explosion.shutil.which",
+                return_value="/usr/bin/gh",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.subprocess.run",
+                return_value=subprocess.CompletedProcess(
+                    args=[], returncode=1, stdout="", stderr="no pull requests found"
+                ),
+            ),
+        ):
+            assert resolve_pr_base_branch() is None
+
+    def test_returns_none_on_empty_output(self) -> None:
+        """An exit-zero call with no base name yields None, not an empty string."""
+        with (
+            patch(
+                "scripts.detect_scope_explosion.shutil.which",
+                return_value="/usr/bin/gh",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.subprocess.run",
+                return_value=subprocess.CompletedProcess(
+                    args=[], returncode=0, stdout="  \n", stderr=""
+                ),
+            ),
+        ):
+            assert resolve_pr_base_branch() is None
+
+    def test_returns_none_on_timeout(self) -> None:
+        """A hung network call must not propagate out of a git hook."""
+        with (
+            patch(
+                "scripts.detect_scope_explosion.shutil.which",
+                return_value="/usr/bin/gh",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=5),
+            ),
+        ):
+            assert resolve_pr_base_branch() is None
+
+    def test_returns_none_on_oserror(self) -> None:
+        """A gh binary that cannot execute yields None."""
+        with (
+            patch(
+                "scripts.detect_scope_explosion.shutil.which",
+                return_value="/usr/bin/gh",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.subprocess.run",
+                side_effect=OSError("exec format error"),
+            ),
+        ):
+            assert resolve_pr_base_branch() is None
+
+    def test_uses_a_bounded_timeout(self) -> None:
+        """The gh call is bounded so a hook cannot hang on it."""
+        with (
+            patch(
+                "scripts.detect_scope_explosion.shutil.which",
+                return_value="/usr/bin/gh",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.subprocess.run",
+                return_value=subprocess.CompletedProcess(
+                    args=[], returncode=0, stdout="main\n", stderr=""
+                ),
+            ) as run,
+        ):
+            resolve_pr_base_branch()
+        assert run.call_args.kwargs["timeout"] == 5
+
+
+class TestRescopeAgainstPrBase:
+    """Tests for rescope_against_pr_base."""
+
+    @staticmethod
+    def _result(count: int, branch: str = "feat/stacked") -> ScopeResult:
+        return ScopeResult(
+            file_count=count,
+            merge_base="abc123def456",
+            current_branch=branch,
+            files=tuple(f"file{i}.py" for i in range(count)),
+        )
+
+    def test_rescopes_to_the_pr_base(self) -> None:
+        """A stacked PR is re-measured against its real base."""
+        blocked = self._result(52)
+        narrowed = self._result(13)
+        with (
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope", return_value=narrowed),
+        ):
+            assert rescope_against_pr_base(None, blocked) is narrowed
+
+    def test_passes_the_pr_base_to_detect_scope(self) -> None:
+        """The re-measurement uses the resolved base, not the original one."""
+        with (
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._result(13),
+            ) as detect,
+        ):
+            rescope_against_pr_base(None, self._result(52))
+        assert detect.call_args.args[0] == "fix/parent"
+
+    def test_returns_none_when_no_pr_base(self) -> None:
+        """With no PR resolved the caller keeps the original measurement."""
+        with patch(
+            "scripts.detect_scope_explosion.resolve_pr_base_branch", return_value=None
+        ):
+            assert rescope_against_pr_base(None, self._result(52)) is None
+
+    def test_returns_none_when_pr_base_is_already_the_measured_base(self) -> None:
+        """A PR that already targets main gains nothing from a second pass."""
+        with (
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="main",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope") as detect,
+        ):
+            assert rescope_against_pr_base(None, self._result(52)) is None
+        detect.assert_not_called()
+
+    def test_normalizes_the_remote_prefix_before_comparing(self) -> None:
+        """Pre-push passes origin/main, which names the same branch as main."""
+        with (
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="main",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope") as detect,
+        ):
+            assert rescope_against_pr_base("origin/main", self._result(52)) is None
+        detect.assert_not_called()
+
+    def test_returns_none_when_remeasurement_fails(self) -> None:
+        """An unresolvable re-measurement leaves the original result standing."""
+        with (
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope", return_value=None),
+        ):
+            assert rescope_against_pr_base(None, self._result(52)) is None
+
+    def test_reports_both_counts(self, capsys: CaptureFixture[str]) -> None:
+        """The message names both measurements so the swap is auditable."""
+        with (
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._result(13),
+            ),
+        ):
+            rescope_against_pr_base(None, self._result(52))
+        err = capsys.readouterr().err
+        assert "origin/fix/parent" in err
+        assert "13 files" in err
+        assert "52" in err
+
+
+class TestMainConsultsPrBaseOnlyWhenBlocking:
+    """Tests for the main() gate around rescope_against_pr_base."""
+
+    @staticmethod
+    def _result(count: int) -> ScopeResult:
+        return ScopeResult(
+            file_count=count,
+            merge_base="abc123def456",
+            current_branch="feat/stacked",
+            files=tuple(f"file{i}.py" for i in range(count)),
+        )
+
+    def test_under_the_limit_skips_the_lookup(self) -> None:
+        """The common path pays no gh call."""
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("sys.argv", ["detect_scope_explosion.py"]),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._result(BLOCK_THRESHOLD),
+            ),
+            patch("scripts.detect_scope_explosion.rescope_against_pr_base") as rescope,
+        ):
+            assert main() == 0
+        rescope.assert_not_called()
+
+    def test_over_the_limit_consults_the_pr_base(self) -> None:
+        """A blocking count triggers exactly one re-measurement attempt."""
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("sys.argv", ["detect_scope_explosion.py"]),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._result(BLOCK_THRESHOLD + 2),
+            ),
+            patch(
+                "scripts.detect_scope_explosion.rescope_against_pr_base",
+                return_value=self._result(13),
+            ) as rescope,
+        ):
+            assert main() == 0
+        assert rescope.call_count == 1
+
+    def test_still_blocks_a_genuinely_large_pr(self) -> None:
+        """Re-measuring does not rescue a PR that is large against its own base."""
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("sys.argv", ["detect_scope_explosion.py"]),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._result(BLOCK_THRESHOLD + 40),
+            ),
+            patch(
+                "scripts.detect_scope_explosion.rescope_against_pr_base",
+                return_value=self._result(BLOCK_THRESHOLD + 30),
+            ),
+        ):
+            assert main() == 1
+
+    def test_blocks_when_no_pr_base_resolves(self) -> None:
+        """Unchanged behavior when gh cannot answer: the main count stands."""
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("sys.argv", ["detect_scope_explosion.py"]),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._result(BLOCK_THRESHOLD + 2),
+            ),
+            patch(
+                "scripts.detect_scope_explosion.rescope_against_pr_base",
+                return_value=None,
+            ),
+        ):
+            assert main() == 1

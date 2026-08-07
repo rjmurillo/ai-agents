@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -278,6 +279,83 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
     )
 
 
+def strip_remote_prefix(base: str) -> str:
+    """Return ``base`` without a leading ``origin/``.
+
+    The pre-push hook passes ``--base-branch origin/main`` while the
+    pre-commit hook passes nothing and defaults to ``main``. Both name the
+    same branch, so comparisons against a resolved PR base have to normalize
+    first or every pre-push run looks like a base mismatch.
+    """
+    prefix = "origin/"
+    return base[len(prefix) :] if base.startswith(prefix) else base
+
+
+def resolve_pr_base_branch() -> str | None:
+    """Return the open PR's base branch name, or None on any failure.
+
+    Shells out to ``gh pr view``, which infers the PR from the checked-out
+    branch. Returns None when gh is absent, unauthenticated, offline, or when
+    the branch has no open PR. Every one of those is a normal local state, so
+    the caller must treat None as "no better answer available" rather than an
+    error.
+
+    The five second timeout is deliberate. This runs inside a git hook, and a
+    hook that waits on a hung network call is worse than a hook that measures
+    against the wrong base.
+    """
+    if not shutil.which("gh"):
+        return None
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", "--json", "baseRefName", "-q", ".baseRefName"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+            check=False,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    base = result.stdout.strip()
+    return base or None
+
+
+def rescope_against_pr_base(requested_base: str | None, blocked: ScopeResult) -> ScopeResult | None:
+    """Re-measure a blocking result against the PR's real base branch.
+
+    A stacked PR sits on another PR, not on main. Measured against main it
+    carries every file its whole stack touched, which is not the surface any
+    reviewer of this PR reads. Observed on PR #4728: 52 files against main,
+    13 against its actual base.
+
+    Called only when the main-relative count already blocks, so the gh lookup
+    costs nothing on the path almost every commit takes.
+
+    Returns None when there is no better answer: gh cannot resolve a PR, the
+    PR base is the branch already measured, or the re-measurement fails. The
+    caller keeps the original result in each case.
+    """
+    pr_base = resolve_pr_base_branch()
+    if pr_base is None:
+        return None
+    if pr_base == strip_remote_prefix(requested_base or "main"):
+        return None
+    rescoped = detect_scope(pr_base)
+    if rescoped is None:
+        return None
+    print(
+        f"Measured against origin/{pr_base}, this PR's actual base: "
+        f"{rescoped.file_count} files (against "
+        f"{requested_base or 'main'}: {blocked.file_count}).",
+        file=sys.stderr,
+    )
+    return rescoped
+
+
 def format_bar(count: int, threshold: int) -> str:
     """Format a simple progress bar showing file count vs threshold.
 
@@ -397,6 +475,14 @@ def main() -> int:
         if result is None:
             # Not on a feature branch or no merge base found
             return 0
+
+        # Consult the PR base only when the cheap measurement is about to
+        # block. On the path almost every commit takes this adds no work and
+        # no network call.
+        if result.file_count > BLOCK_THRESHOLD:
+            rescoped = rescope_against_pr_base(args.base_branch, result)
+            if rescoped is not None:
+                result = rescoped
 
         from_prepush = args.base_branch is not None
         return report(result, args.quiet, from_prepush=from_prepush)
