@@ -166,7 +166,7 @@ _GIT_TIMEOUT = 60  # seconds, applied to every git subprocess call
 # Environment variables that can redirect git to a foreign repository,
 # inject configuration, or alter revision/object resolution.
 # Sanitized from every git subprocess to ensure -C <repo_root> is authoritative.
-# Source: `git rev-parse --local-env-vars` plus GIT_CONFIG_PARAMETERS/COUNT/KEY/VALUE.
+# Source: `git rev-parse --local-env-vars` plus all GIT_CONFIG_* variables.
 _GIT_ENV_DENY_EXACT = frozenset((
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -187,24 +187,48 @@ _GIT_ENV_DENY_EXACT = frozenset((
 ))
 
 # Prefix patterns: any env var starting with these is stripped.
-_GIT_ENV_DENY_PREFIXES = (
-    "GIT_CONFIG_KEY_",
-    "GIT_CONFIG_VALUE_",
-)
+_GIT_ENV_DENY_PREFIXES = ("GIT_CONFIG_",)
+
+# Force repository-contained graft, replace, and shallow metadata off. Also
+# ignore user and system config, which can install an executable fsmonitor.
+_GIT_ENV_FORCE = {
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_CONFIG_GLOBAL": os.devnull,
+    "GIT_CONFIG_SYSTEM": os.devnull,
+    "GIT_GRAFT_FILE": os.devnull,
+    "GIT_NO_REPLACE_OBJECTS": "1",
+    "GIT_SHALLOW_FILE": os.devnull,
+}
 
 
 def _git_env() -> dict[str, str]:
     """Return a sanitized copy of os.environ without git repo/config vars."""
     env = os.environ.copy()
-    for var in _GIT_ENV_DENY_EXACT:
-        env.pop(var, None)
-    to_remove = [
-        k for k in env
-        if any(k.startswith(p) for p in _GIT_ENV_DENY_PREFIXES)
-    ]
-    for k in to_remove:
-        del env[k]
+    for key in tuple(env):
+        normalized = key.upper()
+        if (
+            normalized in _GIT_ENV_DENY_EXACT
+            or any(normalized.startswith(p) for p in _GIT_ENV_DENY_PREFIXES)
+        ):
+            del env[key]
+    env.update(_GIT_ENV_FORCE)
     return env
+
+
+def _git_command(repo_root: Path, *args: str) -> list[str]:
+    """Build a Git command with executable config and replacements disabled."""
+    return [
+        "git",
+        "--no-replace-objects",
+        "-c", "core.fsmonitor=false",
+        "-C", str(repo_root),
+        *args,
+    ]
+
+
+def _repo_relative(path: Path, repo_root: Path) -> str:
+    """Return a Git-compatible repository-relative path on every platform."""
+    return path.relative_to(repo_root).as_posix()
 
 
 class _GitError(Exception):
@@ -239,10 +263,10 @@ def _iter_git_files(repo_root: Path, *, require_git: bool = False):
     """
     try:
         result = subprocess.run(
-            [
-                "git", "-C", str(repo_root),
+            _git_command(
+                repo_root,
                 "ls-files", "-z", "--cached", "--others", "--exclude-standard",
-            ],
+            ),
             capture_output=True,
             check=True,
             timeout=_GIT_TIMEOUT,
@@ -429,14 +453,15 @@ def _count_code_blocks(content: str) -> int:
 def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     """Get files changed between diff_base and HEAD (committed changes only).
 
-    Uses a deterministic three-phase validation sequence:
+    Uses a deterministic five-phase validation sequence:
 
     1. Verify git work-tree environment (sanitized env, ``-C repo_root``).
-    2. Resolve *diff_base* to an OID (``rev-parse --verify --quiet``).
+    2. Resolve *diff_base* to a commit OID.
        rc 1 = unknown ref => config exit 2.
-    3. Verify OID object accessibility (``cat-file -e <oid>^{commit}``).
+    3. Resolve HEAD to a commit OID.
+    4. Verify OID object accessibility (``cat-file -e <oid>^{commit}``).
        Failure = object storage/corruption => external exit 3.
-    4. Diff by resolved OID using NUL-separated output (``-z``).
+    5. Diff by resolved OIDs using NUL-separated output (``-z``).
 
     All git commands use ``_git_env()`` to strip inherited repository-
     selection variables (GIT_DIR, GIT_WORK_TREE, etc.).
@@ -455,8 +480,8 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     # Phase 1: verify git environment
     try:
         wt_result = subprocess.run(
-            ["git", "-C", str(repo_root), "rev-parse", "--is-inside-work-tree"],
-            capture_output=True, text=True, check=True,
+            _git_command(repo_root, "rev-parse", "--is-inside-work-tree"),
+            capture_output=True, check=True,
             timeout=_GIT_TIMEOUT, env=env,
         )
     except subprocess.CalledProcessError as exc:
@@ -464,50 +489,64 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
             3, f"rev-parse: not a git repository: "
             f"{_decode_stderr(exc.stderr)}",
         ) from exc
-    if wt_result.stdout.strip().lower() != "true":
+    if wt_result.stdout.strip().lower() != b"true":
         raise _GitError(
             3, "rev-parse: not inside a git work tree",
         )
 
-    # Phase 2: resolve ref to OID
-    try:
-        oid_result = subprocess.run(
-            ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet",
-             diff_base],
-            capture_output=True, text=True, check=True,
-            timeout=_GIT_TIMEOUT, env=env,
-        )
-    except subprocess.CalledProcessError as exc:
-        if exc.returncode == 1:
+    def resolve_commit(ref: str, *, invalid_exit: int) -> str:
+        try:
+            oid_result = subprocess.run(
+                _git_command(
+                    repo_root,
+                    "rev-parse", "--verify", "--quiet", "--end-of-options",
+                    f"{ref}^{{commit}}",
+                ),
+                capture_output=True, check=True,
+                timeout=_GIT_TIMEOUT, env=env,
+            )
+        except subprocess.CalledProcessError as exc:
+            if exc.returncode == 1:
+                raise _GitError(
+                    invalid_exit, f"rev-parse: invalid commit revision '{ref}'",
+                ) from exc
             raise _GitError(
-                2, f"rev-parse: unknown revision '{diff_base}'",
+                3, f"rev-parse: failed to resolve '{ref}' "
+                f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
             ) from exc
-        raise _GitError(
-            3, f"rev-parse: failed to resolve '{diff_base}' "
-            f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
-        ) from exc
-    oid = oid_result.stdout.strip()
 
-    # Phase 3: verify OID object is accessible as a commit
-    try:
-        subprocess.run(
-            ["git", "-C", str(repo_root), "cat-file", "-e",
-             f"{oid}^{{commit}}"],
-            capture_output=True, check=True,
-            timeout=_GIT_TIMEOUT, env=env,
-        )
-    except subprocess.CalledProcessError as exc:
-        raise _GitError(
-            3, f"cat-file: object {oid[:12]} not accessible "
-            f"(rc {exc.returncode}): "
-            f"{_decode_stderr(exc.stderr)}",
-        ) from exc
+        oid_bytes = oid_result.stdout.strip()
+        if re.fullmatch(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid_bytes) is None:
+            raise _GitError(
+                3, f"rev-parse: malformed object ID for '{ref}'",
+            )
+        oid = oid_bytes.decode("ascii")
 
-    # Phase 4: diff by resolved OID, NUL-separated output
+        try:
+            subprocess.run(
+                _git_command(repo_root, "cat-file", "-e", f"{oid}^{{commit}}"),
+                capture_output=True, check=True,
+                timeout=_GIT_TIMEOUT, env=env,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise _GitError(
+                3, f"cat-file: object {oid[:12]} not accessible "
+                f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
+            ) from exc
+        return oid
+
+    # Phases 2-4: resolve and verify immutable commit IDs.
+    oid = resolve_commit(diff_base, invalid_exit=2)
+    head_oid = resolve_commit("HEAD", invalid_exit=3)
+
+    # Phase 5: diff by resolved OIDs, NUL-separated output.
     try:
         result = subprocess.run(
-            ["git", "-C", str(repo_root), "diff", "--name-only", "-z",
-             oid, "HEAD", "--"],
+            _git_command(
+                repo_root,
+                "diff", "--no-ext-diff", "--name-only", "-z",
+                oid, head_oid, "--",
+            ),
             capture_output=True, check=True,
             timeout=_GIT_TIMEOUT, env=env,
         )
@@ -555,7 +594,7 @@ def run_assessment(
         if not lang:
             continue
 
-        rel_path = str(p.relative_to(repo_root))
+        rel_path = _repo_relative(p, repo_root)
         try:
             content = p.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
@@ -574,7 +613,7 @@ def run_assessment(
     # Build doc file inventory
     doc_inventory: list[DocFile] = []
     for doc_path in sorted(doc_files_set):
-        rel_path = str(doc_path.relative_to(repo_root))
+        rel_path = _repo_relative(doc_path, repo_root)
         # When diff_base is set, only process documentation files that were
         # changed since that base. Source files are always fully indexed so
         # symbol resolution works across the whole repo.
@@ -613,7 +652,7 @@ def run_assessment(
         if not p.is_file() or _should_exclude(p, repo_root):
             continue
         name = p.name.lower()
-        rel = str(p.relative_to(repo_root))
+        rel = _repo_relative(p, repo_root)
         if "benchmark" in name:
             benchmark_files.append(rel)
         elif "bench" in name and p.suffix in (".json", ".csv", ".md"):

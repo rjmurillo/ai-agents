@@ -41,6 +41,9 @@ _extract_python_symbols = mod._extract_python_symbols
 _extract_csharp_symbols = mod._extract_csharp_symbols
 _count_code_blocks = mod._count_code_blocks
 _get_changed_files = mod._get_changed_files
+_git_env = mod._git_env
+_iter_git_files = mod._iter_git_files
+_repo_relative = mod._repo_relative
 
 
 class TestShouldExclude:
@@ -255,7 +258,7 @@ class TestRunAssessment:
         assert "old.md" in doc_paths
         assert "unchanged.md" not in doc_paths
         # Source files are always indexed regardless of diff_base.
-        assert len(result["source_symbols"]) >= 0
+        assert any(s["name"] == "foo" for s in result["source_symbols"])
 
     def test_diff_base_no_changed_docs_yields_empty_inventory(
         self, tmp_path: Path
@@ -382,6 +385,14 @@ class TestGetChangedFiles:
         """Create a minimal git repo with one empty commit."""
         import os
         subprocess.run(["git", "init", str(path)], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-C", str(path), "config", "user.name", "t"],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(path), "config", "user.email", "t@t"],
+            check=True, capture_output=True,
+        )
         subprocess.run(
             ["git", "-C", str(path), "commit", "--allow-empty", "-m", "init"],
             check=True, capture_output=True,
@@ -636,9 +647,10 @@ class TestGetChangedFiles:
     def test_unicode_and_newline_paths(self, tmp_path: Path) -> None:
         """Files with Unicode and special chars are returned via -z output."""
         self._init_repo(tmp_path)
-        # Create files with Unicode name
         unicode_file = tmp_path / "\u00e9l\u00e8ve.md"
+        newline_file = tmp_path / "line\nbreak.md"
         unicode_file.write_text("# Unicode\n")
+        newline_file.write_text("# Newline\n")
         subprocess.run(
             ["git", "-C", str(tmp_path), "add", "."],
             check=True, capture_output=True,
@@ -647,12 +659,48 @@ class TestGetChangedFiles:
             ["git", "-C", str(tmp_path), "commit", "-m", "unicode"],
             check=True, capture_output=True,
         )
+        changed = _get_changed_files("HEAD~1", tmp_path)
+        assert "\u00e9l\u00e8ve.md" in changed
+        assert "line\nbreak.md" in changed
         exit_code = main([
             "--target", str(tmp_path),
             "--diff-base", "HEAD~1",
             "--phases", "1",
         ])
         assert exit_code == 0
+
+    def test_non_utf8_path_round_trips_through_nul_output(
+        self, tmp_path: Path
+    ) -> None:
+        """NUL-delimited Git bytes use filesystem surrogate decoding."""
+        import os
+
+        if os.name == "nt":
+            return
+        self._init_repo(tmp_path)
+        raw_name = b"invalid-\xff.md"
+        raw_path = os.fsencode(tmp_path) + b"/" + raw_name
+        fd = os.open(raw_path, os.O_CREAT | os.O_WRONLY, 0o600)
+        try:
+            os.write(fd, b"# Invalid bytes\n")
+        finally:
+            os.close(fd)
+        subprocess.run(
+            [b"git", b"-C", os.fsencode(tmp_path), b"add", b"."],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            [b"git", b"-C", os.fsencode(tmp_path), b"commit", b"-m", b"bytes"],
+            check=True, capture_output=True,
+        )
+
+        expected = os.fsdecode(raw_name)
+        assert expected in _get_changed_files("HEAD~1", tmp_path)
+        tracked = {
+            _repo_relative(path, tmp_path)
+            for path in _iter_git_files(tmp_path, require_git=True)
+        }
+        assert expected in tracked
 
     def test_foreign_git_dir_ignored(self, tmp_path: Path) -> None:
         """GIT_DIR env var pointing elsewhere does not affect result."""
@@ -708,6 +756,12 @@ class TestGetChangedFiles:
             old_vals[k] = _os.environ.get(k)
             _os.environ[k] = v
         try:
+            subprocess.run(
+                ["git", "-C", str(tmp_path), "status", "--porcelain"],
+                check=True, capture_output=True,
+            )
+            assert sentinel.exists(), "config-count fsmonitor probe did not execute"
+            sentinel.unlink()
             exit_code = main([
                 "--target", str(tmp_path),
                 "--diff-base", "HEAD~1",
@@ -721,6 +775,99 @@ class TestGetChangedFiles:
                     _os.environ[k] = old_vals[k]
         assert exit_code == 0
         assert not sentinel.exists(), "fsmonitor injection executed despite env sanitization"
+
+    def test_global_fsmonitor_config_is_ignored(self, tmp_path: Path) -> None:
+        """User-level core.fsmonitor cannot execute during the scan."""
+        import os
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        self._init_repo(repo)
+        (repo / "a.md").write_text("# A\n")
+        subprocess.run(
+            ["git", "-C", str(repo), "add", "."],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "add a"],
+            check=True, capture_output=True,
+        )
+
+        home = tmp_path / "home"
+        home.mkdir()
+        sentinel = tmp_path / "global-fsmonitor-ran"
+        hook = tmp_path / "global-fsmonitor.py"
+        hook.write_text(
+            f"#!{sys.executable}\n"
+            "from pathlib import Path\n"
+            f"Path({str(sentinel)!r}).write_text('ran')\n",
+        )
+        hook.chmod(0o755)
+        subprocess.run(
+            [
+                "git", "config", "--file", str(home / ".gitconfig"),
+                "core.fsmonitor", str(hook),
+            ],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "status", "--porcelain"],
+            check=True, capture_output=True,
+            env={**os.environ, "HOME": str(home)},
+        )
+        assert sentinel.exists(), "global fsmonitor probe did not execute"
+        sentinel.unlink()
+
+        with patch.dict(os.environ, {"HOME": str(home)}, clear=False):
+            exit_code = main([
+                "--target", str(repo),
+                "--diff-base", "HEAD~1",
+                "--phases", "1",
+            ])
+        assert exit_code == 0
+        assert not sentinel.exists()
+
+    def test_repository_fsmonitor_config_is_disabled(self, tmp_path: Path) -> None:
+        """Repository-local core.fsmonitor cannot execute during the scan."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        self._init_repo(repo)
+        (repo / "a.md").write_text("# A\n")
+        subprocess.run(
+            ["git", "-C", str(repo), "add", "."],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-m", "add a"],
+            check=True, capture_output=True,
+        )
+
+        sentinel = tmp_path / "local-fsmonitor-ran"
+        hook = tmp_path / "local-fsmonitor.py"
+        hook.write_text(
+            f"#!{sys.executable}\n"
+            "from pathlib import Path\n"
+            f"Path({str(sentinel)!r}).write_text('ran')\n",
+        )
+        hook.chmod(0o755)
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "core.fsmonitor", str(hook)],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "status", "--porcelain"],
+            check=True, capture_output=True,
+        )
+        assert sentinel.exists(), "repository fsmonitor probe did not execute"
+        sentinel.unlink()
+
+        exit_code = main([
+            "--target", str(repo),
+            "--diff-base", "HEAD~1",
+            "--phases", "1",
+        ])
+        assert exit_code == 0
+        assert not sentinel.exists()
 
     def test_graft_replace_shallow_overrides_ignored(self, tmp_path: Path) -> None:
         """GIT_GRAFT_FILE/REPLACE_REF_BASE/SHALLOW_FILE do not alter results."""
@@ -758,12 +905,12 @@ class TestGetChangedFiles:
                     _os.environ[k] = old_vals[k]
         assert exit_code == 0
 
-    def test_git_env_strips_all_local_env_vars(self) -> None:
-        """_git_env excludes every var from rev-parse --local-env-vars."""
+    def test_git_env_sanitizes_local_and_config_vars_case_insensitively(
+        self,
+    ) -> None:
+        """Git overrides cannot survive with Windows-style key casing."""
         import os as _os
 
-        from doc_accuracy import _git_env
-        # Inject all known vars
         local_vars = [
             "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG",
             "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
@@ -773,7 +920,8 @@ class TestGetChangedFiles:
             "GIT_SHALLOW_FILE", "GIT_COMMON_DIR",
         ]
         prefix_vars = ["GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0",
-                       "GIT_CONFIG_KEY_99", "GIT_CONFIG_VALUE_99"]
+                       "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM",
+                       "Git_Config_Arbitrary", "git_config_key_99"]
         all_test = local_vars + prefix_vars
         saved = {k: _os.environ.get(k) for k in all_test}
         for k in all_test:
@@ -786,8 +934,192 @@ class TestGetChangedFiles:
                     _os.environ.pop(k, None)
                 else:
                     _os.environ[k] = saved[k]
-        for k in all_test:
-            assert k not in env, f"{k} leaked through _git_env()"
+        forced = {
+            "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM",
+            "GIT_GRAFT_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_SHALLOW_FILE",
+        }
+        for key in env:
+            normalized = key.upper()
+            if normalized.startswith("GIT_CONFIG_"):
+                assert normalized in forced
+        assert env["GIT_NO_REPLACE_OBJECTS"] == "1"
+        assert env["GIT_GRAFT_FILE"] == _os.devnull
+        assert env["GIT_SHALLOW_FILE"] == _os.devnull
+
+    def test_repository_replace_ref_cannot_hide_changed_file(
+        self, tmp_path: Path
+    ) -> None:
+        """A repository replace ref cannot rewrite the diff-base tree."""
+        self._init_repo(tmp_path)
+        base = subprocess.run(
+            ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        (tmp_path / "changed.md").write_text("# Changed\n")
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "add", "."],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "changed"],
+            check=True, capture_output=True,
+        )
+        head_tree = subprocess.run(
+            ["git", "-C", str(tmp_path), "rev-parse", "HEAD^{tree}"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        replacement = subprocess.run(
+            ["git", "-C", str(tmp_path), "commit-tree", head_tree],
+            check=True, capture_output=True, text=True,
+            input="replacement\n",
+        ).stdout.strip()
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "replace", base, replacement],
+            check=True, capture_output=True,
+        )
+        unsanitized = subprocess.run(
+            [
+                "git", "-C", str(tmp_path),
+                "diff", "--name-only", base, "HEAD", "--",
+            ],
+            check=True, capture_output=True, text=True,
+        )
+        assert unsanitized.stdout == "", "replace ref probe did not hide the file"
+
+        assert "changed.md" in _get_changed_files(base, tmp_path)
+
+    def test_repository_graft_and_shallow_files_are_ignored(
+        self, tmp_path: Path
+    ) -> None:
+        """Repository graft and shallow metadata cannot hide HEAD's parent."""
+        self._init_repo(tmp_path)
+        (tmp_path / "changed.md").write_text("# Changed\n")
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "add", "."],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "commit", "-m", "changed"],
+            check=True, capture_output=True,
+        )
+        head = subprocess.run(
+            ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        git_dir = tmp_path / ".git"
+        (git_dir / "info" / "grafts").write_text(f"{head}\n")
+        (git_dir / "shallow").write_text(f"{head}\n")
+        unsanitized = subprocess.run(
+            [
+                "git", "-C", str(tmp_path),
+                "rev-parse", "--verify", "--quiet", "HEAD~1^{commit}",
+            ],
+            capture_output=True,
+        )
+        assert unsanitized.returncode != 0, (
+            "graft/shallow probe did not hide HEAD's parent"
+        )
+
+        assert "changed.md" in _get_changed_files("HEAD~1", tmp_path)
+
+    def test_blob_and_tree_revisions_exit_2(self, tmp_path: Path) -> None:
+        """Existing non-commit objects are invalid diff-base configuration."""
+        self._init_repo(tmp_path)
+        blob = subprocess.run(
+            ["git", "-C", str(tmp_path), "hash-object", "-w", "--stdin"],
+            check=True, capture_output=True, text=True, input="blob\n",
+        ).stdout.strip()
+        tree = subprocess.run(
+            ["git", "-C", str(tmp_path), "rev-parse", "HEAD^{tree}"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+
+        for object_id in (blob, tree):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", object_id,
+                "--phases", "1",
+            ])
+            assert exit_code == 2
+
+    def test_annotated_tag_and_symbolic_ref_are_accepted(
+        self, tmp_path: Path
+    ) -> None:
+        """Commitish tags and symbolic refs resolve to immutable commit IDs."""
+        self._init_repo(tmp_path)
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "tag", "-a", "base", "-m", "base"],
+            check=True, capture_output=True,
+        )
+        branch = subprocess.run(
+            ["git", "-C", str(tmp_path), "symbolic-ref", "--short", "HEAD"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+        subprocess.run(
+            [
+                "git", "-C", str(tmp_path), "symbolic-ref",
+                "refs/heads/base-symbolic", f"refs/heads/{branch}",
+            ],
+            check=True, capture_output=True,
+        )
+
+        assert _get_changed_files("base", tmp_path) == set()
+        assert _get_changed_files("base-symbolic", tmp_path) == set()
+
+    def test_option_like_revision_exits_2(self, tmp_path: Path) -> None:
+        """An option-like diff base remains data after --end-of-options."""
+        self._init_repo(tmp_path)
+        exit_code = main([
+            "--target", str(tmp_path),
+            "--diff-base=--help",
+            "--phases", "1",
+        ])
+        assert exit_code == 2
+
+    def test_malformed_rev_parse_stdout_exits_3(self, tmp_path: Path) -> None:
+        """Successful rev-parse with malformed output is a tool failure."""
+        self._init_repo(tmp_path)
+        real_run = subprocess.run
+
+        def malformed(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            if "--verify" in cmd:
+                return subprocess.CompletedProcess(cmd, 0, b"--output=owned", b"")
+            return real_run(*args, **kwargs)
+
+        with patch.object(subprocess, "run", side_effect=malformed):
+            exit_code = main([
+                "--target", str(tmp_path),
+                "--diff-base", "HEAD",
+                "--phases", "1",
+            ])
+        assert exit_code == 3
+
+    def test_every_git_boundary_call_has_timeout(self, tmp_path: Path) -> None:
+        """Every scanner-owned Git subprocess carries the timeout."""
+        self._init_repo(tmp_path)
+        real_run = subprocess.run
+        observed: list[tuple[list[str], object]] = []
+
+        def recording_run(*args, **kwargs):
+            cmd = args[0] if args else kwargs.get("args", [])
+            observed.append((cmd, kwargs.get("timeout")))
+            return real_run(*args, **kwargs)
+
+        with patch.object(subprocess, "run", side_effect=recording_run):
+            _get_changed_files("HEAD", tmp_path)
+            list(_iter_git_files(tmp_path, require_git=True))
+
+        assert observed
+        assert all(timeout == mod._GIT_TIMEOUT for _, timeout in observed)
+
+    def test_windows_paths_normalize_to_git_separators(self) -> None:
+        """Repository-relative paths use slashes on Windows."""
+        from pathlib import PureWindowsPath
+
+        path = PureWindowsPath(r"C:\repo\docs\guide.md")
+        root = PureWindowsPath(r"C:\repo")
+        assert _repo_relative(path, root) == "docs/guide.md"
 
     def test_resolved_oid_missing_object_exits_3(self, tmp_path: Path) -> None:
         """OID resolved but cat-file fails (object gone) => exit 3."""
