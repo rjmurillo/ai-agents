@@ -83,6 +83,7 @@
 |validate PR check red advisory blocking signal DESCRIPTION_RESULT TEMPLATE_STATUS exit code file mentioned but not in diff CRITICAL WARNING: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (2488)
 |linking an issue Closes Fixes Resolves Implements Refs arms AI spec validation acceptance criteria PARTIAL completeness trace check_spec_failures analyst critic: [ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff](ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff.md) (1302)
 |job name collision duplicate check name ambiguous red Validate budget Check Changed Paths Detect changes Aggregate Results gh pr checks json link run view job: [ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous](ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous.md) (1461)
+|AI quality gate Aggregate Results all agents NEEDS_REVIEW identical verdicts DID_NOT_RUN UNKNOWN N/A category two infrastructure routes infrastructure-failure Copilot CLI unavailable hardcoded message Not blocking PR BLOCKING_VERDICTS WARN downgrade Chesterton fence security review did not run: [ci/ci-ai-gate-blocks-when-the-security-review-did-not-run](ci/ci-ai-gate-blocks-when-the-security-review-did-not-run.md) (2586)
 |copilot skill mirror two canonical sources generate_skills generate_commands bridged slash command push-pr collision abort: [copilot/copilot-skill-mirror-has-two-sources](copilot/copilot-skill-mirror-has-two-sources.md) (848)
 |mutation testing line swap stale bytecode __pycache__ false green coverage: [ci/ci-line-swap-mutations-reuse-stale-bytecode](ci/ci-line-swap-mutations-reuse-stale-bytecode.md) (834)
 |CI CD workflow actions runner ARM: [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (959)
@@ -131,7 +132,8 @@
 |context engineering token optimization progressive disclosure just-in-time: [memory/context-engineering-principles](memory/context-engineering-principles.md) (594), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
 |passive context AGENTS.md skills decision-point retrieval-led compression: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (447), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (683), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (623)
 |instruction budget always-on ceiling applyTo scope headroom rule authoring: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1856)
-|memory index validator one direction unindexed orphan check non-recursive opt-in warn only passes clean: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (719)
+|memory index validator one direction unindexed orphan check non-recursive opt-in warn only passes clean: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (784)
+|memory index token count churn recount every row merge conflict stale union resolve lefthook skip merge: [memory-index-token-counts-churn-across-branches](memory-index-token-counts-churn-across-branches.md) (926)
 
 [Root Cause Patterns (PR #908)]
 |governance enforcement ADR limits commits files programmatic gate: [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (603)
