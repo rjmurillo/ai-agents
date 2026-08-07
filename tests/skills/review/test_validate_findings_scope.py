@@ -20,6 +20,10 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+_needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git CLI not installed")
+
 TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
 PROJECT_ROOT = str(Path(__file__).resolve().parents[3])
 if TESTS_SKILLS_DIR not in sys.path:
@@ -61,12 +65,12 @@ def _run_git(args: list[str], cwd: Path) -> None:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         env=env,
         check=False,
     )
     assert result.returncode == 0, (
-        f"git {' '.join(args)} failed in {cwd}\n"
-        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        f"git {' '.join(args)} failed in {cwd}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
 
 
@@ -162,10 +166,7 @@ class TestExtractLocations:
         assert "scripts/foo.py" in result
 
     def test_multiple_locations(self) -> None:
-        text = (
-            "location: scripts/foo.py:10\n"
-            "location: tests/test_bar.py:20\n"
-        )
+        text = "location: scripts/foo.py:10\nlocation: tests/test_bar.py:20\n"
         result = extract_locations(text)
         assert "scripts/foo.py" in result
         assert "tests/test_bar.py" in result
@@ -236,10 +237,7 @@ class TestValidateScope:
         assert out_of_scope == []
 
     def test_mixed_in_and_out(self) -> None:
-        text = (
-            "location: scripts/foo.py:10\n"
-            "location: scripts/unrelated.py:5\n"
-        )
+        text = "location: scripts/foo.py:10\nlocation: scripts/unrelated.py:5\n"
         in_scope, out_of_scope = validate_scope(text, ["scripts/foo.py"])
         assert "scripts/foo.py" in in_scope
         assert "scripts/unrelated.py" in out_of_scope
@@ -300,6 +298,7 @@ class TestScopeAdjustedText:
         assert "VERDICT: WARN" in adjusted
         assert "[pre-existing - not in this PR diff]" in adjusted
 
+    @_needs_git
     def test_two_real_worktrees_use_requested_worktree_diff(self) -> None:
         workspace, requested, _other = _create_two_worktrees()
         try:
@@ -376,6 +375,7 @@ SCRIPT_PATH = (
 )
 
 
+@_needs_git
 class TestCLISubprocess:
     """Exercise the script via subprocess to verify the exit-code contract."""
 
@@ -387,7 +387,9 @@ class TestCLISubprocess:
             [sys.executable, str(SCRIPT_PATH), "--base-branch", "nonexistent-branch-xyz"],
             input="No findings. Verdict: PASS\n",
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         # git diff will fail for a nonexistent branch -> graceful degrade -> exit 0
         assert result.returncode == 0
@@ -396,7 +398,9 @@ class TestCLISubprocess:
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         assert result.returncode == 0
         assert "validate" in result.stdout.lower() or "worktree" in result.stdout.lower()
