@@ -1,0 +1,237 @@
+{
+  "id": "episode-2026-08-06-session-4672-memory-episode-cluster",
+  "session": "2026-08-06-session-4672-memory-episode-cluster",
+  "timestamp": "2026-08-06T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issues #4675, #4416, #4615, and #4705 in the session episode and memory index area.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-06T22:48:22+00:00",
+      "type": "milestone",
+      "content": "Created dedicated worktree, set worktree core.bare=false, and verified branch fix/memory-episode-cluster.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-06T23:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed startup retrieval, memory-gate searches, pre-mortem, and complexity classification.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-06T23:10:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced #4675 TypeError on mixed naive and aware timestamps, #4416 two-dot range overcounting two files instead of one, #4615 validator returning clean on missing and unexpected causal edges, and #4705 six duplicate memory-index targets.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-06T23:25:00+00:00",
+      "type": "milestone",
+      "content": "Added regression tests for all four issues. Before code changes, the five targeted tests failed on the expected assertions.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-06T23:45:00+00:00",
+      "type": "milestone",
+      "content": "Implemented UTC normalization, three-dot range diff, causal edge consistency validation, duplicate memory-index rejection, and removed the six redundant memory-index links.",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-07T00:05:00+00:00",
+      "type": "milestone",
+      "content": "Ran negative control by restoring unfixed implementation files from origin/main while keeping tests. All five regression tests failed, then passed again after restoring the fixes.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-07T00:15:00+00:00",
+      "type": "milestone",
+      "content": "Ran affected test files: tests/skills/memory/test_extract_session_episode.py and tests/test_validation_memory_index.py passed 375 tests. .claude skill mirror tests passed 96 tests.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-07T00:25:00+00:00",
+      "type": "milestone",
+      "content": "Build skill gates: orphan-ref-validator passed on changed files. code-qualities and taste-lints reported pre-existing file-size and complexity debt in touched legacy files. doc-accuracy diff-base scan reported 35559 high findings across the existing documentation corpus, not scoped to this diff.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-07T00:40:00+00:00",
+      "type": "milestone",
+      "content": "Fixed follow-up typed-counter errors found by the required mypy hook policy and updated the branch-side diff unit test expectation to three-dot semantics.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-07T01:05:00+00:00",
+      "type": "milestone",
+      "content": "Ran final required gates. Full pytest passed 23683 tests with 33 skipped and 2 warnings. Changed-file mypy hook policy passed. merge_tree_ratchet_check.py passed. pre_pr.py exited 0.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-07T02:35:00+00:00",
+      "type": "milestone",
+      "content": "Captured retrospective evidence after push-time retrospective-policy rejected the otherwise green branch.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-06T23:11:40+00:00",
+      "type": "commit",
+      "content": "Commit: 9ae761432",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-06T23:11:56+00:00",
+      "type": "commit",
+      "content": "Commit: bb33d629c",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-06T23:12:53+00:00",
+      "type": "commit",
+      "content": "Commit: 41c2ac4c4",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-06T23:30:41+00:00",
+      "type": "commit",
+      "content": "Commit: d075cc7a7",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-06T23:42:35+00:00",
+      "type": "commit",
+      "content": "Commit: f1ebcced3",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-06T23:55:44+00:00",
+      "type": "commit",
+      "content": "Commit: bab8fbf6c",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 226,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 9
+  },
+  "lessons": []
+}
