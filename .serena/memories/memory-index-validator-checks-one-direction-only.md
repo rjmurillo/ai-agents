@@ -89,6 +89,11 @@ ships with PR #4572 and is not on `main` until that lands.)
 
 ## Related
 
+`.serena/memories/memory-index-token-counts-churn-across-branches.md` covers the
+other blind spot in this same file: the token counts are rewritten wholesale by
+a pre-commit hook that skips merges, so branches collide on `memory-index.md`
+and no gate checks a hand-picked number.
+
 `.serena/memories/find-coverage-by-mutation-not-by-name.md` is the same shape
 one level up: a name-based check answers whether a spelling exists, not whether
 the guarantee does. Here the validator checks that every named entry resolves to

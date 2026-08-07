@@ -68,6 +68,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from _anthropic_api import call_api, load_api_key_for_selected_provider
+from _eval_common import MalformedProviderMetadataError
 
 MODEL = "claude-sonnet-4-6"
 # Immutable first-parent of the #2127 merge commit (817e466f8).
@@ -142,6 +143,11 @@ def _validate_fixture(fx: object, index: int, path: str, seen_ids: set[str]) -> 
     if not isinstance(fx["query"], str) or not fx["query"].strip():
         raise RuntimeError(f"Fixture {fid} in {path}: 'query' must be a non-empty string.")
 
+    _validate_candidates(fx, fid, path)
+
+
+def _validate_candidates(fx: dict[str, Any], fid: str, path: str) -> None:
+    """Validate candidate names and the expected selection."""
     candidates = fx["candidates"]
     if not isinstance(candidates, list) or not (2 <= len(candidates) <= 4):
         got = len(candidates) if isinstance(candidates, list) else type(candidates).__name__
@@ -351,6 +357,8 @@ def call_router(api_key: str, prompt: str) -> str:
                 temperature=0,
             ),
         )
+    except MalformedProviderMetadataError:
+        raise
     except Exception as exc:
         raise RuntimeError(f"Anthropic API call failed: {exc}") from exc
 
@@ -565,6 +573,8 @@ def main() -> int:
 
     try:
         summary = run_eval(plan, api_key)
+    except MalformedProviderMetadataError:
+        raise
     except RuntimeError as exc:
         print(f"ERROR: eval failed: {exc}", file=sys.stderr)
         return 3

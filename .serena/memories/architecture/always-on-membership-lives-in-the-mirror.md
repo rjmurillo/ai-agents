@@ -14,27 +14,42 @@ its **generated** `applyTo` resolves to `**`, so the answer lives in the
 generated tree. Parsing `.claude/rules/*.md` gives a wrong answer, wrong in both
 directions.
 
-There is also no single answer *by construction*, though the two trees agree
-today. Measured at `98526f68b`:
+There is also no single answer per tree by default, so always name the tree with
+the number. The two destination trees agree today, measured on this branch after the universal rule gained the same-checker item:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 8 rules, 71,901 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 8 rules, 71,901 bytes |
+| `.github/instructions` | Copilot in this repository | 8 rules, 72,669 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 8 rules, 72,669 bytes |
 
-Identical membership: `builder-ethos`, `claude-model-patches`, `code-quality`,
+Membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`,
 `knowledge-persistence`, `lsp-first`, `search-before-building`, `universal`,
 `voice`.
 
-They did not always agree. An earlier revision of this memory recorded 11 rules
-and 79,823 bytes in the plugin against 8 and 72,291 here, with `governance`,
-`secret-redaction`, and `session-logs` narrow at source and always-on in the
-product. That was issue #4317, and it is fixed: the generator now drops an
-all-internal rule from that tree instead of widening it.
+Those bytes are whole generated files, frontmatter included. The same eight
+rules measure 72,804 bytes at `.claude/rules/`, 135 more, because the generator
+drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. Name the
+tree whenever you quote a figure; a gap of about that size is a basis mismatch,
+not staleness.
 
-**Still name the tree with the number.** `test_doctrine_plugin_tree_figures_match_the_shipped_tree`
-compares the two trees, but only on rule count and byte total, so a swap that
-preserves both would pass. Nothing pins the names.
+That agreement is recent. Until issue #4317 closed, the generator universalized
+a rule whose scope was entirely internal, which made `governance`,
+`secret-redaction`, and `session-logs` always-on in the plugin and cost a vendor
+install 7,532 bytes a turn on three rules pointing at `.agents/` paths the
+installing repository does not have. PR #4426 replaced that fallback with an
+explicit skip, so those rules are absent from the plugin tree rather than
+universalized in it. The plugin ships 23 instruction files against 27 in
+`.github/instructions`, and that gap is the fix, not drift.
+
+`tests/validation/test_always_on_corpus_claims.py` pins the two trees together
+and pins the figures on this page against a live measurement, so the convergence
+is a guarded invariant rather than a coincidence, and these numbers cannot go
+stale without turning a test red.
+
+The pin is narrower than it reads.
+`test_doctrine_plugin_tree_figures_match_the_shipped_tree` compares the two
+trees on rule count and byte total only, so a swap that preserved both would
+pass. Nothing pins the names, and nothing pins which rules are in the set.
 
 ## Why the source cannot answer it
 
@@ -52,28 +67,30 @@ first leaves a line in the source file that a grep can find.
        result = {"applyTo": _UNIVERSAL_SCOPE, **result}
    ```
 
-There used to be a fourth. A source whose globs were **all** filtered as
-internal-only fell back to `**` rather than shipping an empty scope, so
-narrowing a rule to `.claude/**` read like a reduction and widened it to every
-turn in the shipped plugin. That was issue #4317. The generator now drops the
-rule from that tree instead (`build/scripts/generate_rules.py:343`):
+4. The source declares a scope whose globs are **all** filtered as internal-only.
+   Lines 342-344 skip the rule rather than shipping it with a widened scope:
 
-```python
-if had_scope and isinstance(applyto_value, str) and not applyto_value.strip():
-    return _SCOPE_SKIPPED
-```
+   ```python
+   applyto_value = result.get("applyTo")
+   if had_scope and isinstance(applyto_value, str) and not applyto_value.strip():
+       return _SCOPE_SKIPPED
+   ```
 
-That branch is still live and four rules take it today: `governance`,
-`push-lock`, `secret-redaction`, and `session-logs` are present in
-`.github/instructions` and absent from `src/copilot-cli/instructions`
-altogether. `templates/platforms/copilot-cli.yaml:39-40` lists
-`.github/instructions` under `keepInternalGlobsFor`, which disables the filter
-for that tree, so the same rule is scoped there and pruned from the plugin.
+   This case is **destination-dependent**.
+   `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions`
+   under `keepInternalGlobsFor`, disabling the filter there, so case 4 cannot
+   fire for that tree. It fires only for `src/copilot-cli/instructions`, which
+   is why the plugin ships fewer instruction files. Before PR #4426 this branch
+   assigned `_UNIVERSAL_SCOPE` instead of returning, which is what made narrowly
+   scoped rules always-on for plugin consumers.
 
-So the two trees hold different *rule sets* while agreeing on the always-on
-subset. Membership can still diverge, by a rule the filter does not touch
-gaining or losing a universal scope in one tree only. Keep naming the tree with
-the number.
+Four rules take that skip today: `governance`, `push-lock`,
+`secret-redaction`, and `session-logs` are present in `.github/instructions`
+and absent from `src/copilot-cli/instructions` altogether, which is the whole
+of the 27-against-23 file gap. So the two trees hold different *rule sets*
+while agreeing on the always-on subset. Membership can still diverge, by a
+rule the filter does not touch gaining or losing a universal scope in one tree
+only.
 
 Cases 2 and 3 are one branch, not two. `_has_path_scope` (line 209) reads only
 the path-scope keys, so `alwaysApply` never sets `had_scope`.
