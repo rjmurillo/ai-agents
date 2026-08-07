@@ -45,9 +45,6 @@ _ANY_NONZERO_COMPARISON = re.compile(r"==\s*[1-9]|!=\s*0|EXIT_|_ERROR")
 
 # An identifier that nothing qualifies, so `widget` counts and `pkg.widget`
 # does not.
-_UNQUALIFIED_NAME = re.compile(r"(?<![\w.])([A-Za-z_]\w*)")
-
-
 def defines_main(source: str) -> bool:
     """True when the module body defines a ``main`` function.
 
@@ -72,7 +69,18 @@ def defines_main(source: str) -> bool:
 #   qa_mod = _load_module("check_pr_qa_report")
 _FROM_IMPORT = re.compile(r"^[ \t]*from\s+([\w.]+)\s+import\s+(.+)$", re.MULTILINE)
 _PLAIN_IMPORT = re.compile(r"^[ \t]*import\s+([\w.]+)(?:\s+as\s+(\w+))?", re.MULTILINE)
-_LOADER_ALIAS = re.compile(r"^[ \t]*(\w+)\s*=\s*_load_module\(\s*[\"'](\w+)[\"']", re.MULTILINE)
+_LOADER_ALIAS = re.compile(
+    r"^[ \t]*(\w+)\s*=\s*(?:_load_module|_import_script)\(\s*[\"'](\w+)[\"']",
+    re.MULTILINE,
+)
+_SPEC_FROM_FILE_LOCATION_ALIAS = re.compile(
+    r"^[ \t]*(\w+)\s*=\s*importlib\.util\.spec_from_file_location\(\s*[\"'](\w+)[\"']",
+    re.MULTILINE,
+)
+_MODULE_FROM_SPEC_ALIAS = re.compile(
+    r"^[ \t]*(\w+)\s*=\s*importlib\.util\.module_from_spec\(\s*(\w+)\s*\)",
+    re.MULTILINE,
+)
 # A hand-rolled spec_from_file_location block registers the module by name:
 #   sys.modules["check_ai_review_infra_gate"] = mod
 _SYS_MODULES_ALIAS = re.compile(
@@ -88,6 +96,7 @@ _SCRIPT_FILE_NAME = re.compile(r"(\w+)\.py")
 # invocation; the same string inside an ``assert "... x.py" in workflow`` is a
 # wiring assertion and proves nothing about the exit code.
 _PROCESS_CALLEES = frozenset({"run", "check_output", "check_call", "call", "Popen"})
+_UNQUALIFIED_NAME = re.compile(r"(?<![\w.])([A-Za-z_]\w*)")
 
 
 def _imported_names(clause: str) -> list[tuple[str, str]]:
@@ -116,6 +125,21 @@ def _from_import_aliases(source: str, stems: frozenset[str]) -> dict[str, str]:
     return aliases
 
 
+def _spec_from_file_aliases(source: str, stems: frozenset[str]) -> dict[str, str]:
+    """Module aliases created through importlib spec loaders."""
+    spec_aliases = {
+        alias: stem
+        for alias, stem in _SPEC_FROM_FILE_LOCATION_ALIAS.findall(source)
+        if stem in stems
+    }
+    aliases: dict[str, str] = {}
+    for alias, spec_name in _MODULE_FROM_SPEC_ALIAS.findall(source):
+        stem = spec_aliases.get(spec_name)
+        if stem is not None:
+            aliases[alias] = stem
+    return aliases
+
+
 def _module_aliases(source: str, stems: frozenset[str]) -> dict[str, str]:
     """Names bound to a ``scripts/ci`` module in this test file, alias -> stem."""
     aliases = _from_import_aliases(source, stems)
@@ -126,6 +150,7 @@ def _module_aliases(source: str, stems: frozenset[str]) -> dict[str, str]:
     for alias, stem in _LOADER_ALIAS.findall(source):
         if stem in stems:
             aliases[alias] = stem
+    aliases.update(_spec_from_file_aliases(source, stems))
     for stem, alias in _SYS_MODULES_ALIAS.findall(source):
         if stem in stems:
             aliases[alias] = stem
@@ -146,6 +171,16 @@ def _bare_main_stems(source: str, stems: frozenset[str]) -> set[str]:
         if stem in stems:
             bound.add(stem)
     return bound
+
+
+def _compute_main_credit(
+    tree: ast.Module, stems: frozenset[str], aliases: dict[str, str], referenced: set[str]
+) -> dict[int, frozenset[str]]:
+    """Per-function bare-main credit via source-ordered state tracking."""
+    from scripts.ci._main_binding import compute_bare_credit
+
+    return compute_bare_credit(tree, stems, aliases, referenced)
+
 
 
 def _test_functions(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
@@ -178,9 +213,8 @@ class _Bindings:
     """How one test file names the scripts it drives."""
 
     aliases: dict[str, str]  # module alias -> stem
-    bare: frozenset[str]  # stems whose `main` is bound under that bare name
+    main_credit: dict[int, frozenset[str]]  # func lineno -> bare main() credit stems
     paths: dict[str, set[str]]  # local name holding a script path -> stems
-    sole: str | None  # the only stem the file names, when it names one
     stems: frozenset[str]
 
 
@@ -230,26 +264,47 @@ def _path_names(tree: ast.Module, stems: frozenset[str]) -> dict[str, set[str]]:
     return paths
 
 
-def _main_target(func: ast.expr, binding: _Bindings) -> set[str]:
+def _main_target(
+    func: ast.expr, binding: _Bindings, bare_credit: frozenset[str]
+) -> set[str]:
     """Stems a ``main`` call belongs to.
 
-    ``sole`` is the file's only referenced stem, when it has exactly one. It
-    covers the bindings no alias matcher reaches: a hand-rolled
-    ``spec_from_file_location`` block binds ``mod``, and ``main = _mod.main``
-    binds nothing at all. Naming one script and calling ``main`` is unambiguous.
+    Qualified calls (``widget.main()``) resolve through aliases.  Bare
+    ``main()`` calls credit only the stems determined by source-ordered
+    binding-state analysis at the enclosing function's definition point.
     """
     if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
         stem = binding.aliases.get(func.value.id)
         if stem is not None:
             return {stem}
-    targets = set(binding.bare)
-    if binding.sole is not None:
-        targets.add(binding.sole)
-    return targets
+    return set(bare_credit)
+
+
+def _assigned_main_stems(tree: ast.Module, aliases: dict[str, str]) -> set[str]:
+    """Stems whose module ``main`` is assigned to a bare local ``main`` name."""
+    bound: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(isinstance(target, ast.Name) and target.id == "main" for target in node.targets):
+            continue
+        value = node.value
+        if (
+            isinstance(value, ast.Attribute)
+            and value.attr == "main"
+            and isinstance(value.value, ast.Name)
+        ):
+            stem = aliases.get(value.value.id)
+            if stem is not None:
+                bound.add(stem)
+    return bound
 
 
 def _invocation_stems(
-    node: ast.Call, binding: _Bindings, helpers: dict[str, set[str]]
+    node: ast.Call,
+    binding: _Bindings,
+    helpers: dict[str, set[str]],
+    bare_credit: frozenset[str],
 ) -> set[str]:
     """Stems whose CLI this call drives: its ``main``, its path, or a helper.
 
@@ -262,23 +317,26 @@ def _invocation_stems(
     if name is None:
         return set()
     if name == "main":
-        return _main_target(node.func, binding)
+        return _main_target(node.func, binding, bare_credit)
     if name in _PROCESS_CALLEES:
         return _expression_stems(node, binding.paths, binding.stems)
     return set(helpers.get(name, set()))
 
 
 def _scope_invocations(
-    scope: ast.AST, binding: _Bindings, helpers: dict[str, set[str]]
+    scope: ast.AST,
+    binding: _Bindings,
+    helpers: dict[str, set[str]],
+    bare_credit: frozenset[str] = frozenset(),
 ) -> tuple[set[str], set[str]]:
     """(stems this scope drives, names it binds to the result of driving one)."""
     driven: set[str] = set()
     results: set[str] = set()
     for node in ast.walk(scope):
         if isinstance(node, ast.Call):
-            driven |= _invocation_stems(node, binding, helpers)
+            driven |= _invocation_stems(node, binding, helpers, bare_credit)
         elif isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
-            if _invocation_stems(node.value, binding, helpers):
+            if _invocation_stems(node.value, binding, helpers, bare_credit):
                 results |= {t.id for t in node.targets if isinstance(t, ast.Name)}
     return driven, results
 
@@ -298,7 +356,8 @@ def _helper_stems(
     """
     helpers: dict[str, set[str]] = {}
     for function in functions:
-        driven, _results = _scope_invocations(function, binding, helpers)
+        credit = binding.main_credit.get(function.lineno, frozenset())
+        driven, _results = _scope_invocations(function, binding, helpers, credit)
         if driven:
             helpers.setdefault(function.name, set()).update(driven)
     return helpers
@@ -320,12 +379,13 @@ def _proves_failure(segment: str, results: set[str]) -> bool:
 
 
 def _bindings(test_source: str, tree: ast.Module, stems: frozenset[str]) -> _Bindings:
+    aliases = _module_aliases(test_source, stems)
     referenced = _referenced_stems(test_source, stems)
+    main_credit = _compute_main_credit(tree, stems, aliases, referenced)
     return _Bindings(
-        aliases=_module_aliases(test_source, stems),
-        bare=frozenset(_bare_main_stems(test_source, stems)),
+        aliases=aliases,
+        main_credit=main_credit,
         paths=_path_names(tree, stems),
-        sole=next(iter(referenced)) if len(referenced) == 1 else None,
         stems=stems,
     )
 
@@ -358,7 +418,8 @@ def covered_stems(test_source: str, stems: frozenset[str]) -> set[str]:
     lines = test_source.splitlines()
     covered: set[str] = set()
     for scope in functions:
-        driven, results = _scope_invocations(scope, binding, helpers)
+        credit = binding.main_credit.get(scope.lineno, frozenset())
+        driven, results = _scope_invocations(scope, binding, helpers, credit)
         if not driven:
             continue
         segment = "\n".join(lines[scope.lineno - 1 : scope.end_lineno or len(lines)])

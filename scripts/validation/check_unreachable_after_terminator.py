@@ -22,11 +22,13 @@ from __future__ import annotations
 import argparse
 import ast
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import NamedTuple
 
 _TERMINATORS = (ast.Return, ast.Raise, ast.Continue, ast.Break)
 _SKIP = frozenset((".venv", "node_modules", ".git", "site-packages"))
+_BLOCK_ATTRS = ("body", "orelse", "finalbody")
 
 __all__ = [
     "Violation",
@@ -52,21 +54,56 @@ def scan_tree(tree: ast.AST, path: Path) -> list[Violation]:
     for func in ast.walk(tree):
         if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        body = func.body
-        for index, stmt in enumerate(body[:-1]):
-            if isinstance(stmt, _TERMINATORS):
-                dead = body[index + 1]
-                violations.append(
-                    Violation(
-                        path=path,
-                        func_name=func.name,
-                        terminator_lineno=stmt.lineno,
-                        dead_lineno=dead.lineno,
-                        terminator_type=type(stmt).__name__,
-                    )
-                )
-                break  # report only the first dead statement per function body
+        for body, is_root_body in _function_statement_blocks(func):
+            terminators = _TERMINATORS if is_root_body else (ast.Return, ast.Raise)
+            violations.extend(_scan_statement_block(body, path, func.name, terminators))
     return violations
+
+
+def _function_statement_blocks(
+    func: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> Iterator[tuple[list[ast.stmt], bool]]:
+    """Yield every executable statement block owned by ``func``."""
+    stack = [(func.body, True)]
+    while stack:
+        body, is_root_body = stack.pop()
+        yield body, is_root_body
+        for statement in body:
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue
+            stack.extend((block, False) for block in _child_statement_blocks(statement))
+
+
+def _child_statement_blocks(statement: ast.stmt) -> list[list[ast.stmt]]:
+    blocks: list[list[ast.stmt]] = []
+    for attr in _BLOCK_ATTRS:
+        value = getattr(statement, attr, None)
+        if isinstance(value, list) and all(isinstance(item, ast.stmt) for item in value):
+            blocks.append(value)
+    if isinstance(statement, ast.Try):
+        blocks.extend(handler.body for handler in statement.handlers)
+    return blocks
+
+
+def _scan_statement_block(
+    body: list[ast.stmt],
+    path: Path,
+    func_name: str,
+    terminators: tuple[type[ast.stmt], ...],
+) -> list[Violation]:
+    for index, stmt in enumerate(body[:-1]):
+        if isinstance(stmt, terminators):
+            dead = body[index + 1]
+            return [
+                Violation(
+                    path=path,
+                    func_name=func_name,
+                    terminator_lineno=stmt.lineno,
+                    dead_lineno=dead.lineno,
+                    terminator_type=type(stmt).__name__,
+                )
+            ]
+    return []
 
 
 def scan_file(path: Path) -> list[Violation]:

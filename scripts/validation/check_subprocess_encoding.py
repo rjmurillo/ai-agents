@@ -53,8 +53,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-_UTF8_ALIASES: frozenset[str] = frozenset({"utf-8", "utf8", "utf_8", "UTF-8", "UTF8", "UTF_8"})
-
 # subprocess entry points that accept keyword arguments
 _TEXT_CAPTURING_CALLS: frozenset[str] = frozenset({"run", "Popen", "check_call"})
 
@@ -94,7 +92,10 @@ def _is_true_literal(node: ast.expr | None) -> bool:
 def _is_utf8_literal(node: ast.expr | None) -> bool:
     if node is None:
         return False
-    return isinstance(node, ast.Constant) and node.value in _UTF8_ALIASES
+    if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+        return False
+    normalized = node.value.replace("_", "-").lower()
+    return normalized in {"utf-8", "utf8"}
 
 
 def _subprocess_call_name(node: ast.Call) -> str | None:
