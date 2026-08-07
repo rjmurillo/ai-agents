@@ -1,0 +1,138 @@
+{
+  "id": "episode-2026-08-07-session-10004",
+  "session": "2026-08-07-session-10004",
+  "timestamp": "2026-08-07T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issues 4087 4210 4607",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created dedicated worktree and verified branch.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced issue 4087 full-corpus discriminator behavior.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added agent-skill discriminator candidate baseline ratchet.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced issue 4210 import failure and fixed module invocation.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triage issue 4607 as operator-owned and documented the required BOT_PAT identity.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran negative controls for issues 4087 and 4210.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted regression tests and lint.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed 4087, 4210, and 4607 repository-side changes.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran required pre-push validation commands.",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-07T02:00:05+00:00",
+      "type": "commit",
+      "content": "Commit: 2760b2d73",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10004"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
