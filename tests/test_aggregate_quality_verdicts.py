@@ -267,6 +267,59 @@ class TestMain:
         # Real WARN outranks UNKNOWN per merge_verdicts severity order.
         assert outputs["final_verdict"] == "WARN"
 
+    def test_infra_flagged_unrecognized_token_not_masked_by_warn(
+        self, tmp_path, monkeypatch
+    ):
+        # Copilot review comment 3738192125 on PR #4760: merge_verdicts()
+        # checks WARN before it checks DID_NOT_RUN/UNKNOWN/unrecognized
+        # tokens (scripts/ai_review_common/verdict.py priority list, steps 2
+        # and 3), so a real WARN from one agent used to silently mask a raw
+        # or unrecognized token (e.g. FOOBAR) from a different, infra-flagged
+        # agent. security is an expected infra sentinel (DID_NOT_RUN);
+        # analyst's FOOBAR is not a recognized infra-failure token even
+        # though it is infra-flagged, so the aggregate must stay UNKNOWN
+        # rather than read as a normal, non-blocking WARN.
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["analyst"] = "FOOBAR"
+        verdicts["qa"] = "WARN"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+        infra["analyst"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "UNKNOWN", (
+            "A real WARN must not mask an infra-flagged agent's raw or "
+            "unrecognized verdict token; the gate must stay blocking."
+        )
+
+    def test_warn_stays_warn_with_only_known_infra_verdicts(
+        self, tmp_path, monkeypatch
+    ):
+        # Companion guard for
+        # test_infra_flagged_unrecognized_token_not_masked_by_warn: a real
+        # WARN combined with ONLY recognized infra-failure tokens
+        # (DID_NOT_RUN, here) must still resolve to WARN. The new masking
+        # guard must not fire just because an infra-flagged agent exists; it
+        # must fire only when that agent's verdict is outside the recognized
+        # infra-failure vocabulary (DOWNGRADEABLE_INFRA_VERDICTS).
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["qa"] = "WARN"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "WARN"
+
 
 class TestSecurityReviewRan:
     """A security-axis infrastructure failure must be visibly distinct from a

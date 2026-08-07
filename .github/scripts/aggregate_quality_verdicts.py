@@ -58,6 +58,50 @@ def is_blocking_unknown_verdict(verdict: str) -> bool:
     return merge_verdicts([verdict]) == "UNKNOWN" and verdict != "DID_NOT_RUN"
 
 
+def has_infra_masked_unknown_verdict(
+    verdicts: dict[str, str],
+    infra_flags: dict[str, bool],
+) -> bool:
+    """Return True when an infra-flagged agent's verdict is blocking-unknown
+    but is not one of the recognized infra-failure tokens.
+
+    merge_verdicts() ranks a real WARN above UNKNOWN: WARN/PARTIAL is checked
+    before the DID_NOT_RUN/UNKNOWN/unrecognized-token branch (see
+    scripts/ai_review_common/verdict.py merge_verdicts priority list, steps 2
+    and 3). That means a genuine WARN from one agent can silently mask a raw
+    or unrecognized token (e.g. FOOBAR) or a literal UNKNOWN from a
+    *different*, infra-flagged agent: the merged result reads as a normal,
+    non-blocking WARN even though an infra-flagged axis never produced a
+    trustworthy verdict.
+
+    should_downgrade_infra_only_failures() already refuses to downgrade in
+    this situation (it returns False whenever an infra-flagged agent's
+    verdict is outside DOWNGRADEABLE_INFRA_VERDICTS and is blocking-unknown),
+    but refusing to downgrade only stops WARN from being *introduced* by the
+    downgrade step; it does nothing when merge_verdicts() already produced
+    WARN on its own from a real WARN elsewhere. This helper names that exact
+    condition so the caller can force the aggregate back to UNKNOWN instead
+    of leaving the masked WARN in place.
+
+    Deliberately excludes DID_NOT_RUN and any token in FAIL_VERDICTS: those
+    are the expected, recognized infra-failure vocabulary
+    (DOWNGRADEABLE_INFRA_VERDICTS) and are handled by the existing downgrade
+    path, not by this guard.
+
+    Does not need the private _KNOWN_VERDICT_TOKENS set from
+    scripts.ai_review_common.verdict: is_blocking_unknown_verdict() already
+    treats a literal "UNKNOWN" token and an unrecognized raw token
+    identically (both normalize to "UNKNOWN" via merge_verdicts), which is
+    exactly the behavior this guard needs.
+    """
+    return any(
+        infra_flags[agent]
+        and verdicts[agent] not in DOWNGRADEABLE_INFRA_VERDICTS
+        and is_blocking_unknown_verdict(verdicts[agent])
+        for agent in _AGENTS
+    )
+
+
 def should_downgrade_infra_only_failures(
     verdicts: dict[str, str],
     infra_flags: dict[str, bool],
@@ -131,6 +175,18 @@ def main(argv: list[str] | None = None) -> int:
     if not code_quality_failures and should_downgrade_infra_only_failures(verdicts, infra_flags):
         write_log("All failures are explicit infra verdicts - downgrading to WARN")
         final = "WARN"
+    elif final == "WARN" and has_infra_masked_unknown_verdict(verdicts, infra_flags):
+        # A real WARN from one agent outranks UNKNOWN in merge_verdicts()'s
+        # own precedence, which can mask an infra-flagged agent's raw or
+        # unrecognized token (or a literal UNKNOWN) that should have kept the
+        # gate blocking. should_downgrade_infra_only_failures() already
+        # refused to downgrade for this reason; restore the blocking verdict
+        # instead of leaving the masked WARN in place.
+        write_log(
+            "Infra-flagged blocking-unknown verdict masked by WARN - "
+            "restoring UNKNOWN"
+        )
+        final = "UNKNOWN"
 
     # Issue #2821 option c: the WARN downgrade is owner policy, but a security
     # review that never ran must not be indistinguishable from one that
