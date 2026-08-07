@@ -4,6 +4,7 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 from scripts.ci import main_pytest_failure_alert as alert
@@ -33,6 +34,24 @@ def test_no_failed_needs_does_not_call_gh(monkeypatch):
 
     assert rc == 0
     assert calls == []
+
+
+@pytest.mark.parametrize("result", ["failure", "cancelled", "timed_out"])
+def test_failing_need_states_trigger_issue(monkeypatch, result):
+    calls = []
+
+    def fake_gh(args):
+        calls.append(args)
+        if args[:2] == ["api", "search/issues"]:
+            return _completed(stdout=json.dumps({"items": []}))
+        return _completed(stdout=json.dumps({"number": 77}))
+
+    monkeypatch.setattr(alert, "_run_gh", fake_gh)
+
+    rc = alert.run(_env({"test": {"result": result}}))
+
+    assert rc == 0
+    assert calls[1][:4] == ["api", "repos/o/r/issues", "-X", "POST"]
 
 
 def test_failed_need_creates_issue(monkeypatch):
@@ -86,6 +105,30 @@ def test_main_gh_failure_exits_external(monkeypatch):
     rc = alert.main()
 
     assert rc == 3
+
+
+def test_run_gh_returns_completed_process_on_timeout(monkeypatch):
+    def fake_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=args[0], timeout=kwargs["timeout"])
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = alert._run_gh(["api", "search/issues"])
+
+    assert result.returncode == 1
+    assert "timed out" in result.stderr.lower()
+
+
+def test_run_gh_returns_completed_process_when_gh_missing(monkeypatch):
+    def fake_run(*args, **kwargs):
+        raise FileNotFoundError("gh not found")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = alert._run_gh(["api", "search/issues"])
+
+    assert result.returncode == 1
+    assert "gh not found" in result.stderr
 
 
 def test_pytest_workflow_wires_main_failure_alert():

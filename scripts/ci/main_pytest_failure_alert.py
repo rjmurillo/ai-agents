@@ -19,21 +19,24 @@ def _failed_needs(needs_json: str) -> list[str]:
         raise ValueError("NEEDS_JSON must be an object")
     failed = []
     for name, data in needs.items():
-        if isinstance(data, dict) and data.get("result") == "failure":
+        if isinstance(data, dict) and data.get("result") in ("failure", "cancelled", "timed_out"):
             failed.append(str(name))
     return failed
 
 
 def _run_gh(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["gh", *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
+    try:
+        return subprocess.run(
+            ["gh", *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return subprocess.CompletedProcess(["gh", *args], 1, "", str(exc))
 
 
 def _find_existing_issue(repository: str) -> int | None:
