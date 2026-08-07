@@ -1052,6 +1052,15 @@ def _staged_files_changed(cwd: str | Path | None = None) -> int:
 _FULL_SHA_RE = re.compile(r"\A[0-9a-fA-F]{7,40}\Z")
 
 
+def _authoritative_files_changed(data: dict[str, Any]) -> int | None:
+    """Return the session-recorded episode file count when present."""
+    episode_metrics = _as_dict(data.get("episodeMetrics"))
+    files_changed = episode_metrics.get("filesChanged")
+    if isinstance(files_changed, bool) or not isinstance(files_changed, int):
+        return None
+    return files_changed if files_changed >= 0 else None
+
+
 def _range_files_changed(start: str, end: str, cwd: str | Path | None = None) -> int:
     """Count files changed between two commits (best-effort).
 
@@ -2477,9 +2486,11 @@ def main(argv: list[str] | None = None) -> int:
     session_id = get_session_id_from_path(session_log_path)
     print(f"Extracting episode from: {session_log_path}", file=sys.stderr)
 
+    authoritative_files_changed: int | None = None
     json_data = looks_like_json_session(content)
     if json_data is not None:
         print("  Parsing JSON session log...", file=sys.stderr)
+        authoritative_files_changed = _authoritative_files_changed(json_data)
         bundle = extract_from_json(json_data, session_id=session_id)
         timestamp = bundle["timestamp"]
         task = bundle["task"]
@@ -2522,7 +2533,9 @@ def main(argv: list[str] | None = None) -> int:
     # episode file is already in the staged diff (e.g., via `git add -A`)
     # to avoid double-counting.
     staged = _staged_files_changed(session_log_path.parent)
-    if staged:
+    if authoritative_files_changed is not None:
+        metrics["files_changed"] = authoritative_files_changed
+    elif staged:
         if args.pending_stage:
             episode_path = output_path / f"episode-{session_id}.json"
             repo_root = _repo_root()
@@ -2597,6 +2610,8 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             prior_edges = _total_causal_edges(existing_raw.get("events"))
             episode = merge_preserving(episode, existing_raw, session_id=session_id)
+            if authoritative_files_changed is not None:
+                episode["metrics"]["files_changed"] = authoritative_files_changed
             decisions = episode["decisions"]
             events = episode["events"]
             lessons = episode["lessons"]
