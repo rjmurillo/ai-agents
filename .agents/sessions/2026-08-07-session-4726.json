@@ -132,6 +132,15 @@
         ".agents/governance/GOTCHAS.md"
       ],
       "outcome": "Architect returned accept with one wording change; critic returned revise on two grounds. Both are now addressed. The critic argued the rule would not fire for an agent who believed the tools already matched, which is a fair reading of the original wording, so the rule now requires the equivalence to be demonstrably identical rather than merely matching: belief cannot satisfy a demonstration. The critic also caught that no CI-side fix was evaluated, which was a real gap, and checking it changed the advice: semgrep ci run while logged in executes the rules configured on Semgrep App, so SEMGREP_APP_TOKEN=<token> semgrep ci is an exact reproduction and the check is locally reproducible after all. The GOTCHAS entry claimed the opposite and has been corrected. Always-on growth is now 472 bytes."
+    },
+    {
+      "timestamp": "2026-08-07T11:30:00Z",
+      "action": "Corrected the semgrep advice in GOTCHAS after checking semgrep ci",
+      "files": [
+        ".agents/governance/GOTCHAS.md",
+        ".claude/rules/universal.md"
+      ],
+      "outcome": "The entry told readers to treat a local pass as a necessary condition, which contradicts the same section's point that a clean local result says nothing about the remote check, and it claimed the check cannot be reproduced locally. Both were wrong. semgrep ci --help states that when logged in it runs the rules configured on Semgrep App, so SEMGREP_APP_TOKEN=<token> semgrep ci is an exact reproduction. Also separates the taint findings, which were real defects fixed in code, from the python36 compatibility findings in 4725, which are false positives; the single citation had made the second appear to support a conclusion drawn from the first."
     }
   ],
   "endingCommit": "e0e6291ac",

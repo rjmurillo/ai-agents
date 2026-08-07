@@ -863,8 +863,23 @@ itself:
 semgrep --config=p/security-audit --config=p/python <files>
 ```
 
-Treat a local pass as a necessary condition, never a sufficient one. To learn
-what actually fired, read the finding: the bot posts each one as a pull request
+A pass from any `--config=` invocation is neither necessary nor sufficient. It
+is a different check, so it cannot clear the remote one and its absence does
+not condemn it.
+
+There is an exact reproduction, and it is worth knowing before you guess at
+rule packs. `semgrep ci`, when logged in, runs the rules configured on Semgrep
+App rather than a pack you name:
+
+```bash
+SEMGREP_APP_TOKEN=<token> semgrep ci
+```
+
+That is the same rule set the CI check uses, so it is the only local command
+whose clean result means anything about the red one. Without a token it cannot
+work, and no `--config` value substitutes for it.
+
+To learn what actually fired without a token, read the finding: the bot posts each one as a pull request
 review comment naming the rule id, the file, and the line. `gh api
 repos/OWNER/REPO/pulls/N/comments` returns them. The check run itself carries
 no annotations and no output text, so the API path that looks most direct is
@@ -880,4 +895,10 @@ rejects any suppression comment in staged changes, which is a stronger stance
 than the "last resort" language elsewhere in the rules. Fix the code or record
 in the diff why the finding is not reachable.
 
-Refs #4725.
+Two different incidents live in this space and the conclusions do not transfer.
+The taint and `compile()` findings above were real defects and were fixed in
+code. Separately, the `python.lang.compatibility.python36.*` rules fire on this
+repository and are false positives, because they assert a Python 3.6 floor
+against `requires-python = ">=3.14"`; that one is tracked in #4725. Do not read
+"the findings were real" as covering the compatibility rules, or #4725 as
+licence to dismiss a taint finding.
