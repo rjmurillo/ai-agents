@@ -138,6 +138,26 @@
       "time": "2026-08-07T07:05:00+00:00",
       "task": "Correct two claims found while writing the retrospective",
       "outcome": "Issue #4382 is closed rather than open, and the _branch test helper was typed str while get_current_branch returns str or None; mypy caught the second"
+    },
+    {
+      "time": "2026-08-07T08:10:00+00:00",
+      "task": "Second adversarial review on GPT-5.6 Sol returned INCORRECT with 8 findings",
+      "outcome": "Four reproduced and were fixed; four are real but pre-existing or need server-side enforcement, and are documented on the PR rather than changed"
+    },
+    {
+      "time": "2026-08-07T08:40:00+00:00",
+      "task": "Test the subset invariant against a real git graph instead of reasoning about it",
+      "outcome": "Disproved. main with 52 files, parent changes all 52, child reverts one: the child changes 1 file against its parent and that file is absent from the 51-file main-relative set. Containment rejected the honest stacked PR the feature exists to unblock"
+    },
+    {
+      "time": "2026-08-07T09:15:00+00:00",
+      "task": "Design and verify a replacement invariant",
+      "outcome": "Strict fork-point ancestry. Rejected 'main is an ancestor of the base' after measuring that one commit on main invalidates an open stack. Verified the replacement accepts the real stack and rejects both an unrelated sibling and main itself"
+    },
+    {
+      "time": "2026-08-07T09:50:00+00:00",
+      "task": "Add real-git tests and run six mutation controls",
+      "outcome": "146 pass. The first draft of the real-git file did not chdir, so is_ancestor ran in the wrong repository and all three reject cases passed vacuously; a positive control now guards that. Mutation 4 (drop baseRefName validation) survived the suite and exposed a missing wiring test, now added"
     }
   ],
   "episodeMetrics": {
@@ -148,10 +168,10 @@
       "head": "9c0771fe788903c0d5171a62c158c4fd15b20789"
     }
   },
-  "endingCommit": "9c0771fe788903c0d5171a62c158c4fd15b20789",
+  "endingCommit": "9d86b3dc1ec85d2222b2387f6a0b75748e7b7bfd",
   "nextSteps": [
-    "Push fix/scope-gate-stacked-base and open its PR against main",
-    "Run a second adversarial review on the hardened and split version",
-    "Exercise the gate against a real stacked PR end to end, since every test is mocked"
+    "Await the third adversarial review (Gemini) on the replacement invariant",
+    "Update the PR #4738 body: the subset paragraph is now wrong",
+    "Capture the vacuous-pass control as a testing rule in its own change"
   ]
 }

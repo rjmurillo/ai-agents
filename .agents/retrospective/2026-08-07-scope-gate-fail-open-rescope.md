@@ -80,8 +80,10 @@ the helper does what its author assumed.
 | Query only open PRs, accept the answer only when exactly one matches | Done | `scripts/scope_pr_base.py`, `resolve_pr_base_branch` |
 | Refuse a rescope whose result is empty or `None` | Done | `scripts/scope_pr_base.py`, `is_credible_rescope` |
 | Skip rescoping entirely while `MERGE_HEAD` exists | Done | `scripts/detect_scope_explosion.py`, `rescope_against_pr_base` |
-| Add a subset invariant as defense in depth | Done | A rescope naming a file the first pass never saw is refused |
-| Cover each path with a test plus a mutation control | Done | 94 tests; four mutation controls, each failing its targeted test |
+| Add a subset invariant as defense in depth | Reverted, it was false | Disproved on a constructed repository; replaced with a fork-point ancestry test in `is_credible_rescope` |
+| Validate `baseRefName` before it reaches a ref | Done | `scripts/scope_pr_base.py`, `_is_plain_branch_name`; rejects a non-string, `HEAD`, `..`, and option-shaped names |
+| Resolve the PR against the branch that was measured, not a fresh read | Done | `rescope_against_pr_base` uses `blocked.current_branch` |
+| Cover each path with a test plus a mutation control | Done | 146 tests; six mutation controls, each failing its targeted test |
 | No upstream head fallback for detached or unpushed branches | Open by choice | `checks_common.py` has one (issue #4382, closed 2026-08-04); not reused here because it would widen a lookup that can only remove a block |
 
 ## Learnings
@@ -99,6 +101,23 @@ the helper does what its author assumed.
    Three of four reproduced exactly.
 4. **When a fix can only ever remove a guard, every uncertain case must keep
    the guard.** State that as an invariant in the code, not as a habit.
+5. **A claim about a graph cannot be tested with a mock.** The subset invariant
+   was reasoned, not measured: a stacked surface "must" be contained in the
+   main-relative surface because the stack base is downstream of main. It is
+   false. A child that reverts a file its parent changed differs from its parent
+   on exactly that file and agrees with main about it, so the file is absent
+   from the main-relative set. Containment therefore rejected the honest
+   one-file stacked PR that this whole path exists to unblock. The claim
+   survived one adversarial review and 88 passing tests, because every one of
+   those tests supplied the file sets from the same belief that produced the
+   rule. A ten-line real repository refuted it in seconds. Build the graph.
+6. **A test that fails and a test that cannot run look identical from the
+   assertion.** The first draft of the real-git tests did not `chdir`, so the
+   production `is_ancestor` ran `git merge-base` in the wrong repository, exited
+   128, and returned False for every input. All three reject cases passed
+   vacuously while the accept cases failed. Any suite whose subject returns a
+   single value on both "no" and "cannot tell" needs an explicit positive
+   control asserting the subject can see its inputs at all.
 
 ## References
 

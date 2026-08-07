@@ -70,7 +70,9 @@
         "e004",
         "e008"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e013"
+      ],
       "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
     },
     {
@@ -111,14 +113,77 @@
         "e005"
       ],
       "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-07T08:10:00+00:00",
+      "type": "milestone",
+      "content": "Second adversarial review on GPT-5.6 Sol returned INCORRECT with 8 findings",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-07T08:40:00+00:00",
+      "type": "milestone",
+      "content": "Test the subset invariant against a real git graph instead of reasoning about it",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-07T09:15:00+00:00",
+      "type": "milestone",
+      "content": "Design and verify a replacement invariant",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-07T09:50:00+00:00",
+      "type": "milestone",
+      "content": "Add real-git tests and run six mutation controls",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-07T07:58:56+00:00",
+      "type": "commit",
+      "content": "Commit: 9d86b3dc1ec85d2222b2387f6a0b75748e7b7bfd",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
     }
   ],
   "metrics": {
-    "duration_minutes": 61,
+    "duration_minutes": 226,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 4
   },
   "lessons": []
