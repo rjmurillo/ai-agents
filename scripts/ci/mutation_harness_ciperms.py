@@ -9,8 +9,9 @@ Tests four outcome classes per mutation:
                  zero tests selected); the mutant is unmeasured, not killed
 
 Exit codes:
-  0 - every mutant DEAD
-  1 - any SURVIVED, DID-NOT-APPLY, or NOT-RUN
+  0 - every mutant matched its expected outcome (DEAD by default;
+      cosmetic controls expect SURVIVED)
+  1 - any mutant produced an unexpected outcome
   2 - a mutated file could not be restored (the tree is left dirty; recover
       with ``git checkout -- <file>`` before rerunning)
 
@@ -226,6 +227,11 @@ def _classify(proc: subprocess.CompletedProcess[str]) -> tuple[str, str]:
     selection (exit 5) as a kill, which is the one failure a mutation harness
     must not have: it reports strength it never measured.
     """
+    # A non-pytest process (e.g. pycache purge failure) should not be
+    # reported as a pytest exit code.
+    if proc.args and proc.args[0] == "purge":
+        detail = (proc.stderr or proc.stdout or "").strip()
+        return NOT_RUN, f"pycache purge failed: {detail}"
     output = f"{proc.stdout}\n{proc.stderr}".lower()
     if "no tests ran" in output or "collected 0 items" in output:
         detail = (proc.stderr or proc.stdout or "").strip().splitlines()
