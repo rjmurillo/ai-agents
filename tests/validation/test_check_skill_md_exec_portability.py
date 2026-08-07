@@ -14,6 +14,7 @@ import unittest.mock
 from pathlib import Path
 
 import pytest
+import yaml
 
 _VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 _ORIGINAL_SYS_PATH = sys.path.copy()
@@ -22,7 +23,6 @@ try:
     import check_skill_md_exec_portability as cep
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
-
 
 
 def _seed_git_tree(root: Path) -> None:
@@ -422,19 +422,19 @@ class TestDanglingSkillScripts:
         assert cep.scan_dangling_skill_relative_scripts(tmp_path) == []
 
 
-class TestWorkflowPathFilter:
-    def test_workflow_triggers_on_reference_docs_and_script_readmes(self) -> None:
+class TestWorkflowWiring:
+    def test_workflow_runs_exec_validator_unconditionally(self) -> None:
         root = Path(__file__).resolve().parents[2]
         workflow = root / ".github" / "workflows" / "validate-vendor-portability.yml"
-        text = workflow.read_text(encoding="utf-8")
+        parsed = yaml.safe_load(workflow.read_text(encoding="utf-8"))
+        job = parsed["jobs"]["validate-portability"]
 
-        for pattern in (
-            "'.claude/skills/**/references/**/*.md'",
-            "'.claude/skills/**/scripts/README-*.md'",
-            "'src/copilot-cli/skills/**/references/**/*.md'",
-            "'src/copilot-cli/skills/**/scripts/README-*.md'",
-        ):
-            assert pattern in text
+        assert "if" not in job
+        command = "uv run --frozen python scripts/validation/check_skill_md_exec_portability.py"
+        steps = [step for step in job["steps"] if step.get("run", "").strip() == command]
+        assert len(steps) == 1
+        assert "if" not in steps[0]
+        assert "continue-on-error" not in steps[0]
 
 
 class TestScriptsExecDetection:
