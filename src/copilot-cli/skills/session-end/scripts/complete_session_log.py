@@ -19,6 +19,7 @@ import re
 import subprocess
 import sys
 import warnings
+from collections.abc import Iterable
 from pathlib import Path
 from types import ModuleType
 
@@ -50,7 +51,7 @@ _LIB_DIR = _resolve_paths_lib_dir()
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-from paths import resolve_artifact_root  # noqa: E402
+from paths import artifact_dir, resolve_artifact_root  # noqa: E402
 
 # Sibling-module loader for rework_warning (REQ-010).
 # Loaded lazily inside main() to keep import-time failures from breaking
@@ -71,6 +72,30 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Show what would change without writing to the file.",
+    )
+    parser.add_argument(
+        "--refresh-ending-commit",
+        action="store_true",
+        help=(
+            "Replace a non-empty endingCommit with the current HEAD. "
+            "Use after the final work commit."
+        ),
+    )
+    parser.add_argument(
+        "--markdown-files",
+        nargs="+",
+        default=None,
+        metavar="FILE",
+        help=(
+            "Lint these Markdown files instead of discovering staged and "
+            "unstaged files."
+        ),
+    )
+    parser.add_argument(
+        "--qa-report",
+        default="",
+        metavar="FILE",
+        help="Record a completed report under the configured QA artifact root.",
     )
     return parser
 
@@ -175,7 +200,7 @@ def _find_current_session_log(sessions_dir: str) -> str | None:
 
 def _get_ending_commit() -> str | None:
     result = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"],
+        ["git", "rev-parse", "HEAD"],
         capture_output=True,
         text=True,
         timeout=10,
@@ -184,6 +209,45 @@ def _get_ending_commit() -> str | None:
     if result.returncode != 0:
         return None
     return result.stdout.strip()
+
+
+def _set_ending_commit(
+    session: dict[str, object],
+    ending_commit: str | None,
+    *,
+    refresh: bool,
+) -> str | None:
+    """Set or explicitly refresh endingCommit, returning a change summary."""
+    if not ending_commit:
+        return None
+
+    short_commit = ending_commit[:10]
+    existing_commit = session.get("endingCommit")
+    if existing_commit and not refresh:
+        return None
+
+    ending_commit_changed = existing_commit != short_commit
+    if ending_commit_changed:
+        session["endingCommit"] = short_commit
+
+    comparison_changed = False
+    episode_metrics = session.get("episodeMetrics")
+    if refresh and isinstance(episode_metrics, dict):
+        comparison = episode_metrics.get("comparison")
+        if (
+            isinstance(comparison, dict)
+            and comparison.get("kind") == "gitCommitRange"
+            and comparison.get("head") != ending_commit
+        ):
+            comparison["head"] = ending_commit
+            comparison_changed = True
+
+    if ending_commit_changed:
+        action = "Refreshed" if existing_commit else "Set"
+        return f"{action} endingCommit: {short_commit}"
+    if comparison_changed:
+        return f"Refreshed episode comparison head: {ending_commit}"
+    return None
 
 
 def _test_handoff_modified() -> bool:
@@ -238,8 +302,8 @@ def _test_serena_memory_updated(starting_commit: str | None = None) -> bool:
     return False
 
 
-def _run_markdown_lint() -> tuple[bool, str]:
-    """Run markdownlint on changed markdown files. Returns (success, message)."""
+def _changed_markdown_files() -> set[str]:
+    """Return staged and unstaged Markdown paths."""
     staged = subprocess.run(
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
         capture_output=True,
@@ -255,46 +319,120 @@ def _run_markdown_lint() -> tuple[bool, str]:
         check=False,
     )
 
-    md_files = set()
+    markdown_files: set[str] = set()
     for output in [staged.stdout, unstaged.stdout]:
         for line in output.splitlines():
             if line.strip().endswith(".md"):
-                md_files.add(line.strip())
+                markdown_files.add(line.strip())
+    return markdown_files
 
-    if not md_files:
-        return True, "No markdown files changed"
 
-    all_success = True
-    errors = []
-    for f in md_files:
-        result = subprocess.run(
-            ["npx", "markdownlint-cli2", "--fix", "--", f],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
+def _markdown_lint_selection(
+    output: str,
+    target_count: int,
+    *,
+    used_pre_pr: bool,
+) -> int | None:
+    """Return the measured selected-file count from lint output."""
+    selection_match = re.search(
+        r"Markdown linting (?:checked|selected) "
+        r"(\d+) of \d+ target\(s\)",
+        output,
+    )
+    if selection_match:
+        return int(selection_match.group(1))
+    if "could not read the 'Linting: N files' banner" in output:
+        return None
+
+    raw_match = re.search(r"Linting:\s+(\d+)\s+file", output)
+    if raw_match:
+        return int(raw_match.group(1))
+    if used_pre_pr:
+        return target_count
+    return None
+
+
+def _run_markdown_lint(
+    markdown_files: list[str] | None = None,
+) -> tuple[bool, str]:
+    """Run measured markdownlint. Returns (success, evidence)."""
+    selected_files = (
+        _changed_markdown_files()
+        if markdown_files is None
+        else markdown_files
+    )
+    targets = sorted(set(selected_files))
+    if not targets:
+        if markdown_files is not None:
+            return False, "NOT LINTED: explicit markdown scope is empty"
+        return True, "NOT LINTED: no changed markdown files"
+
+    repo_root = Path(_get_repo_root())
+    pre_pr = repo_root / "scripts" / "validation" / "pre_pr.py"
+    used_pre_pr = pre_pr.is_file()
+    if used_pre_pr:
+        command = [
+            sys.executable,
+            str(pre_pr),
+            "--markdown-lint-only",
+            "--",
+            *targets,
+        ]
+        source = "pre_pr.py --markdown-lint-only"
+    else:
+        command = [
+            "npx",
+            "markdownlint-cli2",
+            "--fix",
+            "--",
+            *targets,
+        ]
+        source = "markdownlint-cli2"
+
+    result = subprocess.run(
+        command,
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    output = "\n".join(
+        part.strip()
+        for part in (result.stdout, result.stderr)
+        if part.strip()
+    )
+    if result.returncode != 0:
+        return False, output or f"{source} failed"
+
+    selected = _markdown_lint_selection(
+        output,
+        len(targets),
+        used_pre_pr=used_pre_pr,
+    )
+    if selected is None:
+        return False, f"{source}: selected file count unknown"
+    if selected == 0:
+        return markdown_files is None, (
+            f"NOT LINTED: {source} selected 0 of {len(targets)} files"
         )
-        if result.returncode != 0:
-            all_success = False
-            errors.append(result.stdout.strip() or result.stderr.strip())
-
-    if all_success:
-        return True, f"{len(md_files)} files linted"
-    return False, "\n".join(errors)
+    return True, f"{source}: {selected} of {len(targets)} files linted"
 
 
-def _test_uncommitted_changes(exclude_path: str | None = None) -> bool:
-    """Return True when uncommitted changes exist, excluding ``exclude_path``.
+def _test_uncommitted_changes(
+    exclude_path: str | None = None,
+    *,
+    exclude_paths: Iterable[str] = (),
+) -> bool:
+    """Return True when uncommitted changes exist outside owned evidence.
 
-    ``exclude_path`` should be the repo-relative path of the session log being
-    completed. The log is itself staged or modified while this check runs, so
-    it would always appear in ``git status`` output and make ``changesCommitted``
-    impossible to satisfy without a workaround (issue #4425). Excluding it
-    means ``changesCommitted`` reflects whether all *other* work is committed,
-    which is what the field is trying to express.
+    Excluded paths are repository-relative session artifacts owned by this
+    command. They appear in ``git status`` while the evidence commit is being
+    assembled, so counting them would make ``changesCommitted`` impossible to
+    satisfy (issue #4425).
     """
     result = subprocess.run(
-        ["git", "status", "--porcelain"],
+        ["git", "status", "--porcelain", "--untracked-files=all"],
         capture_output=True,
         text=True,
         timeout=10,
@@ -302,11 +440,16 @@ def _test_uncommitted_changes(exclude_path: str | None = None) -> bool:
     )
     if result.returncode != 0:
         return True
-    lines = result.stdout.splitlines()
+    excluded = {Path(path).as_posix() for path in exclude_paths}
     if exclude_path:
-        # porcelain v1 format: "XY path" or "XY old -> new"; match the path
-        # portion at the end of each line after the two-character status prefix.
-        lines = [ln for ln in lines if not ln[3:].rstrip().endswith(exclude_path)]
+        excluded.add(Path(exclude_path).as_posix())
+    lines = []
+    for line in result.stdout.splitlines():
+        path = line[3:].rstrip()
+        if " -> " in path:
+            path = path.rsplit(" -> ", maxsplit=1)[1]
+        if path not in excluded:
+            lines.append(line)
     return bool(lines)
 
 
@@ -320,6 +463,64 @@ def _validate_path_containment(session_path: str, sessions_dir: str) -> str | No
         return resolved
     except (OSError, ValueError):
         return None
+
+
+def _qa_report_evidence(repo_root: Path, report_path: str) -> str:
+    """Return a validated QA report evidence path."""
+    candidate = Path(report_path)
+    if not candidate.is_absolute():
+        candidate = repo_root / candidate
+
+    resolved_root = repo_root.resolve()
+    resolved_report = candidate.resolve()
+    qa_root = artifact_dir("qa", base=resolved_root).resolve()
+    try:
+        resolved_report.relative_to(qa_root)
+    except ValueError as exc:
+        raise ValueError(
+            "QA report must be under the configured QA artifact root"
+        ) from exc
+    if not resolved_report.is_file():
+        raise ValueError(f"QA report not found: {resolved_report}")
+    try:
+        return resolved_report.relative_to(resolved_root).as_posix()
+    except ValueError:
+        return str(resolved_report)
+
+
+def _must_items_complete(session_end: dict[str, object]) -> bool:
+    """Return whether every required session-end item is complete."""
+    handoff_key = (
+        "handoffPreserved"
+        if "handoffPreserved" in session_end
+        else "handoffNotUpdated"
+        if "handoffNotUpdated" in session_end
+        else None
+    )
+    if handoff_key is None:
+        return False
+
+    required_items = [
+        handoff_key,
+        "serenaMemoryUpdated",
+        "markdownLintRun",
+        "qaValidation",
+        "changesCommitted",
+        "validationPassed",
+    ]
+    for item in required_items:
+        check = session_end.get(item)
+        if not isinstance(check, dict):
+            return False
+        level = check.get("level", "")
+        complete = check.get("Complete", False)
+        if item == handoff_key and level == "MUST NOT":
+            if complete:
+                return False
+            continue
+        if level != "MUST" or not complete:
+            return False
+    return True
 
 
 # Rework warning (REQ-012-07, REQ-012-08, REQ-012-09 / M4) is extracted
@@ -480,9 +681,19 @@ def main(argv: list[str] | None = None) -> int:
 
     # 1. Ending commit
     ending_commit = _get_ending_commit()
-    if ending_commit and not session.get("endingCommit"):
-        session["endingCommit"] = ending_commit
-        changes.append(f"Set endingCommit: {ending_commit}")
+    if not ending_commit:
+        print(
+            "[FAIL] Could not resolve current HEAD for endingCommit.",
+            file=sys.stderr,
+        )
+        return 1
+    ending_commit_change = _set_ending_commit(
+        session,
+        ending_commit,
+        refresh=args.refresh_ending_commit,
+    )
+    if ending_commit_change:
+        changes.append(ending_commit_change)
 
     # 2. handoffPreserved (MUST) - replaces legacy handoffNotUpdated (issue #868)
     handoff_modified = _test_handoff_modified()
@@ -531,12 +742,26 @@ def main(argv: list[str] | None = None) -> int:
 
     # 4. markdownLintRun
     print("Running markdown lint...", file=sys.stderr)
-    lint_success, lint_output = _run_markdown_lint()
+    lint_success, lint_output = _run_markdown_lint(args.markdown_files)
     if "markdownLintRun" in session_end:
         check = session_end["markdownLintRun"]
         check["Complete"] = lint_success
         check["Evidence"] = lint_output
         changes.append(f"Markdown lint: {lint_output}")
+
+    qa_evidence = ""
+    if args.qa_report:
+        try:
+            qa_evidence = _qa_report_evidence(Path(repo_root), args.qa_report)
+        except ValueError as exc:
+            print(f"[FAIL] {exc}", file=sys.stderr)
+            return 1
+        session_end["qaValidation"] = {
+            "level": "MUST",
+            "Complete": True,
+            "Evidence": qa_evidence,
+        }
+        changes.append(f"QA validation: {qa_evidence}")
 
     # 4b. Rework warning (REQ-012-07, REQ-012-08). Emitted as informational
     # stdout lines after lint; never blocks completion.
@@ -566,35 +791,22 @@ def main(argv: list[str] | None = None) -> int:
         session_rel = os.path.relpath(session_path, repo_root)
     except ValueError:
         session_rel = None
-    has_uncommitted = _test_uncommitted_changes(exclude_path=session_rel)
+    owned_evidence = [path for path in (session_rel, qa_evidence) if path]
+    has_uncommitted = _test_uncommitted_changes(
+        exclude_paths=owned_evidence
+    )
     if "changesCommitted" in session_end:
         check = session_end["changesCommitted"]
         if not has_uncommitted:
+            ending_commit_label = str(session.get("endingCommit", ending_commit))
             check["Complete"] = True
-            check["Evidence"] = f"All changes committed (HEAD: {ending_commit})"
+            check["Evidence"] = f"All changes committed (HEAD: {ending_commit_label})"
             changes.append("All changes committed")
         else:
             changes.append("[TODO] Uncommitted changes exist - commit before completing")
 
     # 6. checklistComplete - evaluate after all others
-    must_items = [
-        "handoffPreserved",
-        "handoffNotUpdated",
-        "serenaMemoryUpdated",
-        "markdownLintRun",
-        "changesCommitted",
-        "validationPassed",
-    ]
-    all_must_complete = True
-    for item in must_items:
-        if item in session_end:
-            check = session_end[item]
-            level = check.get("level", "")
-            complete = check.get("Complete", False)
-            if level == "MUST" and not complete:
-                all_must_complete = False
-            if level == "MUST NOT" and complete:
-                all_must_complete = False
+    all_must_complete = _must_items_complete(session_end)
 
     if "checklistComplete" in session_end:
         check = session_end["checklistComplete"]
@@ -644,6 +856,7 @@ def main(argv: list[str] | None = None) -> int:
                 else "validate_session_json.py failed"
             )
 
+            all_must_complete = _must_items_complete(session_end)
             if validation_exit_code == 0 and all_must_complete:
                 session_end["checklistComplete"]["Complete"] = True
                 session_end["checklistComplete"]["Evidence"] = (
@@ -659,6 +872,11 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     else:
         print(f"WARNING: Validation script not found: {validate_script}", file=sys.stderr)
+
+    if not all_must_complete:
+        print("", file=sys.stderr)
+        print("[FAIL] Required session-end evidence is incomplete.", file=sys.stderr)
+        return 1
 
     # Rework warning (REQ-010-01..04) is emitted earlier via
     # `_run_rework_warning_step()` at the lint/changes step; do not

@@ -100,6 +100,32 @@ class TestGetEndingCommit:
         assert complete_session_log._get_ending_commit() is None
 
 
+class TestSetEndingCommit:
+    """Tests for ending commit and episode boundary alignment."""
+
+    def test_refresh_aligns_short_commit_and_full_comparison_head(self):
+        full_commit = "a" * 40
+        session = {
+            "endingCommit": "old1234",
+            "episodeMetrics": {
+                "comparison": {
+                    "kind": "gitCommitRange",
+                    "base": "b" * 40,
+                    "head": "c" * 40,
+                }
+            },
+        }
+
+        complete_session_log._set_ending_commit(
+            session,
+            full_commit,
+            refresh=True,
+        )
+
+        assert session["endingCommit"] == "a" * 10
+        assert session["episodeMetrics"]["comparison"]["head"] == full_commit
+
+
 class TestHandoffModified:
     """Tests for _test_handoff_modified function."""
 
@@ -229,12 +255,12 @@ class TestPathContainment:
 class TestRunMarkdownLint:
     """Tests for _run_markdown_lint function."""
 
-    @patch("complete_session_log.subprocess.run")
-    def test_no_markdown_files(self, mock_run):
-        mock_run.return_value = MagicMock(returncode=0, stdout="src/app.py\n")
+    @patch.object(complete_session_log, "_changed_markdown_files", return_value=set())
+    def test_no_markdown_files(self, _mock_changed_files):
         success, output = complete_session_log._run_markdown_lint()
+
         assert success is True
-        assert "No markdown" in output
+        assert output == "NOT LINTED: no changed markdown files"
 
 
 class TestMainReworkWarningShape:
@@ -261,14 +287,19 @@ class TestMainReworkWarningShape:
                         "Evidence": "",
                     },
                     "serenaMemoryUpdated": {
-                        "level": "SHOULD",
+                        "level": "MUST",
                         "Complete": False,
                         "Evidence": "",
                     },
                     "markdownLintRun": {
-                        "level": "SHOULD",
+                        "level": "MUST",
                         "Complete": False,
                         "Evidence": "",
+                    },
+                    "qaValidation": {
+                        "level": "MUST",
+                        "Complete": True,
+                        "Evidence": "SKIPPED: investigation-only",
                     },
                     "reworkWarning": {
                         "level": "SHOULD",
@@ -323,6 +354,9 @@ class TestMainReworkWarningShape:
         sessions_dir.mkdir(parents=True)
         session_file = sessions_dir / "2026-07-30-session-99-test.json"
         self._make_session_json(session_file)
+        validate_script = tmp_path / "scripts" / "validate_session_json.py"
+        validate_script.parent.mkdir(parents=True)
+        validate_script.write_text("", encoding="utf-8")
 
         mock_root.return_value = str(tmp_path)
         mock_uncommitted.return_value = False
@@ -346,7 +380,7 @@ class TestMainReworkWarningShape:
         assert isinstance(evidence, str), f"Evidence must be a string, got {type(evidence)}"
         assert "rework-warning: none" in evidence
 
-    def _run_main_with_rework(self, tmp_path, rework_return):
+    def _run_main_with_rework(self, tmp_path, rework_return, extra_args=None):
         """Helper: run main() with a controlled rework step return value."""
         import json
 
@@ -366,9 +400,29 @@ class TestMainReworkWarningShape:
             patch("complete_session_log.subprocess.run", return_value=MagicMock(returncode=0)),
             patch("complete_session_log.resolve_artifact_root", return_value=sessions_dir),
         ):
-            complete_session_log.main(["--session-path", str(session_file)])
+            complete_session_log.main(
+                ["--session-path", str(session_file), *(extra_args or [])]
+            )
 
         return json.loads(session_file.read_text())
+
+    def test_main_records_validated_qa_report(self, tmp_path):
+        report = tmp_path / ".agents" / "qa" / "report.md"
+        report.parent.mkdir(parents=True)
+        report.write_text("# QA\n", encoding="utf-8")
+
+        result = self._run_main_with_rework(
+            tmp_path,
+            ("Rework warning: none", ["rework-warning: none"]),
+            ["--qa-report", str(report)],
+        )
+
+        qa = result["protocolCompliance"]["sessionEnd"]["qaValidation"]
+        assert qa == {
+            "level": "MUST",
+            "Complete": True,
+            "Evidence": ".agents/qa/report.md",
+        }
 
     def test_rework_complete_true_when_step_runs(self, tmp_path):
         """Complete=True when rework step ran without skipping (post-#4001)."""
