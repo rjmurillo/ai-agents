@@ -40,7 +40,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
-import pre_pr_sequence  # noqa: E402
+import pre_pr_sequence
 
 EXPECTED_ORDER: tuple[str, ...] = (
     'Python Syntax (compile gate)',
@@ -48,7 +48,9 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Nested Test Detection',
     'Duplicate Test Helper Detection',
     'Unreachable Code Detection',
+    'Subprocess Encoding Convention',
     'Test Working Tree Writes',
+    'Push Lock Path Agreement',
     'Session End Validation',
     'Pester Unit Tests',
     'Markdown Linting',

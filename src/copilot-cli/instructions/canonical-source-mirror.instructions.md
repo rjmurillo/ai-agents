@@ -10,7 +10,7 @@ This rule binds those claims to evidence. It exists because PR #1887 (the M4 evi
 
 ## What this rule binds
 
-This rule binds any new component under `.claude/hooks/`, `.claude/rules/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, or `.github/prompts/` whose contract is derived from another source in the repository. The two Copilot-side mirrors scope differently by consumer. `.github/instructions/canonical-source-mirror.instructions.md`, read by Copilot in full-repo context, keeps the full path set (`.claude/hooks/**`, `.claude/rules/**`, `scripts/validation/**`, `build/scripts/**`, `.claude/skills/**`, `.github/prompts/**`). Its `src/copilot-cli/` twin ships inside the plugin, so it narrows to the paths that travel with the plugin (`scripts/validation/**`, `build/scripts/**`, `.github/prompts/**`). The rule still binds the `.claude/` paths on the Claude side. Examples:
+This rule binds any new component under `.claude/hooks/`, `.claude/rules/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, `.github/prompts/`, `.agents/governance/`, or `.agents/retrospective/` whose contract is derived from another source in the repository. The two Copilot-side mirrors scope differently by consumer. `.github/instructions/canonical-source-mirror.instructions.md`, read by Copilot in full-repo context, keeps the full path set (`.claude/hooks/**`, `.claude/rules/**`, `scripts/validation/**`, `build/scripts/**`, `.claude/skills/**`, `.github/prompts/**`, `.agents/governance/**`, `.agents/retrospective/**`). Its `src/copilot-cli/` twin ships inside the plugin, so it narrows to the paths that travel with the plugin (`scripts/validation/**`, `build/scripts/**`, `.github/prompts/**`). The rule still binds the `.claude/` paths on the Claude side. Examples:
 
 - A pre-push hook that "mirrors" a CI validator's regex.
 - A skill helper that "matches" the exit codes of a validator script.
@@ -70,6 +70,91 @@ PR #3775 shipped rule text in `.claude/rules/testing.md` claiming `.pytest_tmp` 
 The function's own docstring stated the real behavior accurately. Reading it would have cost seconds. That is the asymmetry this section exists for: verification is cheap at write time, and a false behavioral claim in a rule file is expensive for as long as it stands, because every reader who trusts it inherits the error and some of them build on it.
 
 This section binds any assertion about another component's behavior, whatever words carry it. The trigger is not a phrase like "mirrors"; the trigger is that you told the reader what some other code does.
+
+## True when you wrote it is not true at merge
+
+The rules above assume the thing you cite exists. In a repository worked through several worktrees at once, that assumption is the one most likely to be false, and it fails in a way no reviewer notices, because the citation was accurate on the machine where it was written.
+
+You write documentation on branch A naming a test, a constant, or a function that you added on branch B. Your shell finds it. Every reader of branch A does not. If A merges first it ships a pointer to nothing.
+
+Nothing in this repository catches that. Two gates look like they would and neither does:
+
+- `orphan-ref-validator` reports four kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-34` enumerates all of them:
+
+  ```python
+  Kind = Literal[
+      "skill_name",
+      "script_path",
+      "rule_path",
+      "instruction_path",
+      "scan_truncated",
+  ]
+  ```
+
+  Every pattern in `patterns.py` matches a file path or a skill name. A test function name and a module constant are neither, so they are invisible to it.
+
+- markdownlint never sees governance prose at all. `.markdownlint-cli2.yaml:131` lists `- ".agents/**"` under `ignores:`, so a PASS on any `.agents/` path means the file was not linted.
+
+To every gate in the repository, a citation to a symbol is ordinary prose. The only check is the one you run.
+
+Before you merge a document that names a test, a symbol, or a count, run `git grep -nF -- "<name>"` **in the worktree of the branch that will merge**, not the one you did the work in. If it returns nothing, either move the documentation to the branch that owns the code or move the code.
+
+The same applies to numbers. A count is a measurement of a commit, not a permanent fact. Re-run it against the tree you are shipping.
+
+On 2026-08-03 both halves of this fired in one change. `TESTING-ANTI-PATTERNS.md` on `test/vacuous-assertion-anti-pattern` cited a test name and a `DID_NOT_RUN` constant that existed only on `fix/gate-aggregator-did-not-run`; `git grep` returned zero hits for both on the branch carrying the prose. Two review rounds on that branch had not reported it. The passing count in the same paragraph was stale for the same reason: it was measured when the file held 41 tests and the file had since grown to 42.
+
+## The one place the mirror outranks the source: always-on membership
+
+Everything above says the canonical source is authoritative and a generated mirror is not. For one question that is backwards, and the inversion is easy to miss because it contradicts the rest of this file.
+
+The question is whether a rule loads on every agent turn. A rule is always-on when its **generated** `applyTo` resolves to `**`, so the answer lives in the generated tree. It is also not a single answer: the two destination trees disagree, measured at `0c75045d6`.
+
+| Tree | Consumer | Always-on |
+|---|---|---|
+| `.github/instructions` | Copilot working in this repository | 8 rules, 72,291 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 11 rules, 79,823 bytes |
+
+`governance`, `secret-redaction`, and `session-logs` are narrowly scoped rules here and always-on in the plugin. A vendor install carries 7,532 bytes on every turn that this repository never measures, and those three rules point at `.agents/` paths that do not exist in the installing repository.
+
+That the generator inverts scope this way is a tracked defect, issue #4317: the narrower the source scope, the more likely the plugin consumer loads the rule on every file. This section describes the behaviour as it stands; do not read it as an endorsement. If #4317 closes, re-measure before quoting any number here.
+
+`build/scripts/generate_rules.py` reaches `applyTo: "**"` from four different source situations. Only the first is visible in the source file:
+
+1. **The source declares it.** `paths: ["**"]` or `applyTo: '**'`, renamed verbatim per the generator's contract at `build/scripts/generate_rules.py:24`.
+2. **The source declares `alwaysApply: true` and no path scope.** Line 25 drops `alwaysApply:`, leaving no scope, so situation 3 applies. `_has_path_scope` at line 209 reads only the path-scope keys, so `alwaysApply` never counts as a scope.
+3. **The source declares no scope at all.** Situations 2 and 3 share one branch, `build/scripts/generate_rules.py:338-341`:
+
+   ```python
+   if not had_scope and "applyTo" not in result:
+       # Universal-scope default for unscoped rules. Insert at the top
+       # of the output frontmatter for consistent placement.
+       result = {"applyTo": _UNIVERSAL_SCOPE, **result}
+   ```
+
+4. **The source declares a scope whose globs are all filtered as internal-only.** `build/scripts/generate_rules.py:335-337` falls back to `**` rather than shipping an empty scope:
+
+   ```python
+   applyto_value = result.get("applyTo")
+   if had_scope and isinstance(applyto_value, str) and not applyto_value.strip():
+       result["applyTo"] = _UNIVERSAL_SCOPE
+   ```
+
+   This one is **destination-dependent**, and it is the whole reason the two trees disagree. `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions` under `keepInternalGlobsFor`, which disables the filter for that tree, so situation 4 cannot fire there. It fires only for `src/copilot-cli/instructions`.
+
+Situations 3 and 4 leave no source line to grep for. Situation 4 also inverts intent: narrowing a rule to `.claude/**` reads like a reduction in scope and silently widens it to every turn in the shipped plugin. The generator prints `WARNING: dropped internal-only glob from applyTo` to stderr when it fires, and nobody reads stderr during a build.
+
+So a measurement taken from `.claude/rules/` is not conservative, it is wrong in both directions. And a measurement taken from one generated tree does not answer for the other. Name the tree with the number.
+
+## Read frontmatter with a YAML parser, never a line regex
+
+A scope key can be an inline string or a block list. `.claude/rules/knowledge-persistence.md` uses the block form:
+
+```yaml
+paths:
+  - "**"
+```
+
+A pattern like `^applyTo:\s*(.+)$` returns nothing for that file and reports the rule as unscoped, which is the opposite of the truth: the rule is universally scoped. Use `yaml.safe_load` on the frontmatter block. This is not hypothetical; it produced a wrong always-on count during the audit that added this section, and the count looked plausible enough to act on.
 
 ## Reference: the M4 episode
 

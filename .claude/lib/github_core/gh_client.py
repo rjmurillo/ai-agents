@@ -7,6 +7,8 @@ import logging
 import subprocess
 from typing import Any
 
+from .api import is_gh_authenticated
+
 logger = logging.getLogger(__name__)
 
 _TIMEOUT = 30
@@ -25,7 +27,7 @@ def _run(args: list[str], *, stdin: str | None = None) -> subprocess.CompletedPr
     back to GitHub is worse than a visible failure.
     """
 
-    return subprocess.run(
+    return subprocess.run(  # subprocess-encoding: strict-ok
         args,
         input=stdin,
         capture_output=True,
@@ -107,13 +109,12 @@ class GhCliClient:
         return data
 
     def is_authenticated(self) -> bool:
-        """Return True if ``gh auth status`` exits 0."""
-        try:
-            result = _run(["gh", "auth", "status"])
-            return result.returncode == 0
-        except FileNotFoundError:
-            logger.debug("GitHub CLI (gh) not found on PATH")
-            return False
-        except subprocess.TimeoutExpired:
-            logger.debug("gh auth status timed out")
-            return False
+        """Return True if the token authenticates on any supported transport.
+
+        Delegates to :func:`scripts.github_core.api.is_gh_authenticated` rather
+        than reading ``gh auth status``'s exit code. That exit code is nonzero
+        for a 5xx, a transport failure, and a quota refusal as well as for a bad
+        token, so collapsing it to a bool reports a GitHub outage as an auth
+        failure (issue #3139). One classifier, one answer.
+        """
+        return is_gh_authenticated()

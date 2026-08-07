@@ -28,7 +28,7 @@ def _get_config_int(env_var: str, default: int) -> int:
     return default
 
 
-def invoke_with_retry(  # noqa: UP047
+def invoke_with_retry(
     func: Callable[[], T],
     max_retries: int | None = None,
     initial_delay: int | None = None,
@@ -36,11 +36,26 @@ def invoke_with_retry(  # noqa: UP047
     """Execute *func* with exponential backoff on failure.
 
     Raises the last exception after all retries are exhausted.
+
+    Raises `ValueError` when the resolved `max_retries` is not an integer or is
+    below 1. The loop never runs for a non-positive value, and its fallthrough
+    then reports `All 0 attempts failed. Last error: None`, which reads as an
+    exhausted retry sequence for a call that was never made. `MAX_RETRIES=0`
+    in the environment reaches this, so it is a live misconfiguration
+    (issue #4121).
     """
     if max_retries is None:
         max_retries = _get_config_int("MAX_RETRIES", _DEFAULT_MAX_RETRIES)
     if initial_delay is None:
         initial_delay = _get_config_int("RETRY_DELAY", _DEFAULT_RETRY_DELAY)
+    if type(max_retries) is not int or max_retries < 1:
+        raise ValueError(
+            f"max_retries must be an integer >= 1, got {max_retries!r}"
+        )
+    if type(initial_delay) is not int or initial_delay < 0:
+        raise ValueError(
+            f"initial_delay must be a nonnegative integer, got {initial_delay!r}"
+        )
 
     delay = initial_delay
     last_error: Exception | None = None

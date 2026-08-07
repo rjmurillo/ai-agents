@@ -68,6 +68,44 @@ _DASH_RE = re.compile("[\u2013\u2014]")
 # import path resolution the _DASH_RE comment documents rejecting.
 _SKILL_SCAN_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 
+
+def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
+    """Return the git ref to use for local validation diffs.
+
+    The ``--base`` value (e.g. ``main``) names a branch on GitHub. In a linked
+    worktree the local ref of that name is never advanced after the worktree is
+    created, so ``git diff main...HEAD`` diffs against a merge-base that may be
+    hundreds of commits stale and includes unrelated files (issues #4461, #4489).
+
+    Resolution priority:
+    1. ``explicit`` -- when the caller passes ``--validation-base``, trust it.
+    2. ``origin/{pr_base}`` -- when the remote-tracking ref exists, use it.
+       This ref is kept current by normal ``git fetch`` without checking out
+       ``{pr_base}`` locally, so it is always correct in a worktree.
+    3. ``pr_base`` fallback -- non-remote repos or unusual layouts where no
+       ``origin/`` remote exists.
+
+    The returned ref is used ONLY for ``git diff``; ``gh pr create --base``
+    always receives the bare ``pr_base`` name, which is what GitHub expects.
+    """
+    if explicit:
+        return explicit
+
+    remote_ref = f"origin/{pr_base}"
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", remote_ref],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        env=_git_env(),
+    )
+    if result.returncode == 0:
+        return remote_ref
+    return pr_base
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -517,6 +555,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--body", default="", help="PR description body")
     parser.add_argument("--body-file", default="", help="Path to file containing PR body")
     parser.add_argument("--base", default="main", help="Target branch (default: main)")
+    parser.add_argument(
+        "--validation-base",
+        default="",
+        dest="validation_base",
+        help=(
+            "Git ref for local validation diffs (default: auto-resolved to "
+            "origin/<base> when that ref exists, else <base>). Use this to "
+            "override the automatic resolution. Does not affect the GitHub "
+            "PR base branch."
+        ),
+    )
     parser.add_argument("--head", default="", help="Source branch (default: current branch)")
     parser.add_argument("--draft", action="store_true", help="Create as draft PR")
     parser.add_argument("--skip-validation", action="store_true", help="Skip validation checks")
@@ -582,10 +631,18 @@ def main(argv: list[str] | None = None) -> int:
         write_audit_log(repo_root, head, args.base, args.title, args.audit_reason)
         print()
     else:
+        validation_base = _resolve_validation_base(args.base, args.validation_base)
+        if validation_base != args.base:
+            print(
+                f"  Note: validating diff against {validation_base!r} "
+                f"(local {args.base!r} may be stale in a worktree). "
+                f"GitHub PR base remains {args.base!r}.",
+                file=sys.stderr,
+            )
         try:
             run_validations(
                 repo_root,
-                args.base,
+                validation_base,
                 head,
                 title=args.title,
                 body=args.body,

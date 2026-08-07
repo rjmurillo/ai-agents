@@ -35,7 +35,7 @@ def _body(n_lines: int, content: str = "- item") -> str:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_ci_env(monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolate_ci_env() -> None:
     """Stop the ambient environment from choosing the assertion.
 
     ``main`` defaults ``--ci`` to the ``CI`` environment variable, so a call
@@ -43,8 +43,10 @@ def _isolate_ci_env(monkeypatch: pytest.MonkeyPatch) -> None:
     is unset and the lenient branch runs; on GitHub Actions ``CI=true`` and
     the blocking branch runs instead. Clearing the variable makes every test
     in this module assert the branch it names.
+
+    CI isolation is provided by the ``_clear_ci_env`` autouse fixture in
+    ``tests/conftest.py``, which covers all files in this directory.
     """
-    monkeypatch.delenv("CI", raising=False)
 
 
 class TestHasSizeException:
@@ -176,7 +178,7 @@ class TestMain:
         assert result == 1
 
     def test_over_limit_no_ci_exits_0(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, tmp_path: Path
     ) -> None:
         """Advisory mode is the absence of CI, so the test has to remove it.
 
@@ -187,7 +189,6 @@ class TestMain:
         runner: one commit, two answers, and a report naming a pytest temp file
         no contributor could match to a change.
         """
-        monkeypatch.delenv("CI", raising=False)
         f = tmp_path / "big.md"
         f.write_text(_GOOD_FRONTMATTER + _body(COMMAND_SIZE_LIMIT + 50))
         result = main(["--path", str(tmp_path)])

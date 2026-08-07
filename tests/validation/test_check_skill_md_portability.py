@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, this suite covers one validator end to end.
 """Tests for the Markdown vendor-portability ratchet (issue #2050).
 
 scripts/validation/check_skill_md_portability.py is the Markdown counterpart to
@@ -27,7 +28,7 @@ import pytest
 _VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 sys.path.insert(0, str(_VALIDATION))
 
-import check_skill_md_portability as cmp  # noqa: E402
+import check_skill_md_portability as cmp
 
 
 def _seed_git_tree(root: Path) -> None:
@@ -716,6 +717,22 @@ class TestPluginRootScan:
         with pytest.raises(OSError, match="Broken .md symlink"):
             cmp.scan_marker_suppressions(tmp_path)
 
+    def test_marker_scan_contract_names_extra_scan_dirs(self) -> None:
+        """The public wrapper docstring must match its scan surface."""
+        assert "extra scan dirs" in (cmp.scan_marker_suppressions.__doc__ or "")
+
+    def test_marker_scan_includes_extra_scan_dirs(self, tmp_path: Path) -> None:
+        """Markers in command docs feed the same exact-count marker baseline."""
+        self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
+        command = tmp_path / ".claude" / "commands" / "ship.md"
+        command.parent.mkdir(parents=True)
+        command.write_text(
+            "<!-- vendor-portability: declared -->\nWrites .agents/state.\n",
+            encoding="utf-8",
+        )
+
+        assert cmp.scan_marker_suppressions(tmp_path) == {".claude/commands/ship.md": 1}
+
     def test_same_named_skills_in_two_roots_do_not_collide(self, tmp_path: Path) -> None:
         """Keys are repository relative because both roots hold ``skills/spec``.
 
@@ -1135,10 +1152,10 @@ class TestUnexpectedScanException:
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
 
-        def _exploding_scan(skills_dir: Path) -> None:
+        def _exploding_scan(root: Path) -> None:
             raise RuntimeError("simulated markdown-it internal error")
 
-        monkeypatch.setattr(cmp, "scan_skill_markdown", _exploding_scan)
+        monkeypatch.setattr(cmp, "scan_all", _exploding_scan)
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 2
 
@@ -1152,10 +1169,10 @@ class TestUnexpectedScanException:
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
 
-        def _exploding_scan(skills_dir: Path) -> None:
+        def _exploding_scan(root: Path) -> None:
             raise TypeError("bad token type")
 
-        monkeypatch.setattr(cmp, "scan_skill_markdown", _exploding_scan)
+        monkeypatch.setattr(cmp, "scan_all", _exploding_scan)
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 2
         err = capsys.readouterr().err
@@ -1463,6 +1480,33 @@ class TestBaselineSemanticConflictGuard:
         assert rc == 0
         assert "Semantic baseline conflict" not in capsys.readouterr().out
 
+    def test_stale_marker_declaration_baseline_still_fails(
+        self, tmp_path: Path
+    ) -> None:
+        """A stale baseline that does not match the current scan still fails."""
+        self._init_repo(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "<!-- vendor-portability: declares .agents/state -->\nUses .agents/state.\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {}, "marker_files": {}}),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "HEAD",
+            ]
+        )
+
+        assert rc == 1
+
     def test_undeclared_refs_added_alongside_baseline_still_fail(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -1490,10 +1534,6 @@ class TestBaselineSemanticConflictGuard:
         )
 
         assert rc == 1
-        out = capsys.readouterr().out
-        assert "Semantic baseline conflict" in out
-        assert "baseline.json" in out
-        assert ".claude/skills/a/SKILL.md" in out
 
     def test_baseline_only_change_does_not_trigger_semantic_conflict(
         self, tmp_path: Path
@@ -1507,6 +1547,42 @@ class TestBaselineSemanticConflictGuard:
                     "files": {},
                     "marker_files": {},
                 }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                "HEAD",
+            ]
+        )
+
+        assert rc == 0
+
+    def test_baseline_matches_scan_suppresses_conflict(
+        self, tmp_path: Path
+    ) -> None:
+        """Baseline regenerated after merge exits 0 when it matches current scan.
+
+        This is the fix for issue #4300: when a skill file and the baseline both
+        changed from base-ref BUT the baseline on disk already reflects the
+        current scan, the guard should not fire. The regeneration happened
+        correctly post-merge.
+        """
+        self._init_repo(tmp_path)
+        (tmp_path / ".claude" / "skills" / "a" / "SKILL.md").write_text(
+            "<!-- vendor-portability: declares .agents/state -->\nUses .agents/state.\n",
+            encoding="utf-8",
+        )
+        # Baseline correctly reflects the current scan (1 marker for a/SKILL.md).
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {}, "marker_files": {".claude/skills/a/SKILL.md": 1}}
             ),
             encoding="utf-8",
         )

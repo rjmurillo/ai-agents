@@ -24,6 +24,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from shlex import quote
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -77,8 +78,13 @@ def _run_tests(test_filter: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         cwd=REPO_ROOT,
     )
+
+
+def _recovery_checkout_hint(target: Path) -> str:
+    return f"git checkout -- {quote(str(target))}"
 
 
 def apply_mutation(mutation: Mutation) -> Result:
@@ -116,13 +122,35 @@ def apply_mutation(mutation: Mutation) -> Result:
         proc = _run_tests(mutation.test_filter)
         outcome, note = _classify(proc)
     finally:
-        # Always restore.
-        target.write_bytes(backup)
+        # Always restore. Wrap the write so an OSError exits 2 (tree dirty,
+        # emergency) rather than propagating as an uncaught exception that
+        # exits 1 (indistinguishable from a surviving mutant).
+        try:
+            target.write_bytes(backup)
+        except OSError as exc:
+            print(
+                f"ERROR: could not restore {target.name}: {exc}\n"
+                f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
+                file=sys.stderr,
+            )
+            raise SystemExit(2) from exc
 
-    # Verify restore.
-    restored = target.read_bytes()
+    # Verify restore: write_bytes returned but bytes differ (external race).
+    try:
+        restored = target.read_bytes()
+    except OSError as exc:
+        print(
+            f"ERROR: could not verify restore of {target.name}: {exc}\n"
+            f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
+            file=sys.stderr,
+        )
+        raise SystemExit(2) from exc
     if restored != backup:
-        print(f"ERROR: restore of {target.name} failed!", file=sys.stderr)
+        print(
+            f"ERROR: restore of {target.name} failed (bytes differ after write)!\n"
+            f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     return Result(mutation, outcome, note)
@@ -234,12 +262,12 @@ def build_mutations() -> list[Mutation]:
             target_file=pr_val_workflow,
             old_bytes=(
                 b"      - name: Run ADR-006 run-block ratchet\n"
-                b"        run: python3 scripts/ci/adr006_run_block_scanner.py --max 58\n"
+                b"        run: python3 scripts/ci/adr006_run_block_scanner.py --max 0\n"
             ),
             new_bytes=(
                 b"      - name: Run ADR-006 run-block ratchet\n"
                 b"        if: steps.should-run.outputs.skip != 'true'\n"
-                b"        run: python3 scripts/ci/adr006_run_block_scanner.py --max 58\n"
+                b"        run: python3 scripts/ci/adr006_run_block_scanner.py --max 0\n"
             ),
             test_filter=f"{guard_class}::test_adr006_ratchet_is_unconditional",
         ),

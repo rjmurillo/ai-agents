@@ -518,3 +518,131 @@ class TestMain:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["FailingChecks"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests: merge ref unusable + failing checks (issue #3911)
+# ---------------------------------------------------------------------------
+
+
+class TestMergeRefUnusableWithFailingChecks:
+    """When merge ref is unusable, continue to fetch logs for failing checks (issue #3911)."""
+
+    def _failing_check_payload(self, details_url: str = "https://circleci.com/build/999") -> str:
+        return json.dumps({
+            "Success": True,
+            "Data": {
+                "Number": 3771,
+                "MergeRefUsable": False,
+                "MergeStateWarning": (
+                    "PR merge ref cannot be built because GitHub reports merge conflicts"
+                ),
+                "Checks": [
+                    {
+                        "Name": "Validate PR",
+                        "Conclusion": "FAILURE",
+                        "IsFailing": True,
+                        "DetailsUrl": details_url,
+                        "Status": "COMPLETED",
+                    },
+                ],
+            },
+        })
+
+    def test_pipeline_unusable_ref_with_no_failing_checks_exits_1(self, capsys):
+        """No failing checks + unusable merge ref -> exit 1 (incomplete check set)."""
+        checks_json = json.dumps({
+            "Success": True,
+            "Data": {
+                "Number": 42,
+                "MergeRefUsable": False,
+                "MergeStateWarning": "merge ref is conflicting",
+                "Checks": [
+                    {"Name": "build", "Conclusion": "SUCCESS", "DetailsUrl": ""},
+                ],
+            },
+        })
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        # Still exits 1: merge ref unusable AND no failing checks visible
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+
+    def test_pipeline_unusable_ref_with_external_failing_check_exits_zero(self, capsys):
+        """Failing check with non-Actions URL + unusable merge ref -> fetch attempted, exit 0."""
+        checks_json = self._failing_check_payload("https://circleci.com/build/999")
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        # Exit 0: we emitted a warning and processed the failing check list
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is True
+        assert output["Data"]["FailingChecks"] == 1
+
+    def test_pipeline_unusable_ref_with_failing_check_without_details_exits_1(self, capsys):
+        """Failing check without DetailsUrl + unusable merge ref -> no logs available."""
+        checks_json = self._failing_check_payload("")
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+
+    def test_pipeline_unusable_ref_emits_warning_to_stderr(self, capsys):
+        """Warning message appears on stderr when merge ref is unusable."""
+        checks_json = self._failing_check_payload()
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            main(["--checks-input", checks_json])
+        _, err = capsys.readouterr()
+        assert "[WARNING]" in err
+
+    def test_standalone_unusable_ref_with_no_failing_checks_exits_1(self, capsys):
+        """Standalone mode: unusable ref + no failing checks -> exit 1."""
+        checks_json = json.dumps({
+            "Success": True,
+            "Data": {
+                "Number": 42,
+                "MergeRefUsable": False,
+                "MergeStateWarning": "merge ref is conflicting",
+                "Checks": [
+                    {"Name": "build", "Conclusion": "SUCCESS", "DetailsUrl": ""},
+                ],
+            },
+        })
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_check_logs.subprocess.run",
+            return_value=_completed(stdout=checks_json, rc=0),
+        ):
+            rc = main(["--pull-request", "42"])
+        assert rc == 1
+
+    def test_standalone_unusable_ref_with_failing_check_continues(self, capsys):
+        """Standalone mode: unusable ref + failing check -> continue, emit warning."""
+        checks_json = self._failing_check_payload()
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_check_logs.subprocess.run",
+            return_value=_completed(stdout=checks_json, rc=0),
+        ):
+            rc = main(["--pull-request", "3771"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["FailingChecks"] == 1

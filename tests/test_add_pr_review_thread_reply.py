@@ -14,8 +14,7 @@ import pytest
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -32,6 +31,13 @@ def _import_script(name: str):
 _mod = _import_script("add_pr_review_thread_reply")
 main = _mod.main
 build_parser = _mod.build_parser
+query_thread_state = _mod.query_thread_state
+
+_UNRESOLVED_STATE: dict = {"id": "PRRT_abc", "isResolved": False}
+_AUTO_MERGE_GUARD_NOOP: dict = {
+    "action": "NOOP",
+    "reason": "auto_merge_not_armed",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -46,14 +52,26 @@ class TestBuildParser:
 
     def test_body_and_body_file_mutually_exclusive(self):
         with pytest.raises(SystemExit):
-            build_parser().parse_args([
-                "--thread-id", "PRRT_abc", "--body", "text", "--body-file", "f.md",
-            ])
+            build_parser().parse_args(
+                [
+                    "--thread-id",
+                    "PRRT_abc",
+                    "--body",
+                    "text",
+                    "--body-file",
+                    "f.md",
+                ]
+            )
 
     def test_valid_args(self):
-        args = build_parser().parse_args([
-            "--thread-id", "PRRT_abc", "--body", "Fixed.",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--thread-id",
+                "PRRT_abc",
+                "--body",
+                "Fixed.",
+            ]
+        )
         assert args.thread_id == "PRRT_abc"
         assert args.body == "Fixed."
 
@@ -98,15 +116,23 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "add_pr_review_thread_reply.assert_gh_authenticated",
-        ), patch(
-            "add_pr_review_thread_reply.gh_graphql",
-            return_value=reply_data,
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                return_value=reply_data,
+            ),
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed."])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
+        assert output["action"] == "ACT"
         assert output["success"] is True
         assert output["comment_id"] == 456
         assert output["thread_resolved"] is False
@@ -128,34 +154,158 @@ class TestMain:
                 "thread": {"id": "PRRT_abc", "isResolved": True},
             },
         }
-        with patch(
-            "add_pr_review_thread_reply.assert_gh_authenticated",
-        ), patch(
-            "add_pr_review_thread_reply.gh_graphql",
-            side_effect=[reply_data, resolve_data],
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
+            patch(
+                "add_pr_review_thread_reply.guard_auto_merge_before_final_thread_resolution",
+                return_value=_AUTO_MERGE_GUARD_NOOP,
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                side_effect=[reply_data, resolve_data],
+            ),
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["thread_resolved"] is True
+        assert output["auto_merge_guard"] == _AUTO_MERGE_GUARD_NOOP
 
-    def test_thread_not_found_exits_2(self):
-        with patch(
-            "add_pr_review_thread_reply.assert_gh_authenticated",
-        ), patch(
-            "add_pr_review_thread_reply.gh_graphql",
-            side_effect=RuntimeError("Could not resolve to a node"),
+    def test_reply_resolve_guards_auto_merge_before_resolving(self, capsys):
+        reply_data = {
+            "addPullRequestReviewThreadReply": {
+                "comment": {
+                    "id": "node123",
+                    "databaseId": 456,
+                    "url": "https://example.com",
+                    "createdAt": "2025-01-01T00:00:00Z",
+                    "author": {"login": "user1"},
+                },
+            },
+        }
+        resolve_data = {
+            "resolveReviewThread": {
+                "thread": {"id": "PRRT_abc", "isResolved": True},
+            },
+        }
+        calls: list[str] = []
+
+        def fake_graphql(query: str, variables: dict):
+            if "addPullRequestReviewThreadReply" in query:
+                calls.append("reply")
+                return reply_data
+            if "resolveReviewThread" in query:
+                calls.append("resolve")
+                return resolve_data
+            raise AssertionError(query[:80])
+
+        def fake_guard(thread_id: str) -> dict:
+            calls.append("guard")
+            assert thread_id == "PRRT_abc"
+            return {"action": "DISABLED"}
+
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
+            patch(
+                "add_pr_review_thread_reply.guard_auto_merge_before_final_thread_resolution",
+                side_effect=fake_guard,
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                side_effect=fake_graphql,
+            ),
+        ):
+            rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
+
+        assert rc == 0
+        assert calls == ["reply", "guard", "resolve"]
+        output = json.loads(capsys.readouterr().out)
+        assert output["thread_resolved"] is True
+        assert output["auto_merge_guard"]["action"] == "DISABLED"
+
+    def test_guard_failure_leaves_thread_unresolved(self):
+        reply_data = {
+            "addPullRequestReviewThreadReply": {
+                "comment": {
+                    "id": "node123",
+                    "databaseId": 456,
+                    "url": "https://example.com",
+                    "createdAt": "2025-01-01T00:00:00Z",
+                    "author": {"login": "user1"},
+                },
+            },
+        }
+        calls: list[str] = []
+
+        def fake_graphql(query: str, variables: dict):
+            if "addPullRequestReviewThreadReply" in query:
+                calls.append("reply")
+                return reply_data
+            if "resolveReviewThread" in query:
+                calls.append("resolve")
+                return {}
+            raise AssertionError(query[:80])
+
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
+            patch(
+                "add_pr_review_thread_reply.guard_auto_merge_before_final_thread_resolution",
+                side_effect=RuntimeError("pagination incomplete"),
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                side_effect=fake_graphql,
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
-                main(["--thread-id", "PRRT_abc", "--body", "test"])
-            assert exc.value.code == 2
+                main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
+
+        assert exc.value.code == 3
+        assert calls == ["reply"]
+
+    def test_thread_not_found_returns_skip(self, capsys):
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=None,
+            ),
+        ):
+            rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["action"] == "SKIP"
+        assert out["reason"] == "not_found"
 
     def test_api_error_exits_3(self):
-        with patch(
-            "add_pr_review_thread_reply.assert_gh_authenticated",
-        ), patch(
-            "add_pr_review_thread_reply.gh_graphql",
-            side_effect=RuntimeError("Server error"),
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                side_effect=RuntimeError("Server error"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "PRRT_abc", "--body", "test"])
@@ -175,31 +325,182 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "add_pr_review_thread_reply.assert_gh_authenticated",
-        ), patch(
-            "add_pr_review_thread_reply.gh_graphql",
-            return_value=reply_data,
-        ), patch(
-            "github_core.validation.assert_valid_body_file",
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
+            patch(
+                "add_pr_review_thread_reply.guard_auto_merge_before_final_thread_resolution",
+                return_value=_AUTO_MERGE_GUARD_NOOP,
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                return_value=reply_data,
+            ),
+            patch(
+                "github_core.validation.assert_valid_body_file",
+            ),
         ):
-            rc = main([
-                "--thread-id", "PRRT_abc", "--body-file", str(body_file),
-            ])
+            rc = main(
+                [
+                    "--thread-id",
+                    "PRRT_abc",
+                    "--body-file",
+                    str(body_file),
+                ]
+            )
         assert rc == 0
 
     def test_body_file_not_found_exits_2(self):
         with pytest.raises(SystemExit) as exc:
-            main([
-                "--thread-id", "PRRT_abc", "--body-file", "/nonexistent/file.md",
-            ])
+            main(
+                [
+                    "--thread-id",
+                    "PRRT_abc",
+                    "--body-file",
+                    "/nonexistent/file.md",
+                ]
+            )
         assert exc.value.code == 2
 
     def test_body_file_path_traversal_exits_2(self):
         """CWE-22: Path traversal in body-file is rejected."""
         with pytest.raises(SystemExit) as exc:
-            main([
-                "--thread-id", "PRRT_abc",
-                "--body-file", "../../etc/passwd",
-            ])
+            main(
+                [
+                    "--thread-id",
+                    "PRRT_abc",
+                    "--body-file",
+                    "../../etc/passwd",
+                ]
+            )
         assert exc.value.code == 2
+
+
+# ---------------------------------------------------------------------------
+# Tests: query_thread_state
+# ---------------------------------------------------------------------------
+
+
+class TestQueryThreadState:
+    def test_returns_thread_dict_when_found(self):
+        node = {"id": "PRRT_abc", "isResolved": False}
+        with patch(
+            "add_pr_review_thread_reply.gh_graphql",
+            return_value={"node": node},
+        ):
+            result = query_thread_state("PRRT_abc")
+        assert result == node
+
+    def test_returns_none_when_not_found(self):
+        with patch(
+            "add_pr_review_thread_reply.gh_graphql",
+            return_value={"node": None},
+        ):
+            result = query_thread_state("PRRT_missing")
+        assert result is None
+
+    def test_propagates_api_error(self):
+        with patch(
+            "add_pr_review_thread_reply.gh_graphql",
+            side_effect=RuntimeError("network error"),
+        ):
+            with pytest.raises(RuntimeError, match="network error"):
+                query_thread_state("PRRT_abc")
+
+
+# ---------------------------------------------------------------------------
+# Tests: thread state pre-check in main
+# ---------------------------------------------------------------------------
+
+
+class TestThreadStatePrecheck:
+    def test_resolved_thread_returns_skip_exit_0(self, capsys):
+        resolved_state = {"id": "PRRT_abc", "isResolved": True}
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=resolved_state,
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+            ) as mock_gql,
+        ):
+            rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
+        assert rc == 0
+        mock_gql.assert_not_called()
+        out = json.loads(capsys.readouterr().out)
+        assert out["action"] == "SKIP"
+        assert out["reason"] == "thread_resolved"
+
+    def test_not_found_thread_returns_skip_exit_0(self, capsys):
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=None,
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+            ) as mock_gql,
+        ):
+            rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
+        assert rc == 0
+        mock_gql.assert_not_called()
+        out = json.loads(capsys.readouterr().out)
+        assert out["action"] == "SKIP"
+        assert out["reason"] == "not_found"
+
+    def test_unresolved_thread_proceeds_to_act(self, capsys):
+        reply_data = {
+            "addPullRequestReviewThreadReply": {
+                "comment": {
+                    "id": "n1",
+                    "databaseId": 99,
+                    "url": "https://example.com",
+                    "createdAt": "2025-01-01T00:00:00Z",
+                    "author": {"login": "bot"},
+                },
+            },
+        }
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                return_value=reply_data,
+            ),
+        ):
+            rc = main(["--thread-id", "PRRT_abc", "--body", "LGTM"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["action"] == "ACT"
+        assert out["success"] is True
+
+    def test_precheck_api_error_returns_3(self):
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                side_effect=RuntimeError("API unavailable"),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--thread-id", "PRRT_abc", "--body", "test"])
+            assert exc.value.code == 3

@@ -30,7 +30,7 @@ build on it.
 
 | Rank | Program | Anchor artifacts | Status (as of 2026-07-30) | Falsifiable milestone (short form) |
 |------|---------|------------------|---------------------------|-------------------------------------|
-| 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool exists, 12 rule scenario fixtures exist | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
+| 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool exists, 15 rule scenario fixtures exist | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
 | 2 | Cross-harness abstraction | ADR-072, ADR-068, `build/generate_agents.py`, `tests/build_scripts/test_generate_hooks_runtime_contract.py` | ADR-072 PROPOSED, ADR-068 ACCEPTED as of 2026-07-30; generators and contract tests exist and run | New harness target added with zero hand-edits to generated trees, contract suite green |
 | 3 | Self-improving loop | issue #1345 hooks, `guard-maturity` tiers, `EVENT=` telemetry | Apply-step hooks unregistered; end-to-end consumer pipeline UNVERIFIED | A correction observed once auto-proposes a guard that survives calibration |
 
@@ -280,8 +280,8 @@ Before acting on this skill's claims, or after editing it:
       down before the measurement runs.
 - [ ] Everything you plan to cite as settled is Accepted or code-on-disk; all
       PROPOSED and UNVERIFIED labels preserved in your write-up.
-- [ ] Your work routes through `ai-agents-change-control` gates (plugin bump,
-      adr-review, drift checks) rather than around them.
+- [ ] Your work routes through `ai-agents-change-control` gates (plugin
+      version-field, adr-review, drift checks) rather than around them.
 
 ## Provenance and Maintenance
 

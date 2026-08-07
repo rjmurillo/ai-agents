@@ -20,8 +20,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_DIR = REPO_ROOT / ".claude" / "skills" / "session-end" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
-import complete_session_log as csl  # noqa: E402
-import rework_warning as rw  # noqa: E402
+import complete_session_log as csl
+import rework_warning as rw
 
 
 def _stub_completed(stdout: str, returncode: int = 0) -> Any:
@@ -239,6 +239,17 @@ class EmitReworkWarningLinesTests(unittest.TestCase):
                 "rework-warning: a.py edited 8 times",
                 "rework-warning: c.py edited 6 times",
             ],
+        )
+
+    def test_output_above_cap_reports_omitted_count(self) -> None:
+        """Output stays bounded and reports how many paths were omitted."""
+        items = [(f"path/{i}.py", 10) for i in range(rw._EVIDENCE_CAP + 3)]
+        lines = rw.emit_rework_warning_lines(items)
+
+        self.assertEqual(len(lines), rw._EVIDENCE_CAP + 1)
+        self.assertEqual(
+            lines[-1],
+            f"rework-warning: ... and 3 more path(s) omitted (cap {rw._EVIDENCE_CAP})",
         )
 
 

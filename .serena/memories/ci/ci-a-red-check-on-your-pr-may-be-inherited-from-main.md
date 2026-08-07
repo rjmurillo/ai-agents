@@ -7,10 +7,6 @@ your branch merged with `main`, so a defect on `main` fails on every open PR at
 once. Attribute the failure only after checking whether `main` is red the same
 way.
 
-The same reasoning covers a rejected `git push`. The pre-push hook runs the
-repo's full gate set, so a red `main` blocks any branch that has merged it,
-locally and before any PR exists.
-
 Check `main` first. It costs one command and it is the discriminator.
 
 ```bash
@@ -19,16 +15,18 @@ gh run list --branch main --workflow "<Workflow Name>" --limit 5 \
   -q '.[] | "\(.conclusion)\t\(.headSha[0:10])\t\(.createdAt)"'
 ```
 
-If `main` is failing the same workflow, your branch is a bystander. Merge
-`origin/main` once the fix lands and re-run. Change nothing.
+If `main` is failing the same workflow, your branch is a bystander. Change
+nothing in your diff. Once the fix lands, merge `origin/main` into the branch
+and **push** the merge commit. Only a push fires `synchronize`, which
+recomputes the cached `refs/pull/N/merge`; a rerun replays the stale ref.
 
 ## Red `main` blocks `git push`, not just CI
 
 The same defect surfaces locally, where there is no PR and no run to inspect.
-The pre-push hook runs `scripts/validation/pre_pr.py` and
-`scripts/validation/git_hook_policy.py pytest`, so a branch carrying a red
-`main` is rejected until it repairs every inherited failure. Each rejection
-costs about seventeen minutes.
+The pre-push hook runs `uv run --frozen python scripts/validation/pre_pr.py`
+and `uv run --frozen python scripts/validation/git_hook_policy.py pytest`, so a
+branch carrying a red `main` is rejected until it repairs every inherited
+failure. Each rejection costs about seventeen minutes.
 
 Read the rejection before assuming your own change caused it. It names the gate
 that failed, which is the same discriminator the `gh run list` recipe gives you
@@ -184,10 +182,37 @@ showed `Validate PR` failing. The same check PASSED on #4290, the branch
 carrying the ratchet fix. That contrast proved the gate was working and the
 tree was red, rather than the six PRs each being at fault.
 
-`main` runs confirmed it independently: `Python Tests` was `failure` at
-`9933b7dbbb` and `77e305c6ed`, and `success` at `15f8756f08` immediately
-before. After #4290 merged as `c02f61ddd2`, both checks went green with no
+`main` runs confirmed it independently, but for one of the two checks only.
+`Python Tests` is the one that runs on `main`: `.github/workflows/pytest.yml`
+declares `on: push:` with no branch filter. It was `failure` at `9933b7dbbb`
+and `77e305c6ed`, and `success` at `15f8756f08` immediately before. After
+#4290 merged as `c02f61ddd2`, `Python Tests` went green **on `main`**, with no
 change to any of the six PRs.
+
+`Validate PR` has no `main` result to go green, so do not attribute its
+recovery to `main`. Its workflow declares only:
+
+```yaml
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+```
+
+That `branches: [main]` filters the PR's base branch; it is not a push filter,
+and `.github/workflows/pr-validation.yml` carries no `push:` trigger at all.
+The job therefore never runs on `main`. Every `Validate PR` observation above
+is a `pull_request` run: red on the six, and PASSED on #4290 against a merge
+ref that already contained the fix. The six recovered only when their own
+merge ref was recomputed, which is the next paragraph.
+
+That green on `main` is a measurement of `main`, not of the six PRs. Their own
+checks did not turn green at that moment: each kept running against its cached
+pre-fix `refs/pull/N/merge` until a push fired `synchronize`. Measured the
+same day, #4284 pushed a merge commit 51 seconds after the fix landed and got
+a fresh ref, while #4271, #4274, and #4102 had not pushed since before the fix
+and were still stale over fifteen minutes later. See "Fixing `main` does not
+fix your PR until the merge ref moves" below.
 
 ## Fixing `main` does not fix your PR until the merge ref moves
 

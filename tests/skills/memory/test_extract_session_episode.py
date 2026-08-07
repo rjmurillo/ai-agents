@@ -1053,11 +1053,11 @@ class TestMergePreserving:
         assert merged["metrics"]["errors"] == 3
         assert merged["metrics"]["files_changed"] == 7
 
-    def test_event_timestamps_normalized_to_session_midnight(self):
+    def test_event_timestamps_keep_explicit_source_time(self):
         merged = extract_session_episode.merge_preserving(
             self._stub(), self._rich(), session_id="2026-01-08-session-807"
         )
-        assert merged["events"][0]["timestamp"] == "2026-01-08T00:00:00+00:00"
+        assert merged["events"][0]["timestamp"] == "2026-01-08T12:20:10.93-06:00"
 
     def test_placeholder_task_yields_but_real_new_task_wins(self):
         new = self._stub()
@@ -1128,8 +1128,75 @@ class TestMergePreserving:
         merged = extract_session_episode.merge_preserving(new, existing, session_id="")
         assert merged["events"][0]["timestamp"] == "garbage"
 
+    def test_commit_events_keep_real_committer_timestamp(self):
+        """Commit events must not have their timestamp overwritten with midnight.
 
-class TestPreserveCli:
+        Issue #4071: _dedupe_events() applied the midnight stamp to ALL event
+        types, including commit events that already carry the real committer
+        timestamp from _git_commit_timestamp(). After the fix, only non-commit
+        events get the midnight stamp.
+        """
+        commit_ts = "2026-01-08T23:47:12+00:00"
+        existing = {
+            "timestamp": "2026-01-08T00:00:00+00:00",
+            "events": [
+                {
+                    "id": "e001",
+                    "timestamp": commit_ts,
+                    "type": "commit",
+                    "content": "abc1234: fix the thing",
+                    "caused_by": [],
+                    "leads_to": [],
+                }
+            ],
+            "decisions": [],
+            "lessons": [],
+            "metrics": {},
+        }
+        new = {"timestamp": "", "events": [], "decisions": [], "lessons": [], "metrics": {}}
+        merged = extract_session_episode.merge_preserving(
+            new, existing, session_id="2026-01-08-session-807"
+        )
+        commit_events = [e for e in merged["events"] if e["type"] == "commit"]
+        assert len(commit_events) == 1
+        assert commit_events[0]["timestamp"] == commit_ts, (
+            f"commit event timestamp was overwritten: {commit_events[0]['timestamp']!r}"
+        )
+
+    def test_commit_timestamp_difference_enables_causal_ordering(self):
+        """A commit and timestamped milestone must keep distinct source times."""
+        commit_ts = "2026-01-08T23:47:12+00:00"
+        midnight = "2026-01-08T00:00:00+00:00"
+        events = extract_session_episode._dedupe_events(
+            existing=[
+                {
+                    "id": "e001",
+                    "timestamp": commit_ts,
+                    "type": "commit",
+                    "content": "abc1234: fix",
+                    "caused_by": [],
+                    "leads_to": [],
+                },
+                {
+                    "id": "e002",
+                    "timestamp": "2026-01-08T10:00:00+00:00",
+                    "type": "milestone",
+                    "content": "reached goal",
+                    "caused_by": [],
+                    "leads_to": [],
+                },
+            ],
+            new=[],
+            midnight=midnight,
+            session_id="2026-01-08-session-807",
+        )
+        commit_ev = next(e for e in events if e["type"] == "commit")
+        milestone_ev = next(e for e in events if e["type"] == "milestone")
+        # Both events keep source timestamps.
+        assert commit_ev["timestamp"] == commit_ts
+        assert milestone_ev["timestamp"] == "2026-01-08T10:00:00+00:00"
+        # Timestamps differ, so ordering is well-defined.
+        assert commit_ev["timestamp"] != milestone_ev["timestamp"]
     """--preserve end-to-end and flag exclusivity (#2170)."""
 
     def _write_log(self, tmp_path, sha="bbbbbbb1234"):
@@ -3329,6 +3396,200 @@ class TestValidateMetricsConsistency:
         assert extract_session_episode.validate_episode_file(ep) == []
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestPreserveChronology:
+    @staticmethod
+    def _repo(tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        return repo
+
+    @staticmethod
+    def _event(episode, content):
+        return next(evt for evt in episode["events"] if evt["content"] == content)
+
+    def test_preserve_keeps_timestamped_milestone_after_commit(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        repo = self._repo(tmp_path)
+        first = _commit(repo, "first.txt", "first", when="2026-08-04T05:00:00+00:00")
+        second = _commit(repo, "second.txt", "second", when="2026-08-04T10:00:00+00:00")
+        monkeypatch.chdir(repo)
+        monkeypatch.setattr(extract_session_episode, "_repo_root", lambda: repo)
+
+        session = _json_log(
+            [
+                {
+                    "time": "2026-08-04T10:30:00+00:00",
+                    "task": "Finalized closeout chronology",
+                }
+            ],
+            committed=f"Commit {first}",
+        )
+        session["session"]["date"] = "2026-08-04"
+        session["session"]["startingCommit"] = "0" * 40
+        session["endingCommit"] = second
+        session_file = tmp_path / "2026-08-04-session-4435-chronology.json"
+        session_file.write_text(json.dumps(session), encoding="utf-8")
+        episodes = tmp_path / "episodes"
+        episode_file = episodes / "episode-2026-08-04-session-4435-chronology.json"
+
+        assert extract_session_episode.main(
+            [str(session_file), "--output-path", str(episodes), "--force"]
+        ) == 0
+        corrupted = json.loads(episode_file.read_text(encoding="utf-8"))
+        milestone = self._event(corrupted, "Finalized closeout chronology")
+        first_commit = self._event(corrupted, f"Commit: {first}")
+        second_commit = self._event(corrupted, f"Commit: {second}")
+        milestone["timestamp"] = "2026-08-04T00:00:00+00:00"
+        milestone["caused_by"] = []
+        milestone["leads_to"] = [first_commit["id"]]
+        first_commit["caused_by"].append(milestone["id"])
+        second_commit["leads_to"] = []
+        episode_file.write_text(json.dumps(corrupted, indent=2) + "\n", encoding="utf-8")
+
+        assert extract_session_episode.main(
+            [str(session_file), "--output-path", str(episodes), "--preserve", "--pending-stage"]
+        ) == 0
+
+        episode = json.loads(episode_file.read_text(encoding="utf-8"))
+        milestone = self._event(episode, "Finalized closeout chronology")
+        first_commit = self._event(episode, f"Commit: {first}")
+        second_commit = self._event(episode, f"Commit: {second}")
+        assert milestone["timestamp"] == "2026-08-04T10:30:00+00:00"
+        assert milestone["caused_by"] == [second_commit["id"]]
+        assert second_commit["leads_to"] == [milestone["id"]]
+        assert first_commit["leads_to"] == [second_commit["id"]]
+
+    def test_causal_edge_order_rejects_scrambled_store(self) -> None:
+        events = [
+            {
+                "id": "e001",
+                "timestamp": "2026-08-04T10:00:00+00:00",
+                "type": "commit",
+                "content": "Commit: older",
+                "caused_by": ["e002"],
+                "leads_to": [],
+            },
+            {
+                "id": "e002",
+                "timestamp": "2026-08-04T10:30:00+00:00",
+                "type": "milestone",
+                "content": "post-commit closeout",
+                "caused_by": [],
+                "leads_to": ["e001"],
+            },
+        ]
+
+        problems = extract_session_episode.validate_causal_edge_order(events)
+
+        assert any("event e002 leads to earlier event e001" in p for p in problems)
+
+    def test_causal_graph_validation_rejects_backward_order(self) -> None:
+        events = [
+            {
+                "id": "e001",
+                "timestamp": "2026-08-04T10:00:00+00:00",
+                "type": "commit",
+                "content": "Commit: older",
+                "caused_by": ["e002"],
+                "leads_to": [],
+            },
+            {
+                "id": "e002",
+                "timestamp": "2026-08-04T10:30:00+00:00",
+                "type": "milestone",
+                "content": "post-commit closeout",
+                "caused_by": [],
+                "leads_to": ["e001"],
+            },
+        ]
+
+        with pytest.raises(extract_session_episode.EpisodeValidationError) as error:
+            extract_session_episode.validate_episode_causal_graph(events)
+
+        assert str(error.value) == "event e002 leads to earlier event e001"
+
+    def test_validate_mode_rejects_scrambled_causal_edges(self, tmp_path, capsys) -> None:
+        episode = tmp_path / "episode-scrambled.json"
+        episode.write_text(
+            json.dumps(
+                {
+                    "events": [
+                        {
+                            "id": "e001",
+                            "timestamp": "2026-08-04T10:00:00+00:00",
+                            "type": "commit",
+                            "content": "Commit: older",
+                            "caused_by": ["e002"],
+                            "leads_to": [],
+                        },
+                        {
+                            "id": "e002",
+                            "timestamp": "2026-08-04T10:30:00+00:00",
+                            "type": "milestone",
+                            "content": "post-commit closeout",
+                            "caused_by": [],
+                            "leads_to": ["e001"],
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+        assert "event e002 leads to earlier event e001" in capsys.readouterr().err
+
+    def test_validate_mode_reports_invalid_causal_ref_value(self, tmp_path, capsys) -> None:
+        episode = tmp_path / "episode-invalid-ref.json"
+        episode.write_text(
+            json.dumps(
+                {
+                    "events": [
+                        {
+                            "id": "e001",
+                            "timestamp": "2026-08-04T10:00:00+00:00",
+                            "type": "milestone",
+                            "content": "work",
+                            "caused_by": [],
+                            "leads_to": [42],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+        assert "event e001 field leads_to contains invalid ref 42" in capsys.readouterr().err
+
+    def test_causal_edge_order_allows_equal_timestamps(self) -> None:
+        events = [
+            {
+                "id": "e001",
+                "timestamp": "2026-08-04T10:00:00+00:00",
+                "type": "milestone",
+                "content": "work",
+                "caused_by": [],
+                "leads_to": ["e002"],
+            },
+            {
+                "id": "e002",
+                "timestamp": "2026-08-04T10:00:00+00:00",
+                "type": "test",
+                "content": "tests passed",
+                "caused_by": ["e001"],
+                "leads_to": [],
+            },
+        ]
+
+        assert extract_session_episode.validate_causal_edge_order(events) == []
+
+
 class TestDurationFromWorklogs:
     """Tests for _duration_from_worklogs (issue #3972)."""
 
@@ -3347,12 +3608,19 @@ class TestDurationFromWorklogs:
         ]
         assert extract_session_episode._duration_from_worklogs(entries) == 30
 
-    def test_single_entry_returns_zero(self):
-        entries = [{"time": "2026-07-30T06:00:00Z", "entry": "only"}]
-        assert extract_session_episode._duration_from_worklogs(entries) == 0
+    def test_single_entry_returns_none(self):
+        """One timestamp cannot span an interval, so the duration is unmeasured.
 
-    def test_empty_list_returns_zero(self):
-        assert extract_session_episode._duration_from_worklogs([]) == 0
+        This asserted 0 before issue #3972. A single-entry log and a log whose
+        first and last entries share a timestamp both read as 0, which is the
+        conflation the fix removes.
+        """
+        entries = [{"time": "2026-07-30T06:00:00Z", "entry": "only"}]
+        assert extract_session_episode._duration_from_worklogs(entries) is None
+
+    def test_empty_list_returns_none(self):
+        """No entries means no measurement, not a measured zero (issue #3972)."""
+        assert extract_session_episode._duration_from_worklogs([]) is None
 
     def test_entries_without_time_are_skipped(self):
         entries = [
@@ -3391,11 +3659,13 @@ class TestDurationFromMetricsBlock:
     def test_parses_duration_minutes_key(self):
         assert extract_session_episode._duration_from_metrics_block({"duration_minutes": 15}) == 15
 
-    def test_missing_key_returns_zero(self):
-        assert extract_session_episode._duration_from_metrics_block({}) == 0
+    def test_missing_key_returns_none(self):
+        """No duration key means unmeasured, not a measured zero (issue #3972)."""
+        assert extract_session_episode._duration_from_metrics_block({}) is None
 
-    def test_unparseable_string_returns_zero(self):
-        assert extract_session_episode._duration_from_metrics_block({"duration": "unknown"}) == 0
+    def test_unparseable_string_returns_none(self):
+        """An unreadable value is a failed measurement, not a zero-length session."""
+        assert extract_session_episode._duration_from_metrics_block({"duration": "unknown"}) is None
 
 
 class TestJsonMetricsDuration:
@@ -3430,11 +3700,16 @@ class TestJsonMetricsDuration:
         metrics = extract_session_episode.json_metrics(data)
         assert metrics["duration_minutes"] == 45
 
-    def test_no_time_data_stays_zero(self):
-        """Modern sessions with no timestamps produce zero, not a false value."""
+    def test_no_time_data_stays_none(self):
+        """No timestamps means unmeasured duration, which is not the same as zero.
+
+        This asserted 0 before issue #3972. Reading 0 minutes tells a consumer the
+        session took no time; reading null tells it nobody measured. The second is
+        true and the first is not.
+        """
         data: dict = {}
         metrics = extract_session_episode.json_metrics(data)
-        assert metrics["duration_minutes"] == 0
+        assert metrics["duration_minutes"] is None
 
     def test_tool_calls_from_old_schema(self):
         data = {
@@ -3443,8 +3718,16 @@ class TestJsonMetricsDuration:
         metrics = extract_session_episode.json_metrics(data)
         assert metrics["tool_calls"] == 24
 
-    def test_tool_calls_zero_for_modern_session(self):
-        """Modern sessions without toolCalls in metrics block produce zero."""
+    def test_tool_calls_none_for_modern_session(self):
+        """Modern logs carry no tool count, so the field stays null (issue #3972).
+
+        This asserted 0 before the fix. Modern session logs have no
+        machine-readable tool count at all, so 0 claimed a measurement that was
+        never taken, and 0 reads as "nothing happened here, skip it". Duration is
+        still populated from the timestamps, which is what makes the pairing a
+        good regression guard: one field is measurable and the other is not, and
+        the two must not collapse to the same sentinel.
+        """
         data = {
             "workLog": [
                 {"time": "2026-07-30T08:00:00Z", "entry": "start"},
@@ -3452,6 +3735,5 @@ class TestJsonMetricsDuration:
             ],
         }
         metrics = extract_session_episode.json_metrics(data)
-        assert metrics["tool_calls"] == 0
-        # duration IS populated (from timestamps)
+        assert metrics["tool_calls"] is None
         assert metrics["duration_minutes"] == 30

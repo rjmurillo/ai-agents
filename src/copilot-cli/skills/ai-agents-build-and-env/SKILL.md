@@ -104,7 +104,7 @@ uv run pytest tests/test_paths.py --collect-only -q
 # expect: "28 tests collected" (count as of 2026-07-03)
 
 uv run python -c "import yaml; print(yaml.__version__)"
-# expect: 6.0.3 (PyYAML pin in pyproject.toml:13)
+# expect: 6.0.3 (PyYAML pin in pyproject.toml project.dependencies)
 ```
 
 ### Phase 4: MCP Layer
@@ -145,7 +145,7 @@ Each row verified 2026-07-03. Longer stories live with the sibling skills
 | PEP 668: bare pip fails | `pip install X` errors with externally-managed-environment on uv-managed interpreters | Everything goes through uv: `uv sync`, `uv add`, `uv run` (`scripts/bootstrap-vm.sh:118-123`) |
 | Skill scripts need the project venv | `.claude/skills/github/scripts/pr/*.py` import `github_core`, which imports `yaml` at load; bare `python3` throws `ModuleNotFoundError: No module named 'yaml'` unless `.venv/bin` is first on PATH (bootstrap-vm.sh arranges that; a manual setup usually does not) | Run skill scripts with `uv run python`, which resolves the venv deterministically |
 | Moving a worktree leaves the uv shebangs stale | Direct `.venv/bin/pytest` fails with "bad interpreter" after `mv`; the shebangs in `.venv/bin/*` (POSIX) or `.venv/Scripts/*` (Windows) still name the old worktree path (issue #3170) | Run `scripts/maintenance/repair_worktree_venv.py` with `uv run python` (or `uv sync --frozen --extra dev --reinstall`: `--reinstall` recreates the launchers a bare `--frozen` sync would leave stale, `--extra dev` keeps pytest/ruff/mypy, `--frozen` matches CI); prefer `uv run python -m pytest` for move-safe validation |
-| Two floors, not one | `pyproject.toml:6` says `requires-python = ">=3.14"` (the dev/install contract), but plugin hooks run under the host's ambient interpreter, which may be older | Develop and test against `.python-version` (3.14.6). The blocking CI syntax gate parses every file at the hook-portability floor (3.10), NOT 3.14, so hooks stay portable to older hosts (issue #2655, decoupled from `requires-python` in issue #3008); see `ai-agents-debugging-playbook` |
+| Two floors, not one | `pyproject.toml project.requires-python` says `requires-python = ">=3.14"` (the dev/install contract), but plugin hooks run under the host's ambient interpreter, which may be older | Develop and test against `.python-version` (3.14.6). The blocking CI syntax gate parses every file at the hook-portability floor (3.10), NOT 3.14, so hooks stay portable to older hosts (issue #2655, decoupled from `requires-python` in issue #3008); see `ai-agents-debugging-playbook` |
 | LF line endings enforced | CRLF in YAML frontmatter breaks the Copilot CLI parser (github/copilot-cli#694); `.gitattributes:59` sets `* text=auto eol=lf` | Configure your editor for LF; never commit CRLF |
 | Pre-push jobs can take minutes | Lefthook runs the named validators in `lefthook.yml` for matching push files | Budget minutes per push; do not attempt `--no-verify` (prohibited, AGENTS.md Never list) |
 | Skill tests not collected by default | `uv run pytest tests/ -x` skips `.claude/skills/*/tests/` (pyproject testpaths are `tests`, `test`) | Run skill tests explicitly: `uv run pytest .claude/skills/NAME/tests/`; details in `ai-agents-validation-and-qa` |
@@ -189,9 +189,9 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | Fact | Source | Re-verify |
 |------|--------|-----------|
 | Python pin 3.14.6 | `.python-version` | `cat .python-version` |
-| `requires-python >=3.14` install floor | `pyproject.toml:6` | `grep -n requires-python pyproject.toml` |
+| `requires-python >=3.14` install floor | `pyproject.toml project.requires-python` | `grep -n requires-python pyproject.toml` |
 | Syntax-gate hook floor 3.10 (separate from install floor) | `scripts/validation/validate_python_syntax.py` `_SUPPORT_FLOOR` | `grep -n _SUPPORT_FLOOR scripts/validation/validate_python_syntax.py` |
-| PyYAML 6.0.3 pin | `pyproject.toml:13` | `grep -n PyYAML pyproject.toml` |
+| PyYAML 6.0.3 pin | `pyproject.toml project.dependencies` | `grep -n PyYAML pyproject.toml` |
 | `uv sync --frozen --extra dev` is the canonical sync | `scripts/bootstrap-vm.sh:114` | `grep -n "uv sync --frozen" scripts/bootstrap-vm.sh` |
 | Node 22 LTS | `scripts/bootstrap-vm.sh:40` | `grep -n NODE_MAJOR scripts/bootstrap-vm.sh` |
 | pwsh 7.5.4+, gh 2.60+ floors | AGENTS.md Stack section | `grep -n "gh 2.60" AGENTS.md` |
@@ -202,7 +202,7 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | .env key names | `.env.example` | `cat .env.example` |
 | Forgetful fallback table | `ADR-007` (`.agents/architecture/ADR-007-memory-first-architecture.md:108-130`) | `grep -n "Graceful degradation" .agents/architecture/ADR-007-memory-first-architecture.md` |
 | LF enforcement rationale | `.gitattributes:59` and header comments | `grep -n "eol=lf" .gitattributes` |
-| Serena memory file count (122) | `.serena/memories/` | `ls .serena/memories/ \| wc -l` |
+| Serena memory file count (122) | `.serena/memories/` | `python3 -c "from pathlib import Path; print(sum(1 for _ in Path('.serena/memories').iterdir()))"` |
 | tests/test_paths.py count (28) | pytest | `uv run pytest tests/test_paths.py --collect-only -q` |
 | uv TLS var rename | uv 0.11.26 runtime warning | `uv run python -c pass` under `UV_NATIVE_TLS` |
 

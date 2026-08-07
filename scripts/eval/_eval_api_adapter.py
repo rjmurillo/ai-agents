@@ -40,6 +40,7 @@ from typing import Literal, Protocol, cast
 # Sibling import; loaded under the same EVAL_DIR sys.path entry that the CLI uses.
 import _eval_api_adapter_constants as _constants
 from _anthropic_api import call_api, load_api_key
+from _eval_common import MalformedProviderMetadataError, require_str_or_none
 
 OutcomeLiteral = Literal["success", "error"]
 
@@ -191,7 +192,7 @@ class _OpenAIProviderTransport:
             kwargs["seed"] = self._seed
         text = self._provider.complete(**kwargs)
         fingerprint = getattr(self._provider, "system_fingerprint", None)
-        self.system_fingerprint = fingerprint if isinstance(fingerprint, str) else None
+        self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
         return text
 
 
@@ -216,7 +217,7 @@ class _AnthropicTransport:
             ),
         )
         fingerprint = metadata.get("system_fingerprint")
-        self.system_fingerprint = fingerprint if isinstance(fingerprint, str) else None
+        self.system_fingerprint = _constants.normalize_fingerprint(fingerprint)
         return text
 
 
@@ -284,14 +285,26 @@ class AnthropicAPIAdapter:
         `ANTHROPIC_API_KEY` available to `_default_transport_factory`).
         Construction failure is categorized as `auth` since the production
         transport's only resolve-time dependency is `load_api_key()`.
-        Never raises on transport failure; the caller inspects `outcome`
-        and `error_category`. Logs one structured line per attempt to
-        stderr.
+        Ordinary transport failures return a categorized result. Malformed
+        provider metadata raises before retry or logging because retrying the
+        same unreadable response shape would misreport a contract violation as
+        a provider outage. Logs one structured line per ordinary attempt.
+
+        Raises `ValueError` when `max_retries` is not an integer or is below
+        1. That is a caller configuration mistake, not a provider failure, and
+        the two must not arrive in the same shape: a returned record saying
+        `outcome="error"` with `error_category="unknown"` counts toward the
+        provider error total for a call the provider never received
+        (issue #4121).
         """
+        if type(max_retries) is not int or max_retries < 1:
+            raise ValueError(
+                f"max_retries must be an integer >= 1, got {max_retries!r}"
+            )
         resolve_start = self._clock()
         try:
             transport = self._resolve_transport()
-        except Exception as exc:  # noqa: BLE001 - categorize-then-decide
+        except Exception as exc:
             latency_ms = (self._clock() - resolve_start) * 1000.0
             # Best-effort categorization: today the only resolve-time
             # raise is `load_api_key()` raising RuntimeError when no key
@@ -330,7 +343,6 @@ class AnthropicAPIAdapter:
                 system_fingerprint=None,
             )
         attempt = 0
-        last_category: str | None = None
         start_total = self._clock()
 
         while attempt < max_retries:
@@ -373,9 +385,10 @@ class AnthropicAPIAdapter:
             attempt_start = self._clock()
             try:
                 raw = transport(prompt, model_id, system)
+            except MalformedProviderMetadataError:
+                raise
             except Exception as exc:  # broad on purpose: categorize then decide
                 category = _categorize_error(exc)
-                last_category = category
                 latency_ms = (self._clock() - attempt_start) * 1000.0
                 _emit_log(
                     {
@@ -439,6 +452,9 @@ class AnthropicAPIAdapter:
                 self._sleep(backoff)
                 continue
 
+            fingerprint = require_str_or_none(
+                getattr(transport, "system_fingerprint", None), "system_fingerprint"
+            )
             # Success path. Token counts are estimated from text length until
             # `_anthropic_api.call_api` surfaces a `usage` envelope; callers
             # see `tokens_estimated=True` so cost numbers carry that caveat.
@@ -469,22 +485,13 @@ class AnthropicAPIAdapter:
                 error_category=None,
                 attempts=attempt,
                 tokens_estimated=True,
-                system_fingerprint=getattr(transport, "system_fingerprint", None),
+                system_fingerprint=fingerprint,
             )
 
-        # Unreachable for positive `max_retries`; the loop returns on both exit
-        # paths. Only `max_retries <= 0` lands here, having called nothing.
-        total_latency_ms = (self._clock() - start_total) * 1000.0
-        return APICallResult(
-            outcome="error",
-            raw_response=None,
-            tokens_in=0,
-            tokens_out=0,
-            latency_ms=round(total_latency_ms, 2),
-            error_category=last_category or ERR_UNKNOWN,
-            attempts=attempt,
-            system_fingerprint=None,
-        )
+        # The entry guard pins `max_retries >= 1`, so the loop body runs at
+        # least once and every path through it returns. Kept to satisfy the
+        # type checker; reaching it means the guard was removed.
+        raise AssertionError("retry loop exited without returning a result")
 
 
 def _estimate_tokens(text: str) -> int:
