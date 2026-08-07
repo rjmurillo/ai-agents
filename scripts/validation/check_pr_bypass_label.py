@@ -38,7 +38,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import subprocess
+import urllib.parse
 
 DEFAULT_LABEL = "commit-limit-bypass"
 # Bounded timeout on the outbound gh call (release-it.md: every outbound call
@@ -50,24 +53,133 @@ EXIT_ABSENT = 1
 EXIT_EXTERNAL = 3
 
 
-def _run_gh_pr_view(branch: str | None) -> subprocess.CompletedProcess[str]:
-    """Fetch the current (or named) branch PR's labels via gh.
 
-    Returns the completed process. The caller interprets returncode/stderr to
-    distinguish "no PR" from "gh failed".
+# GitHub owner and repository names allow letters, digits, hyphen, underscore,
+# and period; nothing else, and neither part may be empty.
+_OWNER_REPO_PATTERN = re.compile(r"[\w.-]+/[\w.-]+")
+
+# git-check-ref-format is broader than this, but every ref this tool queries is
+# an ordinary branch name. Refusing the rest costs nothing real and keeps a
+# crafted ref out of the query string.
+_GIT_REF_PATTERN = re.compile(r"[\w./-]+")
+
+def _run_gh_pr_view(branch: str | None) -> subprocess.CompletedProcess[str]:
+    """Fetch the current (or named) branch PR's labels.
+
+    Uses the REST list-pulls endpoint rather than ``gh pr view``.
+
+    ``gh pr view`` goes through GraphQL, and GraphQL is the first budget to
+    exhaust when several agents work a repository at once. Measured during a
+    fleet session: graphql 0 of 5000 remaining while core REST still had 4921.
+    In that state ``gh pr view`` fails, this helper fails closed by design, and
+    the commit-limit ceiling loses its only sanctioned relief precisely when
+    parallel work makes long branches most likely. Refs #4690.
+
+    The output is normalised to the same shape the caller already parses, so
+    the decision logic below is unchanged.
     """
-    cmd = ["gh", "pr", "view"]
     if branch:
-        cmd.append(branch)
-    cmd += ["--json", "number,labels,state"]
-    return subprocess.run(
-        cmd,
+        head = branch
+    else:
+        rev = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+        if rev.returncode != 0:
+            return rev
+        head = rev.stdout.strip()
+
+    owner_repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if not owner_repo:
+        # Derive from the git remote rather than `gh repo view`, which is also
+        # GraphQL and therefore fails in the exact conditions this change
+        # exists to survive.
+        remote = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+        if remote.returncode != 0:
+            return remote
+        url = remote.stdout.strip()
+        if url.endswith(".git"):
+            url = url[: -len(".git")]
+        if ":" in url and "//" not in url:  # git@host:owner/repo
+            url = url.split(":", 1)[1]
+        else:  # https://host/owner/repo
+            # Take the path after the host rather than the last two slash
+            # separated segments. Counting segments turns a URL with no
+            # repository, such as https://github.com/owner, into the
+            # valid-looking but wrong "github.com/owner", because the scheme
+            # and host inflate the count. Parsing the path makes a truncated
+            # remote produce an empty value that the check below rejects.
+            path = urllib.parse.urlparse(url).path.strip("/")
+            segments = [segment for segment in path.split("/") if segment]
+            url = "/".join(segments[-2:]) if len(segments) >= 2 else ""
+        owner_repo = url
+
+    owner = owner_repo.split("/")[0] if "/" in owner_repo else ""
+
+    # owner_repo comes from GITHUB_REPOSITORY or a parsed remote URL, and head
+    # from a branch name. All three are attacker-influenceable in a fork or a
+    # hostile checkout, and all three are interpolated into the request path and
+    # query. Command injection is not the reachable risk, since gh is invoked as
+    # an argument list with no shell, so a metacharacter arrives as a literal
+    # argument. What validation prevents is a crafted value steering the request
+    # at a different repository, or smuggling a second query parameter through
+    # the head filter. Refs #4672.
+    if not _OWNER_REPO_PATTERN.fullmatch(owner_repo):
+        return subprocess.CompletedProcess(
+            ["gh"], 2, "", f"refusing to query malformed repository {owner_repo!r}"
+        )
+    if not _GIT_REF_PATTERN.fullmatch(head):
+        return subprocess.CompletedProcess(
+            ["gh"], 2, "", f"refusing to query malformed branch {head!r}"
+        )
+
+    proc = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{owner_repo}/pulls",
+            "-X",
+            "GET",
+            "-f",
+            f"head={owner}:{head}",
+            "-f",
+            "state=all",
+            "--jq",
+            # Collapse the list to the single-object shape `gh pr view` returns.
+            "if length == 0 then empty else "
+            "{number: .[0].number, state: (.[0].state | ascii_upcase), "
+            "labels: [.[0].labels[] | {name: .name}]} end",
+        ],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
         timeout=GH_TIMEOUT_SECONDS,
         check=False,
     )
+    # An empty body means no PR for this branch, which the caller must be able
+    # to tell apart from a failed call. Mirror the "no PR" signal gh emits.
+    if proc.returncode == 0 and not proc.stdout.strip():
+        # A literal argv rather than proc.args. The caller only reads the
+        # returncode and streams, so echoing the real command back buys
+        # nothing, and proc.args carries the environment-derived repository
+        # and branch into a value that flows on to other code. Keeping those
+        # out of the returned object means a reader does not have to re-derive
+        # that they were validated above.
+        return subprocess.CompletedProcess(
+            ["gh", "api"], 1, "", "no pull requests found for branch"
+        )
+    return proc
 
 
 def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
