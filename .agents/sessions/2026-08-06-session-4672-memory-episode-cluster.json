@@ -84,7 +84,7 @@
       "checklistComplete": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Issues #4675, #4416, #4615, and #4705 reproduced, fixed, covered by regression tests, and committed in 9ae761432 and bb33d629c."
+        "evidence": "Issues #4675, #4416, #4615, and #4705 reproduced, fixed, covered by regression tests, and committed through bab8fbf6c."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -104,12 +104,12 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Commits 9ae761432 and bb33d629c created. Session log commit follows this record."
+        "evidence": "Commits 9ae761432, bb33d629c, 41c2ac4c4, d075cc7a7, f1ebcced3, and bab8fbf6c created."
       },
       "validationPassed": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Session log validation passed after adding required protocol evidence."
+        "evidence": "Full pytest passed: 23683 passed, 33 skipped, 2 warnings in 626.70s. Changed-file mypy hook policy passed. merge_tree_ratchet_check.py passed. pre_pr.py exited 0."
       }
     }
   },
@@ -145,6 +145,14 @@
     {
       "time": "2026-08-07T00:25:00Z",
       "entry": "Build skill gates: orphan-ref-validator passed on changed files. code-qualities and taste-lints reported pre-existing file-size and complexity debt in touched legacy files. doc-accuracy diff-base scan reported 35559 high findings across the existing documentation corpus, not scoped to this diff."
+    },
+    {
+      "time": "2026-08-07T00:40:00Z",
+      "entry": "Fixed follow-up typed-counter errors found by the required mypy hook policy and updated the branch-side diff unit test expectation to three-dot semantics."
+    },
+    {
+      "time": "2026-08-07T01:05:00Z",
+      "entry": "Ran final required gates. Full pytest passed 23683 tests with 33 skipped and 2 warnings. Changed-file mypy hook policy passed. merge_tree_ratchet_check.py passed. pre_pr.py exited 0."
     }
   ],
   "negativeControls": [
@@ -165,8 +173,8 @@
       "control": "With origin/main memory_index.py restored and the new test kept, duplicate_link_targets_fail passed=True instead of rejecting the duplicate. Restored fix made it pass."
     }
   ],
-  "endingCommit": "bb33d629c",
+  "endingCommit": "bab8fbf6c",
   "nextSteps": [
-    "Run final full verification commands, push branch, and create pull request."
+    "Push branch and create pull request."
   ]
 }
