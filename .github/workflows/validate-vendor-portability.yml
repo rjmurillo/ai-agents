@@ -60,6 +60,7 @@ jobs:
               - 'scripts/validation/check_skill_md_exec_portability.py'
               - 'scripts/validation/skill_md_exec_portability_baseline.json'
               - 'scripts/validation/check_skill_md_portability.py'
+              - 'scripts/validation/check_skill_md_drift.py'
               - 'scripts/validation/skill_md_portability_baseline.json'
               - 'scripts/validation/check_skill_resolver_anchoring.py'
               - 'scripts/validation/check_skill_contract_tests.py'
