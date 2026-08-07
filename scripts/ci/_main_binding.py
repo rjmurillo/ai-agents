@@ -23,6 +23,7 @@ import ast
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import TypeIs
 
 # ---------------------------------------------------------------------------
 # State types
@@ -314,7 +315,9 @@ def _stmt_effect(node: ast.stmt, state: MainState, ctx: _Ctx) -> MainState | Non
     return None
 
 
-def _assign_effect(node: ast.stmt, ctx: _Ctx) -> MainState | None:
+def _assign_effect(
+    node: ast.Assign | ast.AnnAssign | ast.AugAssign, ctx: _Ctx
+) -> MainState | None:
     if isinstance(node, ast.Assign):
         if not any(_target_binds_name(t, "main") for t in node.targets):
             return MainState.local() if _has_walrus_main(node) else None
@@ -339,7 +342,7 @@ def _resolve_value(value: ast.expr, ctx: _Ctx) -> MainState:
     return MainState.local()
 
 
-def _import_effect(node: ast.stmt, ctx: _Ctx) -> MainState | None:
+def _import_effect(node: ast.Import | ast.ImportFrom, ctx: _Ctx) -> MainState | None:
     if isinstance(node, ast.ImportFrom):
         if any(a.name == "*" for a in node.names):
             return MainState.unknown()
@@ -435,14 +438,18 @@ def _if_branches(node: ast.If) -> list[tuple[Sequence[ast.stmt], str]]:
     return result
 
 
-def _loop_branches(node: ast.stmt) -> list[tuple[Sequence[ast.stmt], str]]:
+def _loop_branches(
+    node: ast.While | ast.For | ast.AsyncFor,
+) -> list[tuple[Sequence[ast.stmt], str]]:
     result: list[tuple[Sequence[ast.stmt], str]] = [(node.body, "loop")]
     if node.orelse:
         result.append((node.orelse, "normal"))
     return result
 
 
-def _try_branches(node: ast.stmt) -> list[tuple[Sequence[ast.stmt], str]]:
+def _try_branches(
+    node: ast.Try | ast.TryStar,
+) -> list[tuple[Sequence[ast.stmt], str]]:
     result: list[tuple[Sequence[ast.stmt], str]] = [(node.body, "normal")]
     for h in node.handlers:
         result.append((h.body, "except_main" if h.name == "main" else "normal"))
@@ -456,10 +463,8 @@ def _try_branches(node: ast.stmt) -> list[tuple[Sequence[ast.stmt], str]]:
 # ---------------------------------------------------------------------------
 
 
-def _is_try(node: ast.stmt) -> bool:
-    if isinstance(node, ast.Try):
-        return True
-    return hasattr(ast, "TryStar") and isinstance(node, ast.TryStar)
+def _is_try(node: ast.stmt) -> TypeIs[ast.Try | ast.TryStar]:
+    return isinstance(node, (ast.Try, ast.TryStar))
 
 
 def _target_binds_name(node: ast.expr, name: str) -> bool:
