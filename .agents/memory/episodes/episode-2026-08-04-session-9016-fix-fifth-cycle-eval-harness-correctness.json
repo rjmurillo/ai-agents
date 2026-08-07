@@ -1,0 +1,201 @@
+{
+  "id": "episode-2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness",
+  "session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix fifth-cycle eval harness correctness and security defects",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Moved response metadata validation before judge sampling",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Unified Copilot session-state resolution",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Hardened ACP failure handling",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed model ids from durable Anthropic errors",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Required exact model-panel child events",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected linked issue state",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran fifth-cycle validation and mutations",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "test",
+      "content": "Full eval suites: 2280 passed, 4 skipped; exact probes: 18 passed; changed-file mypy, Ruff, C901, sync, build, and security scan pass; all four mutation groups died",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran pre-PR on fresh main",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "test",
+      "content": "45 passed, 1 failed, 4 skipped; only #4538 Count Ratchets fails at 137 findings against baseline 126",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "error",
+      "content": "Ran pre-PR on fresh main    45 passed, 1 failed, 4 skipped; only #4538 Count Ratchets fails at 137 findings against baseline 126",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-04T09:48:25+00:00",
+      "type": "commit",
+      "content": "Commit: 5337459ff",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-04T10:00:54+00:00",
+      "type": "commit",
+      "content": "Commit: f5eb1c015",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-04T10:06:43+00:00",
+      "type": "commit",
+      "content": "Commit: e9259f8cc",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-04T10:13:06+00:00",
+      "type": "commit",
+      "content": "Commit: 5dbfe4ef0",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9016-fix-fifth-cycle-eval-harness-correctness"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 4,
+    "files_changed": 5
+  },
+  "lessons": []
+}
