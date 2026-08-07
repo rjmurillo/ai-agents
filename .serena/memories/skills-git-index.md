@@ -4,6 +4,7 @@
 | checkout drift stale steering system prompt behind main detached superseded rule | [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) |
 | stale branch delete prune cleanup obsolete local-only tracking | [git/git-branch-cleanup-pattern](git/git-branch-cleanup-pattern.md) |
 | merge pre-flight deletion upstream conflict detect | [git/git-merge-preflight](git/git-merge-preflight.md) |
+| squash merge stacked PR chain automatic base retarget merge-base ancestor collapsed add/add conflict ours strategy content-faithful force-push | [git/git-a-squash-merge-severs-a-stacked-pr](git/git-a-squash-merge-severs-a-stacked-pr.md) |
 | worktree parallel isolation PR cross-contamination | [git/git-worktree-parallel](git/git-worktree-parallel.md) |
 | worktree cleanup remove temporary session end | [git/git-worktree-cleanup](git/git-worktree-cleanup.md) |
 | conflict modify/delete upstream local accept resolution | [git/git-conflict-deleted-file](git/git-conflict-deleted-file.md) |
