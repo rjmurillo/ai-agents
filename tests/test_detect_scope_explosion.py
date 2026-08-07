@@ -284,7 +284,9 @@ class TestGetIndexFilesAgainstRef:
             mock_run.return_value = subprocess.CompletedProcess(
                 args=[], returncode=1, stdout="", stderr="fatal: bad ref"
             )
-            with pytest.raises(ScopeDetectionError, match="git diff --cached against origin/main failed"):
+            with pytest.raises(
+                ScopeDetectionError, match="git diff --cached against origin/main failed"
+            ):
                 get_index_files_against_ref("origin/main")
 
     def test_diffs_cached_index_against_base_ref(self) -> None:
