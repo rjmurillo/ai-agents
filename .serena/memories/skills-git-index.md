@@ -12,3 +12,4 @@
 | branch verify current show-current commit push reset mutating MUST | [git/git-004-branch-verification-before-commit](git/git-004-branch-verification-before-commit.md) |
 | unique commits discard ahead already-up-to-date destroy unpushed cherry-pick | [git/git-list-unique-commits-before-any-reset](git/git-list-unique-commits-before-any-reset.md) |
 | diff direction reversed minus lines predates misread restore | [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) |
+| worktree stale entry directory gone remove by path prune locked | [git/git-a-worktree-whose-directory-is-gone-can-still-be-removed-by-path](git/git-a-worktree-whose-directory-is-gone-can-still-be-removed-by-path.md) |

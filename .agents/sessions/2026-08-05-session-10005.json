@@ -1,0 +1,199 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10005,
+    "date": "2026-08-05",
+    "branch": "fix/gc-worktrees-stale-entries",
+    "startingCommit": "b574071db",
+    "objective": "Make the worktree GC dry-run plan predict what --apply actually does, and stop it removing any worktree whose HEAD no ref contains"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project already active in this session; memory set listed earlier."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena manual earlier in this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md context carried forward from session 10004 in this session."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/github/scripts enumerated earlier in this session for PR check retrieval."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read earlier in this session."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read earlier in this session."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index.md and the git memory category loaded earlier in this session."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/gc-worktrees-stale-entries"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch fix/gc-worktrees-stale-entries created from b574071db on fix/worktree-walk-timeouts; not committing to main."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All gates below run and recorded."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Two memories written: git/git-a-worktree-whose-directory-is-gone-can-still-be-removed-by-path.md for the four stale-entry facts, and testing/testing-a-revert-experiment-that-injects-code-runs-it-for-real.md for the accidental prune. Committed 0a68ce2fc; memory-size, memory-tier, memory-index and memory-token-counts gates all passed."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdown-autofix and markdown-check ran on both new memory files in the pre-commit hook for 0a68ce2fc."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fix and tests committed; this log follows in its own commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff clean on all changed files. 123 gc tests pass across 6 files, including 8 real-git tests. Revert-sensitivity proved for all six halves of the redesign, failing 3, 5, 7, 1, 1 and 1 tests. Live dry run showed 62 stale entries correctly classified as prune candidates with zero git inspection failures."
+      },
+      "tasksUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Task list marked done one gate at a time, as each gate finished."
+      },
+      "retrospectiveInvoked": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Merited and run. A revert experiment executed a real git worktree prune against the live repository, removing 62 stale admin entries. Blast radius verified zero: every affected HEAD was ref-contained beforehand and all 50 named branches survive. Root cause and prevention recorded in .serena/memories/testing/testing-a-revert-experiment-that-injects-code-runs-it-for-real.md."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "defect",
+      "evidence": "decide() runs git with cwd=worktree.path. When the directory is gone every git call fails, RuntimeError is caught, and the fail-safe returns KEEP with reason 'git inspection failed'. All 62 stale entries on this machine reported that. Meanwhile apply_removals() calls prune_worktrees() unconditionally, which does remove them. The dry-run plan contradicted what apply did."
+    },
+    {
+      "step": "correction",
+      "evidence": "First framing was 'the tool can never clean stale entries'. Reading apply_removals() disproved that: prune_worktrees() is already unconditional. Corrected the framing before writing code. The real defects are the lying plan, an unguarded prune, and 62 misleading KEEP reasons masking genuine inspection failures."
+    },
+    {
+      "step": "search-before-building",
+      "evidence": "git worktree list --porcelain already emits 'prunable <reason>' for stale entries. Counted 62, exactly matching the 62 misclassified entries. Used git's own marker instead of an os.path.isdir probe."
+    },
+    {
+      "step": "rejected",
+      "evidence": "An os.path.isdir(worktree.path) staleness probe broke 22 existing tests, because fixtures construct Worktree objects with paths like /wt/a that do not exist on disk. The porcelain marker leaves every fixture untouched and is authoritative rather than inferred."
+    },
+    {
+      "step": "change",
+      "evidence": "Added Worktree.prunable, parsed in _apply_attribute. decide() branches on it before any git call, so a stale entry never runs git in a missing directory. Contained HEAD gives PRUNE_STALE (a candidate), uncontained gives KEEP_STALE_UNREACHABLE. apply_removals skips remove_worktree for stale paths and withholds prune entirely when any entry is uncontained."
+    },
+    {
+      "step": "test",
+      "evidence": "tests/test_gc_worktrees_stale.py, 23 tests across porcelain parsing, decide precedence, reachability fail-safe, apply behavior, and plan/apply consistency. Full gc suite 118 passed including test_gc_worktrees_real_git.py."
+    },
+    {
+      "step": "verify",
+      "evidence": "Revert-sensitivity proved per half with byte-exact backups: parse-prunable 2 failed, decide-branch 3 failed, apply-skip-remove 5 failed, withhold-prune 2 failed, failsafe-error 1 failed. File restored byte-identical after every experiment."
+    },
+    {
+      "step": "verify",
+      "evidence": "Live dry run now reports 62 'stale admin entry (working tree gone)' prune candidates and zero 'git inspection failed'. Zero KEEP_STALE_UNREACHABLE, agreeing with the earlier independent git branch --contains cross-check that all 12 detached stale entries are contained by some ref."
+    },
+    {
+      "step": "lesson",
+      "evidence": "Disproved my own justification before shipping it. I wrote that git worktree prune is all-or-nothing. A scratch-repo experiment showed git worktree lock makes it selective: the locked stale entry survived, the other was pruned, and the detached SHA stayed alive. Kept the withhold design, since locking is user-visible state that an interrupted run would strand, but rewrote the stated reason to 'prune takes no path argument'."
+    },
+    {
+      "step": "lesson",
+      "evidence": "for-each-ref --contains walks every ref, not just branches and tags. Confirmed refs/stash anchors a commit. The withhold message said 'no branch or tag contains', narrower than what the code checks; corrected to 'no ref contains'. Cost measured at 0.066s per call against 3269 refs, so about 4s worst case across 62 stale entries."
+    },
+    {
+      "step": "review",
+      "evidence": "Adversarial review on gemini-3.1-pro-preview returned DO NOT SHIP with 4 findings. The Critical: apply_removals still called git worktree prune unconditionally, so any entry that went stale between build_report and apply was pruned with no reachability check ever having seen it. Its proposed fix rested on a claim I had assumed false, that git worktree remove works on a stale entry."
+    },
+    {
+      "step": "verification",
+      "evidence": "Tested the reviewer's claim against real git rather than accepting it. git worktree add then rm -rf the directory then git worktree remove <path> returns exit 0 and drops the admin record at git 2.43.0, no --force. My contrary assumption was untested and had driven the entire first design."
+    },
+    {
+      "step": "redesign",
+      "evidence": "Deleted prune_worktrees() and its only call site. Every candidate, stale or live, now goes through one per-path try/except in apply_removals. This closes the TOCTOU because there is no second removal path, ends the all-or-nothing withhold because one unsafe entry no longer blocks 61 safe ones, and makes report.removed a record of what succeeded rather than an assumption. Also moved the prunable branch below the time-budget guard and put the rescue SHA in the KEEP_STALE_UNREACHABLE reason, both review findings."
+    },
+    {
+      "step": "defect",
+      "evidence": "Stripping 18 patch(...prune_worktrees) sites left test_a_partial_report_with_no_candidates_still_refuses_to_prune and test_an_unavailable_scan_with_no_candidates_still_refuses_to_prune with zero assertions, silently always green. Both restored against the new design. Any mechanical mock removal needs a follow-up check that each touched test still asserts something."
+    },
+    {
+      "step": "incident",
+      "evidence": "Revert-sensitivity experiment 6 injected a real _run_git(['worktree','prune','-v']) into apply_removals to prove the blanket prune was load-bearing. The apply tests patch remove_worktree but not _run_git, and _run_git shells out with cwd at the repository root, so a real git worktree prune executed against the live repo and removed all 62 stale admin entries. Registered worktrees went 356 to 294, exactly 62, which is how it was detected."
+    },
+    {
+      "step": "verification",
+      "evidence": "Blast radius zero. Two independent pre-prune checks had confirmed every one of the 62 HEADs was contained by a ref, and git worktree prune deletes admin directories rather than refs, so no commit lost its last anchor. All 50 named branches verified present afterward and 0 prunable entries remain. The 12 detached entries cannot be re-verified after the fact: the plan file at ~/src/scratch/wtb/gc-dry.json recorded path, branch, remove and reason, and no SHA."
+    },
+    {
+      "step": "lesson",
+      "evidence": "Sort revert experiments by direction before running any. Subtractive reverts, deleting a branch or neutering a guard, cannot reach further than the code already could. Additive reverts put a call back, and the tests patch the dependency the subject is known to have rather than the one the injection adds. Run additive reverts in a throwaway clone, or patch the process boundary, or make the injection inert with an AssertionError instead of the real command. Recorded as .serena/memories/testing/testing-a-revert-experiment-that-injects-code-runs-it-for-real.md."
+    },
+    {
+      "step": "lesson",
+      "evidence": "Four stale-worktree facts recorded as .serena/memories/git/git-a-worktree-whose-directory-is-gone-can-still-be-removed-by-path.md. Porcelain emits prunable so no filesystem probe is needed and no test fixture has to change. git worktree remove works on a stale entry. git worktree lock makes prune selective, so all-or-nothing was wrong, though lock/prune/unlock is still rejected because an interrupted run strands a lock. for-each-ref --contains covers refs/stash, which branch and tag together miss, but not another worktree's detached HEAD, which errs toward keeping."
+    },
+    {
+      "step": "validation",
+      "evidence": "ruff check passed on all changed files. Full gc suite 123 passed across 6 files, including 8 real-git tests that pin git's actual behavior rather than a mock. Revert-sensitivity re-proved across 6 halves on the redesign: 3, 5, 7, 1, 1 and 1 tests failed respectively, so every half is load-bearing. File restored byte-identical from backup afterward, verified with diff rather than git checkout."
+    },
+    {
+      "step": "advisory",
+      "evidence": "gc_worktrees.py is 517 lines against a 500-line advisory taste ceiling; the redesign brought it down from 544 but not under. The natural extraction, moving the git command layer to its own module, would break patch('scripts.maintenance.gc_worktrees._run_git') in 5 existing suites because the moved functions would bind to the new module. Deferred rather than risked inside a data-loss-sensitive change."
+    },
+    {
+      "step": "lesson",
+      "evidence": "validate_session_json.py scans evidence on completed MUST items for tokens implying the item was skipped, and TODO is one of them on a word boundary, so 'Todo list updated' flags against correct evidence. The escapes are uneven: deferred and pending are suppressed after an affirmative word plus a clause boundary, skipped is suppressed after a bare number for pytest summaries, and TODO, TBD, N/A, will run, will validate and not available have none. Measured against _has_contradiction. Recorded as .serena/memories/session/session-writing-todo-in-evidence-trips-the-contradiction-scanner.md."
+    }
+  ],
+  "endingCommit": "9baa6f704",
+  "nextSteps": [
+    "Open the PR stacked on #4694 rather than waiting for it to merge; rebase onto main after #4694 lands",
+    "Return to branch A, the reachability memory fix, which is still unpushed",
+    "Continue worktree triage beyond the 62 stale entries: 174 with uncommitted changes, 39 detached, 13 unpushed and unmerged, plus 45 untriaged stashes",
+    "Extract the git command layer out of gc_worktrees.py in a separate change, updating the 5 suites' patch targets, to clear the 500-line advisory"
+  ]
+}
