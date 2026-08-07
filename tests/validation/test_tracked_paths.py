@@ -9,7 +9,9 @@ existence test fails here.
 
 from __future__ import annotations
 
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -21,7 +23,7 @@ from scripts.validation.check_skill_md_portability import (
 )
 from scripts.validation.tracked_paths import (
     GitQueryError,
-    _tracked_symlinks,
+    clear_tracked_path_cache,
     path_exists_in_repo,
     tracked_paths,
 )
@@ -45,8 +47,7 @@ def _make_repo(tmp_path: Path) -> Path:
     (repo / ".gitignore").write_text("/build/audit/\n", encoding="utf-8")
     _git(repo, "add", "tracked.md", ".gitignore")
     _git(repo, "commit", "-qm", "seed")
-    tracked_paths.cache_clear()
-    _tracked_symlinks.cache_clear()
+    clear_tracked_path_cache()
     return repo
 
 
@@ -67,7 +68,7 @@ class TestPathExistsInRepo:
         artifact = repo / "build" / "audit" / "GENERATION-AUDIT.md"
         artifact.parent.mkdir(parents=True)
         artifact.write_text("generated", encoding="utf-8")
-        tracked_paths.cache_clear()
+        clear_tracked_path_cache()
 
         assert artifact.exists() is True
         assert path_exists_in_repo(repo, "build/audit/GENERATION-AUDIT.md") is False
@@ -83,7 +84,7 @@ class TestPathExistsInRepo:
         nested.write_text("y", encoding="utf-8")
         _git(repo, "add", "a/b/c.md")
         _git(repo, "commit", "-qm", "nested")
-        tracked_paths.cache_clear()
+        clear_tracked_path_cache()
 
         assert path_exists_in_repo(repo, "a") is True
         assert path_exists_in_repo(repo, "a/b") is True
@@ -93,7 +94,7 @@ class TestPathExistsInRepo:
         repo = _make_repo(tmp_path)
         (repo / "staged.md").write_text("s", encoding="utf-8")
         _git(repo, "add", "staged.md")
-        tracked_paths.cache_clear()
+        clear_tracked_path_cache()
 
         assert path_exists_in_repo(repo, "staged.md") is True
 
@@ -106,7 +107,7 @@ class TestPathExistsInRepo:
         (repo / "alias").symlink_to("pkg")
         _git(repo, "add", "pkg/mod.py", "alias")
         _git(repo, "commit", "-qm", "symlink")
-        tracked_paths.cache_clear()
+        clear_tracked_path_cache()
 
         assert path_exists_in_repo(repo, "alias/mod.py") is True
         assert path_exists_in_repo(repo, "alias/missing.py") is False
@@ -120,8 +121,7 @@ class TestPathExistsInRepo:
         _git(repo, "add", "pkg/mod.py")
         _git(repo, "commit", "-qm", "pkg")
         (repo / "local").symlink_to("pkg")
-        tracked_paths.cache_clear()
-        _tracked_symlinks.cache_clear()
+        clear_tracked_path_cache()
 
         assert (repo / "local" / "mod.py").exists() is True
         assert path_exists_in_repo(repo, "local/mod.py") is False
@@ -139,11 +139,46 @@ class TestPathExistsInRepo:
 
         (repo / "alias").unlink()
         (repo / "alias").symlink_to("nowhere")
-        tracked_paths.cache_clear()
-        _tracked_symlinks.cache_clear()
+        clear_tracked_path_cache()
 
         assert (repo / "alias" / "mod.py").exists() is False
         assert path_exists_in_repo(repo, "alias/mod.py") is True
+
+    def test_parent_relative_tracked_link_stays_inside_repo(
+        self, tmp_path: Path
+    ) -> None:
+        repo = _make_repo(tmp_path)
+        target = repo / "shared" / "mod.py"
+        target.parent.mkdir(parents=True)
+        target.write_text("code", encoding="utf-8")
+        link_dir = repo / "dir"
+        link_dir.mkdir()
+        (link_dir / "alias").symlink_to("../shared")
+        _git(repo, "add", "shared/mod.py", "dir/alias")
+        _git(repo, "commit", "-qm", "parent relative link")
+        clear_tracked_path_cache()
+
+        assert path_exists_in_repo(repo, "dir/alias/mod.py") is True
+
+    def test_one_cache_clear_refreshes_paths_and_links(self, tmp_path: Path) -> None:
+        repo = _make_repo(tmp_path)
+        for package in ("old", "new"):
+            target = repo / package / f"{package}.py"
+            target.parent.mkdir(parents=True)
+            target.write_text("code", encoding="utf-8")
+        (repo / "alias").symlink_to("old")
+        _git(repo, "add", "old/old.py", "new/new.py", "alias")
+        _git(repo, "commit", "-qm", "old link")
+        clear_tracked_path_cache()
+        assert path_exists_in_repo(repo, "alias/old.py") is True
+
+        (repo / "alias").unlink()
+        (repo / "alias").symlink_to("new")
+        _git(repo, "add", "alias")
+        clear_tracked_path_cache()
+
+        assert path_exists_in_repo(repo, "alias/old.py") is False
+        assert path_exists_in_repo(repo, "alias/new.py") is True
 
     def test_symlink_cycle_terminates(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path)
@@ -151,8 +186,7 @@ class TestPathExistsInRepo:
         (repo / "b").symlink_to("a")
         _git(repo, "add", "a", "b")
         _git(repo, "commit", "-qm", "cycle")
-        tracked_paths.cache_clear()
-        _tracked_symlinks.cache_clear()
+        clear_tracked_path_cache()
 
         assert path_exists_in_repo(repo, "a/mod.py") is False
 
@@ -165,7 +199,7 @@ class TestPathExistsInRepo:
         plain = tmp_path / "plain"
         plain.mkdir()
         (plain / "f.md").write_text("z", encoding="utf-8")
-        tracked_paths.cache_clear()
+        clear_tracked_path_cache()
 
         assert tracked_paths(plain) is None
         assert path_exists_in_repo(plain, "f.md") is True
@@ -181,12 +215,12 @@ class TestPathExistsInRepo:
             raise OSError("disk on fire")
 
         monkeypatch.setattr(subprocess, "run", _boom)
-        tracked_paths.cache_clear()
+        clear_tracked_path_cache()
 
         with pytest.raises(GitQueryError):
             path_exists_in_repo(repo, "tracked.md")
 
-        tracked_paths.cache_clear()
+        clear_tracked_path_cache()
 
 
 class TestDriftUsesTrackedPaths:
@@ -201,13 +235,13 @@ class TestDriftUsesTrackedPaths:
             "build/audit/other.md. -->\nSee build/audit/other.md for output.\n"
         )
 
-        tracked_paths.cache_clear()
+        clear_tracked_path_cache()
         absent = _drift(repo, text)
 
         artifact = repo / "build" / "audit" / "other.md"
         artifact.parent.mkdir(parents=True)
         artifact.write_text("generated", encoding="utf-8")
-        tracked_paths.cache_clear()
+        clear_tracked_path_cache()
         present = _drift(repo, text)
 
         assert present == absent
@@ -220,7 +254,7 @@ class TestDriftUsesTrackedPaths:
             "<!-- vendor-portability: declared. References "
             "build/audit/TYPOFILE.md. -->\nSee build/audit/TYPOFILE.md.\n"
         )
-        tracked_paths.cache_clear()
+        clear_tracked_path_cache()
 
         failures = _drift(repo, text)
 
@@ -233,7 +267,7 @@ class TestDriftUsesTrackedPaths:
             "build/audit/GENERATION-AUDIT.md. -->\n"
             "The generator writes build/audit/GENERATION-AUDIT.md.\n"
         )
-        tracked_paths.cache_clear()
+        clear_tracked_path_cache()
 
         failures = _drift(repo, text)
 
@@ -243,17 +277,31 @@ class TestDriftUsesTrackedPaths:
 class TestExternalFailureExitCode:
     """An operational git failure is external (exit 3), not config (exit 2)."""
 
-    def test_git_failure_exits_three(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import scripts.validation.check_skill_md_portability as portability
+    def test_executable_git_failure_exits_three(self, tmp_path: Path) -> None:
+        """Exercise __main__; calling _run() alone would not pin the entry point."""
+        fake_bin = tmp_path / "bin"
+        fake_bin.mkdir()
+        fake_git = fake_bin / "git"
+        fake_git.write_text(
+            f"#!{sys.executable}\n"
+            "import sys\n"
+            "print('git exploded', file=sys.stderr)\n"
+            "sys.exit(7)\n",
+            encoding="utf-8",
+        )
+        fake_git.chmod(0o755)
+        repo_root = Path(__file__).resolve().parents[2]
+        script = repo_root / "scripts" / "validation" / "check_skill_md_portability.py"
+        env = os.environ | {"PATH": str(fake_bin)}
 
-        def _boom(*_args: object, **_kwargs: object) -> None:
-            raise OSError("git exploded")
+        completed = subprocess.run(
+            [sys.executable, str(script)],
+            cwd=repo_root,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
 
-        tracked_paths.cache_clear()
-        _tracked_symlinks.cache_clear()
-        monkeypatch.setattr(subprocess, "run", _boom)
-
-        assert portability._run([]) == 3
-
-        tracked_paths.cache_clear()
-        _tracked_symlinks.cache_clear()
+        assert completed.returncode == 3
+        assert "External failure:" in completed.stderr

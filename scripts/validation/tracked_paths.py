@@ -15,7 +15,7 @@ Semantics, stated because they are load-bearing for callers:
   deliberate: a validator should see the tree the commit will have.
 * The index is read once per repository root and cached for the life of the
   process. Callers that mutate the index mid-process must call
-  ``tracked_paths.cache_clear()``.
+  ``clear_tracked_path_cache()``.
 * Only a genuine "not a git repository", or a missing git binary, falls back to
   the filesystem, which is what lets callers validate scratch directories.
   Operational git failures raise, because silently falling back would restore
@@ -25,6 +25,7 @@ Semantics, stated because they are load-bearing for callers:
 from __future__ import annotations
 
 import subprocess
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
 
@@ -36,6 +37,12 @@ _MAX_LINK_HOPS = 8
 
 class GitQueryError(RuntimeError):
     """git is present and the path is a repository, but the query failed."""
+
+
+@dataclass(frozen=True)
+class _IndexSnapshot:
+    paths: frozenset[str]
+    symlinks: dict[str, str]
 
 
 def _run_git(repo_root: Path, args: list[str]) -> str | None:
@@ -69,79 +76,85 @@ def _run_git(repo_root: Path, args: list[str]) -> str | None:
 
 
 @lru_cache(maxsize=8)
-def tracked_paths(repo_root: Path) -> frozenset[str] | None:
-    """Return tracked files plus their parent directories, or None.
-
-    None means repo_root is not inside a git repository, or git is not
-    installed. Any other failure raises GitQueryError.
-    """
-    listing = _run_git(repo_root, ["ls-files", "-z"])
+def _index_snapshot(repo_root: Path) -> _IndexSnapshot | None:
+    """Return one coherent snapshot of tracked paths and symlinks."""
+    listing = _run_git(repo_root, ["ls-files", "-s", "-z"])
     if listing is None:
         return None
 
     paths: set[str] = set()
-    for raw in listing.split("\0"):
-        if not raw:
-            continue
-        paths.add(raw)
-        for parent in PurePosixPath(raw).parents:
-            text = str(parent)
-            if text != ".":
-                paths.add(text)
-    return frozenset(paths)
-
-
-@lru_cache(maxsize=8)
-def _tracked_symlinks(repo_root: Path) -> dict[str, str]:
-    """Return tracked symlink path -> its target text, read from the index.
-
-    The repository tracks a symlink (memory_enhancement -> scripts/...), and
-    git lists only the link, so paths beneath it are absent from the index.
-    Following it must not consult the working tree: an untracked local link, or
-    an unstaged edit to a tracked one, would otherwise decide the answer and
-    reintroduce the machine-dependence this module removes.
-    """
-    listing = _run_git(repo_root, ["ls-files", "-s", "-z"])
-    if listing is None:
-        return {}
-
-    links: dict[str, str] = {}
     blobs: dict[str, str] = {}
     for entry in listing.split("\0"):
         if not entry:
             continue
         meta, _, path = entry.partition("\t")
         fields = meta.split()
-        if len(fields) < 2 or fields[0] != _SYMLINK_MODE:
+        if len(fields) < 2:
             continue
-        blobs[path] = fields[1]
+        paths.add(path)
+        for parent in PurePosixPath(path).parents:
+            text = str(parent)
+            if text != ".":
+                paths.add(text)
+        if fields[0] == _SYMLINK_MODE:
+            blobs[path] = fields[1]
 
+    links: dict[str, str] = {}
     for path, sha in blobs.items():
         target = _run_git(repo_root, ["cat-file", "blob", sha])
         if target is not None:
             links[path] = target.strip()
-    return links
+    return _IndexSnapshot(frozenset(paths), links)
+
+
+def clear_tracked_path_cache() -> None:
+    """Discard the cached index snapshot after a caller mutates the index."""
+    _index_snapshot.cache_clear()
+
+
+def tracked_paths(repo_root: Path) -> frozenset[str] | None:
+    """Return tracked files plus their parent directories, or None."""
+    snapshot = _index_snapshot(repo_root)
+    return None if snapshot is None else snapshot.paths
+
+
+def _collapse_repo_path(path: PurePosixPath) -> str | None:
+    """Collapse dot segments, rejecting only paths that escape the repo."""
+    parts: list[str] = []
+    for part in path.parts:
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if not parts:
+                return None
+            parts.pop()
+            continue
+        parts.append(part)
+    return "/".join(parts)
 
 
 def _resolve_through_index(repo_root: Path, rel_path: str) -> str | None:
     """Rewrite rel_path through tracked symlinks, or None if it does not cross one."""
-    links = _tracked_symlinks(repo_root)
-    if not links:
+    snapshot = _index_snapshot(repo_root)
+    if snapshot is None or not snapshot.symlinks:
         return None
 
     current = PurePosixPath(rel_path)
     for _ in range(_MAX_LINK_HOPS):
         for depth in range(len(current.parts) - 1, 0, -1):
             prefix = str(PurePosixPath(*current.parts[:depth]))
-            target = links.get(prefix)
+            target = snapshot.symlinks.get(prefix)
             if target is None:
                 continue
+            target_path = PurePosixPath(target)
+            if target_path.is_absolute():
+                return None
             rest = current.parts[depth:]
             base = PurePosixPath(prefix).parent
-            candidate = PurePosixPath(base / target, *rest)
-            if ".." in candidate.parts or candidate.is_absolute():
+            collapsed = _collapse_repo_path(PurePosixPath(base / target_path, *rest))
+            if collapsed is None:
                 return None
-            current = candidate
+            current = PurePosixPath(collapsed)
             break
         else:
             return str(current) if str(current) != rel_path else None
@@ -162,11 +175,11 @@ def path_exists_in_repo(repo_root: Path, rel_path: str) -> bool:
     if normalized is None:
         return False
 
-    known = tracked_paths(repo_root)
-    if known is None:
+    snapshot = _index_snapshot(repo_root)
+    if snapshot is None:
         return (repo_root / normalized).exists()
-    if normalized in known:
+    if normalized in snapshot.paths:
         return True
 
     through_link = _resolve_through_index(repo_root, normalized)
-    return through_link is not None and through_link in known
+    return through_link is not None and through_link in snapshot.paths
