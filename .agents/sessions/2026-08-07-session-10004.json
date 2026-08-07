@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits 98bd00264 and 286e70b98 complete the fix and session SHA update; retrospective evidence is staged with this log update."
+        "Evidence": "Ending commit recorded as 9b7db9d8f; prior commits contain code fix, session SHA update, and retrospective evidence."
       },
       "validationPassed": {
         "level": "MUST",
@@ -143,6 +143,6 @@
       "entry": "Added retrospective .agents/retrospective/2026-08-07-ref-trace-dead-code.md after pre-push retrospective-policy required dated evidence."
     }
   ],
-  "endingCommit": "286e70b98",
+  "endingCommit": "9b7db9d8f",
   "nextSteps": []
 }

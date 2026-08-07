@@ -53,8 +53,7 @@
         "e003"
       ],
       "leads_to": [
-        "e005",
-        "e006"
+        "e011"
       ],
       "_source_session": "2026-08-07-session-10004"
     },
@@ -64,7 +63,7 @@
       "type": "milestone",
       "content": "Targeted validation passed: uv run --frozen python -m pytest tests/test_pytest_head_guard.py tests/validation/test_git_hook_policy_causal_restore.py -q -p no:randomly --timeout=300, 166 passed.",
       "caused_by": [
-        "e004"
+        "e011"
       ],
       "leads_to": [
         "e007"
@@ -77,7 +76,7 @@
       "type": "test",
       "content": "Targeted validation passed: uv run --frozen python -m pytest tests/test_pytest_head_guard.py tests/validation/test_git_hook_policy_causal_restore.py -q -p no:randomly --timeout=300, 166 passed.",
       "caused_by": [
-        "e004"
+        "e011"
       ],
       "leads_to": [
         "e007"
@@ -134,6 +133,20 @@
         "e003"
       ],
       "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-07T01:41:28+00:00",
+      "type": "commit",
+      "content": "Commit: 9b7db9d8f",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e005",
+        "e006"
+      ],
+      "_source_session": "2026-08-07-session-10004"
     }
   ],
   "metrics": {
@@ -141,8 +154,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 5
+    "commits": 3,
+    "files_changed": 6
   },
   "lessons": []
 }
