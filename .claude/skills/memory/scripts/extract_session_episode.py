@@ -1066,11 +1066,15 @@ def _range_files_changed(
     end: str,
     cwd: str | Path | None = None,
 ) -> int | None:
-    """Count files changed between two commits (best-effort).
+    """Count files changed by branch commits in a session range (best-effort).
 
     Returns ``None`` when the range cannot be measured and ``0`` when a valid
     range changes no files. The distinction lets callers use an empty range as
     authoritative without masking git failures with a false zero.
+
+    Follow only the ending commit's first-parent path and skip merge commits.
+    A normal sync from main uses the branch tip as the merge's first parent, so
+    this counts session commits while excluding files that arrived from main.
 
     Both SHAs are shape-checked against ``_FULL_SHA_RE`` before reaching the
     command line: the values come from a JSON file, and a value like
@@ -1085,7 +1089,15 @@ def _range_files_changed(
     cmd = ["git"]
     if cwd is not None:
         cmd += ["-C", str(cwd)]
-    cmd += ["diff", "--name-only", f"{start}...{end}"]
+    cmd += [
+        "log",
+        "--first-parent",
+        "--no-merges",
+        "--format=",
+        "--name-only",
+        f"{start}..{end}",
+        "--",
+    ]
     env = os.environ.copy()
     for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
         env.pop(var, None)
@@ -1104,7 +1116,7 @@ def _range_files_changed(
         return None
     if result.returncode != 0:
         return None
-    return sum(1 for line in result.stdout.splitlines() if line.strip())
+    return len({line.strip() for line in result.stdout.splitlines() if line.strip()})
 
 
 _DURATION_TEXT_RE = re.compile(r"(\d+)\s*minutes?", re.IGNORECASE)
@@ -2576,11 +2588,12 @@ def main(argv: list[str] | None = None) -> int:
             session_log_path.parent,
         )
 
+    measured_files_changed = (
+        authoritative_files_changed if authoritative_files_changed is not None else ranged
+    )
     staged = _staged_files_changed(session_log_path.parent)
-    if authoritative_files_changed is not None:
-        metrics["files_changed"] = authoritative_files_changed
-    elif ranged is not None:
-        metrics["files_changed"] = ranged
+    if measured_files_changed is not None:
+        metrics["files_changed"] = measured_files_changed
     elif staged:
         if args.pending_stage:
             episode_path = output_path / f"episode-{session_id}.json"
@@ -2593,6 +2606,7 @@ def main(argv: list[str] | None = None) -> int:
             staged_paths = _staged_file_paths(session_log_path.parent)
             if episode_rel_path is not None and episode_rel_path not in staged_paths:
                 staged += 1
+        measured_files_changed = staged
         metrics["files_changed"] = staged
 
     episode = {
@@ -2643,8 +2657,8 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             prior_edges = _total_causal_edges(existing_raw.get("events"))
             episode = merge_preserving(episode, existing_raw, session_id=session_id)
-            if authoritative_files_changed is not None:
-                episode["metrics"]["files_changed"] = authoritative_files_changed
+            if measured_files_changed is not None:
+                episode["metrics"]["files_changed"] = measured_files_changed
             decisions = episode["decisions"]
             events = episode["events"]
             lessons = episode["lessons"]

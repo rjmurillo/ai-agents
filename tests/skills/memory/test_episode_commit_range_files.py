@@ -35,7 +35,7 @@ def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedPro
 
 class TestRangeFilesChanged:
     def test_counts_name_only_lines(self) -> None:
-        names = "a.py\nb.md\nc.txt\n"
+        names = "a.py\nb.md\na.py\nc.txt\n"
         with patch.object(ese.subprocess, "run", return_value=_completed(names)):
             assert ese._range_files_changed(_SHA_A, _SHA_B) == 3
 
@@ -96,7 +96,8 @@ class TestRangeFilesChanged:
             ese._range_files_changed(_SHA_A, _SHA_B, "/some/where")
         argv = run.call_args[0][0]
         assert argv[:3] == ["git", "-C", "/some/where"]
-        assert f"{_SHA_A}...{_SHA_B}" in argv
+        assert argv[3:6] == ["log", "--first-parent", "--no-merges"]
+        assert f"{_SHA_A}..{_SHA_B}" in argv
 
     def test_runs_git_with_clean_env_and_c_locale(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Inherited git env vars would point the command at another repo, and
@@ -136,6 +137,29 @@ def repo(tmp_path: Path) -> Path:
     _git("add", "seed.txt", cwd=root)
     _git("commit", "-q", "-m", "seed", cwd=root)
     return root
+
+
+class TestRangeFilesChangedWithGit:
+    def test_excludes_files_merged_from_main(self, repo: Path) -> None:
+        _git("checkout", "-q", "-b", "feature", cwd=repo)
+        start = _git("rev-parse", "HEAD", cwd=repo)
+        (repo / "feature-before.txt").write_text("feature\n", encoding="utf-8")
+        _git("add", "feature-before.txt", cwd=repo)
+        _git("commit", "-q", "-m", "feature before sync", cwd=repo)
+
+        _git("checkout", "-q", "main", cwd=repo)
+        (repo / "main-only.txt").write_text("main\n", encoding="utf-8")
+        _git("add", "main-only.txt", cwd=repo)
+        _git("commit", "-q", "-m", "main work", cwd=repo)
+
+        _git("checkout", "-q", "feature", cwd=repo)
+        _git("merge", "-q", "--no-ff", "-m", "sync main", "main", cwd=repo)
+        (repo / "feature-after.txt").write_text("feature\n", encoding="utf-8")
+        _git("add", "feature-after.txt", cwd=repo)
+        _git("commit", "-q", "-m", "feature after sync", cwd=repo)
+        end = _git("rev-parse", "HEAD", cwd=repo)
+
+        assert ese._range_files_changed(start, end, repo) == 2
 
 
 class TestExtractorUsesTheCommitRange:
@@ -271,6 +295,23 @@ class TestExtractorUsesTheCommitRange:
         assert rc == 0
         preserved = json.loads(episode_file.read_text(encoding="utf-8"))
         assert preserved["metrics"]["files_changed"] == 10
+
+    def test_range_count_replaces_larger_preserved_metric(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        log, _start, _end = self._build(repo, tmp_path, changed=3)
+        out = tmp_path / "episodes"
+        assert ese.main([str(log), "--output-path", str(out), "--force"]) == 0
+        episode_file = out / "episode-2026-08-03-session-1.json"
+        episode = json.loads(episode_file.read_text(encoding="utf-8"))
+        episode["metrics"]["files_changed"] = 95
+        episode_file.write_text(json.dumps(episode), encoding="utf-8")
+
+        rc = ese.main([str(log), "--output-path", str(out), "--preserve"])
+
+        assert rc == 0
+        preserved = json.loads(episode_file.read_text(encoding="utf-8"))
+        assert preserved["metrics"]["files_changed"] == 3
 
     def test_prose_still_answers_when_the_range_is_unusable(
         self, repo: Path, tmp_path: Path

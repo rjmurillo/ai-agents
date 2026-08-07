@@ -286,17 +286,43 @@
       "caused_by": [
         "e021"
       ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-07T21:15:00+00:00",
+      "type": "milestone",
+      "content": "Two late review threads found that three-dot range counting included files merged from main. A real repository test reproduced 3 counted files for 2 branch files, and preserve mode retained a stale count of 95 instead of 3.",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-07T21:35:00+00:00",
+      "type": "milestone",
+      "content": "Changed range counting to unique paths from non-merge commits on the ending commit first-parent path. Preserve mode now reapplies the measured source. The affected suite passed 567 tests, and this episode now reports 9 files instead of 86 with 22 events preserved.",
+      "caused_by": [
+        "e023"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
     }
   ],
   "metrics": {
-    "duration_minutes": 166,
+    "duration_minutes": 244,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
     "commits": 7,
-    "files_changed": 86
+    "files_changed": 9
   },
   "lessons": []
 }

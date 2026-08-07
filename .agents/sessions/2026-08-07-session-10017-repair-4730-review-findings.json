@@ -183,10 +183,18 @@
     {
       "time": "2026-08-07T20:17:00Z",
       "entry": "A late Copilot thread found that list and object event types raised TypeError before validation. Two regression cases reproduced the crash. Commit 60b78f3c3 validates the JSON type before set membership; the affected suite passed 565 tests."
+    },
+    {
+      "time": "2026-08-07T21:15:00Z",
+      "entry": "Two late review threads found that three-dot range counting included files merged from main. A real repository test reproduced 3 counted files for 2 branch files, and preserve mode retained a stale count of 95 instead of 3."
+    },
+    {
+      "time": "2026-08-07T21:35:00Z",
+      "entry": "Changed range counting to unique paths from non-merge commits on the ending commit first-parent path. Preserve mode now reapplies the measured source. The affected suite passed 567 tests, and this episode now reports 9 files instead of 86 with 22 events preserved."
     }
   ],
   "endingCommit": "60b78f3c3",
   "nextSteps": [
-    "Push the late fix, reply to and resolve its review thread after reachability, and verify final CI plus auto-merge."
+    "Push the merged-main fix, reply to and resolve both review threads after reachability, and verify final CI plus auto-merge."
   ]
 }
