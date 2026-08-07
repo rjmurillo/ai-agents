@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The retrospective and this session log are committed together by the enclosing commit."
+        "Evidence": "Retrospective, session log, and generated episode committed at eae23dc22."
       },
       "validationPassed": {
         "level": "MUST",
@@ -128,6 +128,6 @@
       "entry": "Classified the failure as FM-3, ran Five Whys and fishbone analysis, and rejected a duplicate memory after finding existing rule coverage."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "eae23dc22",
   "nextSteps": []
 }
