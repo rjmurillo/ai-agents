@@ -18,7 +18,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.validation.session_scope import added_session_paths_in_head
+from scripts.validation.session_scope import committed_session_validation_modes
 
 _RESULTS = Path("validation-results")
 _SUMMARY = Path("validation-summary.json")
@@ -87,15 +87,18 @@ def must_failure_count(exit_code: int) -> int:
 
 def _validation_mode_args(session_file: str) -> tuple[list[str] | None, str | None]:
     normalized = Path(session_file).as_posix()
-    new_logs = added_session_paths_in_head([normalized], Path.cwd())
-    if new_logs is None:
+    modes = committed_session_validation_modes([normalized], Path.cwd())
+    if modes is None:
         return None, (
             "ERROR: unable to determine which committed session logs were added by HEAD; "
             "refusing to guess creation-mode"
         )
-    if normalized in new_logs:
+    mode = modes.get(normalized, "full")
+    if mode == "creation":
         return ["--creation-mode"], None
-    return ["--existing-log"], None
+    if mode == "existing":
+        return ["--existing-log"], None
+    return [], None
 
 
 def _write_results(name: str, verdict: str, must_failures: int, findings: str) -> None:

@@ -30,9 +30,13 @@ def _in_tmp_dir(tmp_path, monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.fixture(autouse=True)
-def _default_head_add_probe(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Most tests exercise result handling, not the git probe itself."""
-    monkeypatch.setattr(mod, "added_session_paths_in_head", lambda paths, repo_root: set())
+def _default_validation_modes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Most tests exercise result handling, not validation-mode classification."""
+    monkeypatch.setattr(
+        mod,
+        "committed_session_validation_modes",
+        lambda paths, repo_root: {path: "full" for path in paths},
+    )
 
 
 def _completed(
@@ -162,11 +166,11 @@ class TestValidate:
             called.append(argv)
             return _completed()
 
-        def _fail_probe(_paths: list[str], _repo_root) -> set[str]:
+        def _fail_modes(_paths: list[str], _repo_root) -> dict[str, str]:
             raise AssertionError("git probe should not run")
 
         monkeypatch.setattr(mod, "_run", fake_run)
-        monkeypatch.setattr(mod, "added_session_paths_in_head", _fail_probe)
+        monkeypatch.setattr(mod, "committed_session_validation_modes", _fail_modes)
         code, findings = mod.validate("s/x.md")
         assert code == 1
         assert "no longer supported" in findings
@@ -184,8 +188,8 @@ class TestValidate:
         monkeypatch.setattr(mod, "_run", fake_run)
         monkeypatch.setattr(
             mod,
-            "added_session_paths_in_head",
-            lambda paths, repo_root: {"s/x.json"},
+            "committed_session_validation_modes",
+            lambda paths, repo_root: {"s/x.json": "creation"},
         )
         code, findings = mod.validate("s/x.json")
         assert code == 0
@@ -194,6 +198,27 @@ class TestValidate:
         assert "--creation-mode" in seen[0]
         assert "--existing-log" not in seen[0]
         assert "--json-output" in seen[0]
+
+    def test_a_branch_owned_log_runs_the_validator_without_a_mode_flag(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: list[list[str]] = []
+
+        def fake_run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+            seen.append(argv)
+            return _completed(stdout="ok")
+
+        monkeypatch.setattr(mod, "_run", fake_run)
+        monkeypatch.setattr(
+            mod,
+            "committed_session_validation_modes",
+            lambda paths, repo_root: {"s/x.json": "full"},
+        )
+        code, findings = mod.validate("s/x.json")
+        assert code == 0
+        assert findings == "ok"
+        assert "--existing-log" not in seen[0]
+        assert "--creation-mode" not in seen[0]
 
     def test_a_historical_log_runs_the_validator_as_existing(
         self, monkeypatch: pytest.MonkeyPatch
@@ -205,7 +230,11 @@ class TestValidate:
             return _completed(stdout="ok")
 
         monkeypatch.setattr(mod, "_run", fake_run)
-        monkeypatch.setattr(mod, "added_session_paths_in_head", lambda paths, repo_root: set())
+        monkeypatch.setattr(
+            mod,
+            "committed_session_validation_modes",
+            lambda paths, repo_root: {"s/x.json": "existing"},
+        )
         code, findings = mod.validate("s/x.json")
         assert code == 0
         assert findings == "ok"
@@ -221,15 +250,17 @@ class TestValidate:
             called.append(argv)
             return _completed(stdout="ok")
 
+        def mode_lookup(_paths: list[str], _repo_root: object) -> None:
+            return None
+
         monkeypatch.setattr(mod, "_run", fake_run)
-        monkeypatch.setattr(mod, "added_session_paths_in_head", lambda paths, repo_root: None)
+        monkeypatch.setattr(mod, "committed_session_validation_modes", mode_lookup)
         code, findings = mod.validate("s/x.json")
         assert code == 1
         assert "refusing to guess creation-mode" in findings
         assert called == []
 
     def test_findings_merge_both_streams(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(mod, "added_session_paths_in_head", lambda paths, repo_root: set())
         monkeypatch.setattr(mod, "_run", lambda argv: _completed(1, stdout="out\n", stderr="err\n"))
         _, findings = mod.validate("s/x.json")
         assert "out" in findings
@@ -238,7 +269,6 @@ class TestValidate:
     def test_the_validator_exit_code_is_returned_unchanged(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(mod, "added_session_paths_in_head", lambda paths, repo_root: set())
         monkeypatch.setattr(mod, "_run", lambda argv: _completed(7))
         assert mod.validate("s/x.json")[0] == 7
 

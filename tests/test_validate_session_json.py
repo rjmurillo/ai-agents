@@ -2002,7 +2002,9 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
     ) -> tuple[Callable[..., subprocess.CompletedProcess[str]], list[list[str]]]:
         seen: list[list[str]] = []
 
-        def _git(args: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
+        def _git(
+            args: list[str], _repo_root: Path, **_kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
             seen.append(args)
             if args[0] == "merge-base":
                 code = 0 if base else 1
@@ -2019,6 +2021,8 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         *,
         staged_added: tuple[str, ...] = (),
         head_added: tuple[str, ...] = (),
+        parents: tuple[str, ...] = (),
+        head_added_by_parent: dict[str, tuple[str, ...]] | None = None,
         staged_returncode: int = 0,
         head_returncode: int = 0,
         staged_stderr: str = "",
@@ -2026,13 +2030,20 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
     ) -> tuple[Callable[..., subprocess.CompletedProcess[str]], list[list[str]]]:
         seen: list[list[str]] = []
 
-        def _git(args: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
+        def _git(
+            args: list[str], _repo_root: Path, **_kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
             seen.append(args)
             if args == ["diff", "--cached", "--name-status", "-M", "--diff-filter=A"]:
                 if staged_returncode != 0:
                     return subprocess.CompletedProcess([], staged_returncode, "", staged_stderr)
                 body = "".join(f"A\t{name}\n" for name in staged_added)
                 return subprocess.CompletedProcess([], 0, body, "")
+            if args == ["rev-list", "--parents", "-n", "1", "HEAD"]:
+                line = "HEAD"
+                if parents:
+                    line += f" {' '.join(parents)}"
+                return subprocess.CompletedProcess([], 0, f"{line}\n", "")
             if args == [
                 "diff-tree",
                 "--root",
@@ -2045,6 +2056,24 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
                 if head_returncode != 0:
                     return subprocess.CompletedProcess([], head_returncode, "", head_stderr)
                 body = "".join(f"A\t{name}\n" for name in head_added)
+                return subprocess.CompletedProcess([], 0, body, "")
+            if len(args) == 7 and args[:5] == [
+                "diff-tree",
+                "--name-status",
+                "-M",
+                "--diff-filter=A",
+                "-r",
+            ]:
+                if head_returncode != 0:
+                    return subprocess.CompletedProcess([], head_returncode, "", head_stderr)
+                parent = args[5]
+                added: tuple[str, ...] = ()
+                if head_added_by_parent is None:
+                    if parents == (parent,):
+                        added = head_added
+                else:
+                    added = head_added_by_parent.get(parent, ())
+                body = "".join(f"A\t{name}\n" for name in added)
                 return subprocess.CompletedProcess([], 0, body, "")
             return subprocess.CompletedProcess([], 0, "", "")
 
@@ -2061,7 +2090,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         script = (
             Path(__file__).resolve().parents[1] / "scripts/ci/validate_session_protocol.py"
         ).read_text(encoding="utf-8")
-        assert "added_session_paths_in_head" in script
+        assert "committed_session_validation_modes" in script
         assert "--creation-mode" in script
         assert "--existing-log" in script
         assert "--scope-from-git" not in script
@@ -2083,6 +2112,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             if line.startswith(("import ", "from ")) and "__future__" not in line
         ]
         assert imports == [
+            "import os",
             "import re",
             "import subprocess",
             "import sys",
@@ -2182,25 +2212,91 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         """Rename detection needs the whole diff, not a path-limited half."""
         from scripts.validation import session_scope
 
-        stub, seen = self._added_paths_stub(head_added=("a.json",))
+        stub, seen = self._added_paths_stub(parents=("parent",), head_added=("a.json",))
         with mock.patch.object(session_scope, "_git", stub):
             assert session_scope.added_session_paths_in_head(["a.json"], Path.cwd()) == {"a.json"}
         assert seen == [
-            ["diff-tree", "--root", "--name-status", "-M", "--diff-filter=A", "-r", "HEAD"]
+            ["rev-list", "--parents", "-n", "1", "HEAD"],
+            ["diff-tree", "--name-status", "-M", "--diff-filter=A", "-r", "parent", "HEAD"],
         ]
 
     def test_the_shared_helper_returns_none_on_git_failure(self) -> None:
         from scripts.validation import session_scope
 
-        stub, _ = self._added_paths_stub(head_returncode=128, head_stderr="fatal: bad HEAD")
+        stub, _ = self._added_paths_stub(
+            parents=("parent",),
+            head_returncode=128,
+            head_stderr="fatal: bad HEAD",
+        )
         with mock.patch.object(session_scope, "_git", stub):
             assert session_scope.added_session_paths_in_head(["a.json"], Path.cwd()) is None
 
-    def test_the_hook_passes_the_flag_only_for_an_existing_log(self) -> None:
+    def test_the_shared_helper_marks_merge_commit_adds_only_when_all_parents_add(self) -> None:
+        from scripts.validation import session_scope
+
+        stub, _ = self._added_paths_stub(
+            parents=("left", "right"),
+            head_added_by_parent={"left": ("a.json",), "right": ("a.json",)},
+        )
+        with mock.patch.object(session_scope, "_git", stub):
+            assert session_scope.added_session_paths_in_head(["a.json"], Path.cwd()) == {"a.json"}
+
+    def test_the_shared_helper_rejects_merge_commit_adds_missing_from_one_parent(self) -> None:
+        from scripts.validation import session_scope
+
+        stub, _ = self._added_paths_stub(
+            parents=("left", "right"),
+            head_added_by_parent={"left": ("a.json",), "right": ()},
+        )
+        with mock.patch.object(session_scope, "_git", stub):
+            assert session_scope.added_session_paths_in_head(["a.json"], Path.cwd()) == set()
+
+    def test_the_index_add_probe_uses_the_active_alternate_index(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from scripts.validation import session_scope
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        def git(*args: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                ["git", *args],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+
+        git("init")
+        git("config", "user.name", "Test User")
+        git("config", "user.email", "test@example.com")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        git("add", "README.md")
+        git("commit", "-m", "test: base")
+
+        relative = ".agents/sessions/2026-01-01-session-1.json"
+        session_file = repo / relative
+        session_file.parent.mkdir(parents=True)
+        session_file.write_text("{}\n", encoding="utf-8")
+
+        alternate_index = repo / ".git/alternate-index"
+        alternate_index.write_bytes((repo / ".git/index").read_bytes())
+        monkeypatch.setenv("GIT_INDEX_FILE", str(alternate_index))
+        git("add", relative)
+
+        assert session_scope.added_session_paths_in_index([relative], repo) == {relative}
+
+        monkeypatch.delenv("GIT_INDEX_FILE")
+        assert git("diff", "--cached", "--name-only").stdout.splitlines() == []
+
+    def test_the_hook_runs_full_validation_for_a_branch_owned_log(self) -> None:
         from scripts.validation import git_hook_policy
 
         commands: list[list[str]] = []
-        old = ".agents/sessions/2026-01-01-session-1.json"
+        branch_owned = ".agents/sessions/2026-01-01-session-1.json"
 
         def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
             commands.append(command)
@@ -2208,9 +2304,36 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
 
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
-            mock.patch.object(git_hook_policy, "added_session_paths_in_head", return_value=set()),
+            mock.patch.object(
+                git_hook_policy,
+                "committed_session_validation_modes",
+                return_value={branch_owned: "full"},
+            ),
         ):
-            git_hook_policy.validate_branch_sessions([old], Path.cwd())
+            git_hook_policy.validate_branch_sessions([branch_owned], Path.cwd())
+        assert commands
+        assert "--existing-log" not in commands[0]
+        assert "--creation-mode" not in commands[0]
+
+    def test_the_hook_passes_the_flag_only_for_a_historical_log(self) -> None:
+        from scripts.validation import git_hook_policy
+
+        commands: list[list[str]] = []
+        historical = ".agents/sessions/2026-01-01-session-1.json"
+
+        def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "committed_session_validation_modes",
+                return_value={historical: "existing"},
+            ),
+        ):
+            git_hook_policy.validate_branch_sessions([historical], Path.cwd())
         assert commands and "--existing-log" in commands[0]
 
     def test_the_hook_passes_creation_mode_for_a_new_log(self) -> None:
@@ -2230,7 +2353,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
 
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
-            mock.patch.object(git_hook_policy, "added_session_paths_in_head", return_value={new}),
+            mock.patch.object(
+                git_hook_policy,
+                "committed_session_validation_modes",
+                return_value={new: "creation"},
+            ),
         ):
             git_hook_policy.validate_branch_sessions([new], Path.cwd())
         assert commands
@@ -2249,7 +2376,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
 
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
-            mock.patch.object(git_hook_policy, "added_session_paths_in_head", return_value=None),
+            mock.patch.object(
+                git_hook_policy,
+                "committed_session_validation_modes",
+                return_value=None,
+            ),
         ):
             rc = git_hook_policy.validate_branch_sessions([path], Path.cwd())
         assert rc == 1

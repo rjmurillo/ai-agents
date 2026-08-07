@@ -16,6 +16,7 @@ would drag in PyYAML and fail.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -35,11 +36,21 @@ NO_SUCH_COMMIT = "names no commit in this repository"
 NOT_AN_ANCESTOR = "names a commit that is not an ancestor of HEAD"
 
 
-def _git(args: list[str], repo_root: Path) -> subprocess.CompletedProcess[str]:
+def _git_env(*, preserve_index_file: bool = False) -> dict[str, str]:
+    """Return a clean git environment, optionally preserving the active index."""
+    env = _git_subprocess_env()
+    if preserve_index_file and (index := os.environ.get("GIT_INDEX_FILE")):
+        env["GIT_INDEX_FILE"] = index
+    return env
+
+
+def _git(
+    args: list[str], repo_root: Path, *, preserve_index_file: bool = False
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
         cwd=repo_root,
-        env=_git_subprocess_env(),
+        env=_git_env(preserve_index_file=preserve_index_file),
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -126,7 +137,11 @@ def _tracked(paths: list[str], repo_root: Path) -> set[str]:
 
 
 def _added_session_paths(
-    paths: Iterable[str], repo_root: Path, git_args: list[str]
+    paths: Iterable[str],
+    repo_root: Path,
+    git_args: list[str],
+    *,
+    preserve_index_file: bool = False,
 ) -> set[str] | None:
     """Return the subset of ``paths`` one git diff reports as additions.
 
@@ -143,7 +158,7 @@ def _added_session_paths(
     if not wanted:
         return set()
     try:
-        diff = _git(git_args, repo_root)
+        diff = _git(git_args, repo_root, preserve_index_file=preserve_index_file)
     except (OSError, subprocess.SubprocessError):
         return None
     if diff.returncode != 0:
@@ -169,16 +184,86 @@ def added_session_paths_in_index(paths: Iterable[str], repo_root: Path) -> set[s
         paths,
         repo_root,
         ["diff", "--cached", "--name-status", "-M", "--diff-filter=A"],
+        preserve_index_file=True,
     )
+
+
+def _head_parents(repo_root: Path) -> list[str] | None:
+    """Return HEAD's parent SHAs, or ``None`` when git cannot answer."""
+    try:
+        result = _git(["rev-list", "--parents", "-n", "1", "HEAD"], repo_root)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        if result.stdout:
+            print(result.stdout, end="", file=sys.stderr)
+        if result.stderr:
+            print(result.stderr, end="", file=sys.stderr)
+        return None
+    parts = result.stdout.split()
+    if not parts:
+        return None
+    return parts[1:]
 
 
 def added_session_paths_in_head(paths: Iterable[str], repo_root: Path) -> set[str] | None:
     """Return session-log paths added by ``HEAD``, or ``None`` on git failure."""
-    return _added_session_paths(
-        paths,
-        repo_root,
-        ["diff-tree", "--root", "--name-status", "-M", "--diff-filter=A", "-r", "HEAD"],
-    )
+    wanted = list(paths)
+    if not wanted:
+        return set()
+    parents = _head_parents(repo_root)
+    if parents is None:
+        return None
+    if not parents:
+        return _added_session_paths(
+            wanted,
+            repo_root,
+            ["diff-tree", "--root", "--name-status", "-M", "--diff-filter=A", "-r", "HEAD"],
+        )
+    added_against_all: set[str] | None = None
+    for parent in parents:
+        added = _added_session_paths(
+            wanted,
+            repo_root,
+            ["diff-tree", "--name-status", "-M", "--diff-filter=A", "-r", parent, "HEAD"],
+        )
+        if added is None:
+            return None
+        if added_against_all is None:
+            added_against_all = set(added)
+        else:
+            added_against_all &= added
+        if not added_against_all:
+            return set()
+    return added_against_all or set()
+
+
+def committed_session_validation_modes(
+    paths: Iterable[str], repo_root: Path
+) -> dict[str, str] | None:
+    """Classify committed session logs as creation, full, or existing.
+
+    ``creation`` applies only to paths that the current ``HEAD`` commit adds.
+    ``existing`` is reserved for paths proven to predate the branch, meaning
+    they are absent from the branch-added set relative to the merge base.
+    Everything else stays on the full validation path with no mode flag.
+    """
+    wanted = list(paths)
+    if not wanted:
+        return {}
+    head_added = added_session_paths_in_head(wanted, repo_root)
+    if head_added is None:
+        return None
+    branch_new = new_session_logs(wanted, repo_root)
+    modes: dict[str, str] = {}
+    for path in wanted:
+        if path in head_added:
+            modes[path] = "creation"
+        elif path not in branch_new:
+            modes[path] = "existing"
+        else:
+            modes[path] = "full"
+    return modes
 
 
 def new_session_logs(paths: Iterable[str], repo_root: Path) -> set[str]:
