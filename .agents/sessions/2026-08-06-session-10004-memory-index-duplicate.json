@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: 6d7467b564)"
+        "Evidence": "All changes committed (HEAD: ed0214a30d)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -145,10 +145,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "00a95ad5a",
-      "head": "6d7467b5647862b26bd8c34e79f7a719d149f4ef"
+      "head": "ed0214a30d1b4d763e4ec17a149c77c8db582814"
     }
   },
-  "endingCommit": "6d7467b564",
+  "endingCommit": "ed0214a30d",
   "nextSteps": [
     "Commit, push, and open the corrective pull request"
   ]

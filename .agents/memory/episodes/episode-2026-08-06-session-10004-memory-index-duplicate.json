@@ -46,50 +46,11 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-06T14:47:17+00:00",
+      "timestamp": "2026-08-07T19:37:46+00:00",
       "type": "commit",
-      "content": "Commit: b79d60c4b",
+      "content": "Commit: ed0214a30d",
       "caused_by": [
         "e003"
-      ],
-      "leads_to": [
-        "e005"
-      ],
-      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
-    },
-    {
-      "id": "e005",
-      "timestamp": "2026-08-07T04:36:39+00:00",
-      "type": "commit",
-      "content": "Commit: 9b8d4d03e",
-      "caused_by": [
-        "e004"
-      ],
-      "leads_to": [
-        "e006"
-      ],
-      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
-    },
-    {
-      "id": "e006",
-      "timestamp": "2026-08-07T04:37:31+00:00",
-      "type": "commit",
-      "content": "Commit: 1f6dbd4a3",
-      "caused_by": [
-        "e005"
-      ],
-      "leads_to": [
-        "e007"
-      ],
-      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
-    },
-    {
-      "id": "e007",
-      "timestamp": "2026-08-07T19:37:10+00:00",
-      "type": "commit",
-      "content": "Commit: 6d7467b564",
-      "caused_by": [
-        "e006"
       ],
       "leads_to": [],
       "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
@@ -100,7 +61,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 1,
     "files_changed": 4
   },
   "lessons": []
