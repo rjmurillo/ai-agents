@@ -542,6 +542,24 @@ def _workflow_events(wf_path: Path) -> list[str]:
     return []
 
 
+def _workflow_jobs(wf_path: Path) -> list[str]:
+    """Return workflow job ids in file order, or empty when unavailable."""
+    try:
+        import yaml
+    except ImportError:
+        return []
+    try:
+        data = yaml.safe_load(wf_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    jobs = data.get("jobs")
+    if not isinstance(jobs, dict):
+        return []
+    return [str(name) for name in jobs if isinstance(name, str)]
+
+
 def _select_act_event(wf_path: Path) -> str | None:
     """Choose an event for ``gh act -n`` based on the workflow's triggers.
 
@@ -949,6 +967,18 @@ def _with_timeout_hint(combined: str) -> str:
     return detail if hint is None else f"{detail}\n{hint}"
 
 
+_ACT_CONTENTION_PATTERN = re.compile(
+    r"docker (?:pull|create)|failed to (?:pull|create container)|"
+    r"toomanyrequests|context canceled|connection reset by peer|"
+    r"server misbehaving|temporary failure",
+    re.IGNORECASE,
+)
+
+
+def _is_act_contention_failure(detail: str) -> bool:
+    return bool(_ACT_CONTENTION_PATTERN.search(detail))
+
+
 def _run_act_stage(
     stage: str,
     base_cmd: Sequence[str],
@@ -973,13 +1003,32 @@ def _run_act_stage(
     warnings: list[str] = []
     for wf in files:
         event = _select_act_event(repo_root / wf)
-        cmd = [*base_cmd]
-        if event is not None:
-            cmd.append(event)
-        cmd += ["-W", wf]
-        rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
-        if rc != 0:
+        jobs = _workflow_jobs(repo_root / wf)
+        job_args = [["-j", job] for job in jobs] if len(jobs) > 1 else [[]]
+        for job_arg in job_args:
+            cmd = [*base_cmd]
+            if event is not None:
+                cmd.append(event)
+            cmd += [*job_arg, "-W", wf]
+            rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
             combined = (out + err).strip()
+            if (
+                rc != 0
+                and _ACT_TIMEOUT_MARKER not in combined
+                and _is_act_contention_failure(combined)
+            ):
+                retry_rc, retry_out, retry_err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
+                retry_combined = (retry_out + retry_err).strip()
+                if retry_rc == 0:
+                    label = f"{wf} job {job_arg[1]}" if job_arg else wf
+                    warnings.append(f"[WARN] {label}: retried once after act contention.")
+                    continue
+                combined = (
+                    f"{combined}\nRetry after act contention also failed:\n{retry_combined}"
+                ).strip()
+                rc = retry_rc
+            if rc == 0:
+                continue
             # A timeout never downgrades. Since ``_run`` started returning the
             # partial output, a limitation signature can appear in a run that was
             # then killed mid-flight, and the workflow past that point was never
