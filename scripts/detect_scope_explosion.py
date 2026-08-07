@@ -24,12 +24,22 @@ Related: Issue #944, PR #908 (95 files)
 from __future__ import annotations
 
 import argparse
-import json
 import os
-import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
+
+# Add project root to path for imports
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SCRIPT_DIR.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.scope_pr_base import (  # noqa: E402
+    is_credible_rescope,
+    resolve_pr_base_branch,
+    strip_remote_prefix,
+)
 
 # Thresholds for scope explosion detection
 WARN_THRESHOLD = 10
@@ -280,89 +290,6 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
     )
 
 
-def strip_remote_prefix(base: str) -> str:
-    """Return ``base`` without a leading ``origin/``.
-
-    The pre-push hook passes ``--base-branch origin/main`` while the
-    pre-commit hook passes nothing and defaults to ``main``. Both name the
-    same branch, so comparisons against a resolved PR base have to normalize
-    first or every pre-push run looks like a base mismatch.
-    """
-    prefix = "origin/"
-    return base[len(prefix) :] if base.startswith(prefix) else base
-
-
-def resolve_pr_base_branch(branch: str) -> str | None:
-    """Return the base branch of the single open PR for ``branch``, else None.
-
-    Queries ``gh pr list --state open --head <branch>`` and accepts the answer
-    only when exactly one open PR matches. Both halves of that are load
-    bearing:
-
-    * ``--state open``. ``gh pr view`` falls back to a closed or merged PR when
-      no open one exists. Verified against gh 2.97.0: on a branch whose PR had
-      already merged, ``gh pr view`` returned that PR with ``state=MERGED``.
-      A reused branch would then be measured against a dead PR's base.
-    * exactly one match. Several open PRs can share a head branch, and
-      picking one of them is a guess. No answer is better than a guess here,
-      because the guess can only ever remove a block.
-
-    Returns None when gh is absent, unauthenticated, offline, or when the
-    branch has no open PR. Every one of those is a normal local state, so the
-    caller must treat None as "no better answer available" rather than an
-    error.
-
-    Known limitation (issue #4382): in a ``pr-<number>`` worktree the local
-    branch name can differ from the PR's head branch, so no PR matches and
-    this returns None. That leaves the original main-relative block in place,
-    which is the behavior before this function existed. It never invents a
-    base. ``scripts/validation/checks_common.py`` carries an upstream-head
-    fallback for that case; it is deliberately not reused here, because it
-    would widen a lookup whose only power is to remove a block.
-
-    The five second timeout is deliberate. This runs inside a git hook, and a
-    hook that waits on a hung network call is worse than a hook that measures
-    against the wrong base.
-    """
-    if not shutil.which("gh"):
-        return None
-    try:
-        result = subprocess.run(
-            [
-                "gh",
-                "pr",
-                "list",
-                "--state",
-                "open",
-                "--head",
-                branch,
-                "--json",
-                "baseRefName",
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=5,
-            check=False,
-        )
-    except (subprocess.TimeoutExpired, OSError):
-        return None
-    if result.returncode != 0:
-        return None
-    try:
-        payload = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(payload, list) or len(payload) != 1:
-        return None
-    entry = payload[0]
-    if not isinstance(entry, dict):
-        return None
-    base = str(entry.get("baseRefName") or "").strip()
-    return base or None
-
-
 def rescope_against_pr_base(requested_base: str | None, blocked: ScopeResult) -> ScopeResult | None:
     """Re-measure a blocking result against the PR's real base branch.
 
@@ -398,9 +325,9 @@ def rescope_against_pr_base(requested_base: str | None, blocked: ScopeResult) ->
     if pr_base == strip_remote_prefix(requested_base or "main"):
         return None
     rescoped = detect_scope(pr_base)
-    if not _is_credible_rescope(rescoped, blocked):
+    if not is_credible_rescope(rescoped, blocked):
         return None
-    assert rescoped is not None  # narrowed by _is_credible_rescope
+    assert rescoped is not None  # narrowed by is_credible_rescope
     print(
         f"Measured against origin/{pr_base}, this PR's actual base: "
         f"{rescoped.file_count} files (against "
@@ -408,32 +335,6 @@ def rescope_against_pr_base(requested_base: str | None, blocked: ScopeResult) ->
         file=sys.stderr,
     )
     return rescoped
-
-
-def _is_credible_rescope(rescoped: ScopeResult | None, blocked: ScopeResult) -> bool:
-    """Return True when ``rescoped`` is a believable narrowing of ``blocked``.
-
-    Two failure modes make an unbelievable result look like a clean pass, and
-    both are silent:
-
-    * ``get_index_files_against_ref`` returns ``[]`` on any nonzero ``git
-      diff``, and ``detect_scope`` turns that into ``ScopeResult(file_count=0)``
-      rather than None. A diff that fails against an otherwise-resolvable ref
-      (a missing tree in a partial clone, for instance) therefore reads as
-      "this PR changes nothing". A genuinely empty result is indistinguishable
-      from that failure, so both are refused. A branch that changes nothing
-      against its own base is not a branch a scope gate needs to unblock.
-    * A file the main-relative measurement never saw means the two runs did not
-      compare the same thing. A real stacked-base surface is a subset of the
-      main-relative surface, because the stack base is downstream of main.
-
-    Refusing here keeps the original block, which is the safe direction.
-    """
-    if rescoped is None:
-        return False
-    if rescoped.file_count <= 0:
-        return False
-    return set(rescoped.files).issubset(set(blocked.files))
 
 
 def format_bar(count: int, threshold: int) -> str:
