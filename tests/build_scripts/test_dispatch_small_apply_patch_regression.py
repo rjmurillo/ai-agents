@@ -223,15 +223,19 @@ def test_oversized_matched_push_payload_denies_with_context(tmp_path: Path) -> N
 
 def test_harness_observes_nonzero_exit(tmp_path: Path) -> None:
     # Teeth for the positive assertion: point the plugin root at a directory that
-    # is not a plugin so the bootstrap fails closed (exit 2). This proves the same
-    # subprocess harness surfaces a non-zero exit, so ``assert rc == 0`` above is
-    # not vacuous. It deliberately keeps the recorded payload small so this
-    # negative control isolates bootstrap failure rather than payload size.
+    # is not a plugin so the bootstrap detects infrastructure failure. Post-fix
+    # (issue 4672), infrastructure failure fails OPEN (exit 0 with warning) rather
+    # than closed (exit 2). This still proves the subprocess harness surfaces the
+    # correct exit code, so ``assert rc == 0`` above is not vacuous.
     raw = json.dumps(_RECORDED_HOST_EVENT).encode("utf-8")
 
     proc = _run_dispatch(raw, tmp_path, tmp_path)
 
-    assert proc.returncode == 2, (
-        f"expected fail-closed exit 2 from a non-plugin root, got {proc.returncode}; "
-        f"the harness cannot observe non-zero exits, so the positive test lacks teeth"
+    assert proc.returncode == 0, (
+        f"expected fail-open exit 0 from a non-plugin root (issue 4672), "
+        f"got {proc.returncode}"
+    )
+    stderr = proc.stderr.decode("utf-8", errors="replace")
+    assert "WARNING: hooks DISABLED" in stderr, (
+        "infrastructure failure must emit a warning on stderr"
     )

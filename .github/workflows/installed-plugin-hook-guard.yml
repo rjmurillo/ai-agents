@@ -1,0 +1,158 @@
+name: Installed Plugin Hook Guard
+# Structural regression gate for #4672: verifies the installed plugin's hooks
+# allow tool calls from a consumer environment, on all three target platforms.
+# Includes "vanilla" rows that genuinely lack Python, proving the degraded path.
+
+# Deliberately NOT path-filtered. This guard protects a customer-facing
+# failure mode that has recurred three times and cost three uninstalls
+# (#4672). A paths filter would leave it silent for changes that break the
+# hooks indirectly, for example an edit to a lib module, a generator, an
+# action, or a dependency pin. A path-filtered required check also never
+# reports on unrelated pull requests, which stalls merges rather than
+# guarding anything. Cost is a few minutes per run; a missed regression
+# costs a customer.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: plugin-hook-guard-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  hook-positive:
+    name: Hook allows (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: ./.github/actions/test-installed-plugin-hooks
+        with:
+          plugin-source: src/copilot-cli
+          negative-env: 'false'
+
+  hook-negative-env:
+    name: Hook fail-open (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: ./.github/actions/test-installed-plugin-hooks
+        with:
+          plugin-source: src/copilot-cli
+          negative-env: 'true'
+
+  # Truly vanilla Linux: minimal container with NO Python installed.
+  # Proves the hook degrades gracefully rather than blocking.
+  vanilla-linux:
+    name: Vanilla Linux (no Python)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Setup Python for the harness only
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Materialize installed plugin
+        shell: bash
+        run: python3 scripts/ci/materialize_installed_plugin.py --plugin-source src/copilot-cli --install-root "${RUNNER_TEMP}/installed-plugins/ai-agents/project-toolkit" --consumer-cwd "${RUNNER_TEMP}/consumer"
+      - name: Hook must degrade, not deny, inside a Python-free container
+        shell: bash
+        # The hook runs in the container, which has no interpreter. The
+        # harness runs on the runner, which does. ADR-006 keeps the logic in
+        # Python; the container stays genuinely vanilla and the script
+        # asserts that before running anything.
+        run: python3 scripts/ci/vanilla_hook_guard.py --mode linux-container --image "debian:bookworm-slim@sha256:362e64223cc0da95422b3b13c045186fc0a81250e765d31c025fbddf257f6143" --install-root "${RUNNER_TEMP}/installed-plugins/ai-agents/project-toolkit" --consumer-cwd "${RUNNER_TEMP}/consumer"
+
+  vanilla-windows:
+    name: Vanilla Windows (no interpreter resolvable)
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Setup Python for the harness only
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.14'
+      - name: Materialize installed plugin
+        shell: bash
+        run: python3 scripts/ci/materialize_installed_plugin.py --plugin-source src/copilot-cli --install-root "${RUNNER_TEMP}/installed-plugins/ai-agents/project-toolkit" --consumer-cwd "${RUNNER_TEMP}/consumer"
+      - name: Hook must degrade, not deny, with no interpreter on PATH
+        shell: bash
+        # The harness runs from its own absolute interpreter path while the
+        # hook receives a PATH with every interpreter-bearing directory
+        # removed. Filtering is by evidence, not by directory name: the App
+        # Execution Alias directory carries python.exe without saying so in
+        # its name, which is what defeated the previous name based filter.
+        run: python3 scripts/ci/vanilla_hook_guard.py --mode windows-path --install-root "${RUNNER_TEMP}/installed-plugins/ai-agents/project-toolkit" --consumer-cwd "${RUNNER_TEMP}/consumer"
+
+  e2e-installed:
+    name: E2E installed plugin (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+        with:
+          python-version: '3.14'
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
+        with:
+          enable-cache: false
+      - name: Materialize plugin and run e2e
+        shell: bash
+        run: |
+          uv sync --frozen
+
+          INSTALL_ROOT="${RUNNER_TEMP}/installed-plugins/ai-agents/project-toolkit"
+          mkdir -p "${INSTALL_ROOT}"
+          cp -r src/copilot-cli/* "${INSTALL_ROOT}/"
+          cp -r src/copilot-cli/.claude-plugin "${INSTALL_ROOT}/"
+
+          export COPILOT_PLUGIN_ROOT="${INSTALL_ROOT}"
+          export CLAUDE_PLUGIN_ROOT="${INSTALL_ROOT}"
+          export RUN_INSTALLED_PLUGIN_HOOK_E2E=1
+
+          uv run --frozen pytest tests/e2e/test_installed_plugin_hook_e2e.py -v
+
+  # Single aggregate status so branch protection can require ONE context
+  # instead of every matrix leg by name. It must fail when any upstream job
+  # fails OR is skipped or cancelled: a required check that reports success
+  # because its dependencies never ran is the exact false-green this guard
+  # exists to prevent.
+  guard-result:
+    name: Plugin Hook Guard Result
+    if: always()
+    needs:
+      - hook-positive
+      - hook-negative-env
+      - vanilla-linux
+      - vanilla-windows
+      - e2e-installed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Assert every guard job succeeded
+        shell: bash
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python3 .github/scripts/assert_guard_jobs_succeeded.py

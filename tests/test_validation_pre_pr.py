@@ -182,17 +182,30 @@ class TestValidateSessionEnd:
         assert result is True
 
     def test_missing_script_raises_skip(self, tmp_path: Path) -> None:
+        """When validate_session_json.py is absent and there ARE changed logs,
+        the gate raises MissingScriptSkip (downstream install scenario)."""
+        from unittest.mock import patch
+
         from scripts.validation.pre_pr import MissingScriptSkip
 
         sessions = tmp_path / ".agents" / "sessions"
         sessions.mkdir(parents=True)
-        (sessions / "2025-12-01-session-1.md").write_text("log", encoding="utf-8")
-        # scripts/Validate-Session.ps1 does not exist (ADR-042 expungement).
+        (sessions / "2025-12-01-session-1.json").write_text("{}", encoding="utf-8")
+        # No scripts/validate_session_json.py at tmp_path.
         (tmp_path / "scripts").mkdir(exist_ok=True)
 
-
-        with pytest.raises(MissingScriptSkip):
-            validate_session_end(tmp_path)
+        # Patch _resolve_branch_base_ref to return a ref (so the gate tries to
+        # run rather than skipping on "no base ref"), and _run_subprocess to
+        # return the session log in the diff.
+        with patch(
+            "checks_tooling._resolve_branch_base_ref", return_value="main"
+        ):
+            with patch(
+                "checks_tooling._run_subprocess",
+                return_value=(0, ".agents/sessions/2025-12-01-session-1.json\n", ""),
+            ):
+                with pytest.raises(MissingScriptSkip):
+                    validate_session_end(tmp_path)
 
 
 class TestBuildParser:

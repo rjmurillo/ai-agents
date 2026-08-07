@@ -88,17 +88,30 @@ def test_find_existing_comment_not_found():
 
 
 def test_find_existing_comment_api_error():
+    """API error raises CommentLookupError, not silent None (issue #4640)."""
     mock_result = MagicMock(returncode=1, stdout="")
     with patch("scripts.ci.post_velocity_summary.subprocess.run", return_value=mock_result):
-        cid = pvs.find_existing_comment("owner/repo", "5")
-    assert cid is None
+        import pytest
+        with pytest.raises(pvs.CommentLookupError):
+            pvs.find_existing_comment("owner/repo", "5")
+
+
+def test_find_existing_comment_empty_stdout_page1_raises():
+    """rc=0 but empty stdout on first page is ambiguous; raises (issue #4640)."""
+    mock_result = MagicMock(returncode=0, stdout="")
+    with patch("scripts.ci.post_velocity_summary.subprocess.run", return_value=mock_result):
+        import pytest
+        with pytest.raises(pvs.CommentLookupError):
+            pvs.find_existing_comment("owner/repo", "5")
 
 
 def test_find_existing_comment_bad_json():
+    """Bad JSON on a successful rc raises CommentLookupError."""
     mock_result = MagicMock(returncode=0, stdout="not-json")
     with patch("scripts.ci.post_velocity_summary.subprocess.run", return_value=mock_result):
-        cid = pvs.find_existing_comment("owner/repo", "5")
-    assert cid is None
+        import pytest
+        with pytest.raises(pvs.CommentLookupError):
+            pvs.find_existing_comment("owner/repo", "5")
 
 
 # ---------------------------------------------------------------------------
@@ -184,13 +197,31 @@ def test_main_gh_api_failure(monkeypatch):
     opps = [{"title": "T", "opportunity_type": "x", "priority": "p", "description": "d"}]
     monkeypatch.setenv("OPPORTUNITIES_JSON", json.dumps(opps))
 
-    # find returns None, post fails
-    find_result = MagicMock(returncode=0, stdout=json.dumps([]))
-    post_result = MagicMock(returncode=1)
+    # find raises CommentLookupError (API refused); must NOT fall through to post
     _patch = "scripts.ci.post_velocity_summary.subprocess.run"
-    with patch(_patch, side_effect=[find_result, post_result]):
+    api_error = MagicMock(returncode=1, stdout="", stderr="rate limited")
+    with patch(_patch, return_value=api_error):
         rc = pvs.main()
     assert rc == pvs.EXIT_EXTERNAL
+
+
+def test_main_rate_limit_403_does_not_post_duplicate(monkeypatch):
+    """Simulates a 403 rate-limit refusal; must not post a new comment (#4640)."""
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("EVENT_NAME", "pull_request")
+    monkeypatch.setenv("PR_NUMBER", "9")
+    monkeypatch.setenv("ISSUE_NUMBER", "")
+    opps = [{"title": "T", "opportunity_type": "x", "priority": "p", "description": "d"}]
+    monkeypatch.setenv("OPPORTUNITIES_JSON", json.dumps(opps))
+
+    # Simulate gh returning non-zero (as it does on HTTP 403)
+    _patch = "scripts.ci.post_velocity_summary.subprocess.run"
+    refused = MagicMock(returncode=1, stdout="", stderr="HTTP 403")
+    with patch(_patch, return_value=refused) as mock_run:
+        rc = pvs.main()
+    assert rc == pvs.EXIT_EXTERNAL
+    # Only the lookup call should have been made; no post call
+    assert mock_run.call_count == 1
 
 
 # ---------------------------------------------------------------------------
