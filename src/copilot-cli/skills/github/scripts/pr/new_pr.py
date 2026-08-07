@@ -28,6 +28,7 @@ from new_pr_validations import (
     _git_env,
     _resolve_validation_base,
     run_validations,
+    validate_no_escaped_newlines,
 )
 from prepare_pr_body import (
     PreparePrBodyError,

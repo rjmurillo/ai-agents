@@ -12,6 +12,22 @@ import pytest
 from tests.new_pr_test_support import _completed, run_validations
 
 
+def test_escaped_newline_guard_moved_with_validation_policy() -> None:
+    root = Path(__file__).resolve().parents[1]
+    validation_module = (
+        root
+        / ".claude"
+        / "skills"
+        / "github"
+        / "scripts"
+        / "pr"
+        / "new_pr_validations.py"
+    )
+    assert "validate_no_escaped_newlines" in validation_module.read_text(
+        encoding="utf-8"
+    )
+
+
 class TestACrashedValidatorIsNotSuccess:
     """A validator that never ran must not read as a clean scan."""
 

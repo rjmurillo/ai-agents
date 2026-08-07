@@ -1974,9 +1974,7 @@ class TestEscapedNewlineGuardIsWiredAtEveryInlineBodySite:
         """
         source = self._script("pr/validate_pr_description.py")
         assert "scripts/github_core/validation.py::escaped_newline_body_error" in source
-        assert "validate_no_escaped_newlines" in self._script(
-            "pr/new_pr_validations.py"
-        )
+        assert "validate_no_escaped_newlines" in self._script("pr/new_pr.py")
 
 
 class TestInlineBodyError:
