@@ -204,7 +204,7 @@ def _child_bodies(node: ast.stmt) -> list[Sequence[ast.stmt]]:
     return []
 
 
-def _pattern_binds_main(pattern: ast.pattern) -> bool:  # type: ignore[name-defined]
+def _pattern_binds_main(pattern: ast.AST) -> bool:
     """Check if a match pattern captures ``main``."""
     if hasattr(ast, "MatchAs") and isinstance(pattern, ast.MatchAs):
         if pattern.name == "main":
