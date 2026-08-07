@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -14,9 +16,41 @@ from scripts.validation.pre_pr import (
     _run_subprocess,
     build_parser,
     main,
+    run_all_validations,
     run_validation,
     validate_session_end,
 )
+
+
+def _sequence_with_passing_doc_interpreter() -> tuple[Any, ...]:
+    # pre_pr loads pre_pr_sequence as a flat module for direct script execution.
+    # Read through the function so the patch targets that exact module identity.
+    sequence = run_all_validations.__globals__["_SEQUENCE"]
+    return tuple(
+        replace(gate, run=lambda _repo_root, _args: True)
+        if gate.name == "Documented Interpreter Portability"
+        else gate
+        for gate in sequence
+    )
+
+
+def _healthy_git_run(*args: Any, **_kwargs: Any) -> Any:
+    """Model a working toolchain: every tool exits 0, git answers plausibly.
+
+    A blanket ``stdout = ""`` makes ``git symbolic-ref --short
+    refs/remotes/origin/HEAD`` look like a repository with no remote HEAD, and
+    the count-ratchet gate fails closed on exactly that. Answering per command
+    keeps these tests on the all-pass path without feeding a branch name to
+    every other gate that reads stdout.
+    """
+    argv = args[0] if args else []
+    if "symbolic-ref" in argv:
+        stdout = "origin/main"
+    elif "rev-parse" in argv:
+        stdout = "0" * 40
+    else:
+        stdout = ""
+    return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
 
 
 class TestFindLatestSessionLog:
@@ -148,17 +182,30 @@ class TestValidateSessionEnd:
         assert result is True
 
     def test_missing_script_raises_skip(self, tmp_path: Path) -> None:
+        """When validate_session_json.py is absent and there ARE changed logs,
+        the gate raises MissingScriptSkip (downstream install scenario)."""
+        from unittest.mock import patch
+
         from scripts.validation.pre_pr import MissingScriptSkip
 
         sessions = tmp_path / ".agents" / "sessions"
         sessions.mkdir(parents=True)
-        (sessions / "2025-12-01-session-1.md").write_text("log", encoding="utf-8")
-        # scripts/Validate-Session.ps1 does not exist (ADR-042 expungement).
+        (sessions / "2025-12-01-session-1.json").write_text("{}", encoding="utf-8")
+        # No scripts/validate_session_json.py at tmp_path.
         (tmp_path / "scripts").mkdir(exist_ok=True)
 
-
-        with pytest.raises(MissingScriptSkip):
-            validate_session_end(tmp_path)
+        # Patch _resolve_branch_base_ref to return a ref (so the gate tries to
+        # run rather than skipping on "no base ref"), and _run_subprocess to
+        # return the session log in the diff.
+        with patch(
+            "checks_tooling._resolve_branch_base_ref", return_value="main"
+        ):
+            with patch(
+                "checks_tooling._run_subprocess",
+                return_value=(0, ".agents/sessions/2025-12-01-session-1.json\n", ""),
+            ):
+                with pytest.raises(MissingScriptSkip):
+                    validate_session_end(tmp_path)
 
 
 class TestBuildParser:
@@ -193,28 +240,38 @@ class TestMain:
     External tool calls are mocked to avoid requiring actual tools.
     """
 
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_doc_interpreter,
+    )
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_quick_mode_skips_slow_checks(
-        self, mock_which: Any, mock_run: Any
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
     ) -> None:
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
+        mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
         # Quick mode should skip path normalization, planning, agent drift, yaml style
         result = main(["--quick", "--skip-tests"])
         assert result == 0
 
+    @patch(
+        "pre_pr_sequence._SEQUENCE",
+        new_callable=_sequence_with_passing_doc_interpreter,
+    )
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_all_pass_returns_zero(
-        self, mock_which: Any, mock_run: Any
+        self,
+        mock_which: Any,
+        mock_run: Any,
+        _mock_sequence: Any,
     ) -> None:
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
+        mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
         # All external tools pass

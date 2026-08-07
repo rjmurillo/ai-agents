@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import cast
 
+from _eval_common import require_str_or_none
+
 ERR_RATE_LIMIT: str = "rate_limit"
 ERR_SERVER_ERROR: str = "server_error"
 ERR_TIMEOUT: str = "timeout"
@@ -43,26 +45,8 @@ ALLOWED_LOG_FIELDS: frozenset[str] = frozenset(
 
 
 def normalize_fingerprint(value: object) -> str | None:
-    """Normalize a raw system_fingerprint value to the three-state contract.
-
-    Three states:
-    - present-and-valid: value is a non-None str -> returned as-is
-    - absent: value is None -> returned as None
-    - present-but-malformed: value is non-str, non-None -> returned as a
-      sentinel string ``"<malformed:TYPENAME>"`` so downstream can distinguish
-      this from legitimate absence and flag provider drift
-
-    Rationale: silent coercion (``x if isinstance(x, str) else None``) maps
-    malformed to absent, defeating the existing guard in _run_persistence.py
-    that checks for an unexpected type. A malformed fingerprint means the
-    provider changed its response shape, which is exactly the drift that guard
-    exists to detect. Recording a distinct sentinel surfaces the drift.
-    """
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-    return f"<malformed:{type(value).__name__}>"
+    """Apply the shared string-or-absence provider metadata policy."""
+    return cast(str | None, require_str_or_none(value, "system_fingerprint"))
 
 
 BANNED_LOG_FIELDS: frozenset[str] = frozenset(
@@ -104,6 +88,8 @@ def categorize_error(exc: Exception) -> str:
     message = str(exc)
     match = HTTP_STATUS_RE.search(message)
     if match is None:
+        # No HTTP status. Check the text signals a subprocess provider can
+        # give, then treat the rest as a transient network issue.
         if TIMEOUT_HINT in message:
             return ERR_TIMEOUT
         if RATE_LIMIT_HINT in message.lower():

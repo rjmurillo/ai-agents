@@ -14,102 +14,49 @@ the drift these tests exist to catch.
 
 Membership is measured from the generated `.github/instructions/` mirrors, not
 from `.claude/rules/`. `generate_rules.py` drops `alwaysApply:`, renames
-`paths:` to `applyTo:`, and synthesizes `applyTo: "**"` for a rule that
-declares no scope or whose globs are all filtered out as internal-only. Those
-last two paths reach the always-on corpus with no source line to grep, so the
-mirror is authoritative for membership.
+`paths:` to `applyTo:`, and synthesizes `applyTo: "**"` for a rule that declares
+no scope. A rule whose globs are all filtered out as internal-only is skipped
+outright rather than universalized, so it leaves the destination tree entirely.
+The synthesized case reaches the always-on corpus with no source line to grep,
+so the mirror is authoritative for membership.
 """
 
 from __future__ import annotations
 
 import re
-import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-import scripts.validation.instruction_budget as ib
-
-MIRROR_DIR = REPO_ROOT / ".github" / "instructions"
-DOCTRINE = (
-    REPO_ROOT
-    / ".claude"
-    / "skills"
-    / "context-optimizer"
-    / "references"
-    / "model-context-doctrine.md"
+from tests.validation.always_on_corpus_helpers import (
+    _EIGHT_KB,
+    _FIG_LARGEST,
+    _FIG_MIRROR,
+    _FIG_MULTIPLIERS,
+    _FIG_PLUGIN,
+    _FIG_PY,
+    _FIG_SOURCE,
+    _PROSE_PATTERNS,
+    _TABLE_HEADER,
+    BOOK_RULES,
+    CANONICAL_MIRROR_RULE,
+    CORPUS_PROSE_DOCS,
+    DOCTRINE,
+    LIBRARY_SKILL,
+    MIRROR_DIR,
+    PLUGIN_DIR,
+    REPO_ROOT,
+    _budget,
+    _normalized,
+    _prose_table_row,
+    _source_bytes,
+    _tree_always_on,
+    measured_always_on,
+    parse_corpus_prose,
+    parse_doctrine_figures,
+    parse_doctrine_table,
+    parse_library_sentence,
 )
-LIBRARY_SKILL = REPO_ROOT / ".claude" / "skills" / "software-engineering-library" / "SKILL.md"
-
-BOOK_RULES = frozenset({"code-quality", "pragmatic-programmer", "unified-software-engineering"})
-
-_TABLE_HEADER = "| Form | Rules |"
-_ROW_NAME = re.compile(r"`([a-z0-9-]+)`")
-_LIBRARY_SENTENCE = re.compile(
-    r"everyday default,\s*(?P<always>.+?)\s+loads? on every turn"
-    r"\s+and\s+(?P<code>.+?)\s+loads? on code files",
-    re.IGNORECASE,
-)
-
-
-def _frontmatter(text: str) -> dict:
-    """Return the YAML frontmatter mapping bounded by the leading `---` pair."""
-    match = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
-    if not match:
-        return {}
-    return yaml.safe_load(match.group(1)) or {}
-
-
-def measured_always_on() -> set[str]:
-    """Return rule ids whose generated mirror declares universal scope."""
-    found = set()
-    for path in sorted(MIRROR_DIR.glob("*.instructions.md")):
-        applyto = _frontmatter(path.read_text(encoding="utf-8")).get("applyTo")
-        if isinstance(applyto, str) and applyto.strip() == "**":
-            found.add(path.name.removesuffix(".instructions.md"))
-    return found
-
-
-def parse_doctrine_table(text: str) -> set[str]:
-    """Return rule ids listed in the doctrine document's always-on table.
-
-    Raises `ValueError` when the table cannot be located so that a rewrite of
-    the surrounding prose fails loudly instead of asserting against an empty
-    set.
-    """
-    start = text.find(_TABLE_HEADER)
-    if start == -1:
-        raise ValueError(f"always-on table header {_TABLE_HEADER!r} not found")
-    names: set[str] = set()
-    rows = 0
-    for line in text[start:].splitlines()[2:]:
-        if not line.startswith("|"):
-            break
-        rows += 1
-        names.update(_ROW_NAME.findall(line))
-    if rows == 0 or not names:
-        raise ValueError("always-on table matched no rule rows")
-    return names
-
-
-def parse_library_sentence(text: str) -> tuple[set[str], set[str]]:
-    """Return (always-on, code-files) rule ids named by the library skill."""
-    match = _LIBRARY_SENTENCE.search(text)
-    if not match:
-        raise ValueError(
-            "library skill loading sentence did not match the expected shape; "
-            "update the sentence and this guard together"
-        )
-    split = re.compile(r"\s*,\s*|\s+and\s+")
-    return (
-        {p for p in split.split(match.group("always")) if p},
-        {p for p in split.split(match.group("code")) if p},
-    )
 
 
 def test_measured_always_on_set_is_not_empty() -> None:
@@ -189,93 +136,6 @@ def test_library_sentence_parser_splits_both_groups() -> None:
 # guard with its own summing logic agrees with itself, not with the tool the
 # repo actually enforces.
 
-_EIGHT_KB = 8192
-
-_FIG_MIRROR = re.compile(r"always-on corpus is (?P<files>[\d,]+) rules?, (?P<bytes>[\d,]+) bytes")
-_FIG_PY = re.compile(
-    r"effective context on a `\.py` edit is (?P<bytes>[\d,]+) bytes\s*"
-    r"across (?P<files>[\d,]+) files"
-)
-_FIG_SOURCE = re.compile(r"(?P<delta>[\d,]+) bytes larger in total \((?P<bytes>[\d,]+) always-on\)")
-_FIG_PLUGIN = re.compile(
-    r"`src/copilot-cli/instructions` carries (?P<files>[\d,]+) rules? and "
-    r"(?P<bytes>[\d,]+) bytes"
-)
-_FIG_MULTIPLIERS = re.compile(
-    r"always-on corpus is (?P<always>[\d.]+)x that threshold and a Python edit "
-    r"sees (?P<code>[\d.]+)x"
-)
-_FIG_LARGEST = re.compile(r"`voice\.md` at (?P<bytes>[\d,]+) bytes")
-
-
-def _int(raw: str) -> int:
-    return int(raw.replace(",", ""))
-
-
-def _search(pattern: re.Pattern[str], text: str, label: str) -> re.Match[str]:
-    match = pattern.search(text)
-    if not match:
-        raise ValueError(
-            f"doctrine {label} figure did not match the expected prose shape; "
-            "update the sentence and this guard together"
-        )
-    return match
-
-
-def parse_doctrine_figures(text: str) -> dict[str, float]:
-    """Return every numeric claim the doctrine makes about corpus size.
-
-    Raises `ValueError` when a figure cannot be located, so that rewritten
-    prose fails loudly instead of leaving an assertion with nothing to check.
-    """
-    mirror = _search(_FIG_MIRROR, text, "always-on")
-    py = _search(_FIG_PY, text, "`.py` effective")
-    source = _search(_FIG_SOURCE, text, "source-basis")
-    plugin = _search(_FIG_PLUGIN, text, "plugin-tree")
-    mult = _search(_FIG_MULTIPLIERS, text, "8KB multiplier")
-    largest = _search(_FIG_LARGEST, text, "largest always-on rule")
-    return {
-        "mirror_files": _int(mirror.group("files")),
-        "mirror_bytes": _int(mirror.group("bytes")),
-        "py_files": _int(py.group("files")),
-        "py_bytes": _int(py.group("bytes")),
-        "source_bytes": _int(source.group("bytes")),
-        "source_delta": _int(source.group("delta")),
-        "plugin_files": _int(plugin.group("files")),
-        "plugin_bytes": _int(plugin.group("bytes")),
-        "always_multiplier": float(mult.group("always")),
-        "code_multiplier": float(mult.group("code")),
-        "largest_bytes": _int(largest.group("bytes")),
-    }
-
-
-def _budget(ext: str):
-    """Measure one extension's always-on budget with the enforced tool."""
-    files = ib.load_instruction_files(REPO_ROOT)
-    return ib.measure_extension(files, ext, ceiling_bytes=10**9)
-
-
-def _source_bytes(mirror_names: tuple[str, ...]) -> int:
-    """Sum the `.claude/rules/` sources behind a set of generated mirrors."""
-    total = 0
-    for name in mirror_names:
-        source = REPO_ROOT / ".claude" / "rules" / name.replace(".instructions.md", ".md")
-        total += len(source.read_bytes())
-    return total
-
-
-def _tree_always_on(tree: Path) -> tuple[int, int]:
-    """Return (file count, byte total) for universally scoped rules in a tree."""
-    files = 0
-    total = 0
-    for path in sorted(tree.glob("*.instructions.md")):
-        raw = path.read_bytes()
-        applyto = _frontmatter(raw.decode("utf-8")).get("applyTo")
-        if isinstance(applyto, str) and applyto.strip() == "**":
-            files += 1
-            total += len(raw)
-    return files, total
-
 
 def test_doctrine_always_on_figures_match_the_measured_mirror() -> None:
     figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
@@ -318,7 +178,7 @@ def test_doctrine_source_basis_figure_and_delta_are_consistent() -> None:
 
 
 def test_doctrine_plugin_tree_figures_match_the_shipped_tree() -> None:
-    """The plugin tree diverges from `.github/instructions`; pin both sides."""
+    """The plugin tree must match `.github/instructions`; pin both sides."""
     figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
     plugin_tree = REPO_ROOT / "src" / "copilot-cli" / "instructions"
     files, total = _tree_always_on(plugin_tree)
@@ -328,9 +188,14 @@ def test_doctrine_plugin_tree_figures_match_the_shipped_tree() -> None:
         f"{files} / {total}"
     )
     repo_files, repo_total = _tree_always_on(MIRROR_DIR)
-    assert (files, total) != (repo_files, repo_total), (
-        "the two instruction trees no longer diverge, so the passage "
-        "explaining why they differ is obsolete"
+    assert (files, total) == (repo_files, repo_total), (
+        "the plugin tree diverged from `.github/instructions` "
+        f"({files} rules / {total} bytes versus {repo_files} / {repo_total}). "
+        "Before issue #4317 an internal-only glob was dropped rather than "
+        "skipped, leaving an empty scope that defaulted to `**`, so a "
+        "repository-internal rule shipped to every consumer as always-on. "
+        "A gap here means that failure direction has returned: find the rule "
+        "present in one tree and not the other, and check its source scope."
     )
 
 
@@ -400,3 +265,111 @@ def test_figure_parser_rejects_prose_with_a_figure_removed(
     assert stripped != text, f"{label} pattern did not match the doc; test is vacuous"
     with pytest.raises(ValueError, match=re.escape(label)):
         parse_doctrine_figures(stripped)
+
+
+# ---------------------------------------------------------------------------
+# The same corpus figures restated outside the doctrine.
+#
+# The guards above read two files. Two more documents state the same numbers in
+# their own prose, and both went stale for months while the doctrine was being
+# corrected, because nothing read them. Membership and byte totals are cheap to
+# measure, so pin every place that claims them rather than one place.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("doc", "path"), CORPUS_PROSE_DOCS)
+def test_corpus_prose_table_matches_both_measured_trees(doc: str, path: Path) -> None:
+    """Each document's two-row table must match what each tree actually holds."""
+    figures = parse_corpus_prose(path.read_text(encoding="utf-8"), doc)
+    for tree, key in ((MIRROR_DIR, "mirror"), (PLUGIN_DIR, "plugin")):
+        measured = _tree_always_on(tree)
+        tree_label = tree.relative_to(REPO_ROOT).as_posix()
+        assert (figures[f"{key}_files"], figures[f"{key}_bytes"]) == measured, (
+            f"{doc} states {figures[f'{key}_files']} rules / "
+            f"{figures[f'{key}_bytes']} bytes for {tree_label}; measured {measured}"
+        )
+
+
+@pytest.mark.parametrize(("doc", "path"), CORPUS_PROSE_DOCS)
+def test_corpus_prose_membership_matches_the_measured_set(doc: str, path: Path) -> None:
+    """The enumerated names must be exactly the always-on set, not a subset."""
+    figures = parse_corpus_prose(path.read_text(encoding="utf-8"), doc)
+    measured = measured_always_on()
+    members = figures["members"]
+    assert isinstance(members, frozenset), (
+        f"{doc} membership parsed as {type(members).__name__}, expected frozenset"
+    )
+    assert members == measured, (
+        f"{doc} names {sorted(members)}; measured {sorted(measured)}"
+    )
+
+
+@pytest.mark.parametrize(("doc", "path"), CORPUS_PROSE_DOCS)
+def test_corpus_prose_source_basis_and_delta_are_consistent(doc: str, path: Path) -> None:
+    """Both bases and the gap between them must hold, or the basis note misleads."""
+    figures = parse_corpus_prose(path.read_text(encoding="utf-8"), doc)
+    _, mirror_bytes = _tree_always_on(MIRROR_DIR)
+    result = _budget(".md")
+    measured_source = _source_bytes(result.matched_files)
+    assert figures["source_bytes"] == measured_source, (
+        f"{doc} states {figures['source_bytes']} bytes at source; measured {measured_source}"
+    )
+    assert figures["source_delta"] == measured_source - mirror_bytes, (
+        f"{doc} states a {figures['source_delta']}-byte source-to-mirror gap; "
+        f"measured {measured_source - mirror_bytes}"
+    )
+
+
+@pytest.mark.parametrize(("doc", "path"), CORPUS_PROSE_DOCS)
+def test_corpus_prose_tree_file_counts_match_the_generated_trees(doc: str, path: Path) -> None:
+    """The 23-against-27 gap is the intentional internal-scope skip; pin both."""
+    figures = parse_corpus_prose(path.read_text(encoding="utf-8"), doc)
+    measured_plugin = len(list(PLUGIN_DIR.glob("*.instructions.md")))
+    measured_mirror = len(list(MIRROR_DIR.glob("*.instructions.md")))
+    assert (figures["plugin_file_count"], figures["mirror_file_count"]) == (
+        measured_plugin,
+        measured_mirror,
+    ), (
+        f"{doc} states the plugin ships {figures['plugin_file_count']} files against "
+        f"{figures['mirror_file_count']}; measured {measured_plugin} and {measured_mirror}"
+    )
+
+
+@pytest.mark.parametrize(("doc", "path"), CORPUS_PROSE_DOCS)
+@pytest.mark.parametrize(("pattern", "label"), _PROSE_PATTERNS)
+def test_corpus_prose_parser_rejects_a_removed_claim(
+    pattern: re.Pattern[str], label: str, doc: str, path: Path
+) -> None:
+    """Removing any one claim must raise, never yield a partial dict.
+
+    Both documents are parsed by the same function, so a pattern that silently
+    failed to match would take every assertion above with it in one direction:
+    green, with nothing compared. Check each pattern against each document.
+    """
+    text = _normalized(path.read_text(encoding="utf-8"))
+    stripped = pattern.sub("prose with the claim removed", text)
+    assert stripped != text, f"{label} pattern did not match {doc}; test is vacuous"
+    with pytest.raises(ValueError, match=re.escape(label)):
+        parse_corpus_prose(stripped, doc)
+
+
+@pytest.mark.parametrize(("doc", "path"), CORPUS_PROSE_DOCS)
+def test_corpus_prose_parser_rejects_a_removed_table_row(doc: str, path: Path) -> None:
+    """The table rows are built per tree, so cover them with their own case."""
+    text = _normalized(path.read_text(encoding="utf-8"))
+    stripped = _prose_table_row("src/copilot-cli/instructions").sub("row removed", text)
+    assert stripped != text, f"plugin row did not match {doc}; test is vacuous"
+    with pytest.raises(ValueError, match=re.escape("src/copilot-cli/instructions table row")):
+        parse_corpus_prose(stripped, doc)
+
+
+def test_corpus_prose_membership_parser_rejects_a_shortened_list() -> None:
+    """A dropped name must fail, not pass as a subset that happens to overlap."""
+    text = _normalized(CANONICAL_MIRROR_RULE.read_text(encoding="utf-8"))
+    shortened = text.replace("`universal`, `voice`.", "`universal`.")
+    assert shortened != text, "membership sentence shape changed; test is vacuous"
+    figures = parse_corpus_prose(shortened, "shortened")
+    assert figures["members"] != measured_always_on(), (
+        "dropping a name from the sentence still matched the measured set; "
+        "the membership assertion cannot fail and is vacuous"
+    )
