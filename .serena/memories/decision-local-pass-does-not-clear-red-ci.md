@@ -55,3 +55,21 @@ only the link, so every path beneath it becomes "missing" unless you resolve
 through it. Both ends are tracked, so following it stays reproducible.
 
 Fix: PR #4750, issue #4748.
+
+## The converse trap: a green run that never ran
+
+`Validate Vendor Portability` is gated on a "Check for Skill Script Changes"
+job. A push that touches no skill path takes the `Skip Validation (No Skill
+Changes)` branch, the validation job reports `skipped`, and the run rolls up as
+`success`.
+
+So `main` showed success at c1174b157 and ba62e8d1e while still failing the
+check: running the unfixed checker against c1174b157 in a clean worktree
+reproduced `22 marker-drift findings (baseline 21)`. The greens were vacuous.
+
+Two consequences. A branch-level run history for a path-filtered workflow is not
+evidence the check passes, so confirm the step actually executed
+(`gh run view <id> --log | grep -c "<step name>"` returns 0 when it did not).
+And a repository-wide breakage in a path-filtered check stays invisible on the
+default branch while blocking exactly the PRs that touch the filtered paths,
+which is why this looked like a per-PR problem for hours.
