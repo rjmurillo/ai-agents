@@ -189,7 +189,7 @@
       "evidence": "validate_session_json.py scans evidence on completed MUST items for tokens implying the item was skipped, and TODO is one of them on a word boundary, so 'Todo list updated' flags against correct evidence. The escapes are uneven: deferred and pending are suppressed after an affirmative word plus a clause boundary, skipped is suppressed after a bare number for pytest summaries, and TODO, TBD, N/A, will run, will validate and not available have none. Measured against _has_contradiction. Recorded as .serena/memories/session/session-writing-todo-in-evidence-trips-the-contradiction-scanner.md."
     }
   ],
-  "endingCommit": "9baa6f704",
+  "endingCommit": "0d386e7a5",
   "nextSteps": [
     "Open the PR stacked on #4694 rather than waiting for it to merge; rebase onto main after #4694 lands",
     "Return to branch A, the reachability memory fix, which is still unpushed",
