@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10009,
+    "date": "2026-08-07",
+    "branch": "hotfix-portability-symlinks",
+    "startingCommit": "e0ac3ff6d",
+    "objective": "Hotfix portability validator symlink containment regressions from PR 4551"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tooling initialized in this session; activate_project is not exposed in this harness."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions at session start."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Viewed .agents/HANDOFF.md."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts and inspected issue and PR helper usage."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read mem:usage-mandatory."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Viewed AGENTS.md, .claude/rules/universal.md, and .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read mem:memory-index, mem:skills-session-init-index, mem:skills-github-cli-index, mem:new-pr-stale-main-ref-trap, mem:project/project-labels-milestones, mem:validation/validation-pr-gates, mem:skills-git-index, mem:portability/git-timeout-diagnostics, mem:session/session-init-verification-gates, mem:session/session-init-skill-validation, and mem:session/session-init-constraints."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "hotfix-portability-symlinks"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On hotfix-portability-symlinks"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified worktree status before editing and before commit."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e0ac3ff6d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All required session-end steps were completed before the final commit attempt."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory written: validation/descendant-symlink-portability-containment."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 --fix \"**/*.md\"."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This commit records the hotfix, tests, memory, and session log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/validation/test_portability_common.py tests/validation/test_portability_scan_coverage_refusal.py tests/validation/test_check_skill_md_portability.py tests/validation/test_check_skill_md_exec_portability.py -x; uv run ruff check scripts/validation/check_skill_md_exec_portability.py scripts/validation/check_skill_md_portability.py scripts/validation/portability_common.py tests/validation/test_portability_scan_coverage_refusal.py; uv run python scripts/validation/pre_pr.py."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Created a fresh worktree from origin/main and opened branch hotfix-portability-symlinks.",
+      "result": "Started from merged PR #4551 head e0ac3ff6d in an isolated checkout."
+    },
+    {
+      "action": "Reviewed portability validator scan paths and shared coverage helpers.",
+      "result": "Found scan-root containment only. Descendant files and directories still needed repo-root checks, and tracked coverage still treated escaped symlink targets as present."
+    },
+    {
+      "action": "Applied the shared containment fix and added regressions.",
+      "result": "Portability scans now resolve discovered paths before traversal or read, tracked escaped targets count as missing, and regression coverage spans file and directory symlink escapes under both shipped skill roots for both scanners."
+    },
+    {
+      "action": "Created tracking issue #4759 and ran targeted validation.",
+      "result": "Targeted pytest, changed-file ruff, and full pre_pr validation all passed."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
