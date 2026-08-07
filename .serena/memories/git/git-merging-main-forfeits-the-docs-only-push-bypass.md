@@ -19,8 +19,11 @@ def _documentation_only(paths):
     )
 ```
 
-`DOCUMENTATION_PATTERNS` is seven entries: `\.md$`, `\.txt$`, `README`,
-`LICENSE`, `CHANGELOG`, `.gitignore`, `.editorconfig`. Nothing else qualifies.
+`DOCUMENTATION_PATTERNS` is seven entries: `\.md$`, `\.txt$`, `(^|/)README$`,
+`(^|/)LICENSE$`, `(^|/)CHANGELOG$`, `\.gitignore$`, `\.editorconfig$`. Nothing
+else qualifies. The anchors are load bearing: `src/MY_README` and `README.old`
+both fail the bypass, so a repository that keeps prose in unsuffixed files does
+not get it.
 
 `all()` over the push set means one non-documentation path forfeits the bypass
 for the whole push. Merging `origin/main` into a docs branch drags every path
@@ -62,7 +65,8 @@ If you have already merged and not yet committed anything on top, drop the merge
 commit and let the remote stay where it is:
 
 ```bash
-git reset --hard "$REMOTE_TIP"      # the merge commit carries no authored work
+BRANCH="$(git branch --show-current)"
+git reset --hard "origin/$BRANCH"   # the merge commit carries no authored work
 git push origin "$BRANCH"           # docs-only again, bypass fires
 ```
 
@@ -108,10 +112,10 @@ does block: `main` carries a **ruleset** with
 `strict_required_status_checks_policy: true`, so an out-of-date head cannot
 merge. `gh pr update-branch` clears that without touching local history.
 
-Do not read a 404 from `gh api repos/<owner>/<repo>/branches/main/protection` as
+Do not read a 404 from `gh api repos/{owner}/{repo}/branches/main/protection` as
 "main is unprotected". This repository governs `main` with rulesets, not classic
 branch protection, and the classic endpoint 404s regardless. Ask
-`gh api repos/<owner>/<repo>/rules/branches/main` instead, which returns
+`gh api repos/{owner}/{repo}/rules/branches/main` instead, which returns
 `code_quality`, `copilot_code_review`, `deletion`, `non_fast_forward`,
 `pull_request`, `required_linear_history`, and `required_status_checks`.
 
