@@ -566,6 +566,39 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is True
         assert not result.broken_references
 
+    def test_duplicate_link_targets_fail(self, tmp_path: Path) -> None:
+        """Issue #4705: memory-index must not point at one target twice."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "[Section]\n"
+                "|alpha beta: [one](shared.md)\n"
+                "|gamma delta: [also one](shared.md)\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert "shared" in result.duplicate_references
+        assert any("Duplicate memory-index target" in issue for issue in result.issues)
+
+    def test_duplicate_alias_link_targets_fail(self, tmp_path: Path) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "[Section]\n"
+                "|alpha beta: [one](shared.md)\n"
+                "|gamma delta: [also one](./shared.md)\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert "shared" in result.duplicate_references
+        assert any("Duplicate memory-index target" in issue for issue in result.issues)
+
     def test_path_traversal_detected(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (
