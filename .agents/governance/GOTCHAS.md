@@ -754,3 +754,180 @@ Rules:
 Reproduced locally with one modified file: `git update-ref refs/heads/<branch>
 <new-sha>` while `<branch>` is checked out in a linked worktree leaves the
 worktree with `HEAD == new-sha` and `git write-tree == old-tree`. Issue #4498.
+## A count ratchet script can report OK on a tree its own test rejects
+
+The four commands above answer "did this branch add violations". They do not
+answer "does this tree pass the ratchet's tests", and the two can disagree.
+
+`scripts/ci/taste_count_ratchet.py` passes when `actual <= baseline`. The test
+the same ratchet ships,
+`tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree`,
+requires `actual == baseline`. Any slack satisfies the script and fails the
+test. Measured on a pristine `origin/main` worktree:
+
+```text
+$ uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main
+taste count ratchet: OK. 594 violations <= baseline 595 (-1 slack).
+
+$ uv run --frozen python -m pytest tests/ci/test_count_ratchet_against_real_git.py -q
+AssertionError: baseline is 595 but current tree has 594 violations
+assert 594 == 595
+1 failed, 11 passed
+```
+
+Both statements are about the same tree at the same commit. The script exits 0.
+
+The exact-equality is deliberate. From the test's docstring: "A baseline above
+the real count is dead allowance: violations could be added up to the gap
+without the gate noticing." A ratchet carrying slack is not a ratchet, so the
+number has to be true, not merely not-exceeded.
+
+**Symptom.** `git push` fails on `test_the_shipped_baseline_matches_the_tracked_tree`
+after the ratchet scripts all printed OK. Nothing in your diff is implicated,
+and the failure reproduces on a detached worktree at `origin/main`.
+
+**Why it recurs.** Lowering a violation count and lowering the baseline are two
+edits that usually live in different pull requests. Each is green against its
+own base, and they meet for the first time on main. That is the merge race in
+issue #3755; neither remedy proposed there has shipped, so
+`strict_required_status_checks_policy` is still false and ruleset 11104075 has
+no `merge_queue` rule.
+
+**Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
+actually measures, in the same commit that moves the count. Lowering a baseline
+to match a genuine improvement is required. Raising one to absorb a regression
+is forbidden (`.github/instructions/ci-scripts.instructions.md`, MUST NOT 4);
+the sanctioned escape for a file you cannot shrink is a reasoned
+`# taste-lint: ignore <rule>` comment inside the first 10 lines.
+
+**Check the test, not the script**, before any push that touches file sizes:
+
+```bash
+uv run --frozen python -m pytest tests/ci/test_count_ratchet_against_real_git.py -q
+```
+
+Three seconds. Failing on your branch *and* on a pristine `origin/main` worktree
+means main is red and it is not yours to fix.
+## Merging main clears an inherited red; check that before debugging your diff
+
+A pre-push failure in tests your change never touched is usually a stale base,
+not a bug. Merge main first, then re-run just those tests. Measured on a branch
+whose diff was four files and none of them Python:
+
+```text
+before:  7 failures across test_always_on_corpus_claims.py,
+         test_pr_validation_workflow.py, test_mutation_harness_ciperms.py
+         (a full pre-push cycle, ~20 minutes, to discover them)
+
+$ git fetch origin main && git merge origin/main --no-edit
+
+after:   113 passed, 0 failed
+```
+
+The diff did not change between those two runs. All seven failures were
+stale-base artifacts: main had moved two commits ahead, and those commits
+changed the measured figures the corpus tests assert against.
+
+Do this before opening a debugger, and do it locally rather than through a
+push:
+
+```bash
+git fetch origin main && git merge origin/main --no-edit
+uv run --frozen python -m pytest <only the failing tests> -q
+```
+
+If they still fail, only then is it yours. To tell "my diff" from "main is
+red", run the same tests on a detached worktree at `origin/main`:
+
+```bash
+git worktree add --detach ../ai-agents-pristine origin/main
+```
+
+Failing there too means it is not your branch. This costs seconds; a push cycle
+costs about 20 minutes, because `git push` does not return until every job in
+the parallel pre-push group finishes.
+## A merged commit's file count says nothing about the local commit gate
+
+The repository is squash-merge only (`allow_merge_commit: false`,
+`allow_rebase_merge: false`, `allow_squash_merge: true`), and every commit on
+main is single-parent. So a commit on main is a squash of a whole pull request,
+built by GitHub server-side, and the local pre-commit hooks never ran on it.
+
+This matters when you are reasoning about
+`MAX_AUTHORED_FILES_PER_COMMIT = 5` in `scripts/validation/git_hook_policy.py`.
+`git log` on main shows commits touching 43 and 71 files, including ones
+authored after that gate landed. Those are not evidence the gate is broken,
+bypassed, or unsatisfiable. They are squashes.
+
+The gate applies to the commits you make locally, and a mirrored-library change
+does fit: split it by concern into 3-file commits, the shared library plus its
+two mirrors, then each consumer plus its mirror plus its test.
+
+Before citing repository history as evidence about any pre-commit or pre-push
+gate, check the merge strategy. Under squash-merge, main's history records what
+GitHub built, not what any hook ever inspected.
+
+## The semgrep check in CI cannot be reproduced by the semgrep CLI
+
+`semgrep-cloud-platform/scan` is the Semgrep Cloud App running a server-side
+ruleset. This repository ships no semgrep configuration file, so there is
+nothing for a local CLI run to read, and `--config=auto` pulls a different rule
+set entirely.
+
+The consequence is that a clean local run says nothing about the red check:
+
+```bash
+semgrep --config=auto <files>          # 0 findings
+# semgrep-cloud-platform/scan          # 2 blocking findings
+```
+
+Both of those findings were real. One sat beside a genuine defect, a URL parse
+that derived `github.com/owner` from a remote naming no repository.
+
+`p/security-audit` gets closer than `auto` and did reproduce one of the two,
+but it is still a guess at the server's rule set rather than the rule set
+itself:
+
+```bash
+semgrep --config=p/security-audit --config=p/python <files>
+```
+
+A pass from any `--config=` invocation is neither necessary nor sufficient. It
+is a different check, so it cannot clear the remote one and its absence does
+not condemn it.
+
+There is an exact reproduction, and it is worth knowing before you guess at
+rule packs. `semgrep ci`, when logged in, runs the rules configured on Semgrep
+App rather than a pack you name:
+
+```bash
+SEMGREP_APP_TOKEN=<token> semgrep ci
+```
+
+That is the same rule set the CI check uses, so it is the only local command
+whose clean result means anything about the red one. Without a token it cannot
+work, and no `--config` value substitutes for it.
+
+To learn what actually fired without a token, read the finding: the bot posts each one as a pull request
+review comment naming the rule id, the file, and the line. `gh api
+repos/OWNER/REPO/pulls/N/comments` returns them. The check run itself carries
+no annotations and no output text, so the API path that looks most direct is
+the one that tells you nothing.
+
+The scan is not in the branch protection required set, so it does not block a
+merge. That makes it easy to wave through, which is the trap: the two findings
+here were a taint reaching a `subprocess.CompletedProcess` constructor and a
+`compile()` call on file content, and both were worth fixing.
+
+Suppression is not the escape hatch. The `security-suppressions-staged` hook
+rejects any suppression comment in staged changes, which is a stronger stance
+than the "last resort" language elsewhere in the rules. Fix the code or record
+in the diff why the finding is not reachable.
+
+Two different incidents live in this space and the conclusions do not transfer.
+The taint and `compile()` findings above were real defects and were fixed in
+code. Separately, the `python.lang.compatibility.python36.*` rules fire on this
+repository and are false positives, because they assert a Python 3.6 floor
+against `requires-python = ">=3.14"`; that one is tracked in #4725. Do not read
+"the findings were real" as covering the compatibility rules, or #4725 as
+licence to dismiss a taint finding.
