@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session log updated; final PR and push still pending."
+        "Evidence": "Session checklist complete through commit and validation evidence."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pending first commit; endingCommit intentionally empty until follow-up commit per session log mechanics."
+        "Evidence": "Committed as 98bd00264; this follow-up commit records endingCommit per session log mechanics."
       },
       "validationPassed": {
         "level": "MUST",
@@ -139,6 +139,6 @@
       "entry": "Retrospective evidence: issue 4700 survived because synthetic trace lines tested parser shape, not production reachability. Replacement tests now pin reachable symbolic-ref Trace2 parsing and real reflog-based HEAD guard attribution."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "98bd00264",
   "nextSteps": []
 }
