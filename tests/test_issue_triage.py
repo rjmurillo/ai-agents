@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -103,6 +104,20 @@ class TestParseIsoTimestamp:
     def test_rejects_naive(self):
         with pytest.raises(ValueError):
             parse_iso_timestamp("2026-04-27T12:00:00")
+
+
+def test_direct_script_help_works_without_site_packages() -> None:
+    script = Path(__file__).parents[1] / "scripts" / "issue_triage.py"
+    proc = subprocess.run(
+        [sys.executable, "-I", "-S", str(script), "--help"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert "Phase 1 mechanical issue triage scanner" in proc.stdout
 
 
 class TestParseIssueRecord:
