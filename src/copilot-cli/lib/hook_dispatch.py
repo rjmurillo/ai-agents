@@ -64,7 +64,7 @@ from hook_dispatch_protocol import (  # noqa: E402
 from hook_dispatch_protocol import (  # noqa: E402
     record_discarded_observer_output as _record_discarded_observer_output,
 )
-from shim_loader import ShimLoadError, execute_shim, load_shim  # noqa: E402
+from shim_loader import ShimLoadError, check_shim_loads, execute_shim  # noqa: E402
 
 # Hook exit-code convention (Claude/Copilot PreToolUse): 0 allow, 2 block.
 ALLOW_EXIT = 0
@@ -103,7 +103,7 @@ def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
     """
     _install_stdin(raw_stdin)
     try:
-        code = load_shim(shim_path)
+        check_shim_loads(shim_path)
     except ShimLoadError as exc:
         print(
             f"project-toolkit@ai-agents WARNING: hooks DISABLED (your session "
@@ -115,7 +115,7 @@ def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
         return ALLOW_EXIT
 
     try:
-        execute_shim(code, shim_path)
+        execute_shim(shim_path)
         # A shim that returns without calling sys.exit allowed the tool.
         return ALLOW_EXIT
     except SystemExit as exc:

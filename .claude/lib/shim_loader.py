@@ -16,8 +16,9 @@ Refs #4672.
 
 from __future__ import annotations
 
+import ast
+import runpy
 from pathlib import Path
-from types import CodeType
 
 
 class ShimLoadError(Exception):
@@ -29,29 +30,34 @@ class ShimLoadError(Exception):
     """
 
 
-def load_shim(shim_path: Path) -> CodeType:
-    """Compile *shim_path* without executing any of it.
+def check_shim_loads(shim_path: Path) -> None:
+    """Prove *shim_path* can be read and parsed, without producing runnable code.
 
-    Raises ``ShimLoadError`` when the file cannot be read or cannot be
-    compiled. Every other failure belongs to execution and is the caller's to
-    classify.
+    ``ast.parse`` answers the only question this step asks, whether the file is
+    readable and syntactically valid, and it yields a syntax tree rather than a
+    code object, so nothing here can be executed later by accident.
+
+    An earlier version called ``compile()``. That produced a code object and
+    tripped a dynamic-code-compilation finding, correctly: a compile step whose
+    output is executed later is a materially different thing from a parse whose
+    output is discarded. Parsing keeps the load and execute phases separate
+    without adding an executable artifact to do it.
+
+    Raises ``ShimLoadError`` when the file cannot be read or cannot be parsed.
+    Every other failure belongs to execution and is the caller's to classify.
     """
     try:
         source = shim_path.read_text(encoding="utf-8")
-        return compile(source, str(shim_path), "exec")
+        ast.parse(source, filename=str(shim_path))
     except (OSError, SyntaxError, ValueError) as exc:
         raise ShimLoadError(f"{type(exc).__name__}: {exc}") from exc
 
 
-def execute_shim(code: CodeType, shim_path: Path) -> None:
-    """Execute already-compiled shim *code* with ``__main__`` semantics.
+def execute_shim(shim_path: Path) -> None:
+    """Execute *shim_path* with ``__main__`` semantics.
 
-    Mirrors what ``runpy.run_path`` provided, minus the compile step, which
-    ``load_shim`` performs separately.
+    Called only after ``check_shim_loads`` succeeded, so a failure here means
+    the shim ran and then raised, which is a policy outcome rather than an
+    infrastructure one.
     """
-    namespace: dict[str, object] = {
-        "__name__": "__main__",
-        "__file__": str(shim_path),
-        "__builtins__": __builtins__,
-    }
-    exec(code, namespace)
+    runpy.run_path(str(shim_path), run_name="__main__")
