@@ -74,12 +74,12 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Focused tests, gate replay, ruff, pre_pr.py, and a separate Copilot review run all completed for this hotfix."
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "HANDOFF.md was read but not modified."
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
@@ -89,17 +89,17 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pre_pr.py ran Markdown Linting and the session-end dry run reported no markdown files changed."
+        "Evidence": "No markdown files changed"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Staged for the current hotfix commit on fix/4757-unknown-verdict."
+        "Evidence": "All changes committed (HEAD: 84c76708c)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest tests/test_aggregate_quality_verdicts.py tests/quality_gate/test_check_critical_failures.py, targeted replay of aggregate plus check_critical_failures, uv run ruff check on changed files, and uv run python scripts/validation/pre_pr.py all passed."
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -110,10 +110,15 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },
   "workLog": [],
-  "endingCommit": "",
+  "endingCommit": "84c76708c",
   "nextSteps": []
 }

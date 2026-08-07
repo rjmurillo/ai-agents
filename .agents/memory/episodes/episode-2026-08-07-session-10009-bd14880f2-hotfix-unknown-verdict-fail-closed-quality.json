@@ -6,13 +6,23 @@
   "outcome": "success",
   "task": "Hotfix unknown verdict fail-closed quality gate",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-07T18:57:07+00:00",
+      "type": "commit",
+      "content": "Commit: 84c76708c",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10009-bd14880f2-hotfix-unknown-verdict-fail-closed-quality"
+    }
+  ],
   "metrics": {
     "duration_minutes": null,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 4
   },
   "lessons": []
