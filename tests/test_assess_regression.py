@@ -207,6 +207,58 @@ class TestCheckThresholdsStillAbsolute:
         assert assess_main() == 11
         assert seen == [[new_file]]
 
+    def test_regression_mode_does_not_gate_existing_absolute_debt(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        head = _make_assessment("legacy.py", cohesion=5.0)
+        base = {head.file_path: _make_assessment("legacy.py", cohesion=4.0)}
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "assess.py",
+                "--target",
+                ".",
+                "--changed-only",
+                "--base",
+                "origin/main",
+                "--format",
+                "json",
+            ],
+        )
+        monkeypatch.setattr("assess.get_files_to_assess", lambda *_args: [Path("legacy.py")])
+        monkeypatch.setattr("assess.assess_file", lambda *_args: head)
+        monkeypatch.setattr("assess._get_base_assessments", lambda *_args: base)
+
+        assert assess_main() == 0
+
+    def test_regression_mode_returns_10_for_existing_score_drop(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        head = _make_assessment("legacy.py", cohesion=5.0)
+        base = {head.file_path: _make_assessment("legacy.py", cohesion=8.0)}
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "assess.py",
+                "--target",
+                ".",
+                "--changed-only",
+                "--base",
+                "origin/main",
+                "--format",
+                "json",
+            ],
+        )
+        monkeypatch.setattr("assess.get_files_to_assess", lambda *_args: [Path("legacy.py")])
+        monkeypatch.setattr("assess.assess_file", lambda *_args: head)
+        monkeypatch.setattr("assess._get_base_assessments", lambda *_args: base)
+
+        assert assess_main() == 10
+
 
 # ---------------------------------------------------------------------------
 # _get_base_assessments -- mocked git show
