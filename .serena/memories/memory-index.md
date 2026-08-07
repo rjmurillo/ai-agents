@@ -158,6 +158,7 @@
 |fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (939)
 |token efficiency: [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
 |passive context research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (447)
+|portability symlink TOCTOU scan_all refuse_symlinked_scan_root: [decision-portability-ratchet-symlink-toctou](decision-portability-ratchet-symlink-toctou.md) (314)
 |session start init handoff protocol serena blocking: [skills-session-init-index](skills-session-init-index.md) (244), [project/project-overview](project/project-overview.md) (347), [project/codebase-structure](project/codebase-structure.md) (783)
 |session validation diagnose fixer protocol compliance NON_COMPLIANT changelog: [session/changelog-session-log-fixer](session/changelog-session-log-fixer.md) (480)
 |protocol blocking gate RFC MUST verification template legacy: [skills-protocol-index](skills-protocol-index.md) (300)
