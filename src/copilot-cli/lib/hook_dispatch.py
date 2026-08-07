@@ -41,18 +41,14 @@ from __future__ import annotations
 
 import io
 import json
-import os
-import runpy
 import sys
-import tempfile
-from collections.abc import Callable
 from pathlib import Path
-from typing import BinaryIO, TextIO
 
 _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import output_capture
 from hook_dispatch_protocol import (  # noqa: E402
     OUTPUT_POLICIES as _OUTPUT_POLICIES,
 )
@@ -68,6 +64,7 @@ from hook_dispatch_protocol import (  # noqa: E402
 from hook_dispatch_protocol import (  # noqa: E402
     record_discarded_observer_output as _record_discarded_observer_output,
 )
+from shim_loader import ShimLoadError, execute_shim, load_shim
 
 # Hook exit-code convention (Claude/Copilot PreToolUse): 0 allow, 2 block.
 ALLOW_EXIT = 0
@@ -98,24 +95,32 @@ def _exit_code(exc: SystemExit) -> int:
 
 
 def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
-    """Run one shim and translate its outcome to a hook exit code."""
+    """Run one shim and translate its outcome to a hook exit code.
+
+    Load and execute are separate calls so a load failure and an execution
+    failure are distinguished by construction, not by exception type. See
+    shim_loader for why that boundary is load bearing.
+    """
     _install_stdin(raw_stdin)
     try:
-        runpy.run_path(str(shim_path), run_name="__main__")
+        code = load_shim(shim_path)
+    except ShimLoadError as exc:
+        print(
+            f"project-toolkit@ai-agents WARNING: hooks DISABLED (your session "
+            f"is unaffected). Shim {name} could not be loaded ({exc}); "
+            f"infrastructure failure, not a policy denial. Reinstall: "
+            f"copilot plugin install project-toolkit@ai-agents",
+            file=sys.stderr,
+        )
+        return ALLOW_EXIT
+
+    try:
+        execute_shim(code, shim_path)
         # A shim that returns without calling sys.exit allowed the tool.
         return ALLOW_EXIT
     except SystemExit as exc:
         # Only an explicit sys.exit() is a policy verdict.
         return _exit_code(exc)
-    except (SyntaxError, ImportError) as exc:
-        # Load failure: affects every call, creates uninstall pressure. Degrade.
-        print(
-            f"project-toolkit@ai-agents WARNING: hooks DISABLED (your session is unaffected). "
-            f"Shim {name} raised {type(exc).__name__}: {exc}; infrastructure failure, not a "
-            f"policy denial. Reinstall: copilot plugin install project-toolkit@ai-agents",
-            file=sys.stderr,
-        )
-        return ALLOW_EXIT
     except Exception as exc:
         # Execution failure: affects one call, no uninstall pressure. Deny.
         print(
@@ -126,180 +131,12 @@ def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
         return BLOCK_EXIT
 
 
-def _open_capture_stream(fd: int) -> TextIO:
-    """Return a UTF-8 text stream over a duplicate of ``fd``."""
-    duplicate = os.dup(fd)
-    try:
-        return os.fdopen(
-            duplicate,
-            "w",
-            buffering=1,
-            encoding="utf-8",
-            errors="replace",
-            newline="",
-        )
-    except (OSError, ValueError):
-        os.close(duplicate)
-        raise
-
-
-def _save_output_fds(capture_stderr: bool) -> tuple[int, int | None]:
-    """Flush host streams and duplicate output descriptors for restoration."""
-    sys.stdout.flush()
-    if capture_stderr:
-        sys.stderr.flush()
-    saved_stdout_fd = os.dup(1)
-    try:
-        saved_stderr_fd = os.dup(2) if capture_stderr else None
-    except OSError:
-        os.close(saved_stdout_fd)
-        raise
-    return saved_stdout_fd, saved_stderr_fd
-
-
-def _restore_output_fds(saved_stdout_fd: int, saved_stderr_fd: int | None) -> None:
-    """Restore and close saved output descriptors."""
-    stdout_error: OSError | None = None
-    try:
-        os.dup2(saved_stdout_fd, 1)
-    except OSError as exc:
-        stdout_error = exc
-    finally:
-        os.close(saved_stdout_fd)
-
-    if saved_stderr_fd is not None:
-        try:
-            os.dup2(saved_stderr_fd, 2)
-        finally:
-            os.close(saved_stderr_fd)
-    if stdout_error is not None:
-        raise stdout_error
-
-
-def _read_capture(captured_file: BinaryIO) -> str:
-    """Read one binary temporary capture file as replacement-safe UTF-8."""
-    captured_file.flush()
-    captured_file.seek(0)
-    return captured_file.read().decode("utf-8", errors="replace")
-
-
-def _capture_process_output(
-    name: str,
-    runner: Callable[[], int],
-    *,
-    capture_stderr: bool,
-    diagnostic_prefix: str = "hook-dispatch",
-) -> tuple[int, str, str, str | None]:
-    """Redirect selected process channels, run the callback, and read output."""
-    original_stdout = sys.stdout
-    original_stderr = sys.stderr
-    with (
-        tempfile.TemporaryFile() as captured_stdout_file,
-        tempfile.TemporaryFile() as captured_stderr_file,
-    ):
-        captured_stdout_stream = None
-        captured_stderr_stream = None
-        capture_error: str | None = None
-        try:
-            os.dup2(captured_stdout_file.fileno(), 1)
-            captured_stdout_stream = _open_capture_stream(1)
-            if capture_stderr:
-                os.dup2(captured_stderr_file.fileno(), 2)
-                captured_stderr_stream = _open_capture_stream(2)
-        except (OSError, ValueError) as exc:
-            capture_error = (
-                f"{diagnostic_prefix}: process output capture setup failed "
-                f"for {name}: {exc}; observer not run"
-            )
-            code = BLOCK_EXIT
-        else:
-            sys.stdout = captured_stdout_stream
-            if captured_stderr_stream is not None:
-                sys.stderr = captured_stderr_stream
-            try:
-                code = runner()
-                captured_stdout_stream.flush()
-                if captured_stderr_stream is not None:
-                    captured_stderr_stream.flush()
-            except (OSError, ValueError) as exc:
-                capture_error = (
-                    f"{diagnostic_prefix}: process output capture failed for {name}: {exc}"
-                )
-                code = BLOCK_EXIT
-        finally:
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
-            if captured_stdout_stream is not None:
-                captured_stdout_stream.close()
-            if captured_stderr_stream is not None:
-                captured_stderr_stream.close()
-
-        raw_stdout = _read_capture(captured_stdout_file)
-        raw_stderr = _read_capture(captured_stderr_file) if capture_stderr else ""
-        return code, raw_stdout, raw_stderr, capture_error
-
-
-def _run_capturing_process_output(
-    name: str,
-    runner: Callable[[], int],
-    *,
-    capture_stderr: bool = False,
-    diagnostic_prefix: str = "hook-dispatch",
-) -> tuple[int, str, str]:
-    """Run a callback while retaining selected process output channels."""
-    original_stderr = sys.stderr
-    try:
-        saved_stdout_fd, saved_stderr_fd = _save_output_fds(capture_stderr)
-    except (OSError, ValueError) as exc:
-        print(
-            f"{diagnostic_prefix}: process output capture unavailable for "
-            f"{name}: {exc}; observer not run",
-            file=original_stderr,
-        )
-        return BLOCK_EXIT, "", ""
-
-    try:
-        try:
-            code, raw_stdout, raw_stderr, capture_error = _capture_process_output(
-                name,
-                runner,
-                capture_stderr=capture_stderr,
-                diagnostic_prefix=diagnostic_prefix,
-            )
-        except (OSError, ValueError) as exc:
-            code, raw_stdout, raw_stderr = BLOCK_EXIT, "", ""
-            capture_error = (
-                f"{diagnostic_prefix}: process output capture setup failed "
-                f"for {name}: {exc}; observer not run"
-            )
-    finally:
-        _restore_output_fds(saved_stdout_fd, saved_stderr_fd)
-
-    if capture_error is not None:
-        print(capture_error, file=original_stderr)
-    return code, raw_stdout, raw_stderr
-
-
-def _run_capturing_process_stdout(
-    name: str,
-    runner: Callable[[], int],
-    *,
-    diagnostic_prefix: str = "hook-dispatch",
-) -> tuple[int, str]:
-    """Run a callback while retaining Python, file-descriptor, and child stdout."""
-    code, raw_stdout, _ = _run_capturing_process_output(
-        name,
-        runner,
-        diagnostic_prefix=diagnostic_prefix,
-    )
-    return code, raw_stdout
-
-
 def _run_shim_capturing_stdout(shim_path: Path, name: str, raw_stdin: bytes) -> tuple[int, str]:
     """Run one shim while retaining every process stdout path."""
-    return _run_capturing_process_stdout(
+    return output_capture.run_capturing_process_stdout(
         name,
         lambda: _run_shim(shim_path, name, raw_stdin),
+        failure_exit=BLOCK_EXIT,
     )
 
 
@@ -309,10 +146,11 @@ def _run_shim_capturing_output(
     raw_stdin: bytes,
 ) -> tuple[int, str, str]:
     """Run one shim while retaining every process stdout and stderr path."""
-    return _run_capturing_process_output(
+    return output_capture.run_capturing_process_output(
         name,
         lambda: _run_shim(shim_path, name, raw_stdin),
         capture_stderr=True,
+        failure_exit=BLOCK_EXIT,
     )
 
 
