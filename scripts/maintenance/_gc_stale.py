@@ -10,18 +10,15 @@ needs, above all whether prune would destroy work that nothing else anchors.
 from __future__ import annotations
 
 import os
-import re
-import stat
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+from scripts.maintenance import _gc_anchors
+from scripts.maintenance._gc_files import regular_file
 from scripts.maintenance.worktree_report import Worktree
 
 GitRunner = Callable[[list[str]], str]
-
-_OID = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
-_NULL_OID = re.compile(r"0{40}|0{64}")
 
 
 def admin_dir_for(worktree_path: str, run_git: GitRunner, repo_dir: str) -> Path | None:
@@ -108,7 +105,7 @@ def staged_content_state(admin: Path, head: str, repo_dir: str, timeout: float) 
     stay quiet on ``CLEAN``, and disclose the gap on ``UNKNOWN``.
     """
     index = admin / "index"
-    present = _regular_file(index)
+    present = regular_file(index)
     if present is None:
         return UNKNOWN
     if not present:
@@ -133,71 +130,35 @@ def staged_content_state(admin: Path, head: str, repo_dir: str, timeout: float) 
     return UNKNOWN
 
 
-def _regular_file(path: Path) -> bool | None:
-    """Is ``path`` a regular file? ``None`` when the question could not be asked.
+def unreachable_admin_commits(admin: Path, repo_dir: str, timeout: float) -> list[str] | None:
+    """Which commits does this worktree's admin directory alone still anchor?
 
-    ``Path.is_file`` swallows every ``OSError`` and answers ``False``, so a
-    permission denial, a dead symlink chain, and a genuinely absent file all
-    look identical. The first two are unknowns. Reporting them as "the file is
-    not there, so nothing is at risk" is the same silent all-clear that let a
-    worktree holding the only copy of a commit be listed for removal.
+    Two anchors live in there and both die with the directory. The first is the
+    reflog: ``HEAD`` is per worktree and so is ``logs/HEAD``, so a worktree that
+    commits and then checks something else out leaves that commit named by the
+    reflog and by nothing under the repository's ``refs/``. The second is the
+    worktree's own refs. ``refs/worktree/``, ``refs/bisect/``, and
+    ``refs/rewritten/`` are per-worktree namespaces stored under the admin
+    directory, so ``rev-list --not --all`` in the main repository cannot see
+    them and neither can ``for-each-ref``.
 
-    ``False`` is reserved for genuine absence, which means no directory entry
-    at that path at all. ``stat`` cannot establish that on its own: it follows
-    symlinks, so a link to a missing target raises the same
-    ``FileNotFoundError`` as nothing being there, and it raises
-    ``NotADirectoryError`` when a parent component is a regular file, which is
-    a corrupt admin record rather than an empty one. Both were being reported
-    as absence. ``lstat`` answers the narrower question of whether anything
-    occupies the path, so only that decides ``False``.
-
-    Something present but not a regular file, a directory or a socket where an
-    index or a reflog belongs, is a state this probe does not understand, so it
-    answers unknown rather than treating a corrupt admin record as an empty one.
-    """
-    try:
-        mode = path.stat().st_mode
-    except (FileNotFoundError, NotADirectoryError):
-        return False if _nothing_at(path) else None
-    except OSError:
-        return None
-    return True if stat.S_ISREG(mode) else None
-
-
-def _nothing_at(path: Path) -> bool:
-    """Is there genuinely no directory entry at ``path``?
-
-    ``lstat`` does not follow the final symlink, so a dangling link reports as
-    present, which is the honest answer: something occupies the path and this
-    probe cannot read through it. Any other failure means the question itself
-    could not be asked, which is not absence either.
-    """
-    try:
-        path.lstat()
-    except FileNotFoundError:
-        return True
-    except OSError:
-        return False
-    return False
-
-
-def unreachable_reflog_commits(admin: Path, repo_dir: str, timeout: float) -> list[str] | None:
-    """Which commits does this worktree's reflog alone still anchor?
-
-    ``HEAD`` is per worktree, and so is its reflog. A detached worktree that
-    commits and then checks out something else leaves that commit anchored by
-    ``logs/HEAD`` and nothing under ``refs/``. Deleting the admin directory
-    deletes the reflog with it, and the commit becomes collectable. Verified
-    against real git: ``for-each-ref --contains`` reports no ref, and after the
-    entry goes the commit shows up under ``fsck --unreachable``.
+    Verified against real git 2.43.0 on both: a commit held only by
+    ``refs/worktree/`` survives ``git worktree remove`` as an unreachable object
+    and is gone after ``git gc --prune=now``, and the reflog case reports no
+    containing ref before removal and shows up under ``fsck --unreachable``
+    after it.
 
     ``None`` means the question could not be answered, which callers disclose
     rather than read as "nothing to lose". An empty list means nothing here is
     at risk.
     """
-    candidates = _reflog_oids(admin)
+    candidates = _gc_anchors.reflog_oids(admin)
     if candidates is None:
         return None
+    local_refs = _gc_anchors.worktree_ref_oids(admin)
+    if local_refs is None:
+        return None
+    candidates = list(dict.fromkeys(candidates + local_refs))
     if not candidates:
         return []
     known = _existing_objects(candidates, repo_dir, timeout)
@@ -211,41 +172,6 @@ def unreachable_reflog_commits(admin: Path, repo_dir: str, timeout: float) -> li
     if unreachable is None:
         return None
     return unreachable.split()
-
-
-def _reflog_oids(admin: Path) -> list[str] | None:
-    """Every non-null object id named in the admin reflog, oldest first.
-
-    A file that holds text but yields no recognizable object id at all was not
-    understood, so it answers "unknown" rather than "nothing at risk". Reading
-    a truncated or unexpectedly encoded reflog as empty is the same silent
-    all-clear the rest of this probe is built to avoid. Lines that parse and
-    name only the null id are understood and carry no risk, which is why the
-    test is "did any field look like an id" rather than "did any survive".
-    """
-    log = admin / "logs" / "HEAD"
-    present = _regular_file(log)
-    if present is None:
-        return None
-    if not present:
-        return []
-    try:
-        text = log.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
-    seen: dict[str, None] = {}
-    understood = False
-    for line in text.splitlines():
-        for field in line.split(" ")[:2]:
-            if not _OID.fullmatch(field):
-                continue
-            understood = True
-            if _NULL_OID.fullmatch(field):
-                continue
-            seen[field] = None
-    if text.strip() and not understood:
-        return None
-    return list(seen)
 
 
 def _existing_objects(oids: list[str], repo_dir: str, timeout: float) -> list[str] | None:

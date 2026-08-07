@@ -97,13 +97,18 @@ class TestStagedContentWarning:
         assert "--prefix=<somewhere>/." not in reason
 
 
-class TestReflogWarning:
-    """The admin reflog is the only anchor for a detached worktree's abandoned commits."""
+class TestAdminAnchorWarning:
+    """The admin directory is the only anchor for a detached worktree's abandoned commits.
+
+    Two things inside it can be that anchor: the reflog, and a per-worktree ref
+    under ``refs/worktree/``. Neither is visible to a ref query in the main
+    repository, and removing the worktree deletes both.
+    """
 
     @staticmethod
     def _reason(orphans, staged: str = "clean") -> str:
         with patch(
-            f"{MODULE}._gc_reasons._gc_stale.unreachable_reflog_commits", return_value=orphans
+            f"{MODULE}._gc_reasons._gc_stale.unreachable_admin_commits", return_value=orphans
         ):
             return decide_stale(stale_worktree(), staged=staged).reason
 
@@ -116,7 +121,7 @@ class TestReflogWarning:
     def test_no_orphans_means_no_warning(self):
         assert self._reason([]) == KEEP_STALE
 
-    def test_an_unreadable_reflog_discloses_the_gap_instead_of_claiming_either(self):
+    def test_an_unreadable_anchor_discloses_the_gap_instead_of_claiming_either(self):
         reason = self._reason(None)
         assert "WARNING" not in reason
         assert "could not be read" in reason
@@ -126,8 +131,8 @@ class TestReflogWarning:
         assert reason.count("git branch gc-rescue-") == 3
         assert "and 4 more" in reason
 
-    def test_both_warnings_appear_when_index_and_reflog_are_both_at_risk(self):
+    def test_both_warnings_appear_when_index_and_admin_dir_are_both_at_risk(self):
         reason = self._reason(["b" * 40], staged="staged")
         assert "its index holds staged work" in reason
-        assert "its reflog is the only anchor" in reason
+        assert "its admin directory is the only anchor" in reason
         assert reason.index("WARNING") < reason.index("git worktree remove")
