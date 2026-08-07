@@ -177,13 +177,13 @@ class TestRegularFileProbe:
     def test_a_path_under_a_file_is_false(self, tmp_path):
         """Retain the main-side test name while proving its unsafe answer is gone."""
         (tmp_path / "a").write_bytes(b"x")
-        assert _gc_stale._regular_file(tmp_path / "a" / "b") is None
+        assert _gc_files.regular_file(tmp_path / "a" / "b") is None
 
     def test_a_broken_symlink_is_absent(self, tmp_path):
         """Retain the main-side test name while proving a link is not absence."""
         link = tmp_path / "index"
         link.symlink_to(tmp_path / "nowhere")
-        assert _gc_stale._regular_file(link) is None
+        assert _gc_files.regular_file(link) is None
 
 
 class TestReflogProbeUnknowns:
