@@ -1,0 +1,138 @@
+{
+  "id": "episode-2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push",
+  "session": "2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push",
+  "timestamp": "2026-08-06T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Profile and optimize pre-submit pre-commit and pre-push hooks without correctness loss",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mapped and measured local validation",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed suite-scale HEAD guard subprocess cost",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scoped pre-PR lint gates without hiding pushed changes",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Eliminated duplicate coverage-pin test execution",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved and persisted the Lefthook stdin contract",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed recursive adversarial review",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran full validation",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed discovered defects and the delivery issue",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created the atomic local stack",
+      "caused_by": [],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-06T17:21:50+00:00",
+      "type": "commit",
+      "content": "Commit: 5fd689a66",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
