@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code commits d7a8d0e5c and 426b93956 plus main merge 44ae03e18 are reachable from HEAD. This log and the regenerated episode are staged together next."
+        "Evidence": "Code commits d7a8d0e5c and 426b93956, main merge 44ae03e18, and session evidence commit dc0414f07 are reachable from HEAD."
       },
       "validationPassed": {
         "level": "MUST",
@@ -104,7 +104,7 @@
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Todo remains in progress until review threads, CI, and auto-merge are verified."
+        "Evidence": "Todo remains in progress until the final session-log commit passes required CI and auto-merge is restored."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -154,10 +154,26 @@
     {
       "time": "2026-08-07T18:11:00Z",
       "entry": "Post-merge affected tests passed 402 tests. Build, portability, ruff, mypy, merge-tree ratchets, pre_pr.py, and episode validation passed."
+    },
+    {
+      "time": "2026-08-07T18:27:00Z",
+      "entry": "Pushed dc0414f07 to the existing PR branch through the branch lock. Remote head matched and no history was rewritten."
+    },
+    {
+      "time": "2026-08-07T18:31:00Z",
+      "entry": "Replied to all six review threads with reproduction and commit evidence, resolved each thread after the fix was reachable, then waited 45 seconds and confirmed zero unresolved threads."
+    },
+    {
+      "time": "2026-08-07T18:32:00Z",
+      "entry": "Corrected the PR description from Fixes #4705 to Refs #4705 because that issue retains separate base and head ratchet, fail-closed git read, CommonMark parsing, and symlink scope. Live validation returned no critical findings."
+    },
+    {
+      "time": "2026-08-07T18:45:00Z",
+      "entry": "Required checks completed with no failures and GitHub reported mergeStateStatus CLEAN. Auto-merge was paused only to keep this final session-log commit inside PR 4730."
     }
   ],
-  "endingCommit": "44ae03e18",
+  "endingCommit": "dc0414f07",
   "nextSteps": [
-    "Push the branch, reply to and resolve all six review threads, verify CI, and enable auto-merge."
+    "Push this final session-log commit, re-enable squash auto-merge, and verify the new required checks."
   ]
 }

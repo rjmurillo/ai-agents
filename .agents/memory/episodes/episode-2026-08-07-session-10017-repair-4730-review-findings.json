@@ -117,7 +117,9 @@
       "caused_by": [
         "e012"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e017"
+      ],
       "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
     },
     {
@@ -158,15 +160,78 @@
         "e009"
       ],
       "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-07T18:27:00+00:00",
+      "type": "milestone",
+      "content": "Pushed dc0414f07 to the existing PR branch through the branch lock. Remote head matched and no history was rewritten.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-07T18:31:00+00:00",
+      "type": "milestone",
+      "content": "Replied to all six review threads with reproduction and commit evidence, resolved each thread after the fix was reachable, then waited 45 seconds and confirmed zero unresolved threads.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-07T18:32:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the PR description from Fixes #4705 to Refs #4705 because that issue retains separate base and head ratchet, fail-closed git read, CommonMark parsing, and symlink scope. Live validation returned no critical findings.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-07T18:45:00+00:00",
+      "type": "milestone",
+      "content": "Required checks completed with no failures and GitHub reported mergeStateStatus CLEAN. Auto-merge was paused only to keep this final session-log commit inside PR 4730.",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-07T18:14:43+00:00",
+      "type": "commit",
+      "content": "Commit: dc0414f07",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
     }
   ],
   "metrics": {
-    "duration_minutes": 40,
+    "duration_minutes": 74,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 80
+    "commits": 4,
+    "files_changed": 83
   },
   "lessons": []
 }
