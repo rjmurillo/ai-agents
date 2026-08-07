@@ -9,3 +9,4 @@
 | template sync verify src/claude templates/agents commit pre-flight scope porting | [agent-workflow/agentworkflow-004-proactive-template-sync-verification-95](agent-workflow/agentworkflow-004-proactive-template-sync-verification-95.md) |
 | handoff table format structured automation parseable orchestrator routing | [agent-workflow/agentworkflow-005-structured-handoff-formats-88](agent-workflow/agentworkflow-005-structured-handoff-formats-88.md) |
 | post-implementation critic validation compliance standards naming formatting | [agent-workflow/agent-workflow-post-implementation-critic-validation](agent-workflow/agent-workflow-post-implementation-critic-validation.md) |
+| review agent worktree mutation read-only copy adversarial isolate | [agent-workflow/agents-review-agent-mutates-worktree](agent-workflow/agents-review-agent-mutates-worktree.md) |
