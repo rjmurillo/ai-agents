@@ -72,8 +72,26 @@ Pull request #4603 squash-merged as `95ecfc3e9c`. Three local commits reported
 had landed. One later commit, made after the merge completed, was stranded and
 had to be replayed onto a fresh branch.
 
+## The content check does not scale to a fleet
+
+The content check above costs a `git diff` per branch. Across 185 worktrees that
+is too slow, and it asks a question the pull request API already answers in one
+call:
+
+```bash
+gh pr list --state all --limit 1000 --json number,state,headRefName
+```
+
+A branch that is the head of a MERGED pull request landed, whatever ancestry
+says. A branch with no pull request at all is the only shape that can hold lost
+work. Reach for the per-file content check inside that last group, not across
+the whole fleet.
+
 ## Related
 
+- `.serena/memories/agent-workflow/fleet-worktree-live-versus-abandoned.md`. The
+  population split behind that one API call, and the procedure for anchoring
+  unreachable tips before a worktree is removed.
 - `.serena/memories/quality/add-missing-state-not-sentinel.md`. The same defect
   shape: a two-valued answer used where the question has three outcomes
   (present, absent, cannot determine).

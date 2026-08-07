@@ -60,6 +60,55 @@ git -C "$p" diff origin/main HEAD --name-only -- $own | wc -l
 That is still an upper bound, because it also counts files `main` moved forward
 on its own. Treat it as a triage signal, never as a finding.
 
+## At fleet scale, join against pull request state
+
+The age and file-list checks above answer one worktree at a time. Across 185
+worktrees they are too slow, and every cheap test fails in the same direction:
+this repository squash-merges and deletes the head branch, so a branch whose
+work landed is not an ancestor of `main` and its remote ref is gone. Landed work
+answers both questions exactly the way lost work does. Measured: 125 of 185
+worktrees matched "not on main, no remote branch", while about 9 held work that
+was never proposed.
+
+One API call classifies the whole fleet:
+
+```bash
+gh pr list --state all --limit 1000 --json number,state,headRefName
+```
+
+Join that against the worktree list by branch name. Three populations fall out,
+and only the third can hold lost work.
+
+| Population | Measured count | Verdict |
+|---|---|---|
+| Detached checkout, no branch | 50 | Review leftovers, disposable |
+| Branch is head of a MERGED pull request | 23 | Landed, disposable |
+| Named branch, no pull request ever | 52 | Triage one at a time |
+
+Sort that third group by **commit date, not commit count**. Fifteen commits from
+February is dead. Two commits from Tuesday is a forgotten pull request. Sorting
+by count puts the dead branches on top and buries the recoverable ones.
+
+Measured yield: four of the 52 were clean and under a week old. Two of those
+four fixed a byte budget the fleet had been failing against for five days.
+
+## Anchor unreachable tips before removing anything
+
+Removing a worktree drops its tip when nothing else references it. Create two
+independent anchors first. Both are cheap.
+
+```bash
+git update-ref "refs/salvage/<nnn>-<branch-slug>" "$sha"   # once per tip
+git bundle create ~/src/scratch/tips.bundle --stdin        # feed it ref NAMES
+git bundle verify ~/src/scratch/tips.bundle
+```
+
+`git bundle create` refuses a list of bare SHAs with `Refusing to create empty
+bundle`, so `update-ref` is a prerequisite and not an optional extra. The refs
+survive `git gc` and live in the canonical repository, where a worktree prune
+cannot orphan them. The bundle survives losing the repository. Measured: 136
+unreachable tips, 107 MB, a few minutes.
+
 ## Rule
 
 Before standing down on an issue because a worktree looks owned, measure the age

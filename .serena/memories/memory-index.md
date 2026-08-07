@@ -56,7 +56,7 @@
 |quality qa DoD definition-of-done test strategy critique: [skills-quality-index](skills-quality-index.md) (290)
 |sentinel zero None unknown unmeasured tri-state exit code fail open overload: [quality/add-missing-state-not-sentinel](quality/add-missing-state-not-sentinel.md) (599)
 |git merge union driver append-only semantic duplicate gitattributes conflict: [quality/union-merge-hides-semantic-duplicates](quality/union-merge-hides-semantic-duplicates.md) (911)
-|squash merge ancestry is-ancestor branch deleted REMOTE ABSENT verify content stranded commit: [quality/verify-squash-merge-by-content-not-ancestry](quality/verify-squash-merge-by-content-not-ancestry.md) (767)
+|squash merge ancestry is-ancestor branch deleted REMOTE ABSENT verify content stranded commit: [quality/verify-squash-merge-by-content-not-ancestry](quality/verify-squash-merge-by-content-not-ancestry.md) (950)
 |github rate limit 403 X-RateLimit-Remaining header endpoint disagrees secondary abuse limiter git protocol: [quality/github-rate-limit-endpoint-disagrees-with-enforcement](quality/github-rate-limit-endpoint-disagrees-with-enforcement.md) (865)
 |diff3 zdiff3 conflict markers base region checkout --merge conflict-marker-policy resolver: [quality/diff3-conflicts-have-four-markers](quality/diff3-conflicts-have-four-markers.md) (801)
 |code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1118)
@@ -69,7 +69,7 @@
 |agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (378)
 |autonomous execution guardrails circuit breaker patch signal trust metric: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (150)
 |fleet contention stop order renice congestion collapse two copilot sessions kill treadmill scheduler semaphore: [decision-stop-orders-are-not-a-control-plane](decision-stop-orders-are-not-a-control-plane.md) (876)
-|worktree abandoned live agent fleet stale dirty harvest ownership squash ahead: [agent-workflow/fleet-worktree-live-versus-abandoned](agent-workflow/fleet-worktree-live-versus-abandoned.md) (750)
+|worktree abandoned live agent fleet stale dirty harvest ownership squash ahead: [agent-workflow/fleet-worktree-live-versus-abandoned](agent-workflow/fleet-worktree-live-versus-abandoned.md) (1277)
 |phase3 agent skill session handoff template verification: [agent-workflow/agentworkflow-004-proactive-template-sync-verification-95](agent-workflow/agentworkflow-004-proactive-template-sync-verification-95.md) (485), [agent-workflow/agentworkflow-005-structured-handoff-formats-88](agent-workflow/agentworkflow-005-structured-handoff-formats-88.md) (474)
 
 [CI/CD and Workflows]
