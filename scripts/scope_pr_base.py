@@ -166,6 +166,13 @@ def is_credible_rescope(
     looked like a clean pass:
 
     * The result is not None.
+    * Both measurements name the same branch. Each call re-reads HEAD, so
+      nothing in the types binds them together. A checkout landing between
+      them substitutes a different branch, and if that branch is stacked on
+      the same parent its small file count and its ancestry both check out.
+      The original branch's block clears on a number that was never measured
+      against it. The branch name is already on the record, so comparing it
+      is the whole fix.
     * The file count is positive. ``get_index_files_against_ref`` returns
       ``[]`` on any nonzero ``git diff``. Quoted rather than paraphrased,
       because this branch is the whole reason the condition exists,
@@ -214,6 +221,8 @@ def is_credible_rescope(
     if rescoped is None:
         return False
     if rescoped.file_count <= 0:
+        return False
+    if rescoped.current_branch != blocked.current_branch:
         return False
     if not rescoped.merge_base or not blocked.merge_base:
         return False

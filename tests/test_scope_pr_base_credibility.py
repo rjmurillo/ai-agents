@@ -67,6 +67,43 @@ class TestIsCredibleRescope:
         assert is_credible_rescope(None, self._blocked("a.py"), ancestor) is False
         assert calls == []
 
+    def test_rejects_a_different_branch(self) -> None:
+        """A rescope measured on another branch cannot clear this one.
+
+        Both calls re-read HEAD, so a checkout landing between them can
+        substitute a branch stacked on the same parent. Its file count is
+        small and its ancestry checks out, so every other condition passes.
+        """
+        ancestor, calls = self._ancestry(True)
+        other = ScopeResult(
+            file_count=1,
+            merge_base=self.STACK_FORK,
+            current_branch="feat/someone-else",
+            files=("x.py",),
+        )
+        assert is_credible_rescope(other, self._blocked("a.py"), ancestor) is False
+        assert calls == []
+
+    def test_accepts_the_same_branch(self) -> None:
+        """The guard rejects on branch identity alone, not on any other field."""
+        ancestor, _ = self._ancestry(True)
+        blocked = self._blocked("a.py")
+        same = self._rescoped("x.py")
+        assert same.current_branch == blocked.current_branch
+        assert is_credible_rescope(same, blocked, ancestor) is True
+
+    def test_branch_comparison_is_exact(self) -> None:
+        """A name that merely shares a prefix is a different branch."""
+        ancestor, calls = self._ancestry(True)
+        near_miss = ScopeResult(
+            file_count=1,
+            merge_base=self.STACK_FORK,
+            current_branch=self._blocked("a.py").current_branch + "-2",
+            files=("x.py",),
+        )
+        assert is_credible_rescope(near_miss, self._blocked("a.py"), ancestor) is False
+        assert calls == []
+
     def test_rejects_zero_files(self) -> None:
         """A failed git diff reads as zero files, which would clear the block.
 
