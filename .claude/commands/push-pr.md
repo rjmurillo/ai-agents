@@ -53,3 +53,6 @@ Based on the above changes:
 - Ensure PR template sections are completed
 
 You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message. Do not use any other tools or do anything else. Do not send any other text or messages besides these tool calls.
+
+<!-- vendor-portability: .agents/scratch is created in the consumer workspace
+for one-run PR body files. It is not an upstream repository dependency. -->
