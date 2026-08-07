@@ -479,6 +479,8 @@ entries, and `git rev-list --count HEAD..origin/main` for staleness.
 
 
 
+## Eval harness
+
 These matter only when running `scripts/eval/`. Full detail lives in
 `.claude/skills/context-optimizer/references/rule-audit-procedure.md`.
 

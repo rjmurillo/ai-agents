@@ -22,7 +22,7 @@
       "handoffRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read .agents/governance/GOTCHAS.md and AGENTS.md before touching governance files"
+        "Evidence": "Read .agents/HANDOFF.md (read-only dashboard); also read GOTCHAS.md and AGENTS.md before touching governance files"
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -37,12 +37,12 @@
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read AGENTS.md Skill-First section and .claude/rules/testing.md before editing governance docs"
+        "Evidence": "Read usage-mandatory memory via Serena; also read AGENTS.md Skill-First section and .claude/rules/testing.md before editing governance docs"
       },
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read .agents/governance/GOTCHAS.md in full, including the .agents session-log commit rule this change obeys"
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md; also read GOTCHAS.md in full including the session-log commit rule"
       },
       "memoriesLoaded": {
         "level": "MUST",
@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "GOTCHAS.md, this log, and the episode landed in commit d20aa50b9. The SHA is recorded in a follow-up commit rather than by amending d20aa50b9, because GOTCHAS warns that amending after recording endingCommit breaks the check."
+        "Evidence": "GOTCHAS.md, this log, and the episode landed in commit d20aa50b9. The endingCommit SHA and episode regeneration landed in follow-up commit cc5b0fec6, not by amending, because GOTCHAS warns that amending after recording endingCommit breaks the check."
       },
       "validationPassed": {
         "level": "MUST",
