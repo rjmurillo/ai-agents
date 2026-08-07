@@ -74,32 +74,32 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation and pre-commit validation items completed"
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "HANDOFF.md not modified"
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "memory-index.md consolidated the duplicate retrieval entry"
+        "Evidence": ".serena/memories/ has changes"
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Scoped markdownlint command ran; repository configuration excluded .serena and reported 0 files"
+        "Evidence": "No markdown files changed"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Corrective implementation committed as b79d60c4b"
+        "Evidence": "All changes committed (HEAD: 9b8d4d03e)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "89 pytest cases passed; memory index, memory tier, count, token, taste, and ruff checks passed; mutation killed two guard tests"
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -108,8 +108,13 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-06-session-10004-pr-4707-correction.md"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: scripts/validation/memory_index.py edited 15 times\nrework-warning: tests/test_validation_memory_index.py edited 13 times"
       }
     }
   },
