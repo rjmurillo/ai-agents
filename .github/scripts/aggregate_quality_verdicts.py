@@ -43,6 +43,7 @@ from scripts.ai_review_common import (  # noqa: E402
 
 _AGENTS = QUALITY_GATE_AGENTS
 ATTENTION_VERDICTS = FAIL_VERDICTS | {"UNKNOWN", "DID_NOT_RUN"}
+DOWNGRADEABLE_INFRA_VERDICTS = FAIL_VERDICTS | {"DID_NOT_RUN"}
 
 
 def get_category(verdict: str, infra_flag: bool) -> str:
@@ -50,6 +51,29 @@ def get_category(verdict: str, infra_flag: bool) -> str:
     if verdict in ATTENTION_VERDICTS:
         return "INFRASTRUCTURE" if infra_flag else "CODE_QUALITY"
     return "N/A"
+
+
+def is_blocking_unknown_verdict(verdict: str) -> bool:
+    """Return True when a raw verdict normalizes to blocking UNKNOWN."""
+    return merge_verdicts([verdict]) == "UNKNOWN" and verdict != "DID_NOT_RUN"
+
+
+def should_downgrade_infra_only_failures(
+    verdicts: dict[str, str],
+    infra_flags: dict[str, bool],
+) -> bool:
+    """Return True when every failing verdict is an explicit infra-only failure."""
+    saw_downgradeable_failure = False
+    for agent in _AGENTS:
+        verdict = verdicts[agent]
+        if verdict in DOWNGRADEABLE_INFRA_VERDICTS:
+            if not infra_flags[agent]:
+                return False
+            saw_downgradeable_failure = True
+            continue
+        if is_blocking_unknown_verdict(verdict):
+            return False
+    return saw_downgradeable_failure
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -104,8 +128,8 @@ def main(argv: list[str] | None = None) -> int:
     final = merge_verdicts([verdicts[agent] for agent in _AGENTS])
     write_log(f"Final verdict: {final}")
 
-    if final in ATTENTION_VERDICTS and not code_quality_failures:
-        write_log("All failures are INFRASTRUCTURE - downgrading to WARN")
+    if not code_quality_failures and should_downgrade_infra_only_failures(verdicts, infra_flags):
+        write_log("All failures are explicit infra verdicts - downgrading to WARN")
         final = "WARN"
 
     # Issue #2821 option c: the WARN downgrade is owner policy, but a security

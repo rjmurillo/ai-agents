@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10009,
+    "date": "2026-08-07",
+    "branch": "fix/4757-unknown-verdict",
+    "startingCommit": "e0ac3ff6d",
+    "objective": "Hotfix unknown verdict fail-closed quality gate"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools were available in this harness; memory and code-intelligence calls succeeded in this session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran serena-initial_instructions at session start."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and .agents/SESSION-PROTOCOL.md before editing."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/*.py and used the session-init and GitHub issue/PR skill scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the usage-mandatory Serena memory before GitHub operations."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md, root AGENTS.md, .github/AGENTS.md, and the Python, testing, ci-scripts, universal, and canonical-source-mirror rules."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index plus task memories: usage-mandatory, ci/ci-ai-gate-blocks-when-the-security-review-did-not-run, skills-github-cli-index, project/project-labels-milestones, ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff, and skills-pr-review-index."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4757-unknown-verdict"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4757-unknown-verdict"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified git status in the worktree before edits and after validation runs."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e0ac3ff6d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Focused tests, gate replay, ruff, pre_pr.py, and a separate Copilot review run all completed for this hotfix."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md was read but not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote quality/unknown-verdict-infra-downgrade-stays-blocking."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py ran Markdown Linting and the session-end dry run reported no markdown files changed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Staged for the current hotfix commit on fix/4757-unknown-verdict."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/test_aggregate_quality_verdicts.py tests/quality_gate/test_check_critical_failures.py, targeted replay of aggregate plus check_critical_failures, uv run ruff check on changed files, and uv run python scripts/validation/pre_pr.py all passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [],
+  "endingCommit": "",
+  "nextSteps": []
+}

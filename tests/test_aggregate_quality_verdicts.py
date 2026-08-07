@@ -167,6 +167,38 @@ class TestMain:
         assert outputs["security_category"] == "INFRASTRUCTURE"
         assert outputs["security_review_ran"] == "false"
 
+    def test_unknown_infra_failure_stays_blocking(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["qa"] = "UNKNOWN"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+        infra["qa"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "UNKNOWN"
+        assert outputs["security_review_ran"] == "false"
+
+    def test_unrecognized_verdict_token_stays_blocking(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["analyst"] = "FOOBAR"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+        infra["analyst"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "UNKNOWN"
+        assert outputs["security_review_ran"] == "false"
+
     def test_outputs_per_agent_verdicts_and_categories(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
         verdicts = {a: "PASS" for a in _AGENTS}
