@@ -205,3 +205,53 @@ def test_dispatcher_catches_system_exit(dispatcher: Path) -> None:
         "BaseException, so a bare except Exception does not catch it, and "
         "every _bootstrap.py before this change calls sys.exit(2)."
     )
+
+
+class TestLauncherFormsCoverTheSameFailures:
+    """The bash and PowerShell launchers must guard the same conditions.
+
+    Test-Path answers only "does it exist". A file blocked by Windows ACLs
+    passes it, Python then exits 2 opening it, and the trailing
+    `exit $LASTEXITCODE` denies every call. The bash form already checked -r,
+    so testing existence only left the two launchers covering different
+    failures on the platform the customer was running. Refs #4672.
+    """
+
+    def _launcher_commands(self) -> dict[str, str]:
+        import json
+
+        manifest = json.loads(
+            (
+                _REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json"
+            ).read_text(encoding="utf-8")
+        )
+        found: dict[str, str] = {}
+
+        def _walk(node: object) -> None:
+            if isinstance(node, dict):
+                for key, value in node.items():
+                    if key in ("bash", "powershell") and isinstance(value, str):
+                        found.setdefault(key, "")
+                        found[key] += value + "\n"
+                    else:
+                        _walk(value)
+            elif isinstance(node, list):
+                for item in node:
+                    _walk(item)
+
+        _walk(manifest)
+        return found
+
+    def test_both_forms_are_present(self) -> None:
+        commands = self._launcher_commands()
+        assert "bash" in commands and "powershell" in commands, commands.keys()
+
+    def test_bash_checks_readability(self) -> None:
+        assert "-r " in self._launcher_commands()["bash"]
+
+    def test_powershell_checks_readability(self) -> None:
+        powershell = self._launcher_commands()["powershell"]
+        assert "OpenRead" in powershell, (
+            "the PowerShell launcher checks existence but not readability, so "
+            "an ACL-blocked dispatcher denies every call on Windows"
+        )

@@ -149,11 +149,19 @@ _PWSH_TEMPLATE = (
     '[Console]::Error.WriteLine("$_warn No suitable Python interpreter found '
     '(need >= {min_maj}.{min_min}). '
     'Install: https://www.python.org/downloads/"); exit 0 }}; '
-    # Dispatcher must be a leaf file (not a directory).
+    # Dispatcher must be a leaf file AND readable. Test-Path alone answers
+    # only "does it exist": a file blocked by Windows ACLs passes it, Python
+    # then exits 2 opening it, and the trailing `exit $LASTEXITCODE` denies
+    # every call. The bash form already checks -r, so testing existence only
+    # here left the two launchers covering different failures on the platform
+    # the customer was actually running. Refs #4672.
     '$_script = "$_ptr/hooks/{event}/_dispatch.py"; '
     'if (-not (Test-Path $_script -PathType Leaf)) {{ '
     '[Console]::Error.WriteLine("$_warn Dispatcher missing or not a file: '
     '$_script. '
+    'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
+    'try {{ [System.IO.File]::OpenRead($_script).Close() }} catch {{ '
+    '[Console]::Error.WriteLine("$_warn Dispatcher not readable: $_script. '
     'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
     '& $_interp -u "$_script"; '
     'if ($LASTEXITCODE -eq 126 -or $LASTEXITCODE -eq 127) {{ '
