@@ -3,7 +3,7 @@
   "session": {
     "number": 10005,
     "date": "2026-08-05",
-    "branch": "fix/gc-worktrees-stale-entries",
+    "branch": "fix/gc-worktrees-admin-anchors",
     "startingCommit": "b574071db",
     "objective": "Make the worktree GC dry-run plan predict what --apply actually does, and stop it removing any worktree whose HEAD no ref contains"
   },
@@ -52,12 +52,12 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "git branch --show-current returned fix/gc-worktrees-stale-entries"
+        "Evidence": "git branch --show-current returned fix/gc-worktrees-stale-entries at session start. The branch was later split at its pushed tip and this log moved with the upper half to fix/gc-worktrees-admin-anchors, which git branch --show-current now returns."
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Branch fix/gc-worktrees-stale-entries created from b574071db on fix/worktree-walk-timeouts; not committing to main."
+        "Evidence": "Branch fix/gc-worktrees-stale-entries created from b574071db on fix/worktree-walk-timeouts; not committing to main. Its upper half is now fix/gc-worktrees-admin-anchors, also not main."
       }
     },
     "sessionEnd": {
@@ -287,9 +287,17 @@
     {
       "step": "verify",
       "evidence": "Full suite 23826 passed, 33 skipped, 3 warnings in 668.66s at fbc60b24a. All 119 gc tests pass at 36fca84c6. taste count ratchet OK, count == baseline 583. memory index count ratchet OK, 424 <= baseline 425."
+    },
+    {
+      "step": "verify",
+      "evidence": "Adversarial review of the reflog reader fixes on gemini-3.1-pro-preview and grok-4.5, each in its own detached worktree. Both returned no findings. Gemini killed six hypotheses on real controls, including CR in a commit message (git sanitizes to a space) and sha256 object ids (the _OID pattern already covers 64-hex). Grok killed eight, including a falsy-test sweep of the None-means-unknown chain through _gc_stale, _gc_reasons, decide and apply_removals: every stage uses 'is None'. Full suite 23857 passed, 33 skipped in 654.06s at 7e3590b9e. pre_pr.py: all validations passed."
+    },
+    {
+      "step": "verify",
+      "evidence": "Branch split at the pushed tip 9ca28c073, which was verified green (240 gc tests) before any PR opened on it. Defects 1 to 6 stayed on fix/gc-worktrees-stale-entries and opened as PR #4718 based on fix/gc-worktrees-one-decision. Defects 7 to 9 moved to fix/gc-worktrees-admin-anchors, which this log now names. The split was forced by push-ref-policy: 51 commits from origin/main against a ceiling of 20, and the stack-aware escape valve still counted 31 because they are genuinely this branch's own."
     }
   ],
-  "endingCommit": "36fca84c6",
+  "endingCommit": "7e3590b9e",
   "nextSteps": [
     "Open the PR stacked on #4694 rather than waiting for it to merge; rebase onto main after #4694 lands",
     "Return to branch A, the reachability memory fix, which is still unpushed",
