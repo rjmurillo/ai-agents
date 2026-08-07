@@ -1,0 +1,214 @@
+{
+  "id": "episode-2026-08-04-session-9051-portability-ratchet-fixes",
+  "session": "2026-08-04-session-9051-portability-ratchet-fixes",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Triage and fix issues #4204, #4211, #4212, #4242, #4511 covering portability ratchet dead code, TOCTOU traversal, symlink path traversal (CWE-22), and advisory lock file gitignore",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged all five issues against current origin/main",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed #4204 as already fixed",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4242: dead branch, docstring, sentinel",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4212: symlink scan root containment (CWE-22)",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4211: TOCTOU single-traversal in check_skill_md_portability.py",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4511: advisory lock file gitignore",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote 30 new tests across three new files with mutation proof",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Navigated repeated main redness during push",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified mirrors after sync_plugin_lib.py path correction",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified push SHA independently after push_slot2.sh wrong-worktree disclosure",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified PR independently after GraphQL rate limit recovered",
+      "caused_by": [],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-04T06:39:14+00:00",
+      "type": "commit",
+      "content": "Commit: 06b211ee4b",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-04T06:41:54+00:00",
+      "type": "commit",
+      "content": "Commit: b786ea9525",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-04T11:37:40+00:00",
+      "type": "commit",
+      "content": "Commit: 2d126af120",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-04T11:37:40+00:00",
+      "type": "commit",
+      "content": "Commit: ec47a1dc97",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-04T12:47:22+00:00",
+      "type": "commit",
+      "content": "Commit: 39c4f36bb55380d089dd13df6974f4d8657021d8",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9051-portability-ratchet-fixes"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 4
+  },
+  "lessons": []
+}
