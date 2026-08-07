@@ -234,8 +234,8 @@ def _classify(proc: subprocess.CompletedProcess[str]) -> tuple[str, str]:
         return NOT_RUN, f"pycache purge failed: {detail}"
     output = f"{proc.stdout}\n{proc.stderr}".lower()
     if "no tests ran" in output or "collected 0 items" in output:
-        detail = (proc.stderr or proc.stdout or "").strip().splitlines()
-        last_line = detail[-1] if detail else "no output"
+        lines = (proc.stderr or proc.stdout or "").strip().splitlines()
+        last_line = lines[-1] if lines else "no output"
         return NOT_RUN, f"pytest collected zero tests: {last_line}"
     if proc.returncode == _PYTEST_TESTS_FAILED:
         return DEAD, ""

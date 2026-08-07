@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10004,
+    "date": "2026-08-07",
+    "branch": "fix/4524-4497-portability-isolation",
+    "startingCommit": "ea41f81d7",
+    "objective": "Resolve 2 unresolved review threads on PR #4609 mutation harness"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read invocation-state.json for PR #4609 thread context"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4524-4497-portability-isolation"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4524-4497-portability-isolation"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fleet review-thread session; used GitHub skill scripts per protocol"
+      },
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fleet review-thread session; used GitHub skill scripts per protocol"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fleet review-thread session; used GitHub skill scripts per protocol"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fleet review-thread session; used GitHub skill scripts per protocol"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fleet review-thread session; used GitHub skill scripts per protocol"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fleet review-thread session; used GitHub skill scripts per protocol"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fleet review-thread session; used GitHub skill scripts per protocol"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new durable non-obvious quirks discovered"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Markdown lint ran via pre-commit hook"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Two commits: code fix and session docs"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "59 tests passed, pre_pr.py all passed"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Fixed docstring exit-code contract in mutation_harness_ciperms.py",
+      "result": "Exit 0 now documented as 'every mutant matched its expected outcome'"
+    },
+    {
+      "action": "Added purge-error guard in _classify() for non-pytest CompletedProcess",
+      "result": "Pycache failures now report 'pycache purge failed' not 'pytest exited 4'"
+    }
+  ],
+  "episodeMetrics": {
+    "filesChanged": 2,
+    "comparison": {
+      "kind": "githubPullRequest",
+      "pullRequest": 4609,
+      "base": "b40458038a5600f9230af4fe3bdf9f54bf1d888e",
+      "head": "b220a57e7"
+    }
+  },
+  "endingCommit": "b220a57e7",
+  "nextSteps": []
+}
