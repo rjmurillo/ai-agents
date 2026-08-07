@@ -171,10 +171,48 @@ def _build_issue_list_args(args: argparse.Namespace, repo_flag: str) -> list[str
     return list_args
 
 
+def _verify_empty_issue_result(fmt: str) -> None:
+    """Confirm GraphQL is serving before trusting an empty issue list."""
+    try:
+        result = subprocess.run(
+            ["gh", "api", "graphql", "-f", "query={viewer{login}}"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        _exit_with_error(
+            "Could not verify empty issue list: GraphQL probe timed out.",
+            3,
+            fmt,
+            "Timeout",
+        )
+    except FileNotFoundError:
+        _exit_with_error("gh CLI not found on PATH.", 3, fmt, "ApiError")
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip() or "no output"
+        _exit_with_error(
+            f"Could not verify empty issue list: GraphQL probe failed: {detail}",
+            3,
+            fmt,
+            "ApiError",
+        )
+
+
 def _run_issue_list(list_args: list[str], fmt: str) -> list[object]:
     try:
         result = subprocess.run(
-            list_args, capture_output=True, text=True, timeout=30, check=False,
+            list_args,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
         )
     except subprocess.TimeoutExpired:
         _exit_with_error("Timed out waiting for gh issue list.", 3, fmt, "Timeout")
@@ -206,6 +244,9 @@ def _run_issue_list(list_args: list[str], fmt: str) -> list[object]:
             fmt,
             "ApiError",
         )
+
+    if not issues:
+        _verify_empty_issue_result(fmt)
 
     return issues
 
