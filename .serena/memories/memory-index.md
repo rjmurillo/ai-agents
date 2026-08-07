@@ -1,7 +1,7 @@
 # Memory Index
 
 [Session and Protocol]
-|session start init handoff protocol serena blocking: [skills-session-init-index](skills-session-init-index.md) (194), [project/project-overview](project/project-overview.md) (347), [project/codebase-structure](project/codebase-structure.md) (783)
+|session start init handoff protocol serena blocking: [skills-session-init-index](skills-session-init-index.md) (244), [project/project-overview](project/project-overview.md) (347), [project/codebase-structure](project/codebase-structure.md) (783)
 |session validation diagnose fixer protocol compliance NON_COMPLIANT changelog: [session/changelog-session-log-fixer](session/changelog-session-log-fixer.md) (480)
 |protocol blocking gate RFC MUST verification template legacy: [skills-protocol-index](skills-protocol-index.md) (300)
 
@@ -49,7 +49,7 @@
 |adr decision record active proposed superseded rationale artifact amendment: [adr-reference-index](adr-reference-index.md) (673), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (401), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (824), [adr/adr-review-observations](adr/adr-review-observations.md) (749)
 |cache invalidation TTL session-local cloudmcp stale refresh: [adr-reference-index](adr-reference-index.md) (673)
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
-|always-on corpus membership applyTo mirror generated synthesized internal-only glob yaml block list frontmatter regex: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (1940)
+|always-on corpus membership applyTo mirror generated synthesized internal-only glob yaml block list frontmatter regex: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (2162)
 
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
@@ -61,7 +61,7 @@
 |diff3 zdiff3 conflict markers base region checkout --merge conflict-marker-policy resolver: [quality/diff3-conflicts-have-four-markers](quality/diff3-conflicts-have-four-markers.md) (801)
 |code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1118)
 |prompt engineering quality gate AI assessment template: [quality/quality-prompt-engineering-gates](quality/quality-prompt-engineering-gates.md) (1419)
-|validation quality lint false-positive gate test: [skills-validation-index](skills-validation-index.md) (452)
+|validation quality lint false-positive gate test: [skills-validation-index](skills-validation-index.md) (503)
 |linting markdown autofix config exclude language backtick: [skills-linting-index](skills-linting-index.md) (173)
 
 [Agent Orchestration]
@@ -101,7 +101,7 @@
 |utility script markdown fence PathInfo security pattern: [skills-utilities-index](skills-utilities-index.md) (225)
 |edit file read search replace text operation: [patterns/edit-001-read-before-edit-pattern](patterns/edit-001-read-before-edit-pattern.md) (464), [patterns/edit-002-unique-context-for-edit-matching](patterns/edit-002-unique-context-for-edit-matching.md) (368)
 |git hook pre-commit autofix cross-language grep TOCTOU: [skills-git-hooks-index](skills-git-hooks-index.md) (368)
-|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (411)
+|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (646)
 |git stash shared across worktrees pop takes another agent work switch abort commits to wrong branch: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (965)
 |git shallow graft depth fetch unshallow blocks push every worktree common dir pin sha: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
 |subagent sandbox worktree checkout moves head wrong commit pushed reverts unstaged edit throwaway clone push sha not head: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
@@ -132,7 +132,7 @@
 |passive context AGENTS.md skills decision-point retrieval-led compression: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (447), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (683), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (623)
 |instruction budget always-on ceiling applyTo scope headroom rule authoring: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1856)
 |injected instructions stale snapshot always-on context lags repo file cache canonical grep the rule before acting manifest bump reversal: [decision-injected-instructions-lag-the-repo](decision-injected-instructions-lag-the-repo.md) (785)
-|memory index validator one direction unindexed orphan check non-recursive opt-in warn only passes clean: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (927)
+|memory index validator one direction unindexed orphan check non-recursive opt-in warn only passes clean: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (992)
 
 [Root Cause Patterns (PR #908)]
 |governance enforcement ADR limits commits files programmatic gate: [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (603)
@@ -156,3 +156,5 @@
 |fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (939)
 |token efficiency: [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
 |passive context research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (447)
+|AI quality gate Aggregate Results all agents NEEDS_REVIEW identical verdicts DID_NOT_RUN UNKNOWN N/A category two infrastructure routes infrastructure-failure Copilot CLI unavailable hardcoded message Not blocking PR BLOCKING_VERDICTS WARN downgrade Chesterton fence security review did not run: [ci/ci-ai-gate-blocks-when-the-security-review-did-not-run](ci/ci-ai-gate-blocks-when-the-security-review-did-not-run.md) (2586)
+|memory index token count churn recount every row merge conflict stale union resolve lefthook skip merge: [memory-index-token-counts-churn-across-branches](memory-index-token-counts-churn-across-branches.md) (926)
