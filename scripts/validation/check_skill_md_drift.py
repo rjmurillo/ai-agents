@@ -43,6 +43,19 @@ def _strip_html_comments(text: str) -> str:
     return _HTML_COMMENT_PATTERN.sub("", text)
 
 
+# Pre-computed constants for _extract_paths_from_text (avoid per-call rebuild).
+_PATH_CHAR = r"[\w./_\\-]"
+_SIMPLE_ANCHOR = r"(?:^|(?<=[\s(\[\"'`|,;*]))"
+_KNOWN_SUBDIRS = frozenset({
+    "agents", "platforms", "lib", "review-axes",
+    "skills", "commands", "hooks", "rules",
+    "validation", "architecture", "sessions",
+    "analysis", "retrospective", "security",
+    "governance", "critique", "memory", "references",
+    "scripts", "tests", "modules", "utils",
+})
+
+
 def _extract_paths_from_text(
     text: str, *, unsafe_collector: set[str] | None = None
 ) -> set[str]:
@@ -60,22 +73,9 @@ def _extract_paths_from_text(
     unsafe_collector (if provided) rather than silently dropped, so callers can
     report them as invalid declarations.
     """
-    path_char = r"[\w./_\\-]"
-    # Anchor: start of line or preceded by whitespace/punctuation. Angle
-    # brackets excluded: a '>' before a path segment is almost always a
-    # placeholder close (e.g. <skill_dir>/scripts/...) and a '<' starts one.
-    # Blockquote paths have a space after '>' so they match via \s.
-    simple_anchor = r"(?:^|(?<=[\s(\[\"'`|,;*]))"
-
-    # Known subdirectory names that validate a continuation as path-like
-    known_subdirs = frozenset({
-        "agents", "platforms", "lib", "review-axes",
-        "skills", "commands", "hooks", "rules",
-        "validation", "architecture", "sessions",
-        "analysis", "retrospective", "security",
-        "governance", "critique", "memory", "references",
-        "scripts", "tests", "modules", "utils",
-    })
+    path_char = _PATH_CHAR
+    simple_anchor = _SIMPLE_ANCHOR
+    known_subdirs = _KNOWN_SUBDIRS
 
     paths: set[str] = set()
 
@@ -223,7 +223,7 @@ def marker_path_drift(
 ) -> list[str]:
     """Report path-drift failures for a file with a vendor-portability marker.
 
-    Four failure classes:
+    Five failure classes:
       (a) stale declaration: path named in marker but absent from prose
           (a declared directory covers prose paths beneath it)
       (b) undeclared ref: path in prose not covered by any marker declaration
@@ -232,6 +232,8 @@ def marker_path_drift(
           under repo_root (exempt: consumer-workspace paths)
       (d) invalid path: absolute or containing '..' traversal. Reported as a
           distinct category but excluded from the existence check.
+      (e) containment violation: a path that resolves outside the repository
+          root after symlink resolution.
 
     Comparison is case-sensitive (Linux filesystem semantics).
 

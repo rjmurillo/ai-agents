@@ -8,10 +8,25 @@ reintroduce the bug if the anchored rules are missing.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+_git_available = shutil.which("git") is not None and subprocess.run(
+    ["git", "rev-parse", "--is-inside-work-tree"],
+    cwd=REPO_ROOT,
+    capture_output=True,
+    check=False,
+).returncode == 0
+
+pytestmark = pytest.mark.skipif(
+    not _git_available,
+    reason="git unavailable or not inside a work tree",
+)
 
 
 def _check_ignore(repo: Path, relpath: str) -> bool:

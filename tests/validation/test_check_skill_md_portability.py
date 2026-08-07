@@ -1152,7 +1152,7 @@ class TestUnexpectedScanException:
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
 
-        def _exploding_scan(root: Path) -> None:
+        def _exploding_scan(root: Path, *, check_drift: bool = False) -> None:
             raise RuntimeError("simulated markdown-it internal error")
 
         monkeypatch.setattr(cmp, "scan_all", _exploding_scan)
