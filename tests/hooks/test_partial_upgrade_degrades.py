@@ -255,3 +255,58 @@ class TestLauncherFormsCoverTheSameFailures:
             "the PowerShell launcher checks existence but not readability, so "
             "an ACL-blocked dispatcher denies every call on Windows"
         )
+
+
+class TestModuleLoadFailureDegrades:
+    """A load failure is infrastructure, not a policy decision.
+
+    Only ImportError counted as a load failure, so a hook_dispatch.py that
+    exists but cannot compile fell through to the broad handler and was
+    classified as a policy failure: exit 2, denying every PreToolUse call.
+    A load failure cannot be a policy decision, because no policy ran.
+    Refs #4672.
+    """
+
+    def _run_with_lib(
+        self, tmp_path: Path, lib_source: str
+    ) -> subprocess.CompletedProcess[bytes]:
+        event_dir = tmp_path / "hooks" / "PreToolUse"
+        dispatcher = _write_dispatcher(event_dir)
+        (event_dir / "_bootstrap.py").write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            "\n"
+            "\n"
+            "def ensure_plugin_paths() -> None:\n"
+            "    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'lib'))\n",
+            encoding="utf-8",
+        )
+        lib = tmp_path / "lib"
+        lib.mkdir(parents=True, exist_ok=True)
+        (lib / "hook_dispatch.py").write_text(lib_source, encoding="utf-8")
+        return subprocess.run(
+            [sys.executable, "-u", str(dispatcher)],
+            input=b'{"tool_name": "Bash", "tool_input": {"command": "echo hi"}}',
+            capture_output=True,
+            cwd=str(tmp_path),
+            timeout=30,
+        )
+
+    def test_syntax_error_in_lib_degrades(self, tmp_path: Path) -> None:
+        proc = self._run_with_lib(tmp_path, "def broken(:\n")
+
+        stderr = proc.stderr.decode("utf-8", "replace")
+        assert proc.returncode == 0, (
+            "a hook_dispatch.py that cannot compile denied the tool call, "
+            f"which is the customer-wide denial in #4672. stderr:\n{stderr}"
+        )
+        assert "hooks DISABLED" in stderr
+
+    def test_raise_during_module_init_degrades(self, tmp_path: Path) -> None:
+        proc = self._run_with_lib(tmp_path, "raise RuntimeError('boom')\n")
+
+        stderr = proc.stderr.decode("utf-8", "replace")
+        assert proc.returncode == 0, (
+            f"a module raising during import denied the call. stderr:\n{stderr}"
+        )
+        assert "hooks DISABLED" in stderr

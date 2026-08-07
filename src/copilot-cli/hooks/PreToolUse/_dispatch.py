@@ -223,9 +223,27 @@ def _main() -> int:
             file=sys.stderr,
         )
         return 0
+    # The module import is its own infrastructure boundary. Folding it into
+    # the dispatch try below meant only ImportError counted as a load failure,
+    # so a hook_dispatch.py that exists but cannot compile, cannot be read, or
+    # raises during module initialization fell through to the broad handler and
+    # was classified as a policy failure: exit 2, denying every PreToolUse
+    # call. That is the customer-wide denial arriving through a second door.
+    # A load failure cannot be a policy decision, because no policy ran.
     try:
         from hook_dispatch import observe_output_policy, run_dispatch  # noqa: E402
+    except (Exception, SystemExit) as exc:
+        print(
+            "project-toolkit@ai-agents WARNING: hooks DISABLED "
+            "(your session is unaffected). "
+            f"{type(exc).__name__}: {_diag(str(exc))}. "
+            "Reinstall the plugin or install Python >= 3.10: "
+            "https://www.python.org/downloads/",
+            file=sys.stderr,
+        )
+        return 0
 
+    try:
         event, shims, shim_timeouts, mode = _load_manifest(event_dir)
         raw, oversize_exit = _read_payload(event, shims, mode)
         if oversize_exit is not None:
@@ -251,7 +269,9 @@ def _main() -> int:
             ),
         )
     except ImportError as exc:
-        # hook_dispatch module missing: infrastructure failure, not policy.
+        # A nested import inside the dispatch path (run_permission_dispatch)
+        # can still fail after the module loaded. Same reasoning: a missing
+        # module is infrastructure, not a policy decision.
         print(
             "project-toolkit@ai-agents WARNING: hooks DISABLED "
             "(your session is unaffected). "
