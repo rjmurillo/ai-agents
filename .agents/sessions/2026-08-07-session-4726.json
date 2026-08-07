@@ -124,6 +124,6 @@
       "outcome": "Adversarial review recommended cutting the second rule and shortening the first. Both were right. The cut rule was a general debugging heuristic, and its cited evidence was false: I wrote that a sibling pull request modified the same file at the same lines, and the hunk headers show 4723 touching 542, 904, and 928 while 4701 touched 721. I had published an unverified claim inside the rule written to stop me publishing unverified claims. Always-on growth fell from 1267 bytes to 451."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "e0e6291ac",
   "nextSteps": []
 }
