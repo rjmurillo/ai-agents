@@ -1,6 +1,6 @@
 ---
 description: Pragmatic Programmer principles from Hunt and Thomas. Apply as a general engineering overlay on every change. Reinforce DRY at the knowledge level, orthogonality, fast feedback, automation, tracer-bullet delivery, and the broken-windows discipline. Source adapted from ciembor/agent-rules-books (MIT).
-alwaysApply: true
+applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.psd1,**/*.sh,**/*.sql'
 ---
 
 # The Pragmatic Programmer
@@ -34,8 +34,9 @@ When uncertain, choose the option that:
 1. reduces knowledge duplication
 2. keeps concerns independent
 3. shortens feedback loops
-4. leaves the system easier to change
-5. makes intent clearer to future maintainers
+4. automates what is repeated
+5. leaves the system easier to change
+6. makes intent clearer to future maintainers
 
 Do not follow style or process rituals that do not improve outcomes.
 
@@ -225,22 +226,6 @@ Anti-patterns:
 
 ---
 
-## Review Rules for Claude
-
-When reviewing code, actively look for:
-
-- duplicated knowledge, not just duplicated lines
-- hidden couplings
-- missing automation opportunities
-- long feedback loops
-- local fixes that worsen future changeability
-- unclear contracts or assumptions
-- non-repeatable manual processes
-- brittle integration points
-- code that communicates poorly
-
----
-
 ## Forbidden Patterns
 
 ### Cargo-Cult Process
@@ -269,27 +254,6 @@ When reviewing code, actively look for:
 
 ---
 
-## Code Generation Rules
-
-When generating code, default to:
-
-1. one clear source of truth for each rule
-2. orthogonal responsibilities
-3. fast local feedback
-4. automation over repeated manual work
-5. explicit contracts and assumptions
-6. readable names and communication
-7. incremental end-to-end slices when building new capabilities
-
-Avoid by default:
-
-- copy/paste rule duplication
-- tangled modules
-- fragile manual workflows
-- overcommitting to an architecture before the first end-to-end path works
-
----
-
 ## Testing Rules
 
 1. Keep tests runnable quickly and often.
@@ -301,7 +265,7 @@ Avoid by default:
 
 ## Review Checklist
 
-Before finalizing any change, verify:
+When reviewing code, and before finalizing any change, verify:
 
 - Did we reduce duplicated knowledge?
 - Are responsibilities more orthogonal after the change?
@@ -311,6 +275,8 @@ Before finalizing any change, verify:
 - Is the code easier to communicate about?
 - Did we avoid prototype shortcuts becoming silent production defaults?
 - Did we fix at least one small "broken window" if it was in the touched area?
+- Did we avoid a local fix that worsens future changeability?
+- Did we leave any integration point more brittle than we found it?
 
 If any answer is no, revise before shipping.
 
@@ -330,17 +296,3 @@ These principles bind across agent and tool boundaries in this repository, not j
 | Feedback loops         | Prefer cheap early signals (pre-commit hooks, fast unit tests, local lint) over late expensive surprises in CI or production.                                  |
 
 When you discover an instance where this rule is being violated, prefer a small focused fix on the path you are already touching over a broad cleanup. Note the deviation in the PR description so future readers see your reasoning.
-
----
-
-## Final Instruction
-
-When uncertain, choose the option that:
-
-1. removes duplicated knowledge
-2. keeps concerns orthogonal
-3. shortens feedback loops
-4. improves automation
-5. leaves the codebase easier to change tomorrow
-
-Be pragmatic, and make the right thing the easy thing.

@@ -35,9 +35,7 @@ try:
     eval_mod = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(eval_mod)
 
-    _suite_spec = importlib.util.spec_from_file_location(
-        "eval_suite", EVAL_DIR / "eval-suite.py"
-    )
+    _suite_spec = importlib.util.spec_from_file_location("eval_suite", EVAL_DIR / "eval-suite.py")
     assert _suite_spec and _suite_spec.loader
     eval_suite_mod = importlib.util.module_from_spec(_suite_spec)
     _suite_spec.loader.exec_module(eval_suite_mod)
@@ -88,6 +86,7 @@ def test_eval_subprocess_readers_pin_utf8_decoding():
 # ---------------------------------------------------------------------------
 # check_scenario_pass
 # ---------------------------------------------------------------------------
+
 
 class TestCheckScenarioPass:
     def test_exact_verdict_match_passes(self):
@@ -147,6 +146,7 @@ class TestCheckScenarioPass:
 # _verdict_options
 # ---------------------------------------------------------------------------
 
+
 class TestVerdictOptions:
     def test_defaults_to_expected_plus_other(self):
         scenario = {"expected_verdict": "ROUTE"}
@@ -175,6 +175,7 @@ class TestVerdictOptions:
 # load_scenarios validation
 # ---------------------------------------------------------------------------
 
+
 class TestLoadScenariosValidation:
     @staticmethod
     def _write(tmp_path: Path, payload: dict) -> str:
@@ -183,63 +184,101 @@ class TestLoadScenariosValidation:
         return str(p)
 
     def test_valid_with_options(self, tmp_path):
-        path = self._write(tmp_path, {
-            "scenarios": [{
-                "id": "S1", "desc": "x", "input": "y",
-                "expected_verdict": "ROUTE",
-                "verdict_options": ["ROUTE", "DELEGATE"],
-            }]
-        })
+        path = self._write(
+            tmp_path,
+            {
+                "scenarios": [
+                    {
+                        "id": "S1",
+                        "desc": "x",
+                        "input": "y",
+                        "expected_verdict": "ROUTE",
+                        "verdict_options": ["ROUTE", "DELEGATE"],
+                    }
+                ]
+            },
+        )
         scenarios = eval_mod.load_scenarios(path)
         assert len(scenarios) == 1
 
     def test_rejects_options_not_list(self, tmp_path):
-        path = self._write(tmp_path, {
-            "scenarios": [{
-                "id": "S1", "desc": "x", "input": "y",
-                "expected_verdict": "ROUTE",
-                "verdict_options": "ROUTE,DELEGATE",
-            }]
-        })
+        path = self._write(
+            tmp_path,
+            {
+                "scenarios": [
+                    {
+                        "id": "S1",
+                        "desc": "x",
+                        "input": "y",
+                        "expected_verdict": "ROUTE",
+                        "verdict_options": "ROUTE,DELEGATE",
+                    }
+                ]
+            },
+        )
         with pytest.raises(RuntimeError, match="non-empty list"):
             eval_mod.load_scenarios(path)
 
     def test_rejects_empty_options_list(self, tmp_path):
-        path = self._write(tmp_path, {
-            "scenarios": [{
-                "id": "S1", "desc": "x", "input": "y",
-                "expected_verdict": "ROUTE",
-                "verdict_options": [],
-            }]
-        })
+        path = self._write(
+            tmp_path,
+            {
+                "scenarios": [
+                    {
+                        "id": "S1",
+                        "desc": "x",
+                        "input": "y",
+                        "expected_verdict": "ROUTE",
+                        "verdict_options": [],
+                    }
+                ]
+            },
+        )
         with pytest.raises(RuntimeError, match="non-empty list"):
             eval_mod.load_scenarios(path)
 
     def test_rejects_expected_not_in_options(self, tmp_path):
-        path = self._write(tmp_path, {
-            "scenarios": [{
-                "id": "S1", "desc": "x", "input": "y",
-                "expected_verdict": "ROUTE",
-                "verdict_options": ["DELEGATE", "EXECUTE"],
-            }]
-        })
+        path = self._write(
+            tmp_path,
+            {
+                "scenarios": [
+                    {
+                        "id": "S1",
+                        "desc": "x",
+                        "input": "y",
+                        "expected_verdict": "ROUTE",
+                        "verdict_options": ["DELEGATE", "EXECUTE"],
+                    }
+                ]
+            },
+        )
         with pytest.raises(RuntimeError, match="not in verdict_options"):
             eval_mod.load_scenarios(path)
 
     def test_accepts_no_options(self, tmp_path):
-        path = self._write(tmp_path, {
-            "scenarios": [{
-                "id": "S1", "desc": "x", "input": "y",
-                "expected_verdict": "ROUTE",
-            }]
-        })
+        path = self._write(
+            tmp_path,
+            {
+                "scenarios": [
+                    {
+                        "id": "S1",
+                        "desc": "x",
+                        "input": "y",
+                        "expected_verdict": "ROUTE",
+                    }
+                ]
+            },
+        )
         scenarios = eval_mod.load_scenarios(path)
         assert scenarios[0]["expected_verdict"] == "ROUTE"
 
     def test_rejects_missing_required_field(self, tmp_path):
-        path = self._write(tmp_path, {
-            "scenarios": [{"id": "S1", "desc": "x", "input": "y"}]  # no expected_verdict
-        })
+        path = self._write(
+            tmp_path,
+            {
+                "scenarios": [{"id": "S1", "desc": "x", "input": "y"}]  # no expected_verdict
+            },
+        )
         with pytest.raises(RuntimeError, match="missing required fields"):
             eval_mod.load_scenarios(path)
 
@@ -253,26 +292,40 @@ class TestLoadScenariosValidation:
     def test_strips_whitespace_when_validating_expected_in_options(self, tmp_path):
         # PR #1756 review (gemini): leading/trailing whitespace in JSON must
         # not break the expected-in-options check.
-        path = self._write(tmp_path, {
-            "scenarios": [{
-                "id": "S1", "desc": "x", "input": "y",
-                "expected_verdict": "  ROUTE  ",
-                "verdict_options": [" ROUTE ", "DELEGATE"],
-            }]
-        })
+        path = self._write(
+            tmp_path,
+            {
+                "scenarios": [
+                    {
+                        "id": "S1",
+                        "desc": "x",
+                        "input": "y",
+                        "expected_verdict": "  ROUTE  ",
+                        "verdict_options": [" ROUTE ", "DELEGATE"],
+                    }
+                ]
+            },
+        )
         scenarios = eval_mod.load_scenarios(path)
         assert scenarios[0]["expected_verdict"] == "  ROUTE  "  # raw preserved
 
     def test_rejects_empty_verdict_option_after_strip(self, tmp_path):
         # PR #1756 review (Copilot): whitespace-only entries must not produce
         # blank labels in the judge prompt.
-        path = self._write(tmp_path, {
-            "scenarios": [{
-                "id": "S1", "desc": "x", "input": "y",
-                "expected_verdict": "ROUTE",
-                "verdict_options": ["ROUTE", "   "],
-            }]
-        })
+        path = self._write(
+            tmp_path,
+            {
+                "scenarios": [
+                    {
+                        "id": "S1",
+                        "desc": "x",
+                        "input": "y",
+                        "expected_verdict": "ROUTE",
+                        "verdict_options": ["ROUTE", "   "],
+                    }
+                ]
+            },
+        )
         with pytest.raises(RuntimeError, match="empty label after normalization"):
             eval_mod.load_scenarios(path)
 
@@ -280,26 +333,40 @@ class TestLoadScenariosValidation:
         # PR #1756 review (Copilot): duplicates differing only in case or
         # surrounding whitespace must be rejected so the judge prompt does
         # not emit duplicated labels.
-        path = self._write(tmp_path, {
-            "scenarios": [{
-                "id": "S1", "desc": "x", "input": "y",
-                "expected_verdict": "ROUTE",
-                "verdict_options": ["ROUTE", " route "],
-            }]
-        })
+        path = self._write(
+            tmp_path,
+            {
+                "scenarios": [
+                    {
+                        "id": "S1",
+                        "desc": "x",
+                        "input": "y",
+                        "expected_verdict": "ROUTE",
+                        "verdict_options": ["ROUTE", " route "],
+                    }
+                ]
+            },
+        )
         with pytest.raises(RuntimeError, match="duplicate label 'ROUTE'"):
             eval_mod.load_scenarios(path)
 
     def test_accepts_unique_normalized_verdict_options(self, tmp_path):
         # Pos counterpart: case-different but logically distinct labels remain
         # accepted as long as their normalized forms are unique.
-        path = self._write(tmp_path, {
-            "scenarios": [{
-                "id": "S1", "desc": "x", "input": "y",
-                "expected_verdict": "ROUTE",
-                "verdict_options": ["ROUTE", "DELEGATE", "EXECUTE"],
-            }]
-        })
+        path = self._write(
+            tmp_path,
+            {
+                "scenarios": [
+                    {
+                        "id": "S1",
+                        "desc": "x",
+                        "input": "y",
+                        "expected_verdict": "ROUTE",
+                        "verdict_options": ["ROUTE", "DELEGATE", "EXECUTE"],
+                    }
+                ]
+            },
+        )
         scenarios = eval_mod.load_scenarios(path)
         assert scenarios[0]["verdict_options"] == ["ROUTE", "DELEGATE", "EXECUTE"]
 
@@ -310,9 +377,7 @@ def test_spec_command_scenarios_are_discoverable_by_eval_suite():
     # which uses the platform path separator. A raw string compare fails on
     # Windows (`tests\\evals\\spec-scenarios.json`) even though discovery works.
     # Per PR #2028 review.
-    scenario_path_str = eval_suite_mod.find_scenarios_for_prompt(
-        ".claude/commands/spec.md"
-    )
+    scenario_path_str = eval_suite_mod.find_scenarios_for_prompt(".claude/commands/spec.md")
     assert scenario_path_str is not None, (
         "find_scenarios_for_prompt('.claude/commands/spec.md') returned None; "
         "spec-scenarios.json discovery is broken. Check eval-suite.py and the "
@@ -326,8 +391,7 @@ def test_spec_command_scenarios_are_discoverable_by_eval_suite():
     # otherwise duplicate scenario IDs collapse silently and the eval reports
     # ambiguous keyed-by-scenario_id results. Per PR #2028 review.
     assert len(ids) == len(set(ids)), (
-        "spec-scenarios.json must not contain duplicate scenario IDs. "
-        f"Found: {ids}"
+        f"spec-scenarios.json must not contain duplicate scenario IDs. Found: {ids}"
     )
     assert set(ids) == {
         "D1",
@@ -343,6 +407,7 @@ def test_spec_command_scenarios_are_discoverable_by_eval_suite():
 # ---------------------------------------------------------------------------
 # Whitespace and prompt-construction edge cases (PR #1756 review)
 # ---------------------------------------------------------------------------
+
 
 class TestWhitespaceHandling:
     def test_check_scenario_pass_strips_actual_verdict(self):
@@ -379,8 +444,7 @@ class TestJudgePromptConstruction:
         fallback_hint = ""
         if len(options) > 1 and eval_mod.DEFAULT_FALLBACK_VERDICT in options:
             fallback_hint = (
-                f"Use {eval_mod.DEFAULT_FALLBACK_VERDICT} only if no other "
-                f"label fits.\n"
+                f"Use {eval_mod.DEFAULT_FALLBACK_VERDICT} only if no other label fits.\n"
             )
         return (
             f"Scenario: {scenario['desc']}\n\n"
@@ -400,7 +464,9 @@ class TestJudgePromptConstruction:
 
     def test_other_hint_absent_when_options_explicit_and_no_other(self):
         scenario = {
-            "id": "S", "desc": "d", "input": "i",
+            "id": "S",
+            "desc": "d",
+            "input": "i",
             "expected_verdict": "ROUTE",
             "verdict_options": ["ROUTE", "DELEGATE", "EXECUTE"],
         }
@@ -411,7 +477,9 @@ class TestJudgePromptConstruction:
 
     def test_other_hint_present_when_options_explicit_includes_other(self):
         scenario = {
-            "id": "S", "desc": "d", "input": "i",
+            "id": "S",
+            "desc": "d",
+            "input": "i",
             "expected_verdict": "ROUTE",
             "verdict_options": ["ROUTE", "OTHER"],
         }
@@ -423,7 +491,9 @@ class TestJudgePromptConstruction:
         # must not emit the "Use OTHER only if no other label fits" hint, since
         # there are no other labels for the LLM to choose between.
         scenario = {
-            "id": "S", "desc": "d", "input": "i",
+            "id": "S",
+            "desc": "d",
+            "input": "i",
             "expected_verdict": "OTHER",
             "verdict_options": ["OTHER"],
         }
@@ -434,6 +504,7 @@ class TestJudgePromptConstruction:
 # ---------------------------------------------------------------------------
 # Shipped scenario files load and remain consistent
 # ---------------------------------------------------------------------------
+
 
 class TestShippedScenariosValid:
     def _scenario_files(self):
@@ -454,8 +525,7 @@ class TestShippedScenariosValid:
                     f"{path.name} scenario {s['id']} missing verdict_options"
                 )
                 assert len(s["verdict_options"]) >= 2, (
-                    f"{path.name} scenario {s['id']} verdict_options must "
-                    f"offer at least 2 choices"
+                    f"{path.name} scenario {s['id']} verdict_options must offer at least 2 choices"
                 )
 
     def test_spec_step0_5_d_check_scenarios_present(self):
@@ -481,6 +551,7 @@ class TestShippedScenariosValid:
 # ---------------------------------------------------------------------------
 # load_scenarios error paths
 # ---------------------------------------------------------------------------
+
 
 class TestLoadScenariosErrorPaths:
     def test_file_not_found(self, tmp_path):
@@ -509,9 +580,19 @@ class TestLoadScenariosErrorPaths:
     def test_top_level_array_form_accepted(self, tmp_path):
         # Spec allows either {"scenarios": [...]} or top-level [...]
         p = tmp_path / "scen.json"
-        p.write_text(json.dumps([{
-            "id": "S1", "desc": "d", "input": "i", "expected_verdict": "OK",
-        }]), encoding="utf-8")
+        p.write_text(
+            json.dumps(
+                [
+                    {
+                        "id": "S1",
+                        "desc": "d",
+                        "input": "i",
+                        "expected_verdict": "OK",
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
         scenarios = eval_mod.load_scenarios(str(p))
         assert len(scenarios) == 1
 
@@ -519,6 +600,7 @@ class TestLoadScenariosErrorPaths:
 # ---------------------------------------------------------------------------
 # load_prompt_from_file
 # ---------------------------------------------------------------------------
+
 
 class TestLoadPromptFromFile:
     def test_loads_existing_file(self, tmp_path):
@@ -535,6 +617,7 @@ class TestLoadPromptFromFile:
 # ---------------------------------------------------------------------------
 # load_prompt_from_ref (subprocess-mocked)
 # ---------------------------------------------------------------------------
+
 
 class TestLoadPromptFromRef:
     def test_returns_stdout_on_success(self, monkeypatch):
@@ -572,9 +655,12 @@ class TestLoadPromptFromRef:
 # judge_scenario (call_api mocked)
 # ---------------------------------------------------------------------------
 
+
 class TestJudgeScenario:
     SCENARIO = {
-        "id": "S1", "desc": "d", "input": "i",
+        "id": "S1",
+        "desc": "d",
+        "input": "i",
         "expected_verdict": "ROUTE",
         "verdict_options": ["ROUTE", "DELEGATE"],
     }
@@ -638,9 +724,7 @@ class TestJudgeScenario:
         assert out["verdict"] == "UNKNOWN"
 
     def test_user_message_includes_options(self, monkeypatch):
-        captured = self._patch_call_api(
-            monkeypatch, '{"verdict": "ROUTE", "reason": "x"}'
-        )
+        captured = self._patch_call_api(monkeypatch, '{"verdict": "ROUTE", "reason": "x"}')
         eval_mod.judge_scenario("k", "sys", self.SCENARIO, "claude")
         user_text = captured["messages"][0]["content"]
         assert "ROUTE, DELEGATE" in user_text
@@ -648,11 +732,12 @@ class TestJudgeScenario:
         assert "Use OTHER" not in user_text
 
     def test_user_message_includes_other_hint_when_default_options(self, monkeypatch):
-        captured = self._patch_call_api(
-            monkeypatch, '{"verdict": "ROUTE", "reason": "x"}'
-        )
+        captured = self._patch_call_api(monkeypatch, '{"verdict": "ROUTE", "reason": "x"}')
         plain_scenario = {
-            "id": "S1", "desc": "d", "input": "i", "expected_verdict": "ROUTE",
+            "id": "S1",
+            "desc": "d",
+            "input": "i",
+            "expected_verdict": "ROUTE",
         }
         eval_mod.judge_scenario("k", "sys", plain_scenario, "claude")
         user_text = captured["messages"][0]["content"]
@@ -663,9 +748,12 @@ class TestJudgeScenario:
 # run_scenario_multi (judge_scenario mocked)
 # ---------------------------------------------------------------------------
 
+
 class TestRunScenarioMulti:
     SCENARIO = {
-        "id": "S1", "desc": "d", "input": "i",
+        "id": "S1",
+        "desc": "d",
+        "input": "i",
         "expected_verdict": "ROUTE",
         "verdict_options": ["ROUTE", "DELEGATE"],
     }
@@ -723,15 +811,20 @@ class TestRunScenarioMulti:
 # run_comparison
 # ---------------------------------------------------------------------------
 
+
 class TestRunComparison:
     SCENARIOS = [
         {
-            "id": "S1", "desc": "d", "input": "i",
+            "id": "S1",
+            "desc": "d",
+            "input": "i",
             "expected_verdict": "ROUTE",
             "verdict_options": ["ROUTE", "DELEGATE"],
         },
         {
-            "id": "S2", "desc": "d2", "input": "i2",
+            "id": "S2",
+            "desc": "d2",
+            "input": "i2",
             "expected_verdict": "DELEGATE",
             "verdict_options": ["ROUTE", "DELEGATE"],
         },
@@ -740,8 +833,13 @@ class TestRunComparison:
     def test_identical_before_after_yields_zero_delta(self, monkeypatch):
         def fake(api_key, prompt, scenario, model, runs):
             return {
-                "scenario_id": scenario["id"], "passes": runs, "runs": runs,
-                "pass_rate": 1.0, "passed": True, "flaky": False, "per_run": [],
+                "scenario_id": scenario["id"],
+                "passes": runs,
+                "runs": runs,
+                "pass_rate": 1.0,
+                "passed": True,
+                "flaky": False,
+                "per_run": [],
             }
 
         monkeypatch.setattr(eval_mod, "run_scenario_multi", fake)
@@ -759,12 +857,22 @@ class TestRunComparison:
             is_before_phase = prompt == "old"
             if is_before_phase and scenario["id"] == "S1":
                 return {
-                    "scenario_id": "S1", "passes": 0, "runs": n,
-                    "pass_rate": 0.0, "passed": False, "flaky": False, "per_run": [],
+                    "scenario_id": "S1",
+                    "passes": 0,
+                    "runs": n,
+                    "pass_rate": 0.0,
+                    "passed": False,
+                    "flaky": False,
+                    "per_run": [],
                 }
             return {
-                "scenario_id": scenario["id"], "passes": n, "runs": n,
-                "pass_rate": 1.0, "passed": True, "flaky": False, "per_run": [],
+                "scenario_id": scenario["id"],
+                "passes": n,
+                "runs": n,
+                "pass_rate": 1.0,
+                "passed": True,
+                "flaky": False,
+                "per_run": [],
             }
 
         monkeypatch.setattr(eval_mod, "run_scenario_multi", fake)
@@ -778,15 +886,16 @@ class TestRunComparison:
 # acceptance_gate
 # ---------------------------------------------------------------------------
 
+
 class TestAcceptanceGate:
     def _comparison(self, before, after, before_score=None, after_score=None):
         return {
-            "before_score": before_score if before_score is not None else (
-                sum(1 for r in before if r["passed"]) / len(before)
-            ),
-            "after_score": after_score if after_score is not None else (
-                sum(1 for r in after if r["passed"]) / len(after)
-            ),
+            "before_score": before_score
+            if before_score is not None
+            else (sum(1 for r in before if r["passed"]) / len(before)),
+            "after_score": after_score
+            if after_score is not None
+            else (sum(1 for r in after if r["passed"]) / len(after)),
             "delta": 0.0,
             "before_results": before,
             "after_results": after,
@@ -795,7 +904,9 @@ class TestAcceptanceGate:
     @staticmethod
     def _r(sid, passed, pass_rate=None, runs=3, flaky=False):
         return {
-            "scenario_id": sid, "passed": passed, "flaky": flaky,
+            "scenario_id": sid,
+            "passed": passed,
+            "flaky": flaky,
             "runs": runs,
             "pass_rate": pass_rate if pass_rate is not None else (1.0 if passed else 0.0),
         }
@@ -855,14 +966,22 @@ class TestAcceptanceGate:
         # a doc-consistency edit changes nothing. before_score == after_score,
         # no regression, zero improvements. Must PASS, not block.
         before = [
-            self._r("D1", True), self._r("D6", True), self._r("D7", True),
-            self._r("D9", True), self._r("D12", True),
-            self._r("D13", False), self._r("D14", False),
+            self._r("D1", True),
+            self._r("D6", True),
+            self._r("D7", True),
+            self._r("D9", True),
+            self._r("D12", True),
+            self._r("D13", False),
+            self._r("D14", False),
         ]
         after = [
-            self._r("D1", True), self._r("D6", True), self._r("D7", True),
-            self._r("D9", True), self._r("D12", True),
-            self._r("D13", False), self._r("D14", False),
+            self._r("D1", True),
+            self._r("D6", True),
+            self._r("D7", True),
+            self._r("D9", True),
+            self._r("D12", True),
+            self._r("D13", False),
+            self._r("D14", False),
         ]
         comp = self._comparison(before, after)
         comp["delta"] = 0.0
@@ -952,16 +1071,24 @@ class TestAcceptanceGate:
 # CLI parsing (_parse_args)
 # ---------------------------------------------------------------------------
 
+
 class TestParseArgs:
     def _run(self, argv, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["prog", *argv])
         return eval_mod._parse_args()
 
     def test_explicit_before_after(self, monkeypatch):
-        ns = self._run([
-            "--before", "a.md", "--after", "b.md",
-            "--scenarios", "s.json",
-        ], monkeypatch)
+        ns = self._run(
+            [
+                "--before",
+                "a.md",
+                "--after",
+                "b.md",
+                "--scenarios",
+                "s.json",
+            ],
+            monkeypatch,
+        )
         assert ns.before == "a.md"
         assert ns.after == "b.md"
 
@@ -976,55 +1103,119 @@ class TestParseArgs:
             eval_mod._parse_args()
 
     def test_explicit_and_git_conflict_errors(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--prompt", "p.md", "--before", "a.md", "--after", "b.md",
-            "--scenarios", "s.json",
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--prompt",
+                "p.md",
+                "--before",
+                "a.md",
+                "--after",
+                "b.md",
+                "--scenarios",
+                "s.json",
+            ],
+        )
         with pytest.raises(SystemExit):
             eval_mod._parse_args()
 
     def test_only_before_errors(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--before", "a.md", "--scenarios", "s.json",
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--before",
+                "a.md",
+                "--scenarios",
+                "s.json",
+            ],
+        )
         with pytest.raises(SystemExit):
             eval_mod._parse_args()
 
     def test_only_after_errors(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--after", "b.md", "--scenarios", "s.json",
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--after",
+                "b.md",
+                "--scenarios",
+                "s.json",
+            ],
+        )
         with pytest.raises(SystemExit):
             eval_mod._parse_args()
 
     def test_prompt_with_only_before_errors(self, monkeypatch):
         # Reaches the --before/--after-must-pair validation past the earlier
         # has_explicit/has_git short-circuits.
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--prompt", "p.md", "--before", "a.md",
-            "--scenarios", "s.json",
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--prompt",
+                "p.md",
+                "--before",
+                "a.md",
+                "--scenarios",
+                "s.json",
+            ],
+        )
         with pytest.raises(SystemExit):
             eval_mod._parse_args()
 
     def test_runs_below_minimum_errors(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--prompt", "p.md", "--scenarios", "s.json", "--runs", "1",
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--prompt",
+                "p.md",
+                "--scenarios",
+                "s.json",
+                "--runs",
+                "1",
+            ],
+        )
         with pytest.raises(SystemExit):
             eval_mod._parse_args()
 
     def test_security_critical_overrides_runs(self, monkeypatch):
-        ns = self._run([
-            "--prompt", "p.md", "--scenarios", "s.json",
-            "--security-critical", "--runs", "3",
-        ], monkeypatch)
+        ns = self._run(
+            [
+                "--prompt",
+                "p.md",
+                "--scenarios",
+                "s.json",
+                "--security-critical",
+                "--runs",
+                "3",
+            ],
+            monkeypatch,
+        )
         assert ns.runs == eval_mod.SECURITY_RUNS
 
     def test_zero_runs_rejected(self, monkeypatch):
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--prompt", "p.md", "--scenarios", "s.json", "--runs", "0",
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--prompt",
+                "p.md",
+                "--scenarios",
+                "s.json",
+                "--runs",
+                "0",
+            ],
+        )
         with pytest.raises(SystemExit):
             eval_mod._parse_args()
 
@@ -1033,15 +1224,26 @@ class TestParseArgs:
 # _load_prompts
 # ---------------------------------------------------------------------------
 
+
 class TestLoadPrompts:
     def test_explicit_files(self, tmp_path, monkeypatch):
         a = tmp_path / "a.md"
         a.write_text("A", encoding="utf-8")
         b = tmp_path / "b.md"
         b.write_text("B", encoding="utf-8")
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--before", str(a), "--after", str(b), "--scenarios", "s.json",
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--before",
+                str(a),
+                "--after",
+                str(b),
+                "--scenarios",
+                "s.json",
+            ],
+        )
         ns = eval_mod._parse_args()
         before, after, source = eval_mod._load_prompts(ns)
         assert before == "A"
@@ -1056,9 +1258,17 @@ class TestLoadPrompts:
             return f"REF[{ref}]:{path}"
 
         monkeypatch.setattr(eval_mod, "load_prompt_from_ref", fake_load_ref)
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--prompt", str(p), "--scenarios", "s.json",
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--prompt",
+                str(p),
+                "--scenarios",
+                "s.json",
+            ],
+        )
         ns = eval_mod._parse_args()
         before, after, source = eval_mod._load_prompts(ns)
         assert before == f"REF[main]:{p}"
@@ -1070,14 +1280,20 @@ class TestLoadPrompts:
 # _print_gate_summary (smoke test - exercises every branch)
 # ---------------------------------------------------------------------------
 
+
 class TestPrintGateSummary:
     def test_prints_pass_summary(self, capsys):
         gate = {
-            "verdict": "PASS", "passed": True,
-            "before_score": 1.0, "after_score": 1.0, "delta": 0.0,
+            "verdict": "PASS",
+            "passed": True,
+            "before_score": 1.0,
+            "after_score": 1.0,
+            "delta": 0.0,
             "criteria": {"no_regression": True, "has_improvement": True},
-            "improvements": [], "regressions": [],
-            "flaky_scenarios": [], "high_flakiness_scenarios": [],
+            "improvements": [],
+            "regressions": [],
+            "flaky_scenarios": [],
+            "high_flakiness_scenarios": [],
         }
         eval_mod._print_gate_summary(gate)
         err = capsys.readouterr().err
@@ -1085,11 +1301,16 @@ class TestPrintGateSummary:
 
     def test_prints_failures_and_flaky(self, capsys):
         gate = {
-            "verdict": "FAIL", "passed": False,
-            "before_score": 1.0, "after_score": 0.5, "delta": -0.5,
+            "verdict": "FAIL",
+            "passed": False,
+            "before_score": 1.0,
+            "after_score": 0.5,
+            "delta": -0.5,
             "criteria": {"no_regression": False},
-            "improvements": ["S2"], "regressions": ["S1"],
-            "flaky_scenarios": ["S3"], "high_flakiness_scenarios": ["S4"],
+            "improvements": ["S2"],
+            "regressions": ["S1"],
+            "flaky_scenarios": ["S3"],
+            "high_flakiness_scenarios": ["S4"],
         }
         eval_mod._print_gate_summary(gate)
         err = capsys.readouterr().err
@@ -1104,16 +1325,26 @@ class TestPrintGateSummary:
 # main() and _run_and_report end-to-end (subprocess paths mocked)
 # ---------------------------------------------------------------------------
 
+
 class TestMainCLI:
     def _make_scenarios_file(self, tmp_path):
         p = tmp_path / "s.json"
-        p.write_text(json.dumps({
-            "scenarios": [{
-                "id": "S1", "desc": "d", "input": "i",
-                "expected_verdict": "ROUTE",
-                "verdict_options": ["ROUTE", "DELEGATE"],
-            }]
-        }), encoding="utf-8")
+        p.write_text(
+            json.dumps(
+                {
+                    "scenarios": [
+                        {
+                            "id": "S1",
+                            "desc": "d",
+                            "input": "i",
+                            "expected_verdict": "ROUTE",
+                            "verdict_options": ["ROUTE", "DELEGATE"],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         return p
 
     def test_dry_run_exits_zero(self, tmp_path, monkeypatch, capsys):
@@ -1122,10 +1353,20 @@ class TestMainCLI:
         before.write_text("system prompt", encoding="utf-8")
         after = tmp_path / "b.md"
         after.write_text("system prompt", encoding="utf-8")
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--before", str(before), "--after", str(after),
-            "--scenarios", str(scen), "--dry-run",
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--before",
+                str(before),
+                "--after",
+                str(after),
+                "--scenarios",
+                str(scen),
+                "--dry-run",
+            ],
+        )
         with pytest.raises(SystemExit) as exc:
             eval_mod.main()
         assert exc.value.code == 0
@@ -1133,10 +1374,19 @@ class TestMainCLI:
         assert "dry_run" in out
 
     def test_load_scenarios_failure_exits_two(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--before", "/no", "--after", "/no",
-            "--scenarios", str(tmp_path / "missing.json"),
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--before",
+                "/no",
+                "--after",
+                "/no",
+                "--scenarios",
+                str(tmp_path / "missing.json"),
+            ],
+        )
         with pytest.raises(SystemExit) as exc:
             eval_mod.main()
         assert exc.value.code == 2
@@ -1148,15 +1398,25 @@ class TestMainCLI:
         after = tmp_path / "b.md"
         after.write_text("p", encoding="utf-8")
 
-        monkeypatch.setattr(eval_mod, "load_api_key", lambda: "test-key")
-        monkeypatch.setattr(eval_mod, "call_api",
-            lambda *a, **kw: '{"verdict": "ROUTE", "reason": "ok"}')
+        monkeypatch.setattr(eval_mod, "load_api_key_for_selected_provider", lambda *_: "test-key")
+        monkeypatch.setattr(
+            eval_mod, "call_api", lambda *a, **kw: '{"verdict": "ROUTE", "reason": "ok"}'
+        )
         monkeypatch.setattr(eval_mod.time, "sleep", lambda _s: None)
 
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--before", str(before), "--after", str(after),
-            "--scenarios", str(scen),
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--before",
+                str(before),
+                "--after",
+                str(after),
+                "--scenarios",
+                str(scen),
+            ],
+        )
         with pytest.raises(SystemExit):
             eval_mod.main()
         out = capsys.readouterr().out
@@ -1170,16 +1430,28 @@ class TestMainCLI:
         after.write_text("p", encoding="utf-8")
 
         # Stub everything that touches the network/filesystem for the API call
-        monkeypatch.setattr(eval_mod, "load_api_key", lambda: "test-key")
-        monkeypatch.setattr(eval_mod, "call_api",
-            lambda *a, **kw: '{"verdict": "ROUTE", "reason": "ok"}')
+        monkeypatch.setattr(eval_mod, "load_api_key_for_selected_provider", lambda *_: "test-key")
+        monkeypatch.setattr(
+            eval_mod, "call_api", lambda *a, **kw: '{"verdict": "ROUTE", "reason": "ok"}'
+        )
         monkeypatch.setattr(eval_mod.time, "sleep", lambda _s: None)
 
         out_path = tmp_path / "out.json"
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--before", str(before), "--after", str(after),
-            "--scenarios", str(scen), "--output", str(out_path),
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--before",
+                str(before),
+                "--after",
+                str(after),
+                "--scenarios",
+                str(scen),
+                "--output",
+                str(out_path),
+            ],
+        )
         with pytest.raises(SystemExit) as exc:
             eval_mod.main()
         # Gate passes because before==after==1.0: no regression, no flip
@@ -1195,25 +1467,42 @@ class TestMainCLI:
         after = tmp_path / "b.md"
         after.write_text("p", encoding="utf-8")
 
-        def boom():
+        def boom(*_: object) -> str:
             raise RuntimeError("no key")
 
-        monkeypatch.setattr(eval_mod, "load_api_key", boom)
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--before", str(before), "--after", str(after),
-            "--scenarios", str(scen),
-        ])
+        monkeypatch.setattr(eval_mod, "load_api_key_for_selected_provider", boom)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--before",
+                str(before),
+                "--after",
+                str(after),
+                "--scenarios",
+                str(scen),
+            ],
+        )
         with pytest.raises(SystemExit) as exc:
             eval_mod.main()
         assert exc.value.code == 2
 
     def test_load_prompts_failure_exits_two(self, tmp_path, monkeypatch):
         scen = self._make_scenarios_file(tmp_path)
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--before", str(tmp_path / "nope-a.md"),
-            "--after", str(tmp_path / "nope-b.md"),
-            "--scenarios", str(scen),
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--before",
+                str(tmp_path / "nope-a.md"),
+                "--after",
+                str(tmp_path / "nope-b.md"),
+                "--scenarios",
+                str(scen),
+            ],
+        )
         with pytest.raises(SystemExit) as exc:
             eval_mod.main()
         assert exc.value.code == 2
@@ -1225,28 +1514,41 @@ class TestMainCLI:
         after = tmp_path / "b.md"
         after.write_text("p", encoding="utf-8")
 
-        monkeypatch.setattr(eval_mod, "load_api_key", lambda: "test-key")
+        monkeypatch.setattr(eval_mod, "load_api_key_for_selected_provider", lambda *_: "test-key")
 
         def boom_run(*a, **kw):
             raise RuntimeError("api blew up")
 
         monkeypatch.setattr(eval_mod, "_run_and_report", boom_run)
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--before", str(before), "--after", str(after),
-            "--scenarios", str(scen),
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--before",
+                str(before),
+                "--after",
+                str(after),
+                "--scenarios",
+                str(scen),
+            ],
+        )
         with pytest.raises(SystemExit) as exc:
             eval_mod.main()
         assert exc.value.code == 3
 
-    def test_github_models_retirement_brownout_exits_zero(self, tmp_path, monkeypatch, capsys):
+    def test_github_models_retirement_brownout_exits_nonzero(self, tmp_path, monkeypatch, capsys):
+        """The retirement brownout is a permanent failure, not a transient outage.
+        After removing the three retirement markers from _is_provider_outage()
+        (issue #4339), a brownout response surfaces as an execution fault (exit 3)
+        rather than a neutral skip (exit 0)."""
         scen = self._make_scenarios_file(tmp_path)
         before = tmp_path / "a.md"
         before.write_text("p", encoding="utf-8")
         after = tmp_path / "b.md"
         after.write_text("p", encoding="utf-8")
 
-        monkeypatch.setattr(eval_mod, "load_api_key", lambda: "test-key")
+        monkeypatch.setattr(eval_mod, "load_api_key_for_selected_provider", lambda *_: "test-key")
 
         def boom_run(*a, **kw):
             raise RuntimeError(
@@ -1261,8 +1563,7 @@ class TestMainCLI:
         ])
         with pytest.raises(SystemExit) as exc:
             eval_mod.main()
-        assert exc.value.code == 0
-        assert "SKIP: behavioral eval could not run" in capsys.readouterr().err
+        assert exc.value.code == 3
 
     def test_identical_before_after_warning_emitted(self, tmp_path, monkeypatch, capsys):
         scen = self._make_scenarios_file(tmp_path)
@@ -1271,10 +1572,20 @@ class TestMainCLI:
         after = tmp_path / "b.md"
         after.write_text("same content", encoding="utf-8")
 
-        monkeypatch.setattr(sys, "argv", [
-            "prog", "--before", str(before), "--after", str(after),
-            "--scenarios", str(scen), "--dry-run",
-        ])
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "prog",
+                "--before",
+                str(before),
+                "--after",
+                str(after),
+                "--scenarios",
+                str(scen),
+                "--dry-run",
+            ],
+        )
         with pytest.raises(SystemExit):
             eval_mod.main()
         err = capsys.readouterr().err
@@ -1291,10 +1602,6 @@ class TestIsProviderOutage:
         [
             "Anthropic API returned HTTP 400: usage limits, regain 2026-07-01",
             "GitHub Models API returned HTTP 429: too many requests",
-            (
-                "GitHub Models API returned HTTP 410: Error code: 410 - "
-                "{'error': {'code': 'github_models_retirement_brownout'}}"
-            ),
             "OpenAI API request timed out",
             "OpenAI API network error: ConnectionError",
             "GitHub Models API returned HTTP 503",
@@ -1311,6 +1618,15 @@ class TestIsProviderOutage:
             "Unknown EVAL_PROVIDER 'bogus'. Valid: anthropic, github, openai",
             "Scenario file not found: tests/evals/x.json",
             "could not parse judge response",
+            # GitHub Models retired 2026-07-30; the skip-net no longer covers
+            # its retirement response. A permanent-retirement error must surface
+            # as a real failure so the gate is not silently dead. (issue #4339)
+            (
+                "GitHub Models API returned HTTP 410: Error code: 410 - "
+                "{'error': {'code': 'github_models_retirement_brownout'}}"
+            ),
+            "retirement brownout",
+            "github models is temporarily unavailable",
         ],
     )
     def test_non_outage_errors_are_not_skippable(self, message: str) -> None:

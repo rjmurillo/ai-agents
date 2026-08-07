@@ -114,7 +114,7 @@ class TestUnreadableFiles:
         target = tmp_path / "testing-001-unreadable.md"
         target.write_text("# Content", encoding="utf-8")
 
-        def unreadable(self: Path, *_args, **_kwargs):  # noqa: ANN002, ANN003
+        def unreadable(self: Path, *_args, **_kwargs):
             if self == target:
                 raise PermissionError("denied")
             return "# Content"

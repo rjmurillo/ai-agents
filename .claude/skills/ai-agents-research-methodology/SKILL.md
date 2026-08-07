@@ -199,13 +199,13 @@ is a future duplicate proposal.
 | 2. Spike | Probe script + decision memory with version/date | Negative control passed; claim falsifiable | Self-serve, peers via memory |
 | 3. Baseline | Buy-vs-build Quick verdict + written prediction + eval numbers | Go verdict; baseline exists (13wk prune clock starts) | `buy-vs-build-framework` output; user for spend |
 | 4. ADR | `ADR-*.md` + debate log | `adr-review` consensus (max 10 rounds) + human approval | 6-agent debate + user |
-| 5. Ship | Gate/skill + calibration table + tests | `ai-agents-change-control` ladder (pre_pr.py, CI, plugin bump if plugin tree) | CI gates + review |
+| 5. Ship | Gate/skill + calibration table + tests | `ai-agents-change-control` ladder (pre_pr.py, CI, plugin version-field gate if plugin tree) | CI gates + review |
 | 6. Monitor | `EVENT=` telemetry, `guard-maturity` tier | Tier not Inert/Harmful | Periodic guard-maturity report |
 | 7. Adopt/retire | Retro or rejection record | n/a (terminal) | Documented either way |
 
 ## Where Good Ideas Historically Came From
 
-- **Retro mining.** `.agents/retrospective/` (95 files as of 2026-07-03) is the
+- **Retro mining.** `.agents/retrospective/` is the
   richest vein; `ai-agents-failure-archaeology` indexes the major ones.
   Retro-cited short SHAs do not resolve locally even with full history present
   (~1471 commits as of 2026-07-03), so retros and memories, not `git log`,
@@ -273,7 +273,7 @@ volatile facts:
 | eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:567`; `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/rules/search-before-building.md` | `grep -n "decision-" .claude/rules/search-before-building.md` |
 | ADR-069 still proposed | `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
-| Retro corpus size (95 files) | `.agents/retrospective/` | `ls .agents/retrospective/ \| wc -l` |
+| Retro corpus size | `.agents/retrospective/` | `python3 -c "import pathlib;print(sum(1 for p in pathlib.Path('.agents/retrospective').glob('*.md') if p.name != 'INDEX.md'))"` |
 | guard-maturity tiers | `.claude/skills/guard-maturity/SKILL.md` | `grep -n "Budding" .claude/skills/guard-maturity/SKILL.md` |
 
 Uncertainty flag: the `EVENT=` telemetry consumer pipeline beyond the

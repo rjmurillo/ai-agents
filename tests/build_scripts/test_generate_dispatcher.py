@@ -20,10 +20,18 @@ from generate_hooks_shim import _SHIM_BEGIN  # noqa: E402
 
 
 def _copy_dispatch_lib(lib: Path) -> None:
+    """Copy every lib module a dispatcher may import.
+
+    Copies the directory rather than a hardcoded list. The list silently rots:
+    extracting output_capture and shim_loader out of hook_dispatch left the
+    fixture shipping an install whose dispatcher could not import its own
+    dependencies, and 49 tests failed with ModuleNotFoundError describing a
+    consumer breakage this fixture had invented.
+    """
     source = _REPO / ".claude" / "lib"
-    for name in ("hook_dispatch.py", "hook_dispatch_protocol.py"):
-        (lib / name).write_text(
-            (source / name).read_text(encoding="utf-8"),
+    for module in sorted(source.glob("*.py")):
+        (lib / module.name).write_text(
+            module.read_text(encoding="utf-8"),
             encoding="utf-8",
         )
 

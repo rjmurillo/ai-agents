@@ -159,11 +159,19 @@ class StagedBlobError(RuntimeError):
 
 
 def _relative_display(file_path: Path) -> str:
-    """Best-effort cwd-relative string for display; absolute path on failure."""
-    try:
-        return str(file_path.relative_to(Path.cwd()))
-    except ValueError:
-        return str(file_path)
+    """Repo-relative string for display; cwd-relative, then absolute, as fallbacks.
+
+    ``_PROJECT_ROOT`` comes first because ``default_corpus_files`` is anchored
+    there, so a default audit run from a subdirectory would otherwise print
+    absolute paths, and one run from ``/`` would print a slash-stripped path
+    that resolves to nothing.
+    """
+    for base in (_PROJECT_ROOT, Path.cwd()):
+        try:
+            return str(file_path.relative_to(base))
+        except ValueError:
+            continue
+    return str(file_path)
 
 
 @dataclass
@@ -457,20 +465,76 @@ def read_staged_blob_bytes(path: Path) -> bytes:
     return result.stdout
 
 
+def default_corpus_files() -> list[Path]:
+    """Return every SKILL.md under the trees named in ``_SKILL_TREE_PREFIXES``.
+
+    The full-scan corpus is the same set the staged and changed-files branches
+    match, so all three discovery paths answer the same question. Before issue
+    #4015 the full scan fell through to a single ``--path`` default of
+    ``.claude/skills`` and measured 98 of 209 bodies, then printed "All skill
+    files within size limits", a sentence about a corpus it never opened.
+
+    Roots are anchored on ``_PROJECT_ROOT`` rather than the working directory so
+    the audit reports the same corpus from any subdirectory
+    (``.claude/rules/ci-scripts.md`` MUST-8). An absent tree is skipped, not an
+    error: a vendored install legitimately ships one tree and not the other.
+    """
+    files: list[Path] = []
+    for prefix in _SKILL_TREE_PREFIXES:
+        root = _PROJECT_ROOT / prefix
+        if root.is_dir():
+            files.extend(root.rglob("SKILL.md"))
+    return sorted(files)
+
+
+def default_corpus_summary() -> str:
+    """One line naming the trees a default full scan measures, and any absent.
+
+    Printed so the corpus behind the summary sentence is stated rather than
+    assumed. An absent tree is named too: silence there is what let the
+    single-tree scan read as a whole-repository result.
+    """
+    present = [p for p in _SKILL_TREE_PREFIXES if (_PROJECT_ROOT / p).is_dir()]
+    absent = [p for p in _SKILL_TREE_PREFIXES if p not in present]
+    line = f"Scanning skill trees: {', '.join(present) if present else '(none present)'}"
+    if absent:
+        line += f"; absent, not scanned: {', '.join(absent)}"
+    return line
+
+
 def get_skill_files(
-    path: str,
+    path: str | None,
     staged_only: bool = False,
     changed_files: list[str] | None = None,
 ) -> list[Path]:
-    """Get list of SKILL.md files to validate."""
+    """Get list of SKILL.md files to validate.
+
+    ``path`` is the explicit narrowing override. When it is None (the default),
+    the scan covers every tree in ``_SKILL_TREE_PREFIXES``.
+    """
     if changed_files:
-        skill_files = [f for f in changed_files if _SKILL_MD_RE.match(f)]
+        # Normalize to forward slashes before matching: on Windows, str(Path(...))
+        # yields backslashes but _SKILL_MD_RE and _SKILL_TREE_PREFIXES use
+        # forward slashes exclusively. Path.as_posix() is the right normalizer
+        # but changed_files are plain strings here, so replace explicitly.
+        skill_files = [f for f in changed_files if _SKILL_MD_RE.match(f.replace("\\", "/"))]
         if not skill_files:
             return []
-        return [Path(f) for f in skill_files if Path(f).exists()]
+        normalized = [f.replace("\\", "/") for f in skill_files]
+        # Deduplicate: callers may pass the same path with mixed slash styles.
+        # Resolve via dict keyed by the normalized string to preserve order.
+        seen: dict[str, Path] = {}
+        for f in normalized:
+            p = Path(f)
+            if p.exists() and f not in seen:
+                seen[f] = p
+        return list(seen.values())
 
     if staged_only:
         return get_staged_skill_files()
+
+    if path is None:
+        return default_corpus_files()
 
     target = Path(path)
     if not target.exists():
@@ -489,8 +553,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--path",
-        default=os.environ.get("SKILL_PATH", ".claude/skills"),
-        help="Path to SKILL.md file or directory (default: .claude/skills)",
+        default=os.environ.get("SKILL_PATH"),
+        help=(
+            "Narrow the scan to one SKILL.md file or directory "
+            "(default: every tree in _SKILL_TREE_PREFIXES)"
+        ),
     )
     parser.add_argument(
         "--ci",
@@ -585,6 +652,17 @@ def _report_summary(files_count: int, tally: _Tally, args: argparse.Namespace) -
     return 0
 
 
+def _print_corpus_summary(args: argparse.Namespace) -> None:
+    """Name the scanned trees, but only when this run is a default full scan.
+
+    The staged and changed-files modes already print the file list they got, and
+    an explicit ``--path`` names its own target, so the line would be noise
+    there.
+    """
+    if args.path is None and not args.staged_only and not args.changed_files:
+        print(default_corpus_summary())
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns ADR-035 exit code."""
     parser = build_parser()
@@ -597,6 +675,7 @@ def main(argv: list[str] | None = None) -> int:
     byte_warn = args.byte_warn
 
     print("Validating skill prompt sizes...")
+    _print_corpus_summary(args)
 
     try:
         files = get_skill_files(

@@ -9,7 +9,7 @@ name: Spec-to-Implementation Validation
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
     # No path filter - workflow runs on ALL PRs to satisfy required check
     # Path filtering done at job level using dorny/paths-filter
 
@@ -220,7 +220,8 @@ jobs:
             python3 .github/scripts/post_issue_comment.py \
             --issue "$PR_NUMBER" \
             --body-file "$REPORT_FILE" \
-            --marker "AI-SPEC-VALIDATION"
+            --marker "AI-SPEC-VALIDATION" \
+            --update-if-exists
 
       - name: Set Job Summary
         if: steps.should-run.outputs.skip != 'true'

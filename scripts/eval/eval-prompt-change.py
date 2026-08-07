@@ -68,8 +68,13 @@ import time
 from pathlib import Path
 from typing import Any
 
-from _anthropic_api import DEFAULT_MODEL, call_api, load_api_key, verify_model_available
-from _eval_common import EST_TOKENS_PER_CALL
+from _anthropic_api import (
+    DEFAULT_MODEL,
+    call_api,
+    load_api_key_for_selected_provider,
+    verify_model_available,
+)
+from _eval_common import EST_TOKENS_PER_CALL, MalformedProviderMetadataError
 from _providers import is_default_anthropic
 
 RATE_LIMIT_SLEEP_SEC = 1.0
@@ -105,15 +110,14 @@ def load_scenarios(path: str) -> list[dict[str, Any]]:
     except json.JSONDecodeError as exc:
         raise RuntimeError(
             f"Invalid JSON in scenario file {path}: {exc.msg} at line {exc.lineno}. "
-            f"Expected format: {{\"scenarios\": [{{\"id\": \"S1\", \"desc\": \"...\", "
-            f"\"input\": \"...\", \"expected_verdict\": \"...\"}}]}}"
+            f'Expected format: {{"scenarios": [{{"id": "S1", "desc": "...", '
+            f'"input": "...", "expected_verdict": "..."}}]}}'
         ) from exc
 
     scenarios = data.get("scenarios", data) if isinstance(data, dict) else data
     if not isinstance(scenarios, list):
         raise RuntimeError(
-            f"Invalid scenario file {path}: expected 'scenarios' array "
-            f"or top-level array."
+            f"Invalid scenario file {path}: expected 'scenarios' array or top-level array."
         )
 
     if not scenarios:
@@ -191,6 +195,7 @@ def _verdict_options(scenario: dict[str, Any]) -> list[str]:
 # Prompt loading (before/after)
 # ---------------------------------------------------------------------------
 
+
 def load_prompt_from_ref(prompt_path: str, ref: str) -> str:
     """Load prompt text from a git ref (branch, commit, tag).
 
@@ -208,9 +213,7 @@ def load_prompt_from_ref(prompt_path: str, ref: str) -> str:
         )
         return result.stdout
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(
-            f"Cannot load {prompt_path} from ref '{ref}': {e.stderr.strip()}"
-        ) from e
+        raise RuntimeError(f"Cannot load {prompt_path} from ref '{ref}': {e.stderr.strip()}") from e
     except subprocess.TimeoutExpired as e:
         raise RuntimeError(
             f"Timed out loading {prompt_path} from ref '{ref}' after {e.timeout}s. "
@@ -230,6 +233,7 @@ def load_prompt_from_file(path: str) -> str:
 # Scenario judgment
 # ---------------------------------------------------------------------------
 
+
 def judge_scenario(
     api_key: str,
     prompt_text: str,
@@ -246,9 +250,7 @@ def judge_scenario(
 
     fallback_hint = ""
     if len(options) > 1 and DEFAULT_FALLBACK_VERDICT in options:
-        fallback_hint = (
-            f"Use {DEFAULT_FALLBACK_VERDICT} only if no other label fits.\n"
-        )
+        fallback_hint = f"Use {DEFAULT_FALLBACK_VERDICT} only if no other label fits.\n"
 
     user_message = (
         f"Scenario: {scenario['desc']}\n\n"
@@ -333,6 +335,7 @@ def check_scenario_pass(result: dict[str, Any], scenario: dict[str, Any]) -> boo
 # Multi-run with flakiness protocol (ADR-057)
 # ---------------------------------------------------------------------------
 
+
 def run_scenario_multi(
     api_key: str,
     prompt_text: str,
@@ -371,6 +374,7 @@ def run_scenario_multi(
 # Before/after comparison
 # ---------------------------------------------------------------------------
 
+
 def run_comparison(
     api_key: str,
     before_text: str,
@@ -389,7 +393,7 @@ def run_comparison(
 
     total = len(scenarios)
     for i, scenario in enumerate(scenarios):
-        print(f"  [{i+1}/{total}] {scenario['id']}: {scenario['desc'][:60]}...", file=sys.stderr)
+        print(f"  [{i + 1}/{total}] {scenario['id']}: {scenario['desc'][:60]}...", file=sys.stderr)
 
         print(f"    BEFORE ({runs} runs)...", file=sys.stderr)
         before = run_scenario_multi(api_key, before_text, scenario, model, runs)
@@ -429,6 +433,7 @@ def run_comparison(
 # ---------------------------------------------------------------------------
 # Acceptance gate (ADR-057 three criteria)
 # ---------------------------------------------------------------------------
+
 
 def acceptance_gate(
     comparison: dict[str, Any],
@@ -502,8 +507,7 @@ def acceptance_gate(
     # an offsetting improvement keeps after_score flat (no_regression stays
     # True); the regressions list, not the score delta, is the authoritative
     # block signal.
-    passed = (no_regression and no_unexplained_regressions
-              and no_high_flakiness)
+    passed = no_regression and no_unexplained_regressions and no_high_flakiness
     if security_critical:
         passed = passed and security_pass
 
@@ -538,6 +542,7 @@ def acceptance_gate(
 # Main
 # ---------------------------------------------------------------------------
 
+
 def _parse_args() -> argparse.Namespace:
     """Parse and validate command-line arguments."""
     parser = argparse.ArgumentParser(
@@ -546,29 +551,29 @@ def _parse_args() -> argparse.Namespace:
 
     prompt_group = parser.add_argument_group("prompt source")
     prompt_group.add_argument(
-        "--prompt", type=str,
-        help="Path to prompt file (uses working copy as 'after', --base-ref as 'before')"
+        "--prompt",
+        type=str,
+        help="Path to prompt file (uses working copy as 'after', --base-ref as 'before')",
     )
     prompt_group.add_argument(
-        "--base-ref", type=str, default="main",
-        help="Git ref for 'before' version (default: main)"
+        "--base-ref", type=str, default="main", help="Git ref for 'before' version (default: main)"
     )
     prompt_group.add_argument("--before", type=str, help="Explicit 'before' prompt file")
     prompt_group.add_argument("--after", type=str, help="Explicit 'after' prompt file")
 
     parser.add_argument("--scenarios", type=str, required=True, help="Path to scenario JSON file")
     parser.add_argument(
-        "--runs", type=int, default=DEFAULT_RUNS,
-        help=f"Runs per scenario (default: {DEFAULT_RUNS}, security: {SECURITY_RUNS})"
+        "--runs",
+        type=int,
+        default=DEFAULT_RUNS,
+        help=f"Runs per scenario (default: {DEFAULT_RUNS}, security: {SECURITY_RUNS})",
     )
     parser.add_argument(
-        "--security-critical", action="store_true",
-        help=f"Security-critical tier: {SECURITY_RUNS} runs, 100%% pass required"
+        "--security-critical",
+        action="store_true",
+        help=f"Security-critical tier: {SECURITY_RUNS} runs, 100%% pass required",
     )
-    parser.add_argument(
-        "--model", type=str, default=DEFAULT_MODEL,
-        help="Model for evaluation"
-    )
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL, help="Model for evaluation")
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs, no API calls")
     parser.add_argument("--output", type=str, help="Write results to file")
     parser.add_argument(
@@ -599,8 +604,7 @@ def _parse_args() -> argparse.Namespace:
 
     if not args.security_critical and args.runs < DEFAULT_RUNS:
         parser.error(
-            f"--runs must be >= {DEFAULT_RUNS} for non-security "
-            f"prompts (flakiness protocol)"
+            f"--runs must be >= {DEFAULT_RUNS} for non-security prompts (flakiness protocol)"
         )
 
     if args.security_critical and args.runs < SECURITY_RUNS:
@@ -633,10 +637,10 @@ def _run_and_report(
     source: str,
 ) -> None:
     """Run comparison, apply gate, and output results."""
-    print(f"\n{'='*60}", file=sys.stderr)
+    print(f"\n{'=' * 60}", file=sys.stderr)
     msg = f"  RUNNING BEHAVIORAL EVAL ({len(scenarios)} scenarios x {args.runs} runs)"
     print(msg, file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
+    print(f"{'=' * 60}", file=sys.stderr)
 
     comparison = run_comparison(api_key, before_text, after_text, scenarios, args.model, args.runs)
     gate = acceptance_gate(comparison, security_critical=args.security_critical)
@@ -673,17 +677,19 @@ def _run_and_report(
 
 def _print_gate_summary(gate: dict[str, Any]) -> None:
     """Print acceptance gate summary to stderr."""
-    print(f"\n{'='*60}", file=sys.stderr)
+    print(f"\n{'=' * 60}", file=sys.stderr)
     print(f"  ACCEPTANCE GATE: {gate['verdict']}", file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
-    print(f"  Before: {gate['before_score']:.0%}  After: {gate['after_score']:.0%}  "
-          f"Delta: {gate['delta']:+.0%}", file=sys.stderr)
+    print(f"{'=' * 60}", file=sys.stderr)
+    print(
+        f"  Before: {gate['before_score']:.0%}  After: {gate['after_score']:.0%}  "
+        f"Delta: {gate['delta']:+.0%}",
+        file=sys.stderr,
+    )
     print("  Criteria:", file=sys.stderr)
     for criterion, passed in gate["criteria"].items():
         if criterion in NON_GATING_CRITERIA:
             value = "yes" if passed else "no"
-            print(f"    {criterion}: {value} (informational, non-gating)",
-                  file=sys.stderr)
+            print(f"    {criterion}: {value} (informational, non-gating)", file=sys.stderr)
         else:
             mark = "PASS" if passed else "FAIL"
             print(f"    {criterion}: {mark}", file=sys.stderr)
@@ -696,7 +702,7 @@ def _print_gate_summary(gate: dict[str, Any]) -> None:
         print(f"  Flaky: {gate['flaky_scenarios']}", file=sys.stderr)
     if gate.get("high_flakiness_scenarios"):
         print(f"  BLOCKED (>40% flaky): {gate['high_flakiness_scenarios']}", file=sys.stderr)
-    print(f"{'='*60}", file=sys.stderr)
+    print(f"{'=' * 60}", file=sys.stderr)
 
 
 def _is_provider_outage(exc: Exception) -> bool:
@@ -712,12 +718,9 @@ def _is_provider_outage(exc: Exception) -> bool:
     """
     msg = str(exc).lower()
     outage_markers = (
-        "usage limit",        # budget/quota exhausted (HTTP 400 usage limits)
+        "usage limit",  # budget/quota exhausted (HTTP 400 usage limits)
         "rate limit",
         "too many requests",  # 429
-        "github_models_retirement_brownout",
-        "retirement brownout",
-        "github models is temporarily unavailable",
         "timed out",
         "network error",
         "returned http 408",
@@ -728,6 +731,30 @@ def _is_provider_outage(exc: Exception) -> bool:
         "returned http 504",
     )
     return any(marker in msg for marker in outage_markers)
+
+
+def _run_or_exit(
+    api_key: str,
+    before_text: str,
+    after_text: str,
+    scenarios: list[dict[str, Any]],
+    args: argparse.Namespace,
+    source: str,
+) -> None:
+    try:
+        _run_and_report(api_key, before_text, after_text, scenarios, args, source)
+    except MalformedProviderMetadataError:
+        raise
+    except RuntimeError as error:
+        if _is_provider_outage(error):
+            print(
+                "SKIP: behavioral eval could not run, model provider "
+                f"unavailable: {error}",
+                file=sys.stderr,
+            )
+            sys.exit(0)
+        print(f"ERROR: eval failed: {error}", file=sys.stderr)
+        sys.exit(3)
 
 
 def main() -> None:
@@ -760,25 +787,30 @@ def main() -> None:
 
     if args.dry_run:
         print("\n  DRY RUN: inputs validated, no API calls made", file=sys.stderr)
-        print(json.dumps({
-            "dry_run": True, "scenarios": len(scenarios),
-            "before_chars": len(before_text), "after_chars": len(after_text),
-            "runs": args.runs, "security_critical": args.security_critical,
-            "est_api_calls": len(scenarios) * 2 * args.runs,
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "dry_run": True,
+                    "scenarios": len(scenarios),
+                    "before_chars": len(before_text),
+                    "after_chars": len(after_text),
+                    "runs": args.runs,
+                    "security_critical": args.security_critical,
+                    "est_api_calls": len(scenarios) * 2 * args.runs,
+                },
+                indent=2,
+            )
+        )
         sys.exit(0)
 
     # A non-default provider self-loads its own credential (see the adapter's
     # transport factory), so do not require ANTHROPIC_API_KEY in that case.
     provider = os.environ.get("EVAL_PROVIDER", "").strip()
-    if provider and not is_default_anthropic(provider):
-        api_key = ""
-    else:
-        try:
-            api_key = load_api_key()
-        except RuntimeError as e:
-            print(f"ERROR: {e}", file=sys.stderr)
-            sys.exit(2)
+    try:
+        api_key = load_api_key_for_selected_provider(provider)
+    except RuntimeError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
 
     try:
         verify_model_available(api_key, args.model)
@@ -786,20 +818,7 @@ def main() -> None:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(2)
 
-    try:
-        _run_and_report(api_key, before_text, after_text, scenarios, args, source)
-    except RuntimeError as e:
-        if _is_provider_outage(e):
-            # Infrastructure outage, not a quality regression. Skip neutrally so
-            # the gate does not red-fail on a provider the change did not touch.
-            print(
-                f"SKIP: behavioral eval could not run, model provider "
-                f"unavailable: {e}",
-                file=sys.stderr,
-            )
-            sys.exit(0)
-        print(f"ERROR: eval failed: {e}", file=sys.stderr)
-        sys.exit(3)
+    _run_or_exit(api_key, before_text, after_text, scenarios, args, source)
 
 
 if __name__ == "__main__":  # pragma: no cover

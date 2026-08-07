@@ -22,7 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-import scripts.validation.instruction_budget as ib  # noqa: E402
+import scripts.validation.instruction_budget as ib
 
 
 def _write_rule(root: Path, name: str, apply_to: str, body: str = "body\n") -> int:
@@ -529,3 +529,212 @@ def test_real_repo_python_baseline_is_under_ceiling_and_nonzero() -> None:
     assert not missing, f"matcher missed core always-on rules: {sorted(missing)}"
     assert py.total_bytes > 0
     assert py.total_bytes <= py.ceiling_bytes
+
+
+# --------------------------------------------------------------------------
+# reserve band (issue #4345)
+#
+# Required checks on this repo are not strict, so two branches measured against
+# the same base can each pass the ceiling check and still breach once both
+# merge. Measured instance on main: three merges at +891, +339, and +259 bytes
+# landed a .md corpus of 83201 against an 83000 ceiling. The reserve is the
+# headroom kept free so the second merge lands under the ceiling instead of
+# over it.
+# --------------------------------------------------------------------------
+
+
+def _result(total: int, ceiling: int, reserve: int = 0) -> ib.ExtensionResult:
+    """Build an ExtensionResult directly, bypassing the filesystem."""
+    return ib.ExtensionResult(
+        extension=".md",
+        matched_files=("a.instructions.md",),
+        total_bytes=total,
+        estimated_tokens=total // 4,
+        ceiling_bytes=ceiling,
+        reserve_bytes=reserve,
+    )
+
+
+def test_headroom_is_positive_below_ceiling() -> None:
+    assert _result(900, 1000).headroom_bytes == 100
+
+
+def test_headroom_is_zero_exactly_at_ceiling() -> None:
+    assert _result(1000, 1000).headroom_bytes == 0
+
+
+def test_headroom_is_negative_once_breached() -> None:
+    assert _result(1200, 1000).headroom_bytes == -200
+
+
+def test_reserve_defaults_to_zero_so_behavior_is_unchanged() -> None:
+    r = _result(999, 1000)
+    assert r.reserve_bytes == 0
+    assert r.under_reserve is False
+    assert r.over_budget is False
+
+
+def test_under_reserve_is_true_when_headroom_is_below_the_band() -> None:
+    assert _result(950, 1000, reserve=100).under_reserve is True
+
+
+def test_under_reserve_is_false_when_headroom_exactly_equals_the_band() -> None:
+    # Boundary: 100 bytes of headroom satisfies a 100-byte reserve.
+    assert _result(900, 1000, reserve=100).under_reserve is False
+
+
+def test_under_reserve_is_false_one_byte_above_the_band() -> None:
+    assert _result(899, 1000, reserve=100).under_reserve is False
+
+
+def test_under_reserve_is_false_once_over_budget_so_fail_wins() -> None:
+    # A breach is already FAIL. Reporting WARN too would mask the harder verdict.
+    r = _result(1200, 1000, reserve=100)
+    assert r.over_budget is True
+    assert r.under_reserve is False
+
+
+def test_under_reserve_is_false_for_a_negative_or_zero_band() -> None:
+    assert _result(999, 1000, reserve=0).under_reserve is False
+
+
+def test_status_of_prefers_fail_over_warn() -> None:
+    # A stub is required here, not an ExtensionResult. The real type guards
+    # under_reserve on over_budget, so both flags can never be true together
+    # and an ExtensionResult cannot observe the ordering inside _status_of.
+    # A mutation swapping the two branches survived against the real type.
+    # _status_of must prefer the harder verdict on its own, so that a future
+    # caller which reports both flags cannot silently downgrade a breach.
+    class _BothFlags:
+        over_budget = True
+        under_reserve = True
+
+    assert ib._status_of(_BothFlags()) == "FAIL"
+
+
+def test_extension_result_never_reports_both_flags() -> None:
+    # The structural invariant that made the ordering test vacuous. Assert it
+    # directly so a future edit to under_reserve cannot break it unnoticed.
+    for total in (999, 1000, 1001, 5000):
+        r = _result(total, 1000, reserve=100)
+        assert not (r.over_budget and r.under_reserve)
+
+
+def test_status_of_reports_warn_inside_the_band() -> None:
+    assert ib._status_of(_result(950, 1000, reserve=100)) == "WARN"
+
+
+def test_status_of_reports_pass_outside_the_band() -> None:
+    assert ib._status_of(_result(500, 1000, reserve=100)) == "PASS"
+
+
+def test_evaluate_threads_the_reserve_into_every_result(tmp_path: Path) -> None:
+    _write_rule(tmp_path, "u", "'**'")
+    results = ib.evaluate(tmp_path, {".py": 10_000}, 250)
+    assert results[0].reserve_bytes == 250
+
+
+def test_evaluate_reserve_is_optional_and_defaults_to_zero(tmp_path: Path) -> None:
+    _write_rule(tmp_path, "u", "'**'")
+    results = ib.evaluate(tmp_path, {".py": 10_000})
+    assert results[0].reserve_bytes == 0
+
+
+def test_json_output_exposes_headroom_and_reserve() -> None:
+    import json
+
+    payload = json.loads(ib.format_json([_result(950, 1000, reserve=100)]))
+    assert payload[0]["headroom_bytes"] == 50
+    assert payload[0]["reserve_bytes"] == 100
+    assert payload[0]["under_reserve"] is True
+    assert payload[0]["over_budget"] is False
+
+
+def test_table_output_shows_headroom_column_and_warn_status() -> None:
+    table = ib.format_table([_result(950, 1000, reserve=100)])
+    assert "Headroom" in table
+    assert "WARN" in table
+
+
+def test_parse_reserve_accepts_zero_and_positive() -> None:
+    assert ib.parse_reserve("0") == 0
+    assert ib.parse_reserve("2048") == 2048
+
+
+def test_parse_reserve_rejects_negative() -> None:
+    with pytest.raises(argparse.ArgumentTypeError, match="non-negative"):
+        ib.parse_reserve("-1")
+
+
+def test_parse_reserve_rejects_non_integer() -> None:
+    with pytest.raises(argparse.ArgumentTypeError, match="integer"):
+        ib.parse_reserve("1.5")
+
+
+def test_main_exits_one_when_ci_and_headroom_is_inside_the_reserve(
+    tmp_path: Path,
+) -> None:
+    size = _write_rule(tmp_path, "u", "'**'")
+    rc = ib.main(
+        [
+            "--path",
+            str(tmp_path),
+            "--ci",
+            "--ceiling",
+            f".py:{size + 10}",
+            "--reserve",
+            "100",
+        ]
+    )
+    assert rc == 1
+
+
+def test_main_exits_zero_without_ci_even_when_inside_the_reserve(
+    tmp_path: Path,
+) -> None:
+    # Reserve is advisory outside CI, matching how over_budget already behaves.
+    size = _write_rule(tmp_path, "u", "'**'")
+    rc = ib.main(
+        [
+            "--path",
+            str(tmp_path),
+            "--ceiling",
+            f".py:{size + 10}",
+            "--reserve",
+            "100",
+        ]
+    )
+    assert rc == 0
+
+
+def test_main_exits_zero_when_headroom_clears_the_reserve(tmp_path: Path) -> None:
+    size = _write_rule(tmp_path, "u", "'**'")
+    rc = ib.main(
+        [
+            "--path",
+            str(tmp_path),
+            "--ci",
+            "--ceiling",
+            f".py:{size + 500}",
+            "--reserve",
+            "100",
+        ]
+    )
+    assert rc == 0
+
+
+def test_main_default_reserve_is_zero_so_ci_still_passes(tmp_path: Path) -> None:
+    # Regression guard: adding the reserve must not change the default verdict.
+    size = _write_rule(tmp_path, "u", "'**'")
+    rc = ib.main(["--path", str(tmp_path), "--ci", "--ceiling", f".py:{size + 1}"])
+    assert rc == 0
+
+
+def test_reserve_reads_the_environment_when_the_flag_is_absent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    size = _write_rule(tmp_path, "u", "'**'")
+    monkeypatch.setenv("INSTRUCTION_BUDGET_RESERVE", "100")
+    rc = ib.main(["--path", str(tmp_path), "--ci", "--ceiling", f".py:{size + 10}"])
+    assert rc == 1

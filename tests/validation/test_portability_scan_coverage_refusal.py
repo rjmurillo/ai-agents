@@ -29,9 +29,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.validation import check_skill_md_exec_portability as cep  # noqa: E402
-from scripts.validation import check_skill_md_portability as cmp  # noqa: E402
-from scripts.validation.portability_common import (  # noqa: E402
+from scripts.validation import check_skill_md_exec_portability as cep
+from scripts.validation import check_skill_md_portability as cmp
+from scripts.validation import portability_common as common
+from scripts.validation.portability_common import (
     refuse_uncovered_scan,
     tracked_coverage_by_root,
 )
@@ -320,6 +321,25 @@ class TestWorktreeGapCoverage:
         self._populate(tmp_path)
         assert refuse_uncovered_scan(tmp_path, dict.fromkeys(ROOT_NAMES, 3), "skill files") is True
         assert "git cannot vouch for" in capsys.readouterr().err
+
+    def test_a_failed_conflict_probe_refuses(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+    ) -> None:
+        self._repo(tmp_path)
+        real_git_lines = common._git_lines
+
+        def fail_conflict_probe(root: Path, args: list[str]) -> list[str] | None:
+            if args[:3] == ["ls-files", "-u", "-z"]:
+                return None
+            return real_git_lines(root, args)
+
+        monkeypatch.setattr(common, "_git_lines", fail_conflict_probe)
+
+        assert refuse_uncovered_scan(tmp_path, dict.fromkeys(ROOT_NAMES, 3), "skill files") is True
+        assert "could not inspect unresolved conflicts" in capsys.readouterr().err
 
     def test_a_missing_git_executable_refuses(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

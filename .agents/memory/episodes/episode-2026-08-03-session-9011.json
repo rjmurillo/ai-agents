@@ -1,0 +1,29 @@
+{
+  "id": "episode-2026-08-03-session-9011",
+  "session": "2026-08-03-session-9011",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record the MD056-escape-breaks-ERE-grep Eureka as a Serena memory",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3fd6805db",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-9011"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

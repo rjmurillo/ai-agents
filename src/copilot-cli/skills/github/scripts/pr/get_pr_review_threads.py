@@ -42,7 +42,7 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     count_unresolved_threads,
     filter_unresolved_threads,
@@ -50,7 +50,7 @@ from github_core.api import (  # noqa: E402
     resolve_repo_params,
     transform_review_thread,
 )
-from github_core.output import (  # noqa: E402
+from github_core.output import (
     add_output_format_arg,
     get_output_format,
     write_skill_error,
@@ -264,7 +264,7 @@ def _collect_all_threads(
         cursor = page_info.get("endCursor")
         if not cursor:
             # hasNextPage was true but endCursor is empty/null. Cannot
-            # advance — surface as truncation rather than a clean exit,
+            # advance, so surface as truncation rather than a clean exit,
             # since callers would otherwise see a "complete"-looking
             # result that silently dropped pages 2+. Returns the same
             # truncated=True signal as the cap-hit path below.

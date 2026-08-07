@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/repo.py. Sync via scripts/sync_plugin_lib.py."""
+"""Repository root resolution with git worktree awareness."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def resolve_repo_root(
     cmd.extend(["rev-parse", "--show-toplevel"])
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # subprocess-encoding: strict-ok
             cmd,
             capture_output=True,
             text=True,

@@ -52,12 +52,38 @@ class TestFindCurrentSessionLog:
         assert complete_session_log._find_current_session_log(str(tmp_path)) is None
 
     def test_finds_most_recent(self, tmp_path):
-        f1 = tmp_path / "2026-01-01-session-1.json"
-        f2 = tmp_path / "2026-01-02-session-2.json"
-        f1.write_text("{}")
-        f2.write_text("{}")
-        result = complete_session_log._find_current_session_log(str(tmp_path))
-        assert result is not None
+        import json
+        import os
+
+        today = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
+        f1 = tmp_path / f"{today}-session-1.json"
+        f2 = tmp_path / f"{today}-session-2.json"
+        branch = "feature/test"
+        f1.write_text(json.dumps({"session": {"branch": branch}}))
+        f2.write_text(json.dumps({"session": {"branch": branch}}))
+        # Make the ordering deterministic: f2 is the newest branch match.
+        os.utime(f1, (1000, 1000))
+        os.utime(f2, (2000, 2000))
+        with patch("complete_session_log._get_current_branch", return_value=branch):
+            result = complete_session_log._find_current_session_log(str(tmp_path))
+        assert result == str(f2)
+
+    def test_finds_most_recent_ignores_older_mtime_match(self, tmp_path):
+        """The newest branch match wins even when the older file sorts first by name."""
+        import json
+        import os
+
+        today = __import__("datetime").datetime.now().strftime("%Y-%m-%d")
+        f1 = tmp_path / f"{today}-session-1.json"
+        f2 = tmp_path / f"{today}-session-2.json"
+        branch = "feature/test"
+        f1.write_text(json.dumps({"session": {"branch": branch}}))
+        f2.write_text(json.dumps({"session": {"branch": branch}}))
+        os.utime(f1, (2000, 2000))
+        os.utime(f2, (1000, 1000))
+        with patch("complete_session_log._get_current_branch", return_value=branch):
+            result = complete_session_log._find_current_session_log(str(tmp_path))
+        assert result == str(f1)
 
 
 class TestGetEndingCommit:
@@ -100,6 +126,68 @@ class TestSerenaMemoryUpdated:
     def test_no_changes(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stdout="src/app.py\n")
         assert complete_session_log._test_serena_memory_updated() is False
+
+    @patch("complete_session_log.subprocess.run")
+    def test_detects_committed_memory_via_git_log(self, mock_run):
+        """Committed .serena/memories/ changes are detected when starting_commit provided."""
+
+        def _side_effect(cmd, **kwargs):
+            if "log" in cmd:
+                return MagicMock(returncode=0, stdout=".serena/memories/new.md\n")
+            return MagicMock(returncode=0, stdout="")
+
+        mock_run.side_effect = _side_effect
+        assert complete_session_log._test_serena_memory_updated("abc1234") is True
+
+    @patch("complete_session_log.subprocess.run")
+    def test_no_committed_memory_no_starting_commit(self, mock_run):
+        """Without starting_commit, git log is not consulted (no false positive)."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+        assert complete_session_log._test_serena_memory_updated() is False
+        for call in mock_run.call_args_list:
+            assert "log" not in call.args[0]
+
+    @patch("complete_session_log.subprocess.run")
+    def test_committed_memory_unrelated_files_not_detected(self, mock_run):
+        """git log output with no .serena/memories/ lines returns False."""
+
+        def _side_effect(cmd, **kwargs):
+            if "log" in cmd:
+                return MagicMock(returncode=0, stdout="scripts/some_script.py\n")
+            return MagicMock(returncode=0, stdout="")
+
+        mock_run.side_effect = _side_effect
+        assert complete_session_log._test_serena_memory_updated("abc1234") is False
+
+    @patch("complete_session_log.subprocess.run")
+    def test_git_log_failure_returns_false(self, mock_run):
+        """Non-zero git log exit code does not raise, returns False."""
+
+        def _side_effect(cmd, **kwargs):
+            if "log" in cmd:
+                return MagicMock(returncode=128, stdout="")
+            return MagicMock(returncode=0, stdout="")
+
+        mock_run.side_effect = _side_effect
+        assert complete_session_log._test_serena_memory_updated("abc1234") is False
+
+    @patch("complete_session_log.subprocess.run")
+    def test_memories_backup_dir_not_detected(self, mock_run):
+        """Path .serena/memories_backup must not be confused with .serena/memories/."""
+        mock_run.return_value = MagicMock(returncode=0, stdout=".serena/memories_backup/old.md\n")
+        assert complete_session_log._test_serena_memory_updated() is False
+
+    @patch("complete_session_log.subprocess.run")
+    def test_memories_backup_in_git_log_not_detected(self, mock_run):
+        """committed .serena/memories_backup changes must not fire the check."""
+
+        def _side_effect(cmd, **kwargs):
+            if "log" in cmd:
+                return MagicMock(returncode=0, stdout=".serena/memories_backup/old.md\n")
+            return MagicMock(returncode=0, stdout="")
+
+        mock_run.side_effect = _side_effect
+        assert complete_session_log._test_serena_memory_updated("abc1234") is False
 
 
 class TestUncommittedChanges:

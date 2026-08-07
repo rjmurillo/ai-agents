@@ -47,11 +47,36 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "Library entrypoint invoked by post_issue_triage_summary_comment.py; "
         "tests/ci/test_ai_issue_triage_workflow.py verifies the wrapper calls it."
     ),
+    "cli_exit_contract_coverage.py": (
+        "Library holding the test-coverage analysis for "
+        "cli_exit_contract_ratchet.py, which is workflow-invoked from "
+        "pr-validation.yml. It has no main() and no shebang; "
+        "tests/ci/test_cli_exit_contract_ratchet.py drives it directly through "
+        "covered_stems (issue #4068)."
+    ),
     "count_ratchet.py": (
         "Library holding the ratchet policy shared by ruff_count_ratchet.py and "
         "taste_count_ratchet.py, both of which are workflow-invoked. It has no "
         "main() and no shebang; tests/ci/test_count_ratchet.py covers it "
         "directly (issue #3779)."
+    ),
+    "merge_tree_materialization.py": (
+        "Library holding the exact-tree materialization and isolated Git helpers "
+        "for merge_tree_ratchet_check.py, which pr-validation.yml invokes. It has "
+        "no main() and no shebang; tests/ci/test_merge_tree_materialization.py "
+        "drives it directly."
+    ),
+    "merge_tree_ratchet_registry.py": (
+        "Library holding the single ownership registry of ratchets that "
+        "merge_tree_ratchet_check.py evaluates, and pr-validation.yml invokes "
+        "that checker. It has no main() and no shebang; "
+        "tests/test_lefthook_gate_config.py asserts the registry matches the "
+        "Lefthook jobs."
+    ),
+    "mutation_harness_ciperms.py": (
+        "Developer tool for verifying CI security tests (issues #3964 and #4151). "
+        "Run manually with `uv run --frozen python3 scripts/ci/mutation_harness_ciperms.py`. "
+        "It orchestrates pytest sub-processes and is not wired into CI itself."
     ),
     "parse_drift_results.py": (
         "Subprocess helper called by drift_collect_details.py (ADR-006 extraction "

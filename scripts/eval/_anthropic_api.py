@@ -16,6 +16,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any, cast
 
+# Sibling import; loaded under the same EVAL_DIR sys.path entry every caller
+# of this module already uses to reach it by bare name.
+from _eval_common import require_str_or_none, safe_http_error_message
+
 # Single source of truth for the default eval model. Every eval script imports
 # this instead of hard-coding an id, so a model bump is a one-line change here
 # (issue #2858). The previous default `claude-sonnet-4-20250514` is a dead id
@@ -104,6 +108,116 @@ def load_api_key_for_selected_provider(provider: str | None = None) -> str:
     return load_api_key()
 
 
+def _call_selected_provider(
+    selected: str | None,
+    messages: list[dict[str, str]],
+    system: str,
+    model: str,
+    max_tokens: int,
+    temperature: float,
+    seed: int | None,
+    metadata: dict[str, object] | None,
+) -> str | None:
+    if selected is None:
+        return None
+    from _providers import is_default_anthropic, resolve_provider
+
+    if is_default_anthropic(selected):
+        return None
+    selected_provider = resolve_provider(selected)
+    kwargs: dict[str, object] = {
+        "messages": messages,
+        "system": system,
+        "model": model,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+    if seed is not None:
+        kwargs["seed"] = seed
+    text = cast(str, selected_provider.complete(**kwargs))
+    fingerprint = require_str_or_none(
+        getattr(selected_provider, "system_fingerprint", None),
+        "system_fingerprint",
+    )
+    if metadata is not None and fingerprint is not None:
+        metadata["system_fingerprint"] = fingerprint
+    return text
+
+
+def _build_messages_request(
+    api_key: str,
+    messages: list[dict[str, str]],
+    system: str,
+    model: str,
+    max_tokens: int,
+    temperature: float,
+) -> urllib.request.Request:
+    body: dict[str, Any] = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "messages": messages,
+        "temperature": temperature,
+    }
+    if system:
+        body["system"] = system
+    return urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=json.dumps(body).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+        },
+        method="POST",
+    )
+
+
+def _reachable_model_hint(api_key: str) -> str:
+    try:
+        list_available_models(api_key)
+    except Exception:
+        print(
+            "warning: reachable-model lookup failed: provider details redacted",
+            file=sys.stderr,
+        )
+        return ""
+    return (
+        ". Requested model is unavailable; query the models endpoint "
+        "for reachable model IDs"
+    )
+
+
+def _read_messages_response(
+    request: urllib.request.Request,
+    api_key: str,
+) -> object:
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response:
+            return json.loads(response.read().decode(errors="replace"))
+    except urllib.error.HTTPError as error:
+        message = safe_http_error_message("Anthropic API", error.code)
+        if error.code == 404:
+            message += _reachable_model_hint(api_key)
+        raise RuntimeError(message) from None
+    except urllib.error.URLError as error:
+        if isinstance(error.reason, (TimeoutError, socket.timeout)):
+            raise RuntimeError(
+                "Anthropic API request timed out after 120s. "
+                "The service may be slow or unreachable."
+            ) from None
+        raise RuntimeError(
+            "Anthropic API network error: error=network_failure; provider details redacted"
+        ) from None
+    except TimeoutError:
+        raise RuntimeError(
+            "Anthropic API request timed out after 120s. The service may be slow or unreachable."
+        ) from None
+    except json.JSONDecodeError:
+        raise RuntimeError(
+            "Anthropic API returned invalid JSON: error=invalid_json; provider response redacted"
+        ) from None
+
+
 def call_api(
     api_key: str,
     messages: list[dict[str, str]],
@@ -115,147 +229,67 @@ def call_api(
     seed: int | None = None,
     metadata: dict[str, object] | None = None,
 ) -> str:
-    """Call the Anthropic Messages API.
+    """Call the selected provider and return assistant text.
 
-    Args:
-        api_key: The Anthropic API key.
-        messages: List of message dicts with 'role' and 'content' keys.
-        system: Optional system prompt.
-        model: Model identifier to use.
-        max_tokens: Maximum tokens in the response.
-        temperature: Sampling temperature to send to the provider.
-        provider: Optional transport selector. None falls back to the
-            EVAL_PROVIDER env var. The default (None / "anthropic") uses this
-            urllib path unchanged; any other value routes through
-            `_providers.resolve_provider` (openai, github, anthropic-sdk).
-            `api_key` is ignored for non-Anthropic providers.
-        seed: Optional seed forwarded to OpenAI-compatible providers. None
-            omits the argument.
-        metadata: Optional output mapping for provider response metadata such
-            as OpenAI-compatible `system_fingerprint`.
-
-    Returns:
-        The assistant's text response.
-
-    Raises:
-        RuntimeError: If the API returns an HTTP error, network failure,
-            timeout, or invalid JSON response. Original exception is chained
-            via __cause__.
+    ``provider`` overrides ``EVAL_PROVIDER``. The default uses Anthropic
+    urllib; other values route through ``_providers``. Provider-controlled
+    failure details and exception causes are not serialized.
     """
     selected = provider if provider is not None else os.environ.get("EVAL_PROVIDER")
-    if selected is not None:
-        from _providers import is_default_anthropic, resolve_provider
-
-        if not is_default_anthropic(selected):
-            selected_provider = resolve_provider(selected)
-            kwargs: dict[str, object] = {
-                "messages": messages,
-                "system": system,
-                "model": model,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-            }
-            if seed is not None:
-                kwargs["seed"] = seed
-            text = cast(str, selected_provider.complete(**kwargs))
-            fingerprint = getattr(selected_provider, "system_fingerprint", None)
-            if metadata is not None and isinstance(fingerprint, str):
-                metadata["system_fingerprint"] = fingerprint
-            return text
-    body: dict[str, Any] = {
-        "model": model,
-        "max_tokens": max_tokens,
-        "messages": messages,
-        # Determinism: the eval pipeline depends on temperature=0 so the
-        # spike output-shape contract (verdict-vocabulary suffix) is
-        # reproducible across reruns. Callers MAY override but MUST
-        # justify in a comment if they do.
-        "temperature": temperature,
-    }
-    if system:
-        body["system"] = system
-
-    data = json.dumps(body).encode()
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-        },
-        method="POST",
+    alternate = _call_selected_provider(
+        selected,
+        messages,
+        system,
+        model,
+        max_tokens,
+        temperature,
+        seed,
+        metadata,
     )
-
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            result = json.loads(resp.read().decode(errors="replace"))
-    except urllib.error.HTTPError as e:
-        # CWE-200 mitigation: the response body may contain echoed
-        # request fragments, prompt content, or other sensitive data.
-        # Surface the HTTP status and a short, ASCII-only excerpt so
-        # adapter logs cannot leak prompts. The adapter only forwards
-        # `error_category` to its structured log, but `_categorize_error`
-        # also matches the `"HTTP <code>"` substring of this message,
-        # which we preserve verbatim.
-        try:
-            raw_body = e.read().decode(errors="replace")
-        except Exception:  # noqa: BLE001 - body read is best-effort only
-            raw_body = ""
-        sanitized = "".join(ch for ch in raw_body if 32 <= ord(ch) < 127)[:200]
-        message = f"Anthropic API returned HTTP {e.code}: {sanitized}"
-        if e.code == 404:
-            # Bind the name here regardless of whether the provider fast-path
-            # above ran (that import is guarded by `selected is not None`).
-            # Keeps static analysis clean and the reference unambiguous.
-            from _providers import is_default_anthropic
-
-            if provider is None or is_default_anthropic(selected or ""):
-                # A 404 on the messages endpoint almost always means the model id
-                # is unknown to this key (issue #2857). Turn the bare 404 into an
-                # actionable message that lists the ids the key can actually reach.
-                # Best-effort only: never let the enrichment lookup raise.
-                try:
-                    reachable = list_available_models(api_key)
-                    if reachable:
-                        message += (
-                            f". Model '{model}' may be unavailable; reachable ids: "
-                            f"{', '.join(sorted(reachable))}"
-                        )
-                except Exception as enrich_err:  # noqa: BLE001 - enrichment is best-effort
-                    print(
-                        f"warning: reachable-model lookup failed: {enrich_err}",
-                        file=sys.stderr,
-                    )
-        raise RuntimeError(message) from e
-    except urllib.error.URLError as e:
-        # urllib often wraps socket.timeout in URLError.reason; classify it
-        # as a timeout so the error message is actionable.
-        if isinstance(e.reason, (TimeoutError, socket.timeout)):
-            raise RuntimeError(
-                "Anthropic API request timed out after 120s. "
-                "The service may be slow or unreachable."
-            ) from e
+    if alternate is not None:
+        return alternate
+    request = _build_messages_request(
+        api_key,
+        messages,
+        system,
+        model,
+        max_tokens,
+        temperature,
+    )
+    result = _read_messages_response(request, api_key)
+    if not isinstance(result, dict):
         raise RuntimeError(
-            f"Anthropic API network error: {e.reason}. "
-            "Check connectivity and DNS resolution."
-        ) from e
-    except TimeoutError as e:
-        raise RuntimeError(
-            "Anthropic API request timed out after 120s. "
-            "The service may be slow or unreachable."
-        ) from e
-    except json.JSONDecodeError as e:
-        raise RuntimeError(
-            f"Anthropic API returned invalid JSON: {e.msg} at position {e.pos}. "
-            "Response may be truncated or malformed."
-        ) from e
-
+            "Anthropic API returned an unexpected payload shape: "
+            "error=invalid_response; provider response redacted"
+        )
     text_parts = [
-        block["text"] for block in result.get("content", [])
-        if block.get("type") == "text"
+        block["text"] for block in result.get("content", []) if block.get("type") == "text"
     ]
     return "\n".join(text_parts)
+
+
+def _parse_model_ids(result: object) -> list[str]:
+    if not isinstance(result, dict):
+        raise RuntimeError(
+            "Anthropic models endpoint returned an unexpected payload shape: "
+            "error=invalid_response; provider response redacted"
+        )
+    data = result.get("data", [])
+    if not isinstance(data, list):
+        raise RuntimeError(
+            "Anthropic models endpoint returned an unexpected 'data' shape: "
+            "error=invalid_response; provider response redacted"
+        )
+    ids: list[str] = []
+    for entry in data:
+        model_id = entry.get("id") if isinstance(entry, dict) else None
+        if not isinstance(model_id, str) or not model_id:
+            raise RuntimeError(
+                "Anthropic models endpoint returned a malformed model entry: "
+                "error=invalid_response; provider response redacted"
+            )
+        ids.append(model_id)
+    return ids
 
 
 def list_available_models(api_key: str, *, timeout: int = 30) -> list[str]:
@@ -271,8 +305,9 @@ def list_available_models(api_key: str, *, timeout: int = 30) -> list[str]:
 
     Raises:
         RuntimeError: On HTTP error, network failure, timeout, or invalid
-            JSON. Original exception chained via ``__cause__``. Callers that
-            want fail-open behavior on infrastructure errors should catch this.
+            JSON. Provider-controlled details and exception causes are not
+            serialized. Callers that want fail-open behavior on infrastructure
+            errors should catch this.
     """
     req = urllib.request.Request(
         f"{_MODELS_ENDPOINT}?limit=1000",
@@ -286,61 +321,23 @@ def list_available_models(api_key: str, *, timeout: int = 30) -> list[str]:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             result = json.loads(resp.read().decode(errors="replace"))
     except urllib.error.HTTPError as e:
-        try:
-            raw_body = e.read().decode(errors="replace")
-        except Exception:  # noqa: BLE001 - body read is best-effort only
-            raw_body = ""
-        sanitized = "".join(ch for ch in raw_body if 32 <= ord(ch) < 127)[:200]
-        raise RuntimeError(
-            f"Anthropic models endpoint returned HTTP {e.code}: {sanitized}"
-        ) from e
+        raise RuntimeError(safe_http_error_message("Anthropic models endpoint", e.code)) from None
     except urllib.error.URLError as e:
         if isinstance(e.reason, (TimeoutError, socket.timeout)):
-            raise RuntimeError(
-                f"Anthropic models endpoint timed out after {timeout}s."
-            ) from e
+            raise RuntimeError(f"Anthropic models endpoint timed out after {timeout}s.") from None
         raise RuntimeError(
-            f"Anthropic models endpoint network error: {e.reason}."
-        ) from e
-    except TimeoutError as e:
+            "Anthropic models endpoint network error: error=network_failure; "
+            "provider details redacted"
+        ) from None
+    except TimeoutError:
+        raise RuntimeError(f"Anthropic models endpoint timed out after {timeout}s.") from None
+    except json.JSONDecodeError:
         raise RuntimeError(
-            f"Anthropic models endpoint timed out after {timeout}s."
-        ) from e
-    except json.JSONDecodeError as e:
-        raise RuntimeError(
-            f"Anthropic models endpoint returned invalid JSON: {e.msg}."
-        ) from e
+            "Anthropic models endpoint returned invalid JSON: "
+            "error=invalid_json; provider response redacted"
+        ) from None
 
-    # A 200 with valid JSON can still be the wrong shape (a bare list, a
-    # string, or a non-list `data`). Treat any shape violation as an
-    # infrastructure error (RuntimeError) so callers fail open rather than
-    # crashing on an unguarded AttributeError/TypeError.
-    if not isinstance(result, dict):
-        raise RuntimeError(
-            "Anthropic models endpoint returned an unexpected payload shape "
-            f"(expected object, got {type(result).__name__})."
-        )
-    data = result.get("data", [])
-    if not isinstance(data, list):
-        raise RuntimeError(
-            "Anthropic models endpoint returned an unexpected 'data' shape "
-            f"(expected list, got {type(data).__name__})."
-        )
-    # Each entry must be an object with a non-empty string `id`. A non-string
-    # id (e.g. `{"id": 123}`) would otherwise flow through and later crash
-    # `", ".join(sorted(...))` in verify_model_available with a TypeError that
-    # bypasses the fail-open handler. Treat any malformed entry as an
-    # infrastructure error so callers fail open on a hostile/garbled response.
-    ids: list[str] = []
-    for m in data:
-        model_id = m.get("id") if isinstance(m, dict) else None
-        if not isinstance(model_id, str) or not model_id:
-            raise RuntimeError(
-                "Anthropic models endpoint returned a malformed model entry "
-                f"(expected an object with a non-empty string 'id', got {m!r})."
-            )
-        ids.append(model_id)
-    return ids
+    return _parse_model_ids(result)
 
 
 def verify_model_available(
@@ -356,8 +353,9 @@ def verify_model_available(
     fail-open/fail-closed doctrine:
 
     - **Protocol violation (fail-closed):** the key reaches ``/v1/models`` and
-      ``model`` is not in the returned list -> raise ``RuntimeError`` listing
-      the reachable ids, so a live run never spends on a dead model id.
+      ``model`` is not in the returned list -> raise ``RuntimeError`` without
+      persisting provider-controlled model ids, so a live run never spends on
+      a dead model id.
     - **Infrastructure error (fail-open):** the ``/v1/models`` lookup itself
       fails (network down, auth error, malformed body) -> print a warning to
       stderr and return, letting the run proceed and surface the real error
@@ -403,12 +401,9 @@ def verify_model_available(
     # signal (the probe worked and returned zero models), so it also fails
     # closed rather than silently proceeding to a guaranteed 404.
     if model not in reachable:
-        listed = ", ".join(sorted(reachable)) if reachable else "(none)"
         raise RuntimeError(
-            f"Model '{model}' is not reachable with this API key. "
-            f"Reachable ids: {listed}. "
-            "Pass --model with one of these, or update DEFAULT_MODEL in "
-            "scripts/eval/_anthropic_api.py."
+            "Requested model is not reachable with this API key. "
+            "Query the models endpoint and pass a reachable model ID."
         )
 
 

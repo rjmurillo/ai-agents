@@ -53,6 +53,83 @@ The scripts listed in this reference are primarily PR-related, so most are under
 
 `new_pr.py` does NOT accept `--owner` or `--repo`. It infers the repo from the current git remote. If you pass `--owner`, it exits with error code 2.
 
+### Gotcha: pass `--base origin/main`, not the default
+
+`--base` defaults to the literal string `main`, which git resolves to the LOCAL
+branch. In a worktree that has not fetched recently, local `main` lags
+`origin/main`, and `new_pr.py` computes its changed-file set from
+`git diff <base>...HEAD` at line 288. A stale base makes that range include every
+file the real base gained since the local ref was last updated.
+
+The visible symptom is an opaque failure that names nothing:
+
+```
+[1/6] Checking Session End protocol...
+Session End validation failed
+```
+
+Mechanism: the spurious changed-file set contains `.agents/` paths the branch
+never touched, so `agents_changed` is true (line 299). The script then sorts the
+session logs it found and validates the newest one (line 318). That log belongs
+to someone else's session on `main`. Your PR is rejected for a file you did not
+write.
+
+Measured on `docs/eval-fixture-provenance`, whose real diff touches zero
+`.agents/` files:
+
+| Base | `.agents/` files in range |
+|---|---|
+| `main` (local, `05a4a5677`) | 100+, oldest dated 2026-01-03 |
+| `origin/main` (`5ee7a95d5`) | 0 |
+
+Passing `--base origin/main` cleared all six validations on the same branch with
+no other change. Fetching would also work, but the explicit remote ref does not
+depend on remembering to fetch.
+
+This is the general two-dot and stale-base hazard with a concrete consequence:
+you cannot open a PR, and the error names a file unrelated to your work.
+
+**Fixed in PR for issues #4461 and #4489 (2026-08-03).** `new_pr.py` now calls
+`_resolve_validation_base(pr_base, explicit)` before running validations. It
+prefers `origin/<base>` when that remote-tracking ref exists, falling back to the
+bare branch name only when it does not. The `gh pr create --base` argument still
+receives the bare name (GitHub rejects `origin/main` there). The `--validation-base`
+flag lets callers pin the validation base explicitly. The stale-local-ref symptom
+no longer requires remembering to pass `--base origin/main`; it is resolved
+automatically.
+
+### Gotcha: GraphQL and REST have separate rate-limit pools
+
+`gh pr create`, and therefore `new_pr.py`, creates the PR through GraphQL. The
+GraphQL and REST quotas are counted separately, so GraphQL can be fully spent
+while REST still has thousands of calls left:
+
+```
+$ gh api rate_limit --jq '{core: .resources.core, graphql: .resources.graphql}'
+{"core":{"limit":5000,"remaining":4948,...},"graphql":{"limit":5000,"remaining":0,...}}
+```
+
+With GraphQL at 0 the script fails after passing every validation:
+
+```
+All pre-creation validations passed!
+Creating PR...
+GraphQL: API rate limit already exceeded for user ID 6811113.
+```
+
+The REST endpoint draws from the `core` pool and still works:
+
+```bash
+printf '%s' "$JSON" | gh api --method POST /repos/OWNER/REPO/pulls --input -
+```
+
+Confirmed by creating PR #4320 this way while GraphQL read 0 remaining. Waiting
+for the GraphQL reset also works; the reset time is in
+`gh api rate_limit --jq '.resources.graphql.reset'` as a Unix timestamp.
+
+Prefer `new_pr.py`. Reach for REST only when GraphQL is exhausted, and re-run
+the script's validations first, since the raw endpoint performs none of them.
+
 ### Missing Script: PR Approval
 
 There is currently NO dedicated approve script in this skill set.

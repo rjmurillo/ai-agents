@@ -762,6 +762,132 @@ def generate_json_report(assessments: list[FileAssessment]) -> str:
     )
 
 
+def assess_file_content(
+    file_path: Path, content: str, context: str
+) -> FileAssessment:
+    """Assess a file from pre-loaded content (used for base-revision comparison).
+
+    Identical logic to :func:`assess_file` but takes content as a string
+    rather than reading from disk.  This lets callers feed ``git show
+    <base>:<file>`` output without writing a temp file.
+    """
+    language = detect_language(file_path)
+    comment_prefixes = _LINE_COMMENT_PREFIXES.get(language, ()) if language else ()
+    category = classify_file_category(file_path, content)
+    if category == "generated":
+        return _unscored_generated_assessment(file_path)
+
+    lines = content.split("\n")
+    code_lines = [
+        line
+        for line in lines
+        if line.strip() and not (comment_prefixes and line.strip().startswith(comment_prefixes))
+    ]
+    loc = len(code_lines)
+
+    return FileAssessment(
+        file_path=str(file_path),
+        category=category,
+        cohesion=_score_cohesion(language, code_lines, loc),
+        coupling=_score_coupling(language, code_lines),
+        encapsulation=_score_encapsulation(language, code_lines),
+        testability=_score_testability(language, code_lines),
+        non_redundancy=_score_non_redundancy(lines, language is not None),
+    )
+
+
+def _get_base_assessments(
+    files: list[Path], base: str, context: str
+) -> dict[str, FileAssessment]:
+    """Return assessments keyed by file path for each file at the base revision.
+
+    Uses ``git show <base>:<relpath>`` to fetch content.  Files that do not
+    exist at the base revision (new files) are omitted from the result; the
+    caller treats them as having no regression to report.
+    """
+    import subprocess
+
+    result: dict[str, FileAssessment] = {}
+    try:
+        repo_root_rc = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if repo_root_rc.returncode != 0:
+            return result
+        repo_root = Path(repo_root_rc.stdout.strip())
+    except OSError:
+        return result
+
+    for file_path in files:
+        try:
+            rel = file_path.resolve().relative_to(repo_root)
+        except ValueError:
+            continue
+        show_rc = subprocess.run(
+            ["git", "show", f"{base}:{rel.as_posix()}"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            encoding="utf-8",
+            check=False,
+        )
+        if show_rc.returncode != 0:
+            # File did not exist at base; treat as new, no regression possible.
+            continue
+        result[str(file_path)] = assess_file_content(file_path, show_rc.stdout, context)
+    return result
+
+
+def check_regressions(
+    assessments: list[FileAssessment],
+    base_assessments: dict[str, FileAssessment],
+) -> int:
+    """Compare head assessments against base and return 10 on any regression.
+
+    A regression is a quality score that was >= threshold confidence AND
+    dropped by more than 0.05 between base and head.  New files (not in
+    base_assessments) are not gated here; they may be gated by
+    :func:`check_thresholds` in absolute mode if the caller chooses.
+
+    Returns:
+        0:  No regressions detected.
+        10: At least one quality regressed.
+    """
+    regression_tolerance = 0.05
+    qualities: list[tuple[str, str]] = [
+        ("cohesion", "Cohesion"),
+        ("coupling", "Coupling"),
+        ("encapsulation", "Encapsulation"),
+        ("testability", "Testability"),
+        ("non_redundancy", "Non-Redundancy"),
+    ]
+
+    regressed = False
+    for head in assessments:
+        base = base_assessments.get(str(head.file_path))
+        if base is None:
+            # New file: skip regression check.
+            continue
+        for attr, label in qualities:
+            head_score: QualityScore = getattr(head, attr)
+            base_score: QualityScore = getattr(base, attr)
+            if head_score.confidence == 0.0 or base_score.confidence == 0.0:
+                continue
+            drop = base_score.value - head_score.value
+            if drop > regression_tolerance:
+                print(
+                    f"❌ {head.file_path}: {label} regressed "
+                    f"{base_score.value:.1f} -> {head_score.value:.1f} "
+                    f"(-{drop:.1f})",
+                    file=sys.stderr,
+                )
+                regressed = True
+    return 10 if regressed else 0
+
+
 def check_thresholds(
     assessments: list[FileAssessment], config: dict[str, Any], context: str
 ) -> int:
@@ -904,8 +1030,28 @@ def main() -> int:
     else:
         print(report)
 
-    # Check thresholds
-    exit_code = check_thresholds(assessments, config, args.context)
+    # Check thresholds or regressions
+    #
+    # When both --changed-only and --base are supplied the intent is a
+    # regression gate: only report a quality that WORSENED since the base
+    # commit.  A file that is below the absolute threshold but was already
+    # that way before the diff should not block the author; charging them for
+    # pre-existing debt is exactly the defect described in issue #4364.
+    #
+    # Without --base (or without --changed-only) fall back to the original
+    # absolute gate so the behaviour is unchanged for existing callers.
+    if args.changed_only and args.base:
+        base_assessments = _get_base_assessments(files, args.base, args.context)
+        exit_code = check_regressions(assessments, base_assessments)
+        if exit_code == 0:
+            new_assessments = [
+                assessment
+                for assessment in assessments
+                if str(assessment.file_path) not in base_assessments
+            ]
+            exit_code = check_thresholds(new_assessments, config, args.context)
+    else:
+        exit_code = check_thresholds(assessments, config, args.context)
 
     return exit_code
 

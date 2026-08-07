@@ -49,16 +49,16 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     resolve_repo_params,
 )
-from github_core.output import (  # noqa: E402
+from github_core.output import (
     add_output_format_arg,
     write_skill_error,
     write_skill_output,
 )
-from github_core.placeholder_identity import filter_coauthor_trailers  # noqa: E402
+from github_core.placeholder_identity import filter_coauthor_trailers
 
 _SCRIPT_NAME = "merge_pr.py"
 
@@ -204,7 +204,7 @@ def _fetch_pr_state(pr: int, repo_flag: str, output_format: str) -> dict:
     pr_result = subprocess.run(
         [
             "gh", "pr", "view", str(pr), "--repo", repo_flag,
-            "--json", "state,mergeable,mergeStateStatus,headRefName",
+            "--json", "state,mergeable,mergeStateStatus,headRefName,headRefOid",
         ],
         capture_output=True,
         encoding="utf-8",
@@ -276,17 +276,77 @@ def _build_merge_args(args: argparse.Namespace, pr: int, repo_flag: str) -> list
     return merge_args
 
 
+def _rest_merge(
+    pr: int,
+    repo_flag: str,
+    strategy: str,
+    head_sha: str,
+    subject: str,
+    body: str,
+) -> subprocess.CompletedProcess:
+    """Attempt a merge via the REST PUT endpoint.
+
+    Issue #4362: the GraphQL ``mergePullRequest`` mutation used by ``gh pr
+    merge`` can return "the base branch policy prohibits the merge" for PRs
+    whose required checks are all SUCCESS and whose unresolved thread count
+    is 0.  The REST endpoint enforces the same branch rules but accepts the
+    same head SHA seconds later.  A single REST retry after a BLOCKED
+    failure lets the authoritative server adjudicate instead of surfacing a
+    GraphQL-specific refusal as a client-side error.
+    """
+    cmd = [
+        "gh", "api", "-X", "PUT",
+        f"repos/{repo_flag}/pulls/{pr}/merge",
+        "-f", f"merge_method={strategy}",
+        "-f", f"sha={head_sha}",
+    ]
+    if subject:
+        cmd += ["-f", f"commit_title={subject}"]
+    if body:
+        cmd += ["-f", f"commit_message={body}"]
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+    )
+
+
 def _handle_merge_failure(
     merge_result: subprocess.CompletedProcess,
     pr: int,
+    repo_flag: str,
+    strategy: str,
+    head_sha: str,
+    subject: str,
+    body: str,
     auto: bool,
     output_format: str,
 ) -> None:
-    """Translate a non-zero gh-pr-merge return into a JSON error envelope."""
+    """Translate a non-zero gh-pr-merge return into a JSON error envelope.
+
+    On a BLOCKED-keyword failure, retry once via the REST merge endpoint
+    (issue #4362).  REST enforces the same branch rules as GraphQL but
+    resolves the policy check differently; a 200 with ``merged: true``
+    confirms the ruleset was satisfied and the GraphQL refusal was
+    spurious.
+    """
     output = merge_result.stderr or merge_result.stdout
     if any(kw in output for kw in ("not mergeable", "cannot be merged", "conflicts")):
         _emit_error(f"PR #{pr} is not mergeable: {output}", 6, "General", output_format, pr)
     if not auto and any(kw in output for kw in _BLOCKED_KEYWORDS):
+        # GraphQL refused with a BLOCKED policy error; retry via REST once.
+        rest_result = _rest_merge(pr, repo_flag, strategy, head_sha, subject, body)
+        if rest_result.returncode == 0:
+            try:
+                rest_data = json.loads(rest_result.stdout)
+            except json.JSONDecodeError:
+                rest_data = {}
+            if rest_data.get("merged"):
+                return
+        # REST also failed; surface the original GraphQL error.
         _emit_error(
             f"PR #{pr} is blocked by branch protection policy: {output}\n"
             "Hint: use --auto to enable auto-merge when checks pass.",
@@ -366,7 +426,18 @@ def main(argv: list[str] | None = None) -> int:
         check=False,
     )
     if merge_result.returncode != 0:
-        _handle_merge_failure(merge_result, pr, args.auto, output_format)
+        head_sha = pr_data.get("headRefOid") or ""
+        _handle_merge_failure(
+            merge_result,
+            pr,
+            repo_flag,
+            args.strategy,
+            head_sha,
+            args.subject,
+            args.body,
+            args.auto,
+            output_format,
+        )
 
     action = "auto-merge-enabled" if args.auto else "merged"
     state = "PENDING" if args.auto else "MERGED"

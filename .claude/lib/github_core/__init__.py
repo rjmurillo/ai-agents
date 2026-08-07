@@ -1,4 +1,4 @@
-"""Canonical: scripts/github_core/__init__.py. Sync via scripts/sync_plugin_lib.py.
+"""GitHub Core module: shared helpers for GitHub CLI operations.
 
 NOTE: Plugin-distributed copy at .claude/lib/github_core/.
 Run ``python3 scripts/sync_plugin_lib.py`` to sync changes.
@@ -9,12 +9,18 @@ from __future__ import annotations
 from .api import (
     DEFAULT_RATE_THRESHOLDS,
     FetchStatus,
+    GhAuthResult,
+    GhAuthStatus,
     RateLimitResult,
     RepoInfo,
     assert_gh_authenticated,
+    check_gh_auth,
     check_workflow_rate_limit,
+    classify_gh_failure_response,
+    classify_gh_failure_text,
     count_unresolved_threads,
     create_issue_comment,
+    describe_gh_auth_failure,
     error_and_exit,
     filter_unresolved_threads,
     get_all_prs_with_comments,
@@ -64,15 +70,21 @@ from .validation import (
 __all__ = [
     "DEFAULT_RATE_THRESHOLDS",
     "FetchStatus",
+    "GhAuthResult",
+    "GhAuthStatus",
     "GhCliClient",
     "GitHubClient",
     "RateLimitResult",
     "RepoInfo",
     "assert_gh_authenticated",
     "assert_valid_body_file",
+    "check_gh_auth",
     "check_workflow_rate_limit",
+    "classify_gh_failure_response",
+    "classify_gh_failure_text",
     "count_unresolved_threads",
     "create_issue_comment",
+    "describe_gh_auth_failure",
     "error_and_exit",
     "escaped_newline_body_error",
     "inline_body_error",

@@ -44,13 +44,14 @@ REQUIRED_DEV_TOOLS = frozenset(
         "pip-audit",
         "pytest",
         "pytest-cov",
+        "pytest-timeout",
         "ruff",
         "semgrep",
     }
 )
-SAFE_SEMGREP_OVERRIDES = frozenset({"click==8.3.3", "mcp==1.28.1"})
+SAFE_SEMGREP_OVERRIDES = frozenset({"click==8.3.3", "cryptography==50.0.0", "mcp==1.28.1"})
 COOLDOWN_EXEMPT_PACKAGES = frozenset(
-    {"anthropic", "click", "lefthook", "mcp", "semgrep"}
+    {"anthropic", "click", "cryptography", "lefthook", "mcp", "semgrep"}
 )
 
 # Splits a PEP 508 requirement string at the first character that ends the
@@ -187,6 +188,7 @@ def test_missing_required_tools_empty_when_all_present() -> None:
     complete = [
         "pytest>=9.0.3",
         "pytest-cov>=7.1.0",
+        "pytest-timeout>=2.4.0",
         "bandit[sarif]>=1.9.4",
         "lefthook==2.1.10",
         "pip-audit>=2.10.0",

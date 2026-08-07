@@ -416,9 +416,8 @@ class TestMain:
     """Integration tests for main entry point."""
 
     def test_valid_empty_specs(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path,
     ) -> None:
-        monkeypatch.delenv("CI", raising=False)
         specs = tmp_path / "specs"
         specs.mkdir()
         result = main(["--specs-path", str(specs)])
@@ -499,9 +498,8 @@ class TestMain:
         assert result == 1
 
     def test_errors_without_ci_return_zero(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path,
     ) -> None:
-        monkeypatch.delenv("CI", raising=False)
         task_dir = tmp_path / "tasks"
         task_dir.mkdir()
         _create_spec_file(
@@ -521,9 +519,8 @@ class TestMain:
         assert result == 1
 
     def test_json_output(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path,
     ) -> None:
-        monkeypatch.delenv("CI", raising=False)
         specs = tmp_path / "specs"
         specs.mkdir()
         result = main(["--specs-path", str(specs), "--format", "json"])

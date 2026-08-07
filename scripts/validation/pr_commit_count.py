@@ -51,7 +51,11 @@ from typing import Any
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.github_core.api import resolve_repo_params  # noqa: E402
+from scripts.github_core.api import (  # noqa: E402
+    GhAuthStatus,
+    classify_gh_failure_text,
+    resolve_repo_params,
+)
 
 # Commit-count thresholds (issue #362). A PR above BLOCK_THRESHOLD is
 # blocked by the downstream Enforce Blocking Issues step unless it carries the
@@ -81,23 +85,18 @@ _GIT_TIMEOUT_SECONDS = 90
 # keeps that module's scrubbed environment and timeout reporting.
 GitRunner = Callable[[Path, Sequence[str]], subprocess.CompletedProcess[str]]
 
-# Substrings that mark a GitHub API failure as transient transport noise rather
-# than a real error. Matched case-insensitively against gh's stderr. Kept
-# deliberately narrow so auth (401/403) and not-found (404) stay fatal.
-_TRANSIENT_MARKERS: tuple[str, ...] = (
-    "no server is currently available",
-    "http 502",
-    "http 503",
-    "http 504",
-    "bad gateway",
-    "service unavailable",
-    "gateway timeout",
-    "connection reset",
-    "connection refused",
-    "timeout was reached",
-    "i/o timeout",
-    "eof",
-    "tls handshake timeout",
+# Conditions that mark a GitHub API failure as something to degrade around
+# rather than fail on. Auth (401), permission denial (403 without rate-limit
+# wording), and not-found (404) stay fatal, so a real policy failure is never
+# swallowed. A 403 that carries "API rate limit exceeded" is a refusal that
+# clears on its own, and treating it as fatal red-blocked a clean PR during a
+# quota window (same shape as issue #4326 defect 1).
+_TRANSIENT_STATUSES = frozenset(
+    {
+        GhAuthStatus.TRANSIENT_ERROR,
+        GhAuthStatus.RATE_LIMITED,
+        GhAuthStatus.SECONDARY_RATE_LIMITED,
+    }
 )
 
 
@@ -223,7 +222,12 @@ def _is_external_parent(parent: object, own_shas: set[str]) -> bool:
 def _external_non_first_parent_shas(commits: list[Any]) -> set[str]:
     """Collect SHAs of non-first parents that are not in the PR's own commit list.
 
-    Used by contains_main_merge (precise check verified against origin/main).
+    The candidate set, not the decision. ``main_merge_evidence`` is the only
+    consumer: it intersects these SHAs with origin/main's first-parent trunk
+    (``return ReliefEvidence(granted=bool(external_shas & trunk), ...)``) and
+    that intersection is what grants the relief. ``contains_main_merge`` and
+    ``count_pr_commits`` both reach it through that one call, so this helper
+    never decides anything on its own.
     """
     own_shas: set[str] = set()
     for commit in commits:
@@ -323,9 +327,14 @@ def _authored_commit_count(commits: list[Any]) -> int:
 
 
 def is_transient_error(stderr: str) -> bool:
-    """Return True when gh stderr indicates a transient transport failure."""
-    haystack = stderr.lower()
-    return any(marker in haystack for marker in _TRANSIENT_MARKERS)
+    """Return True when gh stderr indicates a condition that clears on its own.
+
+    Routes through the shared classifier so this validator and the gh preflight
+    cannot drift on what "transient" means. The local substring list it replaced
+    excluded 403 by design, which made an "API rate limit exceeded" refusal fatal
+    here while every other caller degraded around it.
+    """
+    return classify_gh_failure_text(stderr) in _TRANSIENT_STATUSES
 
 
 def _run_gh(argv: list[str]) -> subprocess.CompletedProcess[str]:

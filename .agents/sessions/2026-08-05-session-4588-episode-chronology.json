@@ -1,0 +1,175 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4588,
+    "date": "2026-08-05",
+    "branch": "fix/4588-episode-chronology",
+    "startingCommit": "5ec85be51a",
+    "objective": "Fix issue 4588 episode chronology preserve verifier"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena activate_project tool was unavailable; serena tools loaded and initial_instructions completed."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions completed before code navigation."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read; no issue handoff found for #4588."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts Python scripts and invoked github plus session-init skills."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index and usage-mandatory read; requested quality memory was absent from this clone."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4588-episode-chronology"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4588-episode-chronology"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked in worktree; 3 authored Python changes plus this session log."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "5ec85be51a"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session end checklist completed in this JSON log."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable new convention found; audit defect filed as GitHub issue #4615."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed; dash scan passed on authored files."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit 1b177000180e56e7c3cab514ba5218d7559c1193 carries the corrected code, mirror, tests, complexity refactor, and invalid-ref diagnostic fix."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest tests/skills/memory/test_extract_session_episode.py: 284 passed. ruff passed on changed Python files. taste-count-ratchet and merge-tree-ratchet passed. Final mutation table after review fix: three behavioral mutants killed, cosmetic control survived."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SQL todos updated through implementation, audit, duplicate arbitration, and correction phases."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Not invoked; no new durable process lesson beyond filed issue #4615."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-05T05:57:00+00:00",
+      "entry": "Created worktree fix/4588-episode-chronology and claimed issue #4588.",
+      "evidence": "check_existing_pr_for_issue returned existing_pr_count 0; claim_issue returned claimed rjmurillo."
+    },
+    {
+      "time": "2026-08-05T06:15:00+00:00",
+      "entry": "Reproduced preserve chronology bug on real episode store.",
+      "evidence": "After --force, Finalized closeout chronology stayed at 2026-08-04T10:26:49+00:00 caused_by e011. After --preserve before the fix, it moved to midnight and led to e010."
+    },
+    {
+      "time": "2026-08-05T07:05:00+00:00",
+      "entry": "Implemented preserve timestamp upgrade and causal edge timestamp validation.",
+      "evidence": ".claude and src/copilot-cli extract_session_episode.py now keep explicit event timestamps and validate backward causal edge timestamps."
+    },
+    {
+      "time": "2026-08-05T07:25:00+00:00",
+      "entry": "Validated tests and mutation proof.",
+      "evidence": "pytest tests/skills/memory/test_extract_session_episode.py: 282 passed. Mutation table: three behavioral mutants DEAD, cosmetic control SURVIVED."
+    },
+    {
+      "time": "2026-08-05T07:50:00+00:00",
+      "entry": "Completed bounded episode pipeline audit and filed follow-up issue.",
+      "evidence": "Filed #4615 for validate accepting 106 causal edge mismatches across 460 parseable episode files."
+    },
+    {
+      "time": "2026-08-05T07:55:00+00:00",
+      "entry": "Committed code fix.",
+      "evidence": "Commit 7a029fd59e12322cca2e8fb16c0913057fcf17af carries code, mirror, and tests."
+    },
+    {
+      "time": "2026-08-05T09:34:38+00:00",
+      "entry": "Compared current main, PR #4617, and this branch on the exact #4588 reproduction.",
+      "evidence": "origin/main and PR #4617 preserve kept e009 at midnight with e009 -> e010; this branch preserved 2026-08-04T10:26:49+00:00 with e011 -> e009."
+    },
+    {
+      "time": "2026-08-05T10:05:13+00:00",
+      "entry": "Merged current main and ported PR #4617 causal order validation into this branch.",
+      "evidence": "Marker counts after merge are _WORKLOG_TIME_KEYS=2, #3972=3, int | None=5; commit 65bc1ffc80 combines duplicate timestamp upgrade with causal order validation."
+    },
+    {
+      "time": "2026-08-05T10:24:00+00:00",
+      "entry": "Added direct causal graph validation regression test after porting PR #4617 logic.",
+      "evidence": "Commit 655dbbca14 adds the test; extractor test file passed with 283 tests."
+    },
+    {
+      "time": "2026-08-05T10:48:00+00:00",
+      "entry": "Refactored causal edge validation to clear the taste and merge-tree ratchets.",
+      "evidence": "taste-count-ratchet OK, merge-tree-ratchet OK, and final mutation proof killed three behavioral mutants with the cosmetic control surviving."
+    },
+    {
+      "time": "2026-08-05T12:58:00+00:00",
+      "entry": "Addressed PR review feedback for invalid causal refs.",
+      "evidence": "Validate mode now reports the invalid ref value, extractor tests passed with 284 tests, and mutation proof still killed all behavioral mutants."
+    }
+  ],
+  "endingCommit": "1b177000180e56e7c3cab514ba5218d7559c1193",
+  "nextSteps": []
+}

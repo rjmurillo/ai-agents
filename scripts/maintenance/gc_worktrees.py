@@ -48,90 +48,70 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from scripts.maintenance import _gc_remote
+    from scripts.maintenance import _gc_apply, _gc_parse, _gc_reasons, _gc_remote, _gc_stale
 else:
     try:
-        from scripts.maintenance import _gc_remote
+        from scripts.maintenance import (
+            _gc_apply,
+            _gc_parse,
+            _gc_reasons,
+            _gc_remote,
+            _gc_stale,
+        )
     except ModuleNotFoundError:
+        import _gc_apply
+        import _gc_parse
+        import _gc_reasons
         import _gc_remote
+        import _gc_stale
+
+from scripts.maintenance.worktree_occupancy import (
+    Occupancy,
+    is_occupied,
+    occupied_paths,
+)
+from scripts.maintenance.worktree_report import (
+    KEEP_BARE,
+    KEEP_DETACHED,
+    KEEP_DIRTY,
+    KEEP_GIT_ERROR,
+    KEEP_LOCKED,
+    KEEP_MAIN,
+    KEEP_OCCUPIED,
+    KEEP_REFLOG_ONLY,
+    KEEP_TIME_BUDGET,
+    KEEP_UNPUSHED,
+    Decision,
+    GcReport,
+    Worktree,
+    format_report,
+)
 
 _DEFAULT_BASE = "origin/main"
-_GIT_TIMEOUT_SECONDS = 30
+_GIT_TIMEOUT_SECONDS = 10
 _DECIDE_WORKERS = 8
 
-# Reasons a worktree is kept (never removed). Stable strings for tests/automation.
-KEEP_MAIN = "main-or-current worktree"
-KEEP_BARE = "bare worktree"
-KEEP_LOCKED = "locked"
-KEEP_DIRTY = "uncommitted changes"
-KEEP_DETACHED = "detached HEAD (no branch to evaluate)"
-KEEP_UNPUSHED = "unpushed commits and not merged to base"
-KEEP_GIT_ERROR = "git inspection failed"
-
-
-@dataclass
-class Worktree:
-    """A single registered git worktree parsed from porcelain output."""
-
-    path: str
-    branch: str | None = None
-    head: str | None = None
-    locked: bool = False
-    bare: bool = False
-    detached: bool = False
-
-
-@dataclass
-class Decision:
-    """The GC decision for one worktree."""
-
-    path: str
-    branch: str | None
-    remove: bool
-    reason: str
-
-    @property
-    def kept(self) -> bool:
-        """True when this worktree is kept rather than removed."""
-        return not self.remove
-
-
-@dataclass
-class GcReport:
-    """Complete garbage-collection plan across all worktrees."""
-
-    timestamp: str
-    base_ref: str
-    apply: bool
-    main_worktree: str
-    total_worktrees: int = 0
-    decisions: list[Decision] = field(default_factory=list)
-    removed: list[str] = field(default_factory=list)
-    remove_errors: list[str] = field(default_factory=list)
-    remote_head_lookup_failed: bool = False
-    remote_head_lookup_error: str | None = None
-
-    @property
-    def candidates(self) -> list[Decision]:
-        """Decisions marked for removal."""
-        return [d for d in self.decisions if d.remove]
-
-    @property
-    def kept(self) -> list[Decision]:
-        """Decisions kept with a reason."""
-        return [d for d in self.decisions if d.kept]
-
-    @property
-    def needs_disposition(self) -> list[Decision]:
-        """Kept branches that need a human disposition before they can shrink."""
-        return [d for d in self.kept if d.reason == KEEP_UNPUSHED]
+# Inspecting one worktree costs up to three git subprocesses, so the wall clock
+# grows with the worktree count while the caller's patience does not. The
+# pre-push job that runs this reporter is capped by lefthook, and a kill there
+# rejects the push even though this script only reports: a lefthook timeout
+# kill cannot be swallowed by the job's own shell, unlike a non-zero exit,
+# which the job's `|| echo` guard absorbs. That asymmetry is why these two
+# constants must keep the worst case under the lefthook cap rather than lean
+# on the guard. Issue 4257 rules out buying headroom by raising the cap, since
+# that only moves the cliff and lengthens the block before a push dies. The cap
+# itself lives in lefthook.yml; tests/ci/test_worktree_gc_wiring.py pins the
+# two together so neither can drift into a push-rejecting pair. The budget is a
+# bound on work attempted, not on elapsed time. See build_report for why.
+_DEFAULT_TIME_BUDGET_SECONDS = 60.0
 
 
 def _run_git(args: list[str], cwd: str | None = None) -> str:
@@ -154,48 +134,6 @@ def _run_git(args: list[str], cwd: str | None = None) -> str:
         msg = f"git {' '.join(args)}{location} failed: {result.stderr.strip()}"
         raise RuntimeError(msg)
     return result.stdout.strip()
-
-
-def _apply_attribute(worktree: Worktree, line: str) -> None:
-    """Apply one porcelain attribute line to the current worktree record.
-
-    ``HEAD``, ``branch``, ``bare``, ``detached``, and ``locked`` are the lines
-    that may follow a ``worktree <path>`` line. Unknown lines are ignored.
-    """
-    if line.startswith("HEAD "):
-        worktree.head = line[len("HEAD ") :].strip()
-    elif line.startswith("branch "):
-        worktree.branch = line[len("branch ") :].strip().removeprefix("refs/heads/")
-    elif line == "bare":
-        worktree.bare = True
-    elif line == "detached":
-        worktree.detached = True
-    elif line == "locked" or line.startswith("locked "):
-        worktree.locked = True
-
-
-def list_worktrees() -> list[Worktree]:
-    """Parse ``git worktree list --porcelain`` into Worktree records.
-
-    The porcelain format groups attributes per worktree, separated by blank
-    lines. Each group starts with a ``worktree <path>`` line; attribute lines
-    follow and are applied by ``_apply_attribute``.
-    """
-    raw = _run_git(["worktree", "list", "--porcelain"])
-    worktrees: list[Worktree] = []
-    current: Worktree | None = None
-
-    for line in raw.splitlines():
-        if line.startswith("worktree "):
-            if current is not None:
-                worktrees.append(current)
-            current = Worktree(path=line[len("worktree ") :].strip())
-        elif current is not None:
-            _apply_attribute(current, line)
-
-    if current is not None:
-        worktrees.append(current)
-    return worktrees
 
 
 def has_uncommitted_changes(path: str) -> bool:
@@ -243,19 +181,42 @@ def is_merged_to_base(path: str, base_ref: str) -> bool:
     raise RuntimeError(msg)
 
 
+
 def decide(
     worktree: Worktree,
     main_path: str,
     base_ref: str,
     *,
     current_path: str | None = None,
+    inspect: bool = True,
+    cwds: frozenset[str] = frozenset(),
     remote_head_refs: frozenset[str] | None = None,
     origin_upstreams: dict[str, str] | None = None,
+    checkout_present: Callable[[str], bool] = _gc_stale.linked_checkout_present,
 ) -> Decision:
     """Decide whether a worktree is safe to remove. KEEP on any doubt.
 
     Order matters: cheap structural checks first, git-state checks last. A git
     inspection failure keeps the worktree (fail-safe), never removes it.
+
+    ``inspect=False`` stops before the git-state checks and keeps the worktree
+    with ``KEEP_TIME_BUDGET``. The structural checks above that point cost no
+    subprocess, so they still run and still report the real reason. Detachment
+    is not one of them: deciding a detached worktree needs its merge status, so
+    it sits below the gate and a spent budget reports ``KEEP_TIME_BUDGET``
+    rather than ``KEEP_DETACHED``. Both keep the worktree, so the fail-safe
+    invariant holds either way.
+
+    A ``prunable`` worktree is always kept. The marker means git cannot find
+    the working tree, and three different situations produce it: the directory
+    was deleted and abandoned, the directory was deleted while its index still
+    held staged content, or the directory was **moved and is still in use**.
+    Nothing in the admin record separates them, and removing the entry silently
+    orphans staged blobs in the second case and breaks a live checkout in the
+    third. So the report names the entry, lists everything clearing it would
+    destroy, and stops there. ``git worktree repair <new-path>`` restores the
+    moved case without losing anything; per-path ``git worktree remove <path>``
+    clears the deleted case without touching any sibling.
     """
     protected_paths = {main_path}
     if current_path:
@@ -264,8 +225,68 @@ def decide(
         reason = KEEP_BARE if worktree.bare else KEEP_MAIN
         return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
 
+    def kept(reason: str) -> Decision:
+        """Attach the stale-entry risk to whichever structural reason won.
+
+        A locked or occupied entry that has lost its directory holds exactly
+        the same at-risk index and reflog as any other stale entry. Returning
+        the structural reason alone tells a reader who later unlocks it that
+        there was nothing else to know, and clearing it then destroys the same
+        work. The time-budget path is deliberately excluded: it exists to skip
+        this work, and the report already discloses those entries as
+        uninspected.
+
+        Staleness here is not ``prunable`` alone. Verified against real git:
+        git suppresses the ``prunable`` marker for a locked worktree even when
+        its directory is gone, because it will not prune a locked entry
+        regardless. So a missing directory counts on its own. That check costs
+        one ``stat`` and cannot fire on a healthy worktree, whose directory is
+        present by definition.
+        """
+        if _gc_stale.is_stale(worktree, checkout_present):
+            return Decision(
+                worktree.path,
+                worktree.branch,
+                remove=False,
+                reason=f"{reason}; {_gc_reasons.stale_keep_reason(worktree, main_path, _run_git)}",
+            )
+        return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
+
+    def removable(reason: str) -> Decision:
+        """A removal, unless the entry's own reflog is the last anchor for work.
+
+        Clean, merged, and fully pushed all describe the current HEAD. They say
+        nothing about commits the worktree reached and left, which its own
+        reflog alone still names. Removing the entry deletes that reflog, so the
+        last question asked before proposing a removal is whether the removal is
+        provably lossless. An unreadable probe answers no.
+        """
+        loss = _gc_reasons.reflog_only_work(worktree.path, main_path, _run_git)
+        if not loss:
+            return Decision(worktree.path, worktree.branch, remove=True, reason=reason)
+        return Decision(
+            worktree.path,
+            worktree.branch,
+            remove=False,
+            reason=f"{KEEP_REFLOG_ONLY} ({reason}); {loss}",
+        )
+
     if worktree.locked:
-        return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_LOCKED)
+        return kept(KEEP_LOCKED) if inspect else _keep(worktree, KEEP_LOCKED)
+
+    if is_occupied(worktree.path, cwds):
+        return kept(KEEP_OCCUPIED) if inspect else _keep(worktree, KEEP_OCCUPIED)
+
+    if not inspect:
+        return _keep(worktree, KEEP_TIME_BUDGET)
+
+    if worktree.prunable:
+        return Decision(
+            worktree.path,
+            worktree.branch,
+            remove=False,
+            reason=_gc_reasons.stale_keep_reason(worktree, main_path, _run_git),
+        )
 
     try:
         if has_uncommitted_changes(worktree.path):
@@ -274,7 +295,7 @@ def decide(
         reason = "merged to base"
         if worktree.detached or worktree.branch is None:
             if merged:
-                return Decision(worktree.path, worktree.branch, remove=True, reason=reason)
+                return removable(reason)
             return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_DETACHED)
         if (
             not merged
@@ -293,22 +314,58 @@ def decide(
         return Decision(worktree.path, worktree.branch, remove=False, reason=KEEP_GIT_ERROR)
 
     pushed = reason if merged else "fully pushed"
-    return Decision(worktree.path, worktree.branch, remove=True, reason=pushed)
+    return removable(pushed)
 
 
-def remove_worktree(path: str) -> None:
-    """Remove a worktree via ``git worktree remove``. Raises on failure."""
-    _run_git(["worktree", "remove", path])
+def _keep(worktree: Worktree, reason: str) -> Decision:
+    """A kept decision with no further inspection attached."""
+    return Decision(worktree.path, worktree.branch, remove=False, reason=reason)
 
 
-def prune_worktrees() -> str:
-    """Prune dead worktree admin entries. Returns git's stdout (may be empty)."""
-    return _run_git(["worktree", "prune", "-v"])
+def build_report(
+    base_ref: str,
+    apply: bool,
+    *,
+    time_budget: float | None = None,
+    clock: Callable[[], float] = time.monotonic,
+    cwds: frozenset[str] | None = None,
+) -> GcReport:
+    """Inspect all worktrees and build the GC plan (no mutation here).
 
+    ``time_budget`` bounds the inspection loop in seconds. Once it is spent,
+    every remaining worktree is kept unread with ``KEEP_TIME_BUDGET`` rather
+    than inspected. A budget of ``None`` or a non-positive number means
+    unlimited. Keeping the leftovers preserves the fail-safe invariant: a
+    worktree this run never looked at can never be proposed for removal.
 
-def build_report(base_ref: str, apply: bool) -> GcReport:
-    """Inspect all worktrees and build the GC plan (no mutation here)."""
-    worktrees = list_worktrees()
+    The budget is checked when a worker picks up a worktree, so it bounds how
+    many are inspected, not the wall clock. Decisions run on a pool of
+    ``_DECIDE_WORKERS`` threads, so up to that many inspections can be in
+    flight when the deadline passes and the inspected set is not a strict
+    prefix of the worktree list. Every value the workers read is fixed before
+    the pool starts and none of them write shared state, so the concurrency
+    adds no race; ``executor.map`` also returns in input order, so the report
+    stays deterministic in ordering even though the cutoff is not.
+    ``subprocess.run(timeout=...)`` starts its clock only once the child
+    exists, so a loaded machine can stall in process creation for longer than
+    the per-call cap. Treat the budget as a strong bound on work attempted and
+    a soft one on elapsed time; size the caller's timeout with headroom rather
+    than against an arithmetic sum.
+
+    ``cwds`` overrides live-process detection, for tests. By default the working
+    directories of running processes are read once and any worktree holding one
+    is kept, because a clean, merged, fully pushed worktree can still be the
+    home of a running agent.
+
+    The deadline starts before any work, so the ``/proc`` scan and the two
+    setup git calls are inside the budget rather than added to it. Overrunning
+    during setup leaves every worktree uninspected, which is the fail-safe
+    direction: an uninspected worktree can never be proposed for removal.
+    """
+    deadline = clock() + time_budget if time_budget and time_budget > 0 else None
+    worktrees = _gc_parse.list_worktrees(_run_git)
+    occupancy = Occupancy(cwds, 0, proc_available=True) if cwds is not None else occupied_paths()
+    live_cwds = occupancy.cwds
     main_path = worktrees[0].path if worktrees else ""
     current_path = _run_git(["rev-parse", "--show-toplevel"])
     remote_head_refs: frozenset[str] | None
@@ -329,16 +386,20 @@ def build_report(base_ref: str, apply: bool) -> GcReport:
         apply=apply,
         main_worktree=main_path,
         total_worktrees=len(worktrees),
+        occupancy_unreadable=occupancy.unreadable,
+        occupancy_unavailable=not occupancy.proc_available,
         remote_head_lookup_failed=remote_head_lookup_failed,
         remote_head_lookup_error=remote_head_lookup_error,
     )
 
-    def decide_one(wt: Worktree) -> Decision:
+    def decide_one(worktree: Worktree) -> Decision:
         return decide(
-            wt,
+            worktree,
             main_path,
             base_ref,
             current_path=current_path,
+            inspect=deadline is None or clock() < deadline,
+            cwds=live_cwds,
             remote_head_refs=remote_head_refs,
             origin_upstreams=origin_upstreams,
         )
@@ -347,96 +408,6 @@ def build_report(base_ref: str, apply: bool) -> GcReport:
     with ThreadPoolExecutor(max_workers=workers) as executor:
         report.decisions = list(executor.map(decide_one, worktrees))
     return report
-
-
-def apply_removals(report: GcReport) -> None:
-    """Remove the candidate worktrees, then prune admin entries.
-
-    Records each success in ``report.removed`` and each failure in
-    ``report.remove_errors`` without aborting the batch. Pruning runs once
-    after removals to clean up any orphaned admin entries.
-    """
-    for decision in report.candidates:
-        try:
-            remove_worktree(decision.path)
-            report.removed.append(decision.path)
-        except RuntimeError as exc:
-            report.remove_errors.append(f"{decision.path}: {exc}")
-    try:
-        prune_worktrees()
-    except RuntimeError as exc:
-        report.remove_errors.append(f"prune: {exc}")
-
-
-def _append_decision_group(
-    lines: list[str],
-    title: str,
-    decisions: list[Decision],
-    formatter: Callable[[Decision], str],
-) -> None:
-    """Append a titled decision group when there is anything to report."""
-    if not decisions:
-        return
-    lines.append(title)
-    for decision in decisions:
-        lines.append(formatter(decision))
-
-
-def _append_disposition_group(lines: list[str], decisions: list[Decision]) -> None:
-    """Append kept branches that need human cleanup disposition."""
-    if not decisions:
-        return
-    lines.append("  Needs disposition:")
-    lines.append("    Review branch and issue state, then push, merge, lock, or delete.")
-    for decision in decisions:
-        lines.append(f"    - {decision.path} [{decision.branch}] unpushed and unmerged")
-
-
-def _append_apply_result(lines: list[str], report: GcReport) -> None:
-    """Append removal results from apply mode."""
-    lines.append(f"  removed: {len(report.removed)}")
-    for path in report.removed:
-        lines.append(f"    - removed {path}")
-    if report.remove_errors:
-        lines.append(f"  errors: {len(report.remove_errors)}")
-        for err in report.remove_errors:
-            lines.append(f"    - {err}")
-
-
-def format_report(report: GcReport) -> str:
-    """Human-readable summary of the GC plan or result."""
-    mode = "APPLY" if report.apply else "DRY-RUN"
-    lines = [
-        f"Worktree GC [{mode}] base={report.base_ref}",
-        f"  total worktrees: {report.total_worktrees}",
-        f"  removal candidates: {len(report.candidates)}",
-        f"  kept: {len(report.kept)}",
-    ]
-    if report.remote_head_lookup_failed:
-        lines.append("  remote head lookup failed, using ancestry-only merge checks")
-        if report.remote_head_lookup_error:
-            lines.append(f"    {report.remote_head_lookup_error}")
-    _append_decision_group(
-        lines,
-        "  Candidates:",
-        report.candidates,
-        lambda d: f"    - {d.path} [{d.branch}] ({d.reason})",
-    )
-    _append_disposition_group(lines, report.needs_disposition)
-    _append_decision_group(
-        lines,
-        "  Kept:",
-        report.kept,
-        lambda d: f"    - {d.path} [{d.branch}] KEEP: {d.reason}",
-    )
-    if report.apply:
-        _append_apply_result(lines, report)
-    else:
-        lines.append(
-            f"  DRY-RUN: removed nothing. Pass --apply to remove "
-            f"{len(report.candidates)} candidate(s)."
-        )
-    return "\n".join(lines)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -459,6 +430,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Emit the report as JSON instead of human-readable text.",
     )
+    parser.add_argument(
+        "--time-budget",
+        type=float,
+        default=_DEFAULT_TIME_BUDGET_SECONDS,
+        metavar="SECONDS",
+        help=(
+            "Stop inspecting after this many seconds and keep the remaining "
+            "worktrees unread (default: %(default)s). Pass 0 for an unbounded "
+            "pass. Uninspected worktrees are never removal candidates."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -466,9 +448,13 @@ def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns an ADR-035 exit code."""
     args = parse_args(argv)
     try:
-        report = build_report(base_ref=args.base, apply=args.apply)
+        report = build_report(base_ref=args.base, apply=args.apply, time_budget=args.time_budget)
         if args.apply:
-            apply_removals(report)
+            _gc_apply.apply_removals(
+                report,
+                lambda: build_report(report.base_ref, apply=True),
+                _run_git,
+            )
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

@@ -28,9 +28,9 @@ for search_path in (LIB_DIR, HOOKS_DIR):
     if search_path not in sys.path:
         sys.path.insert(0, search_path)
 
-import claude_hook_dispatch as chd  # noqa: E402
-import claude_hook_protocol as protocol  # noqa: E402
-import invoke_dispatch_claude as entry  # noqa: E402
+import claude_hook_dispatch as chd
+import claude_hook_protocol as protocol
+import invoke_dispatch_claude as entry
 
 
 def test_module_bootstrap_adds_lib_directory(monkeypatch):
@@ -1190,7 +1190,19 @@ def test_entry_bounds_stdin_by_dispatch_mode(
         ("raise SystemExit(1)\n", b"SystemExit: 1"),
     ],
 )
-def test_entry_import_failure_exits_two(tmp_path, module_body, expected_error):
+def test_entry_import_failure_degrades(tmp_path, module_body, expected_error):
+    """A load failure degrades with exit 0, it does not deny.
+
+    This asserted exit 2 without recording why denial was correct. Claude reads
+    a nonzero PreToolUse exit as a denial, so a missing or broken lib directory
+    denied every tool call: the customer-wide failure behind three uninstalls.
+    The bash launcher guards the plugin root and the dispatcher file but cannot
+    check lib, so this entrypoint is the only place that failure surfaces.
+
+    The boundary is load versus policy, not error type. Nothing ran, so there
+    is no policy decision to fail closed on. Failures after the machinery loads
+    still deny, which the sibling fails-closed tests below cover. Refs #4672.
+    """
     hooks_dir = tmp_path / "hooks"
     lib_dir = tmp_path / "lib"
     hooks_dir.mkdir()
@@ -1213,8 +1225,11 @@ def test_entry_import_failure_exits_two(tmp_path, module_body, expected_error):
         check=False,
     )
 
-    assert result.returncode == 2
-    assert b"entrypoint initialization failed" in result.stderr
+    assert result.returncode == 0, (
+        "a load failure denied the tool call; Claude reads any nonzero "
+        f"PreToolUse exit as a denial. stderr:\n{result.stderr!r}"
+    )
+    assert b"hooks DISABLED" in result.stderr
     assert expected_error in result.stderr
 
 

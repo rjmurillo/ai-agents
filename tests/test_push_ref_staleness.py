@@ -1,0 +1,141 @@
+"""Tests for push_ref_staleness.py (issue #3862).
+
+Covers:
+- Positive: remote matches cached SHA -> exit 0
+- Positive: new branch (no remote) -> exit 0
+- Positive: empty stdin -> exit 0
+- Positive: deletion push (zeros) -> exit 0
+- Positive: remote advanced but we already merged it (ancestor) -> exit 0
+- Negative: remote advanced and we haven't merged it -> exit 3
+- Edge: multiple refs, one stale -> exit 3
+- Edge: multiple refs, all clean -> exit 0
+- Edge: malformed stdin line -> skip gracefully
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+from io import StringIO
+from pathlib import Path
+from unittest.mock import patch
+
+_SCRIPT = (
+    Path(__file__).resolve().parents[1]
+    / "scripts" / "validation" / "push_ref_staleness.py"
+)
+
+
+def _import_script(name: str):
+    spec = importlib.util.spec_from_file_location(name, _SCRIPT)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_mod = _import_script("push_ref_staleness_test")
+main = _mod.main
+
+_LOCAL_SHA = "a" * 40
+_REMOTE_SHA_OLD = "b" * 40
+_REMOTE_SHA_NEW = "c" * 40
+_REF = "refs/heads/feature"
+
+
+def _make_stdin(local_sha=_LOCAL_SHA, remote_sha=_REMOTE_SHA_OLD, ref=_REF):
+    return StringIO(f"{ref} {local_sha} {ref} {remote_sha}\n")
+
+
+def _mock_remote_sha(sha_or_none):
+    """Return a patcher that makes _remote_sha return sha_or_none."""
+    return patch.object(_mod, "_remote_sha", return_value=sha_or_none)
+
+
+def _mock_is_ancestor(result):
+    return patch.object(_mod, "_is_ancestor", return_value=result)
+
+
+class TestEmptyAndDeletion:
+    def test_empty_stdin_exits_zero(self):
+        with patch("sys.stdin", StringIO("")):
+            assert main([]) == 0
+
+    def test_deletion_push_exits_zero(self):
+        # Deletion: local_sha is all zeros
+        zeros = "0" * 40
+        stdin = StringIO(f"{_REF} {zeros} {_REF} {_REMOTE_SHA_OLD}\n")
+        with patch("sys.stdin", stdin), _mock_remote_sha(_REMOTE_SHA_NEW):
+            assert main([]) == 0
+
+
+class TestRemoteUnchanged:
+    def test_remote_matches_cached_sha_exits_zero(self):
+        # live_sha == cached remote sha: no race
+        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
+                _mock_remote_sha(_REMOTE_SHA_OLD):
+            assert main([]) == 0
+
+    def test_no_remote_ref_exits_zero(self):
+        # New branch: ls-remote returns None
+        with patch("sys.stdin", _make_stdin()), _mock_remote_sha(None):
+            assert main([]) == 0
+
+
+class TestRemoteAdvanced:
+    def test_remote_advanced_and_not_merged_exits_three(self):
+        # live != cached, and local does NOT contain the new remote commit
+        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
+                _mock_remote_sha(_REMOTE_SHA_NEW), \
+                _mock_is_ancestor(False):
+            assert main([]) == 3
+
+    def test_remote_advanced_but_already_merged_exits_zero(self):
+        # live != cached, but local IS an ancestor of the new remote
+        with patch("sys.stdin", _make_stdin(remote_sha=_REMOTE_SHA_OLD)), \
+                _mock_remote_sha(_REMOTE_SHA_NEW), \
+                _mock_is_ancestor(True):
+            assert main([]) == 0
+
+
+class TestMultipleRefs:
+    def test_all_clean_exits_zero(self):
+        stdin_text = (
+            f"refs/heads/a {_LOCAL_SHA} refs/heads/a {_REMOTE_SHA_OLD}\n"
+            f"refs/heads/b {_LOCAL_SHA} refs/heads/b {_REMOTE_SHA_OLD}\n"
+        )
+        with patch("sys.stdin", StringIO(stdin_text)), \
+                _mock_remote_sha(_REMOTE_SHA_OLD):
+            assert main([]) == 0
+
+    def test_one_stale_exits_three(self):
+        sha_clean = "d" * 40
+        sha_stale_cached = "e" * 40
+        sha_stale_live = "f" * 40
+        stdin_text = (
+            f"refs/heads/ok {_LOCAL_SHA} refs/heads/ok {sha_clean}\n"
+            f"refs/heads/bad {_LOCAL_SHA} refs/heads/bad {sha_stale_cached}\n"
+        )
+
+        def _fake_remote_sha(_remote, refspec):
+            if "bad" in refspec:
+                return sha_stale_live
+            return sha_clean
+
+        with patch("sys.stdin", StringIO(stdin_text)), \
+                patch.object(_mod, "_remote_sha", side_effect=_fake_remote_sha), \
+                _mock_is_ancestor(False):
+            assert main([]) == 3
+
+
+class TestMalformedInput:
+    def test_short_line_skipped(self):
+        stdin = StringIO("only two fields\n")
+        with patch("sys.stdin", stdin):
+            assert main([]) == 0
+
+    def test_empty_lines_skipped(self):
+        stdin = StringIO("\n\n\n")
+        with patch("sys.stdin", stdin):
+            assert main([]) == 0

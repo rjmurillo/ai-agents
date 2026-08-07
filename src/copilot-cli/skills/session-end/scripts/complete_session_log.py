@@ -18,7 +18,7 @@ import os
 import re
 import subprocess
 import sys
-from datetime import UTC
+import warnings
 from pathlib import Path
 from types import ModuleType
 
@@ -133,20 +133,18 @@ def _match_log_for_branch(
 
 
 def _find_current_session_log(sessions_dir: str) -> str | None:
-    """Find the session log for the current branch, falling back to newest by mtime.
+    """Find the session log for the current branch, or None.
 
-    Scans recent session logs and returns the first whose ``session.branch``
-    (or legacy top-level ``branch``) field matches the current git branch.
-    Falls back to mtime ordering (preferring today over older dates) so callers
-    fail open rather than hard-blocking when no branch-specific log exists yet.
+    Scans session logs and returns the newest whose ``session.branch`` (or
+    legacy top-level ``branch``) field matches the current git branch.
+    Returns ``None`` when the branch cannot be determined (detached HEAD) or
+    when no log carries a matching branch field.
 
-    This replaces the previous purely-mtime-based selection that would silently
-    pick another agent's session log on a different branch (issue #4161).
+    Returning ``None`` rather than the mtime winner prevents session-end from
+    writing into a different session's log when concurrent agents on other
+    branches own a newer mtime (issue #4161). The caller detects ``None`` and
+    asks the operator to supply ``--session-path`` explicitly.
     """
-    from datetime import datetime
-
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-
     if not os.path.isdir(sessions_dir):
         return None
 
@@ -154,24 +152,25 @@ def _find_current_session_log(sessions_dir: str) -> str | None:
     for name in os.listdir(sessions_dir):
         if name.endswith(".json") and re.match(r"\d{4}-\d{2}-\d{2}-session-\d+", name):
             full = os.path.join(sessions_dir, name)
-            candidates.append((os.path.getmtime(full), full, name))
+            try:
+                mtime = os.path.getmtime(full)
+            except OSError:
+                warnings.warn(
+                    f"Skipping unreadable session log: {name}",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                continue
+            candidates.append((mtime, full, name))
 
     if not candidates:
         return None
 
     branch = _get_current_branch()
-    if branch is not None:
-        matched = _match_log_for_branch(candidates, branch)
-        if matched is not None:
-            return matched
+    if branch is None:
+        return None
 
-    candidates.sort(key=lambda x: x[0], reverse=True)
-
-    for _, full, name in candidates:
-        if name.startswith(today):
-            return full
-
-    return candidates[0][1]
+    return _match_log_for_branch(candidates, branch)
 
 
 def _get_ending_commit() -> str | None:
@@ -201,7 +200,7 @@ def _test_handoff_modified() -> bool:
     return False
 
 
-def _test_serena_memory_updated() -> bool:
+def _test_serena_memory_updated(starting_commit: str | None = None) -> bool:
     for cmd in [
         ["git", "diff", "--cached", "--name-only"],
         ["git", "diff", "--name-only"],
@@ -216,7 +215,25 @@ def _test_serena_memory_updated() -> bool:
         )
         if result.returncode == 0:
             for line in result.stdout.splitlines():
-                if line.startswith(".serena/memories"):
+                if line.startswith(".serena/memories/"):
+                    return True
+    if starting_commit:
+        result = subprocess.run(
+            [
+                "git",
+                "log",
+                "--name-only",
+                "--format=",
+                f"{starting_commit}..HEAD",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if line.startswith(".serena/memories/"):
                     return True
     return False
 
@@ -266,7 +283,16 @@ def _run_markdown_lint() -> tuple[bool, str]:
     return False, "\n".join(errors)
 
 
-def _test_uncommitted_changes() -> bool:
+def _test_uncommitted_changes(exclude_path: str | None = None) -> bool:
+    """Return True when uncommitted changes exist, excluding ``exclude_path``.
+
+    ``exclude_path`` should be the repo-relative path of the session log being
+    completed. The log is itself staged or modified while this check runs, so
+    it would always appear in ``git status`` output and make ``changesCommitted``
+    impossible to satisfy without a workaround (issue #4425). Excluding it
+    means ``changesCommitted`` reflects whether all *other* work is committed,
+    which is what the field is trying to express.
+    """
     result = subprocess.run(
         ["git", "status", "--porcelain"],
         capture_output=True,
@@ -276,7 +302,12 @@ def _test_uncommitted_changes() -> bool:
     )
     if result.returncode != 0:
         return True
-    return bool(result.stdout.strip())
+    lines = result.stdout.splitlines()
+    if exclude_path:
+        # porcelain v1 format: "XY path" or "XY old -> new"; match the path
+        # portion at the end of each line after the two-character status prefix.
+        lines = [ln for ln in lines if not ln[3:].rstrip().endswith(exclude_path)]
+    return bool(lines)
 
 
 def _validate_path_containment(session_path: str, sessions_dir: str) -> str | None:
@@ -329,7 +360,7 @@ def _ensure_rework_loaded() -> None:
         _rework_cache["REWORK_THRESHOLD"] = _mod.REWORK_THRESHOLD
         _rework_cache["compute_rework_warning"] = _mod.compute_rework_warning
         _rework_cache["emit_rework_warning_lines"] = _mod.emit_rework_warning_lines
-    except Exception:  # noqa: BLE001 - informational; must never block
+    except Exception:
         _rework_cache["REWORK_THRESHOLD"] = 6
         _rework_cache["compute_rework_warning"] = None
         _rework_cache["emit_rework_warning_lines"] = None
@@ -384,7 +415,7 @@ def _run_rework_warning_step() -> tuple[str, list[str]]:
         lines = list(_emit(rework_items))
         for line in lines:
             print(line)
-    except Exception as exc:  # noqa: BLE001 - informational; must never block
+    except Exception as exc:
         notice = f"rework-warning: skipped (runtime error: {type(exc).__name__})"
         print(notice)
         return "Rework warning: skipped (runtime error)", [notice]
@@ -406,7 +437,13 @@ def main(argv: list[str] | None = None) -> int:
     if not session_path:
         session_path = _find_current_session_log(sessions_dir)
         if not session_path:
-            print("[FAIL] No session log found in .agents/sessions/", file=sys.stderr)
+            branch = _get_current_branch()
+            where = f"branch '{branch}'" if branch else "detached HEAD (no current branch)"
+            print(
+                f"[FAIL] No session log found for {where} in {sessions_dir}. "
+                "Use --session-path to specify the log explicitly.",
+                file=sys.stderr,
+            )
             return 1
         print(f"Auto-detected session log: {session_path}", file=sys.stderr)
     else:
@@ -479,7 +516,8 @@ def main(argv: list[str] | None = None) -> int:
             changes.append("Confirmed HANDOFF.md not modified")
 
     # 3. serenaMemoryUpdated
-    memory_updated = _test_serena_memory_updated()
+    starting_commit = session.get("session", {}).get("startingCommit")
+    memory_updated = _test_serena_memory_updated(starting_commit)
     if "serenaMemoryUpdated" in session_end:
         check = session_end["serenaMemoryUpdated"]
         if memory_updated:
@@ -521,7 +559,14 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # 5. changesCommitted
-    has_uncommitted = _test_uncommitted_changes()
+    # Exclude the session log itself: it is staged or modified while this
+    # check runs and would always appear in porcelain output, making
+    # changesCommitted impossible to satisfy (issue #4425).
+    try:
+        session_rel = os.path.relpath(session_path, repo_root)
+    except ValueError:
+        session_rel = None
+    has_uncommitted = _test_uncommitted_changes(exclude_path=session_rel)
     if "changesCommitted" in session_end:
         check = session_end["changesCommitted"]
         if not has_uncommitted:
