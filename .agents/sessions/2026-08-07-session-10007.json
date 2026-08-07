@@ -3,7 +3,7 @@
   "session": {
     "number": 10007,
     "date": "2026-08-07",
-    "branch": "fix/worktree-walk-timeouts",
+    "branch": "fix/gc-worktrees-admin-anchors",
     "startingCommit": "f0d881cfa664adcf27d65084efd079ab783d2a5d",
     "objective": "Unblock a five-PR stack, and record the two measurement defects the session exposed: a push-receipt grep pattern that never matches, and a repo script that validates its own worktree when invoked by absolute path."
   },
@@ -32,12 +32,12 @@
       "branchVerified": {
         "level": "MUST",
         "complete": true,
-        "evidence": "git rev-parse --abbrev-ref HEAD reported fix/worktree-walk-timeouts in worktree ~/src/scratch/wt-walk before every commit."
+        "evidence": "git rev-parse --abbrev-ref HEAD reported fix/gc-worktrees-admin-anchors in the main clone before this commit; earlier commits ran the same check on fix/worktree-walk-timeouts in ~/src/scratch/wt-walk and on docs/memory-script-root-wrong-tree in ~/src/scratch/wt-scriptroot."
       },
       "notOnMain": {
         "level": "MUST",
         "complete": true,
-        "evidence": "All work on fix/worktree-walk-timeouts and docs/memory-script-root-wrong-tree."
+        "evidence": "All work on fix/gc-worktrees-admin-anchors, fix/gc-worktrees-stale-entries, fix/worktree-walk-timeouts, docs/memory-push-gate-lessons, and docs/memory-script-root-wrong-tree. No commit on main."
       },
       "skillScriptsListed": {
         "level": "MUST",
