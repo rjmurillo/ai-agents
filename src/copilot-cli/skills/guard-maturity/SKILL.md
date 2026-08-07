@@ -98,7 +98,9 @@ with tempfile.NamedTemporaryFile(
     print(push_log.name)
 PY
 )"
-git push 2>&1 | tee "$PUSH_LOG"
+git push > "$PUSH_LOG" 2>&1
+PUSH_RC=$?
+cat "$PUSH_LOG"
 grep '^EVENT=' "$PUSH_LOG" >> .agents/telemetry/$(date +push-guard-events-%G-%V).jsonl
 ```
 

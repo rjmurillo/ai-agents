@@ -72,7 +72,8 @@
         "e002",
         "e003",
         "e004",
-        "e005"
+        "e005",
+        "e008"
       ],
       "leads_to": [
         "e007"
@@ -87,7 +88,57 @@
       "caused_by": [
         "e006"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-06-session-4654-security-cluster"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix-review-threads",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-06-session-4654-security-cluster"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-07T11:34:07+00:00",
+      "type": "commit",
+      "content": "Commit: 9b849847e",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-4654-security-cluster"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-07T11:52:11+00:00",
+      "type": "commit",
+      "content": "Commit: 2e2426778",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-06-session-4654-security-cluster"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-07T11:04:01+00:00",
+      "type": "commit",
+      "content": "Commit: 6fb7a4db7",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-06-session-4654-security-cluster"
     }
   ],
@@ -96,7 +147,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 5,
     "files_changed": 2
   },
   "lessons": []

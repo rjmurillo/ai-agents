@@ -1,6 +1,7 @@
 from pathlib import Path
 
-_AGENT_PROMPT = Path(".github/agents/code-reviewer.agent.md")
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_AGENT_PROMPT = _REPO_ROOT / ".github/agents/code-reviewer.agent.md"
 
 
 def test_code_reviewer_treats_tool_output_as_untrusted_data():

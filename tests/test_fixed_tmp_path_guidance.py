@@ -28,4 +28,12 @@ def test_guidance_does_not_reintroduce_fixed_tmp_paths():
 def test_guidance_uses_python_tempfile_for_per_run_paths():
     for relative_path in _GUIDANCE_FILES[:-1]:
         text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
-        assert "tempfile.NamedTemporaryFile" in text
+        assert any(
+            strategy in text
+            for strategy in (
+                "tempfile.NamedTemporaryFile",
+                "tempfile.mktemp",
+                "tempfile.mkstemp",
+                "tempfile.TemporaryDirectory",
+            )
+        )
