@@ -21,6 +21,13 @@ _spec = importlib.util.spec_from_file_location("hook_dispatch", _LIB)
 assert _spec is not None and _spec.loader is not None
 hook_dispatch = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(hook_dispatch)
+
+# output_capture and shim_loader are separate modules that hook_dispatch
+# imports. Tests that monkeypatch descriptor plumbing must patch the module
+# that owns it, not the dispatcher that calls it.
+import sys as _sys  # noqa: E402
+
+output_capture = _sys.modules["output_capture"]
 observe_output_policy = hook_dispatch.observe_output_policy
 run_dispatch = hook_dispatch.run_dispatch
 run_permission_dispatch = hook_dispatch.run_permission_dispatch
@@ -50,7 +57,7 @@ def test_open_capture_stream_closes_duplicate_when_fdopen_fails(monkeypatch):
     monkeypatch.setattr(hook_dispatch.os, "close", closed.append)
 
     with pytest.raises(ValueError, match="unavailable"):
-        hook_dispatch._open_capture_stream(1)
+        output_capture.open_capture_stream(1)
 
     assert closed == [41]
 
@@ -69,7 +76,7 @@ def test_restore_output_fds_restores_stderr_before_raising_stdout_error(monkeypa
         patch.setattr(hook_dispatch.os, "close", closed.append)
 
         with pytest.raises(OSError, match="stdout restore failed"):
-            hook_dispatch._restore_output_fds(51, 52)
+            output_capture.restore_output_fds(51, 52)
 
     assert restored == [(52, 2)]
     assert closed == [51, 52]
@@ -81,17 +88,18 @@ def test_process_capture_setup_error_fails_closed(monkeypatch, capsys):
     def fail_capture(*_args, **_kwargs):
         raise OSError("capture setup failed")
 
-    monkeypatch.setattr(hook_dispatch, "_save_output_fds", lambda _capture_stderr: (61, None))
-    monkeypatch.setattr(hook_dispatch, "_capture_process_output", fail_capture)
+    monkeypatch.setattr(output_capture, "save_output_fds", lambda _capture_stderr: (61, None))
+    monkeypatch.setattr(output_capture, "capture_process_output", fail_capture)
     monkeypatch.setattr(
-        hook_dispatch,
-        "_restore_output_fds",
+        output_capture,
+        "restore_output_fds",
         lambda stdout_fd, stderr_fd: restored.append((stdout_fd, stderr_fd)),
     )
 
-    code, stdout, stderr = hook_dispatch._run_capturing_process_output(
+    code, stdout, stderr = output_capture.run_capturing_process_output(
         "observer.py",
         lambda: 0,
+        failure_exit=hook_dispatch.BLOCK_EXIT,
     )
 
     assert (code, stdout, stderr) == (2, "", "")
@@ -549,7 +557,7 @@ class TestObserveOutput:
             "context.py",
             f"from pathlib import Path\nPath(r'{marker}').touch()\n",
         )
-        real_open_capture_stream = hook_dispatch._open_capture_stream
+        real_open_capture_stream = output_capture.open_capture_stream
         call_count = 0
 
         def fail_second_stream(fd):
@@ -560,8 +568,8 @@ class TestObserveOutput:
             return real_open_capture_stream(fd)
 
         monkeypatch.setattr(
-            hook_dispatch,
-            "_open_capture_stream",
+            output_capture,
+            "open_capture_stream",
             fail_second_stream,
         )
 
@@ -591,7 +599,7 @@ class TestObserveOutput:
         def fail_stdout_stream(_fd):
             raise OSError("stdout stream unavailable")
 
-        monkeypatch.setattr(hook_dispatch, "_open_capture_stream", fail_stdout_stream)
+        monkeypatch.setattr(output_capture, "open_capture_stream", fail_stdout_stream)
 
         rc = run_dispatch(
             tmp_path,
@@ -806,3 +814,59 @@ class TestRunPermissionDispatch:
         captured = capsys.readouterr()
         assert rc == 7
         assert captured.out == ""
+
+
+class TestShimImportErrorCannotBypassTheGate:
+    """A shim must not reach the degraded path by raising after it started.
+
+    run_path executed the whole shim inside the handler, so a shim could load,
+    read the request, decide it wanted to be allowed, and raise ImportError to
+    reach exit 0. That converted a policy decision into an allow and bypassed
+    the gate: the mirror of the denial the degraded branch exists to prevent,
+    and the more dangerous direction. Refs #4672.
+    """
+
+    def _run(self, tmp_path, body: str) -> int:
+        from hook_dispatch import _run_shim
+
+        shim = tmp_path / "shim.py"
+        shim.write_text(body, encoding="utf-8")
+        return _run_shim(shim, "test-shim", b"{}")
+
+    def test_import_error_after_execution_denies(self, tmp_path):
+        """The attack shape: run first, then raise ImportError."""
+        from hook_dispatch import BLOCK_EXIT
+
+        code = self._run(
+            tmp_path,
+            "import sys\n"
+            "sys.stdin.read()\n"
+            "raise ImportError('pretending to be a load failure')\n",
+        )
+
+        assert code == BLOCK_EXIT, (
+            "a shim that ran and then raised ImportError was allowed, which "
+            "bypasses the gate"
+        )
+
+    def test_syntax_error_still_degrades(self, tmp_path):
+        """A shim that cannot compile ran no code, so there is no verdict."""
+        from hook_dispatch import ALLOW_EXIT
+
+        assert self._run(tmp_path, "def broken(:\n") == ALLOW_EXIT
+
+    def test_unreadable_shim_degrades(self, tmp_path):
+        from hook_dispatch import ALLOW_EXIT
+
+        missing = tmp_path / "absent.py"
+        from hook_dispatch import _run_shim
+
+        assert _run_shim(missing, "absent", b"{}") == ALLOW_EXIT
+
+    def test_explicit_exit_is_still_a_verdict(self, tmp_path):
+        assert self._run(tmp_path, "import sys\nsys.exit(2)\n") == 2
+
+    def test_clean_shim_still_allows(self, tmp_path):
+        from hook_dispatch import ALLOW_EXIT
+
+        assert self._run(tmp_path, "x = 1\n") == ALLOW_EXIT

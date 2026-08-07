@@ -91,6 +91,21 @@ def _run_hook(
         # Simulate interpreter absence by mangling PATH
         env["PATH"] = ""
 
+    # Semgrep traces install_root from argparse to this call and cannot see
+    # the containment check in _find_dispatcher, which resolves the candidate
+    # and refuses any path outside the install root. That check is real and
+    # tested, but it raises rather than returning a sanitized value, so the
+    # taint engine keeps following it.
+    #
+    # Not suppressed: this repository forbids security suppression comments in
+    # staged changes, which is a stronger stance than treating them as a last
+    # resort, and the gate is right. A suppression records that someone once
+    # decided this was fine; the containment check and its tests record why.
+    #
+    # Command injection is not reachable here regardless. This is an argument
+    # list with no shell, so a metacharacter in the path arrives as one literal
+    # argument and cannot start a second command, and the interpreter is
+    # sys.executable rather than a caller-supplied string.
     return subprocess.run(
         [sys.executable, "-u", str(dispatch_py)],
         input=payload,
