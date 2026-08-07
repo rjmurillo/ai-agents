@@ -168,7 +168,11 @@ def get_merge_base(base_branch: str, base_ref: str | None = None) -> str | None:
 
 
 def get_index_files_against_ref(base_ref: str) -> list[str]:
-    """Get staged result files that differ from a base ref."""
+    """Get staged result files that differ from a base ref.
+
+    Raises:
+        ScopeDetectionError: If the git diff command fails.
+    """
     result = subprocess.run(
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", base_ref],
         capture_output=True,
@@ -179,12 +183,19 @@ def get_index_files_against_ref(base_ref: str) -> list[str]:
         check=False,
     )
     if result.returncode != 0:
-        return []
+        raise ScopeDetectionError(
+            f"git diff --cached against {base_ref} failed (rc={result.returncode}): "
+            f"{result.stderr.strip()}"
+        )
     return [f.strip() for f in result.stdout.splitlines() if f.strip()]
 
 
 def get_head_files_against_ref(base_ref: str) -> list[str]:
-    """Get committed HEAD files that differ from a base ref."""
+    """Get committed HEAD files that differ from a base ref.
+
+    Raises:
+        ScopeDetectionError: If the git diff command fails.
+    """
     result = subprocess.run(
         ["git", "diff", "--name-only", "--diff-filter=ACMR", f"{base_ref}...HEAD"],
         capture_output=True,
@@ -195,7 +206,10 @@ def get_head_files_against_ref(base_ref: str) -> list[str]:
         check=False,
     )
     if result.returncode != 0:
-        return []
+        raise ScopeDetectionError(
+            f"git diff against {base_ref}...HEAD failed (rc={result.returncode}): "
+            f"{result.stderr.strip()}"
+        )
     return [f.strip() for f in result.stdout.splitlines() if f.strip()]
 
 

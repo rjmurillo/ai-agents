@@ -279,12 +279,13 @@ class TestGetIndexFilesAgainstRef:
             )
             assert get_index_files_against_ref("origin/main") == ["a.py", "b.py"]
 
-    def test_returns_empty_on_failure(self) -> None:
+    def test_raises_on_failure(self) -> None:
         with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=1, stdout="", stderr=""
+                args=[], returncode=1, stdout="", stderr="fatal: bad ref"
             )
-            assert get_index_files_against_ref("origin/main") == []
+            with pytest.raises(ScopeDetectionError, match="git diff --cached against origin/main failed"):
+                get_index_files_against_ref("origin/main")
 
     def test_diffs_cached_index_against_base_ref(self) -> None:
         # The --cached diff against the base ref reflects the final staged tree.
@@ -323,12 +324,13 @@ class TestGetHeadFilesAgainstRef:
                 "abc123...HEAD",
             ]
 
-    def test_returns_empty_on_failure(self) -> None:
+    def test_raises_on_failure(self) -> None:
         with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(
                 args=[], returncode=1, stdout="", stderr="fatal"
             )
-            assert get_head_files_against_ref("abc123") == []
+            with pytest.raises(ScopeDetectionError, match="git diff against abc123...HEAD failed"):
+                get_head_files_against_ref("abc123")
 
 
 class TestDetectScope:
