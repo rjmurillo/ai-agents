@@ -273,6 +273,19 @@
       "caused_by": [
         "e020"
       ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-07T20:18:23+00:00",
+      "type": "commit",
+      "content": "Commit: f8e29e5a6",
+      "caused_by": [
+        "e021"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
     }
@@ -282,7 +295,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 86
   },
   "lessons": []
