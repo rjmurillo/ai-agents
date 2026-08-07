@@ -32,7 +32,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .url_validation import validate_http_url
+
 logger = logging.getLogger(__name__)
+
+
+DIRECTORY_MATCH_WEIGHT = 0.5
+"""Credit for a keyword that matches only a parent directory, not the file name.
+
+Matching moved from the bare stem to the relative path so nested memories become
+reachable. That let a topic directory hand a perfect score to every file under
+it, burying the top-level file the query actually named. Full credit for a stem
+match and partial credit for a directory-only match keeps the recall and leaves
+top-level scoring unchanged, since a top-level stem is its whole relative path.
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -122,14 +135,16 @@ def _get_memory_files(memory_path: str) -> tuple[list[Path], list[str]]:
 
     mem_dir = Path(memory_path)
     try:
-        files = sorted(mem_dir.glob("*.md"))
+        files = sorted(mem_dir.rglob("*.md"))
     except OSError as exc:
         logger.warning(
             "Failed to enumerate memory files in '%s': %s", memory_path, exc
         )
         return [], []
 
-    lower_names = [f.stem.lower() for f in files]
+    lower_names = [
+        f.relative_to(mem_dir).with_suffix("").as_posix().lower() for f in files
+    ]
 
     _file_list_cache.path = memory_path
     _file_list_cache.files = files
@@ -178,10 +193,15 @@ def invoke_serena_search(
     results: list[MemoryResult] = []
 
     for idx, file_name in enumerate(lower_names):
+        stem = file_name.rpartition("/")[2]
+        stem_matches = sum(1 for kw in keywords if kw in stem)
         match_count = sum(1 for kw in keywords if kw in file_name)
 
         if match_count > 0:
-            score = round((match_count / keyword_count) * 100, 2)
+            weighted = stem_matches + DIRECTORY_MATCH_WEIGHT * (
+                match_count - stem_matches
+            )
+            score = round((weighted / keyword_count) * 100, 2)
             current_file = files[idx]
 
             content = None
@@ -199,7 +219,9 @@ def invoke_serena_search(
 
             results.append(
                 MemoryResult(
-                    name=current_file.stem,
+                    name=current_file.relative_to(mem_dir)
+                    .with_suffix("")
+                    .as_posix(),
                     content=content,
                     source="Serena",
                     score=score,
@@ -213,9 +235,6 @@ def invoke_serena_search(
 
     logger.debug("Serena search returned %d results", len(results))
     return results
-
-
-from .url_validation import validate_http_url
 
 
 def invoke_forgetful_search(

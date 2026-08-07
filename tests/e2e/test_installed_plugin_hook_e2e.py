@@ -133,7 +133,19 @@ class TestInstalledPluginHooks:
             f"{_PLUGIN} hooks.json not found under {_SCOPED_ROOT}"
         )
 
-    def test_installed_version_matches_worktree(self):
+    def test_installed_manifest_matches_worktree(self):
+        """The installed plugin must be the one in this worktree.
+
+        Compares the whole manifest rather than a `version` field. ADR-092
+        removed `version` from all three packaged manifests deliberately, and
+        `build/scripts/validate_plugin_version_bump.py` fails when one comes
+        back, so a version comparison here can never pass. This test was
+        skipped in CI for its whole life, which is why the staleness went
+        unnoticed until the guard workflow started running it.
+
+        Comparing the full manifest keeps the original intent, catching a
+        stale install, without depending on a field the repository forbids.
+        """
         worktree_manifest = (
             Path(__file__).resolve().parents[2]
             / "src"
@@ -142,11 +154,15 @@ class TestInstalledPluginHooks:
             / "plugin.json"
         )
         installed_manifest = _SCOPED_ROOT / ".claude-plugin" / "plugin.json"
-        expected = json.loads(worktree_manifest.read_text(encoding="utf-8"))["version"]
-        actual = json.loads(installed_manifest.read_text(encoding="utf-8"))["version"]
+        expected = json.loads(worktree_manifest.read_text(encoding="utf-8"))
+        actual = json.loads(installed_manifest.read_text(encoding="utf-8"))
+        assert "version" not in expected, (
+            "ADR-092 keeps packaged manifests version-free; a version field "
+            "reappearing means validate_plugin_version_bump.py will fail"
+        )
         assert actual == expected, (
-            f"installed {_PLUGIN} is {actual}, worktree is {expected}; reinstall "
-            "the worktree plugin before running this E2E"
+            f"installed {_PLUGIN} manifest differs from the worktree manifest; "
+            "reinstall the worktree plugin before running this E2E"
         )
 
     def test_no_stale_direct_install_shadows(self):
@@ -198,6 +214,8 @@ class TestInstalledPluginHooks:
     def test_matcher_shim_fires_on_snake_case_match(self, user_repo):
         # Req 6: snake_case payload whose tool_name matches the shim fires.
         fired_any = 0
+        candidates = 0
+        command_matchers = 0
         event_dir = _SCOPED_ROOT / "hooks" / _PRE_TOOL_EVENT
         for i, shim in enumerate(_dispatcher_shims(_SCOPED_ROOT, _PRE_TOOL_EVENT)):
             script = event_dir / shim
@@ -206,7 +224,9 @@ class TestInstalledPluginHooks:
             matcher = _shim_matcher(script)
             tool = _matching_tool(matcher)
             if tool is None:
+                command_matchers += 1
                 continue  # command matchers are exercised by dispatcher tests
+            candidates += 1
             proc = _run_shim(script, _payload_for(tool), user_repo)
             fired = _fired(proc)
             assert fired is True, (
@@ -214,14 +234,42 @@ class TestInstalledPluginHooks:
                 f"for tool {tool!r}, got fired={fired}\n{proc.stderr.decode()[:400]}"
             )
             fired_any += 1
-        assert fired_any > 0, "no bare-matcher PreToolUse shims fired"
+        # Distinguish "none fired because none were eligible" from "none fired
+        # because they failed". The original assertion was `fired_any > 0`,
+        # which cannot be satisfied when every installed shim uses a command
+        # matcher: the loop skips them all and the count stays zero. That is an
+        # assertion no input can satisfy, the mirror of one no input can
+        # falsify, and it only surfaced when this suite started running in CI.
+        if candidates == 0:
+            pytest.skip(
+                f"no bare-matcher PreToolUse shims installed to exercise "
+                f"({command_matchers} command-matcher shim(s) skipped; those are "
+                "covered by the dispatcher tests below)"
+            )
+        assert fired_any == candidates, (
+            f"{fired_any} of {candidates} bare-matcher PreToolUse shims fired"
+        )
 
     def test_lifecycle_hooks_launch_without_error(self, user_repo):
         # Req 8: non-matcher lifecycle hooks execute a representative payload
         # without a launcher error or timeout (exit code is hook-defined; we
         # only fail on launch failure / crash, not on a hook's own decision).
         hooks = _load_hooks(_SCOPED_ROOT)
-        for event in ("SessionStart", "Stop", "UserPromptSubmit"):
+        # Iterate the events the plugin actually registers rather than a
+        # hardcoded lifecycle list. The Copilot plugin registers only
+        # PreToolUse and PostToolUse; SessionStart, Stop and UserPromptSubmit
+        # were removed from this tree and the hardcoded list was never updated
+        # because this suite never ran in CI. Deriving the list from the
+        # installed manifest keeps the test honest as the event set changes.
+        lifecycle = [
+            event for event in hooks if event not in ("PreToolUse", "PostToolUse")
+        ]
+        if not lifecycle:
+            pytest.skip(
+                "installed plugin registers no non-matcher lifecycle events; "
+                f"registered events are {sorted(hooks)}"
+            )
+        for event in lifecycle:
             entries = hooks.get(event)
             assert entries, f"{event}: no installed hook entries"
             for i, entry in enumerate(entries):
