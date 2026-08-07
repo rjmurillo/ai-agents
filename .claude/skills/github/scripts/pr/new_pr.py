@@ -29,6 +29,9 @@ from new_pr_validations import (
     _resolve_validation_base,
     run_validations,
 )
+from new_pr_validations import (
+    validate_no_escaped_newlines as validate_no_escaped_newlines,
+)
 from prepare_pr_body import (
     PreparePrBodyError,
     prepare_pr_body,
