@@ -192,3 +192,99 @@ class TestUsesRestNotGraphQL:
     def test_source_uses_the_rest_pulls_endpoint(self) -> None:
         source = _SCRIPT_PATH.read_text(encoding="utf-8")
         assert "/pulls" in source and '"api"' in source
+
+
+class TestRepositoryAndRefValidation:
+    """Values reaching the API path are validated at the boundary.
+
+    ``owner_repo`` comes from ``GITHUB_REPOSITORY`` or a parsed remote URL, and
+    ``head`` from a branch name. All three are attacker-influenceable in a fork
+    or a hostile checkout, and all are interpolated into the request path and
+    query. Command injection is not the reachable risk, since gh runs as an
+    argument list with no shell. What validation prevents is a crafted value
+    steering the request at another repository or smuggling a second query
+    parameter through the head filter. Refs #4672.
+    """
+
+    @pytest.mark.parametrize(
+        "owner_repo",
+        [
+            "evil/../../other",
+            "owner/repo?state=all&head=x",
+            "owner repo",
+            "owner/repo/extra/../..",
+            "no-slash",
+        ],
+    )
+    def test_malformed_repository_is_refused(self, monkeypatch, owner_repo):
+        monkeypatch.setenv("GITHUB_REPOSITORY", owner_repo)
+        monkeypatch.setattr(
+            mod.subprocess,
+            "run",
+            lambda *a, **k: pytest.fail("gh must not run for a malformed repository"),
+        )
+
+        result = mod._run_gh_pr_view("main")
+
+        assert result.returncode == 2
+        assert "malformed repository" in result.stderr
+
+
+    def test_malformed_remote_derived_repository_is_refused(self, monkeypatch):
+        """An empty GITHUB_REPOSITORY falls through to remote derivation.
+
+        Validation therefore has to sit after that fallback, not after the
+        environment read. My first attempt checked too early and this case
+        reached gh.
+        """
+        monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+        calls: list[list[str]] = []
+
+        def _fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            if cmd[:2] == ["git", "remote"]:
+                return SimpleNamespace(
+                    returncode=0, stdout="https://github.com/owner\n", stderr=""
+                )
+            pytest.fail("gh must not run for a malformed derived repository")
+
+        monkeypatch.setattr(mod.subprocess, "run", _fake_run)
+
+        result = mod._run_gh_pr_view("main")
+
+        assert result.returncode == 2
+        assert "malformed repository" in result.stderr
+
+    @pytest.mark.parametrize(
+        "branch",
+        ["a b", "branch&state=all", "branch?x=1", "br~anch", "br^anch"],
+    )
+    def test_malformed_branch_is_refused(self, monkeypatch, branch):
+        monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+        monkeypatch.setattr(
+            mod.subprocess,
+            "run",
+            lambda *a, **k: pytest.fail("gh must not run for a malformed branch"),
+        )
+
+        result = mod._run_gh_pr_view(branch)
+
+        assert result.returncode == 2
+        assert "malformed branch" in result.stderr
+
+    def test_ordinary_values_still_reach_gh(self, monkeypatch):
+        """The inverse control: validation must not block legitimate input."""
+        monkeypatch.setenv("GITHUB_REPOSITORY", "rjmurillo/ai-agents")
+        seen: list[list[str]] = []
+
+        def _fake_run(cmd, **kwargs):
+            seen.append(cmd)
+            return SimpleNamespace(returncode=0, stdout='{"number": 1}', stderr="")
+
+        monkeypatch.setattr(mod.subprocess, "run", _fake_run)
+
+        result = mod._run_gh_pr_view("fix/some-branch_1.2")
+
+        assert result.returncode == 0
+        assert seen, "gh was never invoked for a valid repository and branch"
+        assert "repos/rjmurillo/ai-agents/pulls" in seen[0]

@@ -39,7 +39,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
+import urllib.parse
 
 DEFAULT_LABEL = "commit-limit-bypass"
 # Bounded timeout on the outbound gh call (release-it.md: every outbound call
@@ -50,6 +52,16 @@ EXIT_PRESENT = 0
 EXIT_ABSENT = 1
 EXIT_EXTERNAL = 3
 
+
+
+# GitHub owner and repository names allow letters, digits, hyphen, underscore,
+# and period; nothing else, and neither part may be empty.
+_OWNER_REPO_PATTERN = re.compile(r"[\w.-]+/[\w.-]+")
+
+# git-check-ref-format is broader than this, but every ref this tool queries is
+# an ordinary branch name. Refusing the rest costs nothing real and keeps a
+# crafted ref out of the query string.
+_GIT_REF_PATTERN = re.compile(r"[\w./-]+")
 
 def _run_gh_pr_view(branch: str | None) -> subprocess.CompletedProcess[str]:
     """Fetch the current (or named) branch PR's labels.
@@ -102,11 +114,36 @@ def _run_gh_pr_view(branch: str | None) -> subprocess.CompletedProcess[str]:
         if ":" in url and "//" not in url:  # git@host:owner/repo
             url = url.split(":", 1)[1]
         else:  # https://host/owner/repo
-            parts = url.split("/")
-            url = "/".join(parts[-2:]) if len(parts) >= 2 else url
+            # Take the path after the host rather than the last two slash
+            # separated segments. Counting segments turns a URL with no
+            # repository, such as https://github.com/owner, into the
+            # valid-looking but wrong "github.com/owner", because the scheme
+            # and host inflate the count. Parsing the path makes a truncated
+            # remote produce an empty value that the check below rejects.
+            path = urllib.parse.urlparse(url).path.strip("/")
+            segments = [segment for segment in path.split("/") if segment]
+            url = "/".join(segments[-2:]) if len(segments) >= 2 else ""
         owner_repo = url
 
     owner = owner_repo.split("/")[0] if "/" in owner_repo else ""
+
+    # owner_repo comes from GITHUB_REPOSITORY or a parsed remote URL, and head
+    # from a branch name. All three are attacker-influenceable in a fork or a
+    # hostile checkout, and all three are interpolated into the request path and
+    # query. Command injection is not the reachable risk, since gh is invoked as
+    # an argument list with no shell, so a metacharacter arrives as a literal
+    # argument. What validation prevents is a crafted value steering the request
+    # at a different repository, or smuggling a second query parameter through
+    # the head filter. Refs #4672.
+    if not _OWNER_REPO_PATTERN.fullmatch(owner_repo):
+        return subprocess.CompletedProcess(
+            ["gh"], 2, "", f"refusing to query malformed repository {owner_repo!r}"
+        )
+    if not _GIT_REF_PATTERN.fullmatch(head):
+        return subprocess.CompletedProcess(
+            ["gh"], 2, "", f"refusing to query malformed branch {head!r}"
+        )
+
     proc = subprocess.run(
         [
             "gh",
