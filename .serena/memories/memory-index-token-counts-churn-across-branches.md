@@ -65,6 +65,41 @@ file, they were not. Stage `memory-index.md` again after the updater, because
 merge commits skip `stage-memory-index`. Never hand-edit a count and never
 trust the validator's summary line to catch one.
 
+## `gh pr update-branch` is a merge commit you never see
+
+The hook skips are `skip: - merge`, so a merge commit gets no recount. That
+skip is written as a local concern, but the worst case is remote:
+`gh pr update-branch` merges the base into the PR head **on the server**. No
+hook runs at all, because nothing runs on your machine. You get no conflict to
+resolve and no diff to review, so there is no moment where the trap is visible.
+The first thing that notices is CI.
+
+Measured 2026-08-07, three separate PRs in one session, all immediately after
+`gh pr update-branch`:
+
+| PR | stale rows | example |
+|---|---|---|
+| #4592 | 1 | `memory-index-validator-checks-one-direction-only` 719 -> 784 |
+| #4732 | 1 | `skills-git-index` 590 -> 644 |
+| #4694 | 3 | `skills-session-init-index` 194 -> 244, `skills-validation-index` 452 -> 503, `skills-git-index` 590 -> 646 |
+
+None of the named rows was edited on the failing branch. `skills-git-index`
+went stale on two different branches within the same hour at two different
+values, because each branch merged a different main.
+
+So treat `gh pr update-branch` as a step that has a mandatory follow-up:
+
+```bash
+gh pr update-branch <n>
+git fetch origin && git reset --hard origin/<branch>   # take the server's merge
+uv run --frozen python scripts/update_memory_index_tokens.py
+uv run --frozen python3 scripts/ci/memory_index_token_ratchet.py   # exit 0 before pushing
+```
+
+Run the updater **after** taking the server merge, never before. Updating first
+recounts a tree that is about to change, which is how a number gets fixed and
+then re-staled in the same session.
+
 ## Why a fresh worktree recounts everything
 
 Counts come from `tiktoken` `cl100k_base` via
