@@ -1,0 +1,222 @@
+{
+  "id": "episode-2026-08-05-session-10004",
+  "session": "2026-08-05-session-10004",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Stop two repo-root pytest walkers from timing out on nested worktrees",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "triage",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "triage",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "test",
+      "content": "Reproduced locally: 2 failed, 23578 passed in 986s. Both failures are pytest-timeout at 120s, not assertions.",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "error",
+      "content": "triage  Reproduced locally: 2 failed, 23578 passed in 986s. Both failures are pytest-timeout at 120s, not assertions.",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "triage",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "root-cause",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "root-cause",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "prior-art",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "scope",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "safety",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "test",
+      "content": "Walk drops from 98769 to 6783 files (93.1 percent). The two gates go from 2 failed in 292.99s to 20 passed in 75.83s, worst test 38.04s against a 120s timeout.",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "error",
+      "content": "verify  Walk drops from 98769 to 6783 files (93.1 percent). The two gates go from 2 failed in 292.99s to 20 passed in 75.83s, worst test 38.04s against a 120s timeout.",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "review",
+      "caused_by": [],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-05-session-10004"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-06T06:13:32+00:00",
+      "type": "commit",
+      "content": "Commit: 68a1edee64836da9a6e6a8a8889140a6818549ee",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e013",
+        "e014",
+        "e015",
+        "e016"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-10004"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 4,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
