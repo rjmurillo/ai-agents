@@ -52,9 +52,9 @@ def test_open_capture_stream_closes_duplicate_when_fdopen_fails(monkeypatch):
     def fail_fdopen(*_args, **_kwargs):
         raise ValueError("unavailable")
 
-    monkeypatch.setattr(hook_dispatch.os, "dup", lambda _fd: 41)
-    monkeypatch.setattr(hook_dispatch.os, "fdopen", fail_fdopen)
-    monkeypatch.setattr(hook_dispatch.os, "close", closed.append)
+    monkeypatch.setattr(output_capture.os, "dup", lambda _fd: 41)
+    monkeypatch.setattr(output_capture.os, "fdopen", fail_fdopen)
+    monkeypatch.setattr(output_capture.os, "close", closed.append)
 
     with pytest.raises(ValueError, match="unavailable"):
         output_capture.open_capture_stream(1)
@@ -72,8 +72,8 @@ def test_restore_output_fds_restores_stderr_before_raising_stdout_error(monkeypa
         restored.append((source, target))
 
     with monkeypatch.context() as patch:
-        patch.setattr(hook_dispatch.os, "dup2", restore)
-        patch.setattr(hook_dispatch.os, "close", closed.append)
+        patch.setattr(output_capture.os, "dup2", restore)
+        patch.setattr(output_capture.os, "close", closed.append)
 
         with pytest.raises(OSError, match="stdout restore failed"):
             output_capture.restore_output_fds(51, 52)
@@ -533,7 +533,7 @@ class TestObserveOutput:
         def fail_dup(_fd):
             raise OSError("dup unavailable")
 
-        monkeypatch.setattr(hook_dispatch.os, "dup", fail_dup)
+        monkeypatch.setattr(output_capture.os, "dup", fail_dup)
 
         rc = run_dispatch(
             tmp_path,
@@ -623,7 +623,7 @@ class TestObserveOutput:
             "context.py",
             f"from pathlib import Path\nPath(r'{marker}').touch()\n",
         )
-        real_dup = hook_dispatch.os.dup
+        real_dup = output_capture.os.dup
         call_count = 0
 
         def fail_second_dup(fd):
@@ -633,7 +633,7 @@ class TestObserveOutput:
                 raise OSError("capture descriptor unavailable")
             return real_dup(fd)
 
-        monkeypatch.setattr(hook_dispatch.os, "dup", fail_second_dup)
+        monkeypatch.setattr(output_capture.os, "dup", fail_second_dup)
 
         rc = run_dispatch(
             tmp_path,
