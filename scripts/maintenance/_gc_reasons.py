@@ -79,7 +79,7 @@ def stale_keep_reason(worktree: Worktree, main_path: str, run_git: Callable[...,
     warnings = [
         _head_warning(worktree.head, run_git),
         _staged_warning(admin, worktree.head, main_path),
-        _reflog_warning(admin, main_path),
+        _admin_warning(admin, main_path),
     ]
     lead = "".join(f"{warning} | " for warning in warnings if warning)
     return f"{lead}{KEEP_STALE}"
@@ -103,7 +103,7 @@ def reflog_only_work(worktree_path: str, main_path: str, run_git: Callable[..., 
     admin = _gc_stale.admin_dir_for(worktree_path, partial(run_git, cwd=main_path), main_path)
     if admin is None:
         return "its admin entry could not be located, so abandoned commits cannot be ruled out"
-    return _reflog_warning(admin, main_path)
+    return _admin_warning(admin, main_path)
 
 
 def _head_warning(head: str | None, run_git: Callable[..., str]) -> str:
@@ -144,11 +144,11 @@ def _staged_warning(admin: Path, head: str | None, main_path: str) -> str:
     )
 
 
-def _reflog_warning(admin: Path, main_path: str) -> str:
-    """Which commits the admin reflog alone anchors, or why that is unknown."""
-    orphans = _gc_stale.unreachable_reflog_commits(admin, main_path, _GIT_TIMEOUT_SECONDS)
+def _admin_warning(admin: Path, main_path: str) -> str:
+    """Which commits the admin directory alone anchors, or why that is unknown."""
+    orphans = _gc_stale.unreachable_admin_commits(admin, main_path, _GIT_TIMEOUT_SECONDS)
     if orphans is None:
-        return "its reflog could not be read, so abandoned commits cannot be ruled out"
+        return "its admin directory could not be read, so abandoned commits cannot be ruled out"
     if not orphans:
         return ""
     # Joined with && so a failed rescue stops the chain and shows in the exit code.
@@ -159,13 +159,13 @@ def _reflog_warning(admin: Path, main_path: str) -> str:
         ""
         if len(orphans) <= 3
         else (
-            f" (and {len(orphans) - 3} more, named in "
-            f"{shlex.quote(str(admin / 'logs' / 'HEAD'))}, which the removal deletes)"
+            f" (and {len(orphans) - 3} more, named under "
+            f"{shlex.quote(str(admin))}, which the removal deletes)"
         )
     )
     return (
-        f"WARNING: its reflog is the only anchor for {len(orphans)} commit(s), and "
-        f"clearing the entry deletes it. Rescue first: {rescues}{more}"
+        f"WARNING: its admin directory is the only anchor for {len(orphans)} "
+        f"commit(s), and clearing the entry deletes it. Rescue first: {rescues}{more}"
     )
 
 

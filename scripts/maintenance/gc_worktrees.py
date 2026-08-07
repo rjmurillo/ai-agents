@@ -79,6 +79,7 @@ from scripts.maintenance.worktree_occupancy import (
     occupied_paths,
 )
 from scripts.maintenance.worktree_report import (
+    KEEP_ADMIN_ONLY,
     KEEP_BARE,
     KEEP_DETACHED,
     KEEP_DIRTY,
@@ -86,7 +87,6 @@ from scripts.maintenance.worktree_report import (
     KEEP_LOCKED,
     KEEP_MAIN,
     KEEP_OCCUPIED,
-    KEEP_REFLOG_ONLY,
     KEEP_TIME_BUDGET,
     KEEP_UNPUSHED,
     Decision,
@@ -295,7 +295,7 @@ def decide(
             worktree.path,
             worktree.branch,
             remove=False,
-            reason=f"{KEEP_REFLOG_ONLY} ({reason}); {loss}",
+            reason=f"{KEEP_ADMIN_ONLY} ({reason}); {loss}",
         )
 
     if worktree.locked:

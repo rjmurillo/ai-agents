@@ -273,7 +273,10 @@ class TestPerCandidateHead:
         ``test_gc_worktrees_real_git_apply.py``.
         """
         report = _report(_live("/repo/a"), _live("/repo/b"))
-        stranded = {"/repo/a": "", "/repo/b": "WARNING: its reflog is the only anchor for 1"}
+        stranded = {
+            "/repo/a": "",
+            "/repo/b": "WARNING: its admin directory is the only anchor for 1",
+        }
 
         with patch(
             f"{_MODULE}._gc_reasons.reflog_only_work", side_effect=lambda p, _m, _g: stranded[p]
