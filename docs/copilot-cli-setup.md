@@ -122,8 +122,29 @@ The AI review action outputs detailed diagnostics:
   prompts to Copilot; it doesn't grant repository access
 - **Separate tokens**: Use different tokens for `BOT_PAT` (repo operations)
   and `COPILOT_GITHUB_TOKEN` (Copilot access)
+- **Bot identity**: `BOT_PAT` must be minted from the bot account, not a human
+  maintainer account. If CI and a human share one account identity, they also
+  share GitHub's secondary rate-limit budget. `gh api rate_limit` does not show
+  that limit, and GraphQL calls from `gh pr view`, `gh pr list`, and
+  `gh repo view` can fail before plain REST calls.
 - **Rotation**: Rotate tokens periodically and after any suspected compromise
 - **Audit logs**: Monitor token usage in GitHub's security audit logs
+
+## Operator Check: `BOT_PAT` Identity
+
+For `rjmurillo/ai-agents`, `BOT_PAT` must authenticate as `rjmurillo-bot`
+with account ID `250269933`.
+
+Only an operator with access to that account can fix a wrong identity:
+
+1. Sign in as `rjmurillo-bot`.
+2. Mint a PAT with repository access needed by the workflows.
+3. Store it as the repository secret `BOT_PAT`.
+4. Verify with `gh api user --jq '.login, .id'` in a workflow or trusted
+   runner context.
+
+A repository checkout cannot rotate this secret. A code change may reduce token
+usage, but it cannot prove issue #4607 fixed unless the secret identity changes.
 
 ## References
 
