@@ -69,7 +69,10 @@ def _gh_pr_field(pr_number: str, repository: str, field: str) -> str:
     )
     if result.returncode != 0:
         detail = result.stderr.strip() if result.stderr else "no stderr"
-        raise SpecReferenceError(f"gh pr view failed for {field} (PR {pr_number} in {repository}): {detail}")
+        raise SpecReferenceError(
+            f"gh pr view failed for {field} "
+            f"(PR {pr_number} in {repository}): {detail}"
+        )
     return result.stdout.strip()
 
 
