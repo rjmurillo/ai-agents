@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No markdown files changed"
+        "Evidence": "NOT LINTED: scoped Markdown lint selected 0 of 1 target. .serena/memories/decision-a-whole-corpus-gate-cannot-be-path-filtered.md is excluded by .markdownlint-cli2.yaml, so the command exited 0 without checking a file."
       },
       "changesCommitted": {
         "level": "MUST",
