@@ -310,3 +310,47 @@ class TestModuleLoadFailureDegrades:
             f"a module raising during import denied the call. stderr:\n{stderr}"
         )
         assert "hooks DISABLED" in stderr
+
+
+class TestClaudeEntrypointDegrades:
+    """A missing lib directory must degrade, not deny, on the Claude harness.
+
+    The bash launcher guards the plugin root and the dispatcher file but cannot
+    check lib. The entrypoint caught that failure and exited 2, which Claude
+    reads as a denial of the tool call, so every other infrastructure path
+    degraded while this one denied. Refs #4672.
+    """
+
+    ENTRYPOINT = _REPO_ROOT / ".claude" / "hooks" / "invoke_dispatch_claude.py"
+
+    def test_missing_lib_directory_degrades(self, tmp_path: Path) -> None:
+        hooks = tmp_path / "hooks"
+        hooks.mkdir(parents=True)
+        entrypoint = hooks / "invoke_dispatch_claude.py"
+        entrypoint.write_text(
+            self.ENTRYPOINT.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        # No lib directory alongside hooks: the import must fail.
+
+        proc = subprocess.run(
+            [sys.executable, "-u", str(entrypoint), "--group", "anything"],
+            input=b"{}",
+            capture_output=True,
+            cwd=str(tmp_path),
+            timeout=30,
+        )
+
+        stderr = proc.stderr.decode("utf-8", "replace")
+        assert proc.returncode == 0, (
+            "a missing lib directory denied the tool call on the Claude "
+            f"harness. stderr:\n{stderr}"
+        )
+        assert "hooks DISABLED" in stderr, stderr
+
+    def test_entrypoint_does_not_exit_two_on_load_failure(self) -> None:
+        """Pin the exit code in the source, so a regression is visible."""
+        text = self.ENTRYPOINT.read_text(encoding="utf-8")
+        assert "raise SystemExit(2) from None" not in text, (
+            "the entrypoint exits 2 on an initialization failure, which Claude "
+            "reads as a denial of every tool call"
+        )
