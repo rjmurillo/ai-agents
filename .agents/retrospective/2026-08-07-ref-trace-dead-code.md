@@ -1,5 +1,11 @@
 # Ref Trace Dead Code Retrospective
 
+## Classification
+
+**Failure Mode**: #4 - False completion markers
+**Reference**: `.agents/governance/FAILURE-MODES.md`
+**Severity**: Medium
+
 ## Failure mode
 
 False completion markers. Tests asserted that synthetic ref-trace lines parsed, but did not prove production could emit those lines. The parser stayed covered after the guard began removing `GIT_TRACE_REFS`.

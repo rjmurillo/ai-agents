@@ -1,0 +1,19 @@
+{
+  "id": "episode-2026-08-07-session-10005-resolve-4729-review-threads-hook",
+  "session": "2026-08-07-session-10005-resolve-4729-review-threads-hook",
+  "timestamp": "2026-08-07T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Resolve PR 4729 review threads for hook dispatch and retrospective classification",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
