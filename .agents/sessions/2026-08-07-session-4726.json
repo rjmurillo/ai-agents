@@ -22,7 +22,7 @@
       "handoffRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read AGENTS.md and .agents/governance/GOTCHAS.md before editing governance files"
+        "Evidence": "Read AGENTS.md and .agents/governance/GOTCHAS.md before editing governance files. .agents/HANDOFF.md was read during review remediation rather than at session start, after a reviewer noted the original evidence cited AGENTS.md and did not support this item. Recording the actual order rather than back-filling the claim. It is read-only per ADR-014 and constrains nothing this change touches."
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -122,6 +122,16 @@
         ".agents/governance/GOTCHAS.md"
       ],
       "outcome": "Adversarial review recommended cutting the second rule and shortening the first. Both were right. The cut rule was a general debugging heuristic, and its cited evidence was false: I wrote that a sibling pull request modified the same file at the same lines, and the hunk headers show 4723 touching 542, 904, and 928 while 4701 touched 721. I had published an unverified claim inside the rule written to stop me publishing unverified claims. Always-on growth fell from 1267 bytes to 451."
+    },
+    {
+      "timestamp": "2026-08-07T11:05:00Z",
+      "action": "adr-review: multi-agent review of ADR-093, both findings acted on",
+      "files": [
+        ".agents/architecture/ADR-093-verify-red-checks-with-the-same-checker.md",
+        ".claude/rules/universal.md",
+        ".agents/governance/GOTCHAS.md"
+      ],
+      "outcome": "Architect returned accept with one wording change; critic returned revise on two grounds. Both are now addressed. The critic argued the rule would not fire for an agent who believed the tools already matched, which is a fair reading of the original wording, so the rule now requires the equivalence to be demonstrably identical rather than merely matching: belief cannot satisfy a demonstration. The critic also caught that no CI-side fix was evaluated, which was a real gap, and checking it changed the advice: semgrep ci run while logged in executes the rules configured on Semgrep App, so SEMGREP_APP_TOKEN=<token> semgrep ci is an exact reproduction and the check is locally reproducible after all. The GOTCHAS entry claimed the opposite and has been corrected. Always-on growth is now 472 bytes."
     }
   ],
   "endingCommit": "e0e6291ac",
