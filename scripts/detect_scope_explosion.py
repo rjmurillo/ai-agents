@@ -312,12 +312,17 @@ def rescope_against_pr_base(requested_base: str | None, blocked: ScopeResult) ->
     2. gh cannot name exactly one open PR base.
     3. The PR base is the branch already measured.
     4. The re-measurement is not a credible narrowing of the first one. See
-       ``_is_credible_rescope``.
+       ``is_credible_rescope``.
+
+    The branch name comes from ``blocked.current_branch`` rather than a fresh
+    ``get_current_branch()`` call. Re-reading would let a branch switch between
+    the two measurements produce a PR base belonging to a different branch than
+    the one that was measured.
     """
     if get_merge_head_commit() is not None:
         return None
-    branch = get_current_branch()
-    if branch is None:
+    branch = blocked.current_branch
+    if not branch:
         return None
     pr_base = resolve_pr_base_branch(branch)
     if pr_base is None:
@@ -325,7 +330,7 @@ def rescope_against_pr_base(requested_base: str | None, blocked: ScopeResult) ->
     if pr_base == strip_remote_prefix(requested_base or "main"):
         return None
     rescoped = detect_scope(pr_base)
-    if not is_credible_rescope(rescoped, blocked):
+    if not is_credible_rescope(rescoped, blocked, is_ancestor):
         return None
     assert rescoped is not None  # narrowed by is_credible_rescope
     print(

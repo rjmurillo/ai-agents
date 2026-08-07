@@ -9,11 +9,15 @@ Every function here fails closed, so the negative cases carry the weight.
 
 from __future__ import annotations
 
+import json
 import subprocess
 from unittest.mock import patch
 
+import pytest
+
 from scripts.detect_scope_explosion import ScopeResult
 from scripts.scope_pr_base import (
+    _is_plain_branch_name,
     is_credible_rescope,
     resolve_pr_base_branch,
     strip_remote_prefix,
@@ -222,21 +226,128 @@ class TestResolvePrBaseBranch:
         assert run.call_args.kwargs["timeout"] == 5
 
 
-class TestIsCredibleRescope:
-    """Tests for is_credible_rescope."""
+class TestResolveRejectsUntrustedBaseNames:
+    """The name validation must be wired into resolve, not merely available.
+
+    Mutation control: deleting the validation from ``resolve_pr_base_branch``
+    and coercing with ``str(base or "")`` instead left every other test in this
+    file passing. These are the tests that fail on that mutation.
+
+    ``baseRefName`` comes from a network response and is interpolated into a
+    ref that reaches ``git``, so the shape has to be checked at the boundary.
+    """
 
     @staticmethod
-    def _result(*files: str) -> ScopeResult:
+    def _resolve(base_value: object) -> str | None:
+        payload = json.dumps([{"baseRefName": base_value}])
+        completed = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=payload, stderr=""
+        )
+        with (
+            patch("scripts.scope_pr_base.shutil.which", return_value="/usr/bin/gh"),
+            patch("scripts.scope_pr_base.subprocess.run", return_value=completed),
+        ):
+            return resolve_pr_base_branch("feat/stacked")
+
+    def test_accepts_an_ordinary_branch_name(self) -> None:
+        """Positive control: without this the rejections prove nothing."""
+        assert self._resolve("fix/parent") == "fix/parent"
+
+    def test_rejects_a_non_string_base(self) -> None:
+        """A JSON number must not be coerced into a plausible branch name.
+
+        ``str(123)`` is ``"123"``, which matches the plain-name shape and would
+        be handed to git as a real ref.
+        """
+        assert self._resolve(123) is None
+
+    def test_rejects_a_null_base(self) -> None:
+        assert self._resolve(None) is None
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "HEAD",
+            "MERGE_HEAD",
+            "--upload-pack=touch /tmp/pwned",
+            "../../etc/passwd",
+            "fix/..%2Fparent",
+            "fix/parent;rm -rf .",
+            "fix/\nparent",
+            "fix/parent\ttab",
+            "fix/parent.lock",
+            "fix/parent/",
+            "",
+            "   ",
+        ],
+    )
+    def test_rejects_a_name_git_would_read_as_something_else(
+        self, name: str
+    ) -> None:
+        """Reserved refs, traversal, option-looking names, and metacharacters.
+
+        ``HEAD`` is the sharpest of these: it is a legal string that resolves
+        ``origin/HEAD`` to the default branch, so it would silently re-measure
+        against main and report a stacked base that does not exist.
+        """
+        assert self._resolve(name) is None
+
+    def test_strips_surrounding_whitespace_before_validating(self) -> None:
+        """Normalization runs first, so a padded name is cleaned, not refused.
+
+        Order matters in both directions: validating before stripping would
+        reject an ordinary name over trailing whitespace, and stripping without
+        validating would pass the padding through into a ref.
+        """
+        assert self._resolve("  fix/parent\n") == "fix/parent"
+
+
+class TestIsCredibleRescope:
+    """Tests for is_credible_rescope.
+
+    The credibility test is a graph property, not a diff property. It asks
+    whether this branch left main first and left the PR base second, which is
+    what "stacked" means. An earlier version tested path-set containment and
+    was wrong; see test_accepts_a_stacked_base_whose_files_main_never_saw.
+    """
+
+    MAIN_FORK = "aaaa111"
+    STACK_FORK = "bbbb222"
+
+    @classmethod
+    def _blocked(cls, *files: str) -> ScopeResult:
         return ScopeResult(
             file_count=len(files),
-            merge_base="abc123def456",
+            merge_base=cls.MAIN_FORK,
             current_branch="feat/stacked",
             files=files,
         )
 
+    @classmethod
+    def _rescoped(cls, *files: str, merge_base: str | None = None) -> ScopeResult:
+        return ScopeResult(
+            file_count=len(files),
+            merge_base=cls.STACK_FORK if merge_base is None else merge_base,
+            current_branch="feat/stacked",
+            files=files,
+        )
+
+    @staticmethod
+    def _ancestry(result: bool):
+        """Return an is_ancestor stub plus a record of how it was called."""
+        calls: list[tuple[str, str]] = []
+
+        def is_ancestor(commit: str, ref: str) -> bool:
+            calls.append((commit, ref))
+            return result
+
+        return is_ancestor, calls
+
     def test_rejects_none(self) -> None:
         """An unresolvable re-measurement is not credible."""
-        assert is_credible_rescope(None, self._result("a.py")) is False
+        ancestor, calls = self._ancestry(True)
+        assert is_credible_rescope(None, self._blocked("a.py"), ancestor) is False
+        assert calls == []
 
     def test_rejects_zero_files(self) -> None:
         """A failed git diff reads as zero files, which would clear the block.
@@ -244,27 +355,109 @@ class TestIsCredibleRescope:
         get_index_files_against_ref returns [] on any nonzero git diff and
         detect_scope turns that into ScopeResult(file_count=0) rather than
         None. A genuinely empty result is indistinguishable from that
-        failure, so both are refused.
+        failure at this call site, so both are refused.
         """
-        assert is_credible_rescope(self._result(), self._result("a.py")) is False
+        ancestor, calls = self._ancestry(True)
+        assert is_credible_rescope(self._rescoped(), self._blocked("a.py"), ancestor) is False
+        assert calls == []
 
-    def test_rejects_a_file_the_first_pass_never_saw(self) -> None:
-        """A foreign file means the two runs did not compare the same thing."""
-        blocked = self._result("a.py", "b.py")
-        foreign = self._result("a.py", "elsewhere.py")
-        assert is_credible_rescope(foreign, blocked) is False
+    def test_accepts_a_stacked_base_whose_files_main_never_saw(self) -> None:
+        """The regression the subset invariant caused.
 
-    def test_accepts_a_proper_subset(self) -> None:
-        """A stacked-base surface is contained in the main-relative surface."""
-        blocked = self._result("a.py", "b.py", "c.py")
-        assert is_credible_rescope(self._result("b.py"), blocked) is True
+        Verified against a constructed repository: main holds 52 files, the
+        parent changes all 52, and the child reverts one to main's content.
+        The child changes 51 files against main and exactly 1 against its
+        parent, and that 1 file is absent from the main-relative set because
+        the child agrees with main about it. The old containment test rejected
+        this honest one-file stacked PR and left it blocked at 51.
+        """
+        blocked = self._blocked(*[f"f{i:02d}.txt" for i in range(1, 52)])
+        rescoped = self._rescoped("f00.txt")
+        ancestor, calls = self._ancestry(True)
+        assert is_credible_rescope(rescoped, blocked, ancestor) is True
+        assert calls == [(self.MAIN_FORK, self.STACK_FORK)]
 
-    def test_accepts_an_identical_set(self) -> None:
-        """A subset includes the equal case; the count is what changes."""
-        blocked = self._result("a.py", "b.py")
-        assert is_credible_rescope(self._result("a.py", "b.py"), blocked) is True
+    def test_rejects_an_identical_fork_point(self) -> None:
+        """A base that forks where main forks is not a stack.
 
-    def test_ignores_ordering(self) -> None:
-        """Containment is a set relation, not a sequence comparison."""
-        blocked = self._result("a.py", "b.py")
-        assert is_credible_rescope(self._result("b.py", "a.py"), blocked) is True
+        An unrelated branch shares main's fork point exactly. Requiring a
+        strict ancestor rejects it without consulting git at all.
+        """
+        ancestor, calls = self._ancestry(True)
+        rescoped = self._rescoped("b.py", merge_base=self.MAIN_FORK)
+        assert is_credible_rescope(rescoped, self._blocked("a.py", "b.py"), ancestor) is False
+        assert calls == []
+
+    def test_rejects_a_fork_point_that_is_not_downstream(self) -> None:
+        """A base whose fork point does not descend from main's is incomparable."""
+        ancestor, calls = self._ancestry(False)
+        rescoped = self._rescoped("b.py")
+        assert is_credible_rescope(rescoped, self._blocked("a.py", "b.py"), ancestor) is False
+        assert calls == [(self.MAIN_FORK, self.STACK_FORK)]
+
+    def test_rejects_a_missing_merge_base_on_either_side(self) -> None:
+        """An empty merge base cannot be reasoned about, so it fails closed."""
+        ancestor, _ = self._ancestry(True)
+        assert (
+            is_credible_rescope(
+                self._rescoped("b.py", merge_base=""), self._blocked("a.py"), ancestor
+            )
+            is False
+        )
+        blocked_without_base = ScopeResult(
+            file_count=1, merge_base="", current_branch="feat/stacked", files=("a.py",)
+        )
+        assert is_credible_rescope(self._rescoped("b.py"), blocked_without_base, ancestor) is False
+
+    def test_asks_ancestry_in_the_direction_that_means_stacked(self) -> None:
+        """Argument order is the whole meaning: main's fork must come first."""
+        ancestor, calls = self._ancestry(True)
+        is_credible_rescope(self._rescoped("b.py"), self._blocked("a.py"), ancestor)
+        assert calls == [(self.MAIN_FORK, self.STACK_FORK)]
+        assert calls[0] != (self.STACK_FORK, self.MAIN_FORK)
+
+
+class TestIsPlainBranchName:
+    """Tests for _is_plain_branch_name.
+
+    The resolved base reaches git as origin/<name>, so a name carrying
+    revision syntax resolves to something other than a branch.
+    """
+
+    @pytest.mark.parametrize(
+        "name",
+        ["main", "feat/stacked", "release-1.2", "user/feat_x", "a", "v1.0.0"],
+    )
+    def test_accepts_ordinary_branch_names(self, name: str) -> None:
+        """Names real branches actually use are accepted."""
+        assert _is_plain_branch_name(name) is True
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "",
+            "HEAD",
+            "FETCH_HEAD",
+            "ORIG_HEAD",
+            "MERGE_HEAD",
+            "-rf",
+            "--force",
+            "a..b",
+            "main~1",
+            "main^",
+            "main@{1}",
+            "refs:main",
+            "has space",
+            "star*",
+            "quest?",
+            "brack[et",
+            "back\\slash",
+            "trailing/",
+            "thing.lock",
+            "/leading",
+            ".dotfirst",
+        ],
+    )
+    def test_rejects_anything_that_is_not_a_plain_name(self, name: str) -> None:
+        """Revision syntax, option-looking names, and reserved refs are refused."""
+        assert _is_plain_branch_name(name) is False

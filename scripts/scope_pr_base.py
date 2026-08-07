@@ -21,14 +21,42 @@ the main-relative measurement said.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from scripts.detect_scope_explosion import ScopeResult
 
 GH_TIMEOUT_SECONDS = 5
+
+_PLAIN_BRANCH_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
+_RESERVED_BRANCH_NAMES = frozenset({"HEAD", "FETCH_HEAD", "ORIG_HEAD", "MERGE_HEAD"})
+
+
+def _is_plain_branch_name(name: str) -> bool:
+    """Return True when ``name`` is an ordinary branch name and nothing else.
+
+    The resolved base reaches git as ``origin/<name>``, so a name that carries
+    revision syntax resolves to something other than a branch. ``HEAD`` is the
+    clearest case: ``origin/HEAD`` resolves to the remote's default branch, so
+    a base of ``HEAD`` would silently measure against a branch nobody named.
+
+    The pattern also rejects a leading dash, ``..`` range syntax, ``~`` and
+    ``^`` walk syntax, ``:`` and ``@{`` selectors, whitespace, and an empty
+    string. It is deliberately narrower than ``git check-ref-format``: this is
+    an allowlist for the shapes real branch names take, not a parser, and the
+    cost of rejecting an exotic-but-legal name is that the original block
+    stands.
+    """
+    if not name or name in _RESERVED_BRANCH_NAMES:
+        return False
+    if ".." in name or name.endswith((".lock", "/")):
+        return False
+    return bool(_PLAIN_BRANCH_NAME.fullmatch(name))
 
 
 def strip_remote_prefix(base: str) -> str:
@@ -111,26 +139,58 @@ def resolve_pr_base_branch(branch: str) -> str | None:
     entry = payload[0]
     if not isinstance(entry, dict):
         return None
-    base = str(entry.get("baseRefName") or "").strip()
-    return base or None
+    base = entry.get("baseRefName")
+    if not isinstance(base, str):
+        return None
+    return base.strip() if _is_plain_branch_name(base.strip()) else None
 
 
-def is_credible_rescope(rescoped: ScopeResult | None, blocked: ScopeResult) -> bool:
+def is_credible_rescope(
+    rescoped: ScopeResult | None,
+    blocked: ScopeResult,
+    is_ancestor: Callable[[str, str], bool],
+) -> bool:
     """Return True when ``rescoped`` is a believable narrowing of ``blocked``.
 
-    Two failure modes make an unbelievable result look like a clean pass, and
-    both are silent:
+    Three conditions have to hold, and each one exists because its absence
+    looked like a clean pass:
 
-    * ``get_index_files_against_ref`` returns ``[]`` on any nonzero ``git
-      diff``, and ``detect_scope`` turns that into ``ScopeResult(file_count=0)``
-      rather than None. A diff that fails against an otherwise-resolvable ref
-      (a missing tree in a partial clone, for instance) therefore reads as
-      "this PR changes nothing". A genuinely empty result is indistinguishable
-      from that failure, so both are refused. A branch that changes nothing
-      against its own base is not a branch a scope gate needs to unblock.
-    * A file the main-relative measurement never saw means the two runs did not
-      compare the same thing. A real stacked-base surface is a subset of the
-      main-relative surface, because the stack base is downstream of main.
+    * The result is not None.
+    * The file count is positive. ``get_index_files_against_ref`` returns
+      ``[]`` on any nonzero ``git diff``, and ``detect_scope`` turns that into
+      ``ScopeResult(file_count=0)`` rather than None. A diff that fails against
+      an otherwise-resolvable ref (a missing tree in a partial clone, for
+      instance) therefore reads as "this PR changes nothing". A genuinely empty
+      result is indistinguishable from that failure at this call site, so both
+      are refused. That costs a branch whose only content is an empty commit,
+      which is not a branch a scope gate needs to unblock.
+    * The two measurements forked from the same history, and the rescoped one
+      forked later. See below.
+
+    The fork-point test is what makes the second number comparable to the
+    first. ``blocked.merge_base`` is where this branch left the main-relative
+    base; ``rescoped.merge_base`` is where it left the PR base. A genuine stack
+    leaves main first and its stack base second, so the first is a strict
+    ancestor of the second.
+
+    An earlier version tested path-set containment instead, on the reasoning
+    that a stacked surface is a subset of the main-relative surface. That is
+    false. Verified on a constructed repository: main holds 52 files, the
+    parent changes all 52, and the child reverts one of them to main's content.
+    The child changes 51 files against main and exactly 1 against its parent,
+    and that 1 file is absent from the main-relative set because the child
+    agrees with main about it. Containment rejected an honest one-file stacked
+    PR and left it blocked at 51, which is the case this whole path exists to
+    fix. Containment is neither necessary nor sufficient; ancestry is a
+    property of the graph rather than of the diff.
+
+    Strictness matters in the other direction too. An unrelated branch that
+    merely happens to be reachable shares main's fork point exactly, so
+    requiring a *strict* ancestor rejects it. So does naming the base already
+    measured, which would be a no-op.
+
+    ``is_ancestor`` is injected rather than imported to keep this module free
+    of a runtime dependency on the scope detector, which imports this one.
 
     Refusing here keeps the original block, which is the safe direction.
     """
@@ -138,4 +198,8 @@ def is_credible_rescope(rescoped: ScopeResult | None, blocked: ScopeResult) -> b
         return False
     if rescoped.file_count <= 0:
         return False
-    return set(rescoped.files).issubset(set(blocked.files))
+    if not rescoped.merge_base or not blocked.merge_base:
+        return False
+    if rescoped.merge_base == blocked.merge_base:
+        return False
+    return is_ancestor(blocked.merge_base, rescoped.merge_base)
