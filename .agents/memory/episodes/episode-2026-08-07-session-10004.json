@@ -1,0 +1,81 @@
+{
+  "id": "episode-2026-08-07-session-10004",
+  "session": "2026-08-07-session-10004",
+  "timestamp": "2026-08-07T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Land PR tooling fixes for issues 3912, 4054, 4349, 4379, and 4677.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-07T02:05:00+00:00",
+      "type": "milestone",
+      "content": "Set worktree core.bare=false, inspected pending edits, and discarded leftover tests/conftest.py plus a stale untracked session log.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-07T02:20:00+00:00",
+      "type": "milestone",
+      "content": "Ran build_all --check and confirmed generated platform copies were in sync.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-07T02:35:00+00:00",
+      "type": "milestone",
+      "content": "Ran required gates. Full pytest, build_all check, changed-file mypy hook policy, merge-tree ratchet, and pre_pr passed.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-07T03:45:00+00:00",
+      "type": "milestone",
+      "content": "Captured retrospective evidence after push-time retrospective-policy rejected the otherwise green branch.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-06T23:41:28+00:00",
+      "type": "commit",
+      "content": "Commit: 70751d322",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 100,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
