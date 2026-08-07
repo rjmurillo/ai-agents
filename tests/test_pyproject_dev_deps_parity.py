@@ -49,9 +49,9 @@ REQUIRED_DEV_TOOLS = frozenset(
         "semgrep",
     }
 )
-SAFE_SEMGREP_OVERRIDES = frozenset({"click==8.3.3", "mcp==1.28.1"})
+SAFE_SEMGREP_OVERRIDES = frozenset({"click==8.3.3", "cryptography==50.0.0", "mcp==1.28.1"})
 COOLDOWN_EXEMPT_PACKAGES = frozenset(
-    {"anthropic", "click", "lefthook", "mcp", "semgrep"}
+    {"anthropic", "click", "cryptography", "lefthook", "mcp", "semgrep"}
 )
 
 # Splits a PEP 508 requirement string at the first character that ends the

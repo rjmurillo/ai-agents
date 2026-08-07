@@ -1,0 +1,211 @@
+{
+  "id": "episode-2026-07-30-session-4002-eval-provider-cost-basis",
+  "session": "2026-07-30-session-4002-eval-provider-cost-basis",
+  "timestamp": "2026-07-30T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4002: eval-agent-vs-baseline --provider is a dead flag because the plan-time USD gate rejects every model absent from the Anthropic-only pricing table, before any provider dispatch",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "design",
+      "context": "Decided the biller is the provider, not the model",
+      "chosen": "Design fixed before code, with the no-fabrication rule explicit",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced the dead flag on the real fixture corpus",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Decided the biller is the provider, not the model",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "TDD red, then three atomic commits",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Caught a defect I introduced, before pushing",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved the fix end to end with a before, after, and control triple",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran a live eval through GitHub Models",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the optimizer loop on that live report",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran an adversarial review on a different model family",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed findings 1 and 3 with one root change",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed finding 2 in the model sweep",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved the rule kind end to end, the last of the three the optimizer declares",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found the gate's cross-model refusal was dead for the rule kind",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Made the rule kind record the model and seed that produced its scores",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Grounded the fix on a second live run rather than on my own tests",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Stopped the rule dry run from quoting a sonnet dollar rate for quota billed providers",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked the sibling scripts for the same fabricated dollar figure",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c7154520f",
+      "caused_by": [],
+      "leads_to": [
+        "e022"
+      ]
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Purged another session's events from this session's episode file",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Made the declared report type match what actually gets written",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran adversarial review round 24 on a third model family",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Classified Copilot CLI as quota billed after the review found it fabricating",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-07-30T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: b0deadc5f",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 2
+  },
+  "lessons": []
+}

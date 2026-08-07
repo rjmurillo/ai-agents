@@ -26,13 +26,19 @@ Per-rule logic (Round 3 amendment, 2026-04-29):
    - preserve ``description:`` and other unrelated keys
    - if neither ``paths:`` nor ``applyTo:`` is declared, synthesize
      ``applyTo: "**"`` (universal scope, the default for unscoped rules)
+   - if a scope was declared but every glob is filtered as internal-only
+     for this destination, skip the rule and prune any artifact a prior
+     run emitted (issue #4317)
    - body unchanged
 3. NO-REGEN sentinel honored on the target file.
 
 The Round 2 severity-gate (high/medium/low + governance-keyword scan +
 conditional skip) was removed. Rationale: rules are universal across
 Claude and Copilot; there is no use case for Claude-only or Copilot-only
-rules. A rule exists in ``.claude/rules/`` → it ships.
+rules. Destination still matters, though: a rule scoped entirely to
+internal paths ships only where ``keepInternalGlobsFor`` names the
+destination, so the plugin tree carries fewer files than
+``.github/instructions``.
 
 EXIT CODES:
   0 - success
@@ -71,6 +77,10 @@ _DEFAULT_SOURCE_SUFFIX = ".md"
 _DEFAULT_OUTPUT_SUFFIX = ".instructions.md"
 _SCOPE_KEYS = ("paths", "applyTo", "globs")
 _UNIVERSAL_SCOPE = "**"
+# Sentinel: returned by _remap_frontmatter when every scope glob was
+# internal-only. _process_rule detects this and returns "scope-skipped"
+# instead of emitting a rule with a universalized applyTo.
+_SCOPE_SKIPPED: dict[str, str | None] = {}
 
 # M7-T4: vendor-install path filter. Globs that begin with these prefixes
 # reference internal repository directories that do not ship in any
@@ -98,7 +108,7 @@ class RuleAuditEntry:
     """
 
     name: str
-    action: str  # "emitted" | "sentinel-skipped"
+    action: str  # "emitted" | "sentinel-skipped" | "scope-skipped"
     reason: str = ""
     destination: str = ""
 
@@ -113,6 +123,7 @@ class GenerateRulesResult:
 
     written: int = 0
     sentinel_skipped: int = 0
+    scope_skipped: int = 0
     entries: list[RuleAuditEntry] = field(default_factory=list)
 
 
@@ -288,9 +299,9 @@ def _remap_frontmatter(
     M7-T4: scope values mapped to ``applyTo`` are filtered through
     :func:`_filter_internal_globs` to drop dead-on-arrival references to
     internal-only paths (``.agents/``, ``.claude/``, ``.serena/``). When
-    every glob in the source is internal, the universal scope is
-    synthesized so the rule still applies somewhere in the vendor tree
-    rather than being dropped entirely.
+    every glob in the source is internal, return the ``_SCOPE_SKIPPED``
+    sentinel so the caller omits the rule entirely rather than emitting it
+    with a universalized scope (see issue #4317).
 
     ``keep_internal`` (issue #2892): when True, the internal-glob filter is
     skipped so ``.claude/**`` and siblings survive verbatim. This is set for
@@ -330,11 +341,13 @@ def _remap_frontmatter(
                     )
         result[new_key] = value
     # If the post-filter applyTo is empty but the source had a scope,
-    # the source was entirely internal-only globs. Synthesize universal
-    # scope so the rule still ships rather than landing with applyTo: "".
+    # every glob was internal-only. Skip the rule: shipping it with a
+    # universalized scope would apply internal-repo instructions on every
+    # file for every plugin consumer, which inverts the author's intent
+    # (issue #4317).
     applyto_value = result.get("applyTo")
     if had_scope and isinstance(applyto_value, str) and not applyto_value.strip():
-        result["applyTo"] = _UNIVERSAL_SCOPE
+        return _SCOPE_SKIPPED
     if not had_scope and "applyTo" not in result:
         # Universal-scope default for unscoped rules. Insert at the top
         # of the output frontmatter for consistent placement.
@@ -415,6 +428,13 @@ def _process_rule(
     transformed = _remap_frontmatter(
         source_fm, remap, drop, keep_internal=keep_internal
     )
+    if transformed is _SCOPE_SKIPPED:
+        print(
+            f"  INFO: skipping {name!r} for {output_dir.name!r}: "
+            "all scope globs are internal-only (issue #4317)",
+            file=sys.stderr,
+        )
+        return ("scope-skipped", name, "ALL-INTERNAL-SCOPE")
     written = _write_instruction(target, transformed, body, what_if=what_if)
     if not written:
         return ("sentinel-skipped", name, "NO-REGEN")
@@ -548,14 +568,8 @@ def generate_rules(
         for out in output_dirs:
             print(f"  - {out.relative_to(repo_root)}")
 
-    expected_outputs: set[str] = set()
+    expected_outputs: dict[Path, set[str]] = {od: set() for od in output_dirs}
     for src in sources:
-        name = (
-            src.name[: -len(source_suffix)]
-            if src.name.endswith(source_suffix)
-            else src.stem
-        )
-        expected_outputs.add(f"{name}{output_suffix}")
         # Process once per output target. The audit records each
         # write separately so callers can see all destinations.
         for output_dir in output_dirs:
@@ -591,8 +605,14 @@ def generate_rules(
             )
             if action == "emitted":
                 result.written += 1
+                expected_outputs[output_dir].add(f"{name_out}{output_suffix}")
             elif action == "sentinel-skipped":
                 result.sentinel_skipped += 1
+                expected_outputs[output_dir].add(f"{name_out}{output_suffix}")
+            elif action == "scope-skipped":
+                result.scope_skipped += 1
+                # Do NOT add to expected_outputs: the pruner should remove
+                # any stale file left from a prior run that emitted the rule.
 
     # M7-T4: prune orphan instruction files in every output target.
     # Without this, deleted-source files leave stale *.instructions.md
@@ -603,8 +623,9 @@ def generate_rules(
         for output_dir in output_dirs:
             if not output_dir.is_dir():
                 continue
+            dest_expected = expected_outputs.get(output_dir, set())
             for existing in output_dir.glob(f"*{output_suffix}"):
-                if existing.name in expected_outputs:
+                if existing.name in dest_expected:
                     continue
                 reason = regen_detect_reason(existing)
                 if reason is not None:
@@ -621,6 +642,8 @@ def generate_rules(
     print(f"Written: {result.written}")
     if result.sentinel_skipped:
         print(f"Skipped (NO-REGEN sentinel): {result.sentinel_skipped}")
+    if result.scope_skipped:
+        print(f"Skipped (all-internal scope): {result.scope_skipped}")
 
     return 0, result
 

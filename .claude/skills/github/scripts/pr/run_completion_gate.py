@@ -135,7 +135,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 try:
-    from scripts.utils.path_validation import validate_safe_path  # noqa: E402
+    from scripts.utils.path_validation import validate_safe_path
 except ModuleNotFoundError:
     # Installed-plugin fallback (issue #2572): the repo's top-level scripts/
     # package is not bundled with the skill, so the canonical import is
@@ -644,6 +644,7 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
         "command": "",
         "exit_code": None,
         "parsed": False,
+        "stdout_json": None,
         "stdout": "",
         "stderr": "",
     }
@@ -685,13 +686,14 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
         return result
 
     result["parsed"] = True
+    result["stdout_json"] = parsed
 
     try:
         if pass_when_python:
             verdict = _eval_pass_when_python(parsed, pass_when_python)
         else:
             verdict = _eval_pass_when(parsed, pass_when)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         # A broken pass_when expression is a config bug, not a verifier
         # outage. fail_open does NOT apply: masking a typo with a
         # green gate would defeat the dispatcher's purpose.
@@ -778,7 +780,40 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit a single JSON object rather than the human table",
     )
+    parser.add_argument(
+        "--evidence-path",
+        default="",
+        help="Write the completion gate JSON evidence to this repo-local path",
+    )
     return parser
+
+
+def _assert_cwd_inside_project_root() -> None:
+    cwd = Path.cwd().resolve()
+    try:
+        cwd.relative_to(_PROJECT_ROOT)
+    except ValueError as exc:
+        raise ConfigError(
+            f"cwd {cwd} is outside resolved project root {_PROJECT_ROOT}",
+        ) from exc
+
+
+def _write_evidence(path_arg: str, payload: dict) -> None:
+    _assert_cwd_inside_project_root()
+    path = validate_safe_path(path_arg, _PROJECT_ROOT)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _try_write_evidence(path_arg: str, payload: dict) -> bool:
+    if not path_arg:
+        return True
+    try:
+        _write_evidence(path_arg, payload)
+    except (ConfigError, FileNotFoundError, ValueError, OSError) as exc:
+        print(f"Failed to write completion gate evidence: {exc}", file=sys.stderr)
+        return False
+    return True
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -829,17 +864,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Config error in completion_criteria: {exc}", file=sys.stderr)
         return 2
 
+    payload = {
+        "pull_request": args.pull_request,
+        "all_passed": all(r["passed"] for r in rows),
+        "criteria": rows,
+    }
+
+    if not _try_write_evidence(args.evidence_path, payload):
+        return 2
+
     if args.json:
-        print(
-            json.dumps(
-                {
-                    "pull_request": args.pull_request,
-                    "all_passed": all(r["passed"] for r in rows),
-                    "criteria": rows,
-                },
-                indent=2,
-            )
-        )
+        print(json.dumps(payload, indent=2))
     else:
         _print_table(rows)
 

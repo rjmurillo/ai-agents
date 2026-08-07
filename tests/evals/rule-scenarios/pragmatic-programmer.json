@@ -1,0 +1,53 @@
+{
+  "rule_path": ".claude/rules/pragmatic-programmer.md",
+  "rule_id": "pragmatic-programmer",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Same business rule encoded in multiple places",
+      "input": "The maximum order quantity (100) is checked in the UI form, the API endpoint, and the database trigger. Is this a problem? Plan a fix in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "DRY",
+        "duplicated knowledge",
+        "single source",
+        "one authoritative"
+      ],
+      "expected_gate": "enforce-dry-single-source-of-truth",
+      "rationale": "Pragmatic Programmer rule says DRY targets duplicated knowledge, not just text. The same business rule in three places is a DRY violation."
+    },
+    {
+      "id": "S2",
+      "desc": "Module that mixes persistence and email logic",
+      "input": "My UserService handles database writes, email validation, and sending welcome emails. Is there a design problem? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "orthogonality",
+        "independent",
+        "coupling",
+        "separate"
+      ],
+      "expected_gate": "enforce-orthogonal-responsibilities",
+      "rationale": "Rule mandates orthogonal components. Mixing persistence, validation, and email delivery means one concern change forces unrelated edits."
+    },
+    {
+      "id": "S3",
+      "desc": "Manual multi-step release checklist",
+      "input": "Our release process requires 12 manual steps documented in a wiki. Every deploy takes 90 minutes. Plan improvements in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "automate",
+        "script",
+        "repeatable",
+        "manual"
+      ],
+      "expected_gate": "automate-repetitive-processes",
+      "rationale": "Rule mandates automating repetitive, error-prone processes. A 12-step manual release is exactly the target for scripted automation."
+    },
+    {
+      "id": "S4",
+      "desc": "Question about database index type (negative case)",
+      "input": "Should I use a B-tree or hash index for a column that is queried only by exact equality? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "A database index type question is a low-level storage concern unrelated to DRY, orthogonality, or automation principles in the Pragmatic Programmer rule."
+    }
+  ]
+}

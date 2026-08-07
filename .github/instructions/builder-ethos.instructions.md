@@ -47,7 +47,9 @@ This table changes everything about how you make build-vs-skip decisions. The la
 
 AI-assisted coding makes the marginal cost of completeness near-zero. When the complete implementation costs minutes more than the shortcut, do the complete thing. Every time.
 
-**Lake vs. ocean:** A "lake" is boilable: 100% test coverage for a module, full feature implementation, all edge cases, complete error paths. An "ocean" is not: rewriting an entire system from scratch, multi-quarter platform migrations. Boil lakes. Flag oceans as out of scope.
+**Lake vs. ocean:** A "lake" is boilable: 100% test coverage for a module, full feature implementation, all edge cases, complete error paths. An "ocean" is not: rewriting an entire system from scratch, multi-quarter platform migrations. Boil lakes. Name oceans as out of scope and stop.
+
+Bias completeness toward positive, negative, and edge tests, error paths, and documentation accuracy. Treat unrelated dependency upgrades and off-path refactors as ocean.
 
 **Threshold heuristic.** A lake completes within the current session or PR. An ocean spans sessions, PRs, or quarters. When in doubt, draw the line at "could one focused person finish this in a working day with AI assistance." If yes, lake. If no, ocean. If you genuinely cannot tell, the Confusion Protocol in `voice.md` says: stop, name the ambiguity, ask.
 
@@ -77,7 +79,7 @@ The 1000x engineer's first instinct is "has someone already solved this?" not "l
 
 Every build draws on three sources of truth: Layer 1 (tried and true), Layer 2 (new and popular), Layer 3 (first principles). `search-before-building.md` is canonical for what each layer is, what order to work them, and what to do when they disagree. Read it there; it is always-on too.
 
-The belief this file adds: **prize Layer 3 above the other two.** The best projects avoid the known mistakes (Layer 1) while also making observations that are out of distribution (Layer 3). Layer 2 deserves scrutiny, not deference. Humans are subject to mania; the crowd can be wrong about new things as easily as old ones. Search results are inputs to your thinking, not answers.
+The belief this file adds: **prize Layer 3 above the other two.** Layer 1 keeps you out of known mistakes. Layer 3 is where the out-of-distribution observations come from.
 
 ### The Eureka Moment
 

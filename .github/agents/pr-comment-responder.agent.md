@@ -43,6 +43,33 @@ Key requirements:
 - Evidence-based explanations
 - Text status indicators: [DONE], [WIP], [WONTFIX]
 
+## Comment Map Status Vocabulary
+
+Every comment in `comments.md` carries exactly one status from this table. Gates and
+completion checks use only these values.
+
+| Status | Meaning | Terminal |
+|--------|---------|---------|
+| `[NEW]` | Fetched, not yet acknowledged | No |
+| `[ACKNOWLEDGED]` | Reaction posted, fix not yet committed | No |
+| `[COMPLETE]` | Fix committed and pushed | Yes |
+| `[WONTFIX]` | Explicitly decided not to change | Yes |
+
+Comment map fields render as `**Status**: [NEW]`, so every status grep must match the
+bold field at line start. Dropping the `**` delimiters or the `^` anchor matches nothing
+and reports zero.
+
+Non-terminal statuses (`[NEW]`, `[ACKNOWLEDGED]`) count as pending. Gate 3 and Gate 5
+enumerate those two statuses. Phase 8.1 is the fail-closed backstop: it counts only the
+terminal statuses, so anything else, including a status outside this table, stays in the
+remaining count.
+
+```bash
+ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
+WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
+REMAINING=$((TOTAL - ADDRESSED - WONTFIX))
+```
+
 ## Prose Self-Check
 
 Before emitting any prose artifact (reply body, comment response, summary, PR or issue body), run the prose-self-check skill (`.claude/skills/prose-self-check/SKILL.md`). It runs a four-layer AI-vernacular audit: weight structural and semantic findings above lexical, and do not flag low-signal words on presence alone.
@@ -621,6 +648,21 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
 
 </details>
 
+### Comment Map Status Vocabulary
+
+Every `**Status**` field in the comment map MUST be exactly one of these values.
+No other values are valid.
+
+| Status | Meaning | Terminal? | Gate behavior |
+|--------|---------|-----------|---------------|
+| `[NEW]` | Comment received, not yet acknowledged | No | Counts as pending in Phase 8.1 |
+| `[ACKNOWLEDGED]` | Acknowledged, work in progress | No | Counts as pending in Phase 8.1 |
+| `[COMPLETE]` | Resolution implemented and verified | Yes | Counts as addressed |
+| `[WONTFIX]` | Intentionally not addressed (with reason) | Yes | Counts as addressed |
+
+Phase 8.1 counts pending (`[NEW]` + `[ACKNOWLEDGED]`) and blocks with `exit 1` when any remain.
+Phase 8.2 requires all GitHub conversation threads resolved before merge.
+
 ### Phase 2: Comment Map Generation
 
 Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number]/comments.md`.
@@ -1127,16 +1169,16 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-ADDRESSED=$(grep -c "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
-WONTFIX=$(grep -c "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
+ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
+WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
 TOTAL=$TOTAL_COMMENTS
 
 echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
 
 if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
-  echo "[WARNING] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
+  echo "[BLOCKED] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
   grep -E -B 5 "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true
-  # Return to Phase 3 for unaddressed comments
+  exit 1
 fi
 ```
 
@@ -1219,7 +1261,7 @@ EXIT_CODE=$?
 # Handle timeout (exit code 7)
 if [ "$EXIT_CODE" -eq 7 ]; then
   echo "[BLOCKED] Timeout waiting for CI checks to complete"
-  echo "  Pending: $(echo "$CHECKS" | jq '.PendingCount') check(s) still running"
+  echo "  Pending: $(echo "$CHECKS" | jq '.Data.PendingCount') check(s) still running"
   exit 1
 fi
 
@@ -1287,12 +1329,12 @@ echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
 CHECKS=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request [number])
-ALL_PASSING=$(echo "$CHECKS" | jq -r '.AllPassing')
+ALL_PASSING=$(echo "$CHECKS" | jq -r '.Data.AllPassing')
 if [ "$ALL_PASSING" = "true" ]; then
   CI_STATUS="PASS"
 else
-  FAILED=$(echo "$CHECKS" | jq '.FailedCount')
-  PENDING=$(echo "$CHECKS" | jq '.PendingCount')
+  FAILED=$(echo "$CHECKS" | jq '.Data.FailedCount')
+  PENDING=$(echo "$CHECKS" | jq '.Data.PendingCount')
   CI_STATUS="$FAILED failures, $PENDING pending"
 fi
 echo "[ ] CI checks: $CI_STATUS"

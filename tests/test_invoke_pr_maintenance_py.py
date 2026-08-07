@@ -532,6 +532,36 @@ class TestMain:
         mock_rate.return_value = self._rate_limit_low()
         assert main([]) == 0
 
+    @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
+    def test_names_the_probe_refusal_instead_of_blaming_quota(
+        self, mock_rate: MagicMock, capsys
+    ) -> None:
+        """The gate fails two ways; the message has to say which (issue #4326).
+
+        `probe_error` was returned and never read, so a live refusal, a probe
+        timeout, and a genuine threshold miss all printed "API rate limit too
+        low" and the new evidence was discarded at the point of use.
+        """
+        from scripts.github_core import RateLimitResult
+
+        mock_rate.return_value = RateLimitResult(
+            success=False,
+            core_remaining=4984,
+            resources={},
+            summary_markdown="",
+            probe_error="gh: API rate limit exceeded for user ID 6811113 (HTTP 403)",
+        )
+
+        assert main([]) == 0
+        assert "API rate limit exceeded for user ID" in capsys.readouterr().err
+
+    @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
+    def test_threshold_miss_says_so(self, mock_rate: MagicMock, capsys) -> None:
+        mock_rate.return_value = self._rate_limit_low()
+
+        assert main([]) == 0
+        assert "thresholds not met" in capsys.readouterr().err
+
     @patch(
         "scripts.invoke_pr_maintenance.check_workflow_rate_limit",
         side_effect=RuntimeError("gh: command not found"),

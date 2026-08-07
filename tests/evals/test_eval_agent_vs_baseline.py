@@ -11,11 +11,14 @@ No live API calls. T4-2 will add adapter and persistence tests.
 
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 import json
 import re
 import sys
+from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -42,6 +45,7 @@ if _path_added:
     sys.path.insert(0, str(EVAL_DIR))
 try:
     types_mod = _load_module("_eval_agent_types.py", "_eval_agent_types")
+    common_mod = _load_module("_eval_common.py", "_eval_common")
     scoring_mod = _load_module("_scoring_engine.py", "_scoring_engine")
     plan_mod = _load_module("_plan_runner.py", "_plan_runner")
     adapter_mod = _load_module("_eval_api_adapter.py", "_eval_api_adapter")
@@ -435,6 +439,75 @@ class TestPlanRunner:
                 model_id="model-without-pricing",
             )
 
+    def test_quota_provider_plans_an_unpriced_model(self):
+        """A quota-billed provider prices in requests, so no USD rate is needed."""
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="openai/gpt-4o-mini",
+            provider="github-models",
+        )
+        assert plan.cost_basis == "requests"
+        assert plan.estimated_cost_usd is None
+        assert plan.planned_calls > 0
+
+    def test_quota_provider_alias_plans_the_same(self):
+        """`github` and `github-models` name one provider and must agree."""
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="openai/gpt-4o-mini",
+            provider="github",
+        )
+        assert plan.cost_basis == "requests"
+        assert plan.estimated_cost_usd is None
+
+    def test_usd_provider_still_raises_on_an_unpriced_model(self):
+        """OpenAI bills in USD, so an absent rate is a real gap, not a basis change.
+
+        Inventing a rate to make the plan run would put a fabricated
+        third-party price into an operator-facing cost report.
+        """
+        with pytest.raises(UnsupportedModelError):
+            PlanRunner.build_plan(
+                fixtures=_make_fixtures(1),
+                model_id="gpt-4o-mini",
+                provider="openai",
+            )
+
+    def test_absent_provider_keeps_the_usd_basis(self):
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="claude-sonnet-4-6",
+        )
+        assert plan.cost_basis == "usd"
+        assert plan.estimated_cost_usd is not None
+
+    def test_quota_basis_follows_the_provider_not_the_model(self):
+        """The biller is the provider. A priced id routed through a quota
+        provider is still metered in requests."""
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="claude-sonnet-4-6",
+            provider="github-models",
+        )
+        assert plan.cost_basis == "requests"
+        assert plan.estimated_cost_usd is None
+
+    def test_quota_cost_line_reports_requests(self):
+        plan = PlanRunner.build_plan(
+            fixtures=_make_fixtures(1),
+            model_id="openai/gpt-4o-mini",
+            n_runs=3,
+            provider="github-models",
+        )
+        lines = PlanRunner.format_plan_lines(plan)
+        assert not [ln for ln in lines if ln.startswith("cost_estimate_usd=")]
+        cost_line = [
+            ln for ln in lines if ln.startswith("cost_estimate_requests=")
+        ]
+        assert len(cost_line) == 1
+        assert cost_line[0] == (
+            f"cost_estimate_requests={plan.planned_calls} basis=requests"
+        )
     def test_opus_5_costs_the_published_per_mtok_rate(self):
         # Issue #3905: claude-opus-5 had no pricing row, so every plan naming
         # it raised UnsupportedModelError. The expected value is derived from
@@ -590,6 +663,57 @@ class TestCliExitCodes:
         assert "cost_estimate_usd=" in captured.out
         assert "rate_as_of=" in captured.out
 
+    def test_dry_run_on_a_quota_provider_exits_zero(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """The end-to-end shape #4002 reported: a non-Anthropic model planned.
+
+        `cli_main` writes --provider into the process environment, so the
+        env is pinned through monkeypatch here. Without it the value
+        survives the test and re-routes every later in-process CLI test.
+        """
+        monkeypatch.setenv("EVAL_PROVIDER", "")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+        rc = cli_main([
+            "--dry-run",
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--provider",
+            "github-models",
+            "--model",
+            "openai/gpt-4o-mini",
+        ])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "planned_calls=6" in captured.out
+        assert "cost_estimate_requests=6 basis=requests" in captured.out
+        assert "cost_estimate_usd=" not in captured.out
+
+    def test_dry_run_on_a_usd_provider_still_exits_config(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """An unpriced model on a per-token provider is still an operator gap."""
+        monkeypatch.setenv("EVAL_PROVIDER", "")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+        rc = cli_main([
+            "--dry-run",
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--provider",
+            "openai",
+            "--model",
+            "gpt-4o-mini",
+        ])
+        assert rc == 2
+        assert "No pricing rate" in capsys.readouterr().err
     def test_panel_model_opus_5_plans_and_exits_zero(self, tmp_path, capsys):
         # The exact command that failed in issue #3905. claude-opus-5 is the
         # reference tier in scripts/eval/panels/owner-copilot-cli.json, and
@@ -2164,6 +2288,34 @@ class TestReportAggregatorCost:
         # does not require editing a test that is about threading, not dates.
         assert result.pricing_rate_as_of == plan_mod.PRICING_RATE_AS_OF
 
+    def test_quota_provider_reports_no_usd_cost(self):
+        """A completed quota-billed run must produce a report, not an exception."""
+        records = _build_records(
+            ["F001"], agent_passed=True, baseline_passed=True
+        )
+        result = ReportAggregator(
+            records, model_id="openai/gpt-4o-mini", provider="github-models"
+        ).aggregate()
+        assert result.cost_estimate_usd is None
+        assert result.cost_basis == "requests"
+
+    def test_usd_provider_still_raises_on_an_unpriced_model(self):
+        records = _build_records(
+            ["F001"], agent_passed=True, baseline_passed=True
+        )
+        with pytest.raises(UnsupportedModelError):
+            ReportAggregator(
+                records, model_id="gpt-4o-mini", provider="openai"
+            ).aggregate()
+
+    def test_absent_provider_keeps_the_usd_basis(self):
+        records = _build_records(
+            ["F001"], agent_passed=True, baseline_passed=True
+        )
+        result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
+        assert result.cost_basis == "usd"
+        assert result.cost_estimate_usd == pytest.approx(0.0063)
+
 
 # ===========================================================================
 # T4-3: ReportWriter
@@ -2193,6 +2345,54 @@ class TestReportWriter:
             halt_due_to_flakiness=False,
             tokens_estimated=tokens_estimated,
         )
+
+    def _quota_aggregate(self) -> AggregateResult:
+        base = self._aggregate()
+        return replace(base, cost_estimate_usd=None, cost_basis="requests")
+
+    def test_quota_report_json_carries_no_dollar_figure(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        json_path, _ = writer.write(
+            aggregate=self._quota_aggregate(),
+            run_id="20260503T140000Z-aaaaaaaa",
+            model_id="openai/gpt-4o-mini",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=187.0,
+        )
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        assert payload["cost_estimate_usd"] is None
+        assert payload["cost_basis"] == "requests"
+
+    def test_quota_report_markdown_reports_requests_not_dollars(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        _, md_path = writer.write(
+            aggregate=self._quota_aggregate(),
+            run_id="20260503T140000Z-aaaaaaaa",
+            model_id="openai/gpt-4o-mini",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=187.0,
+        )
+        body = md_path.read_text(encoding="utf-8")
+        assert "Estimated cost: metered as requests" in body
+        assert "$" not in body.split("## Cost and Resource Summary")[1].split("##")[0]
+
+    def test_usd_report_markdown_is_unchanged(self, tmp_path):
+        writer = ReportWriter(tmp_path / "reports")
+        _, md_path = writer.write(
+            aggregate=self._aggregate(),
+            run_id="20260503T140000Z-aaaaaaaa",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=187.0,
+        )
+        body = md_path.read_text(encoding="utf-8")
+        assert "- Estimated cost: $0.0900 USD (rate as of 2026-05-03)" in body
 
     def test_writes_both_files_atomically(self, tmp_path):
         writer = ReportWriter(tmp_path / "reports")
@@ -2922,18 +3122,163 @@ class TestAdapterTotalWallBudget:
         assert fast.calls == 3
 
 
-class TestAdapterNonPositiveMaxRetries:
-    """`max_retries <= 0` skips the loop and lands on the fallthrough return.
+class TestTransportsRefuseAMalformedFingerprint:
+    """Both adapter transports raise on a present non-string fingerprint.
 
-    Pinned because the record it produces is indistinguishable from a real
-    provider failure: `outcome="error"` carrying `ERR_UNKNOWN`. A caller
-    configuration mistake is reported in the provider's vocabulary, and no
-    attempt log is emitted to say otherwise. Refs #4121.
+    Before #4123 each coerced it to `None`, which records "the provider
+    supplied no fingerprint" for a response that supplied one. The archive
+    reader (`_run_persistence`) already refuses that shape, so the coercion
+    made its guard unable to fire on anything this codebase wrote. Refs #4123.
     """
 
-    @pytest.mark.parametrize("max_retries", [0, -1, False])
-    def test_non_positive_max_retries_calls_no_transport(
-        self, max_retries: int, capsys: pytest.CaptureFixture[str]
+    @pytest.mark.parametrize("malformed", [123, 4.5, True, {"id": "fp"}, ["fp"]])
+    def test_provider_transport_raises_on_a_non_string_fingerprint(
+        self, malformed: object
+    ) -> None:
+        class _Provider:
+            def __init__(self) -> None:
+                self.system_fingerprint = malformed
+
+            def complete(self, **kwargs: object) -> str:
+                return "answer"
+
+        transport = adapter_mod._OpenAIProviderTransport(_Provider(), seed=None)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            transport("prompt", "gpt-4o", "")
+        assert transport.system_fingerprint is None
+
+    def test_provider_transport_accepts_a_string_and_an_absent_value(self) -> None:
+        class _Provider:
+            def __init__(self, fingerprint: object) -> None:
+                self.system_fingerprint = fingerprint
+
+            def complete(self, **kwargs: object) -> str:
+                return "answer"
+
+        good = adapter_mod._OpenAIProviderTransport(_Provider("fp-1"), seed=None)
+        assert good("prompt", "gpt-4o", "") == "answer"
+        assert good.system_fingerprint == "fp-1"
+
+        absent = adapter_mod._OpenAIProviderTransport(_Provider(None), seed=None)
+        assert absent("prompt", "gpt-4o", "") == "answer"
+        assert absent.system_fingerprint is None
+
+    @pytest.mark.parametrize("malformed", [123, {"id": "fp"}])
+    def test_anthropic_transport_raises_on_a_non_string_fingerprint(
+        self, monkeypatch: pytest.MonkeyPatch, malformed: object
+    ) -> None:
+        def _call_api(**kwargs: object) -> str:
+            metadata = kwargs["metadata"]
+            assert isinstance(metadata, dict)
+            metadata["system_fingerprint"] = malformed
+            return "answer"
+
+        monkeypatch.setattr(adapter_mod, "call_api", _call_api)
+        transport = adapter_mod._AnthropicTransport("key", seed=None)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            transport("prompt", "claude-sonnet-4-6", "")
+        assert transport.system_fingerprint is None
+
+    def test_call_model_propagates_malformed_provider_metadata(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        class _Provider:
+            def __init__(self) -> None:
+                self.system_fingerprint: object = 123
+                self.calls = 0
+
+            def complete(self, **kwargs: object) -> str:
+                self.calls += 1
+                return "answer"
+
+        provider = _Provider()
+        transport = adapter_mod._OpenAIProviderTransport(provider, seed=None)
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            adapter.call_model(
+                prompt="x",
+                model_id="gpt-4o",
+                fixture_id="F-FP",
+                variant="agent",
+                run_index=0,
+            )
+
+        assert provider.calls == 1
+        assert capsys.readouterr().err == ""
+
+    def test_call_model_validates_the_injected_transport_seam(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        class _Transport:
+            system_fingerprint: object = {"id": "fp"}
+
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def __call__(self, prompt: str, model_id: str, system: str) -> str:
+                self.calls += 1
+                return "answer"
+
+        transport = _Transport()
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            adapter.call_model(
+                prompt="x",
+                model_id="gpt-4o",
+                fixture_id="F-FP-SEAM",
+                variant="agent",
+                run_index=0,
+            )
+
+        assert transport.calls == 1
+        assert capsys.readouterr().err == ""
+
+    @pytest.mark.parametrize("fingerprint", [None, "", "fp-1"])
+    def test_call_model_accepts_valid_fingerprint_states(
+        self, fingerprint: str | None
+    ) -> None:
+        class _Transport:
+            def __init__(self) -> None:
+                self.system_fingerprint = fingerprint
+                self.calls = 0
+
+            def __call__(self, prompt: str, model_id: str, system: str) -> str:
+                self.calls += 1
+                return "answer"
+
+        transport = _Transport()
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+
+        result = adapter.call_model(
+            prompt="x",
+            model_id="gpt-4o",
+            fixture_id="F-FP-VALID",
+            variant="agent",
+            run_index=0,
+        )
+
+        assert result.outcome == "success"
+        assert result.system_fingerprint == fingerprint
+        assert transport.calls == 1
+
+
+class TestAdapterInvalidMaxRetries:
+    """Invalid retry budgets are refused instead of becoming provider errors.
+
+    Before #4121 the loop was skipped and the fallthrough returned
+    `outcome="error"` with `ERR_UNKNOWN`, which is indistinguishable from a
+    real provider failure and counted toward the provider error total for a
+    call the provider never received. The refusal is visible; the fabricated
+    record was not.
+    """
+
+    @pytest.mark.parametrize("max_retries", [0, -1, False, True, 1.5, "3"])
+    def test_invalid_max_retries_is_rejected(
+        self, max_retries: object, capsys: pytest.CaptureFixture[str]
     ) -> None:
         calls: list[str] = []
 
@@ -2942,20 +3287,39 @@ class TestAdapterNonPositiveMaxRetries:
             raise AssertionError("transport must not be called")
 
         adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
+        with pytest.raises(ValueError, match="max_retries must be an integer >= 1"):
+            adapter.call_model(
+                prompt="x",
+                model_id="claude-sonnet-4-6",
+                fixture_id="F-MR",
+                variant="agent",
+                run_index=0,
+                max_retries=cast(int, max_retries),
+            )
+        # The guard fires before anything else: no transport call, no log.
+        assert calls == []
+        assert capsys.readouterr().err == ""
+
+    def test_max_retries_of_one_still_makes_exactly_one_call(self) -> None:
+        """The boundary the guard admits. 1 is valid and calls once."""
+        calls: list[str] = []
+
+        def transport(prompt: str, model_id: str, system: str) -> str:
+            calls.append(model_id)
+            return "ok"
+
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
         result = adapter.call_model(
             prompt="x",
             model_id="claude-sonnet-4-6",
-            fixture_id="F-MR",
+            fixture_id="F-MR1",
             variant="agent",
             run_index=0,
-            max_retries=max_retries,
+            max_retries=1,
         )
-        assert calls == []
-        assert result.outcome == "error"
-        assert result.error_category == ERR_UNKNOWN
-        assert result.attempts == 0
-        # Nothing was attempted, so no attempt log is written.
-        assert capsys.readouterr().err == ""
+        assert calls == ["claude-sonnet-4-6"]
+        assert result.outcome == "success"
+        assert result.attempts == 1
 
 
 # ---------------------------------------------------------------------------
@@ -3718,3 +4082,224 @@ class TestCliInputValidators:
         # Does not require existence.
         resolved = cli_mod._assert_under_repo_root(inside)
         assert resolved.is_relative_to(tmp_path.resolve())
+
+
+class TestCostBasisProviderResolution:
+    """`cost_basis` must answer for the provider the transport actually routes to.
+
+    `_providers.resolve_provider` resolves a provider name as
+    `(name or EVAL_PROVIDER or "anthropic").strip().lower()`. A basis that
+    resolves differently can disagree with the transport that will really be
+    billed: the plan promises dollars while the run consumes request quota.
+    """
+
+    def test_env_selects_quota_basis_when_flag_absent(self, monkeypatch):
+        """Env-only selection must reach the quota basis (plan/report agreement)."""
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        assert common_mod.cost_basis(None) == "requests"
+
+    def test_env_selects_usd_basis_for_per_token_provider(self, monkeypatch):
+        """Env-only selection of a per-token provider still answers usd."""
+        monkeypatch.setenv("EVAL_PROVIDER", "openai")
+        assert common_mod.cost_basis(None) == "usd"
+
+    def test_explicit_argument_wins_over_env(self, monkeypatch):
+        """An explicit provider outranks the environment, as the transport does."""
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        assert common_mod.cost_basis("openai") == "usd"
+
+    def test_mixed_case_provider_normalizes(self, monkeypatch):
+        """A spelling the transport accepts must not miss the quota set."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis("GitHub-Models") == "requests"
+
+    def test_surrounding_whitespace_normalizes(self, monkeypatch):
+        """The transport strips; so must the basis."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis("  github  ") == "requests"
+
+    def test_absent_provider_and_absent_env_answers_usd(self, monkeypatch):
+        """The default Anthropic path keeps the strict raise-on-unpriced rule."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis(None) == "usd"
+
+    def test_unrecognized_provider_answers_usd(self, monkeypatch):
+        """An unknown name must not be assumed quota-billed."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis("some-new-vendor") == "usd"
+
+    def test_empty_provider_falls_through_to_env(self, monkeypatch):
+        """Empty string is falsy for the transport, so the env must win here too."""
+        monkeypatch.setenv("EVAL_PROVIDER", "github-models")
+        assert common_mod.cost_basis("") == "requests"
+
+
+class TestReportDeclaresWhatIsWritten:
+    """`Report` is DESIGN-004 section 5.6's declaration of the report shape.
+
+    A bot review read it as the authoritative serialized shape and flagged it as
+    out of sync with the writer. The premise was wrong: `_build_report_json`
+    serializes `AggregateResult`, and `Report` is constructed nowhere in
+    production. But the observation underneath was right. `Report` declared
+    `cost_estimate_usd: float` and no `cost_basis`, which stopped describing what
+    lands on disk the moment a quota metered provider began writing a null cost
+    beside a basis. A declaration that no longer matches the artifact misleads
+    the next reader whether or not any code reads it.
+    """
+
+    def _report(self, **overrides):
+        kwargs = dict(
+            run_id="r",
+            model_id="openai/gpt-4o-mini",
+            agent_prompt_sha="a",
+            baseline_prompt_sha="b",
+            fixture_set_sha="c",
+            agent_recall=0.0,
+            baseline_recall=0.0,
+            recall_delta=0.0,
+            bootstrap_ci_95=(0.0, 0.0),
+            recall_with_errors=0.0,
+            recall_excluding_errors=0.0,
+            per_fixture_pass_rates={},
+            flakiness=False,
+            total_tokens_in=0,
+            total_tokens_out=0,
+            wall_clock_seconds=0.0,
+            cost_estimate_usd=0.0,
+            error_count=0,
+            pricing_rate_as_of="2026-05-03",
+        )
+        kwargs.update(overrides)
+        return Report(**kwargs)
+
+    def test_cost_basis_defaults_to_usd(self):
+        """The Anthropic path is the default, so an omitted basis means dollars."""
+        assert self._report().cost_basis == "usd"
+
+    def test_cost_basis_accepts_requests(self):
+        """A quota metered provider writes this basis, so the type must carry it."""
+        assert self._report(cost_basis="requests").cost_basis == "requests"
+
+    def test_cost_estimate_usd_accepts_none(self):
+        """On the requests basis the writer emits null, not 0.0.
+
+        0.0 would assert the run was free. None says no per token price exists.
+        Asserts the declared annotation, not just runtime tolerance: dataclasses
+        do not enforce types, so constructing with None would succeed even under
+        a `float` annotation and prove nothing about the declaration.
+        """
+        annotation = {f.name: f.type for f in dataclasses.fields(Report)}["cost_estimate_usd"]
+        assert "None" in str(annotation), annotation
+        report = self._report(cost_estimate_usd=None, cost_basis="requests")
+        assert report.cost_estimate_usd is None
+
+    def test_cost_estimate_usd_still_accepts_a_float(self):
+        """The USD path must not regress while making the null path expressible."""
+        assert self._report(cost_estimate_usd=1.25).cost_estimate_usd == 1.25
+
+    def test_declared_fields_match_the_serialized_cost_keys(self):
+        """Pins the two shapes together so they cannot drift apart again silently.
+
+        Every cost key the writer emits must exist as a field on the declared
+        type. This is the assertion that would have caught the drift when it
+        happened rather than one release later.
+        """
+        declared = {f.name for f in dataclasses.fields(Report)}
+        assert {"cost_estimate_usd", "cost_basis"} <= declared
+
+
+class TestEveryRegisteredProviderIsClassified:
+    """Every transport in `_providers._REGISTRY` must have a deliberate basis.
+
+    `cost_basis` returns "usd" for any name outside `QUOTA_BILLED_PROVIDERS`.
+    That fallback is correct for an unknown name, because an unrecognized
+    transport is not evidence of a free one. It is wrong for a registered one:
+    a provider the tool can actually dispatch to gets its billing model decided
+    by omission.
+
+    That is not hypothetical. `copilot` and `copilot-cli` shell out to an
+    authenticated GitHub Copilot CLI, spend no per-token dollars, and were
+    absent from the quota set, so a dry run through the provider this
+    repository documents as preferred printed a Claude Sonnet dollar rate.
+    Measured before the fix, same plan, same scenario file:
+
+        EVAL_PROVIDER=github-models  ~126,000 (metered as requests)
+        EVAL_PROVIDER=copilot-cli    ~126,000 (~$0.38 sonnet input rate)
+
+    Centralizing the decision in `cost_basis` did not help, because the set it
+    reads was never audited against the registry. These tests audit it, so the
+    next provider added cannot inherit a billing model by default.
+    """
+
+    # The basis each registered transport bills on. A new row in `_REGISTRY`
+    # must add a row here, which is the point: classification becomes a
+    # required step rather than a silent default.
+    EXPECTED_BASIS = {
+        "openai": "usd",
+        "codex": "usd",
+        "github": "requests",
+        "github-models": "requests",
+        "anthropic-sdk": "usd",
+        "copilot": "requests",
+        "copilot-cli": "requests",
+    }
+
+    def _registry_names(self):
+        added = str(EVAL_DIR) not in sys.path
+        if added:
+            sys.path.insert(0, str(EVAL_DIR))
+        module_name = "_providers_registry_audit"
+        previous = sys.modules.get(module_name)
+        try:
+            providers_mod = _load_module("_providers.py", module_name)
+        finally:
+            if previous is None:
+                sys.modules.pop(module_name, None)
+            else:
+                sys.modules[module_name] = previous
+            if added and str(EVAL_DIR) in sys.path:
+                sys.path.remove(str(EVAL_DIR))
+        return set(providers_mod._REGISTRY)
+
+    def test_registry_audit_preserves_the_provider_module(self):
+        missing = object()
+        existing = sys.modules.get("_providers", missing)
+
+        self._registry_names()
+
+        if existing is missing:
+            assert "_providers" not in sys.modules
+        else:
+            assert sys.modules["_providers"] is existing
+
+    def test_registry_and_classification_cover_the_same_names(self):
+        """Adding a provider without classifying how it bills fails here."""
+        assert self._registry_names() == set(self.EXPECTED_BASIS)
+
+    @pytest.mark.parametrize("name", sorted(EXPECTED_BASIS))
+    def test_registered_provider_resolves_to_its_declared_basis(self, name, monkeypatch):
+        """Each registered transport answers the basis it actually bills on."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis(name) == self.EXPECTED_BASIS[name]
+
+    @pytest.mark.parametrize("name", sorted(EXPECTED_BASIS))
+    def test_env_selection_matches_explicit_selection(self, name, monkeypatch):
+        """The env path and the argument path must not disagree for any provider.
+
+        The dry run reads the environment; a caller may pass the name. A
+        provider classified correctly on one path and not the other would
+        reintroduce the split the centralization was meant to close.
+        """
+        monkeypatch.setenv("EVAL_PROVIDER", name)
+        assert common_mod.cost_basis(None) == common_mod.cost_basis(name)
+
+    def test_copilot_cli_is_not_billed_per_token(self, monkeypatch):
+        """The specific regression: a subscription CLI must not quote a token rate."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis("copilot-cli") == "requests"
+        assert common_mod.cost_basis("copilot") == "requests"
+
+    def test_unregistered_name_still_answers_usd(self, monkeypatch):
+        """The fallback must survive: an unknown transport is not a free one."""
+        monkeypatch.delenv("EVAL_PROVIDER", raising=False)
+        assert common_mod.cost_basis("some-unlisted-vendor") == "usd"

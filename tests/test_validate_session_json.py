@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, validator regression suite keeps shared fixtures.
 """Tests for validate_session_json module.
 
 These tests verify the session log validation functionality used for
@@ -2182,6 +2183,48 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         source = inspect.getsource(vsj.main)
         assert "args.scope_from_git and not existing_log" in source
 
+    def test_the_hook_passes_creation_mode_for_a_new_log(self) -> None:
+        """A new log gets --creation-mode so the hook does not reject it at
+        session-start before session-end has run (issue #4425)."""
+        from scripts.validation import git_hook_policy, session_scope
+
+        commands: list[list[str]] = []
+
+        def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        stub, _ = self._stub(added=("new.json",), tracked=("new.json",))
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(session_scope, "_git", stub),
+        ):
+            git_hook_policy.validate_branch_sessions(["new.json"], Path.cwd())
+        assert commands, "expected at least one validate_session_json invocation"
+        assert "--creation-mode" in commands[0], (
+            "new log must get --creation-mode so session-start commit is accepted"
+        )
+
+    def test_the_hook_does_not_pass_creation_mode_for_an_existing_log(self) -> None:
+        """An already-committed log must NOT get --creation-mode (issue #4425)."""
+        from scripts.validation import git_hook_policy, session_scope
+
+        commands: list[list[str]] = []
+
+        def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        stub, _ = self._stub(tracked=("old.json",))
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(session_scope, "_git", stub),
+        ):
+            git_hook_policy.validate_branch_sessions(["old.json"], Path.cwd())
+        assert commands, "expected at least one validate_session_json invocation"
+        assert "--creation-mode" not in commands[0]
+        assert "--existing-log" in commands[0]
+
 
 def _log_with_evidence(**items: str) -> dict:
     """A valid log whose named checklist items carry the given evidence.
@@ -2535,6 +2578,30 @@ class TestEndingCommitReachability:
         warnings = validate_session_log(log).warnings
         assert any("endingCommit is empty" in w for w in warnings)
         assert not any("issue #3618" in w for w in warnings)
+
+    def test_orphaned_ending_commit_message_names_squash_merge(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The error message names squash merge as a cause (issue #4312).
+
+        The most common cause in this repo is a squash merge: the branch is
+        merged and the branch commits disappear from the history, leaving the
+        logged endingCommit unreachable. The old message only mentioned amend
+        and rebase, sending users down a dead end.
+        """
+        from scripts import validate_session_json
+
+        repo, _, _ = self._make_repo(tmp_path)
+        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", repo)
+        log = _make_valid_log()
+        log["endingCommit"] = "0" * 40
+        errors = validate_session_log(log).errors
+        matching = [e for e in errors if "issue #3618" in e]
+        assert matching, "expected at least one error referencing issue #3618"
+        message = matching[0]
+        assert "squash" in message.lower(), (
+            f"error message should name squash merge as a cause (#4312); got: {message!r}"
+        )
 
 
 class TestARequiredItemCannotChooseItsOwnEnforcement:

@@ -1,0 +1,112 @@
+{
+  "id": "episode-2026-08-02-session-4401-session-quirks",
+  "session": "2026-08-02-session-4401-session-quirks",
+  "timestamp": "2026-08-02T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record two operational quirks discovered while closing the adr-review debate on the session-end lint scope: the two-dot diff form inventing deletions proportional to how far behind the branch is, and a stale local main making the new_pr.py Session End gate validate a stranger's session log. Both were measured, not recalled.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "implementation",
+      "context": "",
+      "chosen": "Chose the persistence surface for each finding rather than defaulting to a new memory file",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed the 6-agent adr-review debate on the session-end lint scope",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4401-session-quirks"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measured the two-dot versus three-dot diff on a branch 7 commits behind main",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4401-session-quirks"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed an opaque 'Session End validation failed' from new_pr.py",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4401-session-quirks"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked the fix was safe before moving the ref",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4401-session-quirks"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Chose the persistence surface for each finding rather than defaulting to a new memory file",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4401-session-quirks"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Dispatched cross-family adversarial review",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4401-session-quirks"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Applied the cross-family review findings on the memory append",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4401-session-quirks"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 4d43af4d6",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4401-session-quirks"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0e55194e2",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-02-session-4401-session-quirks"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 3
+  },
+  "lessons": []
+}

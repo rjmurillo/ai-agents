@@ -72,7 +72,7 @@ def _find_platform_hook_artifacts(repo_root: Path) -> tuple[list[Path], list[str
     declares hooks, triggering the legacy _COPILOT_REL fallback.
     """
     try:
-        import yaml  # noqa: PLC0415
+        import yaml
     except ImportError:  # pragma: no cover
         return [], []
     platforms_dir = repo_root / "templates" / "platforms"
@@ -123,17 +123,28 @@ def _load_generators(repo_root: Path) -> tuple[ModuleType, ModuleType]:
     scripts_dir = repo_root / "build" / "scripts"
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
-    import generate_dispatcher  # noqa: PLC0415
-    import generate_hooks  # noqa: PLC0415
+    import generate_dispatcher
+    import generate_hooks
 
     return cast(ModuleType, generate_hooks), cast(ModuleType, generate_dispatcher)
 
 
 def _script_name(command: str) -> str | None:
+    """Extract the hook script filename from a Copilot bash command.
+
+    Handles both the legacy form (a single quoted path) and the guarded
+    form introduced by issue #4672 where the command contains multiple
+    quoted strings with the dispatch path near the end.
+    """
+    # Legacy form: exactly one quoted path
     parts = command.split('"')
-    if len(parts) != 3:
-        return None
-    return parts[1].rsplit("/", 1)[-1]
+    if len(parts) == 3:
+        return parts[1].rsplit("/", 1)[-1]
+    # Guarded form: look for the dispatch .py invocation pattern
+    m = re.search(r'/hooks/\w+/([\w.]+\.py)', command)
+    if m:
+        return m.group(1)
+    return None
 
 
 def _check_copilot_entry(

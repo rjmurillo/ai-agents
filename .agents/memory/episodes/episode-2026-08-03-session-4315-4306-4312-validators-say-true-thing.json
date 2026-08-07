@@ -1,0 +1,126 @@
+{
+  "id": "episode-2026-08-03-session-4315-4306-4312-validators-say-true-thing",
+  "session": "2026-08-03-session-4315-4306-4312-validators-say-true-thing",
+  "timestamp": "2026-08-03T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix three validator-misrepresentation issues: #4315 (advisory [FAIL] prints when check passes), #4306 (score_atomicity is boolean in disguise), #4312 (endingCommit error blames amend/rebase when squash merge is the actual cause).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged issues #4315, #4306, #4312 against current origin/main",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4315-4306-4312-validators-say-true-thing"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4315: restructured validate_review_marker in checks_coverage.py",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4315-4306-4312-validators-say-true-thing"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4312: updated endingCommit error message in validate_session_json.py",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4315-4306-4312-validators-say-true-thing"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #4306: expanded _VAGUE_WORDS, added _MIN_ACTIONABLE_WORDS=4, updated _is_actionable in score_atomicity.py",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4315-4306-4312-validators-say-true-thing"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote tests for all three fixes with mutation proof",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4315-4306-4312-validators-say-true-thing"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "error",
+      "content": "Wrote tests for all three fixes with mutation proof      44 tests pass. Mutations killed: WARN rewrite removed (2 failures); MIN_ACTIONABLE_WORDS removed (3 failures); squash text removed (1 failure). All 3 mutations confirmed via exit code 1.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4315-4306-4312-validators-say-true-thing"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran all three ratchets against origin/main",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4315-4306-4312-validators-say-true-thing"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-02T23:52:42+00:00",
+      "type": "commit",
+      "content": "Commit: 74b501ec8",
+      "caused_by": [],
+      "leads_to": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e009"
+      ],
+      "_source_session": "2026-08-03-session-4315-4306-4312-validators-say-true-thing"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retrospective section: learnings captured from final push gate",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-03-session-4315-4306-4312-validators-say-true-thing"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 2,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 10
+  },
+  "lessons": []
+}

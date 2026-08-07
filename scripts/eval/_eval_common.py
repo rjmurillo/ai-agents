@@ -6,7 +6,10 @@ duplication of score aggregation logic.
 
 from __future__ import annotations
 
+import os
 from typing import Any
+
+from _eval_errors import MalformedProviderMetadataError
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -43,6 +46,94 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
 }
 PRICING_RATE_AS_OF = "2026-08-01"
 
+# Providers that meter requests against an account allowance instead of
+# charging a published per-token USD rate. GitHub Models bills this way, so a
+# dollar figure for a run routed through it is a number nobody publishes.
+# Copilot CLI bills this way too: it shells out to an authenticated `copilot`
+# binary covered by a subscription, so it spends no per-token dollars at all.
+# Naming these providers lets the plan report the request count it will spend
+# and leave the USD figure empty, rather than either inventing a third-party
+# price or refusing to run a provider the transport already supports.
+# Spellings match the aliases in `_providers._REGISTRY`. Every name registered
+# there must appear either here or in the per-token default deliberately;
+# `TestEveryRegisteredProviderIsClassified` fails when a new provider is added
+# without that decision being made, because the default is silent and the
+# omission of `copilot-cli` from this set is what made a subscription CLI quote
+# a Claude Sonnet token rate.
+QUOTA_BILLED_PROVIDERS: frozenset[str] = frozenset(
+    {"github", "github-models", "copilot", "copilot-cli"}
+)
+
+
+def safe_http_error_message(provider_surface: str, status_code: int) -> str:
+    """Return a fixed HTTP error that contains no provider-controlled body."""
+    if status_code in (401, 403):
+        category = "auth"
+    elif status_code == 408:
+        category = "timeout"
+    elif status_code == 429:
+        category = "rate_limit"
+    elif 500 <= status_code < 600:
+        category = "server_error"
+    elif 400 <= status_code < 500:
+        category = "client_error"
+    else:
+        category = "http_error"
+    return (
+        f"{provider_surface} returned HTTP {status_code}: error={category}; "
+        "provider response redacted"
+    )
+
+
+def cost_basis(provider: str | None) -> str:
+    """Return how *provider* bills: ``"usd"`` per token or ``"requests"``.
+
+    The biller is the provider, not the model. The same model id served
+    through GitHub Models is metered against a request allowance, and served
+    through a per-token vendor is metered in dollars, so the basis has to
+    follow the transport that will actually be charged.
+
+    *provider* is resolved exactly as ``_providers.resolve_provider`` resolves
+    it, ``(name or EVAL_PROVIDER or "anthropic").strip().lower()``, because the
+    transport that resolution selects is the one that gets billed. Resolving
+    any other way lets the two disagree: selecting GitHub Models through the
+    environment alone, or spelling it ``GitHub-Models``, would route to a
+    request-metered transport while this function still answered ``"usd"``,
+    so the plan would promise dollars for a run that spends request quota.
+
+    An unrecognized or absent provider answers ``"usd"``. That keeps the
+    default Anthropic path, and any per-token vendor added later, on the
+    existing rule: a missing rate is a real gap an operator must fill, not a
+    licence to print a price.
+    """
+    selected = (provider or os.environ.get("EVAL_PROVIDER") or "anthropic").strip().lower()
+    return "requests" if selected in QUOTA_BILLED_PROVIDERS else "usd"
+
+
+def require_str_or_none(value: object, field: str) -> str | None:
+    """Return `value` when it is a string or absent; raise when it is neither.
+
+    This is the shared write policy for object-typed provider provenance.
+
+    Coercing a malformed value to `None` instead records "the provider
+    supplied nothing" for a value the provider did supply.
+
+    Canonical reader contract, verbatim from
+    `scripts/eval/_run_persistence.py::_validate_payload`:
+        f"{line_context} field 'system_fingerprint' has wrong type "
+        f"(expected str or null, got {type(fingerprint).__name__})"
+
+    Different than canonical: this helper raises
+    `MalformedProviderMetadataError` at the provider boundary. The canonical
+    reader raises `MalformedRunRecordError` while decoding an archive. Both
+    accept only a string or null for this field (issue #4123).
+    """
+    if value is None or isinstance(value, str):
+        return value
+    raise MalformedProviderMetadataError(
+        f"provider returned a non-string {field} ({type(value).__name__})"
+    )
+
 
 def aggregate_multi_run_scores(
     run_scores: list[dict[str, Any]],
@@ -71,9 +162,7 @@ def aggregate_multi_run_scores(
             aggregated[dim] = 0.0
 
     # Flakiness detection: a scenario is flaky if any dimension varies by > threshold
-    max_variance = max(
-        (aggregated.get(f"{d}_variance", 0) for d in dimensions), default=0
-    )
+    max_variance = max((aggregated.get(f"{d}_variance", 0) for d in dimensions), default=0)
     aggregated["runs"] = len(run_scores)
     aggregated["flaky"] = max_variance > FLAKINESS_VARIANCE_THRESHOLD
     aggregated["max_variance"] = round(max_variance, 2)

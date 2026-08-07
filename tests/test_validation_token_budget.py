@@ -8,8 +8,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from scripts.validation.token_budget import (
     _count_punct_and_symbols,
     build_parser,
@@ -193,16 +191,14 @@ class TestMain:
         assert result == 2
 
     def test_valid_empty_repo(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path,
     ) -> None:
-        monkeypatch.delenv("CI", raising=False)
         result = main(["--path", str(tmp_path)])
         assert result == 0
 
     def test_within_budget(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self, tmp_path: Path,
     ) -> None:
-        monkeypatch.delenv("CI", raising=False)
         agents_dir = tmp_path / ".agents"
         agents_dir.mkdir()
         handoff = agents_dir / "HANDOFF.md"

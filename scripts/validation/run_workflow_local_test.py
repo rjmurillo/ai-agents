@@ -69,6 +69,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
@@ -219,6 +220,30 @@ def _decode_partial(raw: bytes | str | None) -> str:
     return raw
 
 
+def _killpg_safe(pid: int) -> None:
+    """Send SIGTERM then SIGKILL to the process group containing ``pid``.
+
+    Uses SIGTERM first (giving the group a chance to clean up open ports such
+    as the gh-act artifact server), then SIGKILL after a short grace window.
+    Guards against signalling the current process group when ``setsid`` did not
+    fire (Windows, or a failed exec where the child reuses our PGID).
+    """
+    try:
+        pgid = os.getpgid(pid)
+    except OSError:
+        return
+    if pgid == os.getpgid(0):
+        return
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except OSError:
+        pass
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except OSError:
+        pass
+
+
 def _run(
     cmd: list[str],
     *,
@@ -231,32 +256,52 @@ def _run(
     When ``env`` is provided it replaces the child environment entirely, so a
     caller that only wants to add a variable should merge it with
     ``os.environ`` first.
+
+    On timeout the whole process group is killed, not just the direct child.
+    This matters for ``gh act``: the gh-act artifact server is a grandchild of
+    gh, so a ``proc.kill()`` leaves it holding port 34567 and every later
+    invocation fails with "address already in use" (Issue #3948).
     """
+    _supports_pgroup = hasattr(os, "killpg")
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
             cwd=str(cwd) if cwd else None,
             env=env,
-            capture_output=True,
-            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             encoding="utf-8",
             errors="replace",
-            check=False,
-            timeout=timeout,
+            start_new_session=_supports_pgroup,
         )
     except FileNotFoundError:
         return -1, "", f"command not found: {cmd[0]}"
-    except subprocess.TimeoutExpired as exc:
-        # Keep whatever the child managed to emit before the kill. It is the only
-        # evidence of what the run was doing when the budget ran out, and the act
-        # stage reads it to tell a cold action cache apart from a slow run
-        # (Issue #3949). Without this branch the partial output is dropped and
-        # the operator gets a bare "timed out after N seconds".
-        detail = f"{type(exc).__name__}: {exc}\n{_decode_partial(exc.stderr)}".rstrip()
-        return -1, _decode_partial(exc.stdout), detail
-    except (OSError, subprocess.SubprocessError) as exc:
+    except OSError as exc:
         return -1, "", f"{type(exc).__name__}: {exc}"
-    return proc.returncode, proc.stdout, proc.stderr
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        # Kill the full process group so grandchildren (gh-act artifact server)
+        # do not survive to hold ports open (Issue #3948).
+        if _supports_pgroup:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+        # Collect whatever the child had written before we killed it. The act
+        # stage reads this to distinguish a cold-cache run from a slow one
+        # (Issue #3949).
+        stdout_raw, stderr_raw = proc.communicate()
+        out = _decode_partial(exc.stdout) or stdout_raw
+        err_head = f"{type(exc).__name__}: {exc}\n{_decode_partial(exc.stderr) or stderr_raw}"
+        return -1, out, err_head.rstrip()
+    except BaseException:
+        if _supports_pgroup:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+        proc.communicate()
+        raise
+    return proc.returncode, stdout, stderr
 
 
 def _read_worktree_gitdir(repo_root: Path) -> str | None:
@@ -497,6 +542,24 @@ def _workflow_events(wf_path: Path) -> list[str]:
     return []
 
 
+def _workflow_jobs(wf_path: Path) -> list[str]:
+    """Return workflow job ids in file order, or empty when unavailable."""
+    try:
+        import yaml
+    except ImportError:
+        return []
+    try:
+        data = yaml.safe_load(wf_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    jobs = data.get("jobs")
+    if not isinstance(jobs, dict):
+        return []
+    return [str(name) for name in jobs if isinstance(name, str)]
+
+
 def _select_act_event(wf_path: Path) -> str | None:
     """Choose an event for ``gh act -n`` based on the workflow's triggers.
 
@@ -675,6 +738,51 @@ _ACT_LIMITATION_RULES: tuple[tuple[str | None, Callable[[str], bool], str], ...]
         "that gh needs for API calls; workflows that call gh api or Python "
         "scripts that auto-detect the repository via gh repo view fail only "
         "in local act, not in CI where GH_TOKEN and repo info are available.",
+    ),
+    (
+        # scope is matched against the GitHub event, not a workflow name, so it
+        # must stay None. Narrowness lives in the predicate below, which requires
+        # this workflow's own job and step names to appear on the failing line.
+        None,
+        lambda text: any(
+            "Vanilla Windows" in line
+            and "row is not vanilla" in line.lower()
+            and "still resolve" in line.lower()
+            and "vanilla-windows" in line.lower()
+            for line in text.splitlines()
+        ),
+        "act maps windows-latest to a Linux container that ships Python, so "
+        "the vanilla guard's precondition correctly reports that interpreters "
+        "still resolve and refuses to run a row that is not vanilla. This "
+        "fails only under local act. On a real Windows runner the harness "
+        "removes every interpreter-bearing directory from the PATH the hook "
+        "receives, and the precondition passes. The assertion firing here is "
+        "the guard working, not a defect: a row that silently stopped being "
+        "vanilla would prove nothing.",
+    ),
+    (
+        # scope is matched against the GitHub event, not a workflow name, so it
+        # must stay None. Narrowness lives in the predicate below, which requires
+        # this workflow's own job and step names to appear on the failing line.
+        None,
+        lambda text: any(
+            "VANILLA GUARD CANNOT RUN" in line
+            and "docker" in line.lower()
+            and (
+                "permission denied" in line.lower()
+                or "cannot connect to the docker daemon" in line.lower()
+                or "docker is not available" in line.lower()
+            )
+            for line in text.splitlines()
+        ),
+        "the Vanilla Linux row runs the hook inside a Python-free container, "
+        "which needs a Docker socket. act executes jobs inside a container "
+        "that has no access to one, so the guard reports CANNOT RUN and exits "
+        "3. That is the guard distinguishing an unavailable environment from a "
+        "failing check, which is the behavior we want: the earlier version "
+        "misread the empty output of a failed docker call as an interpreter "
+        "having resolved. Real CI runners provide Docker and this row runs "
+        "there.",
     ),
 )
 
@@ -859,6 +967,18 @@ def _with_timeout_hint(combined: str) -> str:
     return detail if hint is None else f"{detail}\n{hint}"
 
 
+_ACT_CONTENTION_PATTERN = re.compile(
+    r"docker (?:pull|create)|failed to (?:pull|create container)|"
+    r"toomanyrequests|context canceled|connection reset by peer|"
+    r"server misbehaving|temporary failure",
+    re.IGNORECASE,
+)
+
+
+def _is_act_contention_failure(detail: str) -> bool:
+    return bool(_ACT_CONTENTION_PATTERN.search(detail))
+
+
 def _run_act_stage(
     stage: str,
     base_cmd: Sequence[str],
@@ -883,13 +1003,32 @@ def _run_act_stage(
     warnings: list[str] = []
     for wf in files:
         event = _select_act_event(repo_root / wf)
-        cmd = [*base_cmd]
-        if event is not None:
-            cmd.append(event)
-        cmd += ["-W", wf]
-        rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
-        if rc != 0:
+        jobs = _workflow_jobs(repo_root / wf)
+        job_args = [["-j", job] for job in jobs] if len(jobs) > 1 else [[]]
+        for job_arg in job_args:
+            cmd = [*base_cmd]
+            if event is not None:
+                cmd.append(event)
+            cmd += [*job_arg, "-W", wf]
+            rc, out, err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
             combined = (out + err).strip()
+            if (
+                rc != 0
+                and _ACT_TIMEOUT_MARKER not in combined
+                and _is_act_contention_failure(combined)
+            ):
+                retry_rc, retry_out, retry_err = _run(cmd, timeout=timeout, cwd=repo_root, env=env)
+                retry_combined = (retry_out + retry_err).strip()
+                if retry_rc == 0:
+                    label = f"{wf} job {job_arg[1]}" if job_arg else wf
+                    warnings.append(f"[WARN] {label}: retried once after act contention.")
+                    continue
+                combined = (
+                    f"{combined}\nRetry after act contention also failed:\n{retry_combined}"
+                ).strip()
+                rc = retry_rc
+            if rc == 0:
+                continue
             # A timeout never downgrades. Since ``_run`` started returning the
             # partial output, a limitation signature can appear in a run that was
             # then killed mid-flight, and the workflow past that point was never

@@ -102,6 +102,47 @@ class TestScriptCommit:
         ):
             assert _mod._script_commit() == "unknown"
 
+    def test_showsignature_flag_suppressed(self):
+        """The -c log.showSignature=false flag prevents GPG diagnostic contamination."""
+        completed = [
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="/repo\n", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="abc1234\n", stderr=""),
+        ]
+        with (
+            patch.object(
+                _mod, "__file__",
+                "/repo/.claude/skills/github/scripts/pr/test_pr_merge_ready.py",
+            ),
+            patch.object(_mod.subprocess, "run", side_effect=completed),
+        ):
+            result = _mod._script_commit()
+            log_call = _mod.subprocess.run.call_args_list[-1].args[0]
+            # The -c flag must appear so git never invokes GPG at all.
+            assert "-c" in log_call
+            assert "log.showSignature=false" in log_call
+            assert result == "abc1234"
+
+    def test_git_command_includes_showsignature_false_flag(self):
+        """The -c log.showSignature=false flag must appear in the git log call."""
+        completed = [
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="/repo\n", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="deadc0de\n", stderr=""),
+        ]
+        with (
+            patch.object(
+                _mod, "__file__",
+                "/repo/.claude/skills/github/scripts/pr/test_pr_merge_ready.py",
+            ),
+            patch.object(_mod.subprocess, "run", side_effect=completed),
+        ):
+            _mod._script_commit()
+            log_call = _mod.subprocess.run.call_args_list[-1].args[0]
+            assert "-c" in log_call, "-c flag missing from git log call"
+            idx = log_call.index("-c")
+            assert log_call[idx + 1] == "log.showSignature=false"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -939,3 +980,87 @@ class TestStaleDirtyInMergeReadiness:
             result = check_merge_readiness("o", "r", 42)
         assert result["StaleDirtySuspected"] is False
         assert result["CanMerge"] is True
+
+
+# ---------------------------------------------------------------------------
+# Issue #4499: same-run sibling jobs must not mask each other
+# ---------------------------------------------------------------------------
+
+_R_A = "https://github.com/o/r/actions/runs/30827748904/job/91733674289"
+_R_A2 = "https://github.com/o/r/actions/runs/30827748904/job/91733675289"
+_R_B = "https://github.com/o/r/actions/runs/30826833314/job/91730700818"
+_R_B2 = "https://github.com/o/r/actions/runs/30826833314/job/91730702341"
+
+
+def _run_row(conclusion, details, status="COMPLETED"):
+    return {"status": status, "conclusion": conclusion, "detailsUrl": details}
+
+
+class TestCheckRunVerdictSameRunSiblings:
+    def test_failure_and_skipped_in_one_run_fails(self):
+        rows = [_run_row("FAILURE", _R_A), _run_row("SKIPPED", _R_A2)]
+        assert _mod._check_run_verdict(rows) == "FAIL"
+
+    def test_pr_4463_shape_two_runs_each_failure_plus_skipped(self):
+        """The live shape that produced CIPassing=true against a red PR."""
+        rows = [
+            _run_row("FAILURE", _R_A), _run_row("FAILURE", _R_B),
+            _run_row("SKIPPED", _R_A2), _run_row("SKIPPED", _R_B2),
+        ]
+        assert _mod._check_run_verdict(rows) == "FAIL"
+
+    def test_later_rerun_success_supersedes_stale_failure_across_runs(self):
+        """Issue #2208 must not regress."""
+        rows = [_run_row("FAILURE", _R_B), _run_row("SUCCESS", _R_A)]
+        assert _mod._check_run_verdict(rows) == "OK"
+
+    def test_later_run_failure_beats_older_success_across_runs(self):
+        rows = [_run_row("SUCCESS", _R_B), _run_row("FAILURE", _R_A)]
+        assert _mod._check_run_verdict(rows) == "FAIL"
+
+    def test_all_passing_siblings_in_one_run_is_ok(self):
+        rows = [_run_row("SUCCESS", _R_A), _run_row("SKIPPED", _R_A2)]
+        assert _mod._check_run_verdict(rows) == "OK"
+
+    def test_rows_without_run_id_keep_prior_precedence(self):
+        rows = [_run_row("FAILURE", ""), _run_row("SUCCESS", "")]
+        assert _mod._check_run_verdict(rows) == "OK"
+
+    def test_cancelled_sibling_still_carries_no_opinion(self):
+        rows = [_run_row("CANCELLED", _R_A), _run_row("SUCCESS", _R_A2)]
+        assert _mod._check_run_verdict(rows) == "OK"
+
+    def test_cancelled_only_group_is_skip(self):
+        rows = [_run_row("CANCELLED", _R_A), _run_row("CANCELLED", _R_A2)]
+        assert _mod._check_run_verdict(rows) == "SKIP"
+
+    def test_later_cancelled_run_does_not_mask_older_failure(self):
+        rows = [_run_row("FAILURE", _R_B), _run_row("CANCELLED", _R_A)]
+        assert _mod._check_run_verdict(rows) == "FAIL"
+
+    def test_pending_sibling_does_not_hide_same_run_failure(self):
+        rows = [
+            _run_row("FAILURE", _R_A),
+            _run_row("", _R_A2, status="IN_PROGRESS"),
+        ]
+        assert _mod._check_run_verdict(rows) == "FAIL"
+
+    def test_pending_only_group_is_pending(self):
+        rows = [_run_row("", _R_A, status="IN_PROGRESS")]
+        assert _mod._check_run_verdict(rows) == "PENDING"
+
+    def test_empty_rows_is_skip(self):
+        assert _mod._check_run_verdict([]) == "SKIP"
+
+
+class TestQuerySelectsDetailsUrl:
+    """The run-partition is vacuous unless the query asks for detailsUrl.
+
+    Both CheckRun selections must request it. Dropping either one silently
+    turns every row into an unknown-provenance singleton, restoring the
+    issue #4499 fail-open with no test failure anywhere else.
+    """
+
+    def test_both_check_run_selections_request_details_url(self):
+        assert "detailsUrl" in _mod._CONTEXTS_PAGE_QUERY
+        assert "detailsUrl" in _mod._MERGE_READY_QUERY

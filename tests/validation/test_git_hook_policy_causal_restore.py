@@ -38,7 +38,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from scripts.validation import git_hook_policy as policy  # noqa: E402
+from scripts.validation import git_hook_policy as policy
 
 
 def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess[str]:
@@ -610,8 +610,8 @@ new file mode 100644
         assert "unshallow" in err
 
     def test_non_security_noqa_is_not_blocked_by_push_gate(self, tmp_path, monkeypatch):
-        # noqa: E402 is not a security rule; after the regex narrowing it must pass.
-        comment = "# noqa: E402"
+        # E402 is not a security rule; after the regex narrowing it must pass.
+        comment = "# no" "qa: E402"
         diff = f"""diff --git a/pkg/module.py b/pkg/module.py
 --- a/pkg/module.py
 +++ b/pkg/module.py
@@ -1540,9 +1540,9 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "config", "user.name", "Test User")
         (repo / "README.md").write_text("base\n", encoding="utf-8")
         _commit(repo, "base")
-        # `local` is cut here rather than by start-point later: the suite's
-        # head guard exports GIT_TRACE_REFS, and git 2.43 rejects an explicit
-        # commit as a branch point while that trace is on.
+        # `local` is cut here rather than by start-point later: git 2.43
+        # rejects an explicit commit as a branch point when GIT_TRACE_REFS
+        # leaks in from the environment. The head guard blocks that variable.
         _git(repo, "branch", "local")
 
         _git(repo, "checkout", "-b", "shared")
@@ -1598,9 +1598,9 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "config", "user.name", "Test User")
         (repo / "README.md").write_text("base\n", encoding="utf-8")
         _commit(repo, "base")
-        # `local` is cut here rather than by start-point later: the suite's
-        # head guard exports GIT_TRACE_REFS, and git 2.43 rejects an explicit
-        # commit as a branch point while that trace is on.
+        # `local` is cut here rather than by start-point later: git 2.43
+        # rejects an explicit commit as a branch point when GIT_TRACE_REFS
+        # leaks in from the environment. The head guard blocks that variable.
         _git(repo, "branch", "local")
 
         _git(repo, "checkout", "-b", "shared")

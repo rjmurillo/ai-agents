@@ -20,30 +20,53 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
-import tempfile
-import time
-from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from scripts.validation.portability_baseline_write import (
+    baseline_write_lock,
+    replace_baseline_atomically,
+)
 from scripts.validation.portability_floor import (
     COUNTED_SECTIONS,
     Sections,
     read_previous_sections,
 )
-from scripts.validation.portability_git import run_git
+from scripts.validation.portability_git import git_timeout_problem, run_git
+
+
+def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] | None:
+    """Private alias of run_git kept for internal use and test mocking."""
+    return run_git(repo_root, *args)
 
 __all__ = [
     "COUNTED_SECTIONS",
     "Sections",
+    "baseline_write_lock",
+    "find_symlinked_component",
     "read_previous_sections",
+    "replace_baseline_atomically",
     "refuse_dropped_entries",
+    "refuse_oversized_baseline",
     "refuse_symlinked_baseline",
     "refuse_undiffable_baseline",
     "write_baseline_json",
 ]
+
+# Compatibility alias for tests and callers that still use the former private name.
+_baseline_write_lock = baseline_write_lock
+
+# Variables that run_git strips from the environment before calling git.
+# Their presence means run_git may have hidden a real repository from git.
+# Refs #4258.
+_GIT_POINTER_VARS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+)
 
 
 def _regressions(previous: Mapping[str, int], current: Mapping[str, int]) -> list[str]:
@@ -121,17 +144,17 @@ def _resolved(path: Path) -> Path | None:
         return None
 
 
-def _linked_component(baseline_path: Path, repo_root: Path) -> Path | None:
-    """Return the first symlink between the repository root and the baseline.
+def find_symlinked_component(path: Path, repo_root: Path) -> Path | None:
+    """Return the first redirecting link between the repository root and ``path``.
 
-    Checking only the leaf misses the cheaper attack. A symlinked *directory*
-    anywhere on the way down redirects the write just as effectively, and it
-    leaves the leaf looking like an ordinary file.
+    Checking only the leaf misses the cheaper attack. A symlinked or junction
+    directory anywhere on the way down redirects access just as effectively,
+    and it leaves the leaf looking like an ordinary file.
     """
     root = _resolved(repo_root)
-    current = baseline_path
-    for _ in range(64):
-        if current.is_symlink():
+    current = path
+    while True:
+        if _is_redirecting_link(current):
             return current
         parent = current.parent
         if parent == current:
@@ -142,9 +165,13 @@ def _linked_component(baseline_path: Path, repo_root: Path) -> Path | None:
             # the root resolves to the root and would end the walk clean, while
             # still sending the write to a path git does not track under that
             # name. Test it before stopping.
-            return parent if parent.is_symlink() else None
+            return parent if _is_redirecting_link(parent) else None
         current = parent
-    return None
+
+
+def _is_redirecting_link(path: Path) -> bool:
+    """Return whether a path component redirects filesystem access."""
+    return path.is_symlink() or path.is_junction()
 
 
 def _escaping_parent(baseline_path: Path, repo_root: Path) -> Path | None:
@@ -178,7 +205,7 @@ def refuse_symlinked_baseline(repo_root: Path, baseline_path: Path) -> bool:
     lets the vetted name and the consumed file be two different files. The
     wording below stays neutral because both callers reach it.
     """
-    linked = _linked_component(baseline_path, repo_root)
+    linked = find_symlinked_component(baseline_path, repo_root)
     if linked is not None:
         print(
             f"Refusing a baseline reached through a symlink: {linked}. "
@@ -230,10 +257,57 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
     all, runs inside a checkout where this resolves and the guard is live.
     """
     toplevel = run_git(repo_root, "rev-parse", "--show-toplevel")
+    if problem := git_timeout_problem(toplevel, "locating the repository root"):
+        print(
+            f"Refusing to trust the baseline {baseline_path}: {problem}. "
+            "The guard cannot confirm that the baseline is diffable.",
+            file=sys.stderr,
+        )
+        return True
     if toplevel is None or toplevel.returncode != 0:
+        # Two distinct states collapse into a non-zero exit from run_git:
+        #
+        # 1. "Not a repository": git answered, the path is outside any checkout,
+        #    and refusal would block vendored copies and unpacked tarballs.
+        #
+        # 2. "Prevented from answering": the caller's environment contained
+        #    GIT_DIR (or a sibling pointer variable) and run_git's GIT_* scrub
+        #    removed the only thing that made the worktree discoverable. Git
+        #    then reports no repository, but the repository exists and the guard
+        #    is not live. Refs #4258.
+        #
+        # Distinguish them by checking whether the scrub removed a pointer.
+        # The variables are still readable in os.environ; they were just not
+        # forwarded to git.
+        #
+        # Presence alone is not the test. An exported-but-empty GIT_DIR names no
+        # repository, so the scrub cannot have hidden one. Measured on git 2.51:
+        # with GIT_DIR set to the empty string, `rev-parse --show-toplevel` in a
+        # non-repository exits 128 with `fatal: not a git repository: ''` and
+        # resolves nothing, exactly as it does with the variable absent.
+        # Refusing on it would block vendored copies and unpacked tarballs, the
+        # case the allow branch exists for.
+        if any(os.environ.get(v) for v in _GIT_POINTER_VARS):
+            print(
+                f"Refusing to trust the baseline {baseline_path}: "
+                "the environment contains GIT_DIR or a sibling pointer variable "
+                "that run_git strips before calling git. "
+                "Git reported no repository, but the scrub hid the one the pointer named. "
+                "The guard cannot confirm the baseline is diffable without that context. "
+                "Refs #4258.",
+                file=sys.stderr,
+            )
+            return True
         return False
 
     proc = run_git(repo_root, "check-attr", "-z", "diff", "--", str(baseline_path))
+    if problem := git_timeout_problem(proc, "checking the baseline diff attribute"):
+        print(
+            f"Refusing to trust the baseline {baseline_path}: {problem}. "
+            "The guard cannot confirm that the baseline is diffable.",
+            file=sys.stderr,
+        )
+        return True
     if proc is None or proc.returncode != 0:
         print(
             f"Refusing to trust the baseline {baseline_path}: git could not report "
@@ -269,45 +343,58 @@ def refuse_undiffable_baseline(repo_root: Path, baseline_path: Path) -> bool:
     return False
 
 
-@contextmanager
-def _baseline_write_lock(lock_path: Path) -> Iterator[None]:
-    deadline = time.monotonic() + 10.0
-    while True:
-        try:
-            lock_path.mkdir(mode=0o700)
-            break
-        except FileExistsError:
-            if time.monotonic() >= deadline:
-                raise TimeoutError(
-                    f"timed out waiting for baseline lock {lock_path}"
-                ) from None
-            time.sleep(0.05)
+def _diff_attribute(repo_root: Path, path: Path) -> tuple[str | None, str | None]:
+    """Return the git diff attribute and any timeout-specific failure."""
     try:
-        yield
-    finally:
-        lock_path.rmdir()
+        rel = str(path.resolve().relative_to(repo_root.resolve()))
+    except (OSError, ValueError):
+        return None, None
+    proc = _run_git(repo_root, "check-attr", "diff", "--", rel)
+    if problem := git_timeout_problem(proc, "checking the baseline diff attribute"):
+        return None, problem
+    if proc is None or proc.returncode != 0:
+        return None, None
+    # Output: "<path>: diff: <value>" where value is set/unset/unspecified/<driver>
+    parts = proc.stdout.decode(errors="replace").strip().split(": ", 2)
+    return (parts[2], None) if len(parts) == 3 else (None, None)
 
 
-def _replace_atomically(baseline_path: Path, text: str) -> None:
-    fd: int | None = None
-    tmp: Path | None = None
-    try:
-        fd, tmp_name = tempfile.mkstemp(
-            dir=baseline_path.parent,
-            prefix=f".{baseline_path.name}.",
-            suffix=".tmp",
+def refuse_diff_suppressed_baseline(repo_root: Path, baseline_path: Path) -> bool:
+    """Refuse to write a baseline whose diff attribute is 'unset'.
+
+    A single .gitattributes line such as:
+        scripts/validation/*_portability_baseline.json -diff
+    makes git treat the baseline as binary for diff purposes. GitHub honors
+    the head-branch attributes when rendering a PR, so a count lowered from
+    5 to 1 shows only "Binary files differ" and the change is invisible to
+    reviewers. The content is unchanged so CI still parses the real number
+    and passes. Refusing to write when diff is unset means the only way to
+    suppress diffs is to also break every --update-baseline run, making the
+    suppression observable before it can be exploited.
+    """
+    attr, problem = _diff_attribute(repo_root, baseline_path)
+    if problem:
+        print(
+            f"Refusing to write baseline {baseline_path}: {problem}.",
+            file=sys.stderr,
         )
-        tmp = Path(tmp_name)
-        handle = os.fdopen(fd, "w", encoding="utf-8")
-        fd = None
-        with handle:
-            handle.write(text)
-        os.replace(tmp, baseline_path)
-    finally:
-        if fd is not None:
-            os.close(fd)
-        if tmp is not None:
-            tmp.unlink(missing_ok=True)
+        return True
+    if attr is None:
+        print(
+            f"Refusing to write a baseline: git check-attr failed for {baseline_path}. "
+            "Cannot confirm the baseline is visible in code review diffs.",
+            file=sys.stderr,
+        )
+        return True
+    if attr != "unset":
+        return False
+    print(
+        f"Refusing to write a baseline whose diff attribute is 'unset': "
+        f"{baseline_path}. A .gitattributes entry is hiding this file's changes "
+        "from code review. Remove the -diff override for this path, then rerun.",
+        file=sys.stderr,
+    )
+    return True
 
 
 def write_baseline_json(
@@ -332,16 +419,58 @@ def write_baseline_json(
     """
     lock_path = baseline_path.with_name(f".{baseline_path.name}.write-lock")
     try:
-        with _baseline_write_lock(lock_path):
+        with baseline_write_lock(lock_path):
             if refuse_symlinked_baseline(repo_root, baseline_path):
+                return 2
+
+            if refuse_diff_suppressed_baseline(repo_root, baseline_path):
                 return 2
 
             previous, problem = read_previous_sections(repo_root, baseline_path)
             if refuse_dropped_entries(previous, counted, unit, allow_shrink, problem):
                 return 2
 
-            _replace_atomically(baseline_path, json.dumps(payload, indent=2) + "\n")
+            replace_baseline_atomically(
+                repo_root,
+                baseline_path,
+                json.dumps(payload, indent=2) + "\n",
+            )
     except OSError as exc:
         print(f"Could not write baseline {baseline_path}: {exc}", file=sys.stderr)
         return 2
     return 0
+
+
+# 10x the largest current baseline (skill_md_portability_baseline.json at ~18 KB).
+# Stated as a constant so the ceiling is re-derivable from the population it guards.
+_BASELINE_SIZE_CEILING = 200_000  # bytes
+
+
+def refuse_oversized_baseline(baseline_path: Path) -> bool:
+    """Refuse when the baseline file exceeds the reviewability ceiling.
+
+    Padding a baseline past the forge's diff-rendering limit hides a lowered
+    count as effectively as marking it -diff. The ceiling is 10x the largest
+    current baseline in the population this module guards. A legitimate machine-
+    generated baseline has no reason to approach that size; only padding does.
+
+    Unlike the diff-attribute guard, this check does not need a git repository:
+    the file size is measurable from disk and the protection is useful in every
+    context.
+
+    Returns True when the baseline is too large and the caller must refuse.
+    """
+    try:
+        size = baseline_path.stat().st_size
+    except OSError:
+        return False  # missing file is handled by downstream loader
+    if size > _BASELINE_SIZE_CEILING:
+        print(
+            f"Refusing baseline {baseline_path}: file is {size} bytes, "
+            f"which exceeds the reviewability ceiling of {_BASELINE_SIZE_CEILING} bytes. "
+            "A legitimate baseline should not approach this size. "
+            "Remove padding or regenerate from scratch.",
+            file=sys.stderr,
+        )
+        return True
+    return False

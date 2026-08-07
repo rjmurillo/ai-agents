@@ -35,14 +35,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 _original_sys_path = sys.path.copy()
 try:
     sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
-    import generate_hooks  # noqa: E402
+    import generate_hooks
 finally:
     sys.path[:] = _original_sys_path
 
 _original_sys_path = sys.path.copy()
 try:
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
-    from cli_exec import resolve_executable  # noqa: E402
+    from cli_exec import resolve_executable
 finally:
     sys.path[:] = _original_sys_path
 
@@ -145,6 +145,70 @@ COPILOT_AUTH_REJECTED_MARKERS = (
 )
 
 
+# Transient-failure detection (issue #4504). A GitHub rate limit, a 5xx, or a
+# network fault aborts the CLI before auth is ever decided, and the CLI then
+# prints the SAME "you can use any of the following methods" list that a missing
+# token produces. That list is boilerplate printed on every auth-ish error, so it
+# does not discriminate. The discriminating signal is the sentence the CLI prints
+# immediately before it: it states outright that the credential is not implicated.
+# Matching the boilerplate while ignoring that disclaimer is what made a rate
+# limit read as an empty token and sent readers to provision a secret that exists
+# and works.
+#
+# Measured 2026-08-04, stderr of a rate-limited run (request id and timestamp are
+# GitHub's standard error footer, not an auth rejection):
+#   "FF7:14E4D001:1566914C:6A71CB91 and timestamp 2026-08-04 11:22:57 UTC. F...
+#    Your token may still be valid. Check your network connection and try again.
+#    To authenticate, you can use any of the following methods: ..."
+COPILOT_TRANSIENT_MARKERS = (
+    "your token may still be valid",
+    "check your network connection and try again",
+)
+
+
+def copilot_transient_failure(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when the CLI itself disclaimed the credential on an aborted run.
+
+    The only signal this reads is the CLI's own disclaimer sentence, the one
+    that says the token may still be valid and points at the network. Rate
+    limits reliably print it, which is the case this exists for. A bare 5xx or
+    a raw socket error that never reaches that message is NOT detected here:
+    measured, a stderr of "HTTP 502 Bad Gateway" or "dial tcp: connection
+    refused" returns False. Widening to those would mean matching status codes
+    or socket text, which this deliberately does not do, because the CLI's
+    disclaimer is what distinguishes a transient fault from the generic
+    auth-methods list that follows it.
+
+    Callers must treat this as skip-worthy infrastructure latency, the same way
+    :class:`subprocess.TimeoutExpired` is already treated, not as a test failure.
+    Neither "provision the secret" nor "rotate the secret" is correct advice
+    here, and no diff can fix it. See issue #4504.
+    """
+    if result.returncode == 0:
+        return False
+    haystack = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
+    return any(marker in haystack for marker in COPILOT_TRANSIENT_MARKERS)
+
+
+def copilot_transient_failure_headline(result: subprocess.CompletedProcess[str]) -> str:
+    """Skip reason for a run the CLI aborted after disclaiming the credential.
+
+    Names what was actually observed (the CLI's own disclaimer), the usual
+    cause behind it (a rate limit), and the only useful remedy (wait and
+    retry), so nobody spends a cycle rotating a working secret. Does not
+    assert a cause the predicate did not measure. See issue #4504.
+    """
+    return (
+        "Copilot CLI aborted on a transient fault: it disclaimed the credential "
+        "(reports the token may still be valid), and a GitHub rate limit is the "
+        "usual cause. This is NOT an auth failure and no diff can fix it. Wait "
+        "for the rate-limit reset and "
+        f"re-run. rc={result.returncode} "
+        f"stderr={(result.stderr or '')[-400:]!r} "
+        f"stdout={(result.stdout or '')[-400:]!r}"
+    )
+
+
 def copilot_auth_rejected(result: subprocess.CompletedProcess[str]) -> bool:
     """True when the Copilot CLI presented a credential and GitHub refused it.
 
@@ -154,6 +218,8 @@ def copilot_auth_rejected(result: subprocess.CompletedProcess[str]) -> bool:
     stream handling as :func:`copilot_auth_absent`.
     """
     if result.returncode == 0:
+        return False
+    if copilot_transient_failure(result):
         return False
     haystack = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
     return any(marker in haystack for marker in COPILOT_AUTH_REJECTED_MARKERS)
@@ -180,7 +246,7 @@ def copilot_auth_absent(result: subprocess.CompletedProcess[str]) -> bool:
     """
     if result.returncode == 0:
         return False
-    if copilot_auth_rejected(result):
+    if copilot_transient_failure(result) or copilot_auth_rejected(result):
         return False
     haystack = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
     return any(marker in haystack for marker in COPILOT_AUTH_ABSENT_MARKERS)

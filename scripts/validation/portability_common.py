@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import subprocess
 import sys
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
@@ -13,10 +11,12 @@ from pathlib import Path
 from scripts.validation.portability_baseline import (
     read_previous_sections,
     refuse_dropped_entries,
+    refuse_oversized_baseline,
     refuse_symlinked_baseline,
     refuse_undiffable_baseline,
     write_baseline_json,
 )
+from scripts.validation.portability_git import git_timeout_problem, run_git
 
 RegressionMessageFactory = Callable[[str, int, int], str]
 
@@ -34,12 +34,11 @@ def load_baseline(path: Path) -> dict[str, int]:
 
     baseline: dict[str, int] = {}
     for key, value in files.items():
-        if value is None:
-            raise ValueError(f"Baseline count for {key!r} is null")
-        try:
-            baseline[str(key)] = int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Baseline count for {key!r} is not an integer") from exc
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ValueError(
+                f"Baseline count for {key!r} must be a JSON integer, got {type(value).__name__}"
+            )
+        baseline[str(key)] = value
     return baseline
 
 
@@ -120,27 +119,25 @@ def resolve_baseline_path(
     root: Path,
     baseline: Path | None,
     default_baseline_name: str,
-    reject_outside_root: bool,
-) -> Path:
-    """Resolve the baseline path, optionally rejecting root escapes.
+) -> Path | None:
+    """Resolve the baseline path, refusing escapes from the repository root.
 
     The single home for this reasoning. Every checker that accepts `--baseline`
-    delegates here rather than keeping a copy, because the copies drifted into
-    the same defect independently once already: both resolved the path before
-    handing it on, which erased the symlink the guard downstream exists to
-    refuse. Returns `Path("")` when the candidate escapes the root.
+    and delegates here avoids the defect the copies drifted into independently:
+    both resolved the path before handing it on, which erased the symlink the
+    guard downstream exists to refuse. Returns None when the candidate escapes
+    the root. check_vendor_portability.py defines its own baseline_path() and
+    does not call this function.
     """
     if baseline is None:
         return root / "scripts" / "validation" / default_baseline_name
-    if not reject_outside_root:
-        return baseline if baseline.is_absolute() else root / baseline
 
     root_resolved = root.resolve()
     candidate = baseline.expanduser()
     if not candidate.is_absolute():
         candidate = root / candidate
     if not candidate.expanduser().resolve().is_relative_to(root_resolved):
-        return Path("")
+        return None
     # Return the candidate exactly as written, neither resolved nor textually
     # normalised. `resolve()` follows every symlink, which erases the evidence
     # the symlink guard exists to find. Collapsing `..` textually looks safer
@@ -167,7 +164,7 @@ def resolve_checked_baseline(
 
     So this is the single gate rather than a third copy of the pair. Returning
     `None` for either refusal keeps the sentinel uniform too; the checkers had
-    split into `None` and `Path("")` for the same condition, which is the same
+    unified as None for the same condition, which is the same
     drift starting again in the return type.
 
     The symlink refusal belongs here and not only on the write path. The diff
@@ -178,10 +175,8 @@ def resolve_checked_baseline(
     deeper. Refusing the link closes both, and it runs first because a link is
     the more basic objection: the target need not be inside the tree at all.
     """
-    resolved = resolve_baseline_path(
-        root, baseline, default_baseline_name, reject_outside_root=True
-    )
-    if resolved == Path(""):
+    resolved = resolve_baseline_path(root, baseline, default_baseline_name)
+    if resolved is None:
         print(
             f"Refusing a --baseline outside the repository root: {baseline}. "
             "The ratchet only owns the artifact git tracks.",
@@ -191,6 +186,8 @@ def resolve_checked_baseline(
     if refuse_symlinked_baseline(root, resolved):
         return None
     if refuse_undiffable_baseline(root, resolved):
+        return None
+    if refuse_oversized_baseline(resolved):
         return None
     return resolved
 
@@ -229,44 +226,21 @@ def write_baseline(
     return 0
 
 
-_GIT_ENV_OVERRIDES = (
-    "GIT_INDEX_FILE",
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_COMMON_DIR",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_CEILING_DIRECTORIES",
-)
-
-
 def _git_lines(repo_root: Path, args: list[str]) -> list[str] | None:
     """Run a git plumbing command, None when git cannot answer.
 
-    The ambient environment is stripped of repository-discovery variables.
-    Inheriting GIT_INDEX_FILE lets a caller point the coverage probe at an
-    index that agrees with a truncated disk, which is the one input that makes
-    the probe confirm what it is supposed to test.
+    The shared runner strips every Git override, disables replacement objects,
+    and bounds the subprocess. Keeping those controls in one implementation
+    prevents the coverage probe from drifting behind the baseline reader.
     """
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if key.upper() not in _GIT_ENV_OVERRIDES
-    }
-    try:
-        proc = subprocess.run(
-            ["git", "-C", str(repo_root), *args],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            env=env,
-            check=False,
-        )
-    except OSError:
+    proc = run_git(repo_root, *args)
+    if problem := git_timeout_problem(proc, f"running {' '.join(args)}"):
+        print(problem, file=sys.stderr)
         return None
-    if proc.returncode != 0:
+    if proc is None or proc.returncode != 0:
         return None
-    return [line for line in proc.stdout.split("\0") if line]
+    stdout = proc.stdout.decode(errors="replace")
+    return [line for line in stdout.split("\0") if line]
 
 
 def tracked_coverage_by_root(
@@ -310,6 +284,14 @@ def _refuse_partial_worktree(root: Path, scanned_by_root: Mapping[str, int]) -> 
     """Refuse a baseline write whose completeness git cannot confirm."""
     names = list(scanned_by_root)
     unmerged = _git_lines(root, ["ls-files", "-u", "-z", "--", *names])
+    if unmerged is None:
+        print(
+            "Refusing to write a baseline because git cannot vouch for the worktree: "
+            "git could not inspect unresolved conflicts under the scanned roots. A "
+            "failed conflict probe cannot prove the worktree is safe to record.",
+            file=sys.stderr,
+        )
+        return True
     if unmerged:
         print(
             "Refusing to write a baseline from a tree with unresolved conflicts under "

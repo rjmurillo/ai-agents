@@ -74,6 +74,23 @@ import tokenize
 from dataclasses import dataclass
 from pathlib import Path
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parent.parent
+
+# `portability_baseline` imports `scripts.validation.portability_floor` by its
+# absolute package path, so the repo root must be importable even when this
+# runs as a plain script rather than via `python -m` (issues #3073, #4210).
+# The sibling directory alone is not enough: it resolves the flat import on the
+# next line but not the absolute one that import performs in turn.
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+sys.path.insert(0, str(_SCRIPT_DIR))
+from portability_baseline import (  # noqa: E402
+    refuse_oversized_baseline,
+    refuse_symlinked_baseline,
+    refuse_undiffable_baseline,
+)
+
 # Upstream-only path prefixes that break in a vendored consumer repo.
 # `.claude/skills/` is intentionally NOT flagged: the `/review` pattern
 # resolves skill resources via the helper's `.claude/skills/...` candidate,
@@ -156,8 +173,30 @@ def load_baseline(path: Path) -> set[str]:
 
 
 def scan_roots(repo_root: Path) -> list[Path]:
-    """Return the scan-root directories that exist under repo_root."""
-    return [repo_root / r for r in _SCAN_ROOTS if (repo_root / r).is_dir()]
+    """Return the scan-root directories that exist under repo_root.
+
+    Each candidate root is resolved before it is accepted. A symlink that
+    points outside the repository is refused with a message naming the path,
+    because files outside the repository are not git-tracked and their presence
+    would satisfy coverage checks about files git does track.
+    """
+    resolved_repo = repo_root.resolve()
+    result = []
+    for rel in _SCAN_ROOTS:
+        candidate = repo_root / rel
+        if not candidate.is_dir():
+            continue
+        resolved = candidate.resolve()
+        if not str(resolved).startswith(str(resolved_repo) + "/") and resolved != resolved_repo:
+            print(
+                f"Refusing scan root {candidate}: resolves to {resolved}, "
+                "which is outside the repository. Symlinks to external directories "
+                "would let non-repository files satisfy coverage checks.",
+                file=sys.stderr,
+            )
+            continue
+        result.append(candidate)
+    return result
 
 
 def _routes_through_helper(content: str) -> bool:
@@ -534,6 +573,13 @@ def main(argv: list[str] | None = None) -> int:
     offenders = collect_offenders(repo_root)
 
     bpath = baseline_path(repo_root)
+    # Refuse a baseline whose diff attribute is unset (issue #4249).
+    if refuse_symlinked_baseline(repo_root, bpath):
+        return 2
+    if refuse_undiffable_baseline(repo_root, bpath):
+        return 2
+    if refuse_oversized_baseline(bpath):
+        return 2
     if args.update_baseline:
         try:
             write_baseline(bpath, offenders)

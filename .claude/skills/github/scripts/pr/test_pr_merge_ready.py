@@ -10,14 +10,12 @@ Performs comprehensive merge readiness check:
 By default, only REQUIRED checks block merge. Non-required failing checks
 are reported but do not affect CanMerge unless --include-non-required is set.
 
-Multiple rows for the same check name (supersession: a CANCELLED or FAILURE
-run plus a later SUCCESS run) are deduplicated by name. The verdict per
-name is OK if any conclusion is SUCCESS / NEUTRAL / SKIPPED (superseding
-prior failures from re-runs); FAIL if any conclusion is a real failure and
-no passing row exists; PENDING if any status is IN_PROGRESS / PENDING.
-A name whose only conclusion is CANCELLED carries no opinion and does not
-block. The PR #1887 retrospective records four false-FAIL reports caused
-by counting CANCELLED debounce rows as failed required checks.
+Multiple rows for the same check name are deduplicated by name. When each
+row exposes a workflow run id, the latest run decides. Unknown provenance
+keeps the previous precedence: OK beats FAIL, FAIL beats PENDING, and
+CANCELLED carries no opinion. The PR #1887 retrospective records four
+false-FAIL reports caused by counting CANCELLED debounce rows as failed
+required checks.
 
 The output JSON includes a ``fetched_pages_complete`` field that is true
 only when both ``reviewThreads`` and ``statusCheckRollup.contexts`` were
@@ -46,6 +44,7 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +64,7 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from github_core.api import (  # noqa: E402
+from github_core.api import (
     assert_gh_authenticated,
     count_unresolved_threads,
     error_and_exit,
@@ -73,6 +72,10 @@ from github_core.api import (  # noqa: E402
     gh_graphql,
     resolve_repo_params,
     safe_log_str,
+)
+from github_core.checks_rollup import (
+    extract_workflow_run_number,
+    partition_rows_by_run,
 )
 
 # ---------------------------------------------------------------------------
@@ -106,6 +109,7 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
                                 name
                                 status
                                 conclusion
+                                detailsUrl
                                 isRequired(pullRequestNumber: $number)
                             }
                             ... on StatusContext {
@@ -157,6 +161,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
                                         name
                                         status
                                         conclusion
+                                        detailsUrl
                                         isRequired(pullRequestNumber: $number)
                                     }
                                     ... on StatusContext {
@@ -200,17 +205,69 @@ _PASSING_STATUS_STATES = frozenset({"SUCCESS", "EXPECTED"})
 def _check_run_verdict(rows: list[dict]) -> str:
     """Reduce multiple CheckRun rows for one name to a single verdict.
 
-    Verdict precedence:
-      1. OK    - any row has a passing conclusion (SUCCESS/NEUTRAL/SKIPPED).
-                 A re-run SUCCESS supersedes a stale FAILURE from an earlier
-                 run, closing the same false-FAIL class as the CANCELLED fix.
-      2. FAIL  - any row has a real failure conclusion (not in the passing
-                 or no-opinion sets, e.g. FAILURE, TIMED_OUT, ACTION_REQUIRED).
-      3. PENDING - any row has status != COMPLETED (and no passing row).
-      4. SKIP  - all rows are CANCELLED (no real opinion); not blocking.
+    Known workflow runs use the latest run id as the deciding signal. That
+    keeps a later rerun SUCCESS from being masked by a stale FAILURE, while a
+    later FAILURE can no longer be masked by an older SUCCESS. Unknown
+    provenance keeps the previous verdict precedence.
+    """
+    verdicts = []
+    for group in partition_rows_by_run(rows, "detailsUrl"):
+        run_number = _workflow_run_number(group, "detailsUrl")
+        verdicts.append((run_number, _single_run_check_verdict(group)))
 
-    Aligns with the brief in the PR #1887 retrospective: "OK if any SUCCESS
-    exists." A passing conclusion from a re-run supersedes a prior failure.
+    if verdicts and all(run_number is not None for run_number, _ in verdicts):
+        return _known_run_verdict(verdicts)
+
+    verdict_values = [verdict for _, verdict in verdicts]
+    if "OK" in verdict_values:
+        return "OK"
+    if "FAIL" in verdict_values:
+        return "FAIL"
+    if "PENDING" in verdict_values:
+        return "PENDING"
+    return "SKIP"
+
+
+def _known_run_verdict(verdicts: list[tuple[int | None, str]]) -> str:
+    """Reduce known-run verdicts, treating SKIP as no opinion."""
+    opinionated = [
+        (run_number, verdict)
+        for run_number, verdict in verdicts
+        if verdict != "SKIP"
+    ]
+    if not opinionated:
+        return "SKIP"
+
+    latest_verdict = max(opinionated, key=lambda item: item[0])[1]
+    if latest_verdict == "OK":
+        return "OK"
+
+    verdict_values = [verdict for _, verdict in opinionated]
+    if "FAIL" in verdict_values:
+        return "FAIL"
+    return "PENDING"
+
+
+def _workflow_run_number(rows: list[dict[Any, Any]], url_key: str) -> int | None:
+    """Return a run id only when every row shares known provenance."""
+    if not rows:
+        return None
+
+    run_numbers = {
+        extract_workflow_run_number(row.get(url_key))
+        for row in rows
+    }
+    if len(run_numbers) != 1:
+        return None
+    return next(iter(run_numbers))
+
+
+def _single_run_check_verdict(rows: list[dict[Any, Any]]) -> str:
+    """Reduce the rows of ONE workflow run to a verdict, failure-first.
+
+    Within a run every row really executed, so a failure is authoritative and
+    a passing sibling must not mask it. This inverts the cross-run precedence
+    on purpose: OK only when the run produced no failure at all.
     """
     has_failure = False
     has_pending = False
@@ -231,10 +288,10 @@ def _check_run_verdict(rows: list[dict]) -> str:
         else:
             has_failure = True
 
-    if has_passing:
-        return "OK"
     if has_failure:
         return "FAIL"
+    if has_passing:
+        return "OK"
     if has_pending:
         return "PENDING"
     return "SKIP"
@@ -879,7 +936,10 @@ def _script_commit() -> str:
             return "unknown"
 
         result = subprocess.run(
-            ["git", "-C", repo_root, "log", "-1", "--format=%h", "--", pathspec],
+            [
+                "git", "-c", "log.showSignature=false",
+                "-C", repo_root, "log", "-1", "--format=%h", "--", pathspec,
+            ],
             capture_output=True,
             encoding="utf-8",
             errors="replace",

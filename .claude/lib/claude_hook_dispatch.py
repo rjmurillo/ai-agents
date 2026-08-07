@@ -80,8 +80,8 @@ from hook_dispatch import (  # noqa: E402
     BLOCK_EXIT,
     _exit_code,
     _install_stdin,
-    _run_capturing_process_stdout,
 )
+from output_capture import run_capturing_process_stdout  # noqa: E402
 
 GATE = "gate"
 GATE_ALL = "gate_all"
@@ -202,7 +202,7 @@ def _run_one(shim_path: Path, name: str, raw_stdin: bytes, event: str) -> _ShimO
             return ALLOW_EXIT
         except SystemExit as exc:
             return _exit_code(exc)
-        except Exception as exc:  # noqa: BLE001 - fail-closed is mandatory
+        except Exception as exc:
             print(
                 f"claude-hook-dispatch: shim {name} raised "
                 f"{type(exc).__name__}: {exc}; treating as blocking failure",
@@ -211,10 +211,11 @@ def _run_one(shim_path: Path, name: str, raw_stdin: bytes, event: str) -> _ShimO
             return BLOCK_EXIT
 
     try:
-        code, raw = _run_capturing_process_stdout(
+        code, raw = run_capturing_process_stdout(
             name,
             run_shim,
             diagnostic_prefix="claude-hook-dispatch",
+            failure_exit=BLOCK_EXIT,
         )
     finally:
         sys.path = saved_sys_path

@@ -10,8 +10,11 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
+import time
 import types
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -22,9 +25,11 @@ _EVAL_DIR = _REPO_ROOT / "scripts" / "eval"
 _ORIGINAL_SYS_PATH = sys.path.copy()
 sys.path.insert(0, str(_EVAL_DIR))
 try:
-    import _anthropic_api  # noqa: E402
-    import _eval_api_adapter  # noqa: E402
-    import _providers  # noqa: E402
+    import _anthropic_api
+    import _copilot_cli_acp
+    import _eval_api_adapter
+    import _providers
+    from _eval_common import MalformedProviderMetadataError
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
 
@@ -94,7 +99,7 @@ class _FakeChoice:
 
 
 class _FakeResponse:
-    def __init__(self, content: object, system_fingerprint: str | None = "fp-test") -> None:
+    def __init__(self, content: object, system_fingerprint: object = "fp-test") -> None:
         self.choices = [_FakeChoice(content)]
         if system_fingerprint is not None:
             self.system_fingerprint = system_fingerprint
@@ -225,6 +230,31 @@ def test_openai_provider_tolerates_missing_system_fingerprint(
     assert provider.system_fingerprint is None
 
 
+@pytest.mark.parametrize("malformed", [123, 4.5, True, {"id": "fp"}, ["fp"]])
+def test_openai_provider_raises_on_non_string_system_fingerprint(
+    fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch, malformed: object
+) -> None:
+    """A present but malformed fingerprint is refused, not recorded as absent.
+
+    Before #4123 this branch coerced the value to `None`, so the archive said
+    the provider supplied no fingerprint for a response that supplied one the
+    reader would have rejected. `True` is in the set because `bool` is not
+    `str` and would otherwise be written through as provenance.
+    """
+
+    def _return_malformed(self: _FakeCompletions, **kwargs: object) -> _FakeResponse:
+        self._recorder.append(kwargs)
+        return _FakeResponse("answer", system_fingerprint=malformed)
+
+    monkeypatch.setattr(_FakeCompletions, "create", _return_malformed)
+    provider = _providers.resolve_provider("openai")
+
+    with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+        provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o")
+    # The malformed value never reached the field the report reads.
+    assert provider.system_fingerprint is None
+
+
 def test_openai_provider_raises_on_non_text_content(
     fake_openai: type[_FakeOpenAI], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -235,8 +265,29 @@ def test_openai_provider_raises_on_non_text_content(
     monkeypatch.setattr(_FakeCompletions, "create", _return_non_text)
     provider = _providers.resolve_provider("openai")
 
-    with pytest.raises(RuntimeError, match="OpenAI API returned non-text content"):
-        provider.complete(messages=[{"role": "user", "content": "hi"}], model="gpt-4o")
+    model = "ghp_" + "M" * 36
+    with pytest.raises(RuntimeError, match="OpenAI API returned non-text content") as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "hi"}], model=model)
+
+    assert model not in str(exc_info.value)
+
+
+def test_openai_provider_redacts_model_when_no_choice_is_returned(
+    fake_openai: type[_FakeOpenAI],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        _FakeCompletions,
+        "create",
+        lambda self, **kwargs: types.SimpleNamespace(choices=[]),
+    )
+    provider = _providers.resolve_provider("openai")
+    model = "ghp_" + "C" * 36
+
+    with pytest.raises(RuntimeError, match="OpenAI API returned no choices") as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "hi"}], model=model)
+
+    assert model not in str(exc_info.value)
 
 
 def test_openai_provider_sets_timeout_and_disables_sdk_retries(
@@ -352,18 +403,14 @@ class TestAStatusOutranksATextHint:
         assert _eval_api_adapter._categorize_error(exc) == "rate_limit"
 
     def test_subprocess_auth_hint_is_narrow_and_status_still_wins(self) -> None:
-        exc = RuntimeError(
-            "Copilot CLI exited with code 1: authentication failed: token expired"
-        )
+        exc = RuntimeError("Copilot CLI exited with code 1: authentication failed: token expired")
 
         category = _eval_api_adapter._categorize_error(exc)
 
         assert category == "auth"
         assert not _eval_api_adapter._is_transient(category)
         status_exc = RuntimeError("Anthropic API returned HTTP 500: authentication failed")
-        unrelated_exc = RuntimeError(
-            "Copilot CLI exited with code 1: authorization cache failed"
-        )
+        unrelated_exc = RuntimeError("Copilot CLI exited with code 1: authorization cache failed")
         assert _eval_api_adapter._categorize_error(status_exc) == "server_error"
         assert _eval_api_adapter._categorize_error(unrelated_exc) == "server_error"
 
@@ -380,9 +427,7 @@ class TestSubprocessAuthFailureIsPermanent:
             attempts += 1
             raise RuntimeError("Copilot CLI exited with code 1: authentication failed")
 
-        monkeypatch.setattr(
-            _eval_api_adapter, "_backoff_delay_seconds", lambda attempt: 0.0
-        )
+        monkeypatch.setattr(_eval_api_adapter, "_backoff_delay_seconds", lambda attempt: 0.0)
         adapter = _eval_api_adapter.AnthropicAPIAdapter(
             transport=_raise_auth,
             sleep=sleeps.append,
@@ -394,6 +439,25 @@ class TestSubprocessAuthFailureIsPermanent:
         assert result.attempts == 1
         assert attempts == 1
         assert sleeps == []
+
+    def test_call_model_does_not_retry_an_acp_auth_failure(self) -> None:
+        attempts = 0
+
+        def _raise_auth(_prompt: str, _model_id: str, _system: str) -> str:
+            nonlocal attempts
+            attempts += 1
+            raise _copilot_cli_acp.ACPProviderError("authentication failed")
+
+        adapter = _eval_api_adapter.AnthropicAPIAdapter(
+            transport=_raise_auth,
+            sleep=lambda _delay: None,
+        )
+
+        result = adapter.call_model("prompt", "model", "fixture", "variant", 0)
+
+        assert result.error_category == "auth"
+        assert result.attempts == 1
+        assert attempts == 1
 
 
 class TestEvalLogSchema:
@@ -816,17 +880,20 @@ class _FakeCompleted:
 
 
 def _capture_run(monkeypatch: pytest.MonkeyPatch, result: object) -> dict:
-    """Patch subprocess.run inside _copilot_cli and record how it was called."""
+    """Patch the ACP runner and record process, prompt, and isolation inputs."""
     seen: dict = {}
 
-    def fake_run(argv: list[str], **kwargs: object) -> object:
+    def fake_run(argv: list[str], prompt: str, **kwargs: object) -> object:
         seen["argv"] = argv
+        seen["prompt"] = prompt
         seen["kwargs"] = kwargs
         if isinstance(result, Exception):
             raise result
         return result
 
-    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    monkeypatch.setattr(_copilot_cli, "run_acp_completion", fake_run)
+    missing_root = Path(tempfile.gettempdir()) / "__ai_agents_missing_session_state__"
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(missing_root))
     return seen
 
 
@@ -862,9 +929,19 @@ def test_copilot_complete_returns_stripped_answer(
     assert argv[0] == "copilot"
     assert "--model" in argv
     assert argv[argv.index("--model") + 1] == "claude-opus-5"
-    # System text is folded into the single prompt channel, ahead of the user turn.
-    prompt = argv[argv.index("--prompt") + 1]
-    assert prompt == "be terse\n\nthe question"
+    prompt = json.loads(seen["prompt"])
+    assert prompt["system"]["content"] == "be terse"
+    assert prompt["system"]["role"] == "system"
+    assert prompt["messages"] == [
+        {
+            "role": "user",
+            "trust": "untrusted_repository_text",
+            "content": "the question",
+        }
+    ]
+    assert "untrusted repository-controlled" in prompt["security_boundary"]
+    assert all("be terse" not in argument for argument in argv)
+    assert all("the question" not in argument for argument in argv)
 
 
 def test_copilot_complete_refuses_ambiguous_footer_shaped_stdout(
@@ -878,7 +955,7 @@ def test_copilot_complete_refuses_ambiguous_footer_shaped_stdout(
         provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
 
 
-def test_copilot_complete_folds_supported_roles_into_one_prompt(
+def test_copilot_complete_preserves_supported_role_boundaries(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _allow_unverified_model(monkeypatch)
@@ -894,8 +971,17 @@ def test_copilot_complete_folds_supported_roles_into_one_prompt(
         model="m",
     )
 
-    prompt = seen["argv"][seen["argv"].index("--prompt") + 1]
-    assert prompt == "Question\n\nExtra constraints\n\nFollow-up"
+    prompt = json.loads(seen["prompt"])
+    assert [message["role"] for message in prompt["messages"]] == [
+        "user",
+        "system",
+        "user",
+    ]
+    assert [message["content"] for message in prompt["messages"]] == [
+        "Question",
+        "Extra constraints",
+        "Follow-up",
+    ]
 
 
 def test_copilot_complete_isolates_cwd_and_disables_builtin_mcps(
@@ -910,10 +996,16 @@ def test_copilot_complete_isolates_cwd_and_disables_builtin_mcps(
     provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
 
     assert "--disable-builtin-mcps" in seen["argv"]
+    assert "--available-tools=" in seen["argv"]
+    assert "--allow-all-tools" not in seen["argv"]
+    assert "--no-remote" in seen["argv"]
+    assert "--no-remote-export" in seen["argv"]
+    assert "--no-bash-env" in seen["argv"]
+    assert "--disallow-temp-dir" in seen["argv"]
     cwd = seen["kwargs"]["cwd"]
     assert cwd != str(_REPO_ROOT)
     assert not (Path(cwd) / "AGENTS.md").exists()
-    assert seen["kwargs"].get("shell", False) is False
+    assert seen["kwargs"]["env"]["COPILOT_AUTO_UPDATE"] == "false"
 
 
 def test_copilot_complete_disables_ambient_custom_instructions(
@@ -931,6 +1023,21 @@ def test_copilot_complete_disables_ambient_custom_instructions(
     provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
 
     assert "--no-custom-instructions" in seen["argv"]
+
+
+def test_copilot_complete_does_not_inherit_unrelated_secrets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "ghp_" + "E" * 36
+    monkeypatch.setenv("XPIA_INHERITED_SECRET", secret)
+    _allow_unverified_model(monkeypatch)
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="ok\n"))
+    provider = _providers._CopilotCLIProvider()
+
+    provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert "XPIA_INHERITED_SECRET" not in seen["kwargs"]["env"]
+    assert secret not in json.dumps(seen["kwargs"]["env"])
 
 
 def test_copilot_complete_raises_on_empty_prompt() -> None:
@@ -956,22 +1063,25 @@ def test_copilot_complete_allows_system_role_messages(
         model="claude-opus-5",
     )
 
-    argv = seen["argv"]
-    prompt = argv[argv.index("--prompt") + 1]
-    assert prompt == "primary constraints\n\nextra constraints\n\nquestion"
+    prompt = json.loads(seen["prompt"])
+    assert prompt["system"]["content"] == "primary constraints"
+    assert [message["role"] for message in prompt["messages"]] == ["system", "user"]
+    assert [message["content"] for message in prompt["messages"]] == [
+        "extra constraints",
+        "question",
+    ]
 
 
 def test_copilot_complete_rejects_assistant_role(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Copilot CLI can only accept user and system messages when folding into
-    a single prompt. Non-user roles must fail visibly before subprocess.run."""
+    """Non-user/system roles fail before the ACP process starts."""
     seen = _capture_run(monkeypatch, _FakeCompleted(stdout="should not reach"))
     provider = _providers._CopilotCLIProvider()
 
     with pytest.raises(
         RuntimeError,
-        match="Copilot CLI can only fold user/system messages into its single prompt channel",
+        match="Copilot CLI text evals accept user/system messages only",
     ) as exc_info:
         provider.complete(
             messages=[
@@ -1011,19 +1121,14 @@ def test_copilot_complete_nonzero_exit_reports_the_exit_code_not_an_http_status(
     assert _eval_api_adapter._categorize_error(exc_info.value) == "rate_limit"
 
 
-def test_copilot_exit_excerpt_strips_control_bytes_and_bounds_length(
+def test_copilot_exit_error_serializes_only_a_fixed_safe_code(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Both halves of the excerpt are load-bearing and neither was covered.
-
-    The control-byte filter keeps an escape sequence out of a terminal that
-    renders this message. The 200-character bound keeps a stderr dump out of
-    the exception. The comment above the excerpt claimed both before any test
-    held them.
-    """
+    """No byte from attacker-controlled stderr reaches the exception."""
+    raw = "\x1b[31mred\x07 " + "z" * 400
     _capture_run(
         monkeypatch,
-        _FakeCompleted(stderr="\x1b[31mred\x07 " + "z" * 400, returncode=1),
+        _FakeCompleted(stderr=raw, returncode=1),
     )
     provider = _providers._CopilotCLIProvider()
 
@@ -1031,24 +1136,17 @@ def test_copilot_exit_excerpt_strips_control_bytes_and_bounds_length(
         provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
 
     message = str(exc_info.value)
-    assert "\x1b" not in message
-    assert "\x07" not in message
-    assert "red" in message
-    assert message.count("z") == 200 - len("[31mred ")
+    assert raw not in message
+    assert "[31mred" not in message
+    assert "z" not in message
+    assert "error=provider process failure" in message
+    assert "process output redacted" in message
 
 
-def test_copilot_exit_excerpt_does_not_redact_a_short_credential(
+def test_copilot_exit_error_does_not_serialize_a_short_credential(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Characterization, not endorsement. See the comment above the excerpt.
-
-    A token short enough to fit the bound is printable ascii, so it survives
-    both filters intact. Nothing here makes that safe. The exposure is
-    contained by the caller: the adapter keeps only `error_category` and
-    reports `raw_response=None`, so this text reaches no artifact. This pins
-    the limitation so that adding a redactor, or surfacing the message
-    somewhere it would persist, is a visible change rather than a silent one.
-    """
+    """Credential-shaped stderr maps to a fixed authentication code."""
     secret = "ghp_" + "A" * 36
     _capture_run(
         monkeypatch,
@@ -1059,7 +1157,10 @@ def test_copilot_exit_excerpt_does_not_redact_a_short_credential(
     with pytest.raises(RuntimeError) as exc_info:
         provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
 
-    assert secret in str(exc_info.value)
+    message = str(exc_info.value)
+    assert secret not in message
+    assert "error=authentication failed" in message
+    assert _eval_api_adapter._categorize_error(exc_info.value) == "auth"
 
 
 def test_copilot_complete_generic_exit_code_stays_transient(
@@ -1101,14 +1202,61 @@ def test_copilot_complete_timeout_is_categorized_as_timeout(
     assert _eval_api_adapter._categorize_error(exc_info.value) == "timeout"
 
 
-def test_copilot_complete_missing_executable_names_the_binary(
+def test_copilot_timeout_traceback_does_not_contain_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _capture_run(monkeypatch, FileNotFoundError("no such file"))
-    provider = _providers._CopilotCLIProvider(executable="copilot-nope")
+    import traceback
 
-    with pytest.raises(RuntimeError, match="copilot-nope"):
+    prompt_fragment = "PRIVATE PROMPT FRAGMENT"
+    timeout = _copilot_cli.subprocess.TimeoutExpired(
+        cmd=["copilot", "--prompt", prompt_fragment],
+        timeout=900,
+    )
+    _capture_run(monkeypatch, timeout)
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        provider.complete(
+            messages=[{"role": "user", "content": prompt_fragment}],
+            model="m",
+        )
+
+    rendered = "".join(
+        traceback.format_exception(
+            type(exc_info.value),
+            exc_info.value,
+            exc_info.value.__traceback__,
+        )
+    )
+    assert prompt_fragment not in rendered
+    assert exc_info.value.__cause__ is None
+
+
+@pytest.mark.parametrize(
+    ("error", "category"),
+    [
+        (FileNotFoundError("private executable path"), "executable_not_found"),
+        (OSError("private operating system detail"), "os_error"),
+    ],
+)
+def test_copilot_complete_redacts_process_launch_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    error: OSError,
+    category: str,
+) -> None:
+    private_path = "/home/private/copilot-secret"
+    _capture_run(monkeypatch, error)
+    provider = _providers._CopilotCLIProvider(executable=private_path)
+
+    with pytest.raises(RuntimeError) as exc_info:
         provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    message = str(exc_info.value)
+    assert category in message
+    assert "process details redacted" in message
+    assert private_path not in message
+    assert str(error) not in message
+    assert exc_info.value.__cause__ is None
 
 
 def test_copilot_complete_blank_stdout_raises(
@@ -1139,6 +1287,17 @@ def test_copilot_factory_rejects_a_non_numeric_timeout(
     monkeypatch.setenv("COPILOT_CLI_TIMEOUT", "soon")
 
     with pytest.raises(RuntimeError, match="COPILOT_CLI_TIMEOUT"):
+        _providers.resolve_provider("copilot-cli")
+
+
+@pytest.mark.parametrize("timeout", ["0", "-1", "nan", "inf", "-inf"])
+def test_copilot_factory_rejects_a_non_positive_or_non_finite_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    timeout: str,
+) -> None:
+    monkeypatch.setenv("COPILOT_CLI_TIMEOUT", timeout)
+
+    with pytest.raises(RuntimeError, match="finite positive"):
         _providers.resolve_provider("copilot-cli")
 
 
@@ -1186,14 +1345,46 @@ def _run_writing_session(
     contents: list[object],
     stdout: str = "stdout fallback text\n",
 ):
-    """Patch subprocess.run so it records a session for the sandbox it is given."""
+    """Patch the ACP runner so it records a session for the call sandbox."""
 
-    def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+    def fake_run(argv: list[str], prompt: str, **kwargs: object) -> _FakeCompleted:
         _write_session(root, str(kwargs["cwd"]), model=model, contents=contents)
         return _FakeCompleted(stdout=stdout)
 
-    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    monkeypatch.setattr(_copilot_cli, "run_acp_completion", fake_run)
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(root))
+
+
+def _run_writing_malformed_model_session(
+    monkeypatch: pytest.MonkeyPatch,
+    root: Path,
+) -> list[int]:
+    """Write one answer whose present model metadata is not text."""
+    calls: list[int] = []
+
+    def fake_run(argv: list[str], prompt: str, **kwargs: object) -> _FakeCompleted:
+        calls.append(1)
+        session_dir = root / "malformed-model"
+        session_dir.mkdir(parents=True, exist_ok=True)
+        events = [
+            {
+                "type": "session.start",
+                "data": {"context": {"cwd": kwargs["cwd"]}},
+            },
+            {
+                "type": "assistant.message",
+                "data": {"content": "answer", "model": {"id": "claude-opus-5"}},
+            },
+        ]
+        (session_dir / "events.jsonl").write_text(
+            "\n".join(json.dumps(event) for event in events) + "\n",
+            encoding="utf-8",
+        )
+        return _FakeCompleted(stdout="stdout fallback text\n")
+
+    monkeypatch.setattr(_copilot_cli, "run_acp_completion", fake_run)
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(root))
+    return calls
 
 
 def test_copilot_prefers_the_session_transcript_over_stdout(
@@ -1310,10 +1501,44 @@ def test_the_malformed_transcript_refusal_survives_the_unverified_opt_in(
     assert provider.system_fingerprint is None
 
 
+def test_malformed_model_metadata_stops_after_one_normal_call(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", raising=False)
+    calls = _run_writing_malformed_model_session(monkeypatch, tmp_path)
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(MalformedProviderMetadataError, match="non-string model \\(dict\\)"):
+        provider.complete(
+            messages=[{"role": "user", "content": "q"}],
+            model="claude-opus-5",
+        )
+
+    assert calls == [1]
+    assert provider.system_fingerprint is None
+
+
+def test_malformed_model_metadata_stops_after_one_opted_in_call(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", "1")
+    calls = _run_writing_malformed_model_session(monkeypatch, tmp_path)
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(MalformedProviderMetadataError, match="non-string model \\(dict\\)"):
+        provider.complete(
+            messages=[{"role": "user", "content": "q"}],
+            model="claude-opus-5",
+        )
+
+    assert calls == [1]
+    assert provider.system_fingerprint is None
+
+
 def test_copilot_transcript_ignores_sessions_from_other_sandboxes(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+    def fake_run(argv: list[str], prompt: str, **kwargs: object) -> _FakeCompleted:
         _write_session(
             tmp_path,
             "/tmp/some-other-sandbox",
@@ -1323,7 +1548,7 @@ def test_copilot_transcript_ignores_sessions_from_other_sandboxes(
         return _FakeCompleted(stdout="my stdout answer\n")
 
     _allow_unverified_model(monkeypatch)
-    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    monkeypatch.setattr(_copilot_cli, "run_acp_completion", fake_run)
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
     provider = _providers._CopilotCLIProvider()
 
@@ -1372,6 +1597,491 @@ def test_copilot_accepts_an_absolute_session_state_override(
     assert out == "answer"
 
 
+def test_copilot_passes_validated_session_root_to_child(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = tmp_path / "sessions"
+    _allow_unverified_model(monkeypatch)
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="answer\n"))
+    monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(root))
+    provider = _providers._CopilotCLIProvider()
+
+    provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert seen["kwargs"]["env"]["COPILOT_SESSION_STATE_DIR"] == str(root)
+
+
+def test_copilot_home_selects_one_child_and_reader_session_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    copilot_home = tmp_path / "copilot-home"
+    expected_root = copilot_home / "session-state"
+
+    def fake_run(
+        argv: list[str], prompt: str, **kwargs: object
+    ) -> _FakeCompleted:
+        env = kwargs["env"]
+        assert isinstance(env, dict)
+        assert env["COPILOT_HOME"] == str(copilot_home)
+        assert env["COPILOT_SESSION_STATE_DIR"] == str(expected_root)
+        _write_session(
+            expected_root,
+            str(kwargs["cwd"]),
+            model="claude-opus-5",
+            contents=["home-root answer"],
+        )
+        return _FakeCompleted(stdout="wrong fallback\n")
+
+    monkeypatch.delenv("COPILOT_SESSION_STATE_DIR", raising=False)
+    monkeypatch.setenv("COPILOT_HOME", str(copilot_home))
+    monkeypatch.setattr(_copilot_cli, "run_acp_completion", fake_run)
+    provider = _providers._CopilotCLIProvider()
+
+    out = provider.complete(
+        messages=[{"role": "user", "content": "q"}],
+        model="claude-opus-5",
+    )
+
+    assert out == "home-root answer"
+
+
+def test_copilot_refuses_a_relative_copilot_home(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="answer\n"))
+    monkeypatch.delenv("COPILOT_SESSION_STATE_DIR", raising=False)
+    monkeypatch.setenv("COPILOT_HOME", "relative-home")
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError, match="COPILOT_HOME.*absolute"):
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert "argv" not in seen
+
+
+def test_copilot_refuses_a_relative_default_home(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen = _capture_run(monkeypatch, _FakeCompleted(stdout="answer\n"))
+    monkeypatch.delenv("COPILOT_SESSION_STATE_DIR", raising=False)
+    monkeypatch.delenv("COPILOT_HOME", raising=False)
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(
+        transcript_module.Path,
+        "home",
+        classmethod(lambda cls: Path("relative-home")),
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(RuntimeError, match="home directory.*absolute"):
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="m")
+
+    assert "argv" not in seen
+
+
+def test_unrelated_transcript_is_not_loaded_in_full(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    sandbox = str(tmp_path / "sandbox")
+    unrelated = tmp_path / "0-unrelated"
+    unrelated.mkdir()
+    unrelated_events = unrelated / "events.jsonl"
+    unrelated_events.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "type": "session.start",
+                        "data": {"context": {"cwd": "other-sandbox"}},
+                    }
+                ),
+                "x" * 10_000,
+            ]
+        ),
+        encoding="utf-8",
+    )
+    _write_session(
+        tmp_path,
+        sandbox,
+        model="claude-opus-5",
+        contents=["matching answer"],
+    )
+    original_read_text = Path.read_text
+
+    def refuse_full_read(
+        path: Path,
+        encoding: str | None = None,
+        errors: str | None = None,
+    ) -> str:
+        if path == unrelated_events:
+            raise AssertionError("unrelated transcript was loaded in full")
+        return original_read_text(path, encoding=encoding, errors=errors)
+
+    monkeypatch.setattr(Path, "read_text", refuse_full_read)
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+
+    result = transcript_module.read_session_transcript(
+        tmp_path,
+        sandbox,
+        since=0.0,
+        provider_label="Copilot CLI",
+        deadline=time.monotonic() + 1.0,
+    )
+
+    assert result == ("matching answer", "claude-opus-5")
+
+
+def test_matching_oversized_transcript_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    sandbox = str(tmp_path / "sandbox")
+    _write_session(
+        tmp_path,
+        sandbox,
+        model="claude-opus-5",
+        contents=["x" * 500],
+    )
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(transcript_module, "_MAX_TRANSCRIPT_LINE_CHARS", 200)
+    monkeypatch.setattr(transcript_module, "_MAX_TRANSCRIPT_CHARS", 400)
+
+    with pytest.raises(RuntimeError, match="transcript exceeded the size limit"):
+        transcript_module.read_session_transcript(
+            tmp_path,
+            sandbox,
+            since=0.0,
+            provider_label="Copilot CLI",
+            deadline=time.monotonic() + 1.0,
+        )
+
+
+def test_transcript_reader_requests_bounded_lines(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    sandbox = str(tmp_path / "sandbox")
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    events = session_dir / "events.jsonl"
+    events.write_text("", encoding="utf-8")
+    lines = [
+        json.dumps(
+            {
+                "type": "session.start",
+                "data": {"context": {"cwd": sandbox}},
+            }
+        )
+        + "\n",
+        json.dumps(
+            {
+                "type": "assistant.message",
+                "data": {"content": "bounded answer", "model": "model"},
+            }
+        )
+        + "\n",
+        "",
+    ]
+    sizes: list[int] = []
+
+    class BoundedStream:
+        def __enter__(self) -> BoundedStream:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def readline(self, size: int = -1) -> str:
+            sizes.append(size)
+            return lines.pop(0)
+
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+
+    def bounded_fdopen(descriptor: int, *args: Any, **kwargs: Any) -> Any:
+        os.close(descriptor)
+        return BoundedStream()
+
+    monkeypatch.setattr(transcript_module.os, "fdopen", bounded_fdopen)
+    monkeypatch.setattr(transcript_module, "_MAX_TRANSCRIPT_LINE_CHARS", 512)
+
+    result = transcript_module.read_session_transcript(
+        tmp_path,
+        sandbox,
+        since=0.0,
+        provider_label="Copilot CLI",
+        deadline=time.monotonic() + 1.0,
+    )
+
+    assert result == ("bounded answer", "model")
+    assert sizes == [513, 513, 513]
+
+
+def test_transcript_candidate_count_is_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    for index in range(3):
+        session_dir = tmp_path / f"session-{index}"
+        session_dir.mkdir()
+        (session_dir / "events.jsonl").write_text("", encoding="utf-8")
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(transcript_module, "_MAX_TRANSCRIPT_CANDIDATES", 2)
+
+    with pytest.raises(RuntimeError, match="candidate limit exceeded"):
+        transcript_module.read_session_transcript(
+            tmp_path,
+            "sandbox",
+            since=0.0,
+            provider_label="Copilot CLI",
+            deadline=time.monotonic() + 1.0,
+        )
+
+
+def test_stale_transcripts_do_not_consume_the_candidate_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    since = time.time() - 10
+    for index in range(3):
+        session_dir = tmp_path / f"stale-{index}"
+        session_dir.mkdir()
+        events = session_dir / "events.jsonl"
+        events.write_text("", encoding="utf-8")
+        os.utime(events, (1_000_000, 1_000_000))
+    sandbox = str(tmp_path / "sandbox")
+    _write_session(
+        tmp_path,
+        sandbox,
+        model="model",
+        contents=["current answer"],
+    )
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(transcript_module, "_MAX_TRANSCRIPT_CANDIDATES", 1)
+
+    result = transcript_module.read_session_transcript(
+        tmp_path,
+        sandbox,
+        since=since,
+        provider_label="Copilot CLI",
+        deadline=time.monotonic() + 1.0,
+    )
+
+    assert result == ("current answer", "model")
+
+
+def test_non_regular_transcript_is_refused(tmp_path: Path) -> None:
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    (session_dir / "events.jsonl").mkdir()
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+
+    with pytest.raises(RuntimeError, match="not a regular file"):
+        transcript_module.read_session_transcript(
+            tmp_path,
+            "sandbox",
+            since=0.0,
+            provider_label="Copilot CLI",
+            deadline=time.monotonic() + 1.0,
+        )
+
+
+def test_transcript_descriptor_closes_when_fstat_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    (session_dir / "events.jsonl").write_text("", encoding="utf-8")
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    original_close = os.close
+    closed: list[int] = []
+
+    def record_close(descriptor: int) -> None:
+        closed.append(descriptor)
+        original_close(descriptor)
+
+    monkeypatch.setattr(transcript_module.os, "close", record_close)
+    monkeypatch.setattr(
+        transcript_module.os,
+        "fstat",
+        lambda descriptor: (_ for _ in ()).throw(OSError("fstat failed")),
+    )
+
+    with pytest.raises(OSError, match="fstat failed"):
+        transcript_module._open_transcript(
+            tmp_path,
+            "session",
+            "Copilot CLI",
+        )
+
+    assert len(closed) == 3
+
+
+def test_transcript_descriptor_closes_when_parent_close_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    descriptors = iter([10, 11, 12])
+    closed: list[int] = []
+
+    monkeypatch.setattr(
+        transcript_module.os,
+        "open",
+        lambda *args, **kwargs: next(descriptors),
+    )
+    monkeypatch.setattr(
+        transcript_module.os,
+        "close",
+        lambda descriptor: (
+            (_ for _ in ()).throw(OSError("parent close failed"))
+            if descriptor == 11
+            else closed.append(descriptor)
+        ),
+    )
+
+    with pytest.raises(OSError, match="parent close failed"):
+        transcript_module._open_transcript(
+            tmp_path,
+            "session",
+            "Copilot CLI",
+        )
+
+    assert 12 in closed
+
+
+def test_symlinked_transcript_is_refused(tmp_path: Path) -> None:
+    target = tmp_path / "target.jsonl"
+    target.write_text("", encoding="utf-8")
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    link = session_dir / "events.jsonl"
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip("symlink creation unavailable")
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+
+    with pytest.raises(RuntimeError, match="not a regular file"):
+        transcript_module.read_session_transcript(
+            tmp_path,
+            "sandbox",
+            since=0.0,
+            provider_label="Copilot CLI",
+            deadline=time.monotonic() + 1.0,
+        )
+
+
+def test_symlinked_session_directory_is_not_followed(tmp_path: Path) -> None:
+    outside = tmp_path.parent / f"{tmp_path.name}-outside"
+    outside.mkdir(exist_ok=True)
+    (outside / "events.jsonl").write_text(
+        json.dumps(
+            {
+                "type": "session.start",
+                "data": {"context": {"cwd": "sandbox"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    link = tmp_path / "linked-session"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlink creation unavailable")
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+
+    result = transcript_module.read_session_transcript(
+        tmp_path,
+        "sandbox",
+        since=0.0,
+        provider_label="Copilot CLI",
+        deadline=time.monotonic() + 1.0,
+    )
+
+    assert result is None
+
+
+def test_nonmatching_entries_are_counted_toward_discovery_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    for index in range(3):
+        (tmp_path / f"unrelated-{index}.txt").write_text("", encoding="utf-8")
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(transcript_module, "_MAX_SESSION_ENTRIES", 2)
+
+    with pytest.raises(RuntimeError, match="directory entry limit exceeded"):
+        transcript_module.read_session_transcript(
+            tmp_path,
+            "sandbox",
+            since=0.0,
+            provider_label="Copilot CLI",
+            deadline=time.monotonic() + 1.0,
+        )
+
+
+def test_transcript_scan_obeys_its_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    directories = []
+    for index in range(3):
+        session_dir = tmp_path / f"session-{index}"
+        session_dir.mkdir()
+        path = session_dir / "events.jsonl"
+        path.write_text("", encoding="utf-8")
+        directories.append(session_dir)
+    yielded = 0
+
+    class FakeEntry:
+        def __init__(self, path: Path) -> None:
+            self.name = path.name
+            self.path = str(path)
+
+        def is_dir(self, *, follow_symlinks: bool) -> bool:
+            assert follow_symlinks is False
+            return True
+
+    class FakeScandir:
+        def __enter__(self) -> FakeScandir:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def __iter__(self):
+            nonlocal yielded
+            for path in directories:
+                yielded += 1
+                yield FakeEntry(path)
+
+    transcript_module = sys.modules[_copilot_cli.session_state_root.__module__]
+    monkeypatch.setattr(
+        transcript_module.os,
+        "scandir",
+        lambda root: FakeScandir(),
+    )
+    clock = iter([0.0, 2.0])
+    monkeypatch.setattr(
+        transcript_module.time,
+        "monotonic",
+        lambda: next(clock, 2.0),
+    )
+
+    with pytest.raises(RuntimeError, match="transcript scan timed out"):
+        transcript_module.read_session_transcript(
+            tmp_path,
+            "sandbox",
+            since=0.0,
+            provider_label="Copilot CLI",
+            deadline=1.0,
+        )
+
+    assert yielded == 2
+
+
 def test_copilot_falls_back_to_stdout_when_session_root_is_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
@@ -1388,7 +2098,7 @@ def test_copilot_falls_back_to_stdout_when_session_root_is_missing(
 def test_copilot_transcript_survives_malformed_lines(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+    def fake_run(argv: list[str], prompt: str, **kwargs: object) -> _FakeCompleted:
         session_dir = tmp_path / "s1"
         session_dir.mkdir(parents=True, exist_ok=True)
         lines = [
@@ -1415,7 +2125,7 @@ def test_copilot_transcript_survives_malformed_lines(
         (session_dir / "events.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
         return _FakeCompleted(stdout="stdout answer\n")
 
-    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    monkeypatch.setattr(_copilot_cli, "run_acp_completion", fake_run)
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
     provider = _providers._CopilotCLIProvider()
 
@@ -1429,16 +2139,40 @@ def test_copilot_raises_when_the_session_ran_a_different_model(
 ) -> None:
     # Silent model substitution would attribute one model's behavior to
     # another, which corrupts every downstream comparison.
+    requested = "ghp_" + "R" * 36
+    actual = "ghp_" + "A" * 36
     _run_writing_session(
         monkeypatch,
         tmp_path,
-        model="gpt-5.6-sol",
+        model=actual,
         contents=["an answer"],
     )
     provider = _providers._CopilotCLIProvider()
 
-    with pytest.raises(RuntimeError, match="ran gpt-5.6-sol instead"):
-        provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
+    with pytest.raises(RuntimeError, match="model attribution mismatch") as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model=requested)
+
+    assert requested not in str(exc_info.value)
+    assert actual not in str(exc_info.value)
+
+
+def test_copilot_refuses_an_invalid_model_identifier(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    secret = "ghp_" + "S" * 36 + " private"
+    _run_writing_session(
+        monkeypatch,
+        tmp_path,
+        model=secret,
+        contents=["an answer"],
+    )
+    provider = _providers._CopilotCLIProvider()
+
+    with pytest.raises(MalformedProviderMetadataError) as exc_info:
+        provider.complete(messages=[{"role": "user", "content": "q"}], model="model")
+
+    assert secret not in str(exc_info.value)
 
 
 def test_copilot_ignores_session_logs_written_before_this_call(
@@ -1448,7 +2182,7 @@ def test_copilot_ignores_session_logs_written_before_this_call(
     stale.mkdir(parents=True)
     events = stale / "events.jsonl"
 
-    def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+    def fake_run(argv: list[str], prompt: str, **kwargs: object) -> _FakeCompleted:
         _write_session_stale(events, str(kwargs["cwd"]))
         return _FakeCompleted(stdout="stdout answer\n")
 
@@ -1468,7 +2202,7 @@ def test_copilot_ignores_session_logs_written_before_this_call(
         os.utime(path, (1_000_000, 1_000_000))
 
     _allow_unverified_model(monkeypatch)
-    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    monkeypatch.setattr(_copilot_cli, "run_acp_completion", fake_run)
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
     provider = _providers._CopilotCLIProvider()
 
@@ -1647,7 +2381,7 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
         """A readable session is not the same fact as a confirmed model."""
         monkeypatch.delenv("EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL", raising=False)
 
-        def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+        def fake_run(argv: list[str], prompt: str, **kwargs: object) -> _FakeCompleted:
             session_dir = tmp_path / "s1"
             session_dir.mkdir(parents=True, exist_ok=True)
             events = [
@@ -1659,7 +2393,7 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
             )
             return _FakeCompleted(stdout="an answer\n")
 
-        monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+        monkeypatch.setattr(_copilot_cli, "run_acp_completion", fake_run)
         monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(tmp_path))
         provider = _providers._CopilotCLIProvider()
 
@@ -1742,10 +2476,10 @@ class TestAReplyIsNotGradedForAModelNobodyConfirmed:
 def _run_writing_raw_session(
     monkeypatch: pytest.MonkeyPatch, root, build_events, *, stdout: str = "ignored\n"
 ):
-    """Patch subprocess.run so it writes caller-shaped events for the sandbox."""
+    """Patch the ACP runner so it writes caller-shaped session events."""
     import uuid
 
-    def fake_run(argv: list[str], **kwargs: object) -> _FakeCompleted:
+    def fake_run(argv: list[str], prompt: str, **kwargs: object) -> _FakeCompleted:
         session_dir = root / str(uuid.uuid4())
         session_dir.mkdir(parents=True, exist_ok=True)
         events = build_events(str(kwargs["cwd"]))
@@ -1754,7 +2488,7 @@ def _run_writing_raw_session(
         )
         return _FakeCompleted(stdout=stdout)
 
-    monkeypatch.setattr(_copilot_cli.subprocess, "run", fake_run)
+    monkeypatch.setattr(_copilot_cli, "run_acp_completion", fake_run)
     monkeypatch.setenv("COPILOT_SESSION_STATE_DIR", str(root))
 
 
@@ -1802,7 +2536,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         )
         provider = _providers._CopilotCLIProvider()
 
-        with pytest.raises(RuntimeError, match="ran gpt-5.6-sol instead"):
+        with pytest.raises(RuntimeError, match="model attribution mismatch"):
             provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_a_midsession_model_change_is_caught_through_the_message(
@@ -1824,7 +2558,7 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         )
         provider = _providers._CopilotCLIProvider()
 
-        with pytest.raises(RuntimeError, match="ran gpt-5.6-sol instead"):
+        with pytest.raises(RuntimeError, match="model attribution mismatch"):
             provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
     def test_two_models_in_one_answer_confirm_nothing(
@@ -1936,9 +2670,9 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
 
         assert out == "the answer"
 
-    @pytest.mark.parametrize("bad", [123, None, "", {"name": "opus"}, ["opus"]])
-    def test_a_lone_message_with_a_blank_model_reads_as_unattributed(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path, bad: object
+    @pytest.mark.parametrize("missing", [None, ""])
+    def test_a_lone_message_with_no_model_name_reads_as_unattributed(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path, missing: object
     ) -> None:
         # An empty string is not the name of a model. Treating it as one would
         # report a substitution by a model called "", which sends the operator
@@ -1948,29 +2682,29 @@ class TestTheModelIsReadFromTheMessageThatAnswered:
         _run_writing_raw_session(
             monkeypatch,
             tmp_path,
-            lambda cwd: [_start(cwd), _msg("the answer", model=bad)],
+            lambda cwd: [_start(cwd), _msg("the answer", model=missing)],
         )
         provider = _providers._CopilotCLIProvider()
 
         with pytest.raises(RuntimeError, match="could not confirm which model"):
             provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
-    @pytest.mark.parametrize("bad", [123, None, "", {"name": "opus"}, ["opus"]])
-    def test_a_message_whose_model_is_not_a_name_is_unattributed(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path, bad: object
+    @pytest.mark.parametrize("malformed", [123, {"name": "opus"}, ["opus"]])
+    def test_a_present_non_string_model_is_malformed(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path, malformed: object
     ) -> None:
         _run_writing_raw_session(
             monkeypatch,
             tmp_path,
             lambda cwd: [
                 _start(cwd),
-                _msg("the answer", model=bad),
+                _msg("the answer", model=malformed),
                 _msg("second part", model="claude-opus-5"),
             ],
         )
         provider = _providers._CopilotCLIProvider()
 
-        with pytest.raises(RuntimeError, match="could not confirm which model"):
+        with pytest.raises(MalformedProviderMetadataError, match="non-string model"):
             provider.complete(messages=[{"role": "user", "content": "q"}], model="claude-opus-5")
 
 
