@@ -597,7 +597,8 @@ class TestCheckMemoryIndexReferences:
             "memory-index.md": (
                 "| Keywords | File |\n"
                 "|----------|------|\n"
-                "| test | skills-test-index |\n"
+                "| test | "
+                "[skills-test-index](skills-test-index.md) |\n"
             ),
             "skills-test-index.md": "| Keywords | File |\n",
         })
@@ -617,6 +618,97 @@ class TestCheckMemoryIndexReferences:
         result = check_memory_index_references(tmp_path, indices, Counter())
         assert result.passed is False
         assert "skills-test-index" in result.unreferenced_indices
+
+    @pytest.mark.parametrize(
+        "decoy",
+        [
+            "<!-- [entry](skills-test-index.md) -->\n",
+            "`[entry](skills-test-index.md)`\n",
+            "<a href=\"skills-test-index.md\">entry</a>\n",
+        ],
+    )
+    def test_non_links_do_not_satisfy_completeness(
+        self,
+        tmp_path: Path,
+        decoy: str,
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": decoy,
+            "skills-test-index.md": "content",
+        })
+        indices = [
+            DomainIndex(
+                tmp_path / "skills-test-index.md",
+                "skills-test-index",
+                "test",
+            )
+        ]
+
+        result = check_memory_index_references(
+            tmp_path,
+            indices,
+            Counter(),
+        )
+
+        assert result.passed is False
+        assert result.unreferenced_indices == ["skills-test-index"]
+
+    def test_canonical_reference_link_satisfies_completeness(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| keywords: [entry][domain]\n\n"
+                "[domain]: ./skills-test-index.md\n"
+            ),
+            "skills-test-index.md": "content",
+        })
+        indices = [
+            DomainIndex(
+                tmp_path / "skills-test-index.md",
+                "skills-test-index",
+                "test",
+            )
+        ]
+
+        result = check_memory_index_references(
+            tmp_path,
+            indices,
+            Counter(),
+        )
+
+        assert result.passed is True
+        assert result.unreferenced_indices == []
+
+    def test_parser_nesting_exhaustion_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        quote = ">" * 20 + " "
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                f"{quote}[entry](skills-test-index.md)\n"
+            ),
+            "skills-test-index.md": "content",
+        })
+        indices = [
+            DomainIndex(
+                tmp_path / "skills-test-index.md",
+                "skills-test-index",
+                "test",
+            )
+        ]
+
+        result = check_memory_index_references(
+            tmp_path,
+            indices,
+            Counter(),
+        )
+
+        assert result.passed is False
+        assert any(
+            "maxNesting" in issue
+            for issue in result.issues
+        )
 
     def test_duplicate_target_path(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
@@ -1316,7 +1408,8 @@ class TestRunValidation:
             "memory-index.md": (
                 "| Keywords | File |\n"
                 "|----------|------|\n"
-                "| test | skills-test-index |\n"
+                "| test | "
+                "[skills-test-index](skills-test-index.md) |\n"
             ),
         })
         report = run_validation(tmp_path, "json", Counter())
@@ -1485,7 +1578,8 @@ class TestMain:
             "memory-index.md": (
                 "| Keywords | File |\n"
                 "|----------|------|\n"
-                "| test | skills-test-index |\n"
+                "| test | "
+                "[skills-test-index](skills-test-index.md) |\n"
             ),
         })
         exit_code = main(["--path", str(tmp_path), "--ci"])
@@ -1532,7 +1626,8 @@ class TestMain:
             "memory-index.md": (
                 "| Keywords | File |\n"
                 "|----------|------|\n"
-                "| test | skills-test-index |\n"
+                "| test | "
+                "[skills-test-index](skills-test-index.md) |\n"
             ),
         })
         exit_code = main([

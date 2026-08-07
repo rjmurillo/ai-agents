@@ -43,7 +43,10 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 # Script entry points need the repository path before shared-module imports.
-from scripts.utils.markdown_parser import _create_parser  # noqa: E402
+from scripts.utils.markdown_parser import (  # noqa: E402
+    _create_parser,
+    _raise_if_nesting_truncated,
+)
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -229,17 +232,23 @@ def _invalid_destination_reason(destination: str) -> str | None:
 
 def _extract_memory_reference_names(
     content: str,
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[str], list[str], list[str]]:
     """Extract references from the CommonMark token stream."""
     issues: list[str] = []
     destinations: list[str] = []
+    linked_destinations: list[str] = []
     inside_table = False
     inside_file_cell = False
     table_cell_index = 0
     try:
         tokens = _MARKDOWN_PARSER.parse(content)
+        _raise_if_nesting_truncated(
+            content,
+            tokens,
+            _MARKDOWN_PARSER,
+        )
     except (RuntimeError, ValueError) as exc:
-        return [], [f"P1 VALIDITY: Markdown parse failed: {exc}"]
+        return [], [], [f"P1 VALIDITY: Markdown parse failed: {exc}"]
 
     for token in tokens:
         if token.type == "table_open":
@@ -292,6 +301,7 @@ def _extract_memory_reference_names(
                         "unresolved link syntax"
                     )
         destinations.extend(inline_destinations)
+        linked_destinations.extend(inline_destinations)
         unparsed_text = "".join(plain_text).strip(" ,")
         if inside_file_cell and inline_destinations and unparsed_text:
             issues.append(
@@ -307,19 +317,31 @@ def _extract_memory_reference_names(
                     if item.strip()
                 )
 
-    reference_names: list[str] = []
-    for destination in destinations:
-        invalid_reason = _invalid_destination_reason(destination)
-        if invalid_reason:
-            issues.append(
-                f"P1 VALIDITY: memory-index destination "
-                f"{destination!r} contains {invalid_reason}"
+    def normalize_destinations(
+        values: list[str],
+        *,
+        record_issues: bool,
+    ) -> list[str]:
+        reference_names: list[str] = []
+        for destination in values:
+            invalid_reason = _invalid_destination_reason(destination)
+            if invalid_reason:
+                if record_issues:
+                    issues.append(
+                        f"P1 VALIDITY: memory-index destination "
+                        f"{destination!r} contains {invalid_reason}"
+                    )
+                continue
+            reference_names.append(
+                re.sub(r"\.md$", "", destination, flags=re.IGNORECASE)
             )
-            continue
-        reference_names.append(
-            re.sub(r"\.md$", "", destination, flags=re.IGNORECASE)
-        )
-    return reference_names, issues
+        return reference_names
+
+    return (
+        normalize_destinations(destinations, record_issues=True),
+        normalize_destinations(linked_destinations, record_issues=False),
+        issues,
+    )
 
 
 def _canonical_reference_counts(
@@ -327,7 +349,7 @@ def _canonical_reference_counts(
     memory_path: Path,
 ) -> tuple[Counter[str] | None, str | None]:
     """Count safe canonical references, or return a closed failure."""
-    reference_names, issues = _extract_memory_reference_names(content)
+    reference_names, _, issues = _extract_memory_reference_names(content)
     if issues:
         return None, issues[0]
 
@@ -439,7 +461,7 @@ def _load_base_reference_counts(
         if mode == "120000":
             symlink_paths.add(path)
 
-    reference_names, destination_issues = (
+    reference_names, _, destination_issues = (
         _extract_memory_reference_names(show_result.stdout)
     )
     if destination_issues:
@@ -784,17 +806,7 @@ def check_memory_index_references(
     content = memory_index_path.read_text(encoding="utf-8")
     resolved_memory = memory_path.resolve()
 
-    # P1: Check completeness
-    for index in domain_indices:
-        if index.name not in content:
-            result.passed = False
-            result.unreferenced_indices.append(index.name)
-            result.issues.append(
-                f"P1 COMPLETENESS: Domain index not referenced "
-                f"in memory-index: {index.name}"
-            )
-
-    reference_names, destination_issues = (
+    reference_names, linked_reference_names, destination_issues = (
         _extract_memory_reference_names(content)
     )
     if destination_issues:
@@ -822,6 +834,30 @@ def check_memory_index_references(
 
         canonical_refs.append(canonical_identity)
         resolved_refs.setdefault(canonical_identity, resolved_ref)
+
+    linked_canonical_refs: set[str] = set()
+    for file_name in linked_reference_names:
+        canonical_identity, _, _ = _resolve_memory_reference(
+            memory_path,
+            resolved_memory,
+            file_name,
+        )
+        if canonical_identity is not None:
+            linked_canonical_refs.add(canonical_identity)
+
+    for index in domain_indices:
+        canonical_index, _, _ = _resolve_memory_reference(
+            memory_path,
+            resolved_memory,
+            index.name,
+        )
+        if canonical_index not in linked_canonical_refs:
+            result.passed = False
+            result.unreferenced_indices.append(index.name)
+            result.issues.append(
+                f"P1 COMPLETENESS: Domain index not referenced "
+                f"in memory-index: {index.name}"
+            )
 
     reference_counts = Counter(canonical_refs)
     for file_name, observed_count in reference_counts.items():
