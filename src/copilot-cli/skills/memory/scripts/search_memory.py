@@ -27,6 +27,15 @@ from typing import Any
 TOKEN_WARN_THRESHOLD = 5000
 TOKEN_DECOMPOSE_THRESHOLD = 10000
 
+# Credit for a keyword that matches only a parent directory, not the file name.
+# Matching moved from the bare stem to the relative path so nested memories
+# become reachable. That let a topic directory hand a perfect score to every
+# file under it, burying the top-level file the query actually named. Full
+# credit for a stem match and partial credit for a directory-only match keeps
+# the recall and leaves top-level scoring unchanged, since a top-level stem is
+# its whole relative path.
+DIRECTORY_MATCH_WEIGHT = 0.5
+
 # Every episode filename opens with `episode-<date>-` and often `session-<n>-`.
 # Those tokens are metadata, not content: leaving them in the haystack made the
 # keywords "episode" and "session" match nearly the whole corpus.
@@ -82,19 +91,23 @@ def search_serena(
     keywords = query_keywords(query)
 
     results: list[dict[str, Any]] = []
-    for md_file in sorted(memory_path.glob("*.md")):
-        name = md_file.stem.lower()
+    for md_file in sorted(memory_path.rglob("*.md")):
+        rel = md_file.relative_to(memory_path).with_suffix("")
+        name = rel.as_posix().lower()
+        stem = name.rpartition("/")[2]
+        stem_hits = sum(1 for kw in keywords if kw in stem)
         matching = [kw for kw in keywords if kw in name]
         if not matching:
             continue
-        score = len(matching) / len(keywords) if keywords else 0
+        weighted = stem_hits + DIRECTORY_MATCH_WEIGHT * (len(matching) - stem_hits)
+        score = weighted / len(keywords) if keywords else 0
         try:
             content = md_file.read_text(encoding="utf-8")
         except OSError:
             content = ""
         preview = re.sub(r"\s+", " ", content).strip()
         results.append({
-            "Name": md_file.stem,
+            "Name": rel.as_posix(),
             "Source": "Serena",
             "Score": round(score, 2),
             "Path": str(md_file),
@@ -183,7 +196,7 @@ def get_memory_router_status(
     serena_available = serena_path.is_dir()
     serena_count = 0
     if serena_available:
-        serena_count = len(list(serena_path.glob("*.md")))
+        serena_count = len(list(serena_path.rglob("*.md")))
 
     episodes_available = False
     episode_count = 0

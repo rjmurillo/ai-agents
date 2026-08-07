@@ -54,7 +54,7 @@ GitHub reports `mergeable_state: behind` when main has moved. That is the state
 that tempts the local merge. Take it server side:
 
 ```bash
-gh pr update-branch 4726
+gh pr update-branch
 ```
 
 This merges main into the head branch on GitHub. No local push, so no pre-push
@@ -65,10 +65,17 @@ If you have already merged and not yet committed anything on top, drop the merge
 commit and let the remote stay where it is:
 
 ```bash
+# Refuse on a dirty tree: --hard discards uncommitted work.
 BRANCH="$(git branch --show-current)"
-git reset --hard "origin/$BRANCH"   # the merge commit carries no authored work
-git push origin "$BRANCH"           # docs-only again, bypass fires
+test -z "$(git status --porcelain)" \
+  && git reset --hard HEAD^1 \
+  && git push origin "$BRANCH"
 ```
+
+Reset to the merge's first parent, not to `origin/$BRANCH`. The remote ref also
+discards any authored commits you had not pushed *before* the merge, which the
+"nothing committed on top" precondition does not exclude. `HEAD^1` drops the
+merge commit and nothing else.
 
 Confirm before resetting that the merge commit is the tip and that it authored
 nothing: `git diff --name-only HEAD^1 HEAD` lists only what main brought.
