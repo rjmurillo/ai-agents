@@ -207,9 +207,43 @@ the repository, in a generated artifact, in two shell dialects. This is the same
 argument ADR-006 makes against logic in workflow YAML. Evidence: issues #3321
 and #3332, GitHub Copilot CLI 1.0.72-1.
 
-`test_stale_plugin_root_failure_names_the_missing_path` guards that claim: it
-runs a real launcher against a missing root and fails if the path leaves
-stderr. If it goes red, revisit this decision before editing the text.
+**SUPERSEDED for PreToolUse and PostToolUse launcher commands by issue #4672.**
+
+The advice above remains correct for lifecycle events (SessionStart, etc.)
+where a non-zero exit is informational, not blocking. For PreToolUse and
+PostToolUse, the host interprets any non-zero exit as a policy denial and
+surfaces it to the user as:
+
+```text
+Denied by preToolUse hook from "project-toolkit@ai-agents"
+```
+
+This means an infrastructure failure (missing file, missing interpreter, bad
+root) that returns non-zero denies every tool call in every session. A plugin
+that denies every tool call gets uninstalled, which removes 100% of protection.
+Fail-open-with-warning keeps the plugin installed and the session working, so
+the next release can still protect the user. Expected protection is strictly
+higher with degrade-and-warn than with fail-closed-then-uninstall.
+
+The following checks are now REQUIRED in PreToolUse/PostToolUse launcher
+commands (both bash and powershell forms). Each must exit 0 with a warning to
+stderr naming the plugin, the cause, and the remediation:
+
+1. Plugin root unresolvable or not a directory
+2. Python interpreter absent from PATH
+3. Dispatcher script missing or unreadable
+4. Python interpreter broken shim (shell exit 126 or 127)
+
+The version check (Python below 3.10) lives inside _dispatch.py, not in the
+shell command, to avoid a second subprocess per invocation.
+
+The old concerns from #3321 and #3332 still hold for: (a) lifecycle events
+where non-zero is not blocking, (b) any check that is not load-bearing for the
+"never deny on infrastructure failure" contract. Do not add speculative guards
+beyond the four above without a demonstrated denial scenario.
+
+`test_stale_plugin_root_failure_names_the_missing_path` now asserts the
+fail-open contract: stale root exits 0 with a warning naming the path.
 
 ## Claude Code Delta
 
