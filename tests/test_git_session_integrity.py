@@ -1,7 +1,6 @@
-"""Tests for git and session integrity fixes (issues #4316, #4307, #4561, #4288).
+"""Tests for git/session integrity (#4316, #4307, #4561, #4288).
 
-Each test creates a hermetic temporary git repository. No dependency on the
-live repository state.
+Hermetic except test_population_uniqueness_real_branches (reads live refs).
 """
 
 from __future__ import annotations
@@ -14,6 +13,8 @@ import time
 import warnings as _w
 from datetime import UTC, datetime
 from pathlib import Path
+
+import pytest
 
 # Add the scripts directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "validation"))
@@ -30,6 +31,8 @@ def _git(args: list[str], cwd: str) -> subprocess.CompletedProcess[str]:
         text=True,
         cwd=cwd,
         check=False,
+        encoding="utf-8",
+        errors="replace",
         env={**os.environ, "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "t@t.com",
              "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "t@t.com"},
     )
@@ -57,9 +60,7 @@ def _init_repo(tmp_path: Path) -> Path:
     return repo
 
 
-# ============================================================
 # Issue #4316: Detect push to squash-merged branch
-# ============================================================
 
 
 class TestSquashMergeDetection:
@@ -188,9 +189,7 @@ class TestSquashMergeDetection:
         assert "origin/main" in result.warning or "Cannot determine" in result.warning
 
 
-# ============================================================
 # Issue #4307: Merge commits exempt from atomic-commit limit
-# ============================================================
 
 
 class TestMergeCommitAtomicExempt:
@@ -274,9 +273,7 @@ class TestMergeCommitAtomicExempt:
         assert brought == set(), "No merge in progress means no exemptions"
 
 
-# ============================================================
 # Issue #4561: Branch discriminator prevents session-number collision
-# ============================================================
 
 
 class TestSessionBranchDiscriminator:
@@ -363,15 +360,15 @@ class TestSessionBranchDiscriminator:
             capture_output=True,
             text=True,
             check=False,
+            encoding="utf-8",
+            errors="replace",
             cwd=str(Path(__file__).resolve().parents[1]),
         )
         if result.returncode != 0:
-            # If git is not available in test env, skip gracefully
-            return
+            pytest.skip("git not available in test environment")
         branches = [b for b in result.stdout.splitlines() if b.strip()]
         if len(branches) < 10:
-            # Not enough branches to be meaningful
-            return
+            pytest.skip(f"only {len(branches)} branches; need >=10 for meaningful test")
 
         discriminators = {_branch_discriminator(b) for b in branches}
         collisions = len(branches) - len(discriminators)
@@ -381,9 +378,7 @@ class TestSessionBranchDiscriminator:
         )
 
 
-# ============================================================
 # Issue #4288: Session log selector tie-break unification
-# ============================================================
 
 
 class TestSessionLogSelectorTieBreak:

@@ -96,8 +96,8 @@ _SESSION_NUM_RE = re.compile(r"session-(\d+)")
 
 # Width of the branch-name hash used as a filename discriminator (hex characters).
 # At 8 hex chars (4 bytes, 4.3 billion values), the birthday-problem collision
-# probability for 940 branches is 0.01%. At the repo's 2026-08 branch count this
-# gives ~10,000x headroom before P(collision) reaches 1%.
+# probability for 940 branches is ~0.01%.  The birthday bound reaches 1% at
+# ~9,300 branches, roughly 10x the current count.
 _BRANCH_DISCRIMINATOR_WIDTH = 8
 
 
