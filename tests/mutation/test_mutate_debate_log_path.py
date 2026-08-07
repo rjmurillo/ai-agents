@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -57,12 +56,11 @@ def _add_scratch_worktree(base: Path) -> Path:
     result = subprocess.run(
         ["git", "worktree", "add", "--detach", str(wt_path), "HEAD"],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         cwd=str(REPO_ROOT),
     )
-    assert result.returncode == 0, (
-        f"git worktree add failed:\n{result.stderr}"
-    )
+    assert result.returncode == 0, f"git worktree add failed:\n{result.stderr}"
     return wt_path
 
 
@@ -80,11 +78,15 @@ def _run_tests_in(wt_path: Path) -> subprocess.CompletedProcess[str]:
     pycache = wt_path / "scripts" / "validation" / "__pycache__"
     if pycache.exists():
         import shutil
+
         shutil.rmtree(pycache)
 
     cmd = [
-        sys.executable, "-m", "pytest",
-        "--tb=short", "-q",
+        sys.executable,
+        "-m",
+        "pytest",
+        "--tb=short",
+        "-q",
         "--import-mode=importlib",
         *_TESTS,
     ]
@@ -109,8 +111,7 @@ def _assert_suite_ran(result: subprocess.CompletedProcess[str], label: str) -> N
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
     assert "no tests ran" not in result.stdout.lower(), (
-        f"{label}: no tests were collected.\n"
-        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        f"{label}: no tests were collected.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
 
 
@@ -129,23 +130,19 @@ def _apply_positive_mutant(
             "The file was changed; update this harness."
         )
     if count > 1:
-        raise AssertionError(
-            f"PATTERN-AMBIGUOUS ({label}): expected 1 occurrence, found {count}."
-        )
+        raise AssertionError(f"PATTERN-AMBIGUOUS ({label}): expected 1 occurrence, found {count}.")
 
     mutated = original.replace(original_fragment, mutant_fragment, 1)
     assert mutated != original, f"Mutation {label} produced a byte-identical file"
 
     wt_target = wt_path / _TARGET_REL
     wt_target.write_bytes(mutated)
-    time.sleep(1.1)  # defeat 1-second bytecode mtime granularity
 
     result = _run_tests_in(wt_path)
 
     # Restore original bytes before asserting so the restore check below
     # always runs against the unmodified file.
     wt_target.write_bytes(original)
-    time.sleep(1.1)
 
     _assert_suite_ran(result, label)
 
@@ -176,14 +173,16 @@ def _active_target_unmodified() -> bool:
     result = subprocess.run(
         ["git", "diff", "--name-only", "HEAD", "--", str(_TARGET_REL)],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         cwd=str(REPO_ROOT),
     )
     # Also check the working-tree against the index (unstaged changes).
     result2 = subprocess.run(
         ["git", "diff", "--name-only", "--", str(_TARGET_REL)],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         cwd=str(REPO_ROOT),
     )
     return result.stdout.strip() == "" and result2.stdout.strip() == ""
@@ -224,7 +223,7 @@ _M2_ORIGINAL = (
 _M2_MUTANT = (
     b'        print("ERROR: ADR changes require a debate log in .agents/wrong-dir",'
     b"  # M2 mutant\n"
-    b'               file=sys.stderr)\n'
+    b"               file=sys.stderr)\n"
 )
 
 
@@ -318,7 +317,6 @@ def test_ic_comment_only_change_survives(scratch_worktree: Path) -> None:
 
     wt_target = scratch_worktree / _TARGET_REL
     wt_target.write_bytes(mutated)
-    time.sleep(1.1)
 
     result = _run_tests_in(scratch_worktree)
     _assert_suite_ran(result, "IC")
