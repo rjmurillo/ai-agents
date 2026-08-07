@@ -234,17 +234,56 @@
       "caused_by": [
         "e016"
       ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-07T20:05:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main through d516d7bbb without rewriting history. Affected tests passed 563 tests, and the final pre-push hook passed 24108 tests.",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-07T20:17:00+00:00",
+      "type": "milestone",
+      "content": "A late Copilot thread found that list and object event types raised TypeError before validation. Two regression cases reproduced the crash. Commit 60b78f3c3 validates the JSON type before set membership; the affected suite passed 565 tests.",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-07T20:17:51+00:00",
+      "type": "commit",
+      "content": "Commit: 60b78f3c3",
+      "caused_by": [
+        "e020"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
     }
   ],
   "metrics": {
-    "duration_minutes": 74,
+    "duration_minutes": 166,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 83
+    "commits": 6,
+    "files_changed": 86
   },
   "lessons": []
 }
