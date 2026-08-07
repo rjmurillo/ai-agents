@@ -6,6 +6,7 @@
 - **Agents**: Copilot CLI (Opus 5) as author; Sol, Gemini, and Grok as adversarial reviewers
 - **Task Type**: Bug
 - **Outcome**: Partial
+- **Failure Mode**: #9 Confident-incorrectness recurrence (per `.agents/governance/FAILURE-MODES.md`)
 
 Scope: the memory-subdirectory work, commits `78e808238` through `74459685d`. One
 Critical false claim shipped into a durable artifact and was caught by review. A second
