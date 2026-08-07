@@ -39,6 +39,19 @@
       "caused_by": [
         "e002"
       ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-07-session-10005-resolve-4729-review-threads-hook"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-07T12:38:11+00:00",
+      "type": "commit",
+      "content": "Commit: 22c9a5596",
+      "caused_by": [
+        "e003"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-07-session-10005-resolve-4729-review-threads-hook"
     }
@@ -48,7 +61,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 5
   },
   "lessons": []
