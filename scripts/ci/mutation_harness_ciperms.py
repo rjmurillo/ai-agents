@@ -9,8 +9,9 @@ Tests four outcome classes per mutation:
                  zero tests selected); the mutant is unmeasured, not killed
 
 Exit codes:
-  0 - every mutant DEAD
-  1 - any SURVIVED, DID-NOT-APPLY, or NOT-RUN
+  0 - every mutant matched its expected outcome (DEAD by default;
+      cosmetic controls expect SURVIVED)
+  1 - any mutant produced an unexpected outcome
   2 - a mutated file could not be restored (the tree is left dirty; recover
       with ``git checkout -- <file>`` before rerunning)
 
@@ -20,8 +21,11 @@ Usage:
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import sys
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from shlex import quote
@@ -52,6 +56,7 @@ class Mutation:
     old_bytes: bytes
     new_bytes: bytes
     test_filter: str
+    expected_outcome: str = DEAD
 
 
 @dataclass
@@ -61,7 +66,30 @@ class Result:
     note: str = ""
 
 
-def _run_tests(test_filter: str) -> subprocess.CompletedProcess[str]:
+def _purge_pycache(mutated_files: Iterable[Path]) -> subprocess.CompletedProcess[str] | None:
+    """Delete stale bytecode before pytest can import a mutated file."""
+    for pycache in {path.parent / "__pycache__" for path in mutated_files}:
+        if not pycache.exists():
+            continue
+        try:
+            shutil.rmtree(pycache)
+        except OSError as exc:
+            return subprocess.CompletedProcess(
+                ["purge", str(pycache)],
+                4,
+                "",
+                f"could not purge {pycache}: {exc}",
+            )
+    return None
+
+
+def _run_tests(
+    test_filter: str, mutated_files: Iterable[Path] = ()
+) -> subprocess.CompletedProcess[str]:
+    purge_error = _purge_pycache(mutated_files)
+    if purge_error is not None:
+        return purge_error
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     return subprocess.run(
         [
             "uv",
@@ -79,12 +107,72 @@ def _run_tests(test_filter: str) -> subprocess.CompletedProcess[str]:
         text=True,
         encoding="utf-8",
         errors="replace",
+        env=env,
         cwd=REPO_ROOT,
     )
 
 
-def _recovery_checkout_hint(target: Path) -> str:
-    return f"git checkout -- {quote(str(target))}"
+def _recovery_checkout_hint(targets: Iterable[Path]) -> str:
+    quoted_targets = " ".join(quote(str(target)) for target in targets)
+    return f"git checkout -- {quoted_targets}"
+
+
+def _dirty_paths(backups: Mapping[Path, bytes | None]) -> list[Path]:
+    dirty: list[Path] = []
+    for target, backup in backups.items():
+        if backup is None:
+            dirty.append(target)
+            continue
+        try:
+            if target.read_bytes() != backup:
+                dirty.append(target)
+        except OSError:
+            dirty.append(target)
+    return dirty
+
+
+def _restore_backups(
+    backups: Mapping[Path, bytes | None], prior_error: BaseException | None = None
+) -> None:
+    """Restore mutated files or exit 2 with the dirty file list."""
+    failures: list[tuple[Path, str, BaseException | None]] = []
+    for target, backup in backups.items():
+        if backup is None:
+            failures.append((target, "backup missing", None))
+            continue
+        try:
+            target.write_bytes(backup)
+        except OSError as exc:
+            failures.append((target, str(exc), exc))
+
+    for target, backup in backups.items():
+        if backup is None:
+            continue
+        try:
+            restored = target.read_bytes()
+        except OSError as exc:
+            failures.append((target, f"could not verify restore: {exc}", exc))
+            continue
+        if restored != backup:
+            failures.append((target, "bytes differ after restore write", None))
+
+    if not failures:
+        return
+
+    dirty = _dirty_paths(backups) or list(backups)
+    first_failure = failures[0][2]
+    label = dirty[0].name if len(dirty) == 1 else f"{len(dirty)} files"
+    details = "; ".join(f"{path}: {reason}" for path, reason, _exc in failures)
+    if prior_error is not None:
+        details = f"{details}; original error before restore failed: {prior_error!r}"
+    file_list = "\n".join(f"  - {path}" for path in dirty)
+    print(
+        f"ERROR: restore of {label} failed! {details}\n"
+        f"Dirty files:\n{file_list}\n"
+        f"Run: {_recovery_checkout_hint(dirty)}",
+        file=sys.stderr,
+    )
+    raise SystemExit(2) from first_failure
 
 
 def apply_mutation(mutation: Mutation) -> Result:
@@ -118,40 +206,15 @@ def apply_mutation(mutation: Mutation) -> Result:
 
     target.write_bytes(mutated)
     note = ""
+    prior_error: BaseException | None = None
     try:
-        proc = _run_tests(mutation.test_filter)
+        proc = _run_tests(mutation.test_filter, (target,))
         outcome, note = _classify(proc)
+    except BaseException as exc:
+        prior_error = exc
+        raise
     finally:
-        # Always restore. Wrap the write so an OSError exits 2 (tree dirty,
-        # emergency) rather than propagating as an uncaught exception that
-        # exits 1 (indistinguishable from a surviving mutant).
-        try:
-            target.write_bytes(backup)
-        except OSError as exc:
-            print(
-                f"ERROR: could not restore {target.name}: {exc}\n"
-                f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
-                file=sys.stderr,
-            )
-            raise SystemExit(2) from exc
-
-    # Verify restore: write_bytes returned but bytes differ (external race).
-    try:
-        restored = target.read_bytes()
-    except OSError as exc:
-        print(
-            f"ERROR: could not verify restore of {target.name}: {exc}\n"
-            f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
-            file=sys.stderr,
-        )
-        raise SystemExit(2) from exc
-    if restored != backup:
-        print(
-            f"ERROR: restore of {target.name} failed (bytes differ after write)!\n"
-            f"Tree is dirty. Run: {_recovery_checkout_hint(target)}",
-            file=sys.stderr,
-        )
-        sys.exit(2)
+        _restore_backups({target: backup}, prior_error)
 
     return Result(mutation, outcome, note)
 
@@ -164,6 +227,16 @@ def _classify(proc: subprocess.CompletedProcess[str]) -> tuple[str, str]:
     selection (exit 5) as a kill, which is the one failure a mutation harness
     must not have: it reports strength it never measured.
     """
+    # A non-pytest process (e.g. pycache purge failure) should not be
+    # reported as a pytest exit code.
+    if proc.args and proc.args[0] == "purge":
+        detail = (proc.stderr or proc.stdout or "").strip()
+        return NOT_RUN, f"pycache purge failed: {detail}"
+    output = f"{proc.stdout}\n{proc.stderr}".lower()
+    if "no tests ran" in output or "collected 0 items" in output:
+        lines = (proc.stderr or proc.stdout or "").strip().splitlines()
+        last_line = lines[-1] if lines else "no output"
+        return NOT_RUN, f"pytest collected zero tests: {last_line}"
     if proc.returncode == _PYTEST_TESTS_FAILED:
         return DEAD, ""
     if proc.returncode == _PYTEST_OK:
@@ -297,6 +370,23 @@ def build_mutations() -> list[Mutation]:
             ),
             test_filter=f"{guard_class}::test_no_security_gate_is_skip_guarded",
         ),
+
+        # M10: Cosmetic control. Rewording a docstring must survive, or the
+        # harness is measuring noise rather than load-bearing behavior.
+        Mutation(
+            description="M10: cosmetic control rewords a module docstring",
+            target_file=wf_perms_test,
+            old_bytes=(
+                b"A job with no ``permissions:`` block silently inherits the "
+                b"workflow-level one.\n"
+            ),
+            new_bytes=(
+                b"A job with no ``permissions:`` block quietly inherits the "
+                b"workflow-level one.\n"
+            ),
+            test_filter=perms_gate,
+            expected_outcome=SURVIVED,
+        ),
     ]
 
 
@@ -325,11 +415,10 @@ def main() -> int:
     for m in mutations:
         r = apply_mutation(m)
         results.append(r)
-        icon = {"DEAD": "✓", "SURVIVED": "✗", "DID-NOT-APPLY": "?", "NOT-RUN": "!"}.get(
-            r.outcome, "?"
-        )
+        icon = "✓" if r.outcome == m.expected_outcome else "✗"
         note = f" -- {r.note}" if r.note else ""
-        print(f"[{icon}] {r.outcome:15s}  {r.mutation.description}{note}")
+        expected = f" expected {m.expected_outcome}" if r.outcome != m.expected_outcome else ""
+        print(f"[{icon}] {r.outcome:15s}  {r.mutation.description}{expected}{note}")
 
     dead = sum(1 for r in results if r.outcome == DEAD)
     survived = sum(1 for r in results if r.outcome == SURVIVED)
@@ -342,19 +431,27 @@ def main() -> int:
     print(f"DID-NOT-APPLY: {dna}")
     print(f"NOT-RUN:       {not_run}")
 
-    if survived:
-        print("\nERROR: surviving mutants mean the tests do not cover those behaviors.")
+    unexpected = [r for r in results if r.outcome != r.mutation.expected_outcome]
+    if unexpected:
+        print("\nERROR: unexpected mutation outcomes:")
+        for result in unexpected:
+            print(
+                f"  {result.mutation.description}: expected "
+                f"{result.mutation.expected_outcome}, got {result.outcome}"
+            )
+        if any(r.outcome == SURVIVED for r in unexpected):
+            print("Surviving non-control mutants mean the tests do not cover those behaviors.")
+        if any(r.outcome == DEAD and r.mutation.expected_outcome == SURVIVED for r in unexpected):
+            print("A cosmetic control died, so the harness is measuring noise.")
+        if any(r.outcome == NOT_RUN for r in unexpected):
+            print(
+                "NOT-RUN means pytest never reached a verdict, so those "
+                "mutants are unmeasured rather than killed."
+            )
+        if any(r.outcome == DID_NOT_APPLY for r in unexpected):
+            print("DID-NOT-APPLY means a literal was missing or ambiguous.")
         return 1
-    if not_run:
-        print(
-            "\nERROR: NOT-RUN means pytest never reached a verdict, so those "
-            "mutants are unmeasured rather than killed."
-        )
-        return 1
-    if dna:
-        print("\nERROR: DID-NOT-APPLY means a literal was missing or ambiguous.")
-        return 1
-    print(f"\nAll {dead} mutants killed.")
+    print(f"\nAll {len(results)} mutants matched expected outcomes.")
     return 0
 
 
