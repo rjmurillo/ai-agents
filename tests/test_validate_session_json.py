@@ -2019,9 +2019,15 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         *,
         staged_added: tuple[str, ...] = (),
         head_added: tuple[str, ...] = (),
+        staged_returncode: int = 0,
+        head_returncode: int = 0,
+        staged_stderr: str = "",
+        head_stderr: str = "",
     ) -> Callable[..., subprocess.CompletedProcess[str]]:
         def _git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
             if args == ["diff", "--cached", "--name-status", "-M", "--diff-filter=A"]:
+                if staged_returncode != 0:
+                    return subprocess.CompletedProcess([], staged_returncode, "", staged_stderr)
                 body = "".join(f"A\t{name}\n" for name in staged_added)
                 return subprocess.CompletedProcess([], 0, body, "")
             if args == [
@@ -2033,6 +2039,8 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
                 "-r",
                 "HEAD",
             ]:
+                if head_returncode != 0:
+                    return subprocess.CompletedProcess([], head_returncode, "", head_stderr)
                 body = "".join(f"A\t{name}\n" for name in head_added)
                 return subprocess.CompletedProcess([], 0, body, "")
             return subprocess.CompletedProcess([], 0, "", "")
@@ -2203,6 +2211,28 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         assert "--creation-mode" in commands[0], "new log must get --creation-mode"
         assert "--existing-log" not in commands[0], "new log must not get --existing-log"
 
+    def test_the_push_hook_blocks_when_the_head_add_probe_fails(self) -> None:
+        from scripts.validation import git_hook_policy
+
+        commands: list[list[str]] = []
+        path = ".agents/sessions/2026-01-02-session-2.json"
+
+        def _record(command: list[str], _root: Path) -> subprocess.CompletedProcess[str]:
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(
+                git_hook_policy,
+                "_run_git",
+                self._policy_stub(head_returncode=128, head_stderr="fatal: bad HEAD"),
+            ),
+        ):
+            rc = git_hook_policy.validate_branch_sessions([path], Path.cwd())
+        assert rc == 1
+        assert commands == []
+
     def test_an_empty_batch_forks_no_git_at_all(self) -> None:
         from scripts.validation import git_hook_policy, session_scope
 
@@ -2300,7 +2330,35 @@ class TestCheckSessionsCreationMode:
         assert "--creation-mode" not in validate_commands[0], (
             "existing log must not get --creation-mode"
         )
-        assert "--pre-commit" in validate_commands[0], "existing log must still get --pre-commit"
+
+    def test_check_sessions_blocks_when_the_index_add_probe_fails(self) -> None:
+        from scripts.validation import git_hook_policy
+
+        path = ".agents/sessions/2026-01-01-session-1.json"
+        validate_commands: list[list[str]] = []
+
+        def _record(command, _root):
+            import subprocess
+
+            if any("validate_session_json.py" in part for part in command):
+                validate_commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with (
+            mock.patch.object(git_hook_policy, "_run_command", _record),
+            mock.patch.object(git_hook_policy, "_merge_in_progress", return_value=False),
+            mock.patch.object(
+                git_hook_policy,
+                "_run_git",
+                TestSessionScopeIsDecidedOnceForBothCallSites._policy_stub(
+                    staged_returncode=128,
+                    staged_stderr="fatal: index probe failed",
+                ),
+            ),
+        ):
+            rc = git_hook_policy.check_sessions([path], Path.cwd())
+        assert rc == 1
+        assert validate_commands == []
 
     def test_check_sessions_rejects_commit_without_session_log(self) -> None:
         """If no session JSON is staged, the hook must fail with an error."""

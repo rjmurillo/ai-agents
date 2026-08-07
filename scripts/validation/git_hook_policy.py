@@ -1697,7 +1697,7 @@ def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
 
 def _added_session_paths(
     paths: Sequence[str], repo_root: Path, git_args: Sequence[str]
-) -> set[str]:
+) -> set[str] | None:
     """Return session-log paths reported as additions by one git diff.
 
     The diff carries no pathspec. With rename detection enabled, limiting the
@@ -1705,15 +1705,16 @@ def _added_session_paths(
     rename as an add. Intersect in Python instead so only true adds receive
     ``--creation-mode``.
 
-    On any git failure, return every path. ``--creation-mode`` is stricter than
-    ``--existing-log``, so the fail-closed answer keeps an indeterminate probe
-    from silently downgrading validation.
+    On any git failure, return ``None`` so the caller can block instead of
+    guessing. A failed probe must not silently reclassify an existing log as a
+    creation-time log and skip compliance-only checks.
     """
     if not paths:
         return set()
     result = _run_git(repo_root, list(git_args))
     if result.returncode != 0:
-        return set(paths)
+        _print_process_output(result, stdout_stream=sys.stderr)
+        return None
     added: set[str] = set()
     for line in result.stdout.splitlines():
         parts = line.split("\t", 1)
@@ -1725,7 +1726,7 @@ def _added_session_paths(
     return {path for path in paths if path in added}
 
 
-def _added_session_paths_in_index(paths: Sequence[str], repo_root: Path) -> set[str]:
+def _added_session_paths_in_index(paths: Sequence[str], repo_root: Path) -> set[str] | None:
     """Return session-log paths staged as adds in the current commit."""
     return _added_session_paths(
         paths,
@@ -1734,7 +1735,7 @@ def _added_session_paths_in_index(paths: Sequence[str], repo_root: Path) -> set[
     )
 
 
-def _added_session_paths_in_head(paths: Sequence[str], repo_root: Path) -> set[str]:
+def _added_session_paths_in_head(paths: Sequence[str], repo_root: Path) -> set[str] | None:
     """Return session-log paths added by the current ``HEAD`` commit."""
     return _added_session_paths(
         paths,
@@ -1755,6 +1756,13 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
     new_logs = _added_session_paths_in_index(sessions, repo_root)
+    if new_logs is None:
+        print(
+            "ERROR: unable to determine which staged session logs are new; "
+            "refusing to guess creation-mode",
+            file=sys.stderr,
+        )
+        return 1
     for session in sessions:
         command = [
             sys.executable,
@@ -6330,6 +6338,13 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
         if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
     ]
     new_logs = _added_session_paths_in_head(session_paths, repo_root)
+    if new_logs is None:
+        print(
+            "ERROR: unable to determine which committed session logs were added "
+            "by HEAD; refusing to guess creation-mode",
+            file=sys.stderr,
+        )
+        return 1
     for path in session_paths:
         command = [sys.executable, "scripts/validate_session_json.py", path]
         if path not in new_logs:
