@@ -9,11 +9,17 @@ took it from 17,527 to 19,072 bytes and failed 11 tests at pre-push, roughly
 
 ## The failure
 
-Edit any rule whose generated `applyTo` resolves to `**`, then push. Eleven
-tests fail across two files:
+Edit any rule whose generated `applyTo` resolves to `**`, then push. Between 9
+and 13 tests fail across two files, depending on which rule you edit and
+whether the change moves a rounded multiplier:
 
 - `tests/validation/test_always_on_corpus_claims.py`
 - `tests/validation/test_audit_procedure_claims.py`
+
+Measured twice in one session: a 1,545-byte edit to `voice.md` failed 11, and
+a 1,164-byte edit to two other rules failed 9. Editing a rule the audit
+procedure quotes by name adds its own failure on top. Do not treat any single
+count as the signature; treat the two file names as the signature.
 
 The assertions read like this:
 
@@ -45,10 +51,14 @@ Every total moves by exactly the byte delta of your edit. In the 2026-08-06
 case that was 1,545 bytes: source basis 71,168 to 72,713, mirror always-on
 71,033 to 72,578, a Python edit 96,784 to 98,329.
 
-The **135-byte gap between the source tree and the mirror tree does not move**.
-`generate_rules.py` rewrites frontmatter and leaves the body alone, so the two
-trees differ by a constant. If your edit changes that gap, you changed
-frontmatter, and that is a different problem.
+The **135-byte gap between the source tree and the mirror tree survives a body
+edit but is not a repository constant.** `generate_rules.py` rewrites
+frontmatter and leaves the body alone, so the gap is a per-rule sum over the
+always-on set, not a fixed number: 19 bytes each for the six rules that declare
+`priority:`, 17 for `knowledge-persistence`, and 4 for `code-quality`, which
+uses `alwaysApply:` instead. Adding a ninth always-on rule, or changing which
+rules are always-on, moves it. If the gap changes and you did not do either,
+you changed frontmatter, and that is a different problem.
 
 Two derived multipliers move independently and are easy to miss because they
 are rounded to one decimal. The corpus against the 8KB threshold went 8.7x to
@@ -72,12 +82,18 @@ number alone catches one and skips the other.
 
 ## Why this costs more than it looks
 
-The commit-file-count hook caps a commit at five authored files. A figure
-refresh touches four authored documents plus four generated companions, and the
-generated instruction mirrors are **not** on the hook's exemption list, which
-covers session episodes, MCP config, agent catalog, and memory index. Eight
-files is a hard block. Split it: the context-optimizer references in one
-commit, the rule and the memory in another.
+The commit-file-count hook caps a commit at five authored files. Only the
+memory under `.serena/memories/` is exempt: the exemption list covers session
+episodes, MCP config, agent catalog, and every file under
+`.serena/memories/**/*.md`. The generated instruction mirrors and the generated
+`src/copilot-cli/skills/` copies are **not** exempt.
+
+Counted with the hook's own tables, a full refresh alongside the rule edit that
+triggered it puts ten files against the cap of five: the rule and its two
+mirrors, three authored prose documents, and four generated companions. Split
+it into three commits or fewer files each. The hook skips merge commits
+(`skip: [merge]` in `lefthook.yml`), so a refresh that lands inside a merge
+resolution is not blocked.
 
 ## Related
 
