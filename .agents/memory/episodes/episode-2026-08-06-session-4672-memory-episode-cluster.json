@@ -156,7 +156,9 @@
       "caused_by": [
         "e011"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e017"
+      ],
       "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
     },
     {
@@ -210,10 +212,21 @@
         "e006"
       ],
       "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-07T02:35:00+00:00",
+      "type": "milestone",
+      "content": "Captured retrospective evidence after push-time retrospective-policy rejected the otherwise green branch.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
     }
   ],
   "metrics": {
-    "duration_minutes": 136,
+    "duration_minutes": 226,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,

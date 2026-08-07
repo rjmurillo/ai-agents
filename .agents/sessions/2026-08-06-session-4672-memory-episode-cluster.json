@@ -110,6 +110,11 @@
         "level": "MUST",
         "complete": true,
         "evidence": "Full pytest passed: 23683 passed, 33 skipped, 2 warnings in 626.70s. Changed-file mypy hook policy passed. merge_tree_ratchet_check.py passed. pre_pr.py exited 0."
+      },
+      "learningsCaptured": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Retrospective section: learned that push-time retrospective-policy requires explicit learning evidence in the current branch session log, even after tests, build_all, mypy, merge-tree, and pre_pr pass."
       }
     }
   },
@@ -153,6 +158,10 @@
     {
       "time": "2026-08-07T01:05:00Z",
       "entry": "Ran final required gates. Full pytest passed 23683 tests with 33 skipped and 2 warnings. Changed-file mypy hook policy passed. merge_tree_ratchet_check.py passed. pre_pr.py exited 0."
+    },
+    {
+      "time": "2026-08-07T02:35:00Z",
+      "entry": "Captured retrospective evidence after push-time retrospective-policy rejected the otherwise green branch."
     }
   ],
   "negativeControls": [
