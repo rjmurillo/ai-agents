@@ -65,16 +65,55 @@
       "caused_by": [
         "e004"
       ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-07T18:03:00+00:00",
+      "type": "milestone",
+      "content": "The full pre-push suite exposed one stale test that required the removed path filter. Replaced it with a parsed YAML assertion for unconditional exec-validator wiring; 68 focused tests passed.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-07T18:54:28+00:00",
+      "type": "commit",
+      "content": "Commit: 9f021acd2",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-07T18:55:18+00:00",
+      "type": "commit",
+      "content": "Commit: 746f3fcab",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-07-session-10008-be9c22975-fix-issue-4752-making-vendor"
     }
   ],
   "metrics": {
-    "duration_minutes": 37,
+    "duration_minutes": 58,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 3,
     "files_changed": 2
   },
   "lessons": []

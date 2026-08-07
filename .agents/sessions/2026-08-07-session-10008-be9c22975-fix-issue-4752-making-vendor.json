@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: c90e4537b)"
+        "Evidence": "All implementation and test changes committed (HEAD: 746f3fcab)."
       },
       "validationPassed": {
         "level": "MUST",
@@ -134,8 +134,12 @@
     {
       "time": "2026-08-07T17:42:00Z",
       "entry": "Proved the tests fail against the old filtered workflow, a deleted-validator mutant, and an event-level paths-ignore mutant. Ran 11 focused tests, all six validators, security review, and a full local gh act push execution successfully."
+    },
+    {
+      "time": "2026-08-07T18:03:00Z",
+      "entry": "The full pre-push suite exposed one stale test that required the removed path filter. Replaced it with a parsed YAML assertion for unconditional exec-validator wiring; 68 focused tests passed."
     }
   ],
-  "endingCommit": "c90e4537b",
+  "endingCommit": "746f3fcab",
   "nextSteps": []
 }
