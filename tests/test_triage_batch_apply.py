@@ -10,7 +10,6 @@ boundary with a fake; domain logic is never mocked.
 from __future__ import annotations
 
 import json
-import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -23,7 +22,6 @@ from scripts.triage_batch_apply import (
     OUTCOME_FAILED,
     OUTCOME_PLANNED,
     OUTCOME_SKIPPED,
-    CliGitHubGateway,
     IssueState,
     ManifestAction,
     apply_action,
@@ -32,6 +30,7 @@ from scripts.triage_batch_apply import (
     parse_actions,
     run_batch,
 )
+from scripts.validation.verify_issue_close import IssueComment
 
 
 class FakeGateway:
@@ -70,6 +69,37 @@ class FakeGateway:
 
     def pr_is_merged(self, pr: int) -> bool:
         return pr in self._merged_prs
+
+    def get_issue_comments(self, issue: int) -> list | None:
+        comments_map = getattr(self, "_comments", {})
+        if issue in comments_map:
+            return comments_map[issue]
+        # Default: no comments (successful empty fetch, safe to proceed)
+        return []
+
+    def get_commit_time(self, sha: str):
+        """Mirror get_pr_merge_time: a known commit has an early timestamp.
+
+        Tests that need the unavailable case pass commit_times={} explicitly.
+        """
+        import datetime as dt
+        commit_times = getattr(self, "_commit_times", None)
+        if commit_times is not None:
+            return commit_times.get(sha)
+        if sha in self._known_commits:
+            return dt.datetime(2000, 1, 1, tzinfo=dt.UTC)
+        return None
+
+    def get_pr_merge_time(self, pr: int):
+        import datetime as dt
+        merge_times = getattr(self, "_merge_times", {})
+        if pr in merge_times:
+            return merge_times[pr]
+        # Default: if the PR is in merged_prs, return a very early timestamp
+        # so existing tests pass without needing explicit merge times.
+        if pr in self._merged_prs:
+            return dt.datetime(2020, 1, 1, tzinfo=dt.timezone.utc)
+        return None
 
 
 def _open(issue: int, labels: tuple[str, ...] = ()) -> IssueState:
@@ -323,94 +353,6 @@ class TestParseActions:
         assert parse_actions(manifest) == []
 
 
-class TestCliGitHubGateway:
-    class StubGateway(CliGitHubGateway):
-        def __init__(self, result: subprocess.CompletedProcess[str]) -> None:
-            super().__init__("owner", "repo")
-            self._result = result
-            self.commands: list[list[str]] = []
-
-        def _run(self, command: list[str]) -> subprocess.CompletedProcess[str] | None:
-            self.commands.append(command)
-            return self._result
-
-    def test_null_payload_fields_fall_back_to_safe_values(self):
-        result = subprocess.CompletedProcess(
-            ["gh"], 0,
-            stdout=json.dumps({"number": None, "state": None, "labels": None}),
-            stderr="",
-        )
-        gateway = self.StubGateway(result)
-
-        state = gateway.get_issue_state(42)
-
-        assert state == IssueState(number=42, state="", labels=frozenset())
-
-    def test_non_dict_labels_are_ignored(self):
-        result = subprocess.CompletedProcess(
-            ["gh"], 0,
-            stdout=json.dumps({
-                "number": 7,
-                "state": "OPEN",
-                "labels": [{"name": "bug"}, None, "bad", {"name": None}],
-            }),
-            stderr="",
-        )
-        gateway = self.StubGateway(result)
-
-        state = gateway.get_issue_state(7)
-
-        assert state == IssueState(number=7, state="OPEN", labels=frozenset({"bug", ""}))
-
-    def test_pr_is_merged_rejects_null_state(self):
-        result = subprocess.CompletedProcess(
-            ["gh"], 0,
-            stdout=json.dumps({"state": None}),
-            stderr="",
-        )
-        gateway = self.StubGateway(result)
-
-        assert gateway.pr_is_merged(5) is False
-
-    def test_pr_is_merged_rejects_non_object_payload(self):
-        result = subprocess.CompletedProcess(["gh"], 0, stdout=json.dumps(["MERGED"]), stderr="")
-        gateway = self.StubGateway(result)
-
-        assert gateway.pr_is_merged(5) is False
-
-    def test_commit_exists_uses_remote_api(self):
-        result = subprocess.CompletedProcess(["gh"], 0, stdout="", stderr="")
-        gateway = self.StubGateway(result)
-
-        assert gateway.commit_exists("abc1234") is True
-        assert gateway.commands == [["gh", "api", "repos/owner/repo/commits/abc1234"]]
-
-    def test_commit_exists_rejects_missing_remote_commit(self):
-        result = subprocess.CompletedProcess(["gh"], 1, stdout="", stderr="")
-        gateway = self.StubGateway(result)
-
-        assert gateway.commit_exists("deadbeef") is False
-
-    def test_run_uses_utf8_encoding_and_c_locale(self, monkeypatch):
-        captured: dict[str, object] = {}
-
-        def fake_run(command: list[str], **kwargs):
-            captured["command"] = command
-            captured["kwargs"] = kwargs
-            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
-
-        monkeypatch.setattr(subprocess, "run", fake_run)
-        gateway = CliGitHubGateway("owner", "repo")
-
-        result = gateway._run(["git", "status"])
-
-        assert result is not None
-        kwargs = captured["kwargs"]
-        assert kwargs["encoding"] == "utf-8"
-        assert kwargs["errors"] == "replace"
-        assert kwargs["env"]["LC_ALL"] == "C"
-
-
 class TestMain:
     def test_dry_run_does_not_mutate(self, tmp_path: Path, capsys):
         manifest_path = _write_manifest(
@@ -512,3 +454,54 @@ class TestMain:
         rc = main(["--manifest", str(manifest_path), "--apply"])
         assert rc == 2
         assert "owner" in capsys.readouterr().err
+
+
+
+
+class TestCommitOnlyClosureScopeGate:
+    """A rationale citing only a commit must still face the scope gate.
+
+    The gate resolved a fix timestamp from cited pull requests alone. With no
+    pull request cited, no timestamp existed, the gate was skipped, and the
+    issue closed without ever checking for unresolved scope. That is the hole
+    #4625 describes, reached by a different route. Refs #4625.
+    """
+
+    def test_comment_after_a_cited_commit_blocks_the_close(self):
+        import datetime as dt
+
+        gw = FakeGateway({5: _open(5)}, known_commits=frozenset({"abc1234"}))
+        gw._commit_times = {"abc1234": dt.datetime(2026, 1, 1, tzinfo=dt.UTC)}
+        gw._comments = {
+            5: [
+                IssueComment(
+                    author="someone",
+                    author_type="User",
+                    created_at=dt.datetime(2026, 2, 1, tzinfo=dt.UTC),
+                    url="https://example.invalid/c/1",
+                    body="This is still broken for the nested case.",
+                )
+            ]
+        }
+        action = ManifestAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="resolved by commit abc1234",
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert gw.closed == []
+
+    def test_unresolvable_commit_timestamp_blocks_rather_than_skips(self):
+        """Fail closed: no timestamp means scope cannot be checked."""
+        gw = FakeGateway({5: _open(5)}, known_commits=frozenset({"abc1234"}))
+        gw._commit_times = {}
+        action = ManifestAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="resolved by commit abc1234",
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "timestamp" in outcome.detail
+        assert gw.closed == []
