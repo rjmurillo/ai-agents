@@ -167,7 +167,14 @@ def is_credible_rescope(
 
     * The result is not None.
     * The file count is positive. ``get_index_files_against_ref`` returns
-      ``[]`` on any nonzero ``git diff``, and ``detect_scope`` turns that into
+      ``[]`` on any nonzero ``git diff``. Quoted rather than paraphrased,
+      because this branch is the whole reason the condition exists,
+      ``scripts/detect_scope_explosion.py:223-224``::
+
+          if result.returncode != 0:
+              return []
+
+      ``detect_scope`` turns that empty list into
       ``ScopeResult(file_count=0)`` rather than None. A diff that fails against
       an otherwise-resolvable ref (a missing tree in a partial clone, for
       instance) therefore reads as "this PR changes nothing". A genuinely empty

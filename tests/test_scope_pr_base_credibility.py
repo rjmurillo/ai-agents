@@ -14,6 +14,8 @@ see .claude/rules/testing.md item 13.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from scripts.detect_scope_explosion import ScopeResult
 from scripts.scope_pr_base import is_credible_rescope
 
@@ -130,3 +132,52 @@ class TestIsCredibleRescope:
         ancestor, calls = self._ancestry(True)
         is_credible_rescope(self._rescoped("b.py"), self._blocked("a.py"), ancestor)
         assert calls == [(self.MAIN_FORK, self.STACK_FORK)]
+
+
+class TestDocstringCitationStaysAccurate:
+    """The `is_credible_rescope` docstring quotes another module by line number.
+
+    `.claude/rules/canonical-source-mirror.md` requires a behavioral claim about
+    another component to quote the line it relies on, with path and line number.
+    A quote decays two ways: the source text can change, or it can move. Both
+    leave a docstring that reads as verified while describing code that is no
+    longer there, which is the exact failure the rule exists to prevent.
+
+    These tests are the positive control for that citation. They fail loudly
+    with the corrected line numbers rather than letting the claim rot.
+    """
+
+    QUOTED = ("if result.returncode != 0:", "return []")
+    CITED_PATH = "scripts/detect_scope_explosion.py"
+    CITED_LINES = (223, 224)
+
+    def _source_lines(self) -> list[str]:
+        root = Path(__file__).resolve().parents[1]
+        return (root / self.CITED_PATH).read_text(encoding="utf-8").splitlines()
+
+    def test_cited_lines_hold_the_quoted_text(self) -> None:
+        """The exact lines named in the docstring still carry the quoted code."""
+        lines = self._source_lines()
+        start, end = self.CITED_LINES
+        actual = tuple(line.strip() for line in lines[start - 1 : end])
+        assert actual == self.QUOTED, (
+            f"{self.CITED_PATH}:{start}-{end} no longer holds the quoted branch. "
+            f"Found {actual!r}. Update the citation in "
+            f"scripts/scope_pr_base.py::is_credible_rescope."
+        )
+
+    def test_quoted_text_appears_exactly_once(self) -> None:
+        """The quote is unambiguous, so a moved citation can be repointed."""
+        lines = [line.strip() for line in self._source_lines()]
+        starts = [i for i in range(len(lines) - 1) if (lines[i], lines[i + 1]) == self.QUOTED]
+        assert len(starts) == 1, (
+            f"Expected one occurrence of the quoted branch in {self.CITED_PATH}, "
+            f"found {len(starts)} at lines {[s + 1 for s in starts]}."
+        )
+
+    def test_docstring_contains_the_citation(self) -> None:
+        """The docstring actually carries the path, the lines, and the quote."""
+        doc = is_credible_rescope.__doc__ or ""
+        assert f"{self.CITED_PATH}:223-224" in doc
+        for fragment in self.QUOTED:
+            assert fragment in doc, f"docstring lost the quoted line {fragment!r}"
