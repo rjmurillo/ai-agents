@@ -42,15 +42,17 @@ ADR-030 (Skills Pattern Superiority), ADR-036 (Two-Source Agent Templates).
 
 from __future__ import annotations
 
-import argparse
+import json
 import os
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 AUDIT_PATH = ".agents/audits/2026-05-10-agent-skill-classification-audit.md"
 ADR_PATH = ".agents/architecture/ADR-030-skills-pattern-superiority.md"
+_DEFAULT_BASELINE_NAME = "agent_skill_discriminator_baseline.json"
 
 # Reserved metadata files that are not agents.
 _NON_AGENT_NAMES: frozenset[str] = frozenset({"AGENTS", "CLAUDE", "README"})
@@ -124,10 +126,6 @@ class CheckResult:
         return self.candidates
 
 
-# ---------------------------------------------------------------------------
-# Frontmatter parsing
-# ---------------------------------------------------------------------------
-
 
 def split_frontmatter(content: str) -> tuple[str, str]:
     """Return (frontmatter_block, body) for a markdown file.
@@ -162,10 +160,6 @@ def has_isolation_required(frontmatter: str) -> bool:
         return False
     return match.group("value").lower() in {"true", "yes", "1"}
 
-
-# ---------------------------------------------------------------------------
-# c2: structured-reference heuristic
-# ---------------------------------------------------------------------------
 
 
 def _is_reference_line(line: str) -> bool:
@@ -221,10 +215,6 @@ def score_c2(body: str) -> tuple[bool, float]:
     ratio = reference / len(lines)
     return ratio >= C2_THRESHOLD, ratio
 
-
-# ---------------------------------------------------------------------------
-# c1 / c3: slash-command pipeline analysis
-# ---------------------------------------------------------------------------
 
 
 def _task_invocations(text: str) -> set[str]:
@@ -294,10 +284,6 @@ def build_pipeline_index(repo_root: Path) -> PipelineIndex:
         skills_by_file[rel] = frozenset(_skill_invocations(text))
     return PipelineIndex(agents_by_file, skills_by_file)
 
-
-# ---------------------------------------------------------------------------
-# Scoring
-# ---------------------------------------------------------------------------
 
 
 def agent_name_from_path(path: str) -> str:
@@ -397,62 +383,6 @@ def run_check(
 # ---------------------------------------------------------------------------
 
 
-def _criteria_str(score: AgentScore) -> str:
-    parts = [
-        f"c1={'Y' if score.c1 else 'n'}",
-        f"c2={'Y' if score.c2 else 'n'}",
-        f"c3={'Y' if score.c3 else 'n'}",
-    ]
-    return " ".join(parts)
-
-
-def print_report(result: CheckResult) -> None:
-    """Print a human-readable summary of the scoring."""
-    print("Agent-skill discriminator check (Issue #2008)")
-    print("=" * 60)
-
-    if not result.scores:
-        print("No changed agent definitions to score.")
-        return
-
-    for score in result.scores:
-        status = "CANDIDATE" if score.is_candidate else "ok"
-        print(
-            f"  [{status}] {score.name} "
-            f"(score {score.score}/3: {_criteria_str(score)}, "
-            f"pipelines={score.pipeline_count}, "
-            f"isolation_required={'yes' if score.isolation_required else 'no'})"
-        )
-
-    if result.override_rationale:
-        print()
-        print(f"PR override present: {result.override_rationale}")
-
-    failing = result.failing
-    print()
-    if not failing:
-        print("PASS: no agent fails the discriminator.")
-        return
-
-    print("FAIL: the following agents are skill-shape candidates (score 2+):")
-    for score in failing:
-        print(f"  - {score.name} ({_criteria_str(score)})")
-    print()
-    print("Each candidate must either:")
-    print("  1. Be refactored into a skill before merge, or")
-    print("  2. Add 'isolation_required: true' (with a one-line rationale) to")
-    print("     the agent frontmatter, or")
-    print("  3. Carry the PR-description token")
-    print("     '[skill-discriminator: <rationale>]' for a one-off override.")
-    print()
-    print(f"See {AUDIT_PATH}")
-    print(f"and {ADR_PATH}")
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
 
 def _split_changed_arg(values: list[str] | None, env_value: str | None) -> list[str]:
     """Normalize changed-file inputs from CLI args or a whitespace/newline env."""
@@ -463,45 +393,43 @@ def _split_changed_arg(values: list[str] | None, env_value: str | None) -> list[
     return []
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Detect new agents added in skill shape (Issue #2008).",
-    )
-    parser.add_argument(
-        "--repo-root",
-        default=os.environ.get("REPO_ROOT", "."),
-        help="Repository root (env: REPO_ROOT, default: .)",
-    )
-    parser.add_argument(
-        "--changed-files",
-        nargs="*",
-        default=None,
-        help="Changed agent file paths to score (space-separated).",
-    )
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        default=False,
-        help="Score every agent in the repo, not just changed files. "
-        "Used by the scheduled full-corpus audit (Issue #4087).",
-    )
-    parser.add_argument(
-        "--pr-body",
-        default=os.environ.get("PR_BODY", ""),
-        help="PR description text; scanned for the override token (env: PR_BODY).",
-    )
-    return parser
+def _ensure_repo_root_on_path(repo_root: Path) -> None:
+    root = str(repo_root)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+
+
+def _candidate_baseline(result: CheckResult) -> dict[str, int]:
+    return {score.path: 1 for score in result.candidates}
 
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns an ADR-035 exit code."""
-    parser = build_parser()
+    _ensure_repo_root_on_path(Path(__file__).resolve().parents[2])
+    from scripts.validation.agent_skill_discriminator_cli import build_parser
+
+    parser = build_parser(_DEFAULT_BASELINE_NAME)
     args = parser.parse_args(argv)
 
     repo_root = Path(args.repo_root).resolve()
     if not repo_root.is_dir():
         print(f"Repo root not found: {repo_root}", file=sys.stderr)
         return 2
+    _ensure_repo_root_on_path(repo_root)
+    from scripts.validation.agent_skill_discriminator_baseline import (
+        collect_agent_paths,
+        compare_baseline,
+        load_candidate_baseline,
+        print_baseline_comparison,
+        resolve_baseline_path,
+        write_candidate_baseline,
+    )
+    from scripts.validation.agent_skill_discriminator_report import (
+        ResultLike,
+        print_report,
+    )
+
+    baseline_path = resolve_baseline_path(repo_root, args.baseline)
 
     commands_dir = repo_root / ".claude" / "commands"
     if not commands_dir.is_dir():
@@ -512,31 +440,50 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    changed = _split_changed_arg(
-        args.changed_files, os.environ.get("CHANGED_FILES")
-    )
-
     if args.all:
-        # Full-corpus mode: score every agent in the repo (Issue #4087).
-        # Overrides --changed-files and CHANGED_FILES.
-        agents_dir = repo_root / ".claude" / "agents"
-        templates_dir = repo_root / "templates" / "agents"
-        corpus: list[str] = []
-        for directory in (agents_dir, templates_dir):
-            if directory.is_dir():
-                for p in sorted(directory.rglob("*.md")):
-                    rel = str(p.relative_to(repo_root))
-                    if is_agent_path(rel):
-                        corpus.append(rel)
-        changed = corpus
+        changed, scanned_by_root = collect_agent_paths(repo_root, is_agent_path)
+    else:
+        changed = _split_changed_arg(
+            args.changed_files, os.environ.get("CHANGED_FILES")
+        )
+        scanned_by_root = {}
 
     try:
         result = run_check(repo_root, changed, args.pr_body)
+        baseline = (
+            load_candidate_baseline(baseline_path)
+            if args.all and not args.update_baseline
+            else {}
+        )
     except (OSError, UnicodeError, ValueError) as exc:
         print(f"Config error: {exc}", file=sys.stderr)
         return 2
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        print(f"Config error: {exc}", file=sys.stderr)
+        return 2
 
-    print_report(result)
+    print_report(
+        cast(ResultLike, result),
+        AUDIT_PATH,
+        ADR_PATH,
+        enforce_candidates=not args.all,
+    )
+
+    if args.update_baseline:
+        if not args.all:
+            print("--update-baseline requires --all.", file=sys.stderr)
+            return 2
+        return write_candidate_baseline(
+            repo_root,
+            baseline_path,
+            _candidate_baseline(result),
+            scanned_by_root,
+            args.allow_baseline_shrink,
+        )
+
+    if args.all:
+        comparison = compare_baseline(_candidate_baseline(result), baseline)
+        return print_baseline_comparison(comparison)
 
     return 1 if result.failing else 0
 

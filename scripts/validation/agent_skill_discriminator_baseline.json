@@ -1,0 +1,16 @@
+{
+  "_comment": "Agent-skill discriminator full-corpus baseline for issue #4087. The candidates object records current unescaped skill-shape agents. Lower values are better; new entries fail the ratchet.",
+  "candidates": {
+    ".claude/agents/critic.md": 1,
+    ".claude/agents/devops.md": 1,
+    ".claude/agents/milestone-planner.md": 1,
+    ".claude/agents/task-decomposer.md": 1,
+    "templates/agents/architect.shared.md": 1,
+    "templates/agents/critic.shared.md": 1,
+    "templates/agents/devops.shared.md": 1,
+    "templates/agents/milestone-planner.shared.md": 1,
+    "templates/agents/qa.shared.md": 1,
+    "templates/agents/security.shared.md": 1,
+    "templates/agents/task-decomposer.shared.md": 1
+  }
+}
