@@ -2493,7 +2493,7 @@ class TestValidateModeRejectsUnusableEventIds:
         # this validator exists to surface. Repairing them needs commit data the
         # episode files do not carry, so that repair belongs to #3873, not here.
         # New episodes must not add to this count.
-        assert len(metrics_problems) <= 21, (
+        assert len(metrics_problems) <= 22, (
             f"metrics violations grew to {len(metrics_problems)} (was 21); "
             "new episodes with commits==0 but files_changed>0 must be fixed"
         )

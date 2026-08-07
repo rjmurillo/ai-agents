@@ -29,6 +29,8 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import dataclasses
+import datetime
 import json
 import os
 import re
@@ -92,6 +94,85 @@ def extract_pr_numbers(text: str) -> list[int]:
             seen.add(number)
             found.append(number)
     return found
+
+
+@dataclasses.dataclass(frozen=True)
+class IssueComment:
+    """Minimal representation of a GitHub issue comment for scope checking."""
+
+    author: str
+    author_type: str  # "User", "Bot", "Mannequin", etc.
+    created_at: datetime.datetime
+    url: str = ""
+    body: str = ""
+
+
+@dataclasses.dataclass(frozen=True)
+class ScopeBlock:
+    """A reason auto-close was blocked due to unaddressed post-fix commentary."""
+
+    comment: IssueComment
+    reason: str
+
+
+def check_unresolved_scope(
+    comments: list[IssueComment],
+    fix_timestamp: datetime.datetime,
+    *,
+    automation_authors: frozenset[str] = frozenset(),
+) -> list[ScopeBlock]:
+    """Block auto-close when human comments exist after the cited fix evidence.
+
+    The rule (issue #4625): if any human comment was posted AFTER the fix
+    evidence timestamp, the issue has potentially unaddressed scope and must
+    not be auto-closed. This is a structural signal requiring no NLP or
+    phrase matching.
+
+    Parameters
+    ----------
+    comments
+        All issue comments, fetched successfully. If the fetch failed, the
+        caller must not call this function and must instead fail closed
+        (same principle as issue #4640: a failed lookup blocks the mutation).
+    fix_timestamp
+        The merge time (for PR evidence) or commit date (for commit evidence)
+        of the fix being cited as grounds to close.
+    automation_authors
+        Login names to treat as bots in addition to those with
+        author_type != "User". The campaign's own account goes here.
+
+    Returns
+    -------
+    list[ScopeBlock]
+        One entry per blocking comment. Empty means auto-close is safe with
+        respect to post-fix scope.
+
+    Signal properties:
+      False-positive rate: a human comment that is purely celebratory ("LGTM",
+        "thanks!") will still block. Cost: a human reviews and closes manually.
+        This is the cheap direction.
+      False-negative rate: zero by construction. Every human comment after the
+        fix timestamp blocks. There is no open set to enumerate.
+    """
+    blocks: list[ScopeBlock] = []
+    for comment in comments:
+        # Skip non-human authors: bots, the automation itself.
+        if comment.author_type != "User":
+            continue
+        if comment.author in automation_authors:
+            continue
+        # Only comments AFTER the fix evidence matter.
+        if comment.created_at <= fix_timestamp:
+            continue
+        blocks.append(ScopeBlock(
+            comment=comment,
+            reason=(
+                f"Human comment by @{comment.author} at {comment.created_at.isoformat()} "
+                f"postdates fix evidence ({fix_timestamp.isoformat()}). "
+                f"URL: {comment.url}"
+            ),
+        ))
+    return blocks
 
 
 def unverified_claims(
@@ -163,17 +244,35 @@ def verify_pr_merged(
     pr: int,
     repo: str,
     *,
+    require_ancestry: bool = True,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> bool:
-    """Return True if PR ``pr`` in ``repo`` is in the MERGED state per gh.
+    """Return True if PR ``pr`` in ``repo`` is MERGED and landed on main.
 
-    A closed-unmerged PR returns False: citing it as a resolution is also a false
-    claim. Any gh failure yields False.
+    A closed-unmerged or OPEN PR returns False: citing it as a resolution is a
+    false claim (issue #4624). Any gh failure yields False.
+
+    When ``require_ancestry`` is True (default), also verifies that the merge
+    commit SHA is an ancestor of ``origin/main``. This catches PRs merged into
+    non-default branches or into forks. The check uses local git, so the local
+    clone must have origin fetched. If the ancestry check cannot run (git
+    missing, shallow clone, merge commit SHA not in gh output), the PR is
+    treated as unverified (returns False).
+
+    Signal properties (issue #4624 design note):
+      False-positive rate: zero by construction (both state AND ancestry must
+        pass; a PR that is genuinely on main always passes both).
+      False-negative rate: nonzero when (a) the local clone is shallow and the
+        merge commit is beyond fetch depth, or (b) origin/main is stale. Both
+        are recoverable by fetching.
     """
 
     try:
         result = runner(
-            ["gh", "pr", "view", str(pr), "--repo", repo, "--json", "state"],
+            [
+                "gh", "pr", "view", str(pr), "--repo", repo,
+                "--json", "state,mergeCommit",
+            ],
             capture_output=True,
             encoding="utf-8",
             errors="replace",
@@ -192,7 +291,32 @@ def verify_pr_merged(
         return False
     raw_state = data.get("state")
     state = "" if raw_state is None else str(raw_state)
-    return state.upper() == "MERGED"
+    if state.upper() != "MERGED":
+        return False
+
+    if not require_ancestry:
+        return True
+
+    # Extract merge commit SHA from the gh output.
+    merge_commit = data.get("mergeCommit") or {}
+    merge_sha = merge_commit.get("oid", "") if isinstance(merge_commit, dict) else ""
+    if not merge_sha:
+        # gh did not return the merge commit; cannot verify ancestry.
+        return False
+
+    # Verify the merge commit is an ancestor of origin/main.
+    try:
+        anc_result = runner(
+            ["git", "merge-base", "--is-ancestor", merge_sha, "origin/main"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=_TIMEOUT,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return anc_result.returncode == 0
 
 
 def _cli_unverified(rationale: str, repo: str) -> list[str]:
