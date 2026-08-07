@@ -5,6 +5,8 @@
 | stale branch delete prune cleanup obsolete local-only tracking | [git/git-branch-cleanup-pattern](git/git-branch-cleanup-pattern.md) |
 | merge pre-flight deletion upstream conflict detect | [git/git-merge-preflight](git/git-merge-preflight.md) |
 | squash merge stacked PR chain automatic base retarget merge-base ancestor collapsed add/add conflict ours strategy content-faithful force-push | [git/git-a-squash-merge-severs-a-stacked-pr](git/git-a-squash-merge-severs-a-stacked-pr.md) |
+| rev-list not-all blind refs/worktree bisect rewritten per-worktree namespace admin dir gc prune orphan | [git/git-rev-list-not-all-cannot-see-another-worktrees-local-refs](git/git-rev-list-not-all-cannot-see-another-worktrees-local-refs.md) |
+| subagent reviewer wipes tree reset --hard destroys commits bundle backup dispatch isolation reflog rescue | [git/git-a-review-subagent-will-clean-the-worktree-you-gave-it](git/git-a-review-subagent-will-clean-the-worktree-you-gave-it.md) |
 | worktree parallel isolation PR cross-contamination | [git/git-worktree-parallel](git/git-worktree-parallel.md) |
 | worktree cleanup remove temporary session end | [git/git-worktree-cleanup](git/git-worktree-cleanup.md) |
 | conflict modify/delete upstream local accept resolution | [git/git-conflict-deleted-file](git/git-conflict-deleted-file.md) |
