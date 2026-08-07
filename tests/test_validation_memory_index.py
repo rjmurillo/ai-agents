@@ -481,6 +481,121 @@ class TestCheckMemoryIndexReferences:
         assert counts is None
         assert error == "invalid base ref: '--octopus'"
 
+    def test_loads_canonical_base_reference_counts(
+        self, tmp_path: Path
+    ) -> None:
+        memory_path = tmp_path / ".serena" / "memories"
+        memory_path.mkdir(parents=True)
+        commit_id = "a" * 40
+        base_content = (
+            "| Keywords | File |\n"
+            "|----------|------|\n"
+            "| first | [first](skills-copilot-index.md) |\n"
+            "| second | [second](skills-copilot-index.md) |\n"
+        )
+        completed = [
+            subprocess.CompletedProcess([], 0, f"{tmp_path}\n", ""),
+            subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
+            subprocess.CompletedProcess([], 0, base_content, ""),
+            subprocess.CompletedProcess(
+                [],
+                0,
+                (
+                    "100644 blob bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    "\t.serena/memories/skills-copilot-index.md\0"
+                ),
+                "",
+            ),
+        ]
+
+        with patch(
+            "scripts.validation.memory_index.subprocess.run",
+            side_effect=completed,
+        ):
+            counts, error = _load_base_reference_counts(
+                memory_path,
+                "origin/main",
+            )
+
+        assert counts == Counter({"skills-copilot-index": 2})
+        assert error is None
+
+    @pytest.mark.parametrize(
+        ("failure_index", "expected_error"),
+        [
+            (0, "could not resolve repository root"),
+            (1, "could not resolve merge base for origin/main"),
+            (
+                2,
+                "could not read .serena/memories/memory-index.md "
+                f"at merge base {'a' * 40}",
+            ),
+            (
+                3,
+                "could not inspect .serena/memories at merge base "
+                f"{'a' * 40}",
+            ),
+        ],
+    )
+    def test_git_failure_fails_closed(
+        self,
+        tmp_path: Path,
+        failure_index: int,
+        expected_error: str,
+    ) -> None:
+        memory_path = tmp_path / ".serena" / "memories"
+        memory_path.mkdir(parents=True)
+        commit_id = "a" * 40
+        successful_steps = [
+            subprocess.CompletedProcess([], 0, f"{tmp_path}\n", ""),
+            subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
+            subprocess.CompletedProcess([], 0, "", ""),
+            subprocess.CompletedProcess([], 0, "", ""),
+        ]
+        successful_steps[failure_index] = subprocess.CompletedProcess(
+            [],
+            1,
+            "",
+            "failed",
+        )
+
+        with patch(
+            "scripts.validation.memory_index.subprocess.run",
+            side_effect=successful_steps[: failure_index + 1],
+        ):
+            counts, error = _load_base_reference_counts(
+                memory_path,
+                "origin/main",
+            )
+
+        assert counts is None
+        assert error == expected_error
+
+    def test_malformed_tree_output_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        memory_path = tmp_path / ".serena" / "memories"
+        memory_path.mkdir(parents=True)
+        commit_id = "a" * 40
+        completed = [
+            subprocess.CompletedProcess([], 0, f"{tmp_path}\n", ""),
+            subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
+            subprocess.CompletedProcess([], 0, "", ""),
+            subprocess.CompletedProcess([], 0, "malformed\0", ""),
+        ]
+
+        with patch(
+            "scripts.validation.memory_index.subprocess.run",
+            side_effect=completed,
+        ):
+            counts, error = _load_base_reference_counts(
+                memory_path,
+                "origin/main",
+            )
+
+        assert counts is None
+        assert error == "could not parse merge-base tree output"
+
     def test_symbolic_link_in_base_tree_fails_closed(
         self, tmp_path: Path
     ) -> None:
@@ -1611,6 +1726,29 @@ class TestMain:
         exit_code = main(["--path", str(tmp_path), "--ci"])
 
         assert exit_code == 1
+
+    def test_inherited_memory_index_target_at_baseline_ci_passes(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| first keywords: [first](skills-copilot-index.md)\n"
+                "| second keywords: [second](skills-copilot-index.md)\n"
+                "| third keywords: [third](skills-copilot-index.md)\n"
+            ),
+            "skills-copilot-index.md": "content",
+        })
+
+        with patch(
+            "scripts.validation.memory_index._load_base_reference_counts",
+            return_value=(
+                Counter({"skills-copilot-index": 3}),
+                None,
+            ),
+        ):
+            exit_code = main(["--path", str(tmp_path), "--ci"])
+
+        assert exit_code == 0
 
     def test_json_format(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
