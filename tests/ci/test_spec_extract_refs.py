@@ -135,6 +135,24 @@ class TestRun:
                 rc = run()
         assert rc == 0
 
+    def test_fallback_gh_failure_returns_external_error(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "PR_TITLE_INPUT": "",
+            "PR_BODY_INPUT": "",
+            "PR_NUMBER": "7",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "0",
+        }
+        gh_mock = MagicMock(returncode=1, stdout="", stderr="auth failed")
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=gh_mock):
+                rc = run()
+        assert rc == 3
+        assert not out_file.exists()
+
 
 class TestMain:
     def test_main_delegates(self) -> None:

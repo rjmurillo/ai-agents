@@ -20,6 +20,7 @@ Outputs:
 
 EXIT CODES (ADR-035):
   0 - extraction complete
+  3 - external PR metadata lookup failed
 """
 
 from __future__ import annotations
@@ -29,6 +30,10 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+
+
+class SpecReferenceError(RuntimeError):
+    """Raised when the script cannot enumerate PR text."""
 
 
 def write_github_output(key: str, value: str) -> None:
@@ -62,7 +67,13 @@ def _gh_pr_field(pr_number: str, repository: str, field: str) -> str:
         errors="replace",
         check=False,
     )
-    return result.stdout.strip() if result.returncode == 0 else ""
+    if result.returncode != 0:
+        detail = result.stderr.strip() if result.stderr else "no stderr"
+        raise SpecReferenceError(
+            f"gh pr view failed for {field} "
+            f"(PR {pr_number} in {repository}): {detail}"
+        )
+    return result.stdout.strip()
 
 
 def _extract_spec_refs(combined: str) -> str:
@@ -116,9 +127,13 @@ def run(_argv: list[str] | None = None) -> int:
     repository = os.environ.get("GITHUB_REPOSITORY", "")
     runner_temp = os.environ.get("RUNNER_TEMP", ".")
 
-    if not pr_title and not pr_body and pr_number:
-        pr_title = _gh_pr_field(pr_number, repository, "title")
-        pr_body = _gh_pr_field(pr_number, repository, "body")
+    try:
+        if not pr_title and not pr_body and pr_number:
+            pr_title = _gh_pr_field(pr_number, repository, "title")
+            pr_body = _gh_pr_field(pr_number, repository, "body")
+    except SpecReferenceError as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        return 3
 
     # Write to temp files (keeps contents safe from shell injection)
     title_file = Path(runner_temp) / f"pr-title-{os.environ.get('GITHUB_RUN_ID', '0')}.txt"

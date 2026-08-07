@@ -15,15 +15,26 @@ Outputs:
   spec_file - absolute path to the spec content markdown file
 
 EXIT CODES (ADR-035):
-  0 - content loaded (or no content found; still 0)
+  0 - content loaded
+  2 - referenced spec file could not be loaded
+  3 - referenced GitHub issue could not be loaded
 """
 
 from __future__ import annotations
 
+import glob as glob_module
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+
+class SpecContentExternalError(RuntimeError):
+    """Raised when external issue content cannot be loaded."""
+
+
+class SpecContentConfigError(RuntimeError):
+    """Raised when referenced local spec content cannot be loaded."""
 
 
 def write_github_output(key: str, value: str) -> None:
@@ -63,7 +74,43 @@ def _gh_issue_body(issue_ref: str, default_repo: str) -> str:
         errors="replace",
         check=False,
     )
-    return result.stdout.strip() if result.returncode == 0 else ""
+    if result.returncode != 0:
+        detail = result.stderr.strip() if result.stderr else "no stderr"
+        raise SpecContentExternalError(f"gh issue view failed for {repo}#{num}: {detail}")
+    return result.stdout.strip()
+
+
+def _read_spec_file(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SpecContentConfigError(f"could not read {path}: {exc}") from exc
+
+
+def _spec_part_for_ref(ref: str) -> tuple[str | None, str | None]:
+    if ref.endswith(".md"):
+        path = Path(ref)
+        if not path.is_file():
+            return None, ref
+        return f"## Spec: {ref}\n\n{_read_spec_file(path)}", None
+
+    matches = glob_module.glob(f".agents/specs/*{ref}*")
+    if not matches:
+        return None, ref
+    matched_path = matches[0]
+    return f"## Spec: {matched_path}\n\n{_read_spec_file(Path(matched_path))}", None
+
+
+def _load_spec_parts(spec_refs: list[str]) -> tuple[list[str], list[str]]:
+    parts: list[str] = []
+    missing_specs: list[str] = []
+    for ref in spec_refs:
+        part, missing = _spec_part_for_ref(ref)
+        if part:
+            parts.append(part)
+        if missing:
+            missing_specs.append(missing)
+    return parts, missing_specs
 
 
 def run(_argv: list[str] | None = None) -> int:
@@ -76,31 +123,33 @@ def run(_argv: list[str] | None = None) -> int:
     spec_refs = spec_refs_raw.split() if spec_refs_raw.strip() else []
     issue_refs = issue_refs_raw.split() if issue_refs_raw.strip() else []
 
-    parts: list[str] = []
+    try:
+        parts, missing_specs = _load_spec_parts(spec_refs)
+    except SpecContentConfigError as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        return 2
 
-    for ref in spec_refs:
-        if ref.endswith(".md"):
-            p = Path(ref)
-            if p.is_file():
-                parts.append(f"## Spec: {ref}\n\n{p.read_text(encoding='utf-8')}")
-        else:
-            # Search for spec file by ID
-            import glob as glob_module
-
-            matches = glob_module.glob(f".agents/specs/*{ref}*")
-            if matches:
-                matched_path = matches[0]
-                parts.append(
-                    f"## Spec: {matched_path}\n\n{Path(matched_path).read_text(encoding='utf-8')}"
-                )
+    if missing_specs:
+        print(
+            f"::error::Could not load referenced spec content: {', '.join(missing_specs)}",
+            file=sys.stderr,
+        )
+        return 2
 
     for issue in issue_refs:
-        body = _gh_issue_body(issue, repository)
+        try:
+            body = _gh_issue_body(issue, repository)
+        except SpecContentExternalError as exc:
+            print(f"::error::{exc}", file=sys.stderr)
+            return 3
         if body:
             display = f"#{issue}" if "/" not in issue else issue
             parts.append(f"## Issue {display}\n\n{body}")
 
     spec_content = "\n\n".join(parts)
+    if not spec_content and (spec_refs or issue_refs):
+        print("::error::Referenced specs or issues produced no content", file=sys.stderr)
+        return 2
     if not spec_content:
         print("Warning: Could not load any spec content")
         spec_content = f"No spec content found for references: {spec_refs_raw} {issue_refs_raw}"
