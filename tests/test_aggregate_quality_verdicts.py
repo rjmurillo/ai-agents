@@ -8,9 +8,6 @@ from pathlib import Path
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Import the consumer script via importlib (not a package)
-# ---------------------------------------------------------------------------
 _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 
 
@@ -28,10 +25,6 @@ _mod = _import_script("aggregate_quality_verdicts")
 main = _mod.main
 build_parser = _mod.build_parser
 get_category = _mod.get_category
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 _AGENTS = _mod._AGENTS
 
@@ -64,11 +57,6 @@ def _read_outputs(output_file: Path) -> dict[str, str]:
     return result
 
 
-# ---------------------------------------------------------------------------
-# Tests: get_category
-# ---------------------------------------------------------------------------
-
-
 class TestGetCategory:
     def test_fail_verdict_with_infra_flag(self):
         assert get_category("CRITICAL_FAIL", True) == "INFRASTRUCTURE"
@@ -85,15 +73,13 @@ class TestGetCategory:
     def test_warn_verdict_returns_na(self):
         assert get_category("WARN", False) == "N/A"
 
-    @pytest.mark.parametrize("verdict", ["REJECTED", "FAIL", "NEEDS_REVIEW"])
+    @pytest.mark.parametrize(
+        "verdict",
+        ["REJECTED", "FAIL", "NEEDS_REVIEW", "UNKNOWN", "DID_NOT_RUN"],
+    )
     def test_all_fail_verdicts_classified(self, verdict):
         assert get_category(verdict, False) == "CODE_QUALITY"
         assert get_category(verdict, True) == "INFRASTRUCTURE"
-
-
-# ---------------------------------------------------------------------------
-# Tests: build_parser
-# ---------------------------------------------------------------------------
 
 
 class TestBuildParser:
@@ -113,11 +99,6 @@ class TestBuildParser:
             monkeypatch.delenv(f"{_mod.agent_env_name(agent)}_INFRA", raising=False)
         args = build_parser().parse_args([])
         assert args.security_verdict == ""
-
-
-# ---------------------------------------------------------------------------
-# Tests: main
-# ---------------------------------------------------------------------------
 
 
 class TestMain:
@@ -159,7 +140,7 @@ class TestMain:
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "WARN"
 
-    def test_security_infra_failure_is_not_ignorable_warn(self, tmp_path, monkeypatch):
+    def test_security_infra_failure_downgrades_to_warn_with_notice(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
         verdicts = {a: "PASS" for a in _AGENTS}
         verdicts["security"] = "CRITICAL_FAIL"
@@ -168,8 +149,23 @@ class TestMain:
         rc = main(_make_argv(verdicts, infra))
         assert rc == 0
         outputs = _read_outputs(output_file)
-        assert outputs["final_verdict"] == "DID_NOT_RUN"
-        assert outputs["final_verdict"] != "WARN"
+        assert outputs["final_verdict"] == "WARN"
+        assert outputs["security_review_ran"] == "false"
+
+    def test_did_not_run_infra_failures_downgrade_to_warn(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "DID_NOT_RUN" for a in _AGENTS}
+        verdicts["qa"] = "PASS"
+        infra = {a: "true" for a in _AGENTS}
+        infra["qa"] = "false"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "WARN"
+        assert outputs["security_category"] == "INFRASTRUCTURE"
+        assert outputs["security_review_ran"] == "false"
 
     def test_outputs_per_agent_verdicts_and_categories(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
@@ -240,11 +236,6 @@ class TestMain:
         assert outputs["final_verdict"] == "WARN"
 
 
-# ---------------------------------------------------------------------------
-# Tests: security_review_ran output (issue #2821 option c)
-# ---------------------------------------------------------------------------
-
-
 class TestSecurityReviewRan:
     """A security-axis infrastructure failure must be visibly distinct from a
     security review that actually ran (issue #2821, option c)."""
@@ -263,7 +254,7 @@ class TestSecurityReviewRan:
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["security_review_ran"] == "false"
-        assert outputs["final_verdict"] == "DID_NOT_RUN"
+        assert outputs["final_verdict"] == "WARN"
         captured = capsys.readouterr()
         assert "::warning title=Security review did not run::" in captured.out
 
