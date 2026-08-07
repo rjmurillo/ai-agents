@@ -16,9 +16,8 @@ from pathlib import Path, PurePosixPath
 
 from scripts.validation.tracked_paths import path_exists_in_repo
 
-# Paths that legitimately do not exist in a clean checkout: the skill WRITES
-# them into a consumer workspace, or a generator produces them as gitignored
-# output. Exemption is
+# Paths that legitimately do not exist in this repo because the skill WRITES
+# them into a consumer workspace rather than reading them here. Exemption is
 # checked on path COMPONENTS, not string prefixes, so .agents/sessions matches
 # .agents/sessions/foo but never .agents/sessions-evil/bar.
 _CONSUMER_WORKSPACE_PATHS: tuple[tuple[str, ...], ...] = (
@@ -26,9 +25,13 @@ _CONSUMER_WORKSPACE_PATHS: tuple[tuple[str, ...], ...] = (
     (".agents", "analysis"),
     (".agents", "critique"),
     (".agents", "memory"),
-    # Generated build output. Produced by the generators, gitignored, so it is
-    # present for whoever just ran a build and absent in CI. Prose may name it.
-    ("build", "audit"),
+)
+
+# Generated artifacts named in prose that no clean checkout contains. Listed as
+# exact paths, not a directory prefix, so a typo under the same directory is
+# still reported as an existence miss.
+_GENERATED_ARTIFACTS: frozenset[str] = frozenset(
+    {"build/audit/GENERATION-AUDIT.md"}
 )
 
 # Regex for the vendor-portability HTML comment marker (same as main module).
@@ -299,7 +302,7 @@ def marker_path_drift(
     # (c) existence: check every path (declared and prose) for real resolution
     all_paths = declared | prose_paths
     for path_str in sorted(all_paths):
-        if _is_consumer_workspace_path(path_str):
+        if _is_consumer_workspace_path(path_str) or path_str in _GENERATED_ARTIFACTS:
             continue
         candidate = (repo_root / path_str).resolve()
         # Containment check: resolved path must be under the repo root
