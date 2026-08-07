@@ -29,11 +29,19 @@ To see them, read the files. Walk `<admin>/refs/**`, skip `ref: ` symrefs (they
 anchor nothing on their own) and the null oid, and feed the oids into the same
 `git rev-list --no-walk --stdin --not --all` query the reflog oids already use.
 An unreadable or unparsable ref file must answer "unknown", never "no risk".
-See `_worktree_ref_oids` and `unreachable_admin_commits` in
-`scripts/maintenance/_gc_stale.py`.
+See `worktree_ref_oids` in `scripts/maintenance/_gc_anchors.py` and
+`unreachable_admin_commits` in `scripts/maintenance/_gc_stale.py`, at commit
+`6fb7054d1` in PR #4728. An earlier draft named `_worktree_ref_oids` in
+`_gc_stale.py`; commit `6fb7054d1` renamed it and moved it, so that path no
+longer resolves.
 
-The rescue is `git update-ref refs/heads/<name> <oid>` from the main checkout,
-which promotes the anchor into the shared store before the worktree goes away.
+The rescue promotes the anchor into the shared store before the worktree goes
+away, run from the main checkout:
+
+```bash
+OID=$(cat .git/worktrees/wt/refs/worktree/mywork)
+git update-ref refs/heads/recovered-work "$OID"
+```
 
 Seven adversarial review rounds. This was the seventh distinct loss channel,
 and the fourth one that a mock-based test suite reported as safe.

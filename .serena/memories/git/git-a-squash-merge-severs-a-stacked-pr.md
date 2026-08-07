@@ -138,12 +138,21 @@ touching the working tree, so the result can be measured before the merge is
 committed:
 
 ```bash
+set -euo pipefail
+export LC_ALL=C
+
 tree=$(git write-tree)
-git diff --name-only "$base" "$tree" | sort > merged.txt
-git diff --name-only "$parent_tip" "$child" | sort > expected.txt
+git diff --name-only "$base" "$tree" -- | sort > merged.txt
+git diff --name-only "$parent_tip" "$child" -- | sort > expected.txt
 comm -23 merged.txt expected.txt   # BASE content this merge dropped
 comm -13 merged.txt expected.txt   # CHILD content this merge lost
 ```
+
+`set -euo pipefail` and explicit refs are load bearing, not decoration. With an
+unset or misspelled ref both `git diff` calls exit fatally, `sort` still exits 0
+and writes an empty file, and both `comm` results come back empty. The check
+then certifies a tree nobody compared. An empty `comm` is only evidence when
+you can show both inputs were non-empty.
 
 Both differences empty is necessary and not sufficient. An adversarial review
 of this repair (grok-4.5, 2026-08-06) built the counterexample: substitute a
@@ -151,33 +160,53 @@ third blob on any one of those paths and the path still differs from BASE, so
 it stays in the name list, both `comm` results stay empty, and the content is
 wrong. Name-set equality proves which paths differ, never what they contain.
 
-Add one content check, either of these:
+Add a content check that compares whole tree entries, with rename detection off:
 
 ```bash
-# blob equality on every path the child owns
-git diff --name-only "$parent_tip" "$child" | while read -r f; do
-  [ "$(git rev-parse "$tree:$f")" = "$(git rev-parse "$child:$f")" ] || echo "MISMATCH $f"
+set -euo pipefail
+git diff --name-only --no-renames -z "$parent_tip" "$child" -- |
+while IFS= read -r -d '' f; do
+  [ "$(git ls-tree "$tree" -- "$f")" = "$(git ls-tree "$child" -- "$f")" ] \
+    || { echo "MISMATCH $f"; exit 1; }
 done
-
-# or normalized patch equality, index lines stripped
-diff <(git diff "$parent_tip" "$child" | grep -v '^index ') \
-     <(git diff "$base" "$tree"        | grep -v '^index ')
 ```
 
-Measured on this repair: 0 blob mismatches across 31 paths, patches byte
-identical, and the full 8397-path tree listing equals CHILD plus BASE's one
-restored file exactly.
+Three details each close a hole a second review (gpt-5.6-sol, 2026-08-06)
+demonstrated:
+
+- **`--no-renames`.** With rename detection on, a rename shows only the new
+  path, so a tree that wrongly kept the old path too passes. Disabling it lists
+  both sides, and the old path then mismatches.
+- **`git ls-tree` rather than `git rev-parse "$tree:$f"`.** `ls-tree` compares
+  mode, type, and object id, so a `100644` to `100755` flip is caught. It also
+  prints nothing for an absent path instead of failing, which makes present
+  against absent a visible mismatch rather than an error.
+- **`-z` with `read -d ''`.** A path containing a newline or a quote otherwise
+  splits or arrives escaped.
+
+Normalized patch equality (`git diff ... | grep -v '^index '` on both sides) is
+a weaker second opinion, not a substitute: two distinct binary blobs produce
+identical patch text once the index lines are stripped.
+
+Measured on this repair: 0 mismatches across 31 paths, and the full 8397-path
+tree listing equals CHILD plus BASE's one restored file exactly. This incident
+had 23 modifications, 8 additions, no deletions, no renames, and no binary
+files, so the weaker checks happened to agree here. That is luck, not evidence.
 
 ## Two side effects to expect
 
 **The push ceiling can trip.** `_unpushed_commit_count`
-(`scripts/validation/git_hook_policy.py`) excludes commits that some other
-remote branch already carries. GitHub deletes the squashed branch on merge, so
-the ~20 commits CHILD inherited from PARENT stop being excluded by any remote
-ref and begin counting against CHILD. Measured here: raw 43, stack-aware 21,
-limit 20, genuinely new 3. Splitting is not the remedy for an overage that the
-repair merge itself caused; the `commit-limit-bypass` label is, with the
-measurement recorded on the PR.
+(`scripts/validation/git_hook_policy.py`) counts with
+`git rev-list --count <sha> --not --exclude=origin/<branch> --remotes=origin`,
+so it excludes commits carried by any *other* `refs/remotes/origin/*` ref. That
+is a **local** ref namespace. Deleting the squashed PARENT branch on GitHub
+therefore changes nothing on its own; the count moves only once the local
+tracking ref is pruned, which is a separate event you control. Measured here
+with the PARENT tracking ref still present: raw 43, counted 21, limit 20,
+genuinely new 3. Removing that tracking ref raises the counted figure to 35
+rather than lowering it. Splitting is not the remedy for an overage the repair
+merge itself caused; the `commit-limit-bypass` label is, with the measurement
+recorded on the PR.
 
 **The Commits tab looks heavier than the diff.** After the repair,
 `git rev-list --first-parent "$base".."$merge"` counts 35 here while the three
