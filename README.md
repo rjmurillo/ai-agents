@@ -37,6 +37,14 @@ Each AI tool has its own native marketplace flow. This repo ships a Claude Code 
 
 A Claude install lands the full set of agents, commands, hooks, and skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool sanity check that reports the exact counts for your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
 
+> **Python requirement for `project-toolkit@ai-agents` hooks.** The project-toolkit plugin ships PreToolUse and PostToolUse hooks that run Python. Minimum version: **Python 3.10**. On Windows, the [Python launcher](https://docs.python.org/3/using/windows.html#launcher) (`py`) must be on PATH.
+>
+> Without Python (or with a version below 3.10), hooks are **skipped** rather than blocking: your session works normally, but hook-based guards (security gates, review checks) do not run. A warning is printed naming the cause and the install step. This is the degraded mode, not an error.
+>
+> The `claude-agents@ai-agents` bundle (agents only, no hooks) does not need Python at all.
+>
+> Install Python: <https://www.python.org/downloads/> (3.10 or newer).
+
 ### What You Get
 
 | Component | Claude Code | Copilot CLI |
@@ -55,6 +63,7 @@ Specialized agent roles include analyst, architect, implementer, QA, security, d
 - **`/install-plugin` not recognized:** That command is Claude Code only. In Copilot CLI use the two-step flow (`/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`).
 - **Copilot CLI install fails with "No plugin.json found in repository":** This repo is a marketplace, not a single plugin. Run `/plugin marketplace add rjmurillo/ai-agents` first, then `/plugin install project-toolkit@ai-agents`.
 - **`/plugin` not recognized in Copilot CLI:** Update Copilot CLI to a recent stable release; plugin support is required. Run `copilot --version` in a regular terminal to check.
+- **`Denied by preToolUse hook from "project-toolkit@ai-agents"`:** On plugin versions after this fix, this cannot happen: missing or too-old Python causes hooks to skip (exit 0) with a warning rather than deny. If you see this message, your installed plugin predates the fix. Upgrade: `/plugin install project-toolkit@ai-agents` (reinstalls at the latest version). If the denial persists, install or upgrade Python to 3.10+ and ensure it is on PATH (`py -3` on Windows, `python3` on Linux/macOS).
 - **Plugin install fails or hangs:** Confirm your AI tool is on a recent stable release that supports the install command, then retry. Check the version per tool: in Claude Code use `/version` or the title bar; for Copilot CLI run `copilot --version` in a regular terminal.
 - **Agents not responding after install:** Restart Claude Code (Copilot CLI does not need a restart). Then verify with `Task(subagent_type="analyst", prompt="Hello, are you available?")` in Claude Code, `copilot plugin list` in Copilot CLI to confirm `project-toolkit@ai-agents` is installed, or `@orchestrator Hello, are you available?` in VS Code Copilot Chat.
 
@@ -146,7 +155,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 The [Fastest Start](#fastest-start) above is the recommended path. Use the commands below when you want component-level control (agents only, no skills, etc.).
 
-> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. Day-to-day plugin use does not need either.
+> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. Day-to-day use of the `claude-agents@ai-agents` bundle (agents only) does not need Python. The `project-toolkit@ai-agents` plugin requires Python 3.10+ for its hooks; without it, hooks are skipped with a warning (see [Fastest Start](#fastest-start)).
 
 ### Quick Install (CLI marketplace)
 
@@ -458,7 +467,7 @@ ai-agents/
 <details>
 <summary><strong>Python version errors when running tests</strong></summary>
 
-- This project requires **Python 3.14.x** for development. End users installing the plugins do not need Python.
+- This project requires **Python 3.14.x** for development (running tests, linters, build scripts). The `project-toolkit@ai-agents` plugin requires **Python 3.10+** at runtime for its hooks. Without Python 3.10+, hooks degrade (skip with a warning) rather than block. The `claude-agents@ai-agents` bundle (agents only, no hooks) does not need Python.
 - The `.python-version` file pins the exact version (currently 3.14.4)
 - See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for detailed setup
 
