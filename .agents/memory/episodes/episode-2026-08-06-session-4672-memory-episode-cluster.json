@@ -40,7 +40,7 @@
         "e002"
       ],
       "leads_to": [
-        "e009"
+        "e012"
       ],
       "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
     },
@@ -50,10 +50,10 @@
       "type": "milestone",
       "content": "Added regression tests for all four issues. Before code changes, the five targeted tests failed on the expected assertions.",
       "caused_by": [
-        "e013"
+        "e014"
       ],
       "leads_to": [
-        "e014"
+        "e015"
       ],
       "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
     },
@@ -63,10 +63,10 @@
       "type": "milestone",
       "content": "Implemented UTC normalization, three-dot range diff, causal edge consistency validation, duplicate memory-index rejection, and removed the six redundant memory-index links.",
       "caused_by": [
-        "e015"
+        "e016"
       ],
       "leads_to": [
-        "e016"
+        "e017"
       ],
       "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
     },
@@ -76,7 +76,7 @@
       "type": "milestone",
       "content": "Ran negative control by restoring unfixed implementation files from origin/main while keeping tests. All five regression tests failed, then passed again after restoring the fixes.",
       "caused_by": [
-        "e016"
+        "e017"
       ],
       "leads_to": [
         "e007"
@@ -105,17 +105,17 @@
         "e007"
       ],
       "leads_to": [
-        "e011"
+        "e009"
       ],
       "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
     },
     {
       "id": "e009",
-      "timestamp": "2026-08-06T23:11:40+00:00",
-      "type": "commit",
-      "content": "Commit: 9ae761432",
+      "timestamp": "2026-08-07T00:40:00+00:00",
+      "type": "milestone",
+      "content": "Fixed follow-up typed-counter errors found by the required mypy hook policy and updated the branch-side diff unit test expectation to three-dot semantics.",
       "caused_by": [
-        "e003"
+        "e008"
       ],
       "leads_to": [
         "e010"
@@ -124,11 +124,35 @@
     },
     {
       "id": "e010",
-      "timestamp": "2026-08-06T23:11:56+00:00",
-      "type": "commit",
-      "content": "Commit: bb33d629c",
+      "timestamp": "2026-08-07T01:05:00+00:00",
+      "type": "milestone",
+      "content": "Ran final required gates. Full pytest passed 23683 tests with 33 skipped and 2 warnings. Changed-file mypy hook policy passed. merge_tree_ratchet_check.py passed. pre_pr.py exited 0.",
       "caused_by": [
         "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-07T02:35:00+00:00",
+      "type": "milestone",
+      "content": "Captured retrospective evidence after push-time retrospective-policy rejected the otherwise green branch.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-06T23:11:40+00:00",
+      "type": "commit",
+      "content": "Commit: 9ae761432",
+      "caused_by": [
+        "e003"
       ],
       "leads_to": [
         "e013"
@@ -136,38 +160,25 @@
       "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
     },
     {
-      "id": "e011",
-      "timestamp": "2026-08-07T00:40:00+00:00",
-      "type": "milestone",
-      "content": "Fixed follow-up typed-counter errors found by the required mypy hook policy and updated the branch-side diff unit test expectation to three-dot semantics.",
+      "id": "e013",
+      "timestamp": "2026-08-06T23:11:56+00:00",
+      "type": "commit",
+      "content": "Commit: bb33d629c",
       "caused_by": [
-        "e008"
-      ],
-      "leads_to": [
         "e012"
       ],
-      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
-    },
-    {
-      "id": "e012",
-      "timestamp": "2026-08-07T01:05:00+00:00",
-      "type": "milestone",
-      "content": "Ran final required gates. Full pytest passed 23683 tests with 33 skipped and 2 warnings. Changed-file mypy hook policy passed. merge_tree_ratchet_check.py passed. pre_pr.py exited 0.",
-      "caused_by": [
-        "e011"
-      ],
       "leads_to": [
-        "e017"
+        "e014"
       ],
       "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
     },
     {
-      "id": "e013",
+      "id": "e014",
       "timestamp": "2026-08-06T23:12:53+00:00",
       "type": "commit",
       "content": "Commit: 41c2ac4c4",
       "caused_by": [
-        "e010"
+        "e013"
       ],
       "leads_to": [
         "e004"
@@ -175,7 +186,7 @@
       "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
     },
     {
-      "id": "e014",
+      "id": "e015",
       "timestamp": "2026-08-06T23:30:41+00:00",
       "type": "commit",
       "content": "Commit: d075cc7a7",
@@ -183,17 +194,17 @@
         "e004"
       ],
       "leads_to": [
-        "e015"
+        "e016"
       ],
       "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
     },
     {
-      "id": "e015",
+      "id": "e016",
       "timestamp": "2026-08-06T23:42:35+00:00",
       "type": "commit",
       "content": "Commit: f1ebcced3",
       "caused_by": [
-        "e014"
+        "e015"
       ],
       "leads_to": [
         "e005"
@@ -201,7 +212,7 @@
       "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
     },
     {
-      "id": "e016",
+      "id": "e017",
       "timestamp": "2026-08-06T23:55:44+00:00",
       "type": "commit",
       "content": "Commit: bab8fbf6c",
@@ -212,17 +223,6 @@
         "e006"
       ],
       "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
-    },
-    {
-      "id": "e017",
-      "timestamp": "2026-08-07T02:35:00+00:00",
-      "type": "milestone",
-      "content": "Captured retrospective evidence after push-time retrospective-policy rejected the otherwise green branch.",
-      "caused_by": [
-        "e012"
-      ],
-      "leads_to": [],
-      "_source_session": "2026-08-06-session-4672-memory-episode-cluster"
     }
   ],
   "metrics": {
@@ -231,7 +231,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 6,
-    "files_changed": 2
+    "files_changed": 9
   },
   "lessons": []
 }
