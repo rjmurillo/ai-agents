@@ -23,6 +23,18 @@ import pytest
 
 from scripts.maintenance import _gc_anchors, _gc_stale
 
+# Permission-barrier tests below build their precondition out of file mode bits.
+# Root ignores those bits and Windows does not carry them, so on either the
+# barrier is absent and the reader succeeds where the test expects a refusal.
+# ``os.geteuid`` is itself absent on Windows, and a bare call in a skipif
+# argument is evaluated at import, so an unguarded call fails collection for the
+# whole module rather than skipping one test. Mirrors the idiom in
+# tests/validation/test_check_shipped_skill_routes_paths.py.
+_NO_PERMISSION_BARRIER = os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0)
+_NEEDS_PERMISSION_BARRIER = pytest.mark.skipif(
+    _NO_PERMISSION_BARRIER, reason="root and Windows do not honour the barrier this needs"
+)
+
 
 class TestReflogProbe:
     """``unreachable_admin_commits`` answers with a list, or admits it cannot."""
@@ -134,7 +146,7 @@ class TestWorktreeLocalRefProbe:
         admin = self._admin(tmp_path, "worktree/broken", "not an object id\n")
         assert _gc_anchors.worktree_ref_oids(admin) is None
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root ignores the mode bits")
+    @_NEEDS_PERMISSION_BARRIER
     def test_an_unreadable_ref_answers_unknown_rather_than_no_risk(self, tmp_path):
         """A real chmod, not a patched read: the failure has to come from the OS."""
         admin = self._admin(tmp_path, "worktree/mywork", f"{'e' * 40}\n")
@@ -196,7 +208,7 @@ class TestWalkFiles:
         (root / "worktree").symlink_to(real, target_is_directory=True)
         assert _gc_anchors.walk_files(root) is None
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
+    @_NEEDS_PERMISSION_BARRIER
     def test_an_unreadable_directory_is_unknown(self, tmp_path):
         root = tmp_path / "logs"
         root.mkdir()

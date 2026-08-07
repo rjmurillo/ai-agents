@@ -27,6 +27,18 @@ from scripts.maintenance.gc_worktrees import (
     decide,
 )
 
+# Permission-barrier tests below build their precondition out of file mode bits.
+# Root ignores those bits and Windows does not carry them, so on either the
+# barrier is absent and the reader succeeds where the test expects a refusal.
+# ``os.geteuid`` is itself absent on Windows, and a bare call in a skipif
+# argument is evaluated at import, so an unguarded call fails collection for the
+# whole module rather than skipping one test. Mirrors the idiom in
+# tests/validation/test_check_shipped_skill_routes_paths.py.
+_NO_PERMISSION_BARRIER = os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0)
+_NEEDS_PERMISSION_BARRIER = pytest.mark.skipif(
+    _NO_PERMISSION_BARRIER, reason="root and Windows do not honour the barrier this needs"
+)
+
 _MAIN = "/repo/main"
 _BASE = "origin/main"
 _SHA = "f30c6952bf2da328bcff0aecc74ff05de3558df7"
@@ -165,7 +177,7 @@ class TestRegularFileProbe:
 class TestReflogProbeUnknowns:
     """An unreadable reflog is not an empty one."""
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
+    @_NEEDS_PERMISSION_BARRIER
     def test_an_unreadable_reflog_is_unknown_not_empty(self, tmp_path):
         log = tmp_path / "logs" / "HEAD"
         log.parent.mkdir(parents=True)
