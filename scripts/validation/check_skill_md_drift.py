@@ -14,8 +14,11 @@ import re
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
-# Paths that legitimately do not exist in this repo because the skill WRITES
-# them into a consumer workspace rather than reading them here. Exemption is
+from scripts.validation.tracked_paths import path_exists_in_repo
+
+# Paths that legitimately do not exist in a clean checkout: the skill WRITES
+# them into a consumer workspace, or a generator produces them as gitignored
+# output. Exemption is
 # checked on path COMPONENTS, not string prefixes, so .agents/sessions matches
 # .agents/sessions/foo but never .agents/sessions-evil/bar.
 _CONSUMER_WORKSPACE_PATHS: tuple[tuple[str, ...], ...] = (
@@ -23,6 +26,9 @@ _CONSUMER_WORKSPACE_PATHS: tuple[tuple[str, ...], ...] = (
     (".agents", "analysis"),
     (".agents", "critique"),
     (".agents", "memory"),
+    # Generated build output. Produced by the generators, gitignored, so it is
+    # present for whoever just ran a build and absent in CI. Prose may name it.
+    ("build", "audit"),
 )
 
 # Regex for the vendor-portability HTML comment marker (same as main module).
@@ -303,7 +309,7 @@ def marker_path_drift(
                 f"outside the repository root"
             )
             continue
-        if not candidate.exists():
+        if not path_exists_in_repo(repo_root, path_str):
             failures.append(
                 f"{rel_path}: existence miss: '{path_str}' is declared and/or "
                 f"referenced but does not exist under the repository root"
