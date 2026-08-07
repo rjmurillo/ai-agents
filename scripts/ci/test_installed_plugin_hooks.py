@@ -102,11 +102,29 @@ def _run_hook(
 
 
 def _find_dispatcher(install_root: Path, event: str) -> Path | None:
-    """Find the _dispatch.py for an event."""
+    """Find the _dispatch.py for an event, refusing anything outside the root.
+
+    ``install_root`` arrives from the command line, so the resolved candidate is
+    checked for containment before it is ever handed to ``subprocess``. Only the
+    root is caller-supplied; the rest of the path is fixed. Containment is what
+    makes that guarantee hold anyway, since a symlink under ``hooks`` could
+    otherwise point the interpreter at a script outside the install tree.
+
+    The interpreter is invoked as an argument list with no shell, so a shell
+    metacharacter in the path is passed through as a literal argument and cannot
+    start a second command. Validating here is a boundary check on which file
+    gets executed, not an escaping fix. Refs #4672.
+    """
+    root = install_root.resolve()
     for variant in (event, event[0].lower() + event[1:]):
-        candidate = install_root / "hooks" / variant / "_dispatch.py"
-        if candidate.is_file():
-            return candidate
+        candidate = (root / "hooks" / variant / "_dispatch.py").resolve()
+        if not candidate.is_file():
+            continue
+        if not candidate.is_relative_to(root):
+            raise ValueError(
+                f"refusing to run {candidate}: resolves outside {root}"
+            )
+        return candidate
     return None
 
 
