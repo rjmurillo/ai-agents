@@ -104,6 +104,7 @@
 |git hook pre-commit autofix cross-language grep TOCTOU: [skills-git-hooks-index](skills-git-hooks-index.md) (368)
 |git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (644)
 |git stash shared across worktrees pop takes another agent work switch abort commits to wrong branch: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (965)
+|git stash push -m after double dash parsed as pathspec silent no stash checkout destroys work verify refs/stash: [git/git-stash-m-after-double-dash-is-a-pathspec](git/git-stash-m-after-double-dash-is-a-pathspec.md) (662)
 |git shallow graft depth fetch unshallow blocks push every worktree common dir pin sha: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
 |script absolute path wrong worktree repo_root __file__ validates own tree false pass token updater containment check candidate path: [git/git-a-script-run-by-absolute-path-validates-its-own-worktree](git/git-a-script-run-by-absolute-path-validates-its-own-worktree.md) (1736)
 |merge conflict resolve ours theirs convenience wrong side endingCommit session log stack last merge wins validator proves existence not correctness: [git/git-a-conflict-resolved-for-convenience-records-a-falsehood](git/git-a-conflict-resolved-for-convenience-records-a-falsehood.md) (1185)
