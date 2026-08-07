@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed as 98bd00264; this follow-up commit records endingCommit per session log mechanics."
+        "Evidence": "Commits 98bd00264 and 286e70b98 complete the fix and session SHA update; retrospective evidence is staged with this log update."
       },
       "validationPassed": {
         "level": "MUST",
@@ -137,8 +137,12 @@
     {
       "time": "2026-08-07T01:45:00Z",
       "entry": "Retrospective evidence: issue 4700 survived because synthetic trace lines tested parser shape, not production reachability. Replacement tests now pin reachable symbolic-ref Trace2 parsing and real reflog-based HEAD guard attribution."
+    },
+    {
+      "time": "2026-08-07T01:55:00Z",
+      "entry": "Added retrospective .agents/retrospective/2026-08-07-ref-trace-dead-code.md after pre-push retrospective-policy required dated evidence."
     }
   ],
-  "endingCommit": "98bd00264",
+  "endingCommit": "286e70b98",
   "nextSteps": []
 }
