@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: f8e29e5a6)"
+        "Evidence": "All changes committed (HEAD: 05c5c9a2d)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -119,7 +119,7 @@
       "reworkWarning": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "rework-warning: none"
+        "Evidence": "rework-warning: .claude/skills/memory/scripts/extract_session_episode.py edited 6 times\nrework-warning: src/copilot-cli/skills/memory/scripts/extract_session_episode.py edited 6 times"
       }
     }
   },
