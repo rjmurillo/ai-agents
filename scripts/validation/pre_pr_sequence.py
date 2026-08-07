@@ -53,6 +53,7 @@ from checks_coverage import (
     validate_review_marker,
 )
 from checks_dash import validate_dash_prohibition
+from checks_mypy import validate_mypy_changed_files
 from checks_plugin import (
     validate_agent_content_parity,
     validate_copilot_agent_frontmatter,
@@ -87,7 +88,6 @@ from checks_tooling import (
     validate_instruction_budget,
     validate_markdown_lint,
     validate_path_normalization,
-    validate_pester_tests,
     validate_planning_artifacts,
     validate_session_end,
     validate_workflow_yaml,
@@ -160,10 +160,6 @@ def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Na
     return _run
 
 
-def _run_pester(repo_root: Path, args: argparse.Namespace) -> bool:
-    return validate_pester_tests(repo_root, args.verbose)
-
-
 def _run_orphaned_build_deferrals(repo_root: Path, _args: argparse.Namespace) -> bool:
     """Honor ``GH_REPO`` so the gate can run against a different upstream.
 
@@ -208,12 +204,9 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),
     _Gate("Session End Validation", _root_only(validate_session_end)),
-    _Gate(
-        "Pester Unit Tests",
-        _run_pester,
-        skip_flag="skip_tests",
-        skip_note="skipped via --skip-tests",
-    ),
+    # Type-check changed Python files with ratchet semantics (issue #4674).
+    # Surfaces regressions at pre-PR time rather than waiting for push CI.
+    _Gate("Mypy Changed Files (ratchet)", _root_only(validate_mypy_changed_files)),
     _Gate("Markdown Linting", _root_only(validate_markdown_lint)),
     _Gate("Workflow YAML Validation", _root_only(validate_workflow_yaml)),
     # Fails when the pinned @github/copilot version is missing, unparseable, or
