@@ -35,6 +35,8 @@ _path_added = str(EVAL_DIR) not in sys.path
 if _path_added:
     sys.path.insert(0, str(EVAL_DIR))
 try:
+    import _copilot_cli as copilot_mod
+
     _spec = importlib.util.spec_from_file_location(
         "eval_rule_activation", EVAL_DIR / "eval-rule-activation.py"
     )
@@ -44,6 +46,10 @@ try:
 finally:
     if _path_added and str(EVAL_DIR) in sys.path:
         sys.path.remove(str(EVAL_DIR))
+
+MalformedProviderMetadataError = sys.modules[
+    "_eval_common"
+].MalformedProviderMetadataError
 
 
 # ---------------------------------------------------------------------------
@@ -1100,6 +1106,154 @@ class TestJudgeSampleReduction:
         assert full["scores"]["activation_score"] == 5
         assert full["scores"]["citation_score"] == 5
         assert full["scores"]["behavior_score"] == 5
+        assert "system_fingerprint" not in full
+
+    def test_eval_one_scenario_refuses_a_malformed_response_fingerprint(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        judge_calls = 0
+
+        def fake_call_api(*args: object, **kwargs: object) -> str:
+            metadata = kwargs["metadata"]
+            assert isinstance(metadata, dict)
+            metadata["system_fingerprint"] = {"id": "fp"}
+            return "response"
+
+        def fake_score(*args: object, **kwargs: object) -> dict[str, object]:
+            nonlocal judge_calls
+            judge_calls += 1
+            return {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            }
+
+        monkeypatch.setattr(eval_mod, "_call_api", fake_call_api)
+        monkeypatch.setattr(eval_mod, "score_response", fake_score)
+
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            eval_mod.eval_one_scenario(
+                "key",
+                self._rule(),
+                "rule",
+                self._scenario(),
+                "model",
+                dry_run=False,
+                seed=10,
+                judge_repeats=1,
+                judge_reducer="median",
+            )
+        assert judge_calls == 0
+
+    def test_eval_one_scenario_propagates_metadata_error_from_response_call(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        calls = 0
+
+        def fake_call_api(*args: object, **kwargs: object) -> str:
+            nonlocal calls
+            calls += 1
+            raise MalformedProviderMetadataError("malformed response fingerprint")
+
+        monkeypatch.setattr(eval_mod, "_call_api", fake_call_api)
+
+        with pytest.raises(
+            MalformedProviderMetadataError, match="malformed response fingerprint"
+        ):
+            eval_mod.eval_one_scenario(
+                "key",
+                self._rule(),
+                "rule",
+                self._scenario(),
+                "model",
+                dry_run=False,
+                seed=10,
+                judge_repeats=3,
+                judge_reducer="median",
+            )
+
+        assert calls == 1
+
+    def test_eval_one_scenario_propagates_metadata_error_from_judge_call(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+        response_calls = 0
+        judge_calls = 0
+
+        def fake_call_api(*args: object, **kwargs: object) -> str:
+            nonlocal response_calls
+            response_calls += 1
+            return "response"
+
+        def fake_score(*args: object, **kwargs: object) -> dict[str, object]:
+            nonlocal judge_calls
+            judge_calls += 1
+            raise MalformedProviderMetadataError("malformed judge fingerprint")
+
+        monkeypatch.setattr(eval_mod, "_call_api", fake_call_api)
+        monkeypatch.setattr(eval_mod, "score_response", fake_score)
+
+        with pytest.raises(
+            MalformedProviderMetadataError, match="malformed judge fingerprint"
+        ):
+            eval_mod.eval_one_scenario(
+                "key",
+                self._rule(),
+                "rule",
+                self._scenario(),
+                "model",
+                dry_run=False,
+                seed=10,
+                judge_repeats=3,
+                judge_reducer="median",
+            )
+
+        assert response_calls == 1
+        assert judge_calls == 1
+
+    def test_eval_one_scenario_records_a_string_response_fingerprint(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+
+        def fake_call_api(*args: object, **kwargs: object) -> str:
+            metadata = kwargs["metadata"]
+            assert isinstance(metadata, dict)
+            metadata["system_fingerprint"] = "fp-4123"
+            return "response"
+
+        monkeypatch.setattr(eval_mod, "_call_api", fake_call_api)
+        monkeypatch.setattr(
+            eval_mod,
+            "score_response",
+            lambda *args, **kwargs: {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "judge_failed": False,
+            },
+        )
+
+        result = eval_mod.eval_one_scenario(
+            "key",
+            self._rule(),
+            "rule",
+            self._scenario(),
+            "model",
+            dry_run=False,
+            seed=10,
+            judge_repeats=1,
+            judge_reducer="median",
+        )
+
+        assert {
+            data["system_fingerprint"]
+            for data in result["mechanisms"].values()
+        } == {"fp-4123"}
 
     def test_eval_one_scenario_persists_failed_sample_without_reducing_it(self, monkeypatch):
         monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
@@ -1151,6 +1305,7 @@ class TestJudgeSampleReduction:
         assert full["scores"]["judge_failed"] is True
         assert full["scores"]["graded_sample_count"] == 2
         assert full["scores"]["failed_sample_count"] == 1
+
 
     def test_dry_run_counts_repeated_judge_calls(self, tmp_path, capsys):
         rule_path = REPO_ROOT / ".claude" / "rules" / "working-with-legacy-code.md"
@@ -1207,6 +1362,92 @@ class TestJudgeSampleReduction:
         assert "--judge-repeats must be positive" in captured.err
 
 
+class TestCopilotErrorArtifactRedaction:
+    def test_credential_from_process_stderr_never_reaches_persisted_results(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        secret = "ghp_" + "S" * 36
+
+        class _Completed:
+            stdout = ""
+            stderr = f"authentication failed: token {secret}"
+            returncode = 1
+
+        monkeypatch.setattr(
+            copilot_mod,
+            "run_acp_completion",
+            lambda argv, prompt, **kwargs: _Completed(),
+        )
+        monkeypatch.setenv(
+            "COPILOT_SESSION_STATE_DIR",
+            str(tmp_path / "missing-session-root"),
+        )
+        provider = copilot_mod._CopilotCLIProvider()
+        with pytest.raises(RuntimeError) as exc_info:
+            provider.complete(
+                messages=[{"role": "user", "content": "q"}],
+                model="claude-opus-5",
+            )
+        provider_error = exc_info.value
+        assert secret not in str(provider_error)
+
+        scenario = {
+            "id": "S-LEAK",
+            "desc": "credential leak probe",
+            "input": "do the thing",
+            "expected_gate": "apply-rule",
+        }
+        rule = {"description": "desc", "body": "body"}
+        monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
+
+        def raise_provider_error(*args: object, **kwargs: object) -> str:
+            raise provider_error
+
+        monkeypatch.setattr(eval_mod, "_call_api", raise_provider_error)
+        mechanism_result = eval_mod.eval_one_scenario(
+            "key",
+            rule,
+            "rule",
+            scenario,
+            "model",
+            dry_run=False,
+            judge_repeats=1,
+        )
+
+        monkeypatch.setattr(eval_mod, "_call_api", lambda *args, **kwargs: "response")
+
+        def raise_judge_error(*args: object, **kwargs: object) -> dict[str, object]:
+            raise provider_error
+
+        monkeypatch.setattr(eval_mod, "score_response", raise_judge_error)
+        judge_result = eval_mod.eval_one_scenario(
+            "key",
+            rule,
+            "rule",
+            scenario,
+            "model",
+            dry_run=False,
+            judge_repeats=1,
+        )
+
+        artifact = tmp_path / "results.json"
+        artifact.write_text(
+            json.dumps(
+                {
+                    "rules": {
+                        "mechanism-error": mechanism_result,
+                        "judge-error": judge_result,
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        persisted = artifact.read_text(encoding="utf-8")
+        assert secret not in persisted
+        assert "process output redacted" in persisted
+        assert "error=authentication failed" in persisted
+
+
 # ---------------------------------------------------------------------------
 # _extract_json_object: recovering judge scores from agentic CLI output
 #
@@ -1235,6 +1476,47 @@ def _score_with_judge_text(monkeypatch: pytest.MonkeyPatch, judge_text: str) -> 
         {"input": "x", "expected_gate": "apply-rule"},
         "response",
     )
+
+
+class TestJudgeFingerprintPolicy:
+    """The judge fingerprint is provenance, so a malformed one is refused.
+
+    Before #4123 a non-string value was dropped, and the report then read as
+    "the judge provider supplied no fingerprint" for a response that supplied
+    something unreadable. Absent and malformed are different observations.
+    """
+
+    def _score(self, monkeypatch: pytest.MonkeyPatch, fingerprint: object) -> dict[str, Any]:
+        def _fake_call_api(*_args: Any, **kwargs: Any) -> str:
+            if fingerprint is not None:
+                kwargs["metadata"]["system_fingerprint"] = fingerprint
+            return _JUDGE
+
+        monkeypatch.setattr(eval_mod, "_call_api", _fake_call_api)
+        return eval_mod.score_response(
+            "sk-test",
+            {"input": "x", "expected_gate": "apply-rule"},
+            "response",
+        )
+
+    @pytest.mark.parametrize("malformed", [1234, 4.5, True, {"id": "fp"}, ["fp"]])
+    def test_a_non_string_judge_fingerprint_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch, malformed: object
+    ) -> None:
+        with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
+            self._score(monkeypatch, malformed)
+
+    def test_a_string_judge_fingerprint_is_recorded(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        result = self._score(monkeypatch, "fp-4123")
+        assert result["judge_system_fingerprint"] == "fp-4123"
+
+    def test_an_absent_judge_fingerprint_leaves_the_key_out(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        result = self._score(monkeypatch, None)
+        assert "judge_system_fingerprint" not in result
 
 
 # ---------------------------------------------------------------------------
