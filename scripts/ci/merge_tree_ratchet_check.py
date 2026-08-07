@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Merge-tree ratchet: evaluate all three count ratchets on the merged result.
+"""Merge-tree ratchet: evaluate all count ratchets on the merged result.
 
 Issue #4398. Closes the stale-branch hole: a PR branch can pass every ratchet
 individually, yet the merged result still breaches the ceiling, because the
-branch is measured against an old main that held a looser baseline.
+branch is measured against an old target branch that held a looser baseline.
 
 PR #4272 is the canonical example: it grew a file past the taste-lint 500-line
 ceiling and merged green because strict_required_status_checks_policy is false
@@ -17,20 +17,22 @@ These two fixes are complementary. Say so in any PR that ships this gate.
 
 Mechanism:
     git merge-tree --write-tree <base> <head>
-    git archive <tree-oid>, extract with Python tarfile into <scratch>
+    git read-tree <tree-oid> through a temporary index
+    git checkout-index every entry into <scratch>
     git init <scratch>, git -C <scratch> add -A, git -C <scratch> commit
-    run current_count() from each ratchet against <scratch>
-    compare against baselines at <base>
+    run each registered current_count() against <scratch>
+    compare against min(baseline at <base>, baseline in the merged tree)
 
-Timing (measured on this repo, 7925 tracked files):
-    merge-tree:      0.017 s
-    git archive+tar: 0.63 s
-    three ratchets:  sub-second each
-    total:           ~1-2 s vs 13.5 min p50 CI critical path
+The ceiling is the LOWER of the base's baseline and the one the merged tree
+would install (issue #4538). Reading only the base's value left the gate blind
+to a branch that LOWERS a baseline: PR #4208 rewrote the ruff baseline
+308 -> 126 while activating RUF100, its merged tree measured 140, and 140 <= 308
+passed here. main merged red. Taking the minimum also keeps a RAISED baseline
+from buying headroom. See _effective_baseline.
 
-Conflict policy: when the merge conflicts, the PR cannot land anyway, so
-blocking here would duplicate the mergeability check. Skip with a clear
-message; let the merge-conflict gate handle it.
+Conflict policy: fail closed with a distinct exit because no complete merged
+tree exists to evaluate. The diagnostic tells the caller to resolve conflicts
+and rerun the ratchet.
 
 Scratch cleanup: always, on every exit path including exceptions.
 
@@ -39,18 +41,17 @@ Exit codes (AGENTS.md contract):
     1 - regression (at least one count > baseline)
     2 - config error (baseline missing, bad args)
     3 - external error (git, ruff, or taste-lints could not run)
+    100 - merge conflict (ratchets were not evaluated)
 """
 
 from __future__ import annotations
 
 import argparse
-import io
-import shutil
-import subprocess
 import sys
-import tarfile
 import tempfile
-from pathlib import Path, PurePosixPath
+from dataclasses import dataclass
+from enum import Enum, auto
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -58,235 +59,325 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.ci import ruff_count_ratchet as _ruff
-from scripts.ci import taste_count_ratchet as _taste
-from scripts.ci import type_ignore_count_ratchet as _type_ignore
+from scripts.ci.merge_tree_materialization import (
+    init_scratch_repo as _init_scratch_repo,
+)
+from scripts.ci.merge_tree_materialization import materialize_tree as _materialize_tree
+from scripts.ci.merge_tree_materialization import remove_tree as _remove_tree
+from scripts.ci.merge_tree_materialization import run_git as _git
+from scripts.ci.merge_tree_ratchet_registry import RATCHETS
 
 EXIT_OK = 0
 EXIT_REGRESSION = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
+EXIT_CONFLICT = 100
 
 
-def _git(cwd: Path, *argv: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", "-C", str(cwd), *argv],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+class BaselineState(Enum):
+    VALUE = auto()
+    MISSING = auto()
+    MALFORMED = auto()
+    EXTERNAL = auto()
 
 
-def _merge_tree_oid(repo_root: Path, base_ref: str) -> tuple[str | None, bool]:
-    """Return (tree-oid, conflicts). oid is None on git failure."""
-    proc = _git(repo_root, "merge-tree", "--write-tree", base_ref, "HEAD")
+@dataclass(frozen=True, slots=True)
+class BaselineRead:
+    state: BaselineState
+    value: int | None = None
+    diagnostic: str = ""
+
+
+def _remote_branch(base_ref: str) -> str | None:
+    for prefix in ("origin/", "refs/remotes/origin/"):
+        if base_ref.startswith(prefix):
+            branch = base_ref[len(prefix) :]
+            return branch if branch and "/" not in branch else None
+    return None
+
+
+def _refresh_base_ref(repo_root: Path, base_ref: str) -> bool:
+    """Refresh a remote-tracking base before resolving its immutable OID."""
+    branch = _remote_branch(base_ref)
+    if branch is None:
+        return True
+    refspec = f"+refs/heads/{branch}:refs/remotes/origin/{branch}"
+    proc = _git(repo_root, "fetch", "--no-tags", "--quiet", "origin", refspec)
     if proc.returncode == 0:
-        oid = proc.stdout.strip().splitlines()[0] if proc.stdout.strip() else None
-        return oid, False
-    if proc.returncode == 1:
-        # exit 1 means conflicts; stdout still has the partial tree oid on line 1
-        lines = proc.stdout.strip().splitlines()
-        oid = lines[0] if lines else None
-        return oid, True
-    sys.stderr.write(f"git merge-tree failed (rc {proc.returncode}):\n{proc.stderr}\n")
-    return None, False
-
-
-def _is_safe_archive_member(name: str) -> bool:
-    """Return True when a git archive member stays inside the extract root."""
-    path = PurePosixPath(name)
-    return not path.is_absolute() and ".." not in path.parts
-
-
-def _write_archive_member(
-    archive: tarfile.TarFile,
-    member: tarfile.TarInfo,
-    dest: Path,
-) -> bool:
-    """Write one safe git archive member without tarfile.extract* helpers."""
-    if not _is_safe_archive_member(member.name):
-        sys.stderr.write(f"unsafe archive member rejected: {member.name}\n")
-        return False
-
-    target = dest / member.name
-    if member.isdir():
-        target.mkdir(parents=True, exist_ok=True)
         return True
-
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if member.isreg():
-        source = archive.extractfile(member)
-        if source is None:
-            sys.stderr.write(f"archive member unreadable: {member.name}\n")
-            return False
-        with source, target.open("wb") as output:
-            shutil.copyfileobj(source, output)
-        target.chmod(member.mode & 0o777)
-        return True
-
-    if member.issym():
-        if not _is_safe_archive_member(member.linkname):
-            sys.stderr.write(f"unsafe archive symlink rejected: {member.name}\n")
-            return False
-        target.symlink_to(member.linkname)
-        return True
-
-    sys.stderr.write(f"unsupported archive member type: {member.name}\n")
+    detail = _sanitize_diagnostic(proc.stderr) or f"git fetch rc {proc.returncode}"
+    print(
+        f"merge-tree-ratchet: failed to refresh {base_ref}: {detail}",
+        file=sys.stderr,
+    )
     return False
 
 
-def _extract_tree(repo_root: Path, tree_oid: str, dest: Path) -> bool:
-    """Extract git tree into dest. Returns True on success."""
-    dest.mkdir(parents=True, exist_ok=True)
-    archive_proc = subprocess.run(
-        ["git", "-C", str(repo_root), "archive", tree_oid],
-        capture_output=True,
-        check=False,
+def _resolve_base_oid(repo_root: Path, base_ref: str) -> str | None:
+    """Resolve the mutable base ref once, or report why it cannot be pinned."""
+    if not _refresh_base_ref(repo_root, base_ref):
+        return None
+    proc = _git(
+        repo_root,
+        "rev-parse",
+        "--verify",
+        "--end-of-options",
+        f"{base_ref}^{{commit}}",
     )
-    if archive_proc.returncode != 0:
-        sys.stderr.write(
-            f"git archive failed (rc {archive_proc.returncode}):\n"
-            f"{archive_proc.stderr.decode('utf-8', errors='replace')}\n"
-        )
-        return False
-    try:
-        with tarfile.open(fileobj=io.BytesIO(archive_proc.stdout), mode="r|") as archive:
-            for member in archive:
-                if not _write_archive_member(archive, member, dest):
-                    return False
-    except (tarfile.TarError, OSError) as exc:
-        sys.stderr.write(
-            "tarfile extraction failed:\n"
-            f"{exc}\n"
-        )
-        return False
-    return True
+    oid = proc.stdout.strip()
+    if proc.returncode == 0 and oid:
+        return oid
+    sys.stderr.write(
+        f"merge-tree-ratchet: cannot resolve base ref {base_ref!r} to a commit OID.\n"
+        f"{proc.stderr}\n"
+    )
+    return None
 
 
-def _init_scratch_repo(scratch: Path) -> bool:
-    """Init a minimal git repo in scratch so tracked_files() works.
+def _merge_tree_oid(repo_root: Path, base_oid: str) -> tuple[str | None, bool]:
+    """Return (tree-oid, conflicts). oid is None on git failure.
 
-    LEFTHOOK=0 and GIT_CONFIG_NOSYSTEM=1 prevent hooks from firing during the
-    scratch commit. --no-verify skips any other hook system (e.g. husky).
-    Without these guards, git commit triggers the repo's pre-commit lefthook
-    suite, which fails because pyproject.toml in the scratch tree triggers a
-    package build.
+    Every None return writes its own explanation to stderr, so callers must not
+    add a second generic one. Two messages for one failure make the specific
+    diagnosis read like a guess (PR #4567 review).
     """
-    _env = {
-        "HOME": str(Path.home()),
-        "PATH": "/usr/bin:/bin:/usr/local/bin",
-        "LEFTHOOK": "0",
-        "GIT_CONFIG_NOSYSTEM": "1",
-    }
-    for cmd in (
-        ["git", "init", "-q", "-b", "main", str(scratch)],
-        ["git", "-C", str(scratch), "config", "user.email", "ci@example.com"],
-        ["git", "-C", str(scratch), "config", "user.name", "ci"],
-        ["git", "-C", str(scratch), "add", "-A"],
-        ["git", "-C", str(scratch), "commit", "--no-verify", "-qm", "merge-tree snapshot"],
-    ):
-        proc = subprocess.run(cmd, capture_output=True, check=False, env=_env)
-        if proc.returncode != 0:
+    proc = _git(repo_root, "merge-tree", "--write-tree", base_oid, "HEAD")
+    if proc.returncode in (0, 1):
+        # exit 1 means conflicts; stdout still has the partial tree oid on line 1
+        lines = proc.stdout.strip().splitlines()
+        conflicts = proc.returncode == 1
+        if not lines:
             sys.stderr.write(
-                f"git init step failed: {cmd}\n"
-                f"{proc.stderr.decode('utf-8', errors='replace')}\n"
+                f"merge-tree-ratchet: git merge-tree exited {proc.returncode} but wrote\n"
+                "no tree OID, so there is no merged tree to evaluate.\n"
             )
-            return False
-    return True
+            return None, conflicts
+        return lines[0], conflicts
+    sys.stderr.write(f"git merge-tree failed (rc {proc.returncode}):\n{proc.stderr}\n")
+    if "unrelated histories" in proc.stderr:
+        sys.stderr.write(
+            "merge-tree-ratchet: no merge base was reachable. This is a shallow-fetch\n"
+            "regression, not a ratchet breach: a `git fetch --depth=1` writes\n"
+            ".git/shallow and cuts history traversal, so any branch behind the base\n"
+            "aborts here. Fetch the base ref at full depth (issue #4518).\n"
+        )
+    return None, False
 
 
-def _read_baseline_at_ref(repo_root: Path, ref: str, rel_path: str) -> int | None:
-    """Read an integer baseline from a git ref, or None on failure."""
-    proc = _git(repo_root, "show", f"{ref}:{rel_path}")
-    if proc.returncode != 0:
-        return None
+def _sanitize_diagnostic(text: str) -> str:
+    cleaned = " ".join(text.replace("\x00", "").split())
+    return cleaned[:500]
+
+
+def _parse_baseline(text: str) -> BaselineRead:
     try:
-        return int(proc.stdout.strip())
+        return BaselineRead(BaselineState.VALUE, int(text.strip()))
     except ValueError:
+        return BaselineRead(BaselineState.MALFORMED)
+
+
+def _read_baseline_at_ref(
+    repo_root: Path, ref: str, rel_path: str
+) -> BaselineRead:
+    """Read one baseline while distinguishing absence from Git failure."""
+    listed = _git(repo_root, "ls-tree", "--name-only", ref, "--", rel_path)
+    if listed.returncode != 0:
+        detail = _sanitize_diagnostic(listed.stderr) or f"git ls-tree rc {listed.returncode}"
+        return BaselineRead(BaselineState.EXTERNAL, diagnostic=detail)
+    if rel_path not in listed.stdout.splitlines():
+        return BaselineRead(BaselineState.MISSING)
+    shown = _git(repo_root, "show", f"{ref}:{rel_path}")
+    if shown.returncode != 0:
+        detail = _sanitize_diagnostic(shown.stderr) or f"git show rc {shown.returncode}"
+        return BaselineRead(BaselineState.EXTERNAL, diagnostic=detail)
+    return _parse_baseline(shown.stdout)
+
+
+def _read_baseline_in_tree(tree_root: Path, rel_path: str) -> BaselineRead:
+    """Read an integer baseline from a materialized tree.
+
+    The merged tree carries the baseline file the merge would install on the
+    target branch identified by the base ref. Reading it from the materialized
+    snapshot (rather than from either input ref) is what makes the ceiling
+    reflect the post-merge repository.
+    """
+    try:
+        text = (tree_root / rel_path).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return BaselineRead(BaselineState.MISSING)
+    except OSError as exc:
+        return BaselineRead(
+            BaselineState.EXTERNAL,
+            diagnostic=_sanitize_diagnostic(f"{type(exc).__name__}: {exc}"),
+        )
+    return _parse_baseline(text)
+
+
+def _effective_baseline(base_value: int | None, merged_value: int | None) -> int | None:
+    """The ceiling the merged tree must satisfy: the lower of the two.
+
+    Issue #4538. Comparing only against the baseline at the base ref left the
+    gate blind in one direction. A PR that LOWERS a baseline is measured
+    against the base's older, looser number, so the branch can install a
+    ceiling the post-merge tree does not meet. PR #4208 is the worked example:
+    it enabled RUF100 and rewrote the ruff baseline 308 -> 126 in one commit.
+    Its own tree measured exactly 126, but between its base (``ca5deebe8``) and
+    its merge, PR #4448 landed 14 more dead ``noqa`` directives. The merged
+    tree measured 140 and still passed here, because 140 <= the base's 308.
+    main merged red and blocked every unrelated push (issue #4538).
+
+    Taking the minimum closes both directions at once and needs no knowledge of
+    which side moved:
+
+    - The PR lowers the baseline -> the merged (proposed) value wins, so the
+      post-merge tree must actually meet the ceiling it ships.
+    - The PR raises the baseline -> the base value wins, so widening the
+      allowance cannot buy headroom for merged-tree debt.
+    - Neither side moves -> both values agree and the minimum is that value.
+
+    ``None`` propagates: an unreadable baseline on either side is a config
+    error, never a silently skipped check.
+    """
+    if base_value is None or merged_value is None:
         return None
+    return min(base_value, merged_value)
+
+
+def _baseline_failure(
+    label: str, base: BaselineRead, merged: BaselineRead
+) -> tuple[int, str] | None:
+    for source, result in (("base ref", base), ("merged tree", merged)):
+        if result.state is BaselineState.EXTERNAL:
+            return (
+                EXIT_EXTERNAL,
+                f"{label}: EXTERNAL ERROR - {source} baseline read failed: "
+                f"{result.diagnostic}",
+            )
+        if result.state is BaselineState.MALFORMED:
+            return EXIT_CONFIG, f"{label}: CONFIG ERROR - malformed baseline in {source}"
+    if merged.state is BaselineState.MISSING:
+        return EXIT_CONFIG, f"{label}: CONFIG ERROR - baseline missing in merged tree"
+    return None
 
 
 def _check_one(
     label: str,
     count: int | None,
-    baseline: int | None,
+    base: BaselineRead,
+    merged: BaselineRead,
 ) -> tuple[int, str]:
     """Return (exit code, message)."""
     if count is None:
         return EXIT_EXTERNAL, f"{label}: EXTERNAL ERROR - counter returned None"
-    if baseline is None:
-        return EXIT_CONFIG, f"{label}: CONFIG ERROR - baseline at base ref unreadable"
+
+    failure = _baseline_failure(label, base, merged)
+    if failure is not None:
+        return failure
+    assert merged.value is not None
+    if base.state is BaselineState.MISSING:
+        baseline = merged.value
+    else:
+        assert base.value is not None
+        baseline = min(base.value, merged.value)
     if count > baseline:
         return (
             EXIT_REGRESSION,
-            f"{label}: REGRESSION. {count} > baseline {baseline} (+{count - baseline}).",
+            f"{label}: REGRESSION. {count} > effective baseline {baseline} "
+            f"(+{count - baseline}); base ref records {base.value}, "
+            f"merged tree records {merged.value}.",
         )
     return EXIT_OK, f"{label}: OK. {count} <= {baseline}."
 
 
-def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
-    """Extract merged tree, run counters, compare. Returns an EXIT_* code."""
-    tree_oid, conflicts = _merge_tree_oid(repo_root, base_ref)
+def _prepare_merged_tree(
+    repo_root: Path, base_ref: str
+) -> tuple[str | None, str | None, int]:
+    """Pin the base and construct a conflict-free merged tree."""
+    base_oid = _resolve_base_oid(repo_root, base_ref)
+    if base_oid is None:
+        return None, None, EXIT_EXTERNAL
+    tree_oid, conflicts = _merge_tree_oid(repo_root, base_oid)
     if tree_oid is None:
-        sys.stderr.write("merge-tree-ratchet: git merge-tree did not produce a tree OID.\n")
-        return EXIT_EXTERNAL
+        return base_oid, None, EXIT_EXTERNAL
     if conflicts:
-        print(
-            f"merge-tree-ratchet: merge into {base_ref} has conflicts; "
-            "skipping (the PR cannot merge until conflicts are resolved)."
+        sys.stderr.write(
+            f"merge-tree-ratchet: merge has conflicts against {base_ref} "
+            f"({base_oid[:12]}). Ratchets were not evaluated; resolve the conflicts "
+            "and rerun the ratchet.\n"
         )
-        return EXIT_OK
+        return base_oid, tree_oid, EXIT_CONFLICT
+    return base_oid, tree_oid, EXIT_OK
 
-    _ci_rel = "scripts/ci"
-    _baseline_map = {
-        "ruff count ratchet": f"{_ci_rel}/ruff_count_baseline.txt",
-        "taste count ratchet": f"{_ci_rel}/taste_count_baseline.txt",
-        "type-ignore count ratchet": f"{_ci_rel}/type_ignore_count_baseline.txt",
-    }
 
-    scratch_root = Path(tempfile.mkdtemp(prefix="merge-tree-ratchet-"))
-    try:
-        if not _extract_tree(repo_root, tree_oid, scratch_root):
-            return EXIT_EXTERNAL
-        if not _init_scratch_repo(scratch_root):
-            return EXIT_EXTERNAL
-
-        baselines = {
-            label: _read_baseline_at_ref(repo_root, base_ref, rel)
-            for label, rel in _baseline_map.items()
-        }
-        counts = {
-            "ruff count ratchet": _ruff.current_count(scratch_root),
-            "taste count ratchet": _taste.current_count(scratch_root),
-            "type-ignore count ratchet": _type_ignore.current_count(scratch_root),
-        }
-    finally:
-        shutil.rmtree(scratch_root, ignore_errors=True)
-
+def _evaluate_registered_ratchets(
+    repo_root: Path, base_oid: str, scratch_root: Path
+) -> int:
     exit_code = EXIT_OK
-    for label, count in counts.items():
-        code, msg = _check_one(label, count, baselines[label])
+    for ratchet in RATCHETS:
+        base = _read_baseline_at_ref(repo_root, base_oid, ratchet.baseline_path)
+        merged = _read_baseline_in_tree(scratch_root, ratchet.baseline_path)
+        code, msg = _check_one(
+            ratchet.label,
+            ratchet.current_count(scratch_root),
+            base,
+            merged,
+        )
         exit_code = max(exit_code, code)
         if code != EXIT_OK:
             print(f"merge-tree-ratchet: {msg}", file=sys.stderr)
         else:
             print(f"merge-tree-ratchet: {msg}")
+    return exit_code
 
-    if exit_code != EXIT_OK:
+
+def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
+    """Extract merged tree, run counters, compare. Returns an EXIT_* code."""
+    base_oid, tree_oid, preparation_exit = _prepare_merged_tree(repo_root, base_ref)
+    if preparation_exit != EXIT_OK:
+        return preparation_exit
+    assert base_oid is not None and tree_oid is not None
+
+    try:
+        scratch_root = Path(tempfile.mkdtemp(prefix="merge-tree-ratchet-"))
+    except OSError as exc:
+        print(f"scratch creation failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL
+
+    primary_exit = EXIT_EXTERNAL
+    cleanup_error: str | None = None
+    try:
+        if _materialize_tree(repo_root, tree_oid, scratch_root) and _init_scratch_repo(
+            scratch_root
+        ):
+            primary_exit = _evaluate_registered_ratchets(
+                repo_root, base_oid, scratch_root
+            )
+    finally:
+        cleanup_error = _remove_tree(scratch_root, "merge-tree scratch")
+    if cleanup_error:
+        print(cleanup_error, file=sys.stderr)
+        if primary_exit == EXIT_OK:
+            primary_exit = EXIT_EXTERNAL
+    exit_code = primary_exit
+
+    if exit_code == EXIT_REGRESSION:
         print(
             "\nmerge-tree-ratchet: BLOCKED. The merged result breaches a ratchet ceiling.\n"
-            "This means your branch is measured against a stale main, or your changes\n"
-            "genuinely exceed the baseline. Merge or rebase from origin/main and re-check.\n"
-            "If the ceiling is still breached after rebasing, fix the violations.\n"
-            "(See issue #4398 for context.)",
+            f"This means your branch is measured against a stale base ref ({base_ref}), "
+            "or your changes\n"
+            f"genuinely exceed the baseline. Merge or rebase from {base_ref} and re-check.\n"
+            "If the ceiling is still breached after rebasing, fix the violations\n"
+            "rather than raising the baseline: the ceiling here is the LOWER of the\n"
+            "base's baseline and the one this branch would install.\n"
+            "(See issues #4398 and #4538 for context.)",
             file=sys.stderr,
         )
+
+    if exit_code != EXIT_OK:
         return exit_code
 
     print(
-        f"merge-tree-ratchet: OK. Merged tree passes all three ratchets "
+        f"merge-tree-ratchet: OK. Merged tree passes all registered ratchets "
         f"(base: {base_ref})."
     )
     return EXIT_OK
@@ -295,7 +386,7 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Evaluate all three count ratchets on the result of merging HEAD into "
+            "Evaluate registered count ratchets on the result of merging HEAD into "
             "base-ref. Closes the stale-branch hole (issue #4398)."
         )
     )

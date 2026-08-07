@@ -1,18 +1,18 @@
 """Run the pre-push count ratchets inside the pre-PR gate (issue #4251).
 
 AGENTS.md names one pre-PR gate, ``scripts/validation/pre_pr.py``. Before this
-module existed that gate ran none of the four count ratchets; they ran only at
+module existed that gate ran none of the count ratchets; they ran only at
 ``pre-push``, in the same lefthook group as the full Python test suite. A
 contributor whose change raised a ratchet count therefore saw ``pre_pr.py``
 pass, pushed, and learned about a 0.21 second failure 674 seconds later.
 
-The four ratchets together finish in about three seconds, so the entire signal
+The ratchets together finish in about three seconds, so the entire signal
 is available long before the suite starts. Running them here converts that
 674 second round trip into a local three second one.
 
 Command shape is copied from ``lefthook.yml``'s ``*-ratchet`` jobs rather than
 reinvented, and ``tests/ci/test_pre_pr_runs_lefthook_ratchets.py`` asserts the
-two stay identical. Adding a fifth ratchet to ``lefthook.yml`` without adding
+two stay identical. Adding a ratchet to ``lefthook.yml`` without adding
 it here fails that test, which is the drift this module exists to prevent.
 """
 
@@ -67,6 +67,24 @@ RATCHETS: tuple[Ratchet, ...] = (
         True,
     ),
     Ratchet(
+        "memory-index-count-ratchet",
+        "scripts/ci/memory_index_count_ratchet.py",
+        False,
+        True,
+    ),
+    Ratchet(
+        "memory-index-token-ratchet",
+        "scripts/ci/memory_index_token_ratchet.py",
+        False,
+        False,
+    ),
+    Ratchet(
+        "cli-exit-contract-ratchet",
+        "scripts/ci/cli_exit_contract_ratchet.py",
+        False,
+        True,
+    ),
+    Ratchet(
         "merge-tree-ratchet",
         "scripts/ci/merge_tree_ratchet_check.py",
         True,
@@ -102,6 +120,72 @@ def _print_output(label: str, stdout: str, stderr: str) -> None:
         print(f"  {line}")
 
 
+def _resolve_base_oid(repo_root: Path, base_ref: str) -> str | None:
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            f"{base_ref}^{{commit}}",
+        ],
+        timeout=10,
+    )
+    oid = str(stdout).strip()
+    if exit_code == 0 and oid:
+        return oid
+    detail = stderr.strip() or f"git rev-parse exit {exit_code}"
+    print(f"[ERROR] count ratchets: cannot pin {base_ref}: {detail}", file=sys.stderr)
+    return None
+
+
+def _normalize_remote_head(repo_root: Path, base_ref: str) -> str | None:
+    if base_ref != "refs/remotes/origin/HEAD":
+        return base_ref
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "symbolic-ref",
+            "--short",
+            base_ref,
+        ],
+        timeout=10,
+    )
+    resolved = str(stdout).strip()
+    if exit_code == 0 and resolved.startswith("origin/"):
+        return resolved
+    detail = str(stderr).strip() or f"git symbolic-ref exit {exit_code}"
+    print(f"[ERROR] count ratchets: cannot resolve remote HEAD: {detail}", file=sys.stderr)
+    return None
+
+
+def _prepare_base_oid(repo_root: Path) -> str | None:
+    base_ref = _resolve_default_base_ref(repo_root)
+    if not base_ref:
+        print(
+            "[ERROR] count ratchets: base ref could not be resolved; refusing "
+            "to invoke a ratchet without an explicit --base-ref.",
+            file=sys.stderr,
+        )
+        return None
+    base_ref = _normalize_remote_head(repo_root, base_ref)
+    if base_ref is None:
+        return None
+    fetch_result = _refresh_remote_base(base_ref, repo_root)
+    if fetch_result:
+        print(
+            f"[ERROR] count ratchets: could not refresh {base_ref} "
+            f"({fetch_result}); refusing to evaluate a stale base.",
+            file=sys.stderr,
+        )
+        return None
+    return _resolve_base_oid(repo_root, base_ref)
+
+
 def validate_count_ratchets(repo_root: Path) -> bool:
     """Run every ratchet in :data:`RATCHETS`; return True when all pass.
 
@@ -129,28 +213,13 @@ def validate_count_ratchets(repo_root: Path) -> bool:
             )
         return False
 
-    base_ref = _resolve_default_base_ref(repo_root)
-    if not base_ref:
-        print(
-            "[ERROR] count ratchets: base ref could not be resolved; refusing "
-            "to invoke a ratchet without an explicit --base-ref.",
-            file=sys.stderr,
-        )
+    base_oid = _prepare_base_oid(repo_root)
+    if base_oid is None:
         return False
-
-    # Issue #2453: a stale local origin/<branch> lets a ratchet compare against
-    # an old baseline and false-PASS. Best-effort; a failed fetch warns only.
-    fetch_result = _refresh_remote_base(base_ref, repo_root)
-    if fetch_result:
-        print(
-            f"[WARN] count ratchets: could not refresh {base_ref} "
-            f"({fetch_result}); continuing with the local ref.",
-            file=sys.stderr,
-        )
 
     failures: list[str] = []
     for ratchet in RATCHETS:
-        cmd = build_command(ratchet, base_ref)
+        cmd = build_command(ratchet, base_oid)
         exit_code, stdout, stderr = _run_subprocess(cmd, cwd=repo_root)
         if exit_code != 0:
             failures.append(ratchet.job_name)

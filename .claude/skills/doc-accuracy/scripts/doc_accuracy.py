@@ -355,7 +355,7 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     """Get files changed since diff_base."""
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only", "--", diff_base],
+            ["git", "diff", "--name-only", diff_base, "--"],
             capture_output=True,
             text=True,
             check=True,
@@ -385,6 +385,12 @@ def run_assessment(
         for p in repo_root.glob(glob_pattern):
             if p.is_file() and not _should_exclude(p, repo_root):
                 doc_files_set.add(p)
+
+    if changed_files is not None:
+        doc_files_set = {
+            p for p in doc_files_set
+            if str(p.relative_to(repo_root)) in changed_files
+        }
 
     # Enumerate source files
     source_files: dict[str, str] = {}  # path -> content
@@ -469,7 +475,7 @@ def run_assessment(
             "documented_symbols": documented_count,
             "coverage_pct": round(coverage_pct, 1),
         },
-        "changed_files": sorted(changed_files) if changed_files else None,
+        "changed_files": sorted(changed_files) if changed_files is not None else None,
     }
 
 

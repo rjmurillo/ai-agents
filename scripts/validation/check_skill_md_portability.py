@@ -77,6 +77,18 @@ from scripts.utils.markdown_parser import (
     MarkdownNestingError,
     blank_code_block_lines,
 )
+from scripts.validation.check_skill_md_drift import (
+    _load_drift_baseline,
+)
+from scripts.validation.check_skill_md_drift import (
+    drift_counts_from_failures as _drift_counts_from_failures,
+)
+from scripts.validation.check_skill_md_drift import (
+    marker_path_drift as _drift_marker_path_drift,
+)
+from scripts.validation.check_skill_md_drift import (
+    report_drift_ratchet as _report_drift_ratchet,
+)
 from scripts.validation.portability_common import (
     build_portability_parser,
     refuse_unsafe_baseline_write,
@@ -344,6 +356,29 @@ def count_marker_suppressed_refs(text: str) -> int:
     return count_upstream_refs(text_without_markers)
 
 
+# ---------------------------------------------------------------------------
+# Marker path-drift detection (issue #4116)
+# ---------------------------------------------------------------------------
+
+def marker_declared_paths(text: str) -> set[str]:
+    """Extract upstream paths declared inside the vendor-portability marker."""
+    from scripts.validation.check_skill_md_drift import marker_declared_paths as _mdp
+    return _mdp(text, _strip_code, _strip_inline_code)
+
+
+def prose_declared_paths(text: str) -> set[str]:
+    """Extract upstream paths from prose with marker and HTML comments removed."""
+    from scripts.validation.check_skill_md_drift import prose_declared_paths as _pdp
+    return _pdp(text, _strip_code, _strip_inline_code)
+
+
+def marker_path_drift(text: str, repo_root: Path, rel_path: str) -> list[str]:
+    """Delegate to check_skill_md_drift module (issue #4116)."""
+    return _drift_marker_path_drift(
+        text, repo_root, rel_path, _strip_code, _strip_inline_code
+    )
+
+
 class MarkdownScan(NamedTuple):
     """Result of scanning the skill tree for upstream path references.
 
@@ -412,8 +447,28 @@ def skills_dirs(root: Path) -> list[Path]:
     Absent roots are skipped rather than reported. ``src/claude`` ships agents
     and rules but has no skills tree, and a root that grows one later is picked
     up without touching this list.
+
+    Roots whose ``skills/`` directory is a symlink pointing outside the
+    repository are refused with exit 2 (configuration error). A symlinked root
+    scans files git does not track, so coverage checks can be satisfied by
+    content that no consumer will receive.
     """
-    return [root / name / "skills" for name in PLUGIN_ROOTS if (root / name / "skills").is_dir()]
+    repo_resolved = root.resolve()
+    result = []
+    for name in PLUGIN_ROOTS:
+        candidate = root / name / "skills"
+        if not candidate.is_dir():
+            continue
+        resolved = candidate.resolve()
+        if not resolved.is_relative_to(repo_resolved):
+            raise OSError(
+                f"Scan root {candidate} resolves to {resolved}, "
+                "which is outside the repository. "
+                "A symlinked scan root scans files git does not track. "
+                "Remove the symlink or redirect it inside the repository."
+            )
+        result.append(candidate)
+    return result
 
 
 def extra_scan_dirs(root: Path) -> list[Path]:
@@ -429,8 +484,26 @@ def extra_scan_dirs(root: Path) -> list[Path]:
 
     Absent directories are skipped: a checkout that does not have
     ``.claude/commands`` is not broken, it may just be a minimal clone.
+
+    Directories symlinked outside the repository are refused for the same
+    reason as plugin roots (see ``skills_dirs``).
     """
-    return [root / name for name in EXTRA_SCAN_ROOTS if (root / name).is_dir()]
+    repo_resolved = root.resolve()
+    result = []
+    for name in EXTRA_SCAN_ROOTS:
+        candidate = root / name
+        if not candidate.is_dir():
+            continue
+        resolved = candidate.resolve()
+        if not resolved.is_relative_to(repo_resolved):
+            raise OSError(
+                f"Extra scan dir {candidate} resolves to {resolved}, "
+                "which is outside the repository. "
+                "A symlinked scan dir scans files git does not track. "
+                "Remove the symlink or redirect it inside the repository."
+            )
+        result.append(candidate)
+    return result
 
 
 def missing_required_roots(root: Path) -> list[str]:
@@ -448,29 +521,91 @@ def missing_required_roots(root: Path) -> list[str]:
     ]
 
 
-def scan_plugin_roots(root: Path) -> dict[str, int]:
-    """Return {repo_relative_posix_path: count} across every plugin root and extra dirs.
+def scan_all(
+    root: Path,
+    *,
+    check_drift: bool = False,
+) -> tuple[dict[str, int], dict[str, int], dict[str, int], list[str]]:
+    """Scan all skill Markdown files in one traversal.
 
-    Keys are relative to the repository root rather than to the skills dir's
-    parent. Both roots hold a ``skills/spec/SKILL.md``, so the parent-relative
-    key that a single-root scan could use collides the moment a second root is
-    read, and one root's count would silently overwrite the other's.
+    Returns (ref_counts, marker_counts, files_by_root, drift_failures). A
+    single walk ensures the coverage decision and the baseline contents come
+    from the same snapshot, so a concurrent tree mutation cannot produce a short
+    baseline that passes the coverage check (issue #4211).
 
-    Extra dirs (``EXTRA_SCAN_ROOTS``) are scanned after the plugin roots. They
-    are flat source trees that are not under any plugin-root ``skills/``
-    subtree. ``.claude/commands`` mirrors into the scanned
-    ``src/copilot-cli/skills`` tree; ``templates/agents`` mirrors into
-    ``src/copilot-cli/agents``, which this validator deliberately does not
-    scan (issue #3646).
+    When check_drift is True, files with a vendor-portability marker are also
+    checked for path drift (issue #4116). drift_failures is empty otherwise.
+
+    Keys in ref_counts and marker_counts are repo-relative posix paths. Keys in
+    files_by_root are the posix path of the ``skills/`` dir relative to root,
+    covering plugin roots only (not extra scan dirs); coverage-check semantics
+    are preserved from the original ``scanned_markdown_by_root``.
     """
-    counts: dict[str, int] = {}
-    for skills_dir in skills_dirs(root):
-        for rel, n in scan_skill_markdown(skills_dir).counts.items():
-            counts[(skills_dir.parent.relative_to(root) / rel).as_posix()] = n
-    for extra_dir in extra_scan_dirs(root):
-        for rel, n in scan_skill_markdown(extra_dir).counts.items():
-            counts[(extra_dir.parent.relative_to(root) / rel).as_posix()] = n
-    return counts
+    ref_counts: dict[str, int] = {}
+    marker_counts: dict[str, int] = {}
+    files_by_root: dict[str, int] = {}
+    drift_failures: list[str] = []
+
+    plugin_dirs = skills_dirs(root)
+    extra_dirs = extra_scan_dirs(root)
+
+    def _process_file(text: str, rel_key: str) -> None:
+        n_refs = count_file_refs(text)
+        if n_refs > 0:
+            ref_counts[rel_key] = n_refs
+        n_marker = count_marker_suppressed_refs(text)
+        if n_marker > 0:
+            marker_counts[rel_key] = n_marker
+        if check_drift and has_portability_marker(text):
+            drift_failures.extend(marker_path_drift(text, root, rel_key))
+
+    for scan_dir in plugin_dirs:
+        rel_parent = scan_dir.parent.relative_to(root)
+        root_key = (rel_parent / scan_dir.name).as_posix()
+        scanned = 0
+        for dirpath, dirnames, filenames in os.walk(scan_dir, onerror=_reraise_os_error):
+            dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
+            directory = Path(dirpath)
+            for fname in sorted(filenames):
+                path = directory / fname
+                if path.suffix != MARKDOWN_SUFFIX:
+                    continue
+                if path.is_symlink() and not path.exists():
+                    raise OSError(f"Broken .md symlink (configuration error): {path}")
+                try:
+                    text = path.read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError) as exc:
+                    raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
+                scanned += 1
+                rel_key = (rel_parent / path.relative_to(scan_dir.parent)).as_posix()
+                _process_file(text, rel_key)
+        files_by_root[root_key] = scanned
+
+    for extra_dir in extra_dirs:
+        rel_parent = extra_dir.parent.relative_to(root)
+        for dirpath, dirnames, filenames in os.walk(extra_dir, onerror=_reraise_os_error):
+            dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
+            directory = Path(dirpath)
+            for fname in sorted(filenames):
+                path = directory / fname
+                if path.suffix != MARKDOWN_SUFFIX:
+                    continue
+                if path.is_symlink() and not path.exists():
+                    raise OSError(f"Broken .md symlink (configuration error): {path}")
+                try:
+                    text = path.read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError) as exc:
+                    raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
+                rel_key = (rel_parent / path.relative_to(extra_dir.parent)).as_posix()
+                _process_file(text, rel_key)
+
+    return ref_counts, marker_counts, files_by_root, drift_failures
+
+
+def scan_plugin_roots(root: Path) -> dict[str, int]:
+    """Return {repo_relative_posix_path: ref_count} across every plugin root and extra dirs."""
+    ref_counts, _, _, _ = scan_all(root)
+    return ref_counts
 
 
 def scanned_markdown_by_root(root: Path) -> dict[str, int]:
@@ -480,35 +615,14 @@ def scanned_markdown_by_root(root: Path) -> dict[str, int]:
     another root keeps positive, so a partial checkout would write a baseline
     dropping every file the unread root owned.
     """
-    return {
-        skills_dir.relative_to(root).as_posix(): scan_skill_markdown(skills_dir).scanned
-        for skills_dir in skills_dirs(root)
-    }
+    _, _, files_by_root, _ = scan_all(root)
+    return files_by_root
 
 
 def scan_marker_suppressions(root: Path) -> dict[str, int]:
-    """Return marker-suppressed reference counts across every plugin root."""
-    counts: dict[str, int] = {}
-    for skills_dir in skills_dirs(root):
-        base = skills_dir.parent
-        for dirpath, dirnames, filenames in os.walk(skills_dir, onerror=_reraise_os_error):
-            dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
-            directory = Path(dirpath)
-            for name in sorted(filenames):
-                path = directory / name
-                if path.suffix != MARKDOWN_SUFFIX:
-                    continue
-                if path.is_symlink() and not path.exists():
-                    raise OSError(f"Broken .md symlink (configuration error): {path}")
-                try:
-                    text = path.read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError) as exc:
-                    raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
-                n = count_marker_suppressed_refs(text)
-                if n > 0:
-                    rel = skills_dir.parent.relative_to(root) / path.relative_to(base)
-                    counts[rel.as_posix()] = n
-    return counts
+    """Return marker-suppressed reference counts across plugin roots and extra scan dirs."""
+    _, marker_counts, _, _ = scan_all(root)
+    return marker_counts
 
 
 def _reraise_os_error(error: OSError) -> None:
@@ -846,12 +960,14 @@ def _report_semantic_conflict(
 
 def _scan_current_counts(
     root: Path,
-) -> tuple[dict[str, int], dict[str, int], dict[str, int]] | None:
-    """Return current counts and scan coverage, or None after reporting a scan error."""
+    *,
+    check_drift: bool = False,
+) -> tuple[dict[str, int], dict[str, int], dict[str, int], list[str]] | None:
+    """Return current counts, coverage, and drift failures, or None on error."""
     try:
-        current = scan_plugin_roots(root)
-        marker_current = scan_marker_suppressions(root)
-        scanned_by_root = scanned_markdown_by_root(root)
+        current, marker_current, scanned_by_root, drift = scan_all(
+            root, check_drift=check_drift
+        )
     except (OSError, MarkdownNestingError) as exc:
         print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
         return None
@@ -861,7 +977,7 @@ def _scan_current_counts(
             file=sys.stderr,
         )
         return None
-    return current, marker_current, scanned_by_root
+    return current, marker_current, scanned_by_root, drift
 
 
 def _resolve_root(repo_root: Path | None) -> Path:
@@ -907,7 +1023,6 @@ def diff_marker_baseline(
                 f"(baseline {allowed}). Update the marker or regenerate the marker baseline."
             )
     return regressions, []
-
 
 
 def _refuse_marker_files_growth(
@@ -957,37 +1072,51 @@ def _write_baseline(
     current: dict[str, int],
     marker_current: dict[str, int],
     allow_shrink: bool,
+    drift_current: dict[str, int] | None = None,
 ) -> int:
     total = sum(current.values())
     marker_total = sum(marker_current.values())
     entries = dict(sorted(current.items()))
     marker_entries = dict(sorted(marker_current.items()))
+    drift_entries = dict(sorted((drift_current or {}).items()))
+    payload: dict[str, Any] = {
+        "_comment": (
+                "Vendor-portability ratchet baseline for skill Markdown "
+                "(issue #2050). The files object counts undeclared "
+                "upstream-only path references per Markdown file. The "
+                "marker_files object records refs suppressed by "
+                "'<!-- vendor-portability: ... -->' markers so stale "
+                "declarations do not stay green forever. The drift_files "
+                "object records marker path-drift findings per file "
+                "(issue #4116). Generated by "
+                "check_skill_md_portability.py --update-baseline. Lower "
+                "values in files are better; marker_files values must stay exact."
+            ),
+        "files": entries,
+        "marker_files": marker_entries,
+    }
+    countable: dict[str, dict[str, int]] = {
+        "files": entries,
+        "marker_files": marker_entries,
+    }
+    if drift_entries:
+        payload["drift_files"] = drift_entries
+        countable["drift_files"] = drift_entries
     rc = write_baseline_json(
         root,
         baseline_path,
-        {
-            "_comment": (
-                    "Vendor-portability ratchet baseline for skill Markdown "
-                    "(issue #2050). The files object counts undeclared "
-                    "upstream-only path references per Markdown file. The "
-                    "marker_files object records refs suppressed by "
-                    "'<!-- vendor-portability: ... -->' markers so stale "
-                    "declarations do not stay green forever. Generated by "
-                    "check_skill_md_portability.py --update-baseline. Lower "
-                    "values in files are better; marker_files values must stay exact."
-                ),
-            "files": entries,
-            "marker_files": marker_entries,
-        },
-        {"files": entries, "marker_files": marker_entries},
+        payload,
+        countable,
         "skill .md files",
         allow_shrink,
     )
     if rc:
         return rc
+    drift_total = sum(drift_entries.values())
     print(
         f"Baseline written: {len(current)} files, {total} refs; "
-        f"{len(marker_current)} marker files, {marker_total} suppressed refs."
+        f"{len(marker_current)} marker files, {marker_total} suppressed refs; "
+        f"{len(drift_entries)} drift files, {drift_total} drift findings."
     )
     return 0
 
@@ -1046,13 +1175,21 @@ def _run_update_baseline(
     current: dict[str, int],
     marker_current: dict[str, int],
     scanned_by_root: dict[str, int],
+    drift_current: dict[str, int] | None = None,
 ) -> int:
     """Execute the --update-baseline path and return an exit code."""
     if refuse_unsafe_baseline_write(
         root,
         scanned_by_root,
         baseline_path,
-        {"files": current, "marker_files": marker_current},
+        # drift_files must be present or the guard compares the recorded
+        # section against a missing one and reports every entry as dropped, so
+        # --update-baseline could never succeed once drift was recorded.
+        {
+            "files": current,
+            "marker_files": marker_current,
+            "drift_files": drift_current or {},
+        },
         "skill .md files",
         args.allow_baseline_shrink,
     ):
@@ -1064,7 +1201,10 @@ def _run_update_baseline(
         allow_marker_grow=args.allow_marker_grow,
     ):
         return 2
-    return _write_baseline(root, baseline_path, current, marker_current, args.allow_baseline_shrink)
+    return _write_baseline(
+        root, baseline_path, current, marker_current,
+        args.allow_baseline_shrink, drift_current,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1080,14 +1220,16 @@ def main(argv: list[str] | None = None) -> int:
     if baseline_path is None:
         return 2
 
-    counts = _scan_current_counts(root)
+    counts = _scan_current_counts(root, check_drift=True)
     if counts is None:
         return 2
-    current, marker_current, scanned_by_root = counts
+    current, marker_current, scanned_by_root, drift_failures = counts
+    drift_current = _drift_counts_from_failures(drift_failures)
 
     if args.update_baseline:
         return _run_update_baseline(
-            args, root, baseline_path, current, marker_current, scanned_by_root
+            args, root, baseline_path, current, marker_current,
+            scanned_by_root, drift_current,
         )
 
     if args.base_ref:
@@ -1108,6 +1250,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         baseline = _load_baseline(baseline_path)
         marker_baseline = _load_marker_baseline(baseline_path)
+        drift_baseline = _load_drift_baseline(baseline_path)
     except (OSError, ValueError) as exc:
         print(f"Could not read baseline {baseline_path}: {exc}", file=sys.stderr)
         return 2
@@ -1116,6 +1259,14 @@ def main(argv: list[str] | None = None) -> int:
     marker_regressions, marker_improvements = diff_marker_baseline(marker_current, marker_baseline)
     regressions.extend(marker_regressions)
     improvements.extend(marker_improvements)
+
+    # Marker path-drift ratchet (issue #4116)
+    drift_regressions, drift_improvements = _report_drift_ratchet(
+        drift_current, drift_baseline
+    )
+    regressions.extend(drift_regressions)
+    improvements.extend(drift_improvements)
+
     _report(
         regressions=regressions,
         improvements=improvements,

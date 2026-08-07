@@ -33,18 +33,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 MAIN_GUARD = '__name__ == "__main__"'
 
-# Entry points that still fail in script mode. Each is latent: no workflow or
-# hook invokes it by path, so nothing is broken today. They are recorded rather
-# than fixed because `check_doc_interpreter_portability.py` sits exactly at the
-# 500-line ceiling and `pre_pr.py` fails only through its flat import of that
-# module. Fixing either belongs with #4210, not with a red-main hotfix.
-KNOWN_UNPORTABLE = frozenset(
-    {
-        "check_doc_interpreter_portability.py",
-        "pre_pr.py",
-    }
-)
-
 # Reproduce a bare `python3 <script>` interpreter: repository root absent from
 # `sys.path`, editable-install finders removed, script directory present.
 # `run_name` is deliberately not `__main__` so module-level imports run without
@@ -92,10 +80,7 @@ def test_the_scan_finds_entry_points() -> None:
 
 @pytest.mark.parametrize("script", _entry_points(), ids=_entry_point_ids())
 def test_entry_point_imports_without_the_repo_root_on_sys_path(script: Path) -> None:
-    """Every entry point outside the recorded set imports in script mode."""
-    if script.name in KNOWN_UNPORTABLE:
-        pytest.skip(f"{script.name} is a recorded latent offender (#4210)")
-
+    """Every entry point imports in script mode."""
     result = _import_as_script(script, REPO_ROOT)
 
     assert result.returncode == 0, (
@@ -103,24 +88,6 @@ def test_entry_point_imports_without_the_repo_root_on_sys_path(script: Path) -> 
         "Add the repository root to sys.path before the import, as "
         "scripts/validation/check_model_pins.py does.\n"
         f"stderr:\n{result.stderr}"
-    )
-
-
-@pytest.mark.parametrize("name", sorted(KNOWN_UNPORTABLE))
-def test_recorded_offender_still_exists_and_still_fails(name: str) -> None:
-    """Stop the recorded set from outliving its cause.
-
-    A stale entry would silently exempt a file that someone had already fixed,
-    so a later regression in it would never be reported.
-    """
-    script = VALIDATION_DIR / name
-    assert script.exists(), f"{name} is recorded as unportable but no longer exists"
-
-    result = _import_as_script(script, REPO_ROOT)
-
-    assert result.returncode != 0, (
-        f"{name} now imports in script mode. Remove it from KNOWN_UNPORTABLE "
-        "so the entry point is covered from here on."
     )
 
 
