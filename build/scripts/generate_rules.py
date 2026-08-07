@@ -26,13 +26,19 @@ Per-rule logic (Round 3 amendment, 2026-04-29):
    - preserve ``description:`` and other unrelated keys
    - if neither ``paths:`` nor ``applyTo:`` is declared, synthesize
      ``applyTo: "**"`` (universal scope, the default for unscoped rules)
+   - if a scope was declared but every glob is filtered as internal-only
+     for this destination, skip the rule and prune any artifact a prior
+     run emitted (issue #4317)
    - body unchanged
 3. NO-REGEN sentinel honored on the target file.
 
 The Round 2 severity-gate (high/medium/low + governance-keyword scan +
 conditional skip) was removed. Rationale: rules are universal across
 Claude and Copilot; there is no use case for Claude-only or Copilot-only
-rules. A rule exists in ``.claude/rules/`` → it ships.
+rules. Destination still matters, though: a rule scoped entirely to
+internal paths ships only where ``keepInternalGlobsFor`` names the
+destination, so the plugin tree carries fewer files than
+``.github/instructions``.
 
 EXIT CODES:
   0 - success
