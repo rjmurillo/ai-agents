@@ -57,6 +57,10 @@ class TestMirrorSourceMapping:
             ),
             ("src/copilot-cli/skills/review/SKILL.md", ".claude/skills/review/SKILL.md"),
             ("src/copilot-cli/hooks/hooks.json", ".claude/hooks/hooks.json"),
+            (
+                ".github/prompts/pr-quality-gate-security.md",
+                ".claude/skills/review/references/security.md",
+            ),
         ],
     )
     def test_known_mirrors_resolve_to_their_source(
@@ -112,18 +116,20 @@ class TestGeneratedExemption:
         for path in ("scripts/thing.py", "tests/test_thing.py", "docs/guide.md"):
             assert not _is_generated(path, root), path
 
-    @pytest.mark.parametrize(
-        ("path", "expected"),
-        [
-            (".github/prompts/pr-quality-gate-security.md", True),
-            (".github/prompts/security.md", False),
-        ],
-    )
-    def test_pr_quality_gate_prompt_glob_matches_only_generated_prompts(
-        self, tmp_path: Path, path: str, expected: bool
+    def test_pr_quality_gate_prompt_with_source_is_exempt(
+        self, tmp_path: Path
+    ) -> None:
+        root = _make_repo(
+            tmp_path, (".claude/skills/review/references/security.md",)
+        )
+        assert _is_generated(".github/prompts/pr-quality-gate-security.md", root)
+
+    def test_pr_quality_gate_prompt_without_source_still_counts(
+        self, tmp_path: Path
     ) -> None:
         root = _make_repo(tmp_path, ())
-        assert _is_generated(path, root) is expected
+        assert not _is_generated(".github/prompts/pr-quality-gate-invented.md", root)
+        assert not _is_generated(".github/prompts/security.md", root)
 
 
 class TestFiveToSixBoundary:

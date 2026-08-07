@@ -479,6 +479,11 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     ("src/copilot-cli/lib/", ".claude/lib/", None),
     ("src/copilot-cli/skills/", ".claude/skills/", None),
     ("src/copilot-cli/hooks/", ".claude/hooks/", None),
+    (
+        ".github/prompts/pr-quality-gate-",
+        ".claude/skills/review/references/",
+        None,
+    ),
 )
 
 # Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
@@ -2178,7 +2183,9 @@ def _is_generated(relative_path: str, repo_root: Path | None = None) -> bool:
     for entries in GENERATED_PATHS.values():
         if relative_path in entries:
             return True
-    for globs in GENERATED_GLOBS.values():
+    for kind, globs in GENERATED_GLOBS.items():
+        if kind == "prompts":
+            continue
         if any(_matches_generated_glob(relative_path, pat) for pat in globs):
             return True
     source = _mirror_source(relative_path)
