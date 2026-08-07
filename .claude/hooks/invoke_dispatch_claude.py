@@ -49,11 +49,24 @@ try:
     from claude_hook_dispatch import BLOCK_EXIT, run_group, validate_group
 except (Exception, SystemExit) as exc:
     if __name__ == "__main__":
+        # Exit 0, not 2. Claude reads a nonzero PreToolUse exit as a denial, so
+        # exiting 2 here turned a missing or broken lib directory into a denial
+        # of every tool call: the customer-wide failure this plugin was
+        # uninstalled over three times. The launcher guards the plugin root and
+        # the dispatcher file but cannot check lib, so this is the only place
+        # that failure can be caught. Every other infrastructure path in the
+        # dispatcher already degrades; this one contradicted them.
+        #
+        # A load failure is not a policy decision, because no policy ran.
+        # Failures after the machinery loads still deny. Refs #4672.
         print(
-            f"claude-hook-dispatch: entrypoint initialization failed: {type(exc).__name__}: {exc}",
+            "project-toolkit@ai-agents WARNING: hooks DISABLED "
+            "(your session is unaffected). "
+            f"{type(exc).__name__}: {exc}. "
+            "Reinstall: /install-plugin rjmurillo/ai-agents",
             file=sys.stderr,
         )
-        raise SystemExit(2) from None
+        raise SystemExit(0) from None
     raise
 
 _MANIFEST_NAME = "dispatch_groups.json"

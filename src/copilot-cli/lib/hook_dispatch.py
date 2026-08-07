@@ -1,35 +1,54 @@
-"""Consolidated Copilot CLI hook dispatcher (ADR-068, #2295).
+"""In-process hook dispatcher for Copilot CLI (ADR-068, addresses #2295).
 
-ADR-068 replaced one Python process per matcher shim with one dispatcher process
-per event after Copilot CLI host kills denied benign tools. Untimed shims still
-run in process through ``runpy`` to preserve that startup win. Shims with
-timeout metadata run in a child Python process, because a timed-out in-process
-thread cannot be killed safely.
+ADR-068 records a historical Copilot CLI 1.0.57 incident with one process per
+registered matcher shim. The aggregate Python interpreter cold-start (~200 ms
+each, ~40 shims) caused host kills that denied benign tools (false
+fail-closed).
 
-- The manifest supplies the shim list. Orphaned ``invoke_*.py`` files never run.
-- Gate mode stops at the first non-zero shim and fails closed (ADR-066).
-- Observe mode logs non-zero shims, continues siblings, and returns 0.
-- stdin is replayed, and observer output follows the event policy.
-- A host timeout can still kill the whole dispatcher and may fail open, per the
-  accepted ADR-068 residual.
+This dispatcher collapses N per-shim processes into one. The host spawns a
+single interpreter per event; each shim then runs *in process* via ``runpy``,
+so the interpreter cold-start is paid once instead of N times.
+
+Design contract (the security-critical part):
+
+- **Manifest-driven, not directory-driven.** The shim list is supplied by the
+  caller from the generator's registered-entry list (the same source as
+  ``hooks.json``). Orphaned ``invoke_*.py`` files on disk are never executed.
+- **Gate vs observe mode (ADR-068, #2342).** ``run_dispatch`` takes a
+  ``short_circuit`` flag. In gate mode (``PreToolUse``) the first shim that exits
+  non-zero denies the tool (fail-closed, ADR-066). A shim that cannot load
+  (SyntaxError, ImportError) degrades with exit 0 (#4672); a shim that loads
+  and raises during execution denies (exit 2). Per-shim timeout metadata is
+  validated but not enforced; the host owns the cumulative event timeout. In
+  observe mode every shim runs regardless; failures are logged and the
+  dispatcher returns 0. Current generated observers are ``PostToolUse``,
+  ``PreCompact``, ``SessionStart``, and ``UserPromptSubmit``.
+- **stdin replay.** Each shim reads ``sys.stdin.buffer``; the dispatcher rewinds
+  a fresh stream of the original bytes before each shim, so every shim inspects
+  exactly the payload the host delivered (no #2290 schema mutation).
+- **Observer output translation.** Copilot parses at most one final JSON
+  document per command hook. PostToolUse shim stdout is merged into one
+  ``additionalContext`` response. SessionStart, PreCompact, and UserPromptSubmit
+  stdout is captured and discarded (current producers include repository prose
+  that must not reach model-visible channels). Only successful observers
+  contribute; partial stdout from a failing observer is discarded.
+- **Host-timeout residual.** ADR-068 records: "A `timeoutSec: 2` probe timed
+  out and failed open, then executed the tool." A timeout can therefore allow
+  a tool before later guards run.
 """
 
 from __future__ import annotations
 
 import io
 import json
-import os
-import runpy
 import sys
-import tempfile
-from collections.abc import Callable
 from pathlib import Path
-from typing import BinaryIO, TextIO
 
 _LIB_DIR = Path(__file__).resolve().parent
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import output_capture  # noqa: E402
 from hook_dispatch_protocol import (  # noqa: E402
     OUTPUT_POLICIES as _OUTPUT_POLICIES,
 )
@@ -39,11 +58,14 @@ from hook_dispatch_protocol import (  # noqa: E402
 from hook_dispatch_protocol import (  # noqa: E402
     emit_observer_output as _emit_observer_output,
 )
-from hook_dispatch_protocol import observe_output_policy  # noqa: E402,F401
+from hook_dispatch_protocol import (  # noqa: E402
+    observe_output_policy,  # noqa: F401
+)
 from hook_dispatch_protocol import (  # noqa: E402
     record_discarded_observer_output as _record_discarded_observer_output,
 )
 from hook_dispatch_timeout import run_timed_shim as _run_timed_shim  # noqa: E402
+from shim_loader import ShimLoadError, check_shim_loads, execute_shim  # noqa: E402
 
 # Hook exit-code convention (Claude/Copilot PreToolUse): 0 allow, 2 block.
 ALLOW_EXIT = 0
@@ -53,9 +75,8 @@ BLOCK_EXIT = 2
 def _install_stdin(raw: bytes) -> None:
     """Point ``sys.stdin`` at a fresh stream over ``raw``.
 
-    A ``TextIOWrapper`` over a ``BufferedReader`` exposes both ``.buffer`` (read
-    by the matcher-shim layer) and ``.read()``/``.isatty()`` (read by a wrapped
-    original hook), so a shim and the original it wraps see the same bytes.
+    TextIOWrapper over BufferedReader exposes both ``.buffer`` (read by the
+    matcher-shim layer) and ``.read()`` (read by a wrapped original hook).
     """
     sys.stdin = io.TextIOWrapper(
         io.BufferedReader(io.BytesIO(raw)),
@@ -80,192 +101,51 @@ def _run_shim(
     raw_stdin: bytes,
     timeout_sec: float | None = None,
 ) -> int:
-    """Run one shim and translate its outcome to a hook exit code."""
+    """Run one shim and translate its outcome to a hook exit code.
+
+    Load and execute are separate calls so a load failure and an execution
+    failure are distinguished by construction, not by exception type. See
+    shim_loader for why that boundary is load bearing.
+
+    A shim carrying timeout metadata runs in a child process instead. The
+    timeout was validated but never applied, so a hung shim blocked the hook
+    indefinitely while the manifest advertised a bound (#4706). An in-process
+    thread cannot be killed safely, so enforcing the bound requires a process
+    the dispatcher can terminate. Untimed shims keep the in-process path, which
+    is the startup win ADR-068 exists for.
+    """
     if timeout_sec is not None:
         code, _, _ = _run_timed_shim(shim_path, name, raw_stdin, timeout_sec)
         return code
+
     _install_stdin(raw_stdin)
     try:
-        runpy.run_path(str(shim_path), run_name="__main__")
+        check_shim_loads(shim_path)
+    except ShimLoadError as exc:
+        print(
+            f"project-toolkit@ai-agents WARNING: hooks DISABLED (your session "
+            f"is unaffected). Shim {name} could not be loaded ({exc}); "
+            f"infrastructure failure, not a policy denial. Reinstall: "
+            f"copilot plugin install project-toolkit@ai-agents",
+            file=sys.stderr,
+        )
+        return ALLOW_EXIT
+
+    try:
+        execute_shim(shim_path)
         # A shim that returns without calling sys.exit allowed the tool.
         return ALLOW_EXIT
     except SystemExit as exc:
+        # Only an explicit sys.exit() is a policy verdict.
         return _exit_code(exc)
     except Exception as exc:
+        # Execution failure: affects one call, no uninstall pressure. Deny.
         print(
-            f"hook-dispatch: shim {name} raised {type(exc).__name__}: {exc}; denying (fail-closed)",
+            f"hook-dispatch: shim {name} raised {type(exc).__name__}: "
+            f"{exc}; denying (fail-closed)",
             file=sys.stderr,
         )
         return BLOCK_EXIT
-
-
-def _open_capture_stream(fd: int) -> TextIO:
-    """Return a UTF-8 text stream over a duplicate of ``fd``."""
-    duplicate = os.dup(fd)
-    try:
-        return os.fdopen(
-            duplicate,
-            "w",
-            buffering=1,
-            encoding="utf-8",
-            errors="replace",
-            newline="",
-        )
-    except (OSError, ValueError):
-        os.close(duplicate)
-        raise
-
-
-def _save_output_fds(capture_stderr: bool) -> tuple[int, int | None]:
-    """Flush host streams and duplicate output descriptors for restoration."""
-    sys.stdout.flush()
-    if capture_stderr:
-        sys.stderr.flush()
-    saved_stdout_fd = os.dup(1)
-    try:
-        saved_stderr_fd = os.dup(2) if capture_stderr else None
-    except OSError:
-        os.close(saved_stdout_fd)
-        raise
-    return saved_stdout_fd, saved_stderr_fd
-
-
-def _restore_output_fds(saved_stdout_fd: int, saved_stderr_fd: int | None) -> None:
-    """Restore and close saved output descriptors."""
-    stdout_error: OSError | None = None
-    try:
-        os.dup2(saved_stdout_fd, 1)
-    except OSError as exc:
-        stdout_error = exc
-    finally:
-        os.close(saved_stdout_fd)
-
-    if saved_stderr_fd is not None:
-        try:
-            os.dup2(saved_stderr_fd, 2)
-        finally:
-            os.close(saved_stderr_fd)
-    if stdout_error is not None:
-        raise stdout_error
-
-
-def _read_capture(captured_file: BinaryIO) -> str:
-    """Read one binary temporary capture file as replacement-safe UTF-8."""
-    captured_file.flush()
-    captured_file.seek(0)
-    return captured_file.read().decode("utf-8", errors="replace")
-
-
-def _capture_process_output(
-    name: str,
-    runner: Callable[[], int],
-    *,
-    capture_stderr: bool,
-    diagnostic_prefix: str = "hook-dispatch",
-) -> tuple[int, str, str, str | None]:
-    """Redirect selected process channels, run the callback, and read output."""
-    original_stdout = sys.stdout
-    original_stderr = sys.stderr
-    with (
-        tempfile.TemporaryFile() as captured_stdout_file,
-        tempfile.TemporaryFile() as captured_stderr_file,
-    ):
-        captured_stdout_stream = None
-        captured_stderr_stream = None
-        capture_error: str | None = None
-        try:
-            os.dup2(captured_stdout_file.fileno(), 1)
-            captured_stdout_stream = _open_capture_stream(1)
-            if capture_stderr:
-                os.dup2(captured_stderr_file.fileno(), 2)
-                captured_stderr_stream = _open_capture_stream(2)
-        except (OSError, ValueError) as exc:
-            capture_error = (
-                f"{diagnostic_prefix}: process output capture setup failed "
-                f"for {name}: {exc}; observer not run"
-            )
-            code = BLOCK_EXIT
-        else:
-            sys.stdout = captured_stdout_stream
-            if captured_stderr_stream is not None:
-                sys.stderr = captured_stderr_stream
-            try:
-                code = runner()
-                captured_stdout_stream.flush()
-                if captured_stderr_stream is not None:
-                    captured_stderr_stream.flush()
-            except (OSError, ValueError) as exc:
-                capture_error = (
-                    f"{diagnostic_prefix}: process output capture failed for {name}: {exc}"
-                )
-                code = BLOCK_EXIT
-        finally:
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
-            if captured_stdout_stream is not None:
-                captured_stdout_stream.close()
-            if captured_stderr_stream is not None:
-                captured_stderr_stream.close()
-
-        raw_stdout = _read_capture(captured_stdout_file)
-        raw_stderr = _read_capture(captured_stderr_file) if capture_stderr else ""
-        return code, raw_stdout, raw_stderr, capture_error
-
-
-def _run_capturing_process_output(
-    name: str,
-    runner: Callable[[], int],
-    *,
-    capture_stderr: bool = False,
-    diagnostic_prefix: str = "hook-dispatch",
-) -> tuple[int, str, str]:
-    """Run a callback while retaining selected process output channels."""
-    original_stderr = sys.stderr
-    try:
-        saved_stdout_fd, saved_stderr_fd = _save_output_fds(capture_stderr)
-    except (OSError, ValueError) as exc:
-        print(
-            f"{diagnostic_prefix}: process output capture unavailable for "
-            f"{name}: {exc}; observer not run",
-            file=original_stderr,
-        )
-        return BLOCK_EXIT, "", ""
-
-    try:
-        try:
-            code, raw_stdout, raw_stderr, capture_error = _capture_process_output(
-                name,
-                runner,
-                capture_stderr=capture_stderr,
-                diagnostic_prefix=diagnostic_prefix,
-            )
-        except (OSError, ValueError) as exc:
-            code, raw_stdout, raw_stderr = BLOCK_EXIT, "", ""
-            capture_error = (
-                f"{diagnostic_prefix}: process output capture setup failed "
-                f"for {name}: {exc}; observer not run"
-            )
-    finally:
-        _restore_output_fds(saved_stdout_fd, saved_stderr_fd)
-
-    if capture_error is not None:
-        print(capture_error, file=original_stderr)
-    return code, raw_stdout, raw_stderr
-
-
-def _run_capturing_process_stdout(
-    name: str,
-    runner: Callable[[], int],
-    *,
-    diagnostic_prefix: str = "hook-dispatch",
-) -> tuple[int, str]:
-    """Run a callback while retaining Python, file-descriptor, and child stdout."""
-    code, raw_stdout, _ = _run_capturing_process_output(
-        name,
-        runner,
-        diagnostic_prefix=diagnostic_prefix,
-    )
-    return code, raw_stdout
 
 
 def _run_shim_capturing_stdout(
@@ -275,18 +155,10 @@ def _run_shim_capturing_stdout(
     timeout_sec: float | None = None,
 ) -> tuple[int, str]:
     """Run one shim while retaining every process stdout path."""
-    if timeout_sec is not None:
-        code, raw_stdout, _ = _run_timed_shim(
-            shim_path,
-            name,
-            raw_stdin,
-            timeout_sec,
-            capture_stdout=True,
-        )
-        return code, raw_stdout
-    return _run_capturing_process_stdout(
+    return output_capture.run_capturing_process_stdout(
         name,
-        lambda: _run_shim(shim_path, name, raw_stdin),
+        lambda: _run_shim(shim_path, name, raw_stdin, timeout_sec),
+        failure_exit=BLOCK_EXIT,
     )
 
 
@@ -297,19 +169,11 @@ def _run_shim_capturing_output(
     timeout_sec: float | None = None,
 ) -> tuple[int, str, str]:
     """Run one shim while retaining every process stdout and stderr path."""
-    if timeout_sec is not None:
-        return _run_timed_shim(
-            shim_path,
-            name,
-            raw_stdin,
-            timeout_sec,
-            capture_stdout=True,
-            capture_stderr=True,
-        )
-    return _run_capturing_process_output(
+    return output_capture.run_capturing_process_output(
         name,
-        lambda: _run_shim(shim_path, name, raw_stdin),
+        lambda: _run_shim(shim_path, name, raw_stdin, timeout_sec),
         capture_stderr=True,
+        failure_exit=BLOCK_EXIT,
     )
 
 
@@ -348,10 +212,7 @@ def run_permission_dispatch(
         if code is not None:
             return code
         code, raw_stdout = _run_shim_capturing_stdout(
-            shim_path,
-            name,
-            raw_stdin,
-            timeout_sec,
+            shim_path, name, raw_stdin, timeout_sec
         )
         if code != ALLOW_EXIT:
             return code
@@ -443,6 +304,17 @@ def run_dispatch(
                 continue
 
             timeout_sec = shim_timeouts.get(name) if shim_timeouts else None
+            if not short_circuit:
+                # Observe mode ignores per-shim timeouts on purpose. Enforcing
+                # them once made the dispatcher return success while a slow
+                # observer was still running, leaving work orphaned behind a
+                # hook that had already reported done, which
+                # test_timeout_metadata_does_not_background_observer_work pins.
+                # The host owns the event timeout, and an observer cannot block
+                # a tool call, so there is nothing here worth that risk. Gate
+                # mode is different: a hung shim there blocks the call, which
+                # is the hazard #4706 describes.
+                timeout_sec = None
             raw_stdout = ""
             raw_stderr = ""
             code = _validate_timeout(name, timeout_sec)

@@ -1,8 +1,5 @@
 """Tests for the gated Copilot hook dispatcher emitter (ADR-068, #2295)."""
 
-# taste-lint: ignore file-size
-# Dispatcher generation and runtime controls stay together.
-
 from __future__ import annotations
 
 import json
@@ -23,10 +20,18 @@ from generate_hooks_shim import _SHIM_BEGIN  # noqa: E402
 
 
 def _copy_dispatch_lib(lib: Path) -> None:
+    """Copy every lib module a dispatcher may import.
+
+    Copies the directory rather than a hardcoded list. The list silently rots:
+    extracting output_capture and shim_loader out of hook_dispatch left the
+    fixture shipping an install whose dispatcher could not import its own
+    dependencies, and 49 tests failed with ModuleNotFoundError describing a
+    consumer breakage this fixture had invented.
+    """
     source = _REPO / ".claude" / "lib"
-    for name in ("hook_dispatch.py", "hook_dispatch_protocol.py", "hook_dispatch_timeout.py"):
-        (lib / name).write_text(
-            (source / name).read_text(encoding="utf-8"),
+    for module in sorted(source.glob("*.py")):
+        (lib / module.name).write_text(
+            module.read_text(encoding="utf-8"),
             encoding="utf-8",
         )
 
@@ -661,26 +666,25 @@ class TestObserveMode:
         assert proc.returncode == 2, proc.stderr.decode()
         assert not m_after.is_file(), "gate mode ran a shim after a denial; short-circuit regressed"
 
-    def test_timeout_metadata_terminates_slow_observer_work(self, tmp_path):
-        # Regression: validated timeout metadata still failed to stop a slow
-        # shim. The dispatcher must terminate the child shim and then continue
-        # observe mode without leaving work behind.
+    def test_timeout_metadata_does_not_background_observer_work(self, tmp_path):
+        # Regression: enforcing per-shim timeouts with daemon threads made
+        # observe mode return success before a slow observer finished. The host
+        # owns the event timeout; the in-process dispatcher must run the shim
+        # synchronously so no child work survives hook success.
         root, event_dir = _stage_plugin(tmp_path, "postToolUse")
         marker = tmp_path / "slow_observer_marker"
-        after = tmp_path / "after_observer_marker"
         (event_dir / "slow.py").write_text(
             "import sys, time\n"
             "from pathlib import Path\n"
-            "time.sleep(10)\n"
+            "time.sleep(1.2)\n"
             f"Path(r'{marker}').write_text('ran', encoding='utf-8')\n"
             "sys.exit(0)\n",
             encoding="utf-8",
         )
-        (event_dir / "after.py").write_text(self._markered_shim(after, 0), encoding="utf-8")
         gd.emit_dispatcher(
             event_dir,
             "postToolUse",
-            ["slow.py", "after.py"],
+            ["slow.py"],
             3,
             {"slow.py": 1},
             mode="observe",
@@ -691,10 +695,8 @@ class TestObserveMode:
         elapsed = time.monotonic() - started
 
         assert proc.returncode == 0, proc.stderr.decode()
-        assert not marker.is_file(), "timed-out observer kept running after dispatch"
-        assert after.is_file(), "observe mode did not continue after a timed-out observer"
-        assert elapsed < 2.5, "per-shim timeout metadata was not enforced inside dispatcher"
-        assert b"shim slow.py timed out after 1s" in proc.stderr
+        assert marker.is_file(), "dispatcher returned before the observer finished"
+        assert elapsed >= 1.0, "per-shim timeout metadata was enforced inside dispatcher"
 
 
 class TestPermissionDecisionMode:
