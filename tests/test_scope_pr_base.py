@@ -15,10 +15,8 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.detect_scope_explosion import ScopeResult
 from scripts.scope_pr_base import (
     _is_plain_branch_name,
-    is_credible_rescope,
     resolve_pr_base_branch,
     strip_remote_prefix,
 )
@@ -49,9 +47,7 @@ class TestResolvePrBaseBranch:
 
     @staticmethod
     def _gh(stdout: str, returncode: int = 0):
-        return subprocess.CompletedProcess(
-            args=[], returncode=returncode, stdout=stdout, stderr=""
-        )
+        return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
 
     def test_returns_base_ref_name(self) -> None:
         """Exactly one open PR yields its base branch name."""
@@ -62,7 +58,9 @@ class TestResolvePrBaseBranch:
             ),
             patch(
                 "scripts.scope_pr_base.subprocess.run",
-                return_value=self._gh('[{"baseRefName": "fix/base-branch"}]'),
+                return_value=self._gh(
+                    '[{"baseRefName": "fix/base-branch", "isCrossRepository": false}]'
+                ),
             ),
         ):
             assert resolve_pr_base_branch("feat/stacked") == "fix/base-branch"
@@ -114,9 +112,7 @@ class TestResolvePrBaseBranch:
             ),
             patch(
                 "scripts.scope_pr_base.subprocess.run",
-                return_value=self._gh(
-                    '[{"baseRefName": "main"}, {"baseRefName": "fix/other"}]'
-                ),
+                return_value=self._gh('[{"baseRefName": "main"}, {"baseRefName": "fix/other"}]'),
             ),
         ):
             assert resolve_pr_base_branch("feat/stacked") is None
@@ -264,10 +260,8 @@ class TestResolveRejectsUntrustedBaseNames:
 
     @staticmethod
     def _resolve(base_value: object) -> str | None:
-        payload = json.dumps([{"baseRefName": base_value}])
-        completed = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout=payload, stderr=""
-        )
+        payload = json.dumps([{"baseRefName": base_value, "isCrossRepository": False}])
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=payload, stderr="")
         with (
             patch("scripts.scope_pr_base.shutil.which", return_value="/usr/bin/gh"),
             patch("scripts.scope_pr_base.subprocess.run", return_value=completed),
@@ -306,9 +300,7 @@ class TestResolveRejectsUntrustedBaseNames:
             "   ",
         ],
     )
-    def test_rejects_a_name_git_would_read_as_something_else(
-        self, name: str
-    ) -> None:
+    def test_rejects_a_name_git_would_read_as_something_else(self, name: str) -> None:
         """Reserved refs, traversal, option-looking names, and metacharacters.
 
         ``HEAD`` is the sharpest of these: it is a legal string that resolves
@@ -327,118 +319,89 @@ class TestResolveRejectsUntrustedBaseNames:
         assert self._resolve("  fix/parent\n") == "fix/parent"
 
 
-class TestIsCredibleRescope:
-    """Tests for is_credible_rescope.
+class TestResolveRefusesForkPullRequests:
+    """The lookup must not accept a base chosen by a stranger.
 
-    The credibility test is a graph property, not a diff property. It asks
-    whether this branch left main first and left the PR base second, which is
-    what "stacked" means. An earlier version tested path-set containment and
-    was wrong; see test_accepts_a_stacked_base_whose_files_main_never_saw.
+    ``gh pr list --head`` filters on the branch name alone. A pull request
+    opened from a fork carries its own head branch name, so a fork PR whose
+    branch happens to match this branch's name is a match. When the local
+    branch has no PR of its own that fork PR is the *only* match, it clears
+    the exactly-one-result guard, and its base becomes the ref this gate
+    measures against. The base of a fork PR is a branch in this repository,
+    so the damage is bounded, but the choice of which one is not ours.
+
+    ``isCrossRepository`` is false only when head and base live in the same
+    repository. The check is ``is not False`` rather than a truthiness test
+    because a truthiness test accepts every falsy value gh never sends,
+    including ``0``, ``""``, and an absent field, and an absent field is
+    exactly what a gh version that drops the column would produce.
     """
 
-    MAIN_FORK = "aaaa111"
-    STACK_FORK = "bbbb222"
-
-    @classmethod
-    def _blocked(cls, *files: str) -> ScopeResult:
-        return ScopeResult(
-            file_count=len(files),
-            merge_base=cls.MAIN_FORK,
-            current_branch="feat/stacked",
-            files=files,
-        )
-
-    @classmethod
-    def _rescoped(cls, *files: str, merge_base: str | None = None) -> ScopeResult:
-        return ScopeResult(
-            file_count=len(files),
-            merge_base=cls.STACK_FORK if merge_base is None else merge_base,
-            current_branch="feat/stacked",
-            files=files,
-        )
-
     @staticmethod
-    def _ancestry(result: bool):
-        """Return an is_ancestor stub plus a record of how it was called."""
-        calls: list[tuple[str, str]] = []
+    def _resolve(entry: dict[str, object]) -> str | None:
+        completed = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=json.dumps([entry]), stderr=""
+        )
+        with (
+            patch("scripts.scope_pr_base.shutil.which", return_value="/usr/bin/gh"),
+            patch("scripts.scope_pr_base.subprocess.run", return_value=completed),
+        ):
+            return resolve_pr_base_branch("feat/stacked")
 
-        def is_ancestor(commit: str, ref: str) -> bool:
-            calls.append((commit, ref))
-            return result
+    def test_accepts_a_pull_request_from_this_repository(self) -> None:
+        """Positive control: the same payload with the flag false is accepted.
 
-        return is_ancestor, calls
-
-    def test_rejects_none(self) -> None:
-        """An unresolvable re-measurement is not credible."""
-        ancestor, calls = self._ancestry(True)
-        assert is_credible_rescope(None, self._blocked("a.py"), ancestor) is False
-        assert calls == []
-
-    def test_rejects_zero_files(self) -> None:
-        """A failed git diff reads as zero files, which would clear the block.
-
-        get_index_files_against_ref returns [] on any nonzero git diff and
-        detect_scope turns that into ScopeResult(file_count=0) rather than
-        None. A genuinely empty result is indistinguishable from that
-        failure at this call site, so both are refused.
+        Without this the rejection cases below would pass even if the function
+        refused every payload, or was deleted outright.
         """
-        ancestor, calls = self._ancestry(True)
-        assert is_credible_rescope(self._rescoped(), self._blocked("a.py"), ancestor) is False
-        assert calls == []
-
-    def test_accepts_a_stacked_base_whose_files_main_never_saw(self) -> None:
-        """The regression the subset invariant caused.
-
-        Verified against a constructed repository: main holds 52 files, the
-        parent changes all 52, and the child reverts one to main's content.
-        The child changes 51 files against main and exactly 1 against its
-        parent, and that 1 file is absent from the main-relative set because
-        the child agrees with main about it. The old containment test rejected
-        this honest one-file stacked PR and left it blocked at 51.
-        """
-        blocked = self._blocked(*[f"f{i:02d}.txt" for i in range(1, 52)])
-        rescoped = self._rescoped("f00.txt")
-        ancestor, calls = self._ancestry(True)
-        assert is_credible_rescope(rescoped, blocked, ancestor) is True
-        assert calls == [(self.MAIN_FORK, self.STACK_FORK)]
-
-    def test_rejects_an_identical_fork_point(self) -> None:
-        """A base that forks where main forks is not a stack.
-
-        An unrelated branch shares main's fork point exactly. Requiring a
-        strict ancestor rejects it without consulting git at all.
-        """
-        ancestor, calls = self._ancestry(True)
-        rescoped = self._rescoped("b.py", merge_base=self.MAIN_FORK)
-        assert is_credible_rescope(rescoped, self._blocked("a.py", "b.py"), ancestor) is False
-        assert calls == []
-
-    def test_rejects_a_fork_point_that_is_not_downstream(self) -> None:
-        """A base whose fork point does not descend from main's is incomparable."""
-        ancestor, calls = self._ancestry(False)
-        rescoped = self._rescoped("b.py")
-        assert is_credible_rescope(rescoped, self._blocked("a.py", "b.py"), ancestor) is False
-        assert calls == [(self.MAIN_FORK, self.STACK_FORK)]
-
-    def test_rejects_a_missing_merge_base_on_either_side(self) -> None:
-        """An empty merge base cannot be reasoned about, so it fails closed."""
-        ancestor, _ = self._ancestry(True)
         assert (
-            is_credible_rescope(
-                self._rescoped("b.py", merge_base=""), self._blocked("a.py"), ancestor
-            )
-            is False
+            self._resolve({"baseRefName": "fix/parent", "isCrossRepository": False}) == "fix/parent"
         )
-        blocked_without_base = ScopeResult(
-            file_count=1, merge_base="", current_branch="feat/stacked", files=("a.py",)
-        )
-        assert is_credible_rescope(self._rescoped("b.py"), blocked_without_base, ancestor) is False
 
-    def test_asks_ancestry_in_the_direction_that_means_stacked(self) -> None:
-        """Argument order is the whole meaning: main's fork must come first."""
-        ancestor, calls = self._ancestry(True)
-        is_credible_rescope(self._rescoped("b.py"), self._blocked("a.py"), ancestor)
-        assert calls == [(self.MAIN_FORK, self.STACK_FORK)]
+    def test_refuses_a_pull_request_from_a_fork(self) -> None:
+        """A cross-repository PR is somebody else's, so its base is not ours."""
+        assert self._resolve({"baseRefName": "fix/parent", "isCrossRepository": True}) is None
+
+    def test_refuses_when_the_field_is_absent(self) -> None:
+        """A gh version that omits the column must not be read as "not a fork"."""
+        assert self._resolve({"baseRefName": "fix/parent"}) is None
+
+    @pytest.mark.parametrize(
+        "value",
+        [None, 0, "", [], {}, "false", "no"],
+        ids=["none", "zero", "empty-str", "empty-list", "empty-dict", "str-false", "str-no"],
+    )
+    def test_refuses_every_value_that_is_not_the_boolean_false(self, value: object) -> None:
+        """Only a real boolean False passes.
+
+        Every value here is one a truthiness test would wave through while
+        carrying no evidence that the PR is local. ``"false"`` and ``"no"`` are
+        the inverse trap: truthy strings that read as negative to a human.
+        """
+        assert self._resolve({"baseRefName": "fix/parent", "isCrossRepository": value}) is None
+
+    def test_asks_gh_for_the_field_it_checks(self) -> None:
+        """The guard is worthless if the query never requests the column.
+
+        gh omits any field absent from --json, so dropping it there would make
+        every lookup fail closed and silently disable the rescope entirely.
+        """
+        completed = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout='[{"baseRefName": "main", "isCrossRepository": false}]',
+            stderr="",
+        )
+        with (
+            patch("scripts.scope_pr_base.shutil.which", return_value="/usr/bin/gh"),
+            patch("scripts.scope_pr_base.subprocess.run", return_value=completed) as run,
+        ):
+            resolve_pr_base_branch("feat/stacked")
+        argv = run.call_args.args[0]
+        assert "--json" in argv
+        requested = argv[argv.index("--json") + 1].split(",")
+        assert "isCrossRepository" in requested
+        assert "baseRefName" in requested
 
 
 class TestIsPlainBranchName:

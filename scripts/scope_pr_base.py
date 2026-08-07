@@ -75,8 +75,8 @@ def resolve_pr_base_branch(branch: str) -> str | None:
     """Return the base branch of the single open PR for ``branch``, else None.
 
     Queries ``gh pr list --state open --head <branch>`` and accepts the answer
-    only when exactly one open PR matches. Both halves of that are load
-    bearing:
+    only when exactly one open PR matches and that PR's head branch lives in
+    this repository. All three of those are load bearing:
 
     * ``--state open``. ``gh pr view`` falls back to a closed or merged PR when
       no open one exists. Verified against gh 2.97.0: on a branch whose PR had
@@ -85,6 +85,14 @@ def resolve_pr_base_branch(branch: str) -> str | None:
     * exactly one match. Several open PRs can share a head branch, and picking
       one of them is a guess. No answer is better than a guess here, because
       the guess can only ever remove a block.
+    * head branch in this repository. ``--head`` filters on the branch name
+      alone, so a pull request opened from a fork whose head branch happens to
+      share this branch's name matches too. When the local branch has no PR of
+      its own, that fork PR would be the single match, and a stranger would be
+      choosing the base this gate measures against. ``isCrossRepository`` is
+      false only when head and base live in the same repository, so requiring
+      it to be false confines the answer to branches a collaborator pushed
+      here.
 
     Returns None when gh is absent, unauthenticated, offline, or when the
     branch has no open PR. Every one of those is a normal local state, so the
@@ -117,7 +125,7 @@ def resolve_pr_base_branch(branch: str) -> str | None:
                 "--head",
                 branch,
                 "--json",
-                "baseRefName",
+                "baseRefName,isCrossRepository",
             ],
             capture_output=True,
             text=True,
@@ -138,6 +146,8 @@ def resolve_pr_base_branch(branch: str) -> str | None:
         return None
     entry = payload[0]
     if not isinstance(entry, dict):
+        return None
+    if entry.get("isCrossRepository") is not False:
         return None
     base = entry.get("baseRefName")
     if not isinstance(base, str):
