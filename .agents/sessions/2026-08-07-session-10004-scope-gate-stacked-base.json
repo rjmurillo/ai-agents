@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10004,
+    "date": "2026-08-07",
+    "branch": "fix/scope-gate-stacked-base",
+    "startingCommit": "c65dc11eb",
+    "objective": "Measure a stacked PR against its own base in the scope gate, then close the fail-open paths that fix introduced"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable in this Copilot harness; used committed .serena memory files"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable in this Copilot harness; followed AGENTS.md fallback"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/session-init/scripts listed"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/memory-index.md read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/scope-gate-stacked-base"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/scope-gate-stacked-base in worktree wt-scopebase"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean at c65dc11eb before the first scope commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "c65dc11eb2253b9440c10c5cc8532a731d6281fc"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No memory change on this branch; the learnings are recorded in .agents/retrospective/2026-08-07-scope-gate-fail-open-rescope.md"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "The one markdown file added lives under .agents/, which .markdownlint-cli2.yaml ignores at line 131, so the lint selected 0 targets and reported not-linted rather than clean"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session commits, in committer-date order: bd37bddd979ada88feebc941152a9b9143bfddd0, 8fcfbe5570a92de8e70a29b10b293e0364cf9e3d, and 9c0771fe788903c0d5171a62c158c4fd15b20789. The final commit that writes this record cannot cite itself and is excluded by construction."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py --creation-mode passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Continuation checklist retained in session context"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-07-scope-gate-fail-open-rescope.md classifies the failure against FAILURE-MODES.md section 10"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-07T06:03:53+00:00",
+      "task": "Measure a stacked PR against its own base",
+      "outcome": "Added rescope_against_pr_base so a stacked branch stops counting its parent's files; 77 tests passed, all mocked"
+    },
+    {
+      "time": "2026-08-07T06:20:00+00:00",
+      "task": "Adversarial review on a different model family",
+      "outcome": "GPT 5.6 Sol returned INCORRECT with four findings; each was checked against source or a live command before acceptance, and three reproduced"
+    },
+    {
+      "time": "2026-08-07T06:34:45+00:00",
+      "task": "Close the three fail-open paths",
+      "outcome": "Restricted the PR lookup to a single open PR, refused an empty or None rescope, skipped rescoping while MERGE_HEAD exists, and added a subset invariant; 88 tests and four mutation controls"
+    },
+    {
+      "time": "2026-08-07T06:42:49+00:00",
+      "task": "Split the module after the size ratchet regressed",
+      "outcome": "taste_count_ratchet reported 584 against baseline 583; extracted scripts/scope_pr_base.py rather than suppressing, and the ratchet returned to OK at 583"
+    },
+    {
+      "time": "2026-08-07T07:05:00+00:00",
+      "task": "Correct two claims found while writing the retrospective",
+      "outcome": "Issue #4382 is closed rather than open, and the _branch test helper was typed str while get_current_branch returns str or None; mypy caught the second"
+    }
+  ],
+  "episodeMetrics": {
+    "filesChanged": 4,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "c65dc11eb2253b9440c10c5cc8532a731d6281fc",
+      "head": "9c0771fe788903c0d5171a62c158c4fd15b20789"
+    }
+  },
+  "endingCommit": "9c0771fe788903c0d5171a62c158c4fd15b20789",
+  "nextSteps": [
+    "Push fix/scope-gate-stacked-base and open its PR against main",
+    "Run a second adversarial review on the hardened and split version",
+    "Exercise the gate against a real stacked PR end to end, since every test is mocked"
+  ]
+}

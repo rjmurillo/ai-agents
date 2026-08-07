@@ -1,0 +1,125 @@
+{
+  "id": "episode-2026-08-07-session-10004-scope-gate-stacked-base",
+  "session": "2026-08-07-session-10004-scope-gate-stacked-base",
+  "timestamp": "2026-08-07T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Measure a stacked PR against its own base in the scope gate, then close the fail-open paths that fix introduced",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-07T06:03:53+00:00",
+      "type": "milestone",
+      "content": "Measure a stacked PR against its own base",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-07T06:20:00+00:00",
+      "type": "milestone",
+      "content": "Adversarial review on a different model family",
+      "caused_by": [
+        "e001",
+        "e006"
+      ],
+      "leads_to": [
+        "e003",
+        "e007"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-07T06:34:45+00:00",
+      "type": "milestone",
+      "content": "Close the three fail-open paths",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004",
+        "e008"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-07T06:42:49+00:00",
+      "type": "milestone",
+      "content": "Split the module after the size ratchet regressed",
+      "caused_by": [
+        "e003",
+        "e007"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-07T07:05:00+00:00",
+      "type": "milestone",
+      "content": "Correct two claims found while writing the retrospective",
+      "caused_by": [
+        "e004",
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-07T06:03:53+00:00",
+      "type": "commit",
+      "content": "Commit: bd37bddd979ada88feebc941152a9b9143bfddd0",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-07T06:34:45+00:00",
+      "type": "commit",
+      "content": "Commit: 8fcfbe5570a92de8e70a29b10b293e0364cf9e3d",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004",
+        "e008"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-07T06:42:49+00:00",
+      "type": "commit",
+      "content": "Commit: 9c0771fe788903c0d5171a62c158c4fd15b20789",
+      "caused_by": [
+        "e003",
+        "e007"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 61,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 4
+  },
+  "lessons": []
+}

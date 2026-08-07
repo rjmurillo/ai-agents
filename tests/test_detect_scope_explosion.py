@@ -810,7 +810,7 @@ class TestRescopeAgainstPrBase:
         )
 
     @staticmethod
-    def _branch(name: str = "feat/stacked"):
+    def _branch(name: str | None = "feat/stacked"):
         return patch(
             "scripts.detect_scope_explosion.get_current_branch", return_value=name
         )

@@ -63,13 +63,14 @@ def resolve_pr_base_branch(branch: str) -> str | None:
     caller must treat None as "no better answer available" rather than an
     error.
 
-    Known limitation (issue #4382): in a ``pr-<number>`` worktree the local
-    branch name can differ from the PR's head branch, so no PR matches and
-    this returns None. That leaves the original main-relative block in place,
-    which is the behavior before this function existed. It never invents a
-    base. ``scripts/validation/checks_common.py`` carries an upstream-head
-    fallback for that case; it is deliberately not reused here, because it
-    would widen a lookup whose only power is to remove a block.
+    Known limitation: in a ``pr-<number>`` worktree the local branch name can
+    differ from the PR's head branch, so no PR matches and this returns None.
+    That leaves the original main-relative block in place, which is the
+    behavior before this function existed. It never invents a base.
+    ``scripts/validation/checks_common.py`` carries an upstream-head fallback
+    for that case (added for issue #4382, closed 2026-08-04); it is
+    deliberately not reused here, because it would widen a lookup whose only
+    power is to remove a block.
 
     The five second timeout is deliberate. This runs inside a git hook, and a
     hook that waits on a hung network call is worse than a hook that measures
