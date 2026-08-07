@@ -21,7 +21,7 @@ way.
 ## Impact
 
 | Area | Severity | Effect |
-| --- | --- | --- |
+| --- | --- | --- | --- |
 | Push gate correctness | High | A 52 file change could pass as 0 files with no output |
 | Reviewer trust | Medium | The gate reports a number that may describe a different comparison than the one it names |
 | Blast radius | Low | Caught before the branch was pushed; never ran in CI or on another contributor's machine |
@@ -75,16 +75,17 @@ the helper does what its author assumed.
 
 ## Remediation
 
-| Action | State | Evidence |
-| --- | --- | --- |
-| Query only open PRs, accept the answer only when exactly one matches | Done | `scripts/scope_pr_base.py`, `resolve_pr_base_branch` |
-| Refuse a rescope whose result is empty or `None` | Done | `scripts/scope_pr_base.py`, `is_credible_rescope` |
-| Skip rescoping entirely while `MERGE_HEAD` exists | Done | `scripts/detect_scope_explosion.py`, `rescope_against_pr_base` |
-| Add a subset invariant as defense in depth | Reverted, it was false | Disproved on a constructed repository; replaced with a fork-point ancestry test in `is_credible_rescope` |
-| Validate `baseRefName` before it reaches a ref | Done | `scripts/scope_pr_base.py`, `_is_plain_branch_name`; rejects a non-string, `HEAD`, `..`, and option-shaped names |
-| Resolve the PR against the branch that was measured, not a fresh read | Done | `rescope_against_pr_base` uses `blocked.current_branch` |
-| Cover each path with a test plus a mutation control | Done | 146 tests; six mutation controls, each failing its targeted test |
-| No upstream head fallback for detached or unpushed branches | Open by choice | `checks_common.py` has one (issue #4382, closed 2026-08-04); not reused here because it would widen a lookup that can only remove a block |
+| Action | State | Owner / Issue | Evidence |
+| --- | --- | --- | --- |
+| Query only open PRs, accept the answer only when exactly one matches | Done | @rjmurillo, PR #4738 | `scripts/scope_pr_base.py`, `resolve_pr_base_branch` |
+| Refuse a rescope whose result is empty or `None` | Done | @rjmurillo, PR #4738 | `scripts/scope_pr_base.py`, `is_credible_rescope` |
+| Skip rescoping entirely while `MERGE_HEAD` exists | Done | @rjmurillo, PR #4738 | `scripts/detect_scope_explosion.py`, `rescope_against_pr_base` |
+| Add a subset invariant as defense in depth | Reverted, it was false | @rjmurillo, PR #4738 | Disproved on a constructed repository; replaced with a fork-point ancestry test in `is_credible_rescope` |
+| Validate `baseRefName` before it reaches a ref | Done | @rjmurillo, PR #4738 | `scripts/scope_pr_base.py`, `_is_plain_branch_name`; rejects a non-string, `HEAD`, `..`, and option-shaped names |
+| Resolve the PR against the branch that was measured, not a fresh read | Done | @rjmurillo, PR #4738 | `rescope_against_pr_base` uses `blocked.current_branch` |
+| Cover each path with a test plus a mutation control | Done | @rjmurillo, PR #4738 | 160 tests; thirteen mutation controls, each failing its targeted test |
+| Refuse a base supplied by a pull request opened from a fork | Done | @rjmurillo, PR #4738 | `resolve_pr_base_branch` requires `isCrossRepository` to be exactly `False`; `--head` matches on branch name alone, so a fork PR sharing the name would otherwise be the single match |
+| No upstream head fallback for detached or unpushed branches | Open by choice | @rjmurillo, issue #4743 | `checks_common.py` has one (issue #4382, closed 2026-08-04); not reused here because it would widen a lookup that can only remove a block |
 
 ## Learnings
 

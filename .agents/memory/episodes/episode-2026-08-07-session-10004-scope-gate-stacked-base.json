@@ -136,7 +136,7 @@
         "e009"
       ],
       "leads_to": [
-        "e011"
+        "e017"
       ],
       "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
     },
@@ -146,7 +146,7 @@
       "type": "milestone",
       "content": "Design and verify a replacement invariant",
       "caused_by": [
-        "e010"
+        "e017"
       ],
       "leads_to": [
         "e012"
@@ -161,7 +161,9 @@
       "caused_by": [
         "e011"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e014"
+      ],
       "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
     },
     {
@@ -176,14 +178,64 @@
         "e009"
       ],
       "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-07T11:20:00+00:00",
+      "type": "milestone",
+      "content": "Take the third adversarial review (Gemini 3.1 Pro) and close its findings",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-07T12:40:00+00:00",
+      "type": "milestone",
+      "content": "Fix the two live Copilot review threads on PR #4738",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-07T12:55:00+00:00",
+      "type": "milestone",
+      "content": "Split the test file the new class pushed over the size limit",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-07T09:08:26+00:00",
+      "type": "commit",
+      "content": "Commit: 8d5d2b15757fbe6b25552d991462172b150197d4",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-07-session-10004-scope-gate-stacked-base"
     }
   ],
   "metrics": {
-    "duration_minutes": 226,
+    "duration_minutes": 411,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 4
   },
   "lessons": []

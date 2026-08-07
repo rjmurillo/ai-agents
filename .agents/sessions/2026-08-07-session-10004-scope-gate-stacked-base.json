@@ -158,6 +158,21 @@
       "time": "2026-08-07T09:50:00+00:00",
       "task": "Add real-git tests and run six mutation controls",
       "outcome": "146 pass. The first draft of the real-git file did not chdir, so is_ancestor ran in the wrong repository and all three reject cases passed vacuously; a positive control now guards that. Mutation 4 (drop baseRefName validation) survived the suite and exposed a missing wiring test, now added"
+    },
+    {
+      "time": "2026-08-07T11:20:00+00:00",
+      "task": "Take the third adversarial review (Gemini 3.1 Pro) and close its findings",
+      "outcome": "Verdict CORRECT on the fork-point rule after the reviewer built its own repositories covering honest, rebased, sibling, and descendant stacks. It found three surviving mutations and one tautological assertion; all four fixed, 149 tests. The reviewer left the working tree mutated despite an explicit restore instruction, caught by git status before the next commit"
+    },
+    {
+      "time": "2026-08-07T12:40:00+00:00",
+      "task": "Fix the two live Copilot review threads on PR #4738",
+      "outcome": "The gh pr list --head finding is real: --head filters on branch name alone, so a fork PR sharing this branch's name is the single match when the local branch has no PR, and a stranger picks the base. Fixed by requiring isCrossRepository to be exactly False, with four mutation controls. The retro remediation table gained the Owner / Issue column retros.md item 4 requires, and the open item now has issue #4743"
+    },
+    {
+      "time": "2026-08-07T12:55:00+00:00",
+      "task": "Split the test file the new class pushed over the size limit",
+      "outcome": "TestIsCredibleRescope moved to tests/test_scope_pr_base_credibility.py along the seam the module docstring already names. Taste ratchet returned from 584 to baseline 583. 160 tests pass"
     }
   ],
   "episodeMetrics": {
@@ -168,10 +183,10 @@
       "head": "9c0771fe788903c0d5171a62c158c4fd15b20789"
     }
   },
-  "endingCommit": "9d86b3dc1ec85d2222b2387f6a0b75748e7b7bfd",
+  "endingCommit": "8d5d2b15757fbe6b25552d991462172b150197d4",
   "nextSteps": [
-    "Await the third adversarial review (Gemini) on the replacement invariant",
-    "Update the PR #4738 body: the subset paragraph is now wrong",
-    "Capture the vacuous-pass control as a testing rule in its own change"
+    "Wait for CI on PR #4738, then update the branch and take the server merge before any token recount",
+    "Land the memory-index duplicate-dump fix (PR pending) that removes 102 rows PR #4592 appended",
+    "Merge the two stacks bottom-up once green: #4694, #4718, #4728, then #4732, #4734, #4736, #4737"
   ]
 }
