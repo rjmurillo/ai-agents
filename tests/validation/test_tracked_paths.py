@@ -21,6 +21,7 @@ from scripts.validation.check_skill_md_portability import (
 )
 from scripts.validation.tracked_paths import (
     GitQueryError,
+    _tracked_symlinks,
     path_exists_in_repo,
     tracked_paths,
 )
@@ -45,6 +46,7 @@ def _make_repo(tmp_path: Path) -> Path:
     _git(repo, "add", "tracked.md", ".gitignore")
     _git(repo, "commit", "-qm", "seed")
     tracked_paths.cache_clear()
+    _tracked_symlinks.cache_clear()
     return repo
 
 
@@ -108,6 +110,51 @@ class TestPathExistsInRepo:
 
         assert path_exists_in_repo(repo, "alias/mod.py") is True
         assert path_exists_in_repo(repo, "alias/missing.py") is False
+
+    def test_untracked_symlink_does_not_make_paths_exist(self, tmp_path: Path) -> None:
+        """A local link the repo does not track must not decide the answer."""
+        repo = _make_repo(tmp_path)
+        real = repo / "pkg" / "mod.py"
+        real.parent.mkdir(parents=True)
+        real.write_text("code", encoding="utf-8")
+        _git(repo, "add", "pkg/mod.py")
+        _git(repo, "commit", "-qm", "pkg")
+        (repo / "local").symlink_to("pkg")
+        tracked_paths.cache_clear()
+        _tracked_symlinks.cache_clear()
+
+        assert (repo / "local" / "mod.py").exists() is True
+        assert path_exists_in_repo(repo, "local/mod.py") is False
+
+    def test_unstaged_edit_to_a_tracked_link_is_ignored(self, tmp_path: Path) -> None:
+        """The index decides where a tracked link points, not the working tree."""
+        repo = _make_repo(tmp_path)
+        for pkg in ("pkg", "other"):
+            target = repo / pkg / "mod.py"
+            target.parent.mkdir(parents=True)
+            target.write_text("code", encoding="utf-8")
+        (repo / "alias").symlink_to("pkg")
+        _git(repo, "add", "pkg/mod.py", "other/mod.py", "alias")
+        _git(repo, "commit", "-qm", "links")
+
+        (repo / "alias").unlink()
+        (repo / "alias").symlink_to("nowhere")
+        tracked_paths.cache_clear()
+        _tracked_symlinks.cache_clear()
+
+        assert (repo / "alias" / "mod.py").exists() is False
+        assert path_exists_in_repo(repo, "alias/mod.py") is True
+
+    def test_symlink_cycle_terminates(self, tmp_path: Path) -> None:
+        repo = _make_repo(tmp_path)
+        (repo / "a").symlink_to("b")
+        (repo / "b").symlink_to("a")
+        _git(repo, "add", "a", "b")
+        _git(repo, "commit", "-qm", "cycle")
+        tracked_paths.cache_clear()
+        _tracked_symlinks.cache_clear()
+
+        assert path_exists_in_repo(repo, "a/mod.py") is False
 
     def test_absolute_and_traversal_paths_are_rejected(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path)
@@ -191,3 +238,22 @@ class TestDriftUsesTrackedPaths:
         failures = _drift(repo, text)
 
         assert not any("existence miss" in f for f in failures)
+
+
+class TestExternalFailureExitCode:
+    """An operational git failure is external (exit 3), not config (exit 2)."""
+
+    def test_git_failure_exits_three(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import scripts.validation.check_skill_md_portability as portability
+
+        def _boom(*_args: object, **_kwargs: object) -> None:
+            raise OSError("git exploded")
+
+        tracked_paths.cache_clear()
+        _tracked_symlinks.cache_clear()
+        monkeypatch.setattr(subprocess, "run", _boom)
+
+        assert portability._run([]) == 3
+
+        tracked_paths.cache_clear()
+        _tracked_symlinks.cache_clear()

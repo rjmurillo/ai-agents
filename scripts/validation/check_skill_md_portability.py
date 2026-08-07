@@ -109,6 +109,7 @@ from scripts.validation.portability_common import (
 from scripts.validation.portability_floor import (
     read_previous_sections as _read_previous_sections,
 )
+from scripts.validation.tracked_paths import GitQueryError
 
 # Upstream-only runtime path prefixes. Companion to check_skill_portability.py
 # which covers script files; this validator covers .md files. The .claude/skills/
@@ -968,6 +969,11 @@ def _scan_current_counts(
         current, marker_current, scanned_by_root, drift = scan_all(
             root, check_drift=check_drift
         )
+    except GitQueryError:
+        # An external failure, not a scan result. Exit code 3 per
+        # .claude/rules/ci-scripts.md; returning None here would report it as
+        # a configuration error and hide that git itself failed.
+        raise
     except (OSError, MarkdownNestingError) as exc:
         print(f"Could not scan skills dirs under {root}: {exc}", file=sys.stderr)
         return None
@@ -1279,5 +1285,13 @@ def main(argv: list[str] | None = None) -> int:
     return 1 if regressions else 0
 
 
+def _run(argv: list[str] | None = None) -> int:
+    try:
+        return main(argv)
+    except GitQueryError as exc:
+        print(f"External failure: {exc}", file=sys.stderr)
+        return 3
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_run())
