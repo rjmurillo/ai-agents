@@ -29,6 +29,7 @@
 |blocked pr mergeStateStatus ruleset required contexts thread resolution commit limit bypass diagnose: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (908)
 
 [Scripting and Testing]
+|repo-root default script REPO_ROOT __file__ scratch clone cwd wrong repository vacuous test passes git_hook_policy: [testing/repo-root-default-measures-the-wrong-repository](testing/repo-root-default-measures-the-wrong-repository.md) (719)
 |portability git timeout diagnostics fail closed operation context calibration: [portability/git-timeout-diagnostics](portability/git-timeout-diagnostics.md) (951)
 |eval harness enumerate scripts naming underscore hyphen glob baseline no-skill control arm fixtures: [eval-harness-surface-enumeration](eval-harness-surface-enumeration.md) (681)
 |powershell ps1 psm1 module pester test discovery isolation variable scope script: [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (181), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373)
@@ -75,6 +76,7 @@
 |spec coverage acceptance criteria checkbox observe signal non-blocking required check push-pr body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
 |BOT_PAT github.token runner token AI review read calls rate limit budget user id: [ci/ci-ai-review-read-calls-use-runner-token](ci/ci-ai-review-read-calls-use-runner-token.md) (284)
 |count ratchet baseline branch freshness behind main stale higher baseline merge origin/main: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (822)
+|taste count ratchet pre-push cost twelve minutes python-tests push lock queue file-size split not suppress run ratchets first: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (714)
 |taste baseline slack MAX_BASELINE_SLACK drift enforced by pytest not ratchet baseline_health no production caller merge queue batch collision: [ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet](ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet.md) (839)
 |ratchet declared twice lefthook checks_ratchet parity add/add conflict empty merge base keep both symmetric deletion silent 16 passed Ratchet extra_dev uses_base_ref: [ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice](ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice.md) (704)
 |stale detached HEAD shared checkout verify wrong commit git show ref path worktree parse fresh input stale tooling already fixed upstream script version skew session end validation failed inflated diff base resolve_comparison_base: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (1497)
