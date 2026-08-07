@@ -1827,7 +1827,7 @@ def _validate_causal_event(
     if event_id in ids:
         raise EpisodeValidationError(f"duplicate event id: {event_id}", 1)
     event_type = evt.get("type")
-    if event_type not in _CAUSAL_EVENT_TYPES:
+    if not isinstance(event_type, str) or event_type not in _CAUSAL_EVENT_TYPES:
         raise EpisodeValidationError(f"event {event_id} has unsupported type: {event_type}", 2)
     return event_id, _parse_causal_timestamp(evt)
 

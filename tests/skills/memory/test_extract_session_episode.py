@@ -2816,6 +2816,16 @@ class TestCausalEdgeConsistency:
 
         assert any("event e001 has unsupported type: unsupported" in p for p in problems)
 
+    @pytest.mark.parametrize("event_type", [["test"], {"name": "test"}])
+    def test_unhashable_event_type_is_reported(self, tmp_path, event_type):
+        event = self._evt("e001", "2026-01-01T00:00:00+00:00")
+        event["type"] = event_type
+        target = self._write(tmp_path / "episode-unhashable-type.json", [event])
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any("event e001 has unsupported type:" in p for p in problems)
+
     def test_non_string_timestamp_is_reported(self, tmp_path):
         event = self._evt("e001", "2026-01-01T00:00:00+00:00")
         event["timestamp"] = 123
