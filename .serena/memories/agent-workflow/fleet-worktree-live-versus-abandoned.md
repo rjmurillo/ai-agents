@@ -70,7 +70,8 @@ answers both questions exactly the way lost work does. Measured: 125 of 185
 worktrees matched "not on main, no remote branch", while about 9 held work that
 was never proposed.
 
-One API call classifies the whole fleet:
+One API call classifies the current fleet against the most recent 1,000 pull
+requests:
 
 ```bash
 gh pr list --state all --limit 1000 --json number,state,headRefName
@@ -82,12 +83,18 @@ and only the third can hold lost work.
 | Population | Measured count | Verdict |
 |---|---|---|
 | Detached checkout, no branch | 50 | Review leftovers, disposable |
-| Branch is head of a MERGED pull request | 23 | Landed, disposable |
-| Named branch, no pull request ever | 52 | Triage one at a time |
+| Branch is head of a MERGED pull request | 23 | Landed; anchor its tip before disposal |
+| Named branch, no pull request in fetched set | 52 | Triage one at a time |
+
+If a branch appears in more than one pull request, classify it by the set of
+states and let MERGED win. A last-row-wins join can misclassify duplicate branch
+names.
 
 Sort that third group by **commit date, not commit count**. Fifteen commits from
 February is dead. Two commits from Tuesday is a forgotten pull request. Sorting
-by count puts the dead branches on top and buries the recoverable ones.
+by count puts the dead branches on top and buries the recoverable ones. Paginate
+the pull request query before treating absence from the fetched set as proof that
+no pull request exists.
 
 Measured yield: four of the 52 were clean and under a week old. Two of those
 four fixed a byte budget the fleet had been failing against for five days.

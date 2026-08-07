@@ -83,9 +83,10 @@ gh pr list --state all --limit 1000 --json number,state,headRefName
 ```
 
 A branch that is the head of a MERGED pull request landed, whatever ancestry
-says. A branch with no pull request at all is the only shape that can hold lost
-work. Reach for the per-file content check inside that last group, not across
-the whole fleet.
+says, but it can still carry a later stranded commit. Anchor the current tip
+before disposal. A branch absent from the fetched pull request set is the group
+most likely to hold lost work. Reach for the per-file content check inside that
+group, not across the whole fleet.
 
 ## Related
 
