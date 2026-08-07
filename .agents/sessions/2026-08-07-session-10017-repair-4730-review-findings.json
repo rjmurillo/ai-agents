@@ -74,32 +74,32 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All six review findings reproduced. Fixes committed in d7a8d0e5c and 426b93956. Current origin/main merged through 44ae03e18."
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/HANDOFF.md remained read only."
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merged current main decision memory and preserved its index entry while retaining the PR consolidation. No duplicate session-specific memory was added."
+        "Evidence": ".serena/memories/ has changes"
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "markdownlint-cli2 evaluated the resolved memory index and reported the .serena path excluded by repository configuration."
+        "Evidence": "No markdown files changed"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code commits d7a8d0e5c and 426b93956, main merge 44ae03e18, and session evidence commit dc0414f07 are reachable from HEAD."
+        "Evidence": "All changes committed (HEAD: 7de0746c3)"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Full suite collected 24169 tests and exited 0 before the final one-commit main merge. Post-merge affected suite passed 402 tests. Build, portability, mypy, episode validation, memory index validation, merge-tree ratchets, and pre_pr.py passed."
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -115,6 +115,11 @@
         "level": "MUST",
         "Complete": true,
         "Evidence": "A completed session range outranks unrelated staged files. Return None for an unmeasurable range and 0 for a measured empty range so callers can preserve that distinction."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
       }
     }
   },
