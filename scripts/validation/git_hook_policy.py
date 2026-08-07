@@ -479,11 +479,17 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     ("src/copilot-cli/lib/", ".claude/lib/", None),
     ("src/copilot-cli/skills/", ".claude/skills/", None),
     ("src/copilot-cli/hooks/", ".claude/hooks/", None),
-    (
-        ".github/prompts/pr-quality-gate-",
-        ".claude/skills/review/references/",
-        None,
-    ),
+)
+_PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
+_PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
+# build/scripts/generate_pr_quality_prompts.py:_FILENAME_RE
+_PROMPT_ROLE_FILE_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
+# templates/platforms/copilot-cli.yaml:artifacts.skills.excludeFilenames.
+# Reject every configured name before mirror mapping. Even top-level files that
+# the generator never visits must not gain an exemption merely because a
+# canonical file with the same name is tracked.
+_COPILOT_SKILL_EXCLUDES = frozenset(
+    {"AGENTS.md", "CLAUDE.md", "merge-resolver"}
 )
 
 # Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
@@ -2165,6 +2171,17 @@ def _mirror_source(relative_path: str) -> str | None:
     Exempting by prefix alone would let anything written into an output tree
     escape the limit, which is a larger hole than the friction it removes.
     """
+    if relative_path.startswith(_PROMPT_OUTPUT_PREFIX):
+        role_file = relative_path[len(_PROMPT_OUTPUT_PREFIX):]
+        if _PROMPT_ROLE_FILE_RE.fullmatch(role_file):
+            return _PROMPT_SOURCE_PREFIX + role_file
+        return None
+    if relative_path.startswith("src/copilot-cli/skills/"):
+        remainder = relative_path.removeprefix("src/copilot-cli/skills/")
+        skill_name = PurePosixPath(remainder).parts[0] if remainder else ""
+        if skill_name in _COPILOT_SKILL_EXCLUDES:
+            return None
+
     for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
         if not relative_path.startswith(output_prefix):
             continue
@@ -2176,6 +2193,27 @@ def _mirror_source(relative_path: str) -> str | None:
             remainder = remainder[: -len(output_suffix)] + source_suffix
         return source_prefix + remainder
     return None
+
+
+def _is_staged_regular_file(repo_root: Path, relative_path: str) -> bool:
+    """Return True only for a stage-zero regular blob in Git's index."""
+    safe_path = _safe_relative_path(relative_path)
+    if safe_path is None:
+        return False
+    result = _run_git(
+        repo_root,
+        [
+            "ls-files",
+            "--stage",
+            "--error-unmatch",
+            "--",
+            f":(literal){safe_path}",
+        ],
+    )
+    if result.returncode != 0:
+        return False
+    fields = result.stdout.partition("\t")[0].split()
+    return len(fields) >= 3 and fields[0] in {"100644", "100755"} and fields[2] == "0"
 
 
 def _is_generated(relative_path: str, repo_root: Path | None = None) -> bool:
@@ -2191,7 +2229,7 @@ def _is_generated(relative_path: str, repo_root: Path | None = None) -> bool:
     source = _mirror_source(relative_path)
     if source is not None:
         root = repo_root if repo_root is not None else Path.cwd()
-        return (root / source).exists()
+        return _is_staged_regular_file(root, source)
     return False
 
 

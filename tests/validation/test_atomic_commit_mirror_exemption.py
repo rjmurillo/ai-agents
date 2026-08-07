@@ -14,6 +14,7 @@ it removes. Refs #4671.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -23,6 +24,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT / "scripts" / "validation"))
 
 from git_hook_policy import (
+    _COPILOT_SKILL_EXCLUDES,
     MAX_AUTHORED_FILES_PER_COMMIT,
     _is_generated,
     _mirror_source,
@@ -30,10 +32,12 @@ from git_hook_policy import (
 
 
 def _make_repo(tmp_path: Path, sources: tuple[str, ...]) -> Path:
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
     for rel in sources:
         target = tmp_path / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("content\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "--all"], check=True)
     return tmp_path
 
 
@@ -85,6 +89,23 @@ class TestMirrorSourceMapping:
         """A file under the instructions tree without the suffix is not a mirror."""
         assert _mirror_source(".github/instructions/README.md") is None
 
+    def test_excluded_skill_tree_has_no_source_mapping(self) -> None:
+        assert (
+            _mirror_source("src/copilot-cli/skills/merge-resolver/SKILL.md")
+            is None
+        )
+
+    def test_skill_exclusions_match_platform_config(self) -> None:
+        import yaml
+
+        config = yaml.safe_load(
+            (_REPO_ROOT / "templates/platforms/copilot-cli.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        configured = set(config["artifacts"]["skills"]["excludeFilenames"])
+        assert _COPILOT_SKILL_EXCLUDES == configured
+
 
 class TestGeneratedExemption:
     """Exemption requires the canonical source to exist, not merely the prefix."""
@@ -130,6 +151,85 @@ class TestGeneratedExemption:
         root = _make_repo(tmp_path, ())
         assert not _is_generated(".github/prompts/pr-quality-gate-invented.md", root)
         assert not _is_generated(".github/prompts/security.md", root)
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            ".github/prompts/pr-quality-gate-.md",
+            ".github/prompts/pr-quality-gate-Security.md",
+            ".github/prompts/pr-quality-gate-security.txt",
+            ".github/prompts/pr-quality-gate-nested/security.md",
+        ],
+    )
+    def test_malformed_prompt_names_still_count(
+        self, tmp_path: Path, path: str
+    ) -> None:
+        root = _make_repo(
+            tmp_path, (".claude/skills/review/references/security.md",)
+        )
+        assert not _is_generated(path, root)
+
+    def test_untracked_prompt_source_still_counts(self, tmp_path: Path) -> None:
+        root = _make_repo(tmp_path, ())
+        source = root / ".claude/skills/review/references/security.md"
+        source.parent.mkdir(parents=True)
+        source.write_text("untracked\n", encoding="utf-8")
+        assert not _is_generated(".github/prompts/pr-quality-gate-security.md", root)
+
+    def test_deleted_prompt_source_still_counts(self, tmp_path: Path) -> None:
+        root = _make_repo(
+            tmp_path, (".claude/skills/review/references/security.md",)
+        )
+        source = root / ".claude/skills/review/references/security.md"
+        source.unlink()
+        subprocess.run(["git", "-C", str(root), "add", "-u"], check=True)
+        assert not _is_generated(".github/prompts/pr-quality-gate-security.md", root)
+
+    def test_renamed_prompt_source_still_counts(self, tmp_path: Path) -> None:
+        root = _make_repo(
+            tmp_path, (".claude/skills/review/references/security.md",)
+        )
+        source = root / ".claude/skills/review/references/security.md"
+        source.rename(source.with_name("renamed.md"))
+        subprocess.run(["git", "-C", str(root), "add", "--all"], check=True)
+        assert not _is_generated(".github/prompts/pr-quality-gate-security.md", root)
+
+    def test_symlink_prompt_source_still_counts(self, tmp_path: Path) -> None:
+        root = _make_repo(tmp_path, ())
+        target = root / "real.md"
+        target.write_text("content\n", encoding="utf-8")
+        source = root / ".claude/skills/review/references/security.md"
+        source.parent.mkdir(parents=True)
+        source.symlink_to(target)
+        subprocess.run(["git", "-C", str(root), "add", "--all"], check=True)
+        assert not _is_generated(".github/prompts/pr-quality-gate-security.md", root)
+
+    def test_directory_prompt_source_still_counts(self, tmp_path: Path) -> None:
+        root = _make_repo(tmp_path, ())
+        source = root / ".claude/skills/review/references/security.md"
+        source.mkdir(parents=True)
+        assert not _is_generated(".github/prompts/pr-quality-gate-security.md", root)
+
+    def test_excluded_skill_files_still_count(self, tmp_path: Path) -> None:
+        root = _make_repo(
+            tmp_path,
+            tuple(
+                f".claude/skills/merge-resolver/file-{index}.md"
+                for index in range(6)
+            ),
+        )
+        outputs = [
+            f"src/copilot-cli/skills/merge-resolver/file-{index}.md"
+            for index in range(6)
+        ]
+        assert [path for path in outputs if not _is_generated(path, root)] == outputs
+
+    @pytest.mark.parametrize("excluded", ["AGENTS.md", "CLAUDE.md"])
+    def test_excluded_top_level_skill_files_still_count(
+        self, tmp_path: Path, excluded: str
+    ) -> None:
+        root = _make_repo(tmp_path, (f".claude/skills/{excluded}",))
+        assert not _is_generated(f"src/copilot-cli/skills/{excluded}", root)
 
 
 class TestFiveToSixBoundary:
