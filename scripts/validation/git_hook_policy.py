@@ -43,6 +43,10 @@ from scripts.validation.pr_commit_count import (
     MAIN_MERGE_BLOCK_THRESHOLD,
     main_first_parent_shas,
 )
+from scripts.validation.session_scope import (
+    added_session_paths_in_head,
+    added_session_paths_in_index,
+)
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1695,55 +1699,6 @@ def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
     return present
 
 
-def _added_session_paths(
-    paths: Sequence[str], repo_root: Path, git_args: Sequence[str]
-) -> set[str] | None:
-    """Return session-log paths reported as additions by one git diff.
-
-    The diff carries no pathspec. With rename detection enabled, limiting the
-    diff to the caller's paths hides the deletion half and can reclassify a
-    rename as an add. Intersect in Python instead so only true adds receive
-    ``--creation-mode``.
-
-    On any git failure, return ``None`` so the caller can block instead of
-    guessing. A failed probe must not silently reclassify an existing log as a
-    creation-time log and skip compliance-only checks.
-    """
-    if not paths:
-        return set()
-    result = _run_git(repo_root, list(git_args))
-    if result.returncode != 0:
-        _print_process_output(result, stdout_stream=sys.stderr)
-        return None
-    added: set[str] = set()
-    for line in result.stdout.splitlines():
-        parts = line.split("\t", 1)
-        if len(parts) != 2:
-            continue
-        status, name = parts
-        if status.startswith("A"):
-            added.add(name.strip())
-    return {path for path in paths if path in added}
-
-
-def _added_session_paths_in_index(paths: Sequence[str], repo_root: Path) -> set[str] | None:
-    """Return session-log paths staged as adds in the current commit."""
-    return _added_session_paths(
-        paths,
-        repo_root,
-        ["diff", "--cached", "--name-status", "-M", "--diff-filter=A"],
-    )
-
-
-def _added_session_paths_in_head(paths: Sequence[str], repo_root: Path) -> set[str] | None:
-    """Return session-log paths added by the current ``HEAD`` commit."""
-    return _added_session_paths(
-        paths,
-        repo_root,
-        ["diff-tree", "--root", "--name-status", "-M", "--diff-filter=A", "-r", "HEAD"],
-    )
-
-
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if _merge_in_progress(repo_root):
         return 0
@@ -1755,7 +1710,7 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if not sessions:
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
-    new_logs = _added_session_paths_in_index(sessions, repo_root)
+    new_logs = added_session_paths_in_index(sessions, repo_root)
     if new_logs is None:
         print(
             "ERROR: unable to determine which staged session logs are new; "
@@ -6337,7 +6292,7 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
         for raw_path in paths
         if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
     ]
-    new_logs = _added_session_paths_in_head(session_paths, repo_root)
+    new_logs = added_session_paths_in_head(session_paths, repo_root)
     if new_logs is None:
         print(
             "ERROR: unable to determine which committed session logs were added "

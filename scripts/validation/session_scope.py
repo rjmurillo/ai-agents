@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -119,6 +120,62 @@ def _tracked(paths: list[str], repo_root: Path) -> set[str]:
     if listed.returncode != 0:
         return set()
     return {entry for entry in listed.stdout.split("\0") if entry}
+
+
+def _added_session_paths(
+    paths: Iterable[str], repo_root: Path, git_args: list[str]
+) -> set[str] | None:
+    """Return the subset of ``paths`` one git diff reports as additions.
+
+    The diff carries no pathspec. With rename detection enabled, limiting the
+    diff to the caller's paths hides the deletion half and can reclassify a
+    rename as an add. Intersect in Python instead so only true adds receive
+    creation-mode.
+
+    Return ``None`` on a git failure so the caller can block instead of
+    guessing. A failed probe must not silently reclassify an existing log as a
+    creation-time log and skip compliance-only checks.
+    """
+    wanted = list(paths)
+    if not wanted:
+        return set()
+    try:
+        diff = _git(git_args, repo_root)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if diff.returncode != 0:
+        if diff.stdout:
+            print(diff.stdout, end="", file=sys.stderr)
+        if diff.stderr:
+            print(diff.stderr, end="", file=sys.stderr)
+        return None
+    added: set[str] = set()
+    for line in diff.stdout.splitlines():
+        parts = line.split("\t", 1)
+        if len(parts) != 2:
+            continue
+        status, name = parts
+        if status.startswith("A"):
+            added.add(name.strip())
+    return {path for path in wanted if path in added}
+
+
+def added_session_paths_in_index(paths: Iterable[str], repo_root: Path) -> set[str] | None:
+    """Return session-log paths staged as adds in the index, or ``None`` on failure."""
+    return _added_session_paths(
+        paths,
+        repo_root,
+        ["diff", "--cached", "--name-status", "-M", "--diff-filter=A"],
+    )
+
+
+def added_session_paths_in_head(paths: Iterable[str], repo_root: Path) -> set[str] | None:
+    """Return session-log paths added by ``HEAD``, or ``None`` on git failure."""
+    return _added_session_paths(
+        paths,
+        repo_root,
+        ["diff-tree", "--root", "--name-status", "-M", "--diff-filter=A", "-r", "HEAD"],
+    )
 
 
 def new_session_logs(paths: Iterable[str], repo_root: Path) -> set[str]:

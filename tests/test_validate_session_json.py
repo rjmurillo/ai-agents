@@ -2015,7 +2015,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         return _git, seen
 
     @staticmethod
-    def _policy_stub(
+    def _added_paths_stub(
         *,
         staged_added: tuple[str, ...] = (),
         head_added: tuple[str, ...] = (),
@@ -2023,8 +2023,11 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         head_returncode: int = 0,
         staged_stderr: str = "",
         head_stderr: str = "",
-    ) -> Callable[..., subprocess.CompletedProcess[str]]:
-        def _git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+    ) -> tuple[Callable[..., subprocess.CompletedProcess[str]], list[list[str]]]:
+        seen: list[list[str]] = []
+
+        def _git(args: list[str], _repo_root: Path) -> subprocess.CompletedProcess[str]:
+            seen.append(args)
             if args == ["diff", "--cached", "--name-status", "-M", "--diff-filter=A"]:
                 if staged_returncode != 0:
                     return subprocess.CompletedProcess([], staged_returncode, "", staged_stderr)
@@ -2045,20 +2048,23 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
                 return subprocess.CompletedProcess([], 0, body, "")
             return subprocess.CompletedProcess([], 0, "", "")
 
-        return _git
+        return _git, seen
 
-    def test_the_workflow_derives_the_scope_from_git_in_one_call(self) -> None:
-        """The validate step must keep passing --scope-from-git.
+    def test_the_workflow_reads_head_adds_from_the_shared_scope_helper(self) -> None:
+        """The workflow must choose creation-mode outside the validator.
 
-        The flag moved into scripts/ci/validate_session_protocol.py with the
-        rest of the step's logic (ADR-006, issue #3520), so that is where the
-        guard has to look. Dropping it would re-validate logs already in the
-        merge base.
+        A branch-added log needs --creation-mode, while a later edit to the
+        same path must validate as an existing record. Keeping
+        --scope-from-git here pins the broken in-between state where neither
+        mode is selected for a branch-added log.
         """
         script = (
             Path(__file__).resolve().parents[1] / "scripts/ci/validate_session_protocol.py"
         ).read_text(encoding="utf-8")
-        assert "--scope-from-git" in script
+        assert "added_session_paths_in_head" in script
+        assert "--creation-mode" in script
+        assert "--existing-log" in script
+        assert "--scope-from-git" not in script
 
     # Issue #3806 retired the whole-file `"uv run" not in workflow` assertion
     # that used to sit here. The validate job now installs uv on purpose, and a
@@ -2079,6 +2085,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         assert imports == [
             "import re",
             "import subprocess",
+            "import sys",
             "from collections.abc import Iterable",
             "from pathlib import Path",
         ]
@@ -2170,6 +2177,24 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             assert session_scope.new_session_logs(list(names), Path.cwd()) == set()
         assert [args[0] for args in seen] == ["merge-base", "diff", "ls-files"]
 
+    def test_the_shared_helper_reads_head_adds_without_a_pathspec(self) -> None:
+        """Rename detection needs the whole diff, not a path-limited half."""
+        from scripts.validation import session_scope
+
+        stub, seen = self._added_paths_stub(head_added=("a.json",))
+        with mock.patch.object(session_scope, "_git", stub):
+            assert session_scope.added_session_paths_in_head(["a.json"], Path.cwd()) == {"a.json"}
+        assert seen == [
+            ["diff-tree", "--root", "--name-status", "-M", "--diff-filter=A", "-r", "HEAD"]
+        ]
+
+    def test_the_shared_helper_returns_none_on_git_failure(self) -> None:
+        from scripts.validation import session_scope
+
+        stub, _ = self._added_paths_stub(head_returncode=128, head_stderr="fatal: bad HEAD")
+        with mock.patch.object(session_scope, "_git", stub):
+            assert session_scope.added_session_paths_in_head(["a.json"], Path.cwd()) is None
+
     def test_the_hook_passes_the_flag_only_for_an_existing_log(self) -> None:
         from scripts.validation import git_hook_policy
 
@@ -2182,7 +2207,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
 
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
-            mock.patch.object(git_hook_policy, "_run_git", self._policy_stub()),
+            mock.patch.object(git_hook_policy, "added_session_paths_in_head", return_value=set()),
         ):
             git_hook_policy.validate_branch_sessions([old], Path.cwd())
         assert commands and "--existing-log" in commands[0]
@@ -2204,7 +2229,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
 
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
-            mock.patch.object(git_hook_policy, "_run_git", self._policy_stub(head_added=(new,))),
+            mock.patch.object(git_hook_policy, "added_session_paths_in_head", return_value={new}),
         ):
             git_hook_policy.validate_branch_sessions([new], Path.cwd())
         assert commands
@@ -2223,11 +2248,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
 
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
-            mock.patch.object(
-                git_hook_policy,
-                "_run_git",
-                self._policy_stub(head_returncode=128, head_stderr="fatal: bad HEAD"),
-            ),
+            mock.patch.object(git_hook_policy, "added_session_paths_in_head", return_value=None),
         ):
             rc = git_hook_policy.validate_branch_sessions([path], Path.cwd())
         assert rc == 1
@@ -2290,11 +2311,7 @@ class TestCheckSessionsCreationMode:
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
             mock.patch.object(git_hook_policy, "_merge_in_progress", return_value=False),
-            mock.patch.object(
-                git_hook_policy,
-                "_run_git",
-                TestSessionScopeIsDecidedOnceForBothCallSites._policy_stub(staged_added=(new,)),
-            ),
+            mock.patch.object(git_hook_policy, "added_session_paths_in_index", return_value={new}),
         ):
             rc = git_hook_policy.check_sessions([new], Path.cwd())
         assert rc == 0
@@ -2318,11 +2335,7 @@ class TestCheckSessionsCreationMode:
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
             mock.patch.object(git_hook_policy, "_merge_in_progress", return_value=False),
-            mock.patch.object(
-                git_hook_policy,
-                "_run_git",
-                TestSessionScopeIsDecidedOnceForBothCallSites._policy_stub(),
-            ),
+            mock.patch.object(git_hook_policy, "added_session_paths_in_index", return_value=set()),
         ):
             rc = git_hook_policy.check_sessions([existing], Path.cwd())
         assert rc == 0
@@ -2347,14 +2360,7 @@ class TestCheckSessionsCreationMode:
         with (
             mock.patch.object(git_hook_policy, "_run_command", _record),
             mock.patch.object(git_hook_policy, "_merge_in_progress", return_value=False),
-            mock.patch.object(
-                git_hook_policy,
-                "_run_git",
-                TestSessionScopeIsDecidedOnceForBothCallSites._policy_stub(
-                    staged_returncode=128,
-                    staged_stderr="fatal: index probe failed",
-                ),
-            ),
+            mock.patch.object(git_hook_policy, "added_session_paths_in_index", return_value=None),
         ):
             rc = git_hook_policy.check_sessions([path], Path.cwd())
         assert rc == 1
