@@ -39,13 +39,13 @@ def _ensure_plain_directory(path: Path, *, owner_only: bool) -> None:
     try:
         metadata = path.lstat()
     except FileNotFoundError:
-        path.mkdir(mode=0o700)
+        path.mkdir(mode=stat.S_IRWXU)
         metadata = path.lstat()
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
         raise PreparePrBodyError(f"path must be a plain directory: {path}")
     _require_owned(path, metadata)
     if owner_only and stat.S_IMODE(metadata.st_mode) & _PRIVATE_MASK:
-        path.chmod(0o700)
+        path.chmod(stat.S_IRWXU)
 
 
 def _open_plain_directory(path: Path, *, owner_only: bool) -> int:
@@ -59,7 +59,7 @@ def _open_plain_directory(path: Path, *, owner_only: bool) -> int:
         os.close(descriptor)
         raise PreparePrBodyError(f"directory changed before open: {path}")
     if owner_only:
-        os.fchmod(descriptor, 0o700)
+        os.fchmod(descriptor, stat.S_IRWXU)
     return descriptor
 
 
@@ -79,7 +79,7 @@ def _open_scratch(repo_root: Path) -> tuple[Path, int | None]:
     agents_fd = _open_plain_directory(agents_dir, owner_only=False)
     try:
         try:
-            os.mkdir("scratch", mode=0o700, dir_fd=agents_fd)
+            os.mkdir("scratch", mode=stat.S_IRWXU, dir_fd=agents_fd)
         except FileExistsError:
             pass
         before = os.stat("scratch", dir_fd=agents_fd, follow_symlinks=False)
@@ -96,7 +96,7 @@ def _open_scratch(repo_root: Path) -> tuple[Path, int | None]:
             raise PreparePrBodyError(
                 f"directory changed before open: {scratch_dir}"
             )
-        os.fchmod(scratch_fd, 0o700)
+        os.fchmod(scratch_fd, stat.S_IRWXU)
         return scratch_dir, scratch_fd
     finally:
         os.close(agents_fd)

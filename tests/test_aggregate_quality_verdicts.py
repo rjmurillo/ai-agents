@@ -201,6 +201,38 @@ class TestMain:
         assert outputs["qa_category"] == "INFRASTRUCTURE"
         assert outputs["security_review_ran"] == "false"
 
+    def test_unknown_infra_failure_stays_blocking(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["qa"] = "UNKNOWN"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+        infra["qa"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "UNKNOWN"
+        assert outputs["security_review_ran"] == "false"
+
+    def test_unrecognized_verdict_token_stays_blocking(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["analyst"] = "FOOBAR"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+        infra["analyst"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "UNKNOWN"
+        assert outputs["security_review_ran"] == "false"
+
     def test_outputs_per_agent_verdicts_and_categories(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
         verdicts = {a: "PASS" for a in _AGENTS}
@@ -268,6 +300,55 @@ class TestMain:
         outputs = _read_outputs(output_file)
         # Real WARN outranks UNKNOWN per merge_verdicts severity order.
         assert outputs["final_verdict"] == "WARN"
+
+    def test_infra_flagged_unrecognized_token_not_masked_by_warn(
+        self, tmp_path, monkeypatch
+    ):
+        # Copilot review comment 3738192125 on PR #4760: merge_verdicts()
+        # checks WARN before it checks DID_NOT_RUN/UNKNOWN/unrecognized
+        # tokens (scripts/ai_review_common/verdict.py priority list, steps 2
+        # and 3), so a real WARN from one agent used to silently mask a raw
+        # or unrecognized token (e.g. FOOBAR) from a different, infra-flagged
+        # agent. security is an expected infra sentinel (DID_NOT_RUN);
+        # analyst's FOOBAR is not a recognized infra-failure token even
+        # though it is infra-flagged, so the aggregate must stay UNKNOWN
+        # rather than read as a normal, non-blocking WARN.
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["analyst"] = "FOOBAR"
+        verdicts["qa"] = "WARN"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+        infra["analyst"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "UNKNOWN", (
+            "A real WARN must not mask an infra-flagged agent's raw or "
+            "unrecognized verdict token; the gate must stay blocking."
+        )
+
+    def test_warn_does_not_mask_missing_security_review(
+        self, tmp_path, monkeypatch
+    ):
+        # A normal WARN must not make a missing security review non-blocking.
+        # Security did not run, so the aggregate remains DID_NOT_RUN even when
+        # another agent returned a real WARN.
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["qa"] = "WARN"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "DID_NOT_RUN"
 
 
 class TestSecurityReviewRan:
