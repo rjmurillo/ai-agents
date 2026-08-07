@@ -115,6 +115,10 @@
     {
       "action": "Thread PRRT_kwDOQoWRls6Wwx1t: add search evidence for absence claims",
       "result": "Cited rg and grep commands inline"
+    },
+    {
+      "action": "Fix episode commits count",
+      "result": "Set commits=2"
     }
   ],
   "episodeMetrics": {
@@ -122,10 +126,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "f17e7f4ea",
-      "head": "754906d8e54e7138e3606c0b25467126ae0fac62"
+      "head": "bb44f876d77a295768e5e8e191bd131b6a9b30c0"
     }
   },
-  "endingCommit": "",
+  "endingCommit": "bb44f876d77a295768e5e8e191bd131b6a9b30c0",
   "nextSteps": [
     "Push and resolve threads on PR #4669"
   ]
