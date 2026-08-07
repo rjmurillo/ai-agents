@@ -64,6 +64,7 @@ from hook_dispatch_protocol import (  # noqa: E402
 from hook_dispatch_protocol import (  # noqa: E402
     record_discarded_observer_output as _record_discarded_observer_output,
 )
+from hook_dispatch_timeout import run_timed_shim as _run_timed_shim  # noqa: E402
 from shim_loader import ShimLoadError, check_shim_loads, execute_shim  # noqa: E402
 
 # Hook exit-code convention (Claude/Copilot PreToolUse): 0 allow, 2 block.
@@ -94,14 +95,25 @@ def _exit_code(exc: SystemExit) -> int:
     return 1
 
 
-def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
+def _run_shim(
+    shim_path: Path,
+    name: str,
+    raw_stdin: bytes,
+    timeout_sec: float | None = None,
+) -> int:
     """Run one shim and translate its outcome to a hook exit code.
 
     Load and execute are separate calls so a load failure and an execution
     failure are distinguished by construction, not by exception type. See
     shim_loader for why that boundary is load bearing.
+
+    A shim carrying timeout metadata runs in a child process instead. The
+    timeout was validated but never applied, so a hung shim blocked the hook
+    indefinitely while the manifest advertised a bound (#4706). An in-process
+    thread cannot be killed safely, so enforcing the bound requires a process
+    the dispatcher can terminate. Untimed shims keep the in-process path, which
+    is the startup win ADR-068 exists for.
     """
-    _install_stdin(raw_stdin)
     try:
         check_shim_loads(shim_path)
     except ShimLoadError as exc:
@@ -113,6 +125,12 @@ def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
             file=sys.stderr,
         )
         return ALLOW_EXIT
+
+    if timeout_sec is not None:
+        code, _, _ = _run_timed_shim(shim_path, name, raw_stdin, timeout_sec)
+        return code
+
+    _install_stdin(raw_stdin)
 
     try:
         execute_shim(shim_path)
@@ -131,11 +149,16 @@ def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
         return BLOCK_EXIT
 
 
-def _run_shim_capturing_stdout(shim_path: Path, name: str, raw_stdin: bytes) -> tuple[int, str]:
+def _run_shim_capturing_stdout(
+    shim_path: Path,
+    name: str,
+    raw_stdin: bytes,
+    timeout_sec: float | None = None,
+) -> tuple[int, str]:
     """Run one shim while retaining every process stdout path."""
     return output_capture.run_capturing_process_stdout(
         name,
-        lambda: _run_shim(shim_path, name, raw_stdin),
+        lambda: _run_shim(shim_path, name, raw_stdin, timeout_sec),
         failure_exit=BLOCK_EXIT,
     )
 
@@ -144,11 +167,12 @@ def _run_shim_capturing_output(
     shim_path: Path,
     name: str,
     raw_stdin: bytes,
+    timeout_sec: float | None = None,
 ) -> tuple[int, str, str]:
     """Run one shim while retaining every process stdout and stderr path."""
     return output_capture.run_capturing_process_output(
         name,
-        lambda: _run_shim(shim_path, name, raw_stdin),
+        lambda: _run_shim(shim_path, name, raw_stdin, timeout_sec),
         capture_stderr=True,
         failure_exit=BLOCK_EXIT,
     )
@@ -188,7 +212,9 @@ def run_permission_dispatch(
         code = _validate_timeout(name, timeout_sec)
         if code is not None:
             return code
-        code, raw_stdout = _run_shim_capturing_stdout(shim_path, name, raw_stdin)
+        code, raw_stdout = _run_shim_capturing_stdout(
+            shim_path, name, raw_stdin, timeout_sec
+        )
         if code != ALLOW_EXIT:
             return code
         response = _copilot_permission_response(raw_stdout, name)
@@ -279,6 +305,17 @@ def run_dispatch(
                 continue
 
             timeout_sec = shim_timeouts.get(name) if shim_timeouts else None
+            if not short_circuit:
+                # Observe mode ignores per-shim timeouts on purpose. Enforcing
+                # them once made the dispatcher return success while a slow
+                # observer was still running, leaving work orphaned behind a
+                # hook that had already reported done, which
+                # test_timeout_metadata_does_not_background_observer_work pins.
+                # The host owns the event timeout, and an observer cannot block
+                # a tool call, so there is nothing here worth that risk. Gate
+                # mode is different: a hung shim there blocks the call, which
+                # is the hazard #4706 describes.
+                timeout_sec = None
             raw_stdout = ""
             raw_stderr = ""
             code = _validate_timeout(name, timeout_sec)
@@ -289,16 +326,18 @@ def run_dispatch(
                             shim_path,
                             name,
                             raw_stdin,
+                            timeout_sec,
                         )
                     else:
                         code, raw_stdout = _run_shim_capturing_stdout(
                             shim_path,
                             name,
                             raw_stdin,
+                            timeout_sec,
                         )
                         raw_stderr = ""
                 else:
-                    code = _run_shim(shim_path, name, raw_stdin)
+                    code = _run_shim(shim_path, name, raw_stdin, timeout_sec)
 
             discarded_output = False
             if capture_observer_output and output_policy == "discard":
