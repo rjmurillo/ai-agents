@@ -28,6 +28,7 @@ Exit codes:
     2 - config / fixture invalid / API not configured
     3 - external (API) failure
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,7 +44,8 @@ from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _anthropic_api import call_api, load_api_key  # noqa: E402
+from _anthropic_api import call_api, load_api_key_for_selected_provider
+from _eval_common import MalformedProviderMetadataError
 
 DEFAULT_MODEL = "claude-sonnet-4-5"  # Released model id; 4.6 is a newer variant.
 DEFAULT_TRIALS = 5
@@ -70,9 +72,7 @@ def load_fixtures(fixture_dir: Path) -> list[dict[str, Any]]:
         with path.open(encoding="utf-8") as f:
             data = json.load(f)
         if data.get("agent") not in TEMPLATES:
-            raise RuntimeError(
-                f"{path}: agent={data.get('agent')!r} not in {sorted(TEMPLATES)}"
-            )
+            raise RuntimeError(f"{path}: agent={data.get('agent')!r} not in {sorted(TEMPLATES)}")
         for required in ("id", "input", "expected_verdict", "verdict_options"):
             if required not in data:
                 raise RuntimeError(f"{path}: missing field {required!r}")
@@ -102,9 +102,7 @@ def load_template(rel_path: str, ref: str | None) -> str:
         cwd=str(REPO_ROOT),
     )
     if result.returncode != 0:
-        raise RuntimeError(
-            f"git show {ref}:{rel_path} failed: {result.stderr.strip()}"
-        )
+        raise RuntimeError(f"git show {ref}:{rel_path} failed: {result.stderr.strip()}")
     return result.stdout
 
 
@@ -156,10 +154,7 @@ def run_trial(
     reason_match = True
     expected_substr = fixture.get("expected_reason_contains")
     if expected_substr:
-        reason_match = (
-            str(expected_substr).lower()
-            in str(parsed.get("reason", "")).lower()
-        )
+        reason_match = str(expected_substr).lower() in str(parsed.get("reason", "")).lower()
 
     findings_match = True
     findings_count = None
@@ -271,9 +266,11 @@ def _phi(z: float) -> float:
 
 def cohen_h(p1: float, p2: float) -> float:
     """Effect size for two proportions: 2*(arcsin(sqrt(p1)) - arcsin(sqrt(p2)))."""
+
     def phi_arcsin(p: float) -> float:
         p = max(0.0, min(1.0, p))
         return 2 * math.asin(math.sqrt(p))
+
     return phi_arcsin(p2) - phi_arcsin(p1)
 
 
@@ -286,7 +283,8 @@ def mann_whitney_u(x: list[float], y: list[float]) -> tuple[float, float, float]
     if min(n1, n2) == 0:
         return 0.0, 0.0, 1.0
     combined = sorted(
-        [(v, "x") for v in x] + [(v, "y") for v in y], key=lambda t: t[0],
+        [(v, "x") for v in x] + [(v, "y") for v in y],
+        key=lambda t: t[0],
     )
     ranks: list[float] = []
     i = 0
@@ -360,22 +358,22 @@ def run_eval(
                 f"treatment={'PASS' if trt['passed'] else 'FAIL'}",
                 file=sys.stderr,
             )
-        per_fixture.append({
-            "id": fixture["id"],
-            "agent": agent,
-            "control_passes": sum(1 for r in ctrl_runs if r["passed"]),
-            "control_fails": sum(1 for r in ctrl_runs if not r["passed"]),
-            "treatment_passes": sum(1 for r in trt_runs if r["passed"]),
-            "treatment_fails": sum(1 for r in trt_runs if not r["passed"]),
-            "control_runs": ctrl_runs,
-            "treatment_runs": trt_runs,
-        })
+        per_fixture.append(
+            {
+                "id": fixture["id"],
+                "agent": agent,
+                "control_passes": sum(1 for r in ctrl_runs if r["passed"]),
+                "control_fails": sum(1 for r in ctrl_runs if not r["passed"]),
+                "treatment_passes": sum(1 for r in trt_runs if r["passed"]),
+                "treatment_fails": sum(1 for r in trt_runs if not r["passed"]),
+                "control_runs": ctrl_runs,
+                "treatment_runs": trt_runs,
+            }
+        )
 
     # Aggregate at agent and overall levels.
     agents = sorted({f["agent"] for f in fixtures})
-    by_agent: dict[str, dict[str, int]] = {
-        a: {"a": 0, "b": 0, "c": 0, "d": 0} for a in agents
-    }
+    by_agent: dict[str, dict[str, int]] = {a: {"a": 0, "b": 0, "c": 0, "d": 0} for a in agents}
     overall = {"a": 0, "b": 0, "c": 0, "d": 0}
     for pf in per_fixture:
         ag = pf["agent"]
@@ -406,8 +404,7 @@ def run_eval(
             "z_score": round(z, 4),
             "z_test_p_one_sided": round(z_p, 6),
             "cohen_h": round(cohen_h(p_ctrl, p_trt), 4),
-            "significant_at_alpha_0.05":
-                fisher_p < ALPHA and p_trt > p_ctrl,
+            "significant_at_alpha_0.05": fisher_p < ALPHA and p_trt > p_ctrl,
         }
 
     # Findings-count Mann-Whitney U (per-agent, when fixtures use the
@@ -435,20 +432,20 @@ def run_eval(
         findings_stats[ag] = {
             "n_control": len(data["control"]),
             "n_treatment": len(data["treatment"]),
-            "control_mean": round(
-                sum(data["control"]) / len(data["control"]), 3
-            ) if data["control"] else None,
-            "treatment_mean": round(
-                sum(data["treatment"]) / len(data["treatment"]), 3
-            ) if data["treatment"] else None,
+            "control_mean": round(sum(data["control"]) / len(data["control"]), 3)
+            if data["control"]
+            else None,
+            "treatment_mean": round(sum(data["treatment"]) / len(data["treatment"]), 3)
+            if data["treatment"]
+            else None,
             "u_y_treatment": round(u, 1),
             "z_score": round(z, 3),
             "p_one_sided": round(p, 6),
-            "significant_at_alpha_0.05":
-                p < ALPHA and (
-                    sum(data["treatment"]) / max(1, len(data["treatment"]))
-                    > sum(data["control"]) / max(1, len(data["control"]))
-                ),
+            "significant_at_alpha_0.05": p < ALPHA
+            and (
+                sum(data["treatment"]) / max(1, len(data["treatment"]))
+                > sum(data["control"]) / max(1, len(data["control"]))
+            ),
         }
 
     return {
@@ -509,6 +506,22 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _run_eval_or_error(
+    api_key: str,
+    fixtures: list[dict[str, Any]],
+    trials: int,
+    model: str,
+    base_ref: str,
+) -> dict[str, Any] | None:
+    try:
+        return run_eval(api_key, fixtures, trials, model, base_ref)
+    except MalformedProviderMetadataError:
+        raise
+    except RuntimeError as exc:
+        print(f"ERROR during eval: {exc}", file=sys.stderr)
+        return None
+
+
 def main() -> int:
     args = parse_args()
     fixture_dir = (REPO_ROOT / args.fixtures).resolve()
@@ -552,25 +565,34 @@ def main() -> int:
         )
 
     if args.dry_run:
-        print(json.dumps({
-            "dry_run": True,
-            "fixtures": len(fixtures),
-            "trials": args.trials,
-            "estimated_api_calls": len(fixtures) * args.trials * 2,
-            "agents": seen_agents,
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "dry_run": True,
+                    "fixtures": len(fixtures),
+                    "trials": args.trials,
+                    "estimated_api_calls": len(fixtures) * args.trials * 2,
+                    "agents": seen_agents,
+                },
+                indent=2,
+            )
+        )
         return 0
 
     try:
-        api_key = load_api_key()
+        api_key = load_api_key_for_selected_provider()
     except RuntimeError as exc:
         print(f"ERROR loading API key: {exc}", file=sys.stderr)
         return 2
 
-    try:
-        result = run_eval(api_key, fixtures, args.trials, args.model, args.base_ref)
-    except RuntimeError as exc:
-        print(f"ERROR during eval: {exc}", file=sys.stderr)
+    result = _run_eval_or_error(
+        api_key,
+        fixtures,
+        args.trials,
+        args.model,
+        args.base_ref,
+    )
+    if result is None:
         return 3
 
     output = json.dumps(result, indent=2)
@@ -634,8 +656,10 @@ def main() -> int:
     sig_per_agent_count = 0
     for agent in result["by_agent"]:
         binary_sig = result["by_agent"][agent]["significant_at_alpha_0.05"]
-        count_sig = result.get("findings_count_stats", {}).get(agent, {}).get(
-            "significant_at_alpha_0.05", False
+        count_sig = (
+            result.get("findings_count_stats", {})
+            .get(agent, {})
+            .get("significant_at_alpha_0.05", False)
         )
         if binary_sig or count_sig:
             sig_per_agent_count += 1

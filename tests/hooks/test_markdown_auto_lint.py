@@ -18,7 +18,7 @@ import pytest
 HOOK_DIR = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PostToolUse"
 sys.path.insert(0, str(HOOK_DIR))
 
-from invoke_markdown_auto_lint import (  # noqa: E402
+from invoke_markdown_auto_lint import (
     get_file_path_from_input,
     get_project_directory,
     main,

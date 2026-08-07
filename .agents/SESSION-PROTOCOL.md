@@ -702,19 +702,21 @@ The agent MUST run quality checks before ending.
    **Bash:**
 
    ```bash
-   CHANGED_MD=$(git diff --name-only --diff-filter=d HEAD '*.md' 2>/dev/null)
-   if [ -n "$CHANGED_MD" ]; then
-     echo "$CHANGED_MD" | xargs npx markdownlint-cli2 --fix --no-globs
-   fi
+   ( cd "$(git rev-parse --show-toplevel)" || exit 1
+     git diff -z --name-only --diff-filter=d HEAD '*.md' |
+       xargs -0 -r uv run --frozen python scripts/validation/pre_pr.py --markdown-lint-only -- )
    ```
 
    **PowerShell:**
 
    ```powershell
-   $ChangedMd = git diff --name-only --diff-filter=d HEAD '*.md' 2>$null
-   if ($ChangedMd) {
-       npx markdownlint-cli2 --fix --no-globs $ChangedMd
-   }
+   Push-Location (git rev-parse --show-toplevel)
+   try {
+       $ChangedMd = git diff --name-only --diff-filter=d HEAD '*.md' 2>$null
+       if ($ChangedMd) {
+           uv run --frozen python scripts/validation/pre_pr.py --markdown-lint-only -- $ChangedMd
+       }
+   } finally { Pop-Location }
    ```
 
    The agent MAY run repository-wide formatting (`npx markdownlint-cli2 --fix "**/*.md"`) only when:
@@ -736,8 +738,11 @@ The agent MUST run quality checks before ending.
 
 **Verification:**
 
-- Markdownlint output shows no errors
+- Markdownlint output names how many files it read, and reports no errors in them
+- When it reads zero files, the evidence says `NOT LINTED`, never `clean`
 - Validation scripts pass or issues documented
+
+**Rationale:** Issue #3710 documents that linting a path excluded by `.markdownlint-cli2.yaml` selects zero files, prints `Summary: 0 issues in 0 files`, and exits 0, which is indistinguishable from a clean run. The `ignores` patterns cover most of what sessions here actually edit: `.agents/**`, `.serena/**`, `**/CLAUDE.md`, `.github/agents/**/*.agent.md`, and the five lifecycle command files. Measure the current share rather than quoting one; the count moves whenever the config or the tree changes, and the figures recorded elsewhere in this repository have already gone stale. So a session that changes a memory, an ADR, or a governance document runs this step, reads none of those files, and still satisfies the `Lint ran` evidence row. Observed harm: two MD032 errors and a banned word reached a commit in `docs/autonomous-pr-monitor.md`, itself an excluded path, because the in-tree run said clean. PR #3817 captured the trap in a memory but left this command unchanged. The `pre_pr.py` wrapper is the path lefthook's `markdown-autofix` step already uses: it autofixes the same files, exits non-zero on the same unfixable violations, and additionally reports how many of the given paths it read. Passing `--no-globs` does not avoid the trap; that flag governs whether the config's `globs` key contributes extra input paths, it has no effect on `ignores`, and this repository's config sets no `globs` key for it to suppress.
 
 ### Phase 2.5: QA Validation (BLOCKING)
 
@@ -916,7 +921,7 @@ Copy this checklist to each session log and verify completion:
 | MUST | Security review export (if exported): `grep -iE "api[_-]?key|password|token|secret|credential|private[_-]?key" [file].json` | [ ] | Scan result: "Clean" or "Redacted" |
 | MUST | Complete session log (all sections filled) | [ ] | File complete |
 | MUST | Update Serena memory (cross-session context) | [ ] | Memory write confirmed |
-| MUST | Run markdown lint | [ ] | Lint output clean |
+| MUST | Run markdown lint | [ ] | Lint read N files, output clean, or lint read 0 files with `NOT LINTED` reason recorded |
 | MUST | Route to qa agent (feature implementation) | [ ] | QA report: `.agents/qa/[report].md` OR `SKIPPED: investigation-only` |
 | MUST | Run pre-PR validation: `uv run python scripts/validation/pre_pr.py` | [ ] | Exit code 0 |
 | MUST | Commit all changes (including .serena/memories) | [ ] | Commit SHA: _______ |
@@ -995,7 +1000,7 @@ Investigation sessions that skip QA validation use `SKIPPED: investigation-only`
       "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "All MUST items complete" },
       "handoffNotUpdated": { "level": "MUST NOT", "Complete": false, "Evidence": "HANDOFF.md not modified" },
       "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "Memory write confirmed" },
-      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "Lint output clean" },
+      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "Lint read 0 files: NOT LINTED, every changed path is ignored by .markdownlint-cli2.yaml" },
       "qaValidation": { "level": "MUST", "Complete": true, "Evidence": "SKIPPED: investigation-only" },
       "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "Commit SHA: def5678" },
       "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "validate_session_json.py exit 0" }
@@ -1122,7 +1127,7 @@ uv run python scripts/validate_session_json.py .agents/sessions/2025-12-17-sessi
 | QA validation ran | QA report exists in `.agents/qa/` (feature sessions) | Critical |
 | HANDOFF.md updated | Modified within session timeframe | Warning |
 | Git commit exists | Commit with matching date | Warning |
-| Lint ran | Evidence of markdownlint execution | Warning |
+| Lint ran | Evidence of markdownlint execution, including how many files it read, or `NOT LINTED` when that count is zero | Warning |
 
 ---
 

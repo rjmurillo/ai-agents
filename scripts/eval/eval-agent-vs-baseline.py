@@ -46,6 +46,7 @@ from _eval_agent_types import (
     VariantLiteral,
 )
 from _eval_api_adapter import AnthropicAPIAdapter, APICallResult
+from _eval_common import MalformedProviderMetadataError
 from _plan_runner import (
     FORM_FACTOR_VARIANTS,
     VARIANTS,
@@ -947,7 +948,15 @@ def _generate_report(
     error_count: int,
 ) -> int:
     """Aggregate records and write report. Halts on >30% flakiness."""
-    aggregator = ReportAggregator(records, model_id=model_id)
+    # Same resolution order the transport uses (`_eval_api_adapter`): the
+    # CLI writes --provider into EVAL_PROVIDER before the run starts, so
+    # the cost basis is read from the one place that already names the
+    # transport that will be billed.
+    aggregator = ReportAggregator(
+        records,
+        model_id=model_id,
+        provider=os.environ.get("EVAL_PROVIDER"),
+    )
     system_fingerprints = sorted(
         {
             record.system_fingerprint
@@ -1119,6 +1128,34 @@ def _generate_report(
     return EXIT_OK
 
 
+def _run_live_with_metadata_exit(
+    *,
+    args: argparse.Namespace,
+    fixtures: list[Fixture],
+    fixture_paths: list[Path],
+    plan: ExecutionPlan,
+) -> int:
+    """Map typed provenance refusal to a child-visible external failure."""
+    try:
+        return _run_live(
+            args=args,
+            fixtures=fixtures,
+            fixture_paths=fixture_paths,
+            plan=plan,
+        )
+    except MalformedProviderMetadataError:
+        print(
+            json.dumps(
+                {
+                    "level": "error",
+                    "event": MalformedProviderMetadataError.__name__,
+                }
+            ),
+            file=sys.stderr,
+        )
+        return EXIT_EXTERNAL
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_arg_parser()
     args = parser.parse_args(argv)
@@ -1147,6 +1184,7 @@ def main(argv: list[str] | None = None) -> int:
             model_id=args.model,
             n_runs=args.n_runs,
             variants=variants,
+            provider=getattr(args, "provider", None),
         )
     except (ValueError, UnsupportedModelError) as exc:
         print(f"plan error: {exc}", file=sys.stderr)
@@ -1163,7 +1201,12 @@ def main(argv: list[str] | None = None) -> int:
         _print_plan(PlanRunner.format_plan_lines(plan))
         return EXIT_OK
 
-    return _run_live(args=args, fixtures=fixtures, fixture_paths=paths, plan=plan)
+    return _run_live_with_metadata_exit(
+        args=args,
+        fixtures=fixtures,
+        fixture_paths=paths,
+        plan=plan,
+    )
 
 
 if __name__ == "__main__":

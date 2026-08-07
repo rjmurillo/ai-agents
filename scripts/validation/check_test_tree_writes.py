@@ -111,7 +111,7 @@ class _WriteDetector(ast.NodeVisitor):
     # visitors                                                             #
     # ------------------------------------------------------------------ #
 
-    def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+    def visit_Call(self, node: ast.Call) -> None:
         self._check_call(node)
         self.generic_visit(node)
 
@@ -210,6 +210,7 @@ def _tracked_test_files(repo_root: Path) -> list[Path]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
     )
     paths = []

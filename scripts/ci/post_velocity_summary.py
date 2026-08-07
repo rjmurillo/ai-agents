@@ -23,6 +23,16 @@ EXIT_SUCCESS = 0
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
+
+class CommentLookupError(Exception):
+    """Raised when the GitHub API refuses or errors during comment lookup.
+
+    Distinguishes a failed lookup (API 403, network error, bad JSON on a
+    non-zero exit) from a successful lookup that found zero matches. The caller
+    must not treat a failed lookup as "no comment exists" because that leads to
+    duplicate posts (issue #4640).
+    """
+
 _MARKER = "<!-- VELOCITY-ACCELERATOR -->"
 
 
@@ -43,7 +53,14 @@ def build_summary(opportunities: list[dict[str, Any]]) -> str:
 
 
 def find_existing_comment(repo: str, number: str) -> int | None:
-    """Return the id of the first marker-bearing comment, or None."""
+    """Return the id of the first marker-bearing comment, or None.
+
+    Raises ``CommentLookupError`` when the API call fails (non-zero exit,
+    empty stdout on the first page, or unparseable JSON on a non-zero exit).
+    A successful query that finds zero matching comments returns None.
+    The distinction matters: None means "safe to create a new comment";
+    an exception means "do not mutate, report the failure" (issue #4640).
+    """
     page = 1
     while True:
         result = subprocess.run(
@@ -55,14 +72,28 @@ def find_existing_comment(repo: str, number: str) -> int | None:
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         )
-        if result.returncode != 0 or not result.stdout:
+        if result.returncode != 0:
+            raise CommentLookupError(
+                f"gh api returned exit {result.returncode} "
+                f"(page {page}, stderr: {result.stderr!r})"
+            )
+        if not result.stdout:
+            # A successful (rc=0) but empty stdout on page 1 means the API
+            # returned nothing; on page >1 it means pagination ended.
+            if page == 1:
+                raise CommentLookupError(
+                    "gh api returned exit 0 but empty stdout on first page"
+                )
             break
 
         try:
             comments = json.loads(result.stdout)
-        except json.JSONDecodeError:
-            break
+        except json.JSONDecodeError as exc:
+            raise CommentLookupError(
+                f"Unparseable JSON on page {page}: {exc}"
+            ) from exc
 
         if not comments:
             break
@@ -94,6 +125,7 @@ def post_comment(repo: str, number: str, body: str, existing_id: int | None) -> 
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
         )
         if result.returncode == 0:
             print(f"Updated existing velocity comment (id: {existing_id})")
@@ -110,6 +142,7 @@ def post_comment(repo: str, number: str, body: str, existing_id: int | None) -> 
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
     )
     if result.returncode == 0:
         print(f"Created new velocity comment on #{number}")
@@ -144,7 +177,16 @@ def main() -> int:
         print("No PR/issue number available; skipping comment post")
         return EXIT_SUCCESS
 
-    existing_id = find_existing_comment(repo, number)
+    existing_id: int | None
+    try:
+        existing_id = find_existing_comment(repo, number)
+    except CommentLookupError as exc:
+        # A failed lookup must not fall through to "post new comment" (issue
+        # #4640). The safe default for a mutating action on lookup failure is
+        # to do nothing and report the failure.
+        print(f"ERROR: Comment lookup failed: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL
+
     rc = post_comment(repo, number, summary, existing_id)
     if rc != 0:
         print(f"ERROR: Comment post/update failed (exit {rc})", file=sys.stderr)

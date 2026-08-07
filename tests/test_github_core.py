@@ -46,7 +46,10 @@ from scripts.github_core import (
     update_issue_comment,
     validation,
 )
-from scripts.github_core.api import _403_PATTERN, _retry_after_delay
+from scripts.github_core.api import (
+    _403_PATTERN,
+    _retry_after_delay,
+)
 from scripts.github_core.bot_config import _DEFAULT_BOTS
 from tests.mock_fidelity import assert_mock_keys_match
 
@@ -1800,6 +1803,8 @@ class TestMirrorParity:
         spec = importlib.util.spec_from_file_location(
             "sync_plugin_lib", _REPO_ROOT / "scripts" / "sync_plugin_lib.py"
         )
+        assert spec is not None
+        assert spec.loader is not None
         spl = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(spl)
 

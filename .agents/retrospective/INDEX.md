@@ -1,7 +1,11 @@
 # Retrospective Index
 
-> Auto-maintained by the auto-retrospective Stop hook (Issue #1703).
-> Manual entries are welcome; the hook only appends new rows.
+> Maintained by hand. The auto-retrospective Stop hook that once appended rows
+> (Issue #1703) was deleted in #3349, so nothing writes here automatically.
+>
+> This index is a curated subset, not a census: it lists 11 of the 140 files in
+> this directory. Do not read an absent retrospective as an absent incident. To
+> search the whole corpus, use `grep -rli "<term>" .agents/retrospective/`.
 
 | Date | File | Summary |
 |------|------|---------|
@@ -14,3 +18,5 @@
 | 2026-07-19 | [2026-07-19-auto-retro.md](2026-07-19-auto-retro.md) | Auto-generated session retro |
 | 2026-07-25 | [2026-07-25-adr057-normalization.md](2026-07-25-adr057-normalization.md) | Auto-generated session retro |
 | 2026-07-26 | [2026-07-26-auto-retro.md](2026-07-26-auto-retro.md) | Auto-generated session retro |
+| 2026-08-04 | [2026-08-04-twenty-nine-green-prs-merged-into-a-red-main.md](2026-08-04-twenty-nine-green-prs-merged-into-a-red-main.md) | Batch merge of 29 individually green PRs left three required jobs red on main; per-PR green does not compose |
+| 2026-08-04 | [2026-08-04-truncated-window-reductions.md](2026-08-04-truncated-window-reductions.md) | Three instrument failures shared one shape: a reduction over an incomplete window that answered plausibly and announced no loss |

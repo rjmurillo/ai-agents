@@ -33,10 +33,36 @@ universal; that is issue #4317, not a property of this rule.
 2. **Record `endingCommit` in a follow-up commit, never by amending.** Amending
    replaces the commit whose SHA the log names, so `validate_session_json.py`
    then reports the recorded SHA as unreachable (issue #3618). Commit the work
-   with `endingCommit` empty, which is only a warning, then commit the SHA in a
-   second commit. The reachability check returns no finding in a shallow clone
+   with `endingCommit` empty, then commit the SHA in a second commit. The
+   reachability check returns no finding in a shallow clone
    (`session_scope.py` short-circuits when `--is-shallow-repository` is true), so
    a green CI run on a shallow checkout is not evidence the SHA is reachable.
+
+   **Do not leave `endingCommit` empty past that second commit.** The session
+   validator only warns, but the episode extractor derives `metrics.commits`
+   from the SHAs it can find: `json_metrics` calls `_collect_shas`, which reads
+   `endingCommit` first, then `changesCommitted` evidence, then workLog prose.
+   An empty `endingCommit` alone is survivable if a SHA appears in one of the
+   other two. When none of the three carries one, the episode lands with
+   `commits: 0` and `files_changed > 0`. That shape trips the episode-store
+   ratchet in
+   `tests/skills/memory/test_extract_session_episode.py::TestValidateModeRejectsUnusableEventIds::test_the_committed_episode_store_is_clean`,
+   which runs inside the `python-tests` pre-push job and rejects the ref only
+   after the full suite has burned ~18 minutes. Standalone
+   `validate_session_json.py` is seconds and catches nothing here; the ratchet
+   costs the whole suite. After setting the SHA, regenerate the episode with
+   `extract_session_episode.py <log> --preserve` and commit both.
+
+3. **Re-point `endingCommit` after any rebase of a branch that carries a session
+   log.** Rebasing rewrites every commit on the branch, so it orphans a recorded
+   SHA exactly the way amending does, and the validator reports the same
+   unreachable-SHA error. The difference that makes this the more likely trap:
+   you amend on purpose and know the log is in play, but you rebase for an
+   unrelated reason (picking up a new base to unblock a push), so nothing
+   prompts you to think about the log at all. The failure then surfaces on the
+   PR, not locally. After rebasing, set `endingCommit` to the post-rebase `HEAD`
+   and commit that edit; `HEAD` becomes an ancestor of the new commit, so the
+   reachability check passes.
 
 ## References
 

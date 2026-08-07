@@ -34,6 +34,14 @@ _mod = _import_script("get_pull_requests")
 main = _mod.main
 build_parser = _mod.build_parser
 
+# The script loads github_core from the plugin lib path, so its GhAuthStatus is
+# a different module object from scripts.github_core.api's. Enum identity is
+# per-module, so a fixture built from the wrong copy silently misclassifies.
+# Take both from the copy the script actually imported.
+_lib_api = sys.modules["github_core.api"]
+GhAuthResult = _lib_api.GhAuthResult
+GhAuthStatus = _lib_api.GhAuthStatus
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -116,8 +124,8 @@ class TestBuildParser:
 class TestMain:
     def test_not_authenticated_returns_envelope_with_auth_error(self, capsys):
         with patch(
-            "get_pull_requests.is_gh_authenticated",
-            return_value=False,
+            "get_pull_requests.check_gh_auth",
+            return_value=GhAuthResult(GhAuthStatus.INVALID_CREDENTIALS),
         ):
             rc = main(["--output-format", "json"])
         assert rc == 4
@@ -127,11 +135,50 @@ class TestMain:
         assert envelope["Error"]["Type"] == "AuthError"
         assert "gh auth login" in envelope["Error"]["Message"]
 
+    def test_quota_refusal_is_external_not_auth(self, capsys):
+        """A quota window must not answer with "run gh auth login" (issue #4344).
+
+        This script gated on the boolean wrapper, which collapses RATE_LIMITED
+        to False, so during the #4344 window every pr-autofix gate reported an
+        AuthError with exit 4 while the token was valid.
+        """
+        with patch(
+            "get_pull_requests.check_gh_auth",
+            return_value=GhAuthResult(
+                GhAuthStatus.RATE_LIMITED,
+                "gh: API rate limit exceeded for user ID 6811113 (HTTP 403)",
+            ),
+        ), patch("subprocess.run", return_value=_completed(stdout="{}", rc=0)):
+            rc = main(["--output-format", "json"])
+
+        assert rc == 3
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=False)
+        assert envelope["Error"]["Code"] == 3
+        assert envelope["Error"]["Type"] == "ApiError"
+        assert "gh auth login" not in envelope["Error"]["Message"]
+        assert "rate limit" in envelope["Error"]["Message"].lower()
+
+    def test_transport_failure_is_external_not_auth(self, capsys):
+        with patch(
+            "get_pull_requests.check_gh_auth",
+            return_value=GhAuthResult(
+                GhAuthStatus.TRANSIENT_ERROR, "error connecting to api.github.com"
+            ),
+        ):
+            rc = main(["--output-format", "json"])
+
+        assert rc == 3
+        envelope = _parse_envelope(capsys.readouterr().out)
+        assert envelope["Error"]["Code"] == 3
+        assert envelope["Error"]["Type"] == "ApiError"
+        assert "gh auth login" not in envelope["Error"]["Message"]
+
     def test_success_open_prs(self, capsys):
         prs = [_pr(1, "First"), _pr(2, "Second")]
         with patch(
-            "get_pull_requests.is_gh_authenticated",
-            return_value=True,
+            "get_pull_requests.check_gh_auth",
+            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -156,8 +203,8 @@ class TestMain:
             _pr(2, "Closed", state="CLOSED"),
         ]
         with patch(
-            "get_pull_requests.is_gh_authenticated",
-            return_value=True,
+            "get_pull_requests.check_gh_auth",
+            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -175,8 +222,8 @@ class TestMain:
 
     def test_api_error_returns_envelope_with_error(self, capsys):
         with patch(
-            "get_pull_requests.is_gh_authenticated",
-            return_value=True,
+            "get_pull_requests.check_gh_auth",
+            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -194,8 +241,8 @@ class TestMain:
 
     def test_empty_results(self, capsys):
         with patch(
-            "get_pull_requests.is_gh_authenticated",
-            return_value=True,
+            "get_pull_requests.check_gh_auth",
+            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -212,8 +259,8 @@ class TestMain:
     def test_search_filter(self, capsys):
         prs = [_pr(5, "Fix auth bug")]
         with patch(
-            "get_pull_requests.is_gh_authenticated",
-            return_value=True,
+            "get_pull_requests.check_gh_auth",
+            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -236,8 +283,8 @@ class TestMain:
 
     def test_invalid_limit_returns_envelope_with_error(self, capsys):
         with patch(
-            "get_pull_requests.is_gh_authenticated",
-            return_value=True,
+            "get_pull_requests.check_gh_auth",
+            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -255,8 +302,8 @@ class TestMain:
     def test_issue_2312_output_is_envelope_not_bare_list(self, capsys):
         prs = [_pr(2305, "PR A"), _pr(2274, "PR B")]
         with patch(
-            "get_pull_requests.is_gh_authenticated",
-            return_value=True,
+            "get_pull_requests.check_gh_auth",
+            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),

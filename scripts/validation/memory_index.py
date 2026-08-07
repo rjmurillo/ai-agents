@@ -795,12 +795,14 @@ def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
     orphans = find_orphaned_files(domain_indices, memory_path)
     report.orphans = orphans
 
-    if orphans and output_format == "console":
-        print("\n[P1 WARN] Orphaned files detected (not indexed):")
-        for orphan in orphans:
-            print(
-                f"  - {orphan.file} (should be in {orphan.expected_index})"
-            )
+    if orphans:
+        report.passed = False
+        if output_format == "console":
+            print("\n[P1] Orphaned files detected (not indexed):")
+            for orphan in orphans:
+                print(
+                    f"  - {orphan.file} (should be in {orphan.expected_index})"
+                )
 
     # P1: Naming convention enforcement (kebab-case)
     naming_result = check_naming_convention(memory_path)

@@ -11,7 +11,7 @@ def test_parse_scores_requires_overall() -> None:
     original_path = sys.path.copy()
     sys.path.insert(0, str(EVAL_SCRIPTS))
     try:
-        import evalkit  # noqa: PLC0415
+        import evalkit
     finally:
         sys.path[:] = original_path
 
@@ -32,7 +32,7 @@ def test_parse_scores_requires_integer_values() -> None:
     original_path = sys.path.copy()
     sys.path.insert(0, str(EVAL_SCRIPTS))
     try:
-        import evalkit  # noqa: PLC0415
+        import evalkit
     finally:
         sys.path[:] = original_path
 

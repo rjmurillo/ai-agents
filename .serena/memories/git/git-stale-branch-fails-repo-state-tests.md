@@ -85,6 +85,21 @@ job that actually failed:
 error: failed to push some refs
 ```
 
+### The glove is only a verdict inside the summary block
+
+`🥊` also appears in lefthook's banner on every run, passing or failing:
+
+```
+│ 🥊 lefthook  v2.1.10   hook:  pre-commit │
+```
+
+That one is the logo. It carries no verdict, and grepping the log for `🥊`
+returns it alongside any real failures, so a commit whose hooks all passed
+still shows two or three hits. The verdict markers live only in the block that
+starts with `summary:`, where every job gets a `✔️` or a `🥊`. Count those, or
+confirm `grep -c "✖"` is 0. On a clean merge commit the summary showed 13 `✔️`
+and no failure markers while the banner still printed the glove twice.
+
 ## The second decoy: a hook that passed reads as a push that succeeded
 
 `pre_pr.py` ends its own output with these two lines:
@@ -116,6 +131,87 @@ git ls-remote origin <branch>
 An empty result means the ref is not there, whatever the log said. This is the
 same class of error as reading the advisory `[FAIL]` above: a line that is true
 about one thing gets read as a verdict on another.
+
+## The same trap with a diagnostic that actively blames you: count ratchets
+
+The tests above fail with a neutral message. The count ratchets fail with a
+message that names the wrong culprit, which is worse, because it sends you to
+edit the one file you must never edit.
+
+A ratchet compares the baseline file **on your branch** against the count
+measured on `origin/main`. When `main` **lowers** a baseline, a branch that has
+not merged `main` still carries the older, higher number. The ratchet reports:
+
+```
+ruff count ratchet: BASELINE RAISED. 315 -> 326 (+11) against origin/main.
+  The baseline may only fall; lower the count rather than raising the baseline.
+taste count ratchet: BASELINE RAISED. 600 -> 601 (+1) against origin/main.
+```
+
+Read plainly, that says you widened the allowance. You did not touch the
+baseline file at all. Someone else **narrowed** it on `main` and your branch is
+behind. Measured 2026-08-02: a branch whose entire diff was `.serena/memories/*.md`
+failed both ratchets this way, having touched no Python, no baseline, and no
+linted source.
+
+`check_skill_md_portability.py` has the same shape with different words. It
+prints `changed measured input: <path>` for a long list of files your diff never
+touched, because it is diffing the whole corpus against a baseline that moved on
+`main`.
+
+The always-on instruction budget is the fourth instance, and the one whose
+output looks least like a staleness problem, because it reports a percentage
+rather than a file list:
+
+```
+.md         9     83516     83000     21998   100.6%    FAIL
+```
+
+A percentage reads as a verdict on your branch's content. It is a ratio, and
+both sides of it live in the tree, so either side can move underneath you. Here
+the numerator did not move at all: the corpus measured 83516 bytes on the stale
+branch and 83516 bytes after merging `main`. The ceiling moved, from 83000 to
+84000, and the same corpus went from 100.6% FAIL to 99.4% PASS with no content
+change. Read the raw columns, not the percentage. When the measured size is
+identical across the merge, the branch was never the cause.
+
+Measured 2026-08-03 on a branch 9 commits behind whose entire diff was two
+`.serena/memories/*.md` files, which are not always-on instructions and cannot
+move that total: `pre_pr.py` on `origin/main` reported `All validations passed`,
+the same command on the stale branch failed Count Ratchets, Skill Markdown
+Portability, and Instruction Budget, and one `git merge origin/main` cleared all
+three with no other edit.
+
+Run `pre_pr.py` on current `main` first whenever a gate fails on a branch whose
+diff plausibly cannot reach it. Main passing and the branch failing localizes
+the cause to the branch's age in one command, before you read any diagnostic.
+
+While a fleet is merging, this expires fast. On 2026-08-03 a branch went from
+merged-with-main to 8 commits behind, with the taste baseline moved from 597 to
+596, during the 7 minutes one `pre_pr.py` run took. Merge `main` immediately
+before the push, then re-check only the gates that failed, which costs about 30
+seconds, rather than paying another 25 minute push to find out.
+
+The tell in all four: the named files or numbers have nothing to do with your
+diff. Before reading one line of the diagnostic, run:
+
+```bash
+git fetch origin main && git merge origin/main --no-edit
+```
+
+Then re-verify in about 30 seconds rather than paying another 15 minute push:
+
+```bash
+uv run --frozen python scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main
+uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --base-ref origin/main
+uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main
+```
+
+On the 2026-08-02 instance the merge cleared both ratchets and the portability
+checker in one step, with no other change.
+
+Never hand-edit a baseline number to silence this. A baseline may only fall, and
+the number that looks wrong on your branch is the correct number on `main`.
 
 ## Related
 

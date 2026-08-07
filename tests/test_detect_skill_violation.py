@@ -17,7 +17,6 @@ import pytest
 
 from scripts.detect_skill_violation import (
     GH_PATTERNS,
-    SKIP_DIRS,
     VALID_EXTENSIONS,
     Violation,
     check_file_for_violations,
@@ -137,128 +136,90 @@ class TestGetRequestedFiles:
         assert result == ["docs/readme.md", "scripts/tool.py"]
 
 
+def _git(cwd: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True)
+
+
+@pytest.fixture
+def git_repo(tmp_path: Path) -> Path:
+    """Create a minimal git repository for get_all_files tests."""
+    subprocess.run(
+        ["git", "init", "--initial-branch=main", str(tmp_path)],
+        check=True,
+        capture_output=True,
+    )
+    _git(tmp_path, "config", "user.email", "test@example.com")
+    _git(tmp_path, "config", "user.name", "Test")
+    _git(tmp_path, "config", "commit.gpgsign", "false")
+    (tmp_path / ".gitkeep").write_text("")
+    _git(tmp_path, "add", ".gitkeep")
+    _git(tmp_path, "commit", "-m", "init")
+    return tmp_path
+
+
 class TestGetAllFiles:
-    """Tests for get_all_files function."""
+    """Tests for get_all_files function.
 
-    @pytest.fixture
-    def test_repo(self, tmp_path: Path) -> Path:
-        """Create a test repository structure."""
-        # Create various files
-        (tmp_path / "file.md").write_text("# Markdown")
-        (tmp_path / "script.ps1").write_text("Write-Host 'Hello'")
-        (tmp_path / "module.psm1").write_text("function Test {}")
-        (tmp_path / "code.py").write_text("print('hello')")
-        (tmp_path / "ignored.txt").write_text("text file")  # Should be excluded
+    The implementation uses ``git ls-files`` so that gitignored trees are
+    never enumerated (issue #4338). Tests use a real git repo fixture so
+    the git-ignore semantics are exercised end-to-end.
+    """
 
-        # Create subdirectory
-        sub_dir = tmp_path / "sub"
-        sub_dir.mkdir()
-        (sub_dir / "nested.md").write_text("# Nested")
+    def test_finds_tracked_files_with_valid_extensions(self, git_repo: Path) -> None:
+        """Tracked files with valid extensions are returned."""
+        (git_repo / "file.md").write_text("# Markdown")
+        (git_repo / "script.ps1").write_text("Write-Host 'Hello'")
+        (git_repo / "code.py").write_text("print('hello')")
+        (git_repo / "ignored.txt").write_text("text file")
+        _git(git_repo, "add", "file.md", "script.ps1", "code.py", "ignored.txt")
+        _git(git_repo, "commit", "-m", "add files")
 
-        # Create .git directory (should be excluded)
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-        (git_dir / "config.md").write_text("# Git config")  # Should be excluded
+        result = get_all_files(git_repo)
 
-        return tmp_path
-
-    def test_finds_valid_extensions(self, test_repo: Path) -> None:
-        """Finds files with valid extensions."""
-        result = get_all_files(test_repo)
-
-        assert len(result) == 5  # file.md, script.ps1, module.psm1, code.py, sub/nested.md
         assert "file.md" in result
         assert "script.ps1" in result
-        assert "module.psm1" in result
         assert "code.py" in result
-        assert "sub/nested.md" in result
-
-    def test_excludes_git_directory(self, test_repo: Path) -> None:
-        """Excludes .git directory from results."""
-        result = get_all_files(test_repo)
-
-        assert not any(".git" in f for f in result)
-
-    def test_excludes_non_matching_extensions(self, test_repo: Path) -> None:
-        """Excludes files with non-matching extensions."""
-        result = get_all_files(test_repo)
-
         assert not any(f.endswith(".txt") for f in result)
 
-    @pytest.mark.parametrize(
-        "skip_dir",
-        ["worktrees", ".venv", ".pytest_cache", ".mypy_cache", "node_modules", ".wt"],
-    )
-    def test_prunes_high_cost_dirs(self, tmp_path: Path, skip_dir: str) -> None:
-        """Each high-cost directory in SKIP_DIRS is pruned from the walk.
+    def test_excludes_gitignored_worktree(self, git_repo: Path) -> None:
+        """Gitignored worktree directory is not returned even when on disk.
 
-        Regression guard for #2047 / #2010. The unbounded growth that caused
-        the timeout came from descending into .venv and into agent worktrees
-        (.claude/worktrees holds a full repo copy per worktree). Pruning by
-        basename keeps the walk bounded as those subtrees accumulate.
+        This is the core fix for issue #4338: os.walk + SKIP_DIRS could not
+        exclude all worktree roots because the denylist drifts from .gitignore.
+        git ls-files uses .gitignore natively.
         """
-        pruned = tmp_path / skip_dir
-        pruned.mkdir()
-        (pruned / "buried.md").write_text("gh pr create")
-        kept = tmp_path / "src"
-        kept.mkdir()
-        (kept / "real.md").write_text("# real")
+        (git_repo / ".gitignore").write_text("wt_*/\n")
+        (git_repo / "README.md").write_text("# real")
+        wt = git_repo / "wt_branch1"
+        wt.mkdir()
+        (wt / "foreign.md").write_text("# from another branch")
+        _git(git_repo, "add", ".gitignore", "README.md")
+        _git(git_repo, "commit", "-m", "gitignore")
 
-        result = get_all_files(tmp_path)
+        result = get_all_files(git_repo)
 
-        assert "src/real.md" in result
-        assert not any("buried.md" in f for f in result)
+        assert not any("foreign.md" in f for f in result)
+        assert "README.md" in result
 
-    def test_prunes_nested_worktrees_subtree(self, tmp_path: Path) -> None:
-        """A worktree nested under .claude is pruned, not just a top dir.
+    def test_includes_untracked_not_ignored_file(self, git_repo: Path) -> None:
+        """Untracked but not-gitignored files are included (--others flag)."""
+        (git_repo / "new_untracked.md").write_text("# untracked")
 
-        Mirrors the real layout (.claude/worktrees/<agent>/...), the exact
-        subtree that drove the 50390-file walk in #2047 / #2010.
-        """
-        worktree_copy = tmp_path / ".claude" / "worktrees" / "agent-x" / "scripts"
-        worktree_copy.mkdir(parents=True)
-        (worktree_copy / "copy.py").write_text("gh pr create")
-        real = tmp_path / "scripts"
-        real.mkdir()
-        (real / "real.py").write_text("# real")
+        result = get_all_files(git_repo)
 
-        result = get_all_files(tmp_path)
+        assert "new_untracked.md" in result
 
-        assert "scripts/real.py" in result
-        assert not any("copy.py" in f for f in result)
+    def test_excludes_nested_tracked_file_not_in_extension_set(
+        self, git_repo: Path
+    ) -> None:
+        """A tracked file with an excluded extension is filtered out."""
+        (git_repo / "data.json").write_text("{}")
+        _git(git_repo, "add", "data.json")
+        _git(git_repo, "commit", "-m", "data")
 
-    def test_skip_dirs_registers_worktrees(self) -> None:
-        """SKIP_DIRS contains the worktrees basename.
+        result = get_all_files(git_repo)
 
-        os.walk prunes by directory basename, so .claude/worktrees is pruned
-        via the bare name "worktrees". This pins the contract that the
-        worktree subtree (the unbounded-growth source in #2047 / #2010) is
-        excluded.
-        """
-        assert "worktrees" in SKIP_DIRS
-        assert ".venv" in SKIP_DIRS
-
-    def test_skip_dirs_registers_dot_worktrees(self) -> None:
-        """SKIP_DIRS contains the dot-prefixed top-level git-worktree root.
-
-        os.walk prunes by basename. The repo top-level worktree root is
-        ".worktrees" (dot-prefixed), distinct from .claude/worktrees. Without
-        ".worktrees" the scanner descended into 40+ sibling checkouts and the
-        full scan exceeded the 30s budget (#2047 / #2621).
-        """
-        assert ".worktrees" in SKIP_DIRS
-
-    def test_prunes_top_level_dot_worktrees(self, tmp_path: Path) -> None:
-        """A top-level .worktrees/ sibling checkout is pruned, not scanned."""
-        wt = tmp_path / ".worktrees" / "pr-x" / "scripts"
-        wt.mkdir(parents=True)
-        (wt / "copy.py").write_text("gh pr create")
-        real = tmp_path / "scripts"
-        real.mkdir()
-        (real / "real.py").write_text("# real")
-        result = get_all_files(tmp_path)
-        assert "scripts/real.py" in result
-        assert not any("copy.py" in f for f in result)
+        assert not any(f.endswith(".json") for f in result)
 
 
 class TestCheckFileForViolations:
@@ -699,3 +660,92 @@ class TestViolationDataclass:
         v2 = Violation(file="other.md", pattern="pattern", line=1)
 
         assert v1 != v2
+
+
+class TestGetAllFilesGitPath:
+    """Tests for the git ls-files primary path in get_all_files."""
+
+    def test_git_ls_files_used_when_git_available(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_all_files returns paths from git ls-files output, not os.walk."""
+        import subprocess as _sp
+
+        (tmp_path / "tracked.md").write_text("# tracked")
+        (tmp_path / "ignored.md").write_text("# ignored")
+        (tmp_path / "ignored.txt").write_text("plain text")
+
+        def fake_run(cmd, **kwargs):
+            if cmd[:3] == ["git", "-C", str(tmp_path)] and "ls-files" in cmd:
+                result = _sp.CompletedProcess(cmd, 0, stdout="tracked.md\n", stderr="")
+                return result
+            raise AssertionError(f"unexpected subprocess call: {cmd}")
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+
+        result = get_all_files(tmp_path)
+
+        assert result == ["tracked.md"]
+        assert "ignored.md" not in result
+
+    def test_falls_back_to_os_walk_when_git_unavailable(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_all_files uses os.walk fallback when git is not available."""
+        import subprocess as _sp
+
+        (tmp_path / "file.md").write_text("# markdown")
+
+        def fake_run(cmd, **kwargs):
+            raise FileNotFoundError("git not found")
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+
+        result = get_all_files(tmp_path)
+
+        assert "file.md" in result
+
+    def test_excludes_gitignored_file_via_git_ls_files(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A file absent from git ls-files output is excluded from the result."""
+        import subprocess as _sp
+
+        (tmp_path / "real.py").write_text("# real")
+        (tmp_path / "generated.py").write_text("# generated - gitignored")
+
+        def fake_run(cmd, **kwargs):
+            if "ls-files" in cmd:
+                result = _sp.CompletedProcess(cmd, 0, stdout="real.py\n", stderr="")
+                return result
+            raise AssertionError(f"unexpected call: {cmd}")
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+
+        result = get_all_files(tmp_path)
+
+        assert "real.py" in result
+        assert "generated.py" not in result
+
+    def test_extension_filter_applied_to_git_ls_files_output(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Files with excluded extensions are filtered out even if git reports them."""
+        import subprocess as _sp
+
+        def fake_run(cmd, **kwargs):
+            if "ls-files" in cmd:
+                result = _sp.CompletedProcess(
+                    cmd, 0, stdout="valid.md\nignored.txt\nscript.py\n", stderr=""
+                )
+                return result
+            raise AssertionError(f"unexpected call: {cmd}")
+
+        monkeypatch.setattr(_sp, "run", fake_run)
+
+        result = get_all_files(tmp_path)
+
+        assert "valid.md" in result
+        assert "script.py" in result
+        # .txt is not in VALID_EXTENSIONS
+        assert "ignored.txt" not in result

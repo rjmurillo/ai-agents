@@ -141,11 +141,20 @@ The script auto-resolves these by accepting the target branch version.
 
 ### Plugin Manifests (Special Rule)
 
-`*/.claude-plugin/plugin.json` is NOT accept-theirs. Accepting main's copy
-makes head version equal to the merge-base and re-trips the plugin
-version-bump gate with `not-bumped` (issue #2543). When the two sides differ
-only in `version`, the script resolves to one patch bump above the higher
-side (for example ours `0.5.168` vs theirs `0.5.169` resolves to `0.5.170`).
+`*/.claude-plugin/plugin.json` is NOT accept-theirs. When the two sides differ
+only in `version`, the script resolves them without manual handling:
+
+- **Either side omits `version`**: the merged manifest carries none. ADR-092
+  deleted the field from all three manifests, and the version-field gate
+  (`validate_plugin_version_bump.py`) fails when one carries it.
+  This is the shape every branch opened before ADR-092 hits when it merges a
+  fixed `main`.
+- **Both sides carry plain semver**: one patch bump above the higher side (for
+  example ours `0.5.168` vs theirs `0.5.169` resolves to `0.5.170`). Retained
+  only for branches that predate the deletion on both sides; the merged
+  manifest then still carries a field the gate rejects, so delete it before
+  pushing.
+
 Any other field difference, or a prerelease/build-metadata version, blocks
 auto-resolution and requires manual handling.
 
@@ -221,7 +230,7 @@ Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_H
 
 | Criterion | Evidence |
 |-----------|----------|
-| All conflicts resolved | `git status --porcelain \| grep -c '^UU'` returns 0 |
+| All conflicts resolved | `python3 -c "import subprocess, sys; r=subprocess.run(['git','status','--porcelain'],capture_output=True,text=True,encoding='utf-8',errors='replace'); sys.exit(r.returncode) if r.returncode else print(sum(1 for l in r.stdout.splitlines() if l.startswith('UU')))"` returns 0 |
 | No merge markers remain | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 (during merge: checks staged vs MERGE_HEAD AND working tree vs index; outside merge: checks working tree+index vs HEAD; ignores intentional fenced examples in committed docs -- issues #2424, #4058) |
 | Session protocol valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |

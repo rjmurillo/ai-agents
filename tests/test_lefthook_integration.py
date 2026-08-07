@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import sys
 import time
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import Any, NoReturn, Self, cast
@@ -20,6 +20,8 @@ import pytest
 import yaml
 
 from scripts.validation import git_hook_policy as policy
+
+pytestmark = pytest.mark.windows_path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEFTHOOK = shutil.which("lefthook")
@@ -319,11 +321,13 @@ def _write_today_session(repo: Path, content: str) -> Path:
 def test_adr_review_policy_blocks_stale_debate_reference(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A debate log exists in the correct dir (.agents/critique/) but references
     # a DIFFERENT ADR (ADR-042), not the staged ADR (ADR-062). This exercises
     # the stale-reference branch, not the missing-log branch.
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     _write_lf(critique / "adr-042-debate.md", "ADR-042 review")
@@ -337,8 +341,12 @@ def test_adr_review_policy_blocks_stale_debate_reference(
     assert "ADR-062" in capsys.readouterr().err
 
 
-def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(tmp_path: Path) -> None:
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     _write_lf(critique / "adr-062-debate.md", "ADR-062 review")
@@ -390,9 +398,11 @@ def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> 
 def test_adr_review_policy_missing_critique_dir_fails(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No .agents/critique/ directory at all means no debate logs: gate fails."""
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     # Only the old wrong dir exists; critique dir is absent.
     wrong = tmp_path / ".agents" / "analysis"
     wrong.mkdir(parents=True)
@@ -428,8 +438,10 @@ def test_retrospective_policy_blocks_missing_evidence(
 
 def test_retrospective_policy_allows_session_evidence_and_documentation(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _write_today_session(tmp_path, '{"notes": "Learnings captured"}')
+    session = _write_today_session(tmp_path, '{"notes": "Learnings captured"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
 
     assert (
         policy.check_retrospective_evidence(
@@ -519,7 +531,9 @@ def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
     sessions = tmp_path / ".agents" / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
-    _write_lf(sessions / "2026-03-14-session-1.json", '{"notes": "Learnings captured"}')
+    session = sessions / "2026-03-14-session-1.json"
+    _write_lf(session, '{"notes": "Learnings captured"}')
+    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
 
     # No retrospective file: the only passing path is the yesterday session log.
     assert (
@@ -764,6 +778,8 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "extract-session-episodes",
         "commit-file-count",
         "memory-size",
+        "adr-review-policy",
+        "taste-advisory",
     }
     pure_jobs = {
         "action-pin-policy",
@@ -778,8 +794,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "memory-index",
         "memory-tier",
         "memory-skill-format",
-        "adr-review-policy",
-        "taste-advisory",
     }
     for name in merge_exempt_jobs:
         skip = pre_commit_jobs[name].get("skip", [])
@@ -1667,7 +1681,7 @@ def test_branch_context_fails_open_when_git_is_unavailable(
     def no_git(*args: object, **kwargs: object) -> NoReturn:
         raise FileNotFoundError(2, "No such file or directory: 'git'")
 
-    monkeypatch.setattr(policy.subprocess, "run", no_git)
+    monkeypatch.setattr(policy.subprocess, "Popen", no_git)
 
     assert policy.check_branch_context(repo) == 0
 
@@ -2071,12 +2085,21 @@ def test_git_command_boundary_forces_utf8_replacement(
     monkeypatch.setenv("SEMGREP_BASELINE_REF", "HEAD")
     monkeypatch.setenv("SEMGREP_URL", "https://attacker.invalid")
 
-    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured["args"] = args[0]
-        captured.update(kwargs)
-        return _completed(0)
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", fake_run)
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
+            captured["args"] = args
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     policy._run_git(tmp_path, ["status", "--short"])
 
@@ -2107,20 +2130,30 @@ def test_command_boundary_maps_timeout_to_external_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        command = args[0]
-        timeout = kwargs["timeout"]
-        assert isinstance(command, list)
-        assert all(isinstance(part, str) for part in command)
-        assert isinstance(timeout, (int, float))
-        raise subprocess.TimeoutExpired(
-            command,
-            timeout,
-            output="partial output\n",
-            stderr="child stalled\n",
-        )
+    class FakePopen:
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", time_out)
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
+            self._args = list(args)
+            self._called = 0
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            self._called += 1
+            if self._called == 1:
+                raise subprocess.TimeoutExpired(
+                    self._args,
+                    timeout or 0.0,
+                    output="partial output\n",
+                    stderr="child stalled\n",
+                )
+            return ("", "")
+
+        def kill(self) -> None:
+            pass
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     result = policy._run_command(
         [sys.executable, "scripts/slow_tool.py", "scan"],
@@ -2140,20 +2173,30 @@ def test_binary_command_boundary_maps_timeout_to_external_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def time_out(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
-        command = args[0]
-        timeout = kwargs["timeout"]
-        assert isinstance(command, list)
-        assert all(isinstance(part, str) for part in command)
-        assert isinstance(timeout, (int, float))
-        raise subprocess.TimeoutExpired(
-            command,
-            timeout,
-            output=b"partial bytes\n",
-            stderr=b"binary child stalled\n",
-        )
+    class FakePopen:
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", time_out)
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
+            self._args = list(args)
+            self._called = 0
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[bytes, bytes]:
+            self._called += 1
+            if self._called == 1:
+                raise subprocess.TimeoutExpired(
+                    self._args,
+                    timeout or 0.0,
+                    output=b"partial bytes\n",
+                    stderr=b"binary child stalled\n",
+                )
+            return (b"", b"")
+
+        def kill(self) -> None:
+            pass
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     result = policy._run_command_bytes(
         ["git", "-c", "core.commitGraph=false", "diff", "--name-only"],
@@ -3157,7 +3200,6 @@ def test_semgrep_disables_native_suppressions(
     assert "--x-ignore-semgrepignore-files" in calls[0]
     assert "--max-target-bytes=0" in calls[0]
     assert "--no-exclude-binary-files" in calls[0]
-    assert "--exclude-rule" not in calls[0]
     assert "--" in calls[0]
     assert str(tmp_path / "source.py") in calls[0]
     assert str(tmp_path) not in calls[0]
@@ -4256,6 +4298,11 @@ def test_mypy_policy_aggregates_failures_and_ignores_deleted_files(
     assert policy.run_mypy(["source.py", "deleted.py"], tmp_path) == 1
 
 
+def test_mypy_policy_rejects_empty_paths(tmp_path: Path) -> None:
+    """#3966: run_mypy with no file arguments must return rc=2 (false green guard)."""
+    assert policy.run_mypy([], tmp_path) == 2
+
+
 def test_mypy_policy_rejects_unsafe_paths_and_symlinks(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -5017,8 +5064,11 @@ def test_push_policy_blocks_main_and_preserves_destination_branch(
 ) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
-    head = "1" * 40
-    remote = "2" * 40
+    # Real objects, and remote an ancestor of head: the non-fast-forward guard
+    # added for issue #4293 blocks a remote tip the clone cannot resolve, so a
+    # synthetic SHA here would fail for a reason this test is not about.
+    remote = _commit_file(repo, "tracked", "base\n")
+    head = _commit_file(repo, "tracked", "head\n")
     destinations: list[str | None] = []
 
     def capture_limit(update: policy.PushUpdate, _root: Path) -> int:
@@ -5061,6 +5111,213 @@ def test_new_branch_uses_origin_main_for_policy_bases(tmp_path: Path) -> None:
     assert update.base == base
     assert update.head == head
     assert update.range_spec == f"{base}..{head}"
+
+
+# ---------------------------------------------------------------------------
+# _check_non_fast_forward tests (issue #4293)
+# ---------------------------------------------------------------------------
+
+
+def _make_push_ref(
+    local_sha: str,
+    remote_sha: str,
+    remote_ref: str = "refs/heads/feature/test",
+    local_ref: str = "refs/heads/feature/test",
+) -> policy.PushRef:
+    return policy.PushRef(local_ref, local_sha, remote_ref, remote_sha)
+
+
+def test_non_fast_forward_passes_on_fast_forward_push(tmp_path: Path) -> None:
+    """Fast-forward push: remote_sha is an ancestor of local_sha."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "f.txt", "v1\n")
+    local_sha = _commit_file(repo, "f.txt", "v2\n")
+    push_ref = _make_push_ref(local_sha, remote_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_blocks_history_rewrite(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Force push: local_sha does not descend from remote_sha."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    # Two divergent branches from base.
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    # Push feature as if remote is on side (not an ancestor).
+    push_ref = _make_push_ref(feature_sha, side_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 1
+    err = capsys.readouterr().err
+    assert "not a fast-forward" in err
+    assert "universal.md" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_non_fast_forward_passes_new_branch(tmp_path: Path) -> None:
+    """New branch: remote_sha is all zeros, nothing to rewrite."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    local_sha = _commit_file(repo, "f.txt", "v1\n")
+    push_ref = _make_push_ref(local_sha, "0" * 40)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_passes_deletion(tmp_path: Path) -> None:
+    """Branch deletion (local_sha all zeros) is not a force push."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    remote_sha = _commit_file(repo, "f.txt", "v1\n")
+    push_ref = _make_push_ref("0" * 40, remote_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+
+
+def test_non_fast_forward_returns_2_when_remote_object_absent(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Missing remote object: guard fails closed, not a false positive."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    local_sha = _commit_file(repo, "f.txt", "v1\n")
+    # A plausible-looking SHA that is not present in the repo.
+    absent_sha = "abcdef1234567890abcdef1234567890abcdef12"
+    push_ref = _make_push_ref(local_sha, absent_sha)
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 2
+    err = capsys.readouterr().err
+    assert "not present in the local object store" in err
+    assert "git fetch" in err
+
+
+def test_non_fast_forward_skips_non_branch_refs(tmp_path: Path) -> None:
+    """Tag refs and other non-branch refs are out of scope.
+
+    The remote_sha and local_sha are on divergent branches (neither is an
+    ancestor of the other), so without the non-branch guard this test would
+    fail.  The guard must fire first and return 0 before the ancestry check.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    # Create two divergent branches from base.
+    _git(repo, "checkout", "-q", "-b", "branch-a")
+    branch_a_sha = _commit_file(repo, "f.txt", "branch-a\n")
+    _git(repo, "checkout", "-q", base)
+    _git(repo, "checkout", "-q", "-b", "branch-b")
+    branch_b_sha = _commit_file(repo, "f.txt", "branch-b\n")
+    # local=branch_b, remote=branch_a: genuinely divergent (non-ancestor).
+    # If the branch guard were absent, this would reach the ancestry check
+    # and return 1.  The guard must fire and return 0 first.
+    push_ref = _make_push_ref(
+        branch_b_sha, branch_a_sha, remote_ref="refs/tags/v1.0.0"
+    )
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+    assert base  # suppress unused-variable warning
+
+
+def test_non_fast_forward_env_var_bypasses_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """FORCE_PUSH_OK=1 allows a rewrite with a warning."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    push_ref = _make_push_ref(feature_sha, side_sha)
+    monkeypatch.setenv("FORCE_PUSH_OK", "1")
+
+    result = policy._check_non_fast_forward(push_ref, repo)
+
+    assert result == 0
+    err = capsys.readouterr().err
+    assert "bypassed" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_check_push_refs_blocks_force_push_end_to_end(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """check_push_refs end-to-end: force push is caught."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    base = _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
+    stream = io.StringIO(
+        f"refs/heads/feature/test {feature_sha} refs/heads/feature/test {side_sha}\n"
+    )
+
+    result = policy.check_push_refs(stream, repo)
+
+    assert result == 1
+    err = capsys.readouterr().err
+    assert "not a fast-forward" in err
+    assert base  # suppress unused-variable warning
+
+
+def test_check_push_refs_multi_ref_catches_second_rewrite(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Multiple refs: only the second is a rewrite; the first is a new branch."""
+    monkeypatch.delenv("FORCE_PUSH_OK", raising=False)
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "f.txt", "base\n")
+    _git(repo, "checkout", "-q", "-b", "side")
+    side_sha = _commit_file(repo, "f.txt", "side\n")
+    _git(repo, "checkout", "-q", "feature/test")
+    feature_sha = _commit_file(repo, "f.txt", "feature\n")
+    monkeypatch.setattr(policy, "_fetch_origin_main", lambda _repo_root: None)
+    monkeypatch.setattr(policy, "warn_if_push_files_incomplete", lambda *_args: None)
+    zero = "0" * 40
+    stream = io.StringIO(
+        # First ref: new branch (zero remote), passes.
+        f"refs/heads/new-branch {feature_sha} refs/heads/new-branch {zero}\n"
+        # Second ref: force push, blocked.
+        f"refs/heads/feature/test {feature_sha} refs/heads/feature/test {side_sha}\n"
+    )
+
+    result = policy.check_push_refs(stream, repo)
+
+    assert result == 1
+    assert "not a fast-forward" in capsys.readouterr().err
 
 
 def test_commit_limit_queries_the_destination_branch(
@@ -6295,11 +6552,20 @@ def test_pytest_policy_cleans_hook_environment(
     ):
         monkeypatch.setenv(key, "leaked")
 
-    def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured.update(kwargs)
-        return _completed(0)
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", fake_run)
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     assert policy.run_pytest(tmp_path) == 0
     env = captured["env"]
@@ -6494,11 +6760,20 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
     monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
     captured: dict[str, object] = {}
 
-    def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        captured.update(kwargs)
-        return _completed(0)
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
 
-    monkeypatch.setattr(policy.subprocess, "run", fake_run)
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
     env = captured["env"]
@@ -6974,6 +7249,32 @@ def test_graft_check_fails_closed_on_git_and_read_errors(
     assert policy._check_no_grafts(tmp_path) == 2
 
 
+def _git_fake(
+    shallow_path: str,
+    shallow: subprocess.CompletedProcess[str] | None = None,
+) -> Callable[..., subprocess.CompletedProcess[str]]:
+    """An arg-aware `_run_git` stand-in.
+
+    The arg-blind `lambda *_args: _completed(0, "true\\n")` these tests used
+    is what let issue #4576 through: it answered every query with the shallow
+    verdict, so a second query could not be observed to be wrong. Worse, it
+    fed that verdict to the path lookup as well, so `_shallow_file` resolved
+    `repo_root / "true"` and the tests passed only because `is_file()`
+    tolerates a path that does not exist.
+
+    `shallow_path` answers `rev-parse --git-path shallow`; `shallow` answers
+    `rev-parse --is-shallow-repository` and defaults to a shallow verdict.
+    """
+    verdict = _completed(0, "true\n") if shallow is None else shallow
+
+    def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "shallow" in args:
+            return _completed(0, f"{shallow_path}\n")
+        return verdict
+
+    return fake
+
+
 @pytest.mark.parametrize(
     ("result", "expected"),
     [
@@ -6989,7 +7290,7 @@ def test_history_integrity_rejects_shallow_or_unknown_state(
     result: subprocess.CompletedProcess[str],
     expected: int,
 ) -> None:
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: result)
+    monkeypatch.setattr(policy, "_run_git", _git_fake(".git/shallow", shallow=result))
     monkeypatch.setattr(policy, "_check_no_grafts", lambda _root: 0)
 
     assert policy._check_history_integrity(tmp_path) == expected
@@ -7001,11 +7302,7 @@ def test_history_integrity_shallow_message_names_remedy(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Shallow clone error must name the fix command (issue #4086)."""
-    monkeypatch.setattr(
-        policy,
-        "_run_git",
-        lambda *_args: _completed(0, "true\n"),
-    )
+    monkeypatch.setattr(policy, "_run_git", _git_fake(".git/shallow"))
 
     assert policy._check_history_integrity(tmp_path) == 2
 
@@ -7024,17 +7321,145 @@ def test_history_integrity_shallow_message_names_pin_sha(
     shallow_file.parent.mkdir(parents=True, exist_ok=True)
     shallow_file.write_text(f"{pin}\n", encoding="utf-8")
 
-    monkeypatch.setattr(
-        policy,
-        "_run_git",
-        lambda *_args: _completed(0, "true\n"),
-    )
+    monkeypatch.setattr(policy, "_run_git", _git_fake(".git/shallow"))
 
     assert policy._check_history_integrity(tmp_path) == 2
 
     err = capsys.readouterr().err
     assert pin in err
     assert "git fetch --unshallow origin" in err
+
+
+def test_history_integrity_names_pin_sha_from_a_linked_worktree(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The pin SHA must survive the worktree shape (issue #4576).
+
+    In a linked worktree `<root>/.git` is a pointer file, not a directory, so
+    the old `repo_root / ".git" / "shallow"` named a child of a file and never
+    existed. The guard still blocked, but silently dropped the one line that
+    says where the graft is, in exactly the layout this repository runs dozens
+    of. `shallow` lives in the common directory, which is shared, so the graft
+    is usually not even from the worktree you are standing in.
+
+    Built on a real worktree with real git rather than a hand-made pointer
+    file, so the path resolution itself is under test. A hardcoded fake would
+    pass with the wrong `rev-parse` flag; this does not.
+    """
+    repo = tmp_path / "repo"
+    linked = tmp_path / "linked"
+    _init_repo(repo)
+    _commit_file(repo, "source.py", "value = 1\n")
+    _git(repo, "worktree", "add", "-q", "-b", "feature/linked", str(linked))
+    assert (linked / ".git").is_file(), "fixture must reproduce the pointer-file shape"
+
+    common_dir = Path(_git(linked, "rev-parse", "--git-common-dir").stdout.strip())
+    if not common_dir.is_absolute():
+        common_dir = (linked / common_dir).resolve()
+    pin = "b" * 40
+    _write_lf(common_dir / "shallow", f"{pin}\n")
+
+    real_run_git = policy._run_git
+
+    def fake(root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "--is-shallow-repository" in args:
+            return _completed(0, "true\n")
+        return real_run_git(root, args)
+
+    monkeypatch.setattr(policy, "_run_git", fake)
+
+    assert policy._check_history_integrity(linked) == 2
+
+    err = capsys.readouterr().err
+    assert pin in err, "pin SHA dropped in a worktree"
+    assert str(common_dir / "shallow") in err
+    assert "every worktree" in err
+    assert "git fetch --unshallow origin" in err
+
+
+def test_history_integrity_distrusts_stdout_when_the_path_lookup_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A non-zero rc makes stdout untrustworthy, so fall back to the clone shape.
+
+    Written as a discriminating input on purpose. An empty-stdout failure
+    cannot tell the rc guard apart from the malformed-output guard below it,
+    so such a test would pass with either one deleted. Garbage on stdout
+    separates them: without the rc check the guard reads `<root>/junk`, finds
+    nothing, and drops the pin line.
+    """
+    pin = "c" * 40
+    shallow_file = tmp_path / ".git" / "shallow"
+    shallow_file.parent.mkdir(parents=True)
+    shallow_file.write_text(f"{pin}\n", encoding="utf-8")
+
+    def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "shallow" in args:
+            return _completed(128, "junk\n", "fatal: not a git repository\n")
+        return _completed(0, "true\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake)
+
+    assert policy._check_history_integrity(tmp_path) == 2
+
+    err = capsys.readouterr().err
+    assert pin in err, "fallback dropped the pin when the lookup failed"
+    assert "git fetch --unshallow origin" in err
+
+
+def test_history_integrity_distrusts_malformed_path_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A zero rc with output that is not one path is still untrustworthy.
+
+    Discriminating on the line count specifically: rc is zero here, so only
+    the `len(lines) != 1` clause can produce the fallback that recovers the
+    pin. `_check_no_grafts` guards the same shape 30 lines above.
+    """
+    pin = "d" * 40
+    shallow_file = tmp_path / ".git" / "shallow"
+    shallow_file.parent.mkdir(parents=True)
+    shallow_file.write_text(f"{pin}\n", encoding="utf-8")
+
+    def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "shallow" in args:
+            return _completed(0, "junk/one\njunk/two\n")
+        return _completed(0, "true\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake)
+
+    assert policy._check_history_integrity(tmp_path) == 2
+
+    err = capsys.readouterr().err
+    assert pin in err, "fallback dropped the pin on malformed output"
+
+
+def test_history_integrity_survives_a_failed_path_lookup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A broken `rev-parse --git-path` must not stop the guard from blocking.
+
+    Degrading to the primary-clone path costs the pin line; swallowing the
+    verdict would let a shallow clone push.
+    """
+
+    def fake(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+        if "shallow" in args:
+            return _completed(128, "", "fatal: not a git repository\n")
+        return _completed(0, "true\n")
+
+    monkeypatch.setattr(policy, "_run_git", fake)
+
+    assert policy._check_history_integrity(tmp_path) == 2
+    assert "git fetch --unshallow origin" in capsys.readouterr().err
 
 
 def test_push_update_defense_blocks_protected_destination(
@@ -9656,3 +10081,170 @@ def test_the_tracked_scan_reports_a_git_failure_as_a_config_error(
     not_a_repo.mkdir()
 
     assert policy.check_tracked_conflict_markers(not_a_repo) == 2
+
+
+class TestRangeSuppressionBackstop:
+    """CI backstop for the no-net-new suppression contract (issue #4061).
+
+    The policy shipped wired to lefthook only, so a clone without
+    `lefthook install`, a `--no-verify` push, a server-side "Update branch"
+    merge, or a bot push landed a fresh suppression with nothing failing.
+    These drive `check_range_suppressions`, the range-based entry point
+    pr-validation.yml calls, over the same scan functions the pre-push hook
+    uses.
+    """
+
+    NOSEC = "# no" + "sec"
+
+    def _repo(self, tmp_path: Path) -> Path:
+        repo = tmp_path / "repo"
+        _init_repo(repo)
+        return repo
+
+    def test_a_net_new_suppression_fails_and_names_path_and_line(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+        head = _commit_file(repo, "source.py", f"value = 1  {self.NOSEC}\n")
+
+        assert policy.check_range_suppressions(base, head, repo) == 1
+        assert f"{head[:12]}:source.py:1" in capsys.readouterr().err
+
+    def test_a_suppression_moved_within_one_file_passes(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", f"value = 1  {self.NOSEC}\nother = 2\n")
+        head = _commit_file(repo, "source.py", f"other = 2\nvalue = 1  {self.NOSEC}\n")
+
+        assert policy.check_range_suppressions(base, head, repo) == 0
+
+    def test_cross_file_removal_does_not_credit_another_file(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        _commit_file(repo, "clean.py", "value = 2\n")
+        base = _commit_file(repo, "donor.py", f"value = 1  {self.NOSEC}\n")
+        _write_file(repo, "donor.py", "value = 1\n")
+        _write_file(repo, "clean.py", f"value = 2  {self.NOSEC}\n")
+        _git(repo, "add", "--", "donor.py", "clean.py")
+        _git(repo, "commit", "-qm", "test: move suppression across files")
+        head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+        assert policy.check_range_suppressions(base, head, repo) == 1
+
+    def test_one_removal_cannot_pay_for_two_additions(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", f"a = 1  {self.NOSEC}\n")
+        head = _commit_file(
+            repo, "source.py", f"b = 2  {self.NOSEC}\nc = 3  {self.NOSEC}\n"
+        )
+
+        assert policy.check_range_suppressions(base, head, repo) == 1
+
+    def test_a_pure_rename_carrying_a_suppression_passes(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "old.py", f"value = 1  {self.NOSEC}\n")
+        _git(repo, "mv", "old.py", "new.py")
+        _git(repo, "commit", "-qm", "test: rename carrying a suppression")
+        head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+        assert policy.check_range_suppressions(base, head, repo) == 0
+
+    def test_an_unscanned_suffix_is_ignored(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "README.md", "docs\n")
+        head = _commit_file(repo, "README.md", f"docs\nUse {self.NOSEC} sparingly.\n")
+
+        assert policy.check_range_suppressions(base, head, repo) == 0
+
+    def test_an_unresolvable_base_is_a_config_error(self, tmp_path: Path, capsys) -> None:
+        repo = self._repo(tmp_path)
+        head = _commit_file(repo, "source.py", "value = 1\n")
+
+        assert policy.check_range_suppressions("no-such-ref", head, repo) == 2
+        assert "ERROR: could not resolve base revision" in capsys.readouterr().err
+
+    def test_an_unresolvable_head_is_a_config_error(self, tmp_path: Path, capsys) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+
+        assert policy.check_range_suppressions(base, "no-such-ref", repo) == 2
+        assert "ERROR: could not resolve head revision" in capsys.readouterr().err
+
+    def test_a_symbolic_head_is_labelled_with_the_commit_it_resolves_to(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        """`HEAD` in the label would name nothing a reader can check out."""
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+        head = _commit_file(repo, "source.py", f"value = 1  {self.NOSEC}\n")
+
+        assert policy.check_range_suppressions(base, "HEAD", repo) == 1
+        error = capsys.readouterr().err
+        assert f"{head[:12]}:source.py:1" in error
+        assert "HEAD:source.py" not in error
+
+    def test_the_cli_reports_both_verdicts(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        clean_base = _commit_file(repo, "source.py", "value = 1\n")
+        clean_head = _commit_file(repo, "source.py", "value = 2\n")
+        argv = ["--repo-root", str(repo), "security-suppressions-range"]
+
+        assert policy.main([*argv, "--base", clean_base, "--head", clean_head]) == 0
+
+        dirty_head = _commit_file(repo, "source.py", f"value = 2  {self.NOSEC}\n")
+        assert policy.main([*argv, "--base", clean_head, "--head", dirty_head]) == 1
+
+    def test_the_cli_defaults_head_to_the_working_head(self, tmp_path: Path) -> None:
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+        _commit_file(repo, "source.py", f"value = 1  {self.NOSEC}\n")
+
+        argv = ["--repo-root", str(repo), "security-suppressions-range", "--base", base]
+        assert policy.main(argv) == 1
+
+    def test_a_git_failure_is_a_config_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Mocked I/O: a broken `git diff` must not read as a clean range."""
+        repo = self._repo(tmp_path)
+        base = _commit_file(repo, "source.py", "value = 1\n")
+        head = _commit_file(repo, "source.py", "value = 2\n")
+        real_run_git = policy._run_git
+
+        def failing_git(root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args and args[0] == "diff":
+                return _completed(1)
+            return real_run_git(root, args)
+
+        monkeypatch.setattr(policy, "_run_git", failing_git)
+
+        assert policy.check_range_suppressions(base, head, repo) == 2
+# ---------------------------------------------------------------------------
+# _semgrep_command excludes python36/37 compatibility families (#4217 unblock)
+# ---------------------------------------------------------------------------
+
+
+def test_semgrep_command_excludes_python36_compat_family() -> None:
+    """_semgrep_command must exclude the python36 compatibility rule family.
+
+    pyproject.toml sets python_requires >= 3.14. The python36 compatibility
+    rules flag valid patterns such as subprocess.Popen(encoding=, errors=) as
+    errors, producing false positives that block legitimate pushes.
+    """
+    cmd = policy._semgrep_command("auto", ["path/to/file.py"])
+    exclude_values = [
+        cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"
+    ]
+    assert any(
+        "python.lang.compatibility.python36" in v for v in exclude_values
+    ), f"python36 compat family not excluded. --exclude-rule values: {exclude_values}"
+
+
+def test_semgrep_command_excludes_python37_compat_family() -> None:
+    """_semgrep_command must exclude the python37 compatibility rule family."""
+    cmd = policy._semgrep_command("auto", ["path/to/file.py"])
+    exclude_values = [
+        cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"
+    ]
+    assert any(
+        "python.lang.compatibility.python37" in v for v in exclude_values
+    ), f"python37 compat family not excluded. --exclude-rule values: {exclude_values}"
