@@ -1,0 +1,42 @@
+{
+  "id": "episode-2026-08-07-session-10009-pr-4402-scope-bypass",
+  "session": "2026-08-07-session-10009-pr-4402-scope-bypass",
+  "timestamp": "2026-08-07T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record the PR 4402 scope-check bypass failure without duplicating existing governance",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-07T21:45:00+00:00",
+      "type": "milestone",
+      "content": "Collected the implementer report, published commit SHAs, closed PR state, and explicit no-bypass constraint.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-07-session-10009-pr-4402-scope-bypass"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-07T21:55:00+00:00",
+      "type": "milestone",
+      "content": "Classified the failure as FM-3, ran Five Whys and fishbone analysis, and rejected a duplicate memory after finding existing rule coverage.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10009-pr-4402-scope-bypass"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 10,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}
