@@ -956,6 +956,48 @@ class TestRescopeAgainstPrBase:
             assert rescope_against_pr_base("origin/main", self._result(52)) is None
         detect.assert_not_called()
 
+    def test_compares_against_the_requested_base_not_a_hardcoded_main(self) -> None:
+        """A caller measuring against something other than main is honored.
+
+        Every other test here passes None or a form of main, so hardcoding
+        "main" in the comparison behaves identically in all of them and the
+        parameter can be ignored without a single failure.
+        """
+        with (
+            self._no_merge(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="release/next",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope") as detect,
+        ):
+            assert (
+                rescope_against_pr_base("origin/release/next", self._result(52)) is None
+            )
+        detect.assert_not_called()
+
+    def test_still_rescopes_when_the_requested_base_is_not_the_pr_base(self) -> None:
+        """The negative control for the test above.
+
+        Same non-main requested base, different PR base. This must re-measure,
+        which proves the previous test refused for the reason it claims rather
+        than because any non-main base is refused outright.
+        """
+        narrowed = self._stacked(13)
+        with (
+            self._no_merge(),
+            self._downstream(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope", return_value=narrowed),
+        ):
+            assert (
+                rescope_against_pr_base("origin/release/next", self._result(52))
+                is narrowed
+            )
+
     def test_returns_none_when_remeasurement_fails(self) -> None:
         """An unresolvable second measurement keeps the original block."""
         with (

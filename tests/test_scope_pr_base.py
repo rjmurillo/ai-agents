@@ -150,8 +150,33 @@ class TestResolvePrBaseBranch:
             assert resolve_pr_base_branch("feat/stacked") is None
 
     def test_returns_none_when_gh_missing(self) -> None:
-        """No gh on PATH is a normal local state, not an error."""
-        with patch("scripts.scope_pr_base.shutil.which", return_value=None):
+        """No gh on PATH is a normal local state, not an error.
+
+        Asserts the subprocess was never reached. Without that the test passes
+        even with the PATH check deleted, because it then shells out to the
+        real gh and depends on the host having no open PR for this name.
+        """
+        with (
+            patch("scripts.scope_pr_base.shutil.which", return_value=None),
+            patch("scripts.scope_pr_base.subprocess.run") as run,
+        ):
+            assert resolve_pr_base_branch("feat/stacked") is None
+        run.assert_not_called()
+
+    def test_returns_none_when_the_payload_holds_a_non_object(self) -> None:
+        """gh is trusted for shape as well as content, so the shape is checked.
+
+        A list of one string parses as valid JSON with length one and reaches
+        the same code path as a PR object. Without the type check that is an
+        AttributeError inside a git hook rather than a refusal.
+        """
+        completed = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout='["fix/parent"]', stderr=""
+        )
+        with (
+            patch("scripts.scope_pr_base.shutil.which", return_value="/usr/bin/gh"),
+            patch("scripts.scope_pr_base.subprocess.run", return_value=completed),
+        ):
             assert resolve_pr_base_branch("feat/stacked") is None
 
     def test_returns_none_on_nonzero_exit(self) -> None:
@@ -414,7 +439,6 @@ class TestIsCredibleRescope:
         ancestor, calls = self._ancestry(True)
         is_credible_rescope(self._rescoped("b.py"), self._blocked("a.py"), ancestor)
         assert calls == [(self.MAIN_FORK, self.STACK_FORK)]
-        assert calls[0] != (self.STACK_FORK, self.MAIN_FORK)
 
 
 class TestIsPlainBranchName:
