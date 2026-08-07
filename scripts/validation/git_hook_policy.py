@@ -5433,7 +5433,7 @@ def _check_push_updates(updates: Sequence[PushUpdate], repo_root: Path) -> int:
     for update in updates:
         destination = update.destination_branch
         if destination is None:
-            # Non-branch refs (tags, notes) — skip branch policy checks.
+            # Non-branch refs (tags, notes) -- skip branch policy checks.
             continue
         if destination in {"main", "master"}:
             print(f"ERROR: cannot push directly to '{destination}'", file=sys.stderr)

@@ -1,6 +1,6 @@
 """Tests for git/session integrity (#4316, #4307, #4561, #4288).
 
-Hermetic except test_population_uniqueness_real_branches (reads live refs).
+Hermetic except test_population_uniqueness_real_branches which reads live refs.
 """
 
 from __future__ import annotations
