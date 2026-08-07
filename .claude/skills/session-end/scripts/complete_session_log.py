@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 from types import ModuleType
 
@@ -151,7 +152,16 @@ def _find_current_session_log(sessions_dir: str) -> str | None:
     for name in os.listdir(sessions_dir):
         if name.endswith(".json") and re.match(r"\d{4}-\d{2}-\d{2}-session-\d+", name):
             full = os.path.join(sessions_dir, name)
-            candidates.append((os.path.getmtime(full), full, name))
+            try:
+                mtime = os.path.getmtime(full)
+            except OSError:
+                warnings.warn(
+                    f"Skipping unreadable session log: {name}",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                continue
+            candidates.append((mtime, full, name))
 
     if not candidates:
         return None
