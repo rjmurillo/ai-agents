@@ -89,8 +89,8 @@ On `docs/stale-checkout-tooling` the second push died on `yaml: unmarshal
 errors: mapping key "timeout" already defined`. That error is not real.
 `lefthook.yml` is byte identical across worktrees
 (`md5 ddf7726679a84c0c09d3de3c39504b99`) and parses clean under a loader that
-rejects duplicate mapping keys, no production script writes it, it is absent
-from `GENERATOR-FILES.md`, and the tests that write one are scoped to
+rejects duplicate mapping keys, no production script writes it (`rg -l "lefthook.yml" scripts/` returns only readers, zero writers), it is absent
+from `GENERATOR-FILES.md` (`grep lefthook .agents/governance/GENERATOR-FILES.md` returns nothing), and the tests that write one are scoped to
 `tmp_path`. The failure appears only when a second lefthook run overlaps a
 first; the writer class behind the torn read is identified under "A push in
 flight owns the working tree" below.
