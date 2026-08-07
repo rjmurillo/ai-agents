@@ -1,18 +1,18 @@
 """Run the pre-push count ratchets inside the pre-PR gate (issue #4251).
 
 AGENTS.md names one pre-PR gate, ``scripts/validation/pre_pr.py``. Before this
-module existed that gate ran none of the four count ratchets; they ran only at
+module existed that gate ran none of the count ratchets; they ran only at
 ``pre-push``, in the same lefthook group as the full Python test suite. A
 contributor whose change raised a ratchet count therefore saw ``pre_pr.py``
 pass, pushed, and learned about a 0.21 second failure 674 seconds later.
 
-The four ratchets together finish in about three seconds, so the entire signal
+The ratchets together finish in about three seconds, so the entire signal
 is available long before the suite starts. Running them here converts that
 674 second round trip into a local three second one.
 
 Command shape is copied from ``lefthook.yml``'s ``*-ratchet`` jobs rather than
 reinvented, and ``tests/ci/test_pre_pr_runs_lefthook_ratchets.py`` asserts the
-two stay identical. Adding a fifth ratchet to ``lefthook.yml`` without adding
+two stay identical. Adding a ratchet to ``lefthook.yml`` without adding
 it here fails that test, which is the drift this module exists to prevent.
 """
 
@@ -65,6 +65,18 @@ RATCHETS: tuple[Ratchet, ...] = (
         "scripts/ci/type_ignore_count_ratchet.py",
         False,
         True,
+    ),
+    Ratchet(
+        "memory-index-count-ratchet",
+        "scripts/ci/memory_index_count_ratchet.py",
+        False,
+        True,
+    ),
+    Ratchet(
+        "memory-index-token-ratchet",
+        "scripts/ci/memory_index_token_ratchet.py",
+        False,
+        False,
     ),
     Ratchet(
         "merge-tree-ratchet",

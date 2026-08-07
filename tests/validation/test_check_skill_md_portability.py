@@ -717,6 +717,22 @@ class TestPluginRootScan:
         with pytest.raises(OSError, match="Broken .md symlink"):
             cmp.scan_marker_suppressions(tmp_path)
 
+    def test_marker_scan_contract_names_extra_scan_dirs(self) -> None:
+        """The public wrapper docstring must match its scan surface."""
+        assert "extra scan dirs" in (cmp.scan_marker_suppressions.__doc__ or "")
+
+    def test_marker_scan_includes_extra_scan_dirs(self, tmp_path: Path) -> None:
+        """Markers in command docs feed the same exact-count marker baseline."""
+        self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
+        command = tmp_path / ".claude" / "commands" / "ship.md"
+        command.parent.mkdir(parents=True)
+        command.write_text(
+            "<!-- vendor-portability: declared -->\nWrites .agents/state.\n",
+            encoding="utf-8",
+        )
+
+        assert cmp.scan_marker_suppressions(tmp_path) == {".claude/commands/ship.md": 1}
+
     def test_same_named_skills_in_two_roots_do_not_collide(self, tmp_path: Path) -> None:
         """Keys are repository relative because both roots hold ``skills/spec``.
 
@@ -1136,10 +1152,10 @@ class TestUnexpectedScanException:
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
 
-        def _exploding_scan(skills_dir: Path) -> None:
+        def _exploding_scan(root: Path, *, check_drift: bool = False) -> None:
             raise RuntimeError("simulated markdown-it internal error")
 
-        monkeypatch.setattr(cmp, "scan_skill_markdown", _exploding_scan)
+        monkeypatch.setattr(cmp, "scan_all", _exploding_scan)
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 2
 
@@ -1153,10 +1169,10 @@ class TestUnexpectedScanException:
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
 
-        def _exploding_scan(skills_dir: Path) -> None:
+        def _exploding_scan(root: Path, *, check_drift: bool = False) -> None:
             raise TypeError("bad token type")
 
-        monkeypatch.setattr(cmp, "scan_skill_markdown", _exploding_scan)
+        monkeypatch.setattr(cmp, "scan_all", _exploding_scan)
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 2
         err = capsys.readouterr().err
@@ -1414,6 +1430,8 @@ class TestBaselineSemanticConflictGuard:
         (root / "scripts" / "validation" / "check_skill_md_portability.py").write_text(
             "# scanner\n", encoding="utf-8"
         )
+        # Create a stub for the upstream path that marker tests reference
+        (root / ".agents" / "state").mkdir(parents=True)
         baseline = root / "baseline.json"
         baseline.write_text(json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8")
         subprocess.run(["git", "init", "-q"], cwd=root, check=True)
@@ -2029,3 +2047,7 @@ class TestScriptsPathDetection:
         """
         text = "The scripts are maintained by the team.\n"
         assert cmp.count_upstream_refs(text) == 0
+
+
+# ---------------------------------------------------------------------------
+# Marker path-drift tests (issue #4116)
