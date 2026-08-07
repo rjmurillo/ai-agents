@@ -2006,6 +2006,7 @@ def test_session_policy_requires_and_validates_session(
 ) -> None:
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(0))
+    monkeypatch.setattr(policy, "added_session_paths_in_index", lambda paths, repo_root: set(paths))
 
     assert policy.check_sessions([".agents/planning/plan.md"], tmp_path) == 1
     assert (
@@ -2023,6 +2024,11 @@ def test_session_policy_propagates_validator_failure_and_skips_merge(
 ) -> None:
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
+    monkeypatch.setattr(
+        policy,
+        "added_session_paths_in_index",
+        lambda _paths, _repo_root: {".agents/sessions/2026-07-19-session-1-test.json"},
+    )
     path = ".agents/sessions/2026-07-19-session-1-test.json"
     assert policy.check_sessions([path], tmp_path) == 1
 

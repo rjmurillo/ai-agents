@@ -22,6 +22,8 @@ import sys
 from collections.abc import Iterable
 from pathlib import Path
 
+from scripts.validation.checks_common import _git_subprocess_env
+
 _GIT_TIMEOUT_SECONDS = 30
 _COMMIT_SHA = re.compile(r"^[0-9a-f]{7,40}$")
 
@@ -37,6 +39,7 @@ def _git(args: list[str], repo_root: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args],
         cwd=repo_root,
+        env=_git_subprocess_env(),
         capture_output=True,
         text=True,
         encoding="utf-8",
