@@ -155,11 +155,55 @@ gone and no one finds out. That is the silent-failure anti-pattern.
    breaks for the customer, and how do they recover? If the answer is "everything"
    or "uninstall", the verification bar in this rule is mandatory, not optional.
 
+## Generator order: sync before build
+
+The plugin library is mirrored twice, in a chain, by two scripts that do not
+call each other:
+
+```text
+scripts/{hook_utilities,github_core,ai_review_common}
+    |  scripts/sync_plugin_lib.py   (SYNC_PAIRS)
+    v
+.claude/lib/*
+    |  build/scripts/build_all.py   (copy_lib_to_platform)
+    v
+src/copilot-cli/lib/*
+```
+
+`build_all.py` reads `.claude/lib/` and never populates it. So a change under
+`scripts/github_core/` reaches the Copilot tree only if `sync_plugin_lib.py`
+runs first.
+
+### MUST
+
+**Run `scripts/sync_plugin_lib.py` before `build/scripts/build_all.py`.**
+
+Running them in the other order leaves `src/copilot-cli/lib/` mirroring the
+previous contents of `.claude/lib/`, and **both scripts exit 0**. There is no
+local signal. The stale mirror surfaces only when
+`scripts/ci/check_plugin_lib_mirrors.py` runs, which for most contributors
+means after the push, in CI.
+
+The ordering is currently implicit. `build_all.py` refers to a "legitimate
+pre-build sync of .claude/lib" in a comment on `assert_no_claude_writes`
+(issue #2613), and its `.claude/` write guard is deliberately scoped so that a
+sync performed *before* the build does not trip it. That guard is evidence the
+sync is expected to run first; it is not an enforcement of it, and nothing
+fails when you skip it.
+
+Do not resolve this by having `build_all.py` invoke `sync_plugin_lib.py`.
+REQ-003-010 forbids generators from writing under `.claude/`, and the sync
+writes there by design. The two stay separate; the order is the contract.
+
 ## Quick Self-Review
 
 Before you merge a change to a generator or customer-facing artifact:
 
 - Did you read the settled contract before changing the artifact?
+- If the change touches a mirrored library (`scripts/hook_utilities`,
+  `scripts/github_core`, `scripts/ai_review_common`), did you run
+  `sync_plugin_lib.py` before `build_all.py`, and confirm all three copies
+  match rather than trusting the exit codes?
 - If you re-probed, did a refresh condition require it, and did you record the
   version, official source, and negative control?
 - Is there a runtime-contract test that executes the artifact under that contract,
@@ -186,5 +230,7 @@ never have to uninstall to recover from an artifact we generated.
 - `.claude/rules/canonical-source-mirror.md`. Self-referential test anti-pattern.
 - `.claude/skills/software-engineering-library/references/release-it.md`. Fail fast and loud; bound the blast radius by prevention, not by silently swallowing failures.
 - `scripts/validation/validate_hook_anchoring.py`. The committed-artifact gate.
+- `scripts/sync_plugin_lib.py`. Populates `.claude/lib/` from `scripts/`. Run before `build_all.py`.
+- `scripts/ci/check_plugin_lib_mirrors.py`. The gate that catches a stale Copilot lib mirror.
 - `tests/build_scripts/test_generate_hooks_runtime_contract.py`. Runtime-contract test pattern.
 - `tests/e2e/test_cli_hook_e2e.py`. Real-CLI smoke.
