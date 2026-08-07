@@ -2399,6 +2399,17 @@ class TestValidateModeRejectsUnusableEventIds:
         )
         return path
 
+    @staticmethod
+    def _valid_event(event_id: str) -> dict:
+        return {
+            "id": event_id,
+            "timestamp": "2026-01-01T00:00:00+00:00",
+            "type": "milestone",
+            "content": event_id,
+            "caused_by": [],
+            "leads_to": [],
+        }
+
     def test_a_duplicate_id_is_rejected(self, tmp_path):
         target = self._episode(
             tmp_path / "episode-dup.json",
@@ -2426,7 +2437,11 @@ class TestValidateModeRejectsUnusableEventIds:
     def test_a_contiguous_list_exits_0(self, tmp_path):
         self._episode(
             tmp_path / "episode-ok.json",
-            [{"id": "e001"}, {"id": "e002"}, {"id": "e003"}],
+            [
+                self._valid_event("e001"),
+                self._valid_event("e002"),
+                self._valid_event("e003"),
+            ],
         )
         assert extract_session_episode.main([str(tmp_path), "--validate"]) == 0
 
@@ -2459,7 +2474,10 @@ class TestValidateModeRejectsUnusableEventIds:
         assert extract_session_episode.main(["../etc/passwd", "--validate"]) == 2
 
     def test_a_single_file_target_is_accepted(self, tmp_path):
-        target = self._episode(tmp_path / "episode-one.json", [{"id": "e001"}])
+        target = self._episode(
+            tmp_path / "episode-one.json",
+            [self._valid_event("e001")],
+        )
         assert extract_session_episode.main([str(target), "--validate"]) == 0
 
     def test_the_committed_episode_store_is_clean(self):
@@ -2787,6 +2805,64 @@ class TestCausalEdgeConsistency:
 
         assert any(
             "causal edge e001 -> e002 is stored but not derivable" in p for p in problems
+        )
+
+    def test_unsupported_event_type_is_reported(self, tmp_path):
+        event = self._evt("e001", "2026-01-01T00:00:00+00:00")
+        event["type"] = "unsupported"
+        target = self._write(tmp_path / "episode-unsupported.json", [event])
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any("event e001 has unsupported type: unsupported" in p for p in problems)
+
+    def test_non_string_timestamp_is_reported(self, tmp_path):
+        event = self._evt("e001", "2026-01-01T00:00:00+00:00")
+        event["timestamp"] = 123
+        target = self._write(tmp_path / "episode-non-string-timestamp.json", [event])
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any("event e001 has a missing or non-string timestamp" in p for p in problems)
+
+    def test_missing_caused_by_reciprocal_is_reported(self, tmp_path):
+        target = self._write(
+            tmp_path / "episode-missing-caused-by.json",
+            [
+                self._evt(
+                    "e001",
+                    "2026-01-01T00:00:00+00:00",
+                    leads_to=["e002"],
+                ),
+                self._evt("e002", "2026-01-01T00:10:00+00:00"),
+            ],
+        )
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any(
+            "causal edge e001 -> e002 is missing reciprocal caused_by" in p
+            for p in problems
+        )
+
+    def test_missing_leads_to_reciprocal_is_reported(self, tmp_path):
+        target = self._write(
+            tmp_path / "episode-missing-leads-to.json",
+            [
+                self._evt("e001", "2026-01-01T00:00:00+00:00"),
+                self._evt(
+                    "e002",
+                    "2026-01-01T00:10:00+00:00",
+                    caused_by=["e001"],
+                ),
+            ],
+        )
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any(
+            "causal edge e001 -> e002 is missing reciprocal leads_to" in p
+            for p in problems
         )
 
 
@@ -3754,7 +3830,7 @@ class TestJsonMetricsDuration:
         data = {
             "workLog": [
                 {"time": "2026-08-06T10:00:00", "entry": "start"},
-                {"time": "2026-08-06T10:30:00+00:00", "entry": "end"},
+                {"time": "2026-08-06T06:30:00-04:00", "entry": "end"},
             ],
         }
         metrics = extract_session_episode.json_metrics(data)

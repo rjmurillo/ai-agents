@@ -1061,18 +1061,16 @@ def _authoritative_files_changed(data: dict[str, Any]) -> int | None:
     return files_changed if files_changed >= 0 else None
 
 
-def _range_files_changed(start: str, end: str, cwd: str | Path | None = None) -> int:
+def _range_files_changed(
+    start: str,
+    end: str,
+    cwd: str | Path | None = None,
+) -> int | None:
     """Count files changed between two commits (best-effort).
 
-    The staged diff is the primary source, but it is empty on any run where the
-    session's commit already exists: ``--preserve`` re-extractions, backfills,
-    and every post-commit invocation. In that case the prose fallback took over
-    and ``_FILES_RE`` matched the first "N files" phrase anywhere in the work
-    log, which is a tool's own output as often as it is the session's diff
-    (issue #4416). The session log already names the commit range, so ask git
-    instead. Returns 0 when either SHA is missing or malformed, when the range
-    is empty, or when git is unavailable, which returns the caller to the prose
-    fallback rather than inventing a number.
+    Returns ``None`` when the range cannot be measured and ``0`` when a valid
+    range changes no files. The distinction lets callers use an empty range as
+    authoritative without masking git failures with a false zero.
 
     Both SHAs are shape-checked against ``_FULL_SHA_RE`` before reaching the
     command line: the values come from a JSON file, and a value like
@@ -1081,7 +1079,7 @@ def _range_files_changed(start: str, end: str, cwd: str | Path | None = None) ->
     start = str(start or "").strip()
     end = str(end or "").strip()
     if not _FULL_SHA_RE.match(start) or not _FULL_SHA_RE.match(end):
-        return 0
+        return None
     if start.lower() == end.lower():
         return 0
     cmd = ["git"]
@@ -1103,9 +1101,9 @@ def _range_files_changed(start: str, end: str, cwd: str | Path | None = None) ->
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return 0
+        return None
     if result.returncode != 0:
-        return 0
+        return None
     return sum(1 for line in result.stdout.splitlines() if line.strip())
 
 
@@ -2313,28 +2311,20 @@ def validate_causal_edge_consistency(events: Any) -> list[str]:
     """Return stored-vs-derived causal edge mismatches."""
     if not isinstance(events, list):
         return []
-    if any(
-        not isinstance(evt, dict)
-        or not isinstance(evt.get("id"), str)
-        or not isinstance(evt.get("timestamp"), str)
-        or evt.get("type") not in _CAUSAL_EVENT_TYPES
-        for evt in events
-    ):
-        return []
     try:
         timestamps = validate_episode_causal_graph(events, validate_order=False)
     except EpisodeValidationError as exc:
         return [str(exc)]
 
-    stored: set[tuple[str, str]] = set()
+    stored_leads_to: set[tuple[str, str]] = set()
+    stored_caused_by: set[tuple[str, str]] = set()
     for evt in events:
-        try:
-            stored.update(_event_causal_edges(evt))
-        except EpisodeValidationError as exc:
-            return [str(exc)]
+        event_id = str(evt["id"])
+        stored_leads_to.update((event_id, ref) for ref in _event_refs(evt, "leads_to"))
+        stored_caused_by.update((ref, event_id) for ref in _event_refs(evt, "caused_by"))
 
-    typed_events = [evt for evt in events if isinstance(evt, dict)]
-    derivable = _immediate_causal_edges(typed_events, timestamps)
+    derivable = _immediate_causal_edges(events, timestamps)
+    stored = stored_leads_to | stored_caused_by
     problems = [
         f"causal edge {source} -> {target} is stored but not derivable"
         for source, target in sorted(stored - derivable)
@@ -2342,6 +2332,14 @@ def validate_causal_edge_consistency(events: Any) -> list[str]:
     problems.extend(
         f"causal edge {source} -> {target} is derivable but missing"
         for source, target in sorted(derivable - stored)
+    )
+    problems.extend(
+        f"causal edge {source} -> {target} is missing reciprocal caused_by"
+        for source, target in sorted(stored_leads_to - stored_caused_by)
+    )
+    problems.extend(
+        f"causal edge {source} -> {target} is missing reciprocal leads_to"
+        for source, target in sorted(stored_caused_by - stored_leads_to)
     )
     return problems
 
@@ -2569,22 +2567,20 @@ def main(argv: list[str] | None = None) -> int:
                 )
         task = metadata["objectives"][0] if metadata["objectives"] else metadata["title"]
 
-    # The staged commit is the primary source for files-changed; work-log prose
-    # is only a fallback. `_FILES_RE` matches any "N files" phrase, so a line
-    # like "markdownlint reported Linting: 2 files, 0 issues" would otherwise
-    # set the count to 2 and, because the backfill was guarded on a falsy value,
-    # suppress the correct staged-diff figure entirely (issue #3617). This is
-    # the same primary/fallback split `_collect_shas` already applies to SHAs.
-    # The extractor runs in pre-commit, so the in-flight commit is staged even
-    # though no SHA exists yet (issue #2537 item 3).
-    # When --pending-stage is set, add 1 to account for the episode file that
-    # will be staged after extraction (the hook stages it after this script
-    # returns, so numstat cannot see it yet). However, skip the +1 if the
-    # episode file is already in the staged diff (e.g., via `git add -A`)
-    # to avoid double-counting.
+    ranged: int | None = None
+    if json_data is not None:
+        session_block = _as_dict(json_data.get("session"))
+        ranged = _range_files_changed(
+            session_block.get("startingCommit", ""),
+            json_data.get("endingCommit", ""),
+            session_log_path.parent,
+        )
+
     staged = _staged_files_changed(session_log_path.parent)
     if authoritative_files_changed is not None:
         metrics["files_changed"] = authoritative_files_changed
+    elif ranged is not None:
+        metrics["files_changed"] = ranged
     elif staged:
         if args.pending_stage:
             episode_path = output_path / f"episode-{session_id}.json"
@@ -2598,19 +2594,6 @@ def main(argv: list[str] | None = None) -> int:
             if episode_rel_path is not None and episode_rel_path not in staged_paths:
                 staged += 1
         metrics["files_changed"] = staged
-    elif json_data is not None:
-        # Post-commit and --preserve runs stage nothing, so the primary above is
-        # 0 and the prose fallback took over unguarded (issue #4416). The log
-        # names the commit range; ask git before trusting a "N files" phrase
-        # that may belong to a linter's output rather than the session's diff.
-        session_block = _as_dict(json_data.get("session")) if isinstance(json_data, dict) else {}
-        ranged = _range_files_changed(
-            session_block.get("startingCommit", ""),
-            json_data.get("endingCommit", ""),
-            session_log_path.parent,
-        )
-        if ranged:
-            metrics["files_changed"] = ranged
 
     episode = {
         "id": f"episode-{session_id}",
