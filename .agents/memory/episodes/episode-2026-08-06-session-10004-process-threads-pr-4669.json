@@ -60,9 +60,21 @@
         "e001",
         "e002",
         "e003",
-        "e004"
+        "e004",
+        "e006"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-06-session-10004-process-threads-pr-4669"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retrospective: updated .agents/retrospective/2026-08-05-absence-claims.md with failure-mode classification",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
       "_source_session": "2026-08-06-session-10004-process-threads-pr-4669"
     }
   ],

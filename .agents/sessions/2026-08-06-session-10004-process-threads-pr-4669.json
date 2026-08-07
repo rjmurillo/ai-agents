@@ -119,6 +119,10 @@
     {
       "action": "Fix episode commits count",
       "result": "Set commits=2"
+    },
+    {
+      "action": "Retrospective: updated .agents/retrospective/2026-08-05-absence-claims.md with failure-mode classification",
+      "result": "Learnings captured: absence claims require search evidence per knowledge-persistence rule"
     }
   ],
   "episodeMetrics": {
