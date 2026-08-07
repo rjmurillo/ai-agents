@@ -14,6 +14,7 @@ Exit codes per ADR-035:
   2 - Configuration error (tiktoken not installed, counts skipped)
 """
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -81,6 +82,39 @@ def update_line(line: str, memories_dir: Path) -> str:
     return result
 
 
+def check_memory_index(index_path: Path, memories_dir: Path) -> list[str]:
+    """Return lines describing drifted token counts without modifying the file.
+
+    Each entry in the returned list describes one row where the recorded count
+    differs from the computed count. An empty list means all counts are current.
+    This is the ``--check`` mode counterpart to ``update_memory_index``
+    (issue #4441).
+    """
+    if not index_path.exists():
+        print(f"Error: {index_path} not found", file=sys.stderr)
+        sys.exit(1)
+
+    drifted: list[str] = []
+    for line in index_path.read_text(encoding="utf-8").splitlines():
+        if "[" not in line or "](" not in line or ".md)" not in line:
+            continue
+        for match in LINK_WITH_COUNT.finditer(line):
+            link_target = match.group(2)
+            recorded = int(match.group(3))
+            file_path = memories_dir / link_target
+            if not file_path.exists():
+                continue
+            try:
+                actual = get_memory_token_count(file_path)
+            except (ImportError, OSError):
+                continue
+            if actual != recorded:
+                drifted.append(
+                    f"  {link_target}: recorded {recorded}, actual {actual}"
+                )
+    return drifted
+
+
 def update_memory_index(index_path: Path, memories_dir: Path) -> bool:
     """
     Update token counts in memory-index.md.
@@ -110,7 +144,24 @@ def update_memory_index(index_path: Path, memories_dir: Path) -> bool:
     return False
 
 
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Update or check token counts in memory-index.md."
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help=(
+            "Check mode: exit non-zero if any recorded count differs from the "
+            "computed count, printing drifted entries. Does not modify the file."
+        ),
+    )
+    return parser
+
+
 def main() -> int:
+    args = _build_parser().parse_args()
+
     if not HAS_TIKTOKEN:
         print("Warning: tiktoken not installed. Token counts not updated.", file=sys.stderr)
         print("  Install: uv pip install tiktoken", file=sys.stderr)
@@ -128,6 +179,19 @@ def main() -> int:
     if not index_path.exists():
         print(f"Error: {index_path} not found", file=sys.stderr)
         return 1
+
+    if args.check:
+        drifted = check_memory_index(index_path, memories_dir)
+        if drifted:
+            print("memory-index.md token counts are stale:")
+            for line in drifted:
+                print(line)
+            print(
+                "Run `uv run python scripts/update_memory_index_tokens.py` to fix."
+            )
+            return 1
+        print("memory-index.md token counts are current")
+        return 0
 
     modified = update_memory_index(index_path, memories_dir)
 
