@@ -4,51 +4,158 @@
   "timestamp": "2026-08-07T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
-  "task": "Resolve unresolved review thread on PR #4614",
+  "task": "Fix issue 4700 unreachable root conftest ref-trace parsing and triage issue 4706 timeout metadata.",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-08-07T00:00:00+00:00",
+      "timestamp": "2026-08-07T01:03:00+00:00",
       "type": "milestone",
-      "content": "Assessed review thread PRRT_kwDOQoWRls6W-Fmd",
+      "content": "Created dedicated worktree fix/conftest-dead-code at /home/richard/sessions/fix-conf and set worktree core.bare=false.",
       "caused_by": [],
       "leads_to": [
-        "e003"
+        "e002"
       ],
       "_source_session": "2026-08-07-session-10004"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-07T00:00:00+00:00",
+      "timestamp": "2026-08-07T01:10:00+00:00",
       "type": "milestone",
-      "content": "Fixed get_head_files_against_ref and get_index_files_against_ref to raise ScopeDetectionError",
-      "caused_by": [],
+      "content": "Read issues 4700 and 4706 with comments. Issue 4706 was already closed as not actionable against ADR-068.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-07T01:28:00+00:00",
+      "type": "milestone",
+      "content": "Removed unreachable GIT_TRACE_REFS transaction and symref parsing from root conftest.py, removed synthetic tests that only fed those branches, kept reachable symbolic-ref argv parsing, and corrected stale git 2.43 comments.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-07T01:39:00+00:00",
+      "type": "milestone",
+      "content": "Control evidence: mutating symbolic-ref argv detection made test_trace_parses_actual_symbolic_ref_write fail, then restoration passed. Mutating reflog attribution made test_guard_fixture_fails_for_real_test_launched_head_movement fail, then restoration passed.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-07T01:44:00+00:00",
+      "type": "milestone",
+      "content": "Targeted validation passed: uv run --frozen python -m pytest tests/test_pytest_head_guard.py tests/validation/test_git_hook_policy_causal_restore.py -q -p no:randomly --timeout=300, 166 passed.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-07T01:44:00+00:00",
+      "type": "test",
+      "content": "Targeted validation passed: uv run --frozen python -m pytest tests/test_pytest_head_guard.py tests/validation/test_git_hook_policy_causal_restore.py -q -p no:randomly --timeout=300, 166 passed.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-07T01:45:00+00:00",
+      "type": "milestone",
+      "content": "Retrospective evidence: issue 4700 survived because synthetic trace lines tested parser shape, not production reachability. Replacement tests now pin reachable symbolic-ref Trace2 parsing and real reflog-based HEAD guard attribution.",
+      "caused_by": [
+        "e005",
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-07T01:24:49+00:00",
+      "type": "commit",
+      "content": "Commit: 98bd00264",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-07T01:55:00+00:00",
+      "type": "milestone",
+      "content": "Added retrospective .agents/retrospective/2026-08-07-ref-trace-dead-code.md after pre-push retrospective-policy required dated evidence.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10004"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-07T01:25:25+00:00",
+      "type": "commit",
+      "content": "Commit: 286e70b98",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [
         "e003"
       ],
       "_source_session": "2026-08-07-session-10004"
     },
     {
-      "id": "e003",
-      "timestamp": "2026-08-07T01:19:42+00:00",
+      "id": "e011",
+      "timestamp": "2026-08-07T01:41:28+00:00",
       "type": "commit",
-      "content": "Commit: 2818146a7c",
+      "content": "Commit: 9b7db9d8f",
       "caused_by": [
-        "e001",
-        "e002"
+        "e004"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e005",
+        "e006"
+      ],
       "_source_session": "2026-08-07-session-10004"
     }
   ],
   "metrics": {
-    "duration_minutes": null,
+    "duration_minutes": 52,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 4
+    "commits": 3,
+    "files_changed": 6
   },
   "lessons": []
 }

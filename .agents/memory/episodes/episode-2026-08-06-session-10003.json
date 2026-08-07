@@ -1,0 +1,68 @@
+{
+  "id": "episode-2026-08-06-session-10003",
+  "session": "2026-08-06-session-10003",
+  "timestamp": "2026-08-06T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Record push-time and repo-state traps measured during the 95-issue triage fleet session",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-06T05:10:00+00:00",
+      "type": "milestone",
+      "content": "Recorded four measured push-time and repository-state traps in GOTCHAS",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-06-session-10003"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-06T12:08:52+00:00",
+      "type": "commit",
+      "content": "Commit: d20aa50b9",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-06-session-10003"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-06T16:20:00+00:00",
+      "type": "milestone",
+      "content": "Recorded that the built-in explore and research subagent types cannot write",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-10003"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-06T12:27:35+00:00",
+      "type": "commit",
+      "content": "Commit: cc5b0fec6",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-06-session-10003"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 670,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 3
+  },
+  "lessons": []
+}
