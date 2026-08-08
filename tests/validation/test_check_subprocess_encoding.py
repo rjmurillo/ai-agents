@@ -16,9 +16,11 @@ Coverage:
 - neg/missing-errors-stdout-pipe: stdout=subprocess.PIPE with encoding -> flagged
 - neg/missing-errors-stderr-pipe: stderr=subprocess.PIPE with encoding -> flagged
 - neg/alias-pipe-capture: subprocess call and PIPE aliases still resolve -> flagged
+- neg/assigned-module-alias: `sp = subprocess` and derived aliases still resolve -> flagged
 - neg/from-import: ``from subprocess import run; run(...)`` -> flagged
 - neg/splat: **kwargs present means errors may be absent -> flagged (conservative)
 - pos/pipe-capture-binary: PIPE capture without encoding/text semantics -> not flagged
+- pos/shadowed-run-helper: unrelated local `run` helper aliases stay clean
 - edge/text-true-int: text=1 (not literal True) -> not flagged (conservative on non-literal)
 - edge/encoding-variable: encoding=enc (variable) -> not flagged (cannot prove UTF-8)
 - edge/errors-wrong-value: errors="strict" counts as present -> not flagged
@@ -150,6 +152,28 @@ def test_local_callable_aliases_are_flagged(source: str, expected: list[int]) ->
     assert find_violations(source) == expected
 
 
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        (
+            "import subprocess\n"
+            "sp = subprocess\n"
+            'sp.run(["x"], text=True, encoding="utf-8")',
+            [3],
+        ),
+        (
+            "import subprocess\n"
+            "sp = subprocess\n"
+            "runner = sp.check_output\n"
+            'runner(["x"], encoding="utf-8")',
+            [4],
+        ),
+    ],
+)
+def test_assigned_module_aliases_are_flagged(source: str, expected: list[int]) -> None:
+    assert find_violations(source) == expected
+
+
 def test_from_import_run_missing_errors() -> None:
     source = 'from subprocess import run\nrun(["x"], text=True, encoding="utf-8")'
     assert find_violations(source) == [2]
@@ -191,6 +215,16 @@ def test_pipe_capture_aliases_are_flagged(source: str) -> None:
 )
 def test_local_pipe_aliases_are_flagged(source: str, expected: list[int]) -> None:
     assert find_violations(source) == expected
+
+
+def test_assigned_module_pipe_aliases_are_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "sp = subprocess\n"
+        "pipe = sp.PIPE\n"
+        'sp.run(["x"], stdout=pipe, encoding="utf-8")'
+    )
+    assert find_violations(source) == [4]
 
 
 def test_splat_kwargs_flagged_conservatively() -> None:
@@ -240,6 +274,16 @@ def test_utf8_aliases_flagged() -> None:
 
 def test_non_utf8_encoding_not_flagged() -> None:
     source = 'import subprocess\nsubprocess.run(["x"], text=True, encoding="latin-1")'
+    assert find_violations(source) == []
+
+
+def test_shadowed_run_helper_is_not_flagged() -> None:
+    source = (
+        "def run(argv, *, text=False, encoding=None):\n"
+        "    return argv\n"
+        "runner = run\n"
+        'runner(["x"], text=True, encoding="utf-8")\n'
+    )
     assert find_violations(source) == []
 
 

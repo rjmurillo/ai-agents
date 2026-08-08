@@ -76,6 +76,12 @@ def test_current_count_counts_pipe_captures_and_aliases(tmp_path: Path) -> None:
         "sp.run(['x'], stderr=sp.PIPE, encoding='utf-8')\n",
         encoding="utf-8",
     )
+    (script_dir / "bad_assigned_module_alias.py").write_text(
+        "import subprocess\n"
+        "sp = subprocess\n"
+        "sp.run(['x'], stdout=sp.PIPE, encoding='utf-8')\n",
+        encoding="utf-8",
+    )
     (script_dir / "good_binary.py").write_text(
         "import subprocess\n"
         "subprocess.run(['x'], stdout=subprocess.PIPE)\n",
@@ -87,10 +93,11 @@ def test_current_count_counts_pipe_captures_and_aliases(tmp_path: Path) -> None:
         "scripts/bad_stdout.py",
         "scripts/bad_alias.py",
         "scripts/bad_module_alias.py",
+        "scripts/bad_assigned_module_alias.py",
         "scripts/good_binary.py",
     )
 
-    assert ratchet.current_count(tmp_path) == 3
+    assert ratchet.current_count(tmp_path) == 4
 
 
 if __name__ == "__main__":

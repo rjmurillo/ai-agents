@@ -104,7 +104,7 @@ def _subprocess_alias_sets(
 ) -> tuple[frozenset[str], dict[str, str], frozenset[str]]:
     """Return module, callable, and PIPE aliases that resolve to subprocess."""
     module_aliases = {"subprocess"}
-    callable_aliases = {name: name for name in _ALL_SUBPROCESS_CALLS}
+    callable_aliases: dict[str, str] = {}
     pipe_aliases: set[str] = set()
 
     for node in ast.walk(tree):
@@ -128,15 +128,20 @@ def _subprocess_alias_sets(
     while changed:
         changed = False
         current_module_aliases = frozenset(module_aliases)
+        current_callable_aliases = dict(callable_aliases)
         current_pipe_aliases = frozenset(pipe_aliases)
         for node in ast.walk(tree):
             if not isinstance(node, ast.Assign):
                 continue
 
+            resolved_module = _is_subprocess_module_alias(
+                node.value,
+                current_module_aliases,
+            )
             resolved_callable = _subprocess_callable_name(
                 node.value,
                 current_module_aliases,
-                callable_aliases,
+                current_callable_aliases,
             )
             resolved_pipe = _is_pipe_capture_target(
                 node.value,
@@ -147,6 +152,9 @@ def _subprocess_alias_sets(
             for target in node.targets:
                 if not isinstance(target, ast.Name):
                     continue
+                if resolved_module and target.id not in module_aliases:
+                    module_aliases.add(target.id)
+                    changed = True
                 if (
                     resolved_callable is not None
                     and callable_aliases.get(target.id) != resolved_callable
@@ -162,6 +170,14 @@ def _subprocess_alias_sets(
         callable_aliases,
         frozenset(pipe_aliases),
     )
+
+
+def _is_subprocess_module_alias(
+    node: ast.expr | None,
+    module_aliases: frozenset[str],
+) -> bool:
+    """Return True when *node* resolves to the subprocess module."""
+    return isinstance(node, ast.Name) and node.id in module_aliases
 
 
 def _is_pipe_capture_target(
