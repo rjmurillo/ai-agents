@@ -1,6 +1,6 @@
 # QA Report: PR #4735 Closing Review
 
-**SHA**: 33829757ee3a0c82715cb6b442f652636b395e9c
+**SHA**: e5b25cda202128d56f7f9f560eb71b53cb4469f2
 **Date**: 2026-08-08
 **Scope**: Closing-review fixes and original #4705 memory-index parser/canonicalization fix
 
@@ -14,16 +14,16 @@ All acceptance criteria verified. No blocking issues found.
 
 | Metric | Value |
 |--------|-------|
-| Focused tests executed at current SHA | 1,075 |
-| Passed | 1,075 |
+| Focused tests executed at current SHA | 470 |
+| Passed | 470 |
 | Failed | 0 |
-| Full Python tests collected | 24,148 |
-| Full Python tests passed | 24,116 |
-| Full Python tests skipped | 32 |
+| Full Python tests collected | 24,361 |
+| Full Python tests passed | 24,327 |
+| Full Python tests skipped | 34 |
 | Full Python suite exit code | 0 |
-| Files changed vs main | 46 |
-| Lines added | 4,916 |
-| Lines deleted | 361 |
+| Files changed vs main | 45 |
+| Lines added | 5,245 |
+| Lines deleted | 378 |
 
 ## Acceptance Criteria Evidence
 
@@ -33,10 +33,12 @@ All acceptance criteria verified. No blocking issues found.
 
 - `_extract_memory_reference_names` uses `_create_parser` from `markdown_parser` module
 - CommonMark token stream correctly extracts link destinations from table cells
+- Markdown links rendered inside raw HTML do not contribute references
+- Links after void HTML elements remain visible to duplicate detection
 - Duplicate detection works: Counter identifies repeated canonical references
 - Unsafe destinations (percent escapes, backslashes, parentheses, query strings, fragments) are rejected with specific reasons
 - Command: `uv run --frozen python scripts/validation/memory_index.py --ci` passed
-- Tests: 142 passed in tests/test_validation_memory_index.py
+- Tests: 148 passed in tests/test_validation_memory_index.py
 
 ### AC-2: Session-end --qa-report support
 
@@ -57,6 +59,9 @@ All acceptance criteria verified. No blocking issues found.
 - Missing qaValidation returns False (fail-closed)
 - Incomplete qaValidation (Complete=False) returns False
 - Missing handoff key returns False
+- Completed evidence must resolve to an existing file under the configured QA artifact root
+- Edited historical logs receive the same QA report check
+- Creation mode remains exempt because no session-end evidence exists yet
 - Tests: 48 passed in tests/skills/test_session_scripts.py
 
 ### AC-4: Generated Copilot mirrors
@@ -125,7 +130,8 @@ All acceptance criteria verified. No blocking issues found.
 - Session completion recovers after a prior failed validation run
 - Dirty-state checks parse NUL-delimited rename source and destination paths
 - Live negative control rejected all 18 non-exempt paths from `b5899d7b3b`
-- Tests: 1,075 passed across parser, entrypoint, session, workflow, encoding, and owner suites
+- Prior closing suite: 1,075 passed across parser, entrypoint, session, workflow, encoding, and owner suites
+- Current parser and session validation suite: 470 passed
 
 ### AC-11: Investigation-only scope reaches the validation endpoint
 
@@ -144,15 +150,15 @@ All acceptance criteria verified. No blocking issues found.
 |---------|--------|
 | `uv run --frozen python scripts/validation/memory_index.py --ci` | Passed |
 | `uv run --frozen python scripts/validation/check_python3_entrypoints.py` | Passed |
-| Focused parser, session, workflow, encoding, and entrypoint suite | 1,075 passed in 45.00s |
-| `uv run --frozen pytest -qq tests/ -x` | 24,116 passed, 32 skipped, 0 failed in 696.75s |
+| Current parser and session validation suite | 470 passed in 25.05s |
+| `uv run --frozen pytest -q tests/ -x` | 24,327 passed, 34 skipped, 0 failed in 905.76s |
 | `uv run --frozen python scripts/validation/pre_pr.py` | Passed, exit 0 |
 | `diff .claude/.../complete_session_log.py src/copilot-cli/.../complete_session_log.py` | Identical |
 | `diff .claude/.../test_complete_session_log.py src/copilot-cli/.../test_complete_session_log.py` | Identical |
 | `uv run --frozen python build/scripts/build_all.py --platform copilot-cli --check` | Passed |
 | Investigation eligibility negative control from `b5899d7b3b` | 20 changed, 18 violations, compatibility alias matched |
 | Ruff on changed Python | Passed |
-| GPT-5.6 Sol review of SHA 33829757ee and full diff | CLEAN: no Critical or High findings |
+| GPT-5.6 Sol review of SHA e5b25cda20 and full diff | CLEAN: no Critical or High findings |
 | Security review of workflow head checkout and SHA propagation | CLEAN |
 
 ## Earlier Evidence for the Original Validator Fix
@@ -169,14 +175,15 @@ All acceptance criteria verified. No blocking issues found.
 
 ## Coverage Assessment
 
-- Memory-index parser rewrite: 142 tests cover parsing, canonicalization, duplicate detection, symlink rejection, path traversal, unsafe destinations
+- Memory-index parser rewrite: 148 tests cover parsing, canonicalization, raw HTML exclusion, duplicate detection, symlink rejection, path traversal, unsafe destinations
 - Session-end suites cover new flags, fail-closed logic, ending commit lifecycle, QA report validation, owned evidence exclusion, and API compatibility
 - Entrypoint checker: 29 tests cover transitive resolution, cycle detection, package initializer inspection
 - Workflow guards: 21 tests cover CI integrity failure modes
 
-The final 1,075-test focused run exercises the parser, QA contract, generated
-entrypoints, encoding rules, and PR-head validation. The exact final code SHA
-passed 24,116 Python tests, with 32 skips and no failures.
+The current 470-test focused run exercises parser and QA evidence changes. The
+prior 1,075-test run covers generated entrypoints, encoding rules, owner
+workflows, and PR-head validation. The exact final code SHA passed 24,327
+Python tests, with 34 skips and no failures.
 
 ## Findings by Severity
 
@@ -196,7 +203,7 @@ None.
 
 ```
 Promised: markdown-it parser, duplicate detection, --qa-report, fail-closed qaValidation, owned evidence commits, Copilot mirrors, frozen entrypoints, transitive deps, --refresh-ending-commit, exact validation head
-Delivered: All items verified at SHA 33829757ee3a0c82715cb6b442f652636b395e9c
+Delivered: All items verified at SHA e5b25cda202128d56f7f9f560eb71b53cb4469f2
 Gap: None
 Result: PASS
 ```
