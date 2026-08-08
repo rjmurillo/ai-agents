@@ -323,11 +323,8 @@ jobs:
       # against an actual 324, a 13% undercount. This needs the same server-side
       # leg as the count ratchet above, and for the same reason: every route
       # that skips local hooks reaches the remote unchecked. It takes no
-      # --base-ref because token-count drift still has a fixed zero floor. It
-      # also checks root index coverage using the repair script's shared
-      # computation. That leg carries a measured legacy backlog baseline, so it
-      # blocks new invisible memories without blocking every push on the old
-      # backlog.
+      # --base-ref because its floor is fixed at zero, so there is no baseline
+      # to compare against and nothing a contributor could raise to silence it.
       - name: Run memory-index token ratchet
         run: uv run --frozen python3 scripts/ci/memory_index_token_ratchet.py
       # Issue #4398: the three count ratchets measure the branch head, not the
