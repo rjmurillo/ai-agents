@@ -105,9 +105,14 @@ SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/githu
 # Resolve all threads for a PR
 python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request [number] --unresolved-only | \
   jq -r '.threads[].thread_id' | while read tid; do
-    python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$tid"
+    python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" \
+      --expected-pull-request [number] --thread-id "$tid"
   done
 ```
+
+Each single-thread resolve requeries the target after the PR-level gate.
+`Data.action=SKIP` means the thread is resolved, missing, or belongs to another
+PR. Do not retry a safe skip with a lower-level mutation.
 
 ### Phase 8.3: Re-check for New Comments
 

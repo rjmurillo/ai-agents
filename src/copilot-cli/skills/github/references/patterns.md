@@ -49,7 +49,8 @@ threads=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request 50 -
 
 # 2. Reply to each thread using thread ID and resolve (recommended)
 echo "$threads" | jq -r '.threads[].thread_id' | while read -r tid; do
-    python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" --thread-id "$tid" --body "Fixed." --resolve
+    python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
+      --pull-request 50 --thread-id "$tid" --body "Fixed." --resolve
 done
 
 # 3. Or reply using comment ID (REST API) then batch resolve
