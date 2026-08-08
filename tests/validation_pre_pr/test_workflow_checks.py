@@ -180,7 +180,8 @@ class TestWorkflowYamlTargets:
         with patch("checks_changed_paths._resolve_branch_base_ref", return_value="origin/main"):
             with patch("checks_changed_paths._run_subprocess") as mock_run:
                 mock_run.return_value = (0, diff_stdout, "")
-                assert _workflow_yaml_targets(tmp_path) == expected
+                with patch("checks_tooling._deleted_paths_since_base", return_value=[]):
+                    assert _workflow_yaml_targets(tmp_path) == expected
 
     def test_missing_from_disk_raises(self, tmp_path: Path) -> None:
         """A path git reports as a changed workflow file (ACMR: Added,
@@ -195,8 +196,9 @@ class TestWorkflowYamlTargets:
         with patch("checks_changed_paths._resolve_branch_base_ref", return_value="origin/main"):
             with patch("checks_changed_paths._run_subprocess") as mock_run:
                 mock_run.return_value = (0, ".github/workflows/removed.yml", "")
-                with pytest.raises(ChangedPathMissingError, match="removed.yml"):
-                    _workflow_yaml_targets(tmp_path)
+                with patch("checks_tooling._deleted_paths_since_base", return_value=[]):
+                    with pytest.raises(ChangedPathMissingError, match="removed.yml"):
+                        _workflow_yaml_targets(tmp_path)
 
     def test_changed_action_metadata_invalidates_all_workflows(self, tmp_path: Path) -> None:
         from checks_tooling import _workflow_yaml_targets
@@ -211,10 +213,11 @@ class TestWorkflowYamlTargets:
             "checks_tooling._changed_paths_since_base",
             return_value=[".github/actions/setup/action.yml"],
         ):
-            assert _workflow_yaml_targets(tmp_path) == [
-                ".github/workflows/ci.yml",
-                ".github/workflows/release.yaml",
-            ]
+            with patch("checks_tooling._deleted_paths_since_base", return_value=[]):
+                assert _workflow_yaml_targets(tmp_path) == [
+                    ".github/workflows/ci.yml",
+                    ".github/workflows/release.yaml",
+                ]
 
     def test_changed_reusable_workflow_includes_unchanged_callers(self, tmp_path: Path) -> None:
         from checks_tooling import _workflow_yaml_targets
@@ -231,10 +234,44 @@ class TestWorkflowYamlTargets:
             "checks_tooling._changed_paths_since_base",
             return_value=[".github/workflows/called.yml"],
         ):
-            assert _workflow_yaml_targets(tmp_path) == [
-                ".github/workflows/called.yml",
-                ".github/workflows/caller.yml",
-            ]
+            with patch("checks_tooling._deleted_paths_since_base", return_value=[]):
+                assert _workflow_yaml_targets(tmp_path) == [
+                    ".github/workflows/called.yml",
+                    ".github/workflows/caller.yml",
+                ]
+
+    def test_deleted_action_metadata_invalidates_all_workflows(self, tmp_path: Path) -> None:
+        from checks_tooling import _workflow_yaml_targets
+
+        self._write_workflow(tmp_path, "ci.yml", "on: push\n")
+        with patch("checks_tooling._changed_paths_since_base", return_value=[]):
+            with patch(
+                "checks_tooling._deleted_paths_since_base",
+                return_value=[".github/actions/setup/action.yml"],
+            ):
+                assert _workflow_yaml_targets(tmp_path) == [".github/workflows/ci.yml"]
+
+    def test_reusable_workflow_rename_includes_old_path_consumers(self, tmp_path: Path) -> None:
+        from checks_tooling import _workflow_yaml_targets
+
+        self._write_workflow(tmp_path, "renamed.yml", "on:\n  workflow_call:\n")
+        self._write_workflow(
+            tmp_path,
+            "caller.yml",
+            "jobs:\n  call:\n    uses: ./.github/workflows/old.yml\n",
+        )
+        with patch(
+            "checks_tooling._changed_paths_since_base",
+            return_value=[".github/workflows/renamed.yml"],
+        ):
+            with patch(
+                "checks_tooling._deleted_paths_since_base",
+                return_value=[".github/workflows/old.yml"],
+            ):
+                assert _workflow_yaml_targets(tmp_path) == [
+                    ".github/workflows/caller.yml",
+                    ".github/workflows/renamed.yml",
+                ]
 
     @staticmethod
     def _write_workflow(root: Path, name: str, content: str) -> None:
