@@ -37,6 +37,7 @@ keeps that change from passing on absent evidence. See
 - Do NOT claim tools (ruff, mypy, pytest, etc.) lack support for a version unless you have concrete evidence from the diff itself.
 - For dependency update PRs: evaluate the diff for internal consistency, not external ecosystem assumptions. If CI tests pass, the tooling works.
 - Base findings on what the code shows, not on recalled release schedules.
+- **Python version floor (issue #3931)**: Before reporting any Python compatibility finding, read `project.requires-python` from `pyproject.toml`. Do not flag a language feature as unsupported when the stated floor already includes that feature. However, PEP 604 union types in `isinstance`/`issubclass` require every union member to be a valid runtime type (not a parameterized generic like `list[int]`); `isinstance(v, list[int] | str)` raises `TypeError` even on 3.14. Cite the detected floor in any compatibility finding you do report.
 
 ## When This Axis Applies
 
