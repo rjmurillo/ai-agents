@@ -19,6 +19,8 @@ Coverage:
 - neg/assigned-module-alias: `sp = subprocess` and derived aliases still resolve -> flagged
 - neg/function-local-alias: aliases created inside a function still resolve there -> flagged
 - neg/use-before-rebind: a valid alias still flags before a later reassignment shadows it
+- neg/branch-join-alias: a subprocess alias in one branch still flags after the join
+- neg/lambda-body: violating subprocess calls inside lambdas are flagged
 - neg/from-import: ``from subprocess import run; run(...)`` -> flagged
 - neg/splat: **kwargs present means errors may be absent -> flagged (conservative)
 - pos/pipe-capture-binary: PIPE capture without encoding/text semantics -> not flagged
@@ -198,6 +200,26 @@ def test_alias_used_before_later_rebind_is_flagged() -> None:
     assert find_violations(source) == [3]
 
 
+def test_branch_join_alias_is_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "if cond:\n"
+        "    runner = subprocess.check_output\n"
+        "else:\n"
+        "    runner = print\n"
+        'runner(["x"], encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [6]
+
+
+def test_lambda_body_is_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        'runner = lambda: subprocess.run(["x"], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [2]
+
+
 def test_from_import_run_missing_errors() -> None:
     source = 'from subprocess import run\nrun(["x"], text=True, encoding="utf-8")'
     assert find_violations(source) == [2]
@@ -327,6 +349,15 @@ def test_inner_scope_aliases_do_not_leak_outward() -> None:
         "def wrapper():\n"
         "    runner = subprocess.check_output\n"
         'runner(["x"], encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_lambda_parameters_shadow_aliases() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.check_output\n"
+        'fn = lambda runner: runner(["x"], encoding="utf-8")\n'
     )
     assert find_violations(source) == []
 

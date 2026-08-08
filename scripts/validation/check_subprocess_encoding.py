@@ -183,6 +183,31 @@ def _clear_alias_binding(
     pipe_aliases.discard(name)
 
 
+def _merge_alias_states(states: list[_AliasState]) -> _AliasState:
+    merged_callables: dict[str, str] = {}
+    for state in states:
+        for name, target in state.callable_aliases.items():
+            current = merged_callables.get(name)
+            if current is None or (
+                target in _UNCONDITIONAL_DECODE_CALLS
+                and current not in _UNCONDITIONAL_DECODE_CALLS
+            ):
+                merged_callables[name] = target
+    return _AliasState(
+        {
+            alias
+            for state in states
+            for alias in state.module_aliases
+        },
+        merged_callables,
+        {
+            alias
+            for state in states
+            for alias in state.pipe_aliases
+        },
+    )
+
+
 def _is_pipe_capture_target(
     node: ast.expr | None,
     module_aliases: frozenset[str],
@@ -296,6 +321,20 @@ def _iter_immediate_calls(node: ast.AST) -> list[ast.Call]:
     return calls
 
 
+def _iter_nested_lambdas(node: ast.AST) -> list[ast.Lambda]:
+    lambdas: list[ast.Lambda] = []
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, ast.Lambda):
+            lambdas.append(current)
+            continue
+        if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        stack.extend(reversed(list(ast.iter_child_nodes(current))))
+    return lambdas
+
+
 _SUPPRESSION_COMMENT = "# subprocess-encoding: strict-ok"
 
 
@@ -314,6 +353,16 @@ def _record_call_violations(
             continue
         if _is_flagged(call, module_aliases, callable_aliases, pipe_aliases):
             violations.append(lineno)
+    for lambda_node in _iter_nested_lambdas(node):
+        lambda_state = _copy_alias_state(state)
+        for name in _parameter_names(lambda_node.args):
+            _clear_alias_binding(
+                name,
+                lambda_state.module_aliases,
+                lambda_state.callable_aliases,
+                lambda_state.pipe_aliases,
+            )
+        _record_call_violations(lambda_node.body, lambda_state, source_lines, violations)
 
 
 def _scan_scope(
@@ -332,6 +381,11 @@ def _scan_scope(
             state.callable_aliases,
             state.pipe_aliases,
         )
+
+    def _set_state(next_state: _AliasState) -> None:
+        state.module_aliases = set(next_state.module_aliases)
+        state.callable_aliases = dict(next_state.callable_aliases)
+        state.pipe_aliases = set(next_state.pipe_aliases)
 
     def _record_expr(node: ast.AST | None) -> None:
         if node is not None:
@@ -437,22 +491,48 @@ def _scan_scope(
 
         if isinstance(stmt, (ast.For, ast.AsyncFor)):
             _record_expr(stmt.iter)
+            zero_state = _copy_alias_state(state)
+            body_state = _copy_alias_state(state)
             for name in _bound_names(stmt.target):
-                _clear(name)
-            violations.extend(_scan_scope(stmt.body, state, source_lines))
-            violations.extend(_scan_scope(stmt.orelse, state, source_lines))
+                _clear_alias_binding(
+                    name,
+                    body_state.module_aliases,
+                    body_state.callable_aliases,
+                    body_state.pipe_aliases,
+                )
+            violations.extend(_scan_scope(stmt.body, body_state, source_lines))
+            after_states = [zero_state, body_state]
+            if stmt.orelse:
+                zero_orelse_state = _copy_alias_state(zero_state)
+                body_orelse_state = _copy_alias_state(body_state)
+                violations.extend(_scan_scope(stmt.orelse, zero_orelse_state, source_lines))
+                violations.extend(_scan_scope(stmt.orelse, body_orelse_state, source_lines))
+                after_states.extend([zero_orelse_state, body_orelse_state])
+            _set_state(_merge_alias_states(after_states))
             continue
 
         if isinstance(stmt, ast.While):
             _record_expr(stmt.test)
-            violations.extend(_scan_scope(stmt.body, state, source_lines))
-            violations.extend(_scan_scope(stmt.orelse, state, source_lines))
+            zero_state = _copy_alias_state(state)
+            body_state = _copy_alias_state(state)
+            violations.extend(_scan_scope(stmt.body, body_state, source_lines))
+            after_states = [zero_state, body_state]
+            if stmt.orelse:
+                zero_orelse_state = _copy_alias_state(zero_state)
+                body_orelse_state = _copy_alias_state(body_state)
+                violations.extend(_scan_scope(stmt.orelse, zero_orelse_state, source_lines))
+                violations.extend(_scan_scope(stmt.orelse, body_orelse_state, source_lines))
+                after_states.extend([zero_orelse_state, body_orelse_state])
+            _set_state(_merge_alias_states(after_states))
             continue
 
         if isinstance(stmt, ast.If):
             _record_expr(stmt.test)
-            violations.extend(_scan_scope(stmt.body, state, source_lines))
-            violations.extend(_scan_scope(stmt.orelse, state, source_lines))
+            then_state = _copy_alias_state(state)
+            else_state = _copy_alias_state(state)
+            violations.extend(_scan_scope(stmt.body, then_state, source_lines))
+            violations.extend(_scan_scope(stmt.orelse, else_state, source_lines))
+            _set_state(_merge_alias_states([then_state, else_state]))
             continue
 
         if isinstance(stmt, (ast.With, ast.AsyncWith)):
@@ -465,21 +545,44 @@ def _scan_scope(
             continue
 
         if isinstance(stmt, ast.Try):
-            violations.extend(_scan_scope(stmt.body, state, source_lines))
+            base_state = _copy_alias_state(state)
+            body_state = _copy_alias_state(state)
+            violations.extend(_scan_scope(stmt.body, body_state, source_lines))
+            branch_states = [base_state, body_state]
             for handler in stmt.handlers:
                 _record_expr(handler.type)
+                handler_state = _copy_alias_state(state)
                 if handler.name is not None:
-                    _clear(handler.name)
-                violations.extend(_scan_scope(handler.body, state, source_lines))
-            violations.extend(_scan_scope(stmt.orelse, state, source_lines))
-            violations.extend(_scan_scope(stmt.finalbody, state, source_lines))
+                    _clear_alias_binding(
+                        handler.name,
+                        handler_state.module_aliases,
+                        handler_state.callable_aliases,
+                        handler_state.pipe_aliases,
+                    )
+                violations.extend(_scan_scope(handler.body, handler_state, source_lines))
+                branch_states.append(handler_state)
+            if stmt.orelse:
+                orelse_state = _copy_alias_state(body_state)
+                violations.extend(_scan_scope(stmt.orelse, orelse_state, source_lines))
+                branch_states.append(orelse_state)
+            merged_state = _merge_alias_states(branch_states)
+            if stmt.finalbody:
+                final_state = _copy_alias_state(merged_state)
+                violations.extend(_scan_scope(stmt.finalbody, final_state, source_lines))
+                merged_state = final_state
+            _set_state(merged_state)
             continue
 
         if isinstance(stmt, ast.Match):
             _record_expr(stmt.subject)
+            case_states = [_copy_alias_state(state)]
             for case in stmt.cases:
-                _record_expr(case.guard)
-                violations.extend(_scan_scope(case.body, state, source_lines))
+                case_state = _copy_alias_state(state)
+                if case.guard is not None:
+                    _record_call_violations(case.guard, case_state, source_lines, violations)
+                violations.extend(_scan_scope(case.body, case_state, source_lines))
+                case_states.append(case_state)
+            _set_state(_merge_alias_states(case_states))
             continue
 
         if isinstance(stmt, ast.Assert):
