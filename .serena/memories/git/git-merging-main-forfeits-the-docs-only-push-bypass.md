@@ -67,7 +67,9 @@ commit and let the remote stay where it is:
 ```bash
 # Refuse on a dirty tree: --hard discards uncommitted work.
 BRANCH="$(git branch --show-current)"
-test -z "$(git status --porcelain)" \
+test -n "$BRANCH" \
+  && test -z "$(git status --porcelain)" \
+  && git rev-parse --verify -q HEAD^2 >/dev/null \
   && git reset --hard HEAD^1 \
   && git push origin "$BRANCH"
 ```

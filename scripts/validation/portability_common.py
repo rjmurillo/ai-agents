@@ -115,19 +115,70 @@ def resolve_root(repo_root: Path | None, start: Path, require_repo_marker: bool)
     return base
 
 
+def resolve_path_within_root(root_resolved: Path, candidate: Path) -> Path | None:
+    """Return ``candidate.resolve()`` when it stays inside ``root_resolved``.
+
+    Scan roots, discovered children, and git-tracked targets all need the same
+    containment answer. A path that resolves outside the repository is not safe
+    to traverse, read, or count as covered, even when its lexical spelling sits
+    under the repo root.
+    """
+    try:
+        resolved = candidate.resolve()
+    except OSError:
+        return None
+    return resolved if resolved.is_relative_to(root_resolved) else None
+
+
+def refuse_symlinked_scan_root(root: Path, scan_dir: Path) -> bool:
+    """Return True and print to stderr when scan_dir resolves outside root.
+
+    ``Path.is_dir()`` returns True through a symlink and ``os.walk`` follows it
+    into the target, so a scan root symlinked outside the repository reads
+    external files and counts them as repository content. That breaks the
+    coverage guard added in PR #4206: a symlinked root could satisfy the
+    per-root non-zero rule with files git does not track, while the real
+    tracked files stay unscanned.
+
+    Resolve both paths and assert containment. A symlink whose target remains
+    inside the repository is allowed because it cannot expand scan scope.
+    """
+    root_real = root.resolve()
+    dir_real = resolve_path_within_root(root_real, scan_dir)
+    if dir_real is not None:
+        return False
+    try:
+        resolved = scan_dir.resolve()
+    except OSError:
+        print(
+            f"Refusing scan root {scan_dir}: could not resolve its real path.",
+            file=sys.stderr,
+        )
+        return True
+    print(
+        f"Refusing scan root {scan_dir}: resolved path {resolved} is outside "
+        f"the repository root {root_real}. Symlinks that point outside the "
+        "repository are a path-traversal risk (CWE-22).",
+        file=sys.stderr,
+    )
+    return True
+
+
 def resolve_baseline_path(
     root: Path,
     baseline: Path | None,
     default_baseline_name: str,
 ) -> Path | None:
-    """Resolve the baseline path, refusing escapes from the repository root.
+    """Resolve the baseline path, rejecting candidates that escape the repo root.
 
-    The single home for this reasoning. Every checker that accepts `--baseline`
-    and delegates here avoids the defect the copies drifted into independently:
-    both resolved the path before handing it on, which erased the symlink the
-    guard downstream exists to refuse. Returns None when the candidate escapes
-    the root. check_vendor_portability.py defines its own baseline_path() and
-    does not call this function.
+    The portability ratchets that delegate here
+    (`check_skill_portability.py`, `check_skill_md_exec_portability.py`, and
+    `check_skill_md_portability.py`) avoid the defect the copies drifted into
+    independently: both resolved the path before handing it on, which erased
+    the symlink the guard downstream exists to refuse. Returns None when the
+    candidate escapes the root. Other validation scripts, including
+    `check_vendor_portability.py`, keep their own baseline helpers and do not
+    call this function.
     """
     if baseline is None:
         return root / "scripts" / "validation" / default_baseline_name
@@ -269,13 +320,18 @@ def tracked_coverage_by_root(
     if pending is None:
         return None
     unreal = set(pending)
+    root_resolved = repo_root.resolve()
     coverage: dict[str, tuple[int, int]] = {}
     for name in names:
         tracked = _git_lines(repo_root, ["ls-files", "-z", "--", name])
         if tracked is None:
             return None
         real = [rel for rel in tracked if rel not in unreal]
-        missing = sum(1 for rel in real if not (repo_root / rel).is_file())
+        missing = 0
+        for rel in real:
+            resolved = resolve_path_within_root(root_resolved, repo_root / rel)
+            if resolved is None or not resolved.is_file():
+                missing += 1
         coverage[name] = (len(real), missing)
     return coverage
 
