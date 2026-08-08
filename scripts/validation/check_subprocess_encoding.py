@@ -102,10 +102,17 @@ def _is_utf8_literal(node: ast.expr | None) -> bool:
 
 
 @dataclass
+class _DeferredCallable:
+    node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
+    call_states: list[_AliasState]
+
+
+@dataclass
 class _AliasState:
     module_aliases: set[str]
     callable_aliases: dict[str, str]
     pipe_aliases: set[str]
+    function_bindings: dict[str, list[_DeferredCallable]]
 
 
 def _copy_alias_state(state: _AliasState) -> _AliasState:
@@ -113,6 +120,10 @@ def _copy_alias_state(state: _AliasState) -> _AliasState:
         set(state.module_aliases),
         dict(state.callable_aliases),
         set(state.pipe_aliases),
+        {
+            name: list(bindings)
+            for name, bindings in state.function_bindings.items()
+        },
     )
 
 
@@ -176,11 +187,30 @@ def _clear_alias_binding(
     module_aliases: set[str],
     callable_aliases: dict[str, str],
     pipe_aliases: set[str],
+    function_bindings: dict[str, list[_DeferredCallable]] | None = None,
 ) -> None:
     """Remove any alias binding currently attached to *name*."""
     module_aliases.discard(name)
     callable_aliases.pop(name, None)
     pipe_aliases.discard(name)
+    if function_bindings is not None:
+        function_bindings.pop(name, None)
+
+
+def _merge_function_bindings(
+    states: list[_AliasState],
+) -> dict[str, list[_DeferredCallable]]:
+    merged: dict[str, list[_DeferredCallable]] = {}
+    for state in states:
+        for name, bindings in state.function_bindings.items():
+            target = merged.setdefault(name, [])
+            seen = {id(binding) for binding in target}
+            for binding in bindings:
+                if id(binding) in seen:
+                    continue
+                target.append(binding)
+                seen.add(id(binding))
+    return merged
 
 
 def _merge_alias_states(states: list[_AliasState]) -> _AliasState:
@@ -205,6 +235,7 @@ def _merge_alias_states(states: list[_AliasState]) -> _AliasState:
             for state in states
             for alias in state.pipe_aliases
         },
+        _merge_function_bindings(states),
     )
 
 
@@ -363,323 +394,358 @@ def _scan_scope(
 ) -> list[int]:
     """Return violations discovered by executing *statements* in order."""
     violations: list[int] = []
-    deferred_functions: list[tuple[ast.FunctionDef | ast.AsyncFunctionDef, list[_AliasState]]] = []
-    deferred_lambdas: list[tuple[ast.Lambda, list[_AliasState]]] = []
-    active_function_bindings: dict[str, list[_AliasState]] = {}
+    deferred_callables: list[_DeferredCallable] = []
+    deferred_lookup: dict[int, _DeferredCallable] = {}
 
-    def _clear(name: str) -> None:
-        _clear_alias_binding(
-            name,
-            state.module_aliases,
-            state.callable_aliases,
-            state.pipe_aliases,
-        )
-        active_function_bindings.pop(name, None)
+    def _scan_block(block: list[ast.stmt], current_state: _AliasState) -> None:
+        def _register_deferred(
+            node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
+        ) -> _DeferredCallable:
+            deferred = deferred_lookup.get(id(node))
+            if deferred is None:
+                deferred = _DeferredCallable(node, [])
+                deferred_lookup[id(node)] = deferred
+                deferred_callables.append(deferred)
+            return deferred
 
-    def _set_state(next_state: _AliasState) -> None:
-        state.module_aliases = set(next_state.module_aliases)
-        state.callable_aliases = dict(next_state.callable_aliases)
-        state.pipe_aliases = set(next_state.pipe_aliases)
-
-    def _record_expr(node: ast.AST | None) -> None:
-        if node is not None:
-            _record_call_violations(node, state, source_lines, violations)
-            for call in _iter_immediate_calls(node):
-                if isinstance(call.func, ast.Name) and call.func.id in active_function_bindings:
-                    active_function_bindings[call.func.id].append(_copy_alias_state(state))
-
-    def _bind_name(name: str, value: ast.expr) -> None:
-        function_binding = (
-            active_function_bindings.get(value.id)
-            if isinstance(value, ast.Name)
-            else None
-        )
-        resolved_module, resolved_callable, resolved_pipe = _resolve_assignment_aliases(
-            value,
-            state,
-        )
-        _clear(name)
-        if function_binding is not None:
-            active_function_bindings[name] = function_binding
-        elif isinstance(value, ast.Lambda):
-            call_states: list[_AliasState] = []
-            deferred_lambdas.append((value, call_states))
-            active_function_bindings[name] = call_states
-        if resolved_module:
-            state.module_aliases.add(name)
-        elif resolved_callable is not None:
-            state.callable_aliases[name] = resolved_callable
-        elif resolved_pipe:
-            state.pipe_aliases.add(name)
-
-    def _bind_target(target: ast.AST, value: ast.expr) -> None:
-        if isinstance(target, ast.Name):
-            _bind_name(target.id, value)
-            return
-        if isinstance(target, (ast.Tuple, ast.List)) and isinstance(value, (ast.Tuple, ast.List)):
-            for target_item, value_item in zip(target.elts, value.elts, strict=False):
-                _bind_target(target_item, value_item)
-            for target_item in target.elts[len(value.elts) :]:
-                for name in _bound_names(target_item):
-                    _clear(name)
-            return
-        for name in _bound_names(target):
-            _bind_name(name, value)
-
-    for stmt in statements:
-        if isinstance(stmt, ast.Import):
-            for alias in stmt.names:
-                bound_name = alias.asname or alias.name
-                _clear(bound_name)
-                if alias.name == "subprocess":
-                    state.module_aliases.add(bound_name)
-            continue
-
-        if isinstance(stmt, ast.ImportFrom):
-            for alias in stmt.names:
-                if alias.name == "*":
-                    if stmt.module == "subprocess":
-                        state.callable_aliases.update(
-                            {name: name for name in _ALL_SUBPROCESS_CALLS}
-                        )
-                        state.pipe_aliases.add("PIPE")
-                    continue
-                bound_name = alias.asname or alias.name
-                _clear(bound_name)
-                if stmt.module != "subprocess":
-                    continue
-                if alias.name in _ALL_SUBPROCESS_CALLS:
-                    state.callable_aliases[bound_name] = alias.name
-                elif alias.name == "PIPE":
-                    state.pipe_aliases.add(bound_name)
-            continue
-
-        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            call_states: list[_AliasState] = []
-            for decorator in stmt.decorator_list:
-                _record_expr(decorator)
-            for default in [*stmt.args.defaults, *stmt.args.kw_defaults]:
-                _record_expr(default)
-            _record_expr(stmt.returns)
-            _clear(stmt.name)
-            deferred_functions.append((stmt, call_states))
-            active_function_bindings[stmt.name] = call_states
-            continue
-
-        if isinstance(stmt, ast.ClassDef):
-            for decorator in stmt.decorator_list:
-                _record_expr(decorator)
-            for base in stmt.bases:
-                _record_expr(base)
-            for keyword in stmt.keywords:
-                _record_expr(keyword.value)
-            _clear(stmt.name)
-            class_state = _copy_alias_state(state)
-            _clear_alias_binding(
-                stmt.name,
-                class_state.module_aliases,
-                class_state.callable_aliases,
-                class_state.pipe_aliases,
-            )
-            violations.extend(_scan_scope(stmt.body, class_state, source_lines))
-            continue
-
-        if isinstance(stmt, ast.Assign):
-            _record_expr(stmt.value)
-            for target in stmt.targets:
-                _bind_target(target, stmt.value)
-            continue
-
-        if isinstance(stmt, ast.AnnAssign):
-            _record_expr(stmt.value)
-            if stmt.value is not None:
-                _bind_target(stmt.target, stmt.value)
-            continue
-
-        if isinstance(stmt, ast.AugAssign):
-            _record_expr(stmt.value)
-            for name in _bound_names(stmt.target):
-                _clear(name)
-            continue
-
-        if isinstance(stmt, ast.Delete):
-            for target in stmt.targets:
-                for name in _bound_names(target):
-                    _clear(name)
-            continue
-
-        if isinstance(stmt, (ast.For, ast.AsyncFor)):
-            _record_expr(stmt.iter)
-            zero_state = _copy_alias_state(state)
-            body_state = _copy_alias_state(state)
-            for name in _bound_names(stmt.target):
-                _clear_alias_binding(
-                    name,
-                    body_state.module_aliases,
-                    body_state.callable_aliases,
-                    body_state.pipe_aliases,
-                )
-            violations.extend(_scan_scope(stmt.body, body_state, source_lines))
-            after_states = [zero_state, body_state]
-            if stmt.orelse:
-                zero_orelse_state = _copy_alias_state(zero_state)
-                body_orelse_state = _copy_alias_state(body_state)
-                violations.extend(_scan_scope(stmt.orelse, zero_orelse_state, source_lines))
-                violations.extend(_scan_scope(stmt.orelse, body_orelse_state, source_lines))
-                after_states.extend([zero_orelse_state, body_orelse_state])
-            _set_state(_merge_alias_states(after_states))
-            continue
-
-        if isinstance(stmt, ast.While):
-            _record_expr(stmt.test)
-            zero_state = _copy_alias_state(state)
-            body_state = _copy_alias_state(state)
-            violations.extend(_scan_scope(stmt.body, body_state, source_lines))
-            after_states = [zero_state, body_state]
-            if stmt.orelse:
-                zero_orelse_state = _copy_alias_state(zero_state)
-                body_orelse_state = _copy_alias_state(body_state)
-                violations.extend(_scan_scope(stmt.orelse, zero_orelse_state, source_lines))
-                violations.extend(_scan_scope(stmt.orelse, body_orelse_state, source_lines))
-                after_states.extend([zero_orelse_state, body_orelse_state])
-            _set_state(_merge_alias_states(after_states))
-            continue
-
-        if isinstance(stmt, ast.If):
-            _record_expr(stmt.test)
-            then_state = _copy_alias_state(state)
-            else_state = _copy_alias_state(state)
-            violations.extend(_scan_scope(stmt.body, then_state, source_lines))
-            violations.extend(_scan_scope(stmt.orelse, else_state, source_lines))
-            _set_state(_merge_alias_states([then_state, else_state]))
-            continue
-
-        if isinstance(stmt, (ast.With, ast.AsyncWith)):
-            for item in stmt.items:
-                _record_expr(item.context_expr)
-                if item.optional_vars is not None:
-                    for name in _bound_names(item.optional_vars):
-                        _clear(name)
-            violations.extend(_scan_scope(stmt.body, state, source_lines))
-            continue
-
-        if isinstance(stmt, ast.Try):
-            base_state = _copy_alias_state(state)
-            body_state = _copy_alias_state(state)
-            violations.extend(_scan_scope(stmt.body, body_state, source_lines))
-            branch_states = [base_state, body_state]
-            for handler in stmt.handlers:
-                _record_expr(handler.type)
-                handler_state = _copy_alias_state(state)
-                if handler.name is not None:
-                    _clear_alias_binding(
-                        handler.name,
-                        handler_state.module_aliases,
-                        handler_state.callable_aliases,
-                        handler_state.pipe_aliases,
-                    )
-                violations.extend(_scan_scope(handler.body, handler_state, source_lines))
-                branch_states.append(handler_state)
-            if stmt.orelse:
-                orelse_state = _copy_alias_state(body_state)
-                violations.extend(_scan_scope(stmt.orelse, orelse_state, source_lines))
-                branch_states.append(orelse_state)
-            merged_state = _merge_alias_states(branch_states)
-            if stmt.finalbody:
-                final_state = _copy_alias_state(merged_state)
-                violations.extend(_scan_scope(stmt.finalbody, final_state, source_lines))
-                merged_state = final_state
-            _set_state(merged_state)
-            continue
-
-        if isinstance(stmt, ast.Match):
-            _record_expr(stmt.subject)
-            case_states = [_copy_alias_state(state)]
-            for case in stmt.cases:
-                case_state = _copy_alias_state(state)
-                if case.guard is not None:
-                    _record_call_violations(case.guard, case_state, source_lines, violations)
-                violations.extend(_scan_scope(case.body, case_state, source_lines))
-                case_states.append(case_state)
-            _set_state(_merge_alias_states(case_states))
-            continue
-
-        if isinstance(stmt, ast.Assert):
-            _record_expr(stmt.test)
-            _record_expr(stmt.msg)
-            continue
-
-        if isinstance(stmt, ast.Raise):
-            _record_expr(stmt.exc)
-            _record_expr(stmt.cause)
-            continue
-
-        if isinstance(stmt, ast.Return):
-            _record_expr(stmt.value)
-            continue
-
-        if isinstance(stmt, ast.Expr):
-            _record_expr(stmt.value)
-            continue
-
-    for fn, call_states in deferred_functions:
-        fn_state = _copy_alias_state(state)
-        _clear_alias_binding(
-            fn.name,
-            fn_state.module_aliases,
-            fn_state.callable_aliases,
-            fn_state.pipe_aliases,
-        )
-        for name in _parameter_names(fn.args):
+        def _clear(name: str) -> None:
             _clear_alias_binding(
                 name,
+                current_state.module_aliases,
+                current_state.callable_aliases,
+                current_state.pipe_aliases,
+                current_state.function_bindings,
+            )
+
+        def _set_state(next_state: _AliasState) -> None:
+            current_state.module_aliases = set(next_state.module_aliases)
+            current_state.callable_aliases = dict(next_state.callable_aliases)
+            current_state.pipe_aliases = set(next_state.pipe_aliases)
+            current_state.function_bindings = {
+                name: list(bindings)
+                for name, bindings in next_state.function_bindings.items()
+            }
+
+        def _record_expr(node: ast.AST | None) -> None:
+            if node is None:
+                return
+            _record_call_violations(node, current_state, source_lines, violations)
+            for call in _iter_immediate_calls(node):
+                if not isinstance(call.func, ast.Name):
+                    continue
+                for binding in current_state.function_bindings.get(call.func.id, []):
+                    binding.call_states.append(_copy_alias_state(current_state))
+
+        def _bind_name(name: str, value: ast.expr) -> None:
+            function_bindings = (
+                list(current_state.function_bindings.get(value.id, []))
+                if isinstance(value, ast.Name)
+                else []
+            )
+            resolved_module, resolved_callable, resolved_pipe = _resolve_assignment_aliases(
+                value,
+                current_state,
+            )
+            _clear(name)
+            if function_bindings:
+                current_state.function_bindings[name] = function_bindings
+            elif isinstance(value, ast.Lambda):
+                current_state.function_bindings[name] = [_register_deferred(value)]
+            if resolved_module:
+                current_state.module_aliases.add(name)
+            elif resolved_callable is not None:
+                current_state.callable_aliases[name] = resolved_callable
+            elif resolved_pipe:
+                current_state.pipe_aliases.add(name)
+
+        def _bind_target(target: ast.AST, value: ast.expr) -> None:
+            if isinstance(target, ast.Name):
+                _bind_name(target.id, value)
+                return
+            if isinstance(target, (ast.Tuple, ast.List)) and isinstance(
+                value,
+                (ast.Tuple, ast.List),
+            ):
+                for target_item, value_item in zip(target.elts, value.elts, strict=False):
+                    _bind_target(target_item, value_item)
+                for target_item in target.elts[len(value.elts) :]:
+                    for name in _bound_names(target_item):
+                        _clear(name)
+                return
+            for name in _bound_names(target):
+                _bind_name(name, value)
+
+        for stmt in block:
+            if isinstance(stmt, ast.Import):
+                for alias in stmt.names:
+                    bound_name = alias.asname or alias.name
+                    _clear(bound_name)
+                    if alias.name == "subprocess":
+                        current_state.module_aliases.add(bound_name)
+                continue
+
+            if isinstance(stmt, ast.ImportFrom):
+                for alias in stmt.names:
+                    if alias.name == "*":
+                        if stmt.module == "subprocess":
+                            current_state.callable_aliases.update(
+                                {name: name for name in _ALL_SUBPROCESS_CALLS}
+                            )
+                            current_state.pipe_aliases.add("PIPE")
+                        continue
+                    bound_name = alias.asname or alias.name
+                    _clear(bound_name)
+                    if stmt.module != "subprocess":
+                        continue
+                    if alias.name in _ALL_SUBPROCESS_CALLS:
+                        current_state.callable_aliases[bound_name] = alias.name
+                    elif alias.name == "PIPE":
+                        current_state.pipe_aliases.add(bound_name)
+                continue
+
+            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for decorator in stmt.decorator_list:
+                    _record_expr(decorator)
+                for default in [*stmt.args.defaults, *stmt.args.kw_defaults]:
+                    _record_expr(default)
+                _record_expr(stmt.returns)
+                _clear(stmt.name)
+                current_state.function_bindings[stmt.name] = [_register_deferred(stmt)]
+                continue
+
+            if isinstance(stmt, ast.ClassDef):
+                for decorator in stmt.decorator_list:
+                    _record_expr(decorator)
+                for base in stmt.bases:
+                    _record_expr(base)
+                for keyword in stmt.keywords:
+                    _record_expr(keyword.value)
+                _clear(stmt.name)
+                class_state = _copy_alias_state(current_state)
+                _clear_alias_binding(
+                    stmt.name,
+                    class_state.module_aliases,
+                    class_state.callable_aliases,
+                    class_state.pipe_aliases,
+                    class_state.function_bindings,
+                )
+                violations.extend(_scan_scope(stmt.body, class_state, source_lines))
+                continue
+
+            if isinstance(stmt, ast.Assign):
+                _record_expr(stmt.value)
+                for target in stmt.targets:
+                    _bind_target(target, stmt.value)
+                continue
+
+            if isinstance(stmt, ast.AnnAssign):
+                _record_expr(stmt.value)
+                if stmt.value is not None:
+                    _bind_target(stmt.target, stmt.value)
+                continue
+
+            if isinstance(stmt, ast.AugAssign):
+                _record_expr(stmt.value)
+                for name in _bound_names(stmt.target):
+                    _clear(name)
+                continue
+
+            if isinstance(stmt, ast.Delete):
+                for target in stmt.targets:
+                    for name in _bound_names(target):
+                        _clear(name)
+                continue
+
+            if isinstance(stmt, (ast.For, ast.AsyncFor)):
+                _record_expr(stmt.iter)
+                zero_state = _copy_alias_state(current_state)
+                body_state = _copy_alias_state(current_state)
+                for name in _bound_names(stmt.target):
+                    _clear_alias_binding(
+                        name,
+                        body_state.module_aliases,
+                        body_state.callable_aliases,
+                        body_state.pipe_aliases,
+                        body_state.function_bindings,
+                    )
+                _scan_block(stmt.body, body_state)
+                after_states = [zero_state, body_state]
+                if stmt.orelse:
+                    zero_orelse_state = _copy_alias_state(zero_state)
+                    body_orelse_state = _copy_alias_state(body_state)
+                    _scan_block(stmt.orelse, zero_orelse_state)
+                    _scan_block(stmt.orelse, body_orelse_state)
+                    after_states.extend([zero_orelse_state, body_orelse_state])
+                _set_state(_merge_alias_states(after_states))
+                continue
+
+            if isinstance(stmt, ast.While):
+                _record_expr(stmt.test)
+                zero_state = _copy_alias_state(current_state)
+                body_state = _copy_alias_state(current_state)
+                _scan_block(stmt.body, body_state)
+                after_states = [zero_state, body_state]
+                if stmt.orelse:
+                    zero_orelse_state = _copy_alias_state(zero_state)
+                    body_orelse_state = _copy_alias_state(body_state)
+                    _scan_block(stmt.orelse, zero_orelse_state)
+                    _scan_block(stmt.orelse, body_orelse_state)
+                    after_states.extend([zero_orelse_state, body_orelse_state])
+                _set_state(_merge_alias_states(after_states))
+                continue
+
+            if isinstance(stmt, ast.If):
+                _record_expr(stmt.test)
+                then_state = _copy_alias_state(current_state)
+                else_state = _copy_alias_state(current_state)
+                _scan_block(stmt.body, then_state)
+                _scan_block(stmt.orelse, else_state)
+                _set_state(_merge_alias_states([then_state, else_state]))
+                continue
+
+            if isinstance(stmt, (ast.With, ast.AsyncWith)):
+                for item in stmt.items:
+                    _record_expr(item.context_expr)
+                    if item.optional_vars is not None:
+                        for name in _bound_names(item.optional_vars):
+                            _clear(name)
+                _scan_block(stmt.body, current_state)
+                continue
+
+            if isinstance(stmt, ast.Try):
+                base_state = _copy_alias_state(current_state)
+                body_state = _copy_alias_state(current_state)
+                _scan_block(stmt.body, body_state)
+                branch_states = [base_state, body_state]
+                for handler in stmt.handlers:
+                    _record_expr(handler.type)
+                    handler_state = _copy_alias_state(current_state)
+                    if handler.name is not None:
+                        _clear_alias_binding(
+                            handler.name,
+                            handler_state.module_aliases,
+                            handler_state.callable_aliases,
+                            handler_state.pipe_aliases,
+                            handler_state.function_bindings,
+                        )
+                    _scan_block(handler.body, handler_state)
+                    branch_states.append(handler_state)
+                if stmt.orelse:
+                    orelse_state = _copy_alias_state(body_state)
+                    _scan_block(stmt.orelse, orelse_state)
+                    branch_states.append(orelse_state)
+                merged_state = _merge_alias_states(branch_states)
+                if stmt.finalbody:
+                    final_state = _copy_alias_state(merged_state)
+                    _scan_block(stmt.finalbody, final_state)
+                    merged_state = final_state
+                _set_state(merged_state)
+                continue
+
+            if isinstance(stmt, ast.Match):
+                _record_expr(stmt.subject)
+                case_states = [_copy_alias_state(current_state)]
+                for case in stmt.cases:
+                    case_state = _copy_alias_state(current_state)
+                    if case.guard is not None:
+                        _record_call_violations(case.guard, case_state, source_lines, violations)
+                    _scan_block(case.body, case_state)
+                    case_states.append(case_state)
+                _set_state(_merge_alias_states(case_states))
+                continue
+
+            if isinstance(stmt, ast.Assert):
+                _record_expr(stmt.test)
+                _record_expr(stmt.msg)
+                continue
+
+            if isinstance(stmt, ast.Raise):
+                _record_expr(stmt.exc)
+                _record_expr(stmt.cause)
+                continue
+
+            if isinstance(stmt, ast.Return):
+                _record_expr(stmt.value)
+                continue
+
+            if isinstance(stmt, ast.Expr):
+                _record_expr(stmt.value)
+                continue
+
+    _scan_block(statements, state)
+
+    for deferred in deferred_callables:
+        if isinstance(deferred.node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            fn_state = _copy_alias_state(state)
+            _clear_alias_binding(
+                deferred.node.name,
                 fn_state.module_aliases,
                 fn_state.callable_aliases,
                 fn_state.pipe_aliases,
+                fn_state.function_bindings,
             )
-        violations.extend(_scan_scope(fn.body, fn_state, source_lines))
-        for call_state in call_states:
+            for name in _parameter_names(deferred.node.args):
+                _clear_alias_binding(
+                    name,
+                    fn_state.module_aliases,
+                    fn_state.callable_aliases,
+                    fn_state.pipe_aliases,
+                    fn_state.function_bindings,
+                )
+            violations.extend(_scan_scope(deferred.node.body, fn_state, source_lines))
+            for call_state in deferred.call_states:
                 direct_call_state = _copy_alias_state(call_state)
                 _clear_alias_binding(
-                    fn.name,
+                    deferred.node.name,
                     direct_call_state.module_aliases,
                     direct_call_state.callable_aliases,
                     direct_call_state.pipe_aliases,
+                    direct_call_state.function_bindings,
                 )
-                for name in _parameter_names(fn.args):
+                for name in _parameter_names(deferred.node.args):
                     _clear_alias_binding(
                         name,
                         direct_call_state.module_aliases,
                         direct_call_state.callable_aliases,
                         direct_call_state.pipe_aliases,
+                        direct_call_state.function_bindings,
                     )
-                violations.extend(_scan_scope(fn.body, direct_call_state, source_lines))
+                violations.extend(
+                    _scan_scope(deferred.node.body, direct_call_state, source_lines)
+                )
+            continue
 
-    for lambda_node, call_states in deferred_lambdas:
         lambda_state = _copy_alias_state(state)
-        for name in _parameter_names(lambda_node.args):
+        for name in _parameter_names(deferred.node.args):
+            _clear_alias_binding(
+                name,
+                lambda_state.module_aliases,
+                lambda_state.callable_aliases,
+                lambda_state.pipe_aliases,
+                lambda_state.function_bindings,
+            )
+        _record_call_violations(
+            deferred.node.body,
+            lambda_state,
+            source_lines,
+            violations,
+        )
+        for call_state in deferred.call_states:
+            direct_call_state = _copy_alias_state(call_state)
+            for name in _parameter_names(deferred.node.args):
                 _clear_alias_binding(
                     name,
-                    lambda_state.module_aliases,
-                    lambda_state.callable_aliases,
-                    lambda_state.pipe_aliases,
+                    direct_call_state.module_aliases,
+                    direct_call_state.callable_aliases,
+                    direct_call_state.pipe_aliases,
+                    direct_call_state.function_bindings,
                 )
-        _record_call_violations(lambda_node.body, lambda_state, source_lines, violations)
-        for call_state in call_states:
-                direct_call_state = _copy_alias_state(call_state)
-                for name in _parameter_names(lambda_node.args):
-                    _clear_alias_binding(
-                        name,
-                        direct_call_state.module_aliases,
-                        direct_call_state.callable_aliases,
-                        direct_call_state.pipe_aliases,
-                    )
-                _record_call_violations(
-                    lambda_node.body,
-                    direct_call_state,
-                    source_lines,
-                    violations,
-                )
+            _record_call_violations(
+                deferred.node.body,
+                direct_call_state,
+                source_lines,
+                violations,
+            )
 
     return violations
 
@@ -706,7 +772,7 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
         set(
             _scan_scope(
                 tree.body,
-                _AliasState({"subprocess"}, {}, set()),
+                _AliasState({"subprocess"}, {}, set(), {}),
                 source_lines,
             )
         )

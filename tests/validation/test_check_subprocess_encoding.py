@@ -22,10 +22,12 @@ Coverage:
 - neg/use-before-rebind: a valid alias still flags before a later reassignment shadows it
 - neg/function-use-before-rebind: function bodies still flag when a later outer rebind happens
 - neg/function-alias-use-before-rebind: aliased function calls still capture pre-rebind state
+- neg/branch-local-function-order: branch-defined deferred functions honor outer call-time order
 - neg/tuple-unpack-alias: tuple/list unpacking preserves alias bindings
 - neg/branch-join-alias: a subprocess alias in one branch still flags after the join
 - neg/lambda-body: violating subprocess calls inside lambdas are flagged
 - neg/lambda-use-before-rebind: assigned lambdas honor call-time rebind order
+- neg/branch-local-lambda-order: branch-defined lambdas honor outer call-time order
 - neg/universal-newlines: legacy text-mode alias is treated like text=True
 - neg/from-import: ``from subprocess import run; run(...)`` -> flagged
 - neg/splat: **kwargs present means errors may be absent -> flagged (conservative)
@@ -256,6 +258,32 @@ def test_function_alias_called_after_later_rebind_is_not_flagged() -> None:
     assert find_violations(source) == []
 
 
+def test_branch_local_function_used_after_late_outer_bind_is_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "if cond:\n"
+        "    def wrapper():\n"
+        '        runner(["x"], encoding="utf-8")\n'
+        "runner = subprocess.check_output\n"
+        "alias = wrapper\n"
+        "alias()\n"
+        "runner = print\n"
+    )
+    assert find_violations(source) == [4]
+
+
+def test_branch_local_function_after_later_rebind_is_not_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "if cond:\n"
+        "    runner = subprocess.check_output\n"
+        "    def wrapper():\n"
+        '        runner(["x"], encoding="utf-8")\n'
+        "runner = print\n"
+    )
+    assert find_violations(source) == []
+
+
 @pytest.mark.parametrize(
     "source,expected",
     [
@@ -329,6 +357,31 @@ def test_lambda_alias_called_after_later_rebind_is_not_flagged() -> None:
         "import subprocess\n"
         "runner = subprocess.check_output\n"
         'wrapper = lambda: runner(["x"], encoding="utf-8")\n'
+        "runner = print\n"
+        "wrapper()\n"
+    )
+    assert find_violations(source) == []
+
+
+def test_branch_local_lambda_used_after_late_outer_bind_is_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "if cond:\n"
+        '    wrapper = lambda: runner(["x"], encoding="utf-8")\n'
+        "runner = subprocess.check_output\n"
+        "alias = wrapper\n"
+        "alias()\n"
+        "runner = print\n"
+    )
+    assert find_violations(source) == [3]
+
+
+def test_branch_local_lambda_after_later_rebind_is_not_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "if cond:\n"
+        "    runner = subprocess.check_output\n"
+        '    wrapper = lambda: runner(["x"], encoding="utf-8")\n'
         "runner = print\n"
         "wrapper()\n"
     )
