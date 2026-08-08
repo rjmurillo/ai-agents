@@ -36,7 +36,8 @@ USAGE:
 
 EXIT CODES:
   0 - Success (dry-run completed, or apply removed/kept as planned)
-  2 - Error: configuration or runtime error (git failure, bad base ref)
+  2 - Apply ran, but one or more removals were withheld or failed
+  3 - External: a git subprocess failed (for example, an unusable base ref)
 
 See: ADR-035 Exit Code Standardization
 Related: Issue #2761 (worktree accumulation starves markdown LSP), #2759
@@ -484,7 +485,7 @@ def main(argv: list[str] | None = None) -> int:
             )
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
-        return 2
+        return 3
 
     if args.json:
         print(json.dumps(asdict(report), indent=2))
