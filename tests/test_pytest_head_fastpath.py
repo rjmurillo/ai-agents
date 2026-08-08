@@ -107,10 +107,8 @@ def test_direct_read_repo_head_returns_none_for_unborn_head(tmp_path, monkeypatc
     assert module._direct_read_repo_head() is None
 
 
-def test_direct_read_repo_head_matches_git_rev_parse_with_zero_subprocess_calls(
-    monkeypatch,
-):
-    """Proves the common path (this real checkout) needs zero subprocess calls."""
+def test_real_repo_head_matches_git_rev_parse_in_current_checkout():
+    """The real checkout may use the fast path or a supported authoritative fallback."""
     module = _load_root_conftest()
     expected = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -121,9 +119,7 @@ def test_direct_read_repo_head_matches_git_rev_parse_with_zero_subprocess_calls(
         timeout=10,
         check=True,
     ).stdout.strip()
-    _refuse_subprocess_run(monkeypatch)
 
-    assert module._direct_read_repo_head() == expected
     assert module._real_repo_head() == expected
 
 

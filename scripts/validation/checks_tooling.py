@@ -17,7 +17,12 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from checks_changed_paths import _filtered_targets  # noqa: E402
+from checks_changed_paths import (  # noqa: E402
+    ChangedPathMissingError,
+    _changed_paths_since_base,
+    _filtered_targets,
+    _missing_path_message,
+)
 from checks_common import (  # noqa: E402
     MissingScriptSkip,
     _resolve_branch_base_ref,
@@ -214,15 +219,46 @@ def _markdown_lint_targets(repo_root: Path) -> list[str] | None:
 
 
 def _workflow_yaml_targets(repo_root: Path) -> list[str] | None:
-    """Return changed workflow YAML files, [] for none, or None for full fallback.
+    """Return workflows affected by changed workflow or action contracts.
 
-    Drops composite ``action.yml`` (same false-error reason as the full scan, #2346).
+    Composite actions never reach actionlint directly (#2346). Their metadata
+    defines inputs consumed by workflows, so changing one invalidates every
+    workflow contract. A changed reusable workflow also invalidates each
+    workflow that references it through a local ``uses:`` path.
     """
-    return _filtered_targets(
-        repo_root,
-        "Workflow lint",
-        lambda p: p.startswith(".github/workflows/") and p.endswith((".yml", ".yaml")),
+    changed = _changed_paths_since_base(repo_root, "Workflow lint")
+    if changed is None:
+        return None
+
+    def is_workflow(path: str) -> bool:
+        return path.startswith(".github/workflows/") and path.endswith((".yml", ".yaml"))
+
+    def is_action_metadata(path: str) -> bool:
+        return path.startswith(".github/actions/") and path.endswith(
+            ("/action.yml", "/action.yaml")
+        )
+    relevant = [path for path in changed if is_workflow(path) or is_action_metadata(path)]
+    missing = [path for path in relevant if not (repo_root / path).is_file()]
+    if missing:
+        raise ChangedPathMissingError(_missing_path_message(repo_root, "Workflow lint", missing))
+
+    workflow_root = repo_root / ".github" / "workflows"
+    all_workflows = sorted(
+        path.relative_to(repo_root).as_posix()
+        for pattern in ("*.yml", "*.yaml")
+        for path in workflow_root.glob(pattern)
     )
+    if any(is_action_metadata(path) for path in relevant):
+        return all_workflows
+
+    targets = {path for path in relevant if is_workflow(path)}
+    if not targets:
+        return []
+    for candidate in all_workflows:
+        text = (repo_root / candidate).read_text(encoding="utf-8")
+        if any(f"./{provider}" in text for provider in targets):
+            targets.add(candidate)
+    return sorted(targets)
 
 
 def _yaml_style_targets(repo_root: Path) -> list[str] | None:

@@ -198,6 +198,50 @@ class TestWorkflowYamlTargets:
                 with pytest.raises(ChangedPathMissingError, match="removed.yml"):
                     _workflow_yaml_targets(tmp_path)
 
+    def test_changed_action_metadata_invalidates_all_workflows(self, tmp_path: Path) -> None:
+        from checks_tooling import _workflow_yaml_targets
+
+        self._write_workflow(tmp_path, "ci.yml", "on: push\n")
+        self._write_workflow(tmp_path, "release.yaml", "on: push\n")
+        action = tmp_path / ".github" / "actions" / "setup" / "action.yml"
+        action.parent.mkdir(parents=True)
+        action.write_text("name: setup\nruns:\n  using: composite\n  steps: []\n")
+
+        with patch(
+            "checks_tooling._changed_paths_since_base",
+            return_value=[".github/actions/setup/action.yml"],
+        ):
+            assert _workflow_yaml_targets(tmp_path) == [
+                ".github/workflows/ci.yml",
+                ".github/workflows/release.yaml",
+            ]
+
+    def test_changed_reusable_workflow_includes_unchanged_callers(self, tmp_path: Path) -> None:
+        from checks_tooling import _workflow_yaml_targets
+
+        self._write_workflow(tmp_path, "called.yml", "on:\n  workflow_call:\n")
+        self._write_workflow(
+            tmp_path,
+            "caller.yml",
+            "jobs:\n  call:\n    uses: ./.github/workflows/called.yml\n",
+        )
+        self._write_workflow(tmp_path, "unrelated.yml", "on: push\n")
+
+        with patch(
+            "checks_tooling._changed_paths_since_base",
+            return_value=[".github/workflows/called.yml"],
+        ):
+            assert _workflow_yaml_targets(tmp_path) == [
+                ".github/workflows/called.yml",
+                ".github/workflows/caller.yml",
+            ]
+
+    @staticmethod
+    def _write_workflow(root: Path, name: str, content: str) -> None:
+        path = root / ".github" / "workflows" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
 
 class TestWorkflowYamlTargetsWorktreeOnly:
     """Real-repo regression: a workflow file edited only in the worktree
