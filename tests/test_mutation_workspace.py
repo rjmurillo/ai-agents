@@ -165,6 +165,7 @@ def test_multiline_git_root_does_not_fall_back_to_active_target(
 
 
 def test_git_pointer_environment_cannot_redirect_tracking_or_markers(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     baseline_marker_directory = marker_directory(REPO_ROOT)
@@ -179,8 +180,14 @@ def test_git_pointer_environment_cannot_redirect_tracking_or_markers(
     common_dir = Path(common_dir_result.stdout.strip())
     if not common_dir.is_absolute():
         common_dir = REPO_ROOT / common_dir
+    hostile_config = tmp_path / "hostile-gitconfig"
+    hostile_config.write_text(
+        "[core]\n\tworktree = /\n[trace2]\n\tnormalTarget = /dev/stdout\n",
+        encoding="utf-8",
+    )
     hostile_environment = {
         "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_GLOBAL": str(hostile_config),
         "GIT_CONFIG_KEY_0": "core.worktree",
         "GIT_CONFIG_VALUE_0": "/",
         "GIT_DIR": str(common_dir.resolve()),
@@ -196,6 +203,20 @@ def test_git_pointer_environment_cannot_redirect_tracking_or_markers(
         TARGET,
     )
     assert marker_directory(REPO_ROOT) == baseline_marker_directory
+
+
+def test_local_trace_config_cannot_hide_tracked_inode_alias(tmp_path: Path) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    subprocess.run(
+        ["git", "config", "trace2.normalTarget", "/dev/stdout"],
+        cwd=repo,
+        check=True,
+    )
+    alias = repo / "alias.py"
+    os.link(target, alias)
+
+    with pytest.raises(MutationWorkspaceError, match="aliases tracked path"):
+        mutation_workspace.tracked_repository_path(alias)
 
 
 def test_finished_marker_rewrite_does_not_follow_hard_link(tmp_path: Path) -> None:

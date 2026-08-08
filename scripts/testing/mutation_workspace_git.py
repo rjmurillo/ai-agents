@@ -15,7 +15,10 @@ _GIT_ENVIRONMENT_KEYS = {
     "GIT_CEILING_DIRECTORIES",
     "GIT_COMMON_DIR",
     "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_GLOBAL",
+    "GIT_CONFIG_NOSYSTEM",
     "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_SYSTEM",
     "GIT_DIR",
     "GIT_EXEC_PATH",
     "GIT_INDEX_FILE",
@@ -33,13 +36,25 @@ class MutationWorkspaceError(RuntimeError):
 
 
 def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    command = ["git", *args]
+    command = [
+        "git",
+        "-c",
+        "trace2.normalTarget=0",
+        "-c",
+        "trace2.perfTarget=0",
+        "-c",
+        "trace2.eventTarget=0",
+        *args,
+    ]
     environment = {
         key: value
         for key, value in os.environ.items()
         if key not in _GIT_ENVIRONMENT_KEYS
         and not key.startswith(_GIT_ENVIRONMENT_PREFIXES)
     }
+    environment["GIT_CONFIG_GLOBAL"] = os.devnull
+    environment["GIT_CONFIG_NOSYSTEM"] = "1"
+    environment["GIT_CONFIG_SYSTEM"] = os.devnull
     try:
         return subprocess.run(
             command,
@@ -145,6 +160,10 @@ def _reject_tracked_inode_alias(repo_root: Path, path: Path) -> None:
     for raw_path in result.stdout.split("\0"):
         if not raw_path:
             continue
+        if "\n" in raw_path or "\r" in raw_path:
+            raise MutationWorkspaceError(
+                "cannot inspect tracked paths: unexpected multiline git output"
+            )
         tracked_path = repo_root / raw_path
         try:
             tracked_stat = tracked_path.lstat()

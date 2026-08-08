@@ -247,6 +247,7 @@ def isolated_mutation_worktree(
     signal_state = _SignalState()
     previous_handlers = _install_signal_handlers(signal_state)
     body_error: BaseException | None = None
+    transition_signal: MutationInterrupted | None = None
     try:
         try:
             _write_marker(marker_path, payload)
@@ -256,7 +257,6 @@ def isolated_mutation_worktree(
             body_error = exc
             raise
         finally:
-            transition_signal: MutationInterrupted | None = None
             try:
                 signal_state.cleaning_up = True
             except MutationInterrupted as exc:
