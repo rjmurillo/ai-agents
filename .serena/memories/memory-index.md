@@ -13,7 +13,7 @@
 |rebase after push non-fast-forward force-push forbidden merge remote tip scope explosion miscount: [git/git-rebase-after-push-costs-two-cycles](git/git-rebase-after-push-costs-two-cycles.md) (1350)
 |push takes 15 minutes lefthook pre-push empty ls-remote means not yet vs failed liveness probe ps grep detached HEAD empty range no matching push files Ready to create pull request tail on live log skips every hook no commits between absence not failure slow push still running concurrent bogus yaml duplicate key exit status not remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2433)
 |new_pr create stale main ref session end validation failed opaque diff: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1827)
-|git diff origin main direction stale branch deletion behind predates restore: [git-diff-direction-on-a-stale-branch](git-diff-direction-on-a-stale-branch.md) (496)
+|git diff origin main direction stale branch deletion behind predates restore: [git/git-diff-direction-on-a-stale-branch](git/git-diff-direction-on-a-stale-branch.md) (496)
 |close_issue comment-file must stay under repo root git scratch verify-claims unmerged reason quoting: [github-skill/issue-comment-file-must-live-inside-the-repo](github-skill/issue-comment-file-must-live-inside-the-repo.md) (1884)
 |pr autofix late merge live state base refresh closed branch recovery: [pr-autofix/pr-4323-late-base-refresh](pr-autofix/pr-4323-late-base-refresh.md) (144)
 |github pr issue cli gh api review comment batch response label milestone create tag priority: [skills-github-cli-index](skills-github-cli-index.md) (597), [skills-pr-review-index](skills-pr-review-index.md) (1054), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
@@ -25,6 +25,10 @@
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
 |pr checks read rollup truncation cancelled superseded severity required rerun get_pr_checks: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1935)
 |blocked pr mergeStateStatus ruleset required contexts thread resolution commit limit bypass diagnose: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (908)
+|git unique commits discard ahead already up to date cherry pick reset: [git-list-unique-commits-before-any-reset](git/git-list-unique-commits-before-any-reset.md) (706)
+|git stale detached clone tooling checkout hook validation: [git-stale-detached-clone-runs-stale-tooling](git/git-stale-detached-clone-runs-stale-tooling.md) (727)
+|github merge REST authoritative blocked GraphQL mergeability: [github-merge-rest-is-authoritative-blocked-is-not](github/github-merge-rest-is-authoritative-blocked-is-not.md) (1017)
+|process duplicate check open PRs half check issue search: [process-a-duplicate-check-that-omits-open-prs-is-half-a-check](process/process-a-duplicate-check-that-omits-open-prs-is-half-a-check.md) (614)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads totalCount pagination cursor authoritative metadata: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 
 [Scripting and Testing]
@@ -38,9 +42,11 @@
 |mutation testing false green sed delimiter guard load-bearing vacuous assert applied: [mutation-testing-false-green](mutation-testing-false-green.md) (508)
 |find existing test coverage by mutation not by name grep class renamed guardians: [find-coverage-by-mutation-not-by-name](find-coverage-by-mutation-not-by-name.md) (645)
 |regex pattern match escape lookahead anchor quantifier: [utilities/utilities-regex](utilities/utilities-regex.md) (548)
+|python scratch scripts shadow stdlib import path naming: [python-scratch-scripts-can-shadow-stdlib-modules](python/python-scratch-scripts-can-shadow-stdlib-modules.md) (620)
 
 [Security]
 |security vulnerability TOCTOU secret injection: [skills-security-index](skills-security-index.md) (508)
+|security pr4247 review path containment subprocess secret handling: [pr4247-review](security/pr4247-review.md) (1307)
 |filesystem redirect symlink junction ancestor parent swap descriptor nofollow mutation: [security/filesystem-redirect-boundaries](security/filesystem-redirect-boundaries.md) (154)
 
 [Architecture and Design]
@@ -90,6 +96,9 @@
 |dorny paths-filter checkout base ref PR changes: [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) (930)
 |lefthook group parallel serial summary sum arithmetic config authoritative derive: [decision-read-the-config-not-the-run-summary](decision-read-the-config-not-the-run-summary.md) (964)
 |doc-only repair prose shell snippet agent carrier no test does not survive merge executable guard pre-fix carriers failed passed split: [decision-doc-only-repairs-need-an-executable-guard](decision-doc-only-repairs-need-an-executable-guard.md) (620)
+|ci truncated job log grep clean empty false pass: [ci-a-truncated-job-log-greps-exactly-like-a-clean-one](ci/ci-a-truncated-job-log-greps-exactly-like-a-clean-one.md) (536)
+|ci merge push red check base ref artifact shared branch: [ci-merge-push-red-check-is-a-base-ref-artifact](ci/ci-merge-push-red-check-is-a-base-ref-artifact.md) (820)
+|episode ratchet predated commit session metrics push gate: [episode-ratchet-trips-because-the-episode-predates-the-commit](ci/episode-ratchet-trips-because-the-episode-predates-the-commit.md) (670)
 
 [Documentation and Planning]
 |documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)
@@ -101,7 +110,7 @@
 |utility script markdown fence PathInfo security pattern: [skills-utilities-index](skills-utilities-index.md) (225)
 |edit file read search replace text operation: [patterns/edit-001-read-before-edit-pattern](patterns/edit-001-read-before-edit-pattern.md) (464), [patterns/edit-002-unique-context-for-edit-matching](patterns/edit-002-unique-context-for-edit-matching.md) (368)
 |git hook pre-commit autofix cross-language grep TOCTOU: [skills-git-hooks-index](skills-git-hooks-index.md) (368)
-|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (646)
+|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (660)
 |git stash shared across worktrees pop takes another agent work switch abort commits to wrong branch: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (965)
 |git shallow graft depth fetch unshallow blocks push every worktree common dir pin sha: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
 |subagent sandbox worktree checkout moves head wrong commit pushed reverts unstaged edit throwaway clone push sha not head: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
@@ -109,6 +118,7 @@
 |git branch switch checkout file state verification lost: [git/git-004-branch-switch-file-verification](git/git-004-branch-switch-file-verification.md) (851)
 |lost code recovery investigation unmerged branch orphaned: [session/recovery-001-lost-code-investigation](session/recovery-001-lost-code-investigation.md) (552)
 |cva refactoring variant consolidation template generate: [utilities/utilities-cva-refactoring](utilities/utilities-cva-refactoring.md) (1251)
+|generator skill references mirror build all canonical copilot: [generator-skill-references-mirror-only-through-build-all](generator-skill-references-mirror-only-through-build-all.md) (558)
 
 [External Tools]
 |gemini code assist config styleguide ignore path enterprise: [skills-gemini-index](skills-gemini-index.md) (200)

@@ -18,16 +18,17 @@ import pytest
 
 from scripts.ci import count_ratchet
 from scripts.ci import memory_index_count_ratchet as ratchet
+from tests.ci.ratchet_test_helpers import make_baseline_writer
 
 ATOMIC_WARNING = "git/rebase-costs.md: not referenced by any domain index"
 INDEX_WARNING = "skills-copilot-index.md: not referenced by memory-index.md"
 UNTRACKED_WARNING = "scratch/draft.md: not referenced by any domain index"
 
 
-def _write_baseline(tmp_path: Path, value: str) -> Path:
-    path = tmp_path / "memory_index_count_baseline.txt"
-    path.write_text(value + "\n", encoding="utf-8")
-    return path
+_write_baseline = make_baseline_writer(
+    "memory_index_count_baseline.txt",
+    trailing_newline=True,
+)
 
 
 def _repo(tmp_path: Path) -> Path:

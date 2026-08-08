@@ -795,6 +795,53 @@ class TestRunValidation:
         assert report.passed is True
         assert report.summary.total_domains == 0
 
+    def test_orphaned_file_fails_validation(self, tmp_path: Path) -> None:
+        """An orphaned file must set report.passed = False (#4313).
+
+        Before this fix, find_orphaned_files() emitted a warning but did not
+        set report.passed = False, so memory_index.py --ci exited 0 even
+        when orphans were present.
+        """
+        create_memory_structure(tmp_path, {
+            "skills-test-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| alpha beta gamma delta epsilon | test-indexed |\n"
+            ),
+            "test-indexed.md": "indexed content",
+            "test-orphan.md": "not in any index",
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| test | skills-test-index |\n"
+            ),
+        })
+        report = run_validation(tmp_path, "json")
+        assert report.passed is False, (
+            "orphaned file must cause report.passed = False (#4313)"
+        )
+        assert len(report.orphans) == 1
+        assert report.orphans[0].file == "test-orphan"
+
+    def test_no_orphans_passes(self, tmp_path: Path) -> None:
+        """All files indexed: validation passes (negative control for #4313)."""
+        create_memory_structure(tmp_path, {
+            "skills-test-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| alpha beta gamma delta epsilon | test-indexed |\n"
+            ),
+            "test-indexed.md": "indexed content",
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| test | skills-test-index |\n"
+            ),
+        })
+        report = run_validation(tmp_path, "json")
+        assert report.passed is True
+        assert report.orphans == []
+
 
 # ---------------------------------------------------------------------------
 # Output formatting
