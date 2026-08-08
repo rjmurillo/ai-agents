@@ -359,6 +359,10 @@ pre-push:
       timeout: 1m
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
+    - name: mutation-safety
+      timeout: 30s
+      run: uv run --frozen python -m scripts.testing.mutation_workspace check
+
     - name: push-ref-staleness
       timeout: 30s
       run: uv run --frozen python scripts/validation/push_ref_staleness.py {remote}
