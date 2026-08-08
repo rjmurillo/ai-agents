@@ -15,9 +15,11 @@ Exit Codes (Claude Hook Semantics, exempt from ADR-035):
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from _bootstrap import ensure_plugin_paths
 
@@ -30,21 +32,47 @@ GUARD_NAME = "markdown-lint"
 BINARY = "markdownlint-cli2"
 SUBPROCESS_TIMEOUT = 60
 VERSION_TIMEOUT = 5
+CONFIG_PATH = Path(__file__).with_name("markdownlint-cli2.yaml")
 
 
-def _resolve_invocation() -> list[str] | None:
-    """Pick the markdownlint invocation per ADR-043 / SESSION-PROTOCOL.
+def _is_within(path: Path, directory: Path) -> bool:
+    try:
+        path.relative_to(directory)
+    except ValueError:
+        return False
+    return True
 
-    Direct binary on PATH wins (works on dev machines with global install).
-    Falls back to ``npx markdownlint-cli2`` (the documented invocation for
-    fresh checkouts where only Node and the project's package.json are
-    available). Returns None if neither tool is on PATH.
-    """
-    if shutil.which(BINARY) is not None:
-        return [BINARY]
-    if shutil.which("npx") is not None:
-        return ["npx", BINARY]
-    return None
+
+def _resolve_invocation(project_dir: str) -> list[str] | None:
+    """Resolve a global markdownlint executable outside the consumer repository."""
+    executable = shutil.which(BINARY)
+    if executable is None:
+        return None
+
+    unresolved_executable = Path(executable).absolute()
+    resolved_executable = Path(executable).resolve()
+    resolved_project = Path(project_dir).resolve()
+    if _is_within(unresolved_executable, resolved_project):
+        return None
+    if _is_within(resolved_executable, resolved_project):
+        return None
+
+    trusted_roots = []
+    for entry in os.get_exec_path():
+        root = Path(entry)
+        if not root.is_absolute():
+            continue
+        absolute_root = root.absolute()
+        resolved_root = root.resolve()
+        if _is_within(absolute_root, resolved_project):
+            continue
+        if _is_within(resolved_root, resolved_project):
+            continue
+        trusted_roots.append(absolute_root)
+
+    if unresolved_executable.parent not in trusted_roots:
+        return None
+    return [str(resolved_executable)]
 
 
 def _log_version(invocation: list[str]) -> None:
@@ -71,60 +99,81 @@ def _log_version(invocation: list[str]) -> None:
         )
 
 
-def _validate(matching: list[str], _all_changed: list[str]) -> list[str]:
-    invocation = _resolve_invocation()
-    if invocation is None:
-        message = f"neither {BINARY} nor npx found on PATH"
-        print(
-            f"[{GUARD_NAME}] {message}; blocking push",
-            file=sys.stderr,
-        )
-        return [message]
-
-    _log_version(invocation)
-
-    project_dir = get_project_directory()
+def _lint_markdown_file(
+    invocation: list[str],
+    project_dir: Path,
+    relative_path: str,
+) -> list[str]:
+    markdown_path = (project_dir / relative_path).resolve()
+    if not _is_within(markdown_path, project_dir):
+        return [f"{relative_path}: path escapes repository"]
     try:
-        # --no-globs: lint only the explicit file args. Without this flag
-        # markdownlint-cli2 walks the repo's default **/*.md set and may
-        # report violations in files outside the changeset, which is
-        # exactly the noise the pre-push gate is meant to avoid.
+        markdown = markdown_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return [f"{relative_path}: failed to read: {exc}"]
+
+    try:
         proc = subprocess.run(
-            [*invocation, "--no-globs", *matching],
+            [
+                *invocation,
+                "--config",
+                str(CONFIG_PATH),
+                "--no-globs",
+                "-",
+            ],
+            input=markdown,
             capture_output=True,
             text=True,
             timeout=SUBPROCESS_TIMEOUT,
             shell=False,
             check=False,
-            cwd=project_dir,
+            cwd=CONFIG_PATH.parent,
         )
     except subprocess.TimeoutExpired:
-        message = f"{BINARY} exceeded {SUBPROCESS_TIMEOUT}s"
-        print(
-            f"[TIMEOUT] {message}; blocking push",
-            file=sys.stderr,
-        )
+        message = f"{relative_path}: {BINARY} exceeded {SUBPROCESS_TIMEOUT}s"
+        print(f"[TIMEOUT] {message}; blocking push", file=sys.stderr)
         return [message]
     except OSError as exc:
-        message = f"{BINARY} failed to invoke: {exc}"
-        print(
-            f"[OSError] {message}; blocking push",
-            file=sys.stderr,
-        )
+        message = f"{relative_path}: {BINARY} failed to invoke: {exc}"
+        print(f"[OSError] {message}; blocking push", file=sys.stderr)
         return [message]
 
     if proc.returncode == 0:
         return []
-
-    violations = [
-        line for line in proc.stdout.splitlines() if line.strip()
+    diagnostics = [
+        line
+        for output in (proc.stdout, proc.stderr)
+        for line in output.splitlines()
+        if line.strip()
     ]
-    if not violations and proc.stderr.strip():
-        violations = [
-            line for line in proc.stderr.splitlines() if line.strip()
-        ]
-    if not violations:
-        violations = [f"{BINARY} exited {proc.returncode} without diagnostics"]
+    if not diagnostics:
+        diagnostics = [f"{BINARY} exited {proc.returncode} without diagnostics"]
+    return [f"{relative_path}: {line}" for line in diagnostics]
+
+
+def _validate(matching: list[str], _all_changed: list[str]) -> list[str]:
+    project_dir = get_project_directory()
+    invocation = _resolve_invocation(project_dir)
+    if invocation is None:
+        message = f"trusted {BINARY} not found outside the repository"
+        print(
+            f"[{GUARD_NAME}] {message}; blocking push",
+            file=sys.stderr,
+        )
+        return [message]
+    if not CONFIG_PATH.is_file():
+        message = f"plugin markdownlint config missing: {CONFIG_PATH}"
+        print(f"[{GUARD_NAME}] {message}; blocking push", file=sys.stderr)
+        return [message]
+
+    _log_version(invocation)
+
+    violations: list[str] = []
+    resolved_project = Path(project_dir).resolve()
+    for relative_path in matching:
+        violations.extend(
+            _lint_markdown_file(invocation, resolved_project, relative_path)
+        )
     return violations
 
 

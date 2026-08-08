@@ -58,7 +58,10 @@ from yaml_loader import ConfigError  # noqa: E402
 
 # Files required at runtime by one emitted hook but not dispatched themselves.
 _COMPANIONS_BY_OWNER: dict[str, tuple[str, ...]] = {
-    "PreToolUse/invoke_markdownlint_guard.py": ("push_guard_base.py",),
+    "PreToolUse/invoke_markdownlint_guard.py": (
+        "markdownlint-cli2.yaml",
+        "push_guard_base.py",
+    ),
 }
 _DISPATCHER_ARTIFACT_NAMES = ("_manifest.json", "_dispatch.py", "_bootstrap.py")
 
