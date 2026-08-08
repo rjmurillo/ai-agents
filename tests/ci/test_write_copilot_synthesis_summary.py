@@ -12,15 +12,10 @@ def _run(env: dict[str, str], tmp_path: Path) -> subprocess.CompletedProcess[str
     import os
 
     full_env = {**os.environ, **env}
-    # GitHub Actions always sets GITHUB_STEP_SUMMARY. Inheriting it makes the
-    # script write to that file instead of stdout, so the stdout assertions
-    # below pass locally and fail in CI. Drop the inherited value unless the
-    # caller asked for a summary file explicitly.
-    if "GITHUB_STEP_SUMMARY" not in env:
-        full_env.pop("GITHUB_STEP_SUMMARY", None)
     # A CI runner exports GITHUB_STEP_SUMMARY. Inheriting it sends the script's
-    # output to the real step summary instead of stdout, so the stdout
-    # assertions below read an empty string and fail only under CI.
+    # output to the real step summary file instead of stdout, so stdout
+    # assertions read an empty string and fail only on a runner. Drop the
+    # inherited value unless the caller set it explicitly. Issue #4541.
     if "GITHUB_STEP_SUMMARY" not in env:
         full_env.pop("GITHUB_STEP_SUMMARY", None)
     return subprocess.run(

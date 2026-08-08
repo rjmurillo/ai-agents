@@ -73,6 +73,12 @@ RATCHETS: tuple[Ratchet, ...] = (
         True,
     ),
     Ratchet(
+        "cli-exit-contract-ratchet",
+        "scripts/ci/cli_exit_contract_ratchet.py",
+        False,
+        True,
+    ),
+    Ratchet(
         "memory-index-token-ratchet",
         "scripts/ci/memory_index_token_ratchet.py",
         False,

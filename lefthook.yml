@@ -447,6 +447,10 @@ pre-push:
             timeout: 5m
             run: uv run --frozen python scripts/ci/memory_index_count_ratchet.py --base-ref origin/main
             glob: [".serena/memories/**/*.md", "scripts/ci/memory_index_count_baseline.txt"]
+          - name: cli-exit-contract-ratchet
+            timeout: 5m
+            run: uv run --frozen python scripts/ci/cli_exit_contract_ratchet.py --base-ref origin/main
+            glob: ["**/*.py", "scripts/ci/cli_exit_contract_baseline.txt"]
           - name: memory-index-token-ratchet
             timeout: 5m
             run: uv run --frozen python scripts/ci/memory_index_token_ratchet.py
