@@ -129,6 +129,27 @@ def test_aliased_check_output_missing_errors() -> None:
     assert find_violations(source) == [2]
 
 
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        (
+            "import subprocess\n"
+            "runner = subprocess.check_output\n"
+            'runner(["x"], encoding="utf-8")',
+            [3],
+        ),
+        (
+            "from subprocess import check_output as co\n"
+            "runner = co\n"
+            'runner(["x"], encoding="utf-8")',
+            [3],
+        ),
+    ],
+)
+def test_local_callable_aliases_are_flagged(source: str, expected: list[int]) -> None:
+    assert find_violations(source) == expected
+
+
 def test_from_import_run_missing_errors() -> None:
     source = 'from subprocess import run\nrun(["x"], text=True, encoding="utf-8")'
     assert find_violations(source) == [2]
@@ -151,9 +172,42 @@ def test_pipe_capture_aliases_are_flagged(source: str) -> None:
     assert find_violations(source) == [2]
 
 
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        (
+            "import subprocess\n"
+            "capture = subprocess.PIPE\n"
+            'subprocess.run(["x"], stdout=capture, encoding="utf-8")',
+            [3],
+        ),
+        (
+            "from subprocess import PIPE as CAPTURE\n"
+            "pipe = CAPTURE\n"
+            'subprocess.run(["x"], stderr=pipe, encoding="utf-8")',
+            [3],
+        ),
+    ],
+)
+def test_local_pipe_aliases_are_flagged(source: str, expected: list[int]) -> None:
+    assert find_violations(source) == expected
+
+
 def test_splat_kwargs_flagged_conservatively() -> None:
     # **kwargs might carry errors=replace but we cannot verify; flag conservatively.
     source = 'import subprocess\nsubprocess.run(["x"], text=True, encoding="utf-8", **kw)'
+    assert find_violations(source) == [2]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'import subprocess\nsubprocess.run(["x"], encoding="utf-8", **{"text": True})',
+        'import subprocess\nsubprocess.run(["x"], encoding="utf-8", **{"capture_output": True})',
+        'import subprocess\nsubprocess.run(["x"], encoding="utf-8", **{"stdout": subprocess.PIPE})',
+    ],
+)
+def test_splat_kwargs_text_semantics_are_flagged(source: str) -> None:
     assert find_violations(source) == [2]
 
 

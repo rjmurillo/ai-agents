@@ -124,6 +124,39 @@ def _subprocess_alias_sets(
                 elif alias.name == "PIPE":
                     pipe_aliases.add(bound_name)
 
+    changed = True
+    while changed:
+        changed = False
+        current_module_aliases = frozenset(module_aliases)
+        current_pipe_aliases = frozenset(pipe_aliases)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+
+            resolved_callable = _subprocess_callable_name(
+                node.value,
+                current_module_aliases,
+                callable_aliases,
+            )
+            resolved_pipe = _is_pipe_capture_target(
+                node.value,
+                current_module_aliases,
+                current_pipe_aliases,
+            )
+
+            for target in node.targets:
+                if not isinstance(target, ast.Name):
+                    continue
+                if (
+                    resolved_callable is not None
+                    and callable_aliases.get(target.id) != resolved_callable
+                ):
+                    callable_aliases[target.id] = resolved_callable
+                    changed = True
+                if resolved_pipe and target.id not in pipe_aliases:
+                    pipe_aliases.add(target.id)
+                    changed = True
+
     return (
         frozenset(module_aliases),
         callable_aliases,
@@ -155,7 +188,16 @@ def _subprocess_call_name(
     callable_aliases: dict[str, str],
 ) -> str | None:
     """Return the canonical subprocess function name, or None."""
-    func = node.func
+    return _subprocess_callable_name(node.func, module_aliases, callable_aliases)
+
+
+def _subprocess_callable_name(
+    node: ast.expr,
+    module_aliases: frozenset[str],
+    callable_aliases: dict[str, str],
+) -> str | None:
+    """Return the canonical subprocess callable for *node*, or None."""
+    func = node
     # subprocess.run(...)
     if (
         isinstance(func, ast.Attribute)
@@ -190,6 +232,15 @@ def _is_flagged(
         # No explicit UTF-8 pin: not in scope for this checker.
         return False
 
+    # If errors= is already present, the call is compliant.
+    if _has_keyword(call, "errors"):
+        return False
+
+    # A **kwargs splat may carry errors=, text=, capture_output=, or PIPE-based
+    # captures. We cannot verify any of those statically, so fail closed.
+    if _has_splat(call):
+        return True
+
     # Verify text mode is enabled (or the call decodes unconditionally).
     unconditional = name in _UNCONDITIONAL_DECODE_CALLS
     pipe_capture = _is_pipe_capture_target(
@@ -206,12 +257,6 @@ def _is_flagged(
         # Binary mode with an explicit encoding is unusual but not our concern.
         return False
 
-    # If errors= is already present, the call is compliant.
-    if _has_keyword(call, "errors"):
-        return False
-
-    # A **kwargs splat may carry errors= but we cannot verify; flag conservatively.
-    # This is the deliberate over-approximation described in the module docstring.
     return True
 
 
