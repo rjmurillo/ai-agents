@@ -182,6 +182,9 @@ _MARKDOWN_LINK_PATTERN: re.Pattern[str] = re.compile(
 _DOMAIN_INDEX_FILENAME_PATTERN: re.Pattern[str] = re.compile(
     r"^[a-z][\w-]*-index\.md$"
 )
+_SKILLS_DOMAIN_INDEX_FILENAME_PATTERN: re.Pattern[str] = re.compile(
+    r"^skills-.+-index\.md$"
+)
 _SPECIAL_MEMORY_FILENAMES = frozenset({
     "CLAUDE.md",
     "README.md",
@@ -191,12 +194,14 @@ OrphanPolicy = Literal["strict", "ratchet"]
 
 
 def find_domain_indices(memory_path: Path) -> list[DomainIndex]:
-    """Find all skill domain index files."""
+    """Find all domain index files."""
     if not memory_path.exists():
         return []
 
     indices: list[DomainIndex] = []
-    for f in sorted(memory_path.glob("skills-*-index.md")):
+    for f in sorted(memory_path.glob("*-index.md")):
+        if f.name == "memory-index.md":
+            continue
         name = f.stem
         domain = re.sub(r"^skills-", "", name)
         domain = re.sub(r"-index$", "", domain)
@@ -349,8 +354,6 @@ def check_index_format(index_path: Path) -> FormatResult:
         return result
 
     lines = index_path.read_text(encoding="utf-8").split("\n")
-    table_header_found = False
-
     for line_number, line in enumerate(lines, start=1):
         trimmed = line.strip()
 
@@ -391,17 +394,14 @@ def check_index_format(index_path: Path) -> FormatResult:
 
         # Valid table row
         if re.match(r"^\|.*\|$", trimmed):
-            table_header_found = True
             continue
 
-        # Non-table content after table header
-        if table_header_found and not re.match(r"^\|.*\|$", trimmed):
-            result.passed = False
-            result.violation_lines.append(line_number)
-            result.issues.append(
-                f"Line {line_number}: Non-table content detected - "
-                f"'{trimmed}' (prohibited per ADR-017)"
-            )
+        result.passed = False
+        result.violation_lines.append(line_number)
+        result.issues.append(
+            f"Line {line_number}: Non-table content detected - "
+            f"'{trimmed}' (prohibited per ADR-017)"
+        )
 
     return result
 
@@ -761,16 +761,35 @@ def run_validation(
         report.summary.total_files += len(entries)
         report.summary.missing_files += len(file_result.missing_files)
 
-        keyword_result = check_keyword_density(entries)
+        is_skills_index = bool(
+            _SKILLS_DOMAIN_INDEX_FILENAME_PATTERN.match(index.path.name)
+        )
+        keyword_result = (
+            check_keyword_density(entries)
+            if is_skills_index
+            else KeywordDensityResult()
+        )
         if not keyword_result.passed:
             report.summary.keyword_issues += len(keyword_result.issues)
 
         format_result = check_index_format(index.path)
-        duplicate_result = check_duplicate_entries(entries)
+        duplicate_result = (
+            check_duplicate_entries(entries)
+            if is_skills_index
+            else DuplicateResult()
+        )
 
         # P2 validations
-        min_kw_result = check_minimum_keywords(entries, min_keywords=5)
-        prefix_result = check_domain_prefix_naming(entries, index.domain)
+        min_kw_result = (
+            check_minimum_keywords(entries, min_keywords=5)
+            if is_skills_index
+            else ValidationIssues()
+        )
+        prefix_result = (
+            check_domain_prefix_naming(entries, index.domain)
+            if is_skills_index
+            else ValidationIssues()
+        )
 
         # P0 determines domain pass/fail
         p0_passed = (

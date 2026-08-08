@@ -127,11 +127,13 @@ class TestFindDomainIndices:
     def test_finds_indices(self, tmp_path: Path) -> None:
         (tmp_path / "skills-test-index.md").write_text("content")
         (tmp_path / "skills-other-index.md").write_text("content")
+        (tmp_path / "adr-reference-index.md").write_text("content")
         indices = find_domain_indices(tmp_path)
-        assert len(indices) == 2
+        assert len(indices) == 3
         domains = {i.domain for i in indices}
         assert "test" in domains
         assert "other" in domains
+        assert "adr-reference" in domains
 
     def test_nonexistent_path(self, tmp_path: Path) -> None:
         indices = find_domain_indices(tmp_path / "missing")
@@ -141,6 +143,10 @@ class TestFindDomainIndices:
         (tmp_path / "readme.md").write_text("not an index")
         indices = find_domain_indices(tmp_path)
         assert indices == []
+
+    def test_excludes_root_index(self, tmp_path: Path) -> None:
+        (tmp_path / "memory-index.md").write_text("content")
+        assert find_domain_indices(tmp_path) == []
 
     def test_domain_extraction(self, tmp_path: Path) -> None:
         (tmp_path / "skills-multi-word-index.md").write_text("c")
@@ -341,6 +347,18 @@ class TestCheckIndexFormat:
             "|----------|------|\n"
             "| alpha | skill |\n\n"
             "This is some prose text.\n"
+        )
+        result = check_index_format(index)
+        assert result.passed is False
+        assert any("Non-table content detected" in i for i in result.issues)
+
+    def test_prose_before_table_detected(self, tmp_path: Path) -> None:
+        index = tmp_path / "skills-test-index.md"
+        index.write_text(
+            "This is prose text.\n"
+            "| Keywords | File |\n"
+            "|----------|------|\n"
+            "| alpha | skill |\n"
         )
         result = check_index_format(index)
         assert result.passed is False
@@ -1327,3 +1345,91 @@ class TestOrphanEnforcesFailure:
 
         assert report.passed is False
         assert [orphan.file for orphan in report.orphans] == ["legacy-index"]
+
+    def test_ratchet_policy_rejects_malformed_general_domain_index(
+        self, tmp_path: Path
+    ) -> None:
+        """Every ADR-017 domain index must remain a pure lookup table."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| general route | [general](general-index.md) |\n"
+            ),
+            "general-index.md": (
+                "Prose before the lookup table.\n"
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| general route | [atomic](general-atomic.md) |\n"
+            ),
+            "general-atomic.md": "content",
+        })
+
+        report = run_validation(
+            tmp_path,
+            "json",
+            orphan_policy="ratchet",
+        )
+
+        assert report.passed is False
+        assert report.domain_results["general"].index_format.passed is False
+
+    def test_ratchet_policy_rejects_general_index_path_traversal(
+        self, tmp_path: Path
+    ) -> None:
+        """A general domain index cannot route outside the memory root."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| general route | [general](general-index.md) |\n"
+            ),
+            "general-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| escaped route | [outside](../../outside.md) |\n"
+            ),
+        })
+
+        report = run_validation(
+            tmp_path,
+            "json",
+            orphan_policy="ratchet",
+        )
+
+        assert report.passed is False
+        issues = report.domain_results["general"].file_references.issues
+        assert any("Path traversal detected" in issue for issue in issues)
+
+    def test_general_index_skips_skills_keyword_policy(
+        self, tmp_path: Path
+    ) -> None:
+        """Legacy domains get structural checks, not skills-only density rules."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| general route | [general](general-index.md) |\n"
+            ),
+            "general-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| repeated words | [one](general-one.md) |\n"
+                "| repeated words | [two](general-two.md) |\n"
+                "| repeated words | [one again](general-one.md) |\n"
+            ),
+            "general-one.md": "one",
+            "general-two.md": "two",
+        })
+
+        report = run_validation(
+            tmp_path,
+            "json",
+            orphan_policy="ratchet",
+        )
+
+        assert report.passed is True
+        result = report.domain_results["general"]
+        assert result.keyword_density.passed is True
+        assert result.keyword_density.densities == {}
+        assert result.duplicate_entries.passed is True
