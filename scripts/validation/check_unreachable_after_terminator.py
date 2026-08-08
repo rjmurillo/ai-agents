@@ -11,6 +11,13 @@ same block. It does NOT perform reachability analysis across branches or
 loops. That keeps false-positives at zero and focuses on the shape that
 actually shipped in this repository.
 
+Registered worktrees are skipped. Each one holds a full second copy of the
+tree, so walking them multiplies the file count by the number of worktrees and
+trips this gate's timeout without finding anything new. The skip matches parts
+relative to each walk root, not absolute parts, because a repository that
+itself lives under a directory named `worktrees` would otherwise be skipped
+whole and the gate would pass by scanning nothing (issue #4160).
+
 Exit codes (ADR-035):
     0 - no unreachable statements found
     1 - one or more unreachable statements found
@@ -27,7 +34,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 _TERMINATORS = (ast.Return, ast.Raise, ast.Continue, ast.Break)
-_SKIP = frozenset((".venv", "node_modules", ".git", "site-packages"))
+_SKIP = frozenset((".venv", "node_modules", ".git", "site-packages", "worktrees"))
 _BLOCK_ATTRS = ("body", "orelse", "finalbody")
 
 __all__ = [
@@ -127,7 +134,7 @@ def _iter_paths(roots: list[Path]) -> list[Path]:
             paths.append(root)
         else:
             for p in sorted(root.rglob("*.py")):
-                if not any(part in _SKIP for part in p.parts):
+                if not any(part in _SKIP for part in p.relative_to(root).parts):
                     paths.append(p)
     return paths
 
