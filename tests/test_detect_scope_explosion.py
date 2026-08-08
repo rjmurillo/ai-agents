@@ -30,6 +30,7 @@ from scripts.detect_scope_explosion import (
     get_merge_base,
     get_merge_head_commit,
     get_ref_commit,
+    is_ancestor_or_equal,
     main,
     report,
     resolve_base_ref,
@@ -276,6 +277,38 @@ class TestGetMergeBase:
             assert cmd[3] == "origin/main"
 
 
+class TestIsAncestorOrEqual:
+    """Tests for is_ancestor_or_equal helper."""
+
+    def test_returns_true_on_success(self) -> None:
+        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="", stderr=""
+            )
+            assert is_ancestor_or_equal("base_sha", "origin/main") is True
+
+    def test_returns_false_when_not_ancestor(self) -> None:
+        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=1, stdout="", stderr=""
+            )
+            assert is_ancestor_or_equal("feature_sha", "origin/main") is False
+
+    def test_raises_on_git_error(self) -> None:
+        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[],
+                returncode=128,
+                stdout="",
+                stderr="fatal: bad revision",
+            )
+            with pytest.raises(
+                ScopeDetectionError,
+                match="git merge-base --is-ancestor base_sha origin/main failed",
+            ):
+                is_ancestor_or_equal("base_sha", "origin/main")
+
+
 class TestGetIndexFilesAgainstRef:
     """Tests for staged result diffing against a base ref."""
 
@@ -483,6 +516,10 @@ class TestDetectScope:
                 }.get(ref),
             ),
             patch(
+                "scripts.detect_scope_explosion.is_ancestor_or_equal",
+                return_value=False,
+            ),
+            patch(
                 "scripts.detect_scope_explosion.get_head_files_against_ref",
                 return_value=["pr.py", "tests/test_pr.py"],
             ),
@@ -523,6 +560,10 @@ class TestDetectScope:
                     "origin/main": "merge_head_sha",
                     "main": "merge_head_sha",
                 }.get(ref),
+            ),
+            patch(
+                "scripts.detect_scope_explosion.is_ancestor_or_equal",
+                return_value=True,
             ),
             patch(
                 "scripts.detect_scope_explosion.get_merge_base",
@@ -576,6 +617,10 @@ class TestDetectScope:
                 }.get(ref),
             ),
             patch(
+                "scripts.detect_scope_explosion.is_ancestor_or_equal",
+                return_value=False,
+            ),
+            patch(
                 "scripts.detect_scope_explosion.get_head_files_against_ref",
                 side_effect=fake_head_files,
             ),
@@ -613,6 +658,10 @@ class TestDetectScope:
             patch(
                 "scripts.detect_scope_explosion.get_ref_commit",
                 side_effect=lambda ref: {"origin/main": "base_sha", "main": "base_sha"}.get(ref),
+            ),
+            patch(
+                "scripts.detect_scope_explosion.is_ancestor_or_equal",
+                return_value=True,
             ),
             patch(
                 "scripts.detect_scope_explosion.get_merge_base",
@@ -654,6 +703,10 @@ class TestDetectScope:
                 }.get(ref),
             ),
             patch(
+                "scripts.detect_scope_explosion.is_ancestor_or_equal",
+                return_value=False,
+            ),
+            patch(
                 "scripts.detect_scope_explosion.get_head_files_against_ref",
                 return_value=["real.py"],
             ),
@@ -688,6 +741,10 @@ class TestDetectScope:
                 }.get(ref),
             ),
             patch(
+                "scripts.detect_scope_explosion.is_ancestor_or_equal",
+                return_value=False,
+            ),
+            patch(
                 "scripts.detect_scope_explosion.get_head_files_against_ref",
                 return_value=["real.py"],
             ),
@@ -704,6 +761,54 @@ class TestDetectScope:
             assert result.file_count == 1
             mock_get_merge_base.assert_called_once()
             mock_get_index_files.assert_not_called()
+
+    def test_stale_remote_base_merge_still_counts_final_index(self) -> None:
+        captured_index_args: list[str] = []
+
+        def fake_index_files(ref: str) -> list[str]:
+            captured_index_args.append(ref)
+            return [f"pr_file_{i}.py" for i in range(56)]
+
+        with (
+            patch(
+                "scripts.detect_scope_explosion.get_current_branch",
+                return_value="fix/some-feature",
+            ),
+            patch("scripts.detect_scope_explosion.resolve_base_ref", return_value="origin/main"),
+            patch(
+                "scripts.detect_scope_explosion.get_merge_head_commit",
+                return_value="stale_base_sha",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.get_ref_commit",
+                side_effect=lambda ref: {
+                    "origin/main": "newer_origin_tip_sha",
+                    "main": "local_main_tip_sha",
+                }.get(ref),
+            ),
+            patch(
+                "scripts.detect_scope_explosion.is_ancestor_or_equal",
+                side_effect=lambda ancestor, descendant: (
+                    ancestor == "stale_base_sha" and descendant == "newer_origin_tip_sha"
+                ),
+            ),
+            patch(
+                "scripts.detect_scope_explosion.get_merge_base",
+                return_value="real_merge_base_sha",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.get_index_files_against_ref"
+            ) as mock_get_index_files,
+            patch(
+                "scripts.detect_scope_explosion.get_head_files_against_ref"
+            ) as mock_get_head_files,
+        ):
+            mock_get_index_files.side_effect = fake_index_files
+            result = detect_scope()
+            assert result is not None
+            assert result.file_count == 56
+            assert captured_index_args == ["stale_base_sha"]
+            mock_get_head_files.assert_not_called()
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")

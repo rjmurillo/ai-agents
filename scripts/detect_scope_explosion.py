@@ -109,6 +109,28 @@ def get_merge_head_commit() -> str | None:
     return get_ref_commit("MERGE_HEAD")
 
 
+def is_ancestor_or_equal(ancestor_ref: str, descendant_ref: str) -> bool:
+    """Return True when ancestor_ref is an ancestor of descendant_ref."""
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor_ref, descendant_ref],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        check=False,
+    )
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    raise ScopeDetectionError(
+        "git merge-base --is-ancestor "
+        f"{ancestor_ref} {descendant_ref} failed (rc={result.returncode}): "
+        f"{result.stderr.strip()}"
+    )
+
+
 def resolve_base_ref(base_branch: str) -> str | None:
     """Resolve the most accurate base ref for diff comparison.
 
@@ -238,17 +260,19 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         raise ScopeDetectionError(f"could not determine merge base with {base_branch}")
 
     if merge_head:
-        base_tip_shas: list[str] = []
-        for candidate_ref in (base_ref, base_branch):
-            candidate_sha = get_ref_commit(candidate_ref)
-            if candidate_sha and candidate_sha not in base_tip_shas:
-                base_tip_shas.append(candidate_sha)
+        remote_base_sha = get_ref_commit(base_ref)
+        local_base_sha = get_ref_commit(base_branch)
+        merge_head_matches_remote_lineage = remote_base_sha is not None and is_ancestor_or_equal(
+            merge_head, remote_base_sha
+        )
+        merge_head_matches_local_tip = local_base_sha is not None and merge_head == local_base_sha
 
-        if merge_head in base_tip_shas:
+        if merge_head_matches_remote_lineage or merge_head_matches_local_tip:
             # When MERGE_HEAD matches the actual tip of the base ref being
-            # merged, diff the final staged tree against that exact base-side
-            # commit. This keeps upstream merge files out of scope while still
-            # counting any new branch-local files staged after
+            # merged, or remains on the remote base lineage after the base has
+            # advanced, diff the final staged tree against that exact
+            # base-side commit. This keeps upstream merge files out of scope
+            # while still counting any new branch-local files staged after
             # `git merge --no-commit`, even when local `main` has advanced past
             # `origin/main`.
             files = sorted(set(get_index_files_against_ref(merge_head)))
