@@ -7,6 +7,7 @@ Related: Issue #944, PR #908 (95 files)
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -39,8 +40,10 @@ if TYPE_CHECKING:
 
 
 def _git(repo: Path, *argv: str) -> subprocess.CompletedProcess[str]:
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     return subprocess.run(
         ["git", "-C", str(repo), *argv],
+        env=env,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -94,7 +97,11 @@ def _make_merge_scope_repo(repo: Path) -> tuple[str, str]:
 
 
 def _run_main(repo: Path, monkeypatch: pytest.MonkeyPatch) -> int:
-    env = {k: v for k, v in os.environ.items() if k != "SKIP_SCOPE_CHECK"}
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key != "SKIP_SCOPE_CHECK" and not key.startswith("GIT_")
+    }
     monkeypatch.chdir(repo)
     with patch.dict(os.environ, env, clear=True), patch("sys.argv", ["detect_scope_explosion.py"]):
         return main()
@@ -634,6 +641,7 @@ class TestDetectScope:
             mock_get_index_files.assert_not_called()
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
 class TestMergeHeadRealGit:
     """Real-git coverage for merge scope counting."""
 
