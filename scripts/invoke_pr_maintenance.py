@@ -29,11 +29,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from scripts.github_core import (
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.github_core import (  # noqa: E402
     check_workflow_rate_limit,
     resolve_repo_params,
 )
-from scripts.pr_maintenance_rollup import (
+from scripts.pr_maintenance_rollup import (  # noqa: E402
     complete_status_check_rollups,
     fetch_status_context_page_with_gh,
     rollup_has_failing_checks,
