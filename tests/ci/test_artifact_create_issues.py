@@ -139,6 +139,22 @@ class TestRun:
             with patch("scripts.ci.artifact_create_issues._is_duplicate", return_value=None):
                 assert main() == EXIT_EXTERNAL
 
+    def test_create_launch_failure_main_returns_external(self) -> None:
+        findings = json.dumps(
+            [
+                {"title": "New Issue", "body": "b", "labels": [], "source": "s.md"},
+            ]
+        )
+        env = {"FINDINGS_JSON": findings}
+
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.artifact_create_issues._is_duplicate", return_value=False):
+                with patch(
+                    "scripts.ci.artifact_create_issues.subprocess.run",
+                    side_effect=OSError("gh not found"),
+                ):
+                    assert main() == EXIT_EXTERNAL
+
     def test_partial_create_failure_returns_external_after_attempting_all(self) -> None:
         findings = json.dumps(
             [

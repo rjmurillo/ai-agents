@@ -194,6 +194,23 @@ class TestRun:
             with patch("scripts.ci.spec_load_content.subprocess.run", return_value=failure):
                 assert main() == EXIT_EXTERNAL
 
+    def test_issue_lookup_launch_failure_main_returns_external(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_REFS": "",
+            "ISSUE_REFS": "42",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+        }
+
+        with patch.dict(os.environ, env):
+            with patch(
+                "scripts.ci.spec_load_content.subprocess.run",
+                side_effect=OSError("gh not found"),
+            ):
+                assert main() == EXIT_EXTERNAL
+
 
 class TestMain:
     def test_main_delegates(self) -> None:

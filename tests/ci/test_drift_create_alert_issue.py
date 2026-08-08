@@ -108,6 +108,21 @@ def test_gh_nonzero_exit_maps_to_exit_err(tmp_path: Path, monkeypatch: pytest.Mo
     assert rc == EXIT_EXTERNAL
 
 
+def test_gh_launch_failure_main_returns_external(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _make_template(tmp_path)
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    (tmp_path / "drift-details.md").write_text("- agent: foo", encoding="utf-8")
+
+    with patch(
+        "scripts.ci.drift_create_alert_issue.subprocess.run",
+        side_effect=OSError("gh not found"),
+    ):
+        assert main() == EXIT_EXTERNAL
+
+
 def test_template_substitution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     _make_template(tmp_path)

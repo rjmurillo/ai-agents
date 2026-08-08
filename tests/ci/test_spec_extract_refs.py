@@ -170,6 +170,39 @@ class TestRun:
             with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=failure):
                 assert main() == EXIT_EXTERNAL
 
+    def test_pr_lookup_launch_failure_main_returns_external(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "PR_TITLE_INPUT": "",
+            "PR_BODY_INPUT": "",
+            "PR_NUMBER": "7",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+        }
+
+        with patch.dict(os.environ, env):
+            with patch(
+                "scripts.ci.spec_extract_refs.subprocess.run",
+                side_effect=OSError("gh not found"),
+            ):
+                assert main() == EXIT_EXTERNAL
+
+    def test_scope_parser_launch_failure_main_returns_external(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "PR_TITLE_INPUT": "feat: Phase 2 of #100",
+            "PR_BODY_INPUT": "Fixes #10",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+        }
+
+        with patch.dict(os.environ, env):
+            with patch(
+                "scripts.ci.spec_extract_refs.subprocess.run",
+                side_effect=OSError("python not found"),
+            ):
+                assert main() == EXIT_EXTERNAL
 
 class TestMain:
     def test_main_delegates(self) -> None:
