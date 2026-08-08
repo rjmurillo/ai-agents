@@ -280,26 +280,6 @@ def _main_target(
     return set(bare_credit)
 
 
-def _assigned_main_stems(tree: ast.Module, aliases: dict[str, str]) -> set[str]:
-    """Stems whose module ``main`` is assigned to a bare local ``main`` name."""
-    bound: set[str] = set()
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Assign):
-            continue
-        if not any(isinstance(target, ast.Name) and target.id == "main" for target in node.targets):
-            continue
-        value = node.value
-        if (
-            isinstance(value, ast.Attribute)
-            and value.attr == "main"
-            and isinstance(value.value, ast.Name)
-        ):
-            stem = aliases.get(value.value.id)
-            if stem is not None:
-                bound.add(stem)
-    return bound
-
-
 def _invocation_stems(
     node: ast.Call,
     binding: _Bindings,

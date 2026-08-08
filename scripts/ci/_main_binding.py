@@ -23,7 +23,13 @@ import ast
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TypeIs
+from typing import TypeGuard
+
+_TRY_STAR = getattr(ast, "TryStar", None)
+_TRY_TYPES: tuple[type[ast.AST], ...] = (
+    (ast.Try,) if _TRY_STAR is None else (ast.Try, _TRY_STAR)
+)
+
 
 # ---------------------------------------------------------------------------
 # State types
@@ -447,9 +453,7 @@ def _loop_branches(
     return result
 
 
-def _try_branches(
-    node: ast.Try | ast.TryStar,
-) -> list[tuple[Sequence[ast.stmt], str]]:
+def _try_branches(node: ast.Try) -> list[tuple[Sequence[ast.stmt], str]]:
     result: list[tuple[Sequence[ast.stmt], str]] = [(node.body, "normal")]
     for h in node.handlers:
         result.append((h.body, "except_main" if h.name == "main" else "normal"))
@@ -463,8 +467,8 @@ def _try_branches(
 # ---------------------------------------------------------------------------
 
 
-def _is_try(node: ast.stmt) -> TypeIs[ast.Try | ast.TryStar]:
-    return isinstance(node, (ast.Try, ast.TryStar))
+def _is_try(node: ast.stmt) -> TypeGuard[ast.Try]:
+    return isinstance(node, _TRY_TYPES)
 
 
 def _target_binds_name(node: ast.expr, name: str) -> bool:
