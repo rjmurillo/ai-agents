@@ -52,6 +52,58 @@ SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.
 EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
 ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
 SESSION_PROTOCOL_PATH_RE = re.compile(r"(?:^|[\\/])SESSION-PROTOCOL\.md$", re.IGNORECASE)
+ALLOWED_REPO_ROOT_ENTRIES = frozenset(
+    {
+        ".PSScriptAnalyzerSettings.psd1",
+        ".actrc",
+        ".agents",
+        ".baseline",
+        ".claude-mem",
+        ".claude-plugin",
+        ".claude",
+        ".codeql",
+        ".coderabbit.yaml",
+        ".config",
+        ".diffray",
+        ".env.example",
+        ".factory",
+        ".forgetful",
+        ".gemini",
+        ".gitattributes",
+        ".github",
+        ".gitignore",
+        ".markdownlint-cli2.yaml",
+        ".mcp.json",
+        ".python-version",
+        ".qualityrc.json",
+        ".serena",
+        ".vscode",
+        ".worktreeinclude",
+        ".yamllint.yml",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "README.md",
+        "RELEASING.md",
+        "THIRD-PARTY-NOTICES.TXT",
+        "build",
+        "conftest.py",
+        "docs",
+        "evals",
+        "lefthook.yml",
+        "memory_enhancement",
+        "packages",
+        "pr_body.md",
+        "pyproject.toml",
+        "renovate.json",
+        "scripts",
+        "src",
+        "templates",
+        "tests",
+        "uv.lock",
+    }
+)
 # Composed rather than written out again: the two halves disagreed about
 # anchoring for as long as they were separate strings, and a path merely ending
 # in the protocol's filename read as the protocol itself.
@@ -1639,6 +1691,42 @@ def check_handoff(paths: Sequence[str], repo_root: Path) -> int:
     if ".agents/HANDOFF.md" not in normalized:
         return 0
     print("ERROR: .agents/HANDOFF.md is read-only", file=sys.stderr)
+    return 1
+
+
+def _repo_root_entry(path: str) -> str:
+    return PurePosixPath(path).parts[0]
+
+
+def check_root_hygiene(paths: Sequence[str], repo_root: Path) -> int:
+    if _merge_in_progress(repo_root):
+        return 0
+    violations: list[str] = []
+    for raw_path in paths:
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe staged path: {raw_path}", file=sys.stderr)
+            return 2
+        if _repo_root_entry(path) in ALLOWED_REPO_ROOT_ENTRIES:
+            continue
+        if _read_index_blob(repo_root, path) is None:
+            continue
+        violations.append(path)
+    if not violations:
+        return 0
+    print("ERROR: staged files contain disallowed repository-root entries:", file=sys.stderr)
+    for path in violations:
+        print(f"  {path}", file=sys.stderr)
+    print(
+        "Allow legitimate entries in "
+        "scripts/validation/git_hook_policy.py:ALLOWED_REPO_ROOT_ENTRIES.",
+        file=sys.stderr,
+    )
+    print(
+        "Move scratch output under .agents/scratch/, an ignored subdirectory, "
+        "or a workspace outside the repository.",
+        file=sys.stderr,
+    )
     return 1
 
 
@@ -6515,6 +6603,10 @@ def _handle_handoff(args: argparse.Namespace) -> int:
     return check_handoff(args.paths, _repo_root(args))
 
 
+def _handle_root_hygiene(args: argparse.Namespace) -> int:
+    return check_root_hygiene(args.paths, _repo_root(args))
+
+
 def _handle_session(args: argparse.Namespace) -> int:
     return check_sessions(args.paths, _repo_root(args))
 
@@ -6683,6 +6775,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(required=True)
     path_commands = (
         ("handoff", _handle_handoff),
+        ("root-hygiene", _handle_root_hygiene),
         ("session", _handle_session),
         ("staged-dashes", _handle_staged_dashes),
         ("staged-action-pins", _handle_staged_action_pins),
