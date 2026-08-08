@@ -114,7 +114,8 @@ independent anchors first. Both are cheap.
 
 ```bash
 git update-ref "refs/salvage/<nnn>-<branch-slug>" "$sha"   # once per tip
-git bundle create ~/src/scratch/tips.bundle --stdin        # feed it ref NAMES
+git for-each-ref --format="%(refname)" refs/salvage/ \
+  | git bundle create ~/src/scratch/tips.bundle --stdin
 git bundle verify ~/src/scratch/tips.bundle
 ```
 
