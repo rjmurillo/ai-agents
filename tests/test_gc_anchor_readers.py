@@ -225,6 +225,46 @@ class TestWalkFiles:
         root.symlink_to(tmp_path / "gone", target_is_directory=True)
         assert _gc_anchors.walk_files(root) is None
 
+    def test_a_dangling_symlink_among_the_entries_is_unknown_not_skipped(self, tmp_path):
+        """An entry that is neither a dir, a file, nor a dir symlink cannot be skipped.
+
+        Before, such an entry fell through every branch and vanished from the
+        walk while its siblings were returned as a complete anchor list. A
+        dangling symlink is the plain case: it could name a ref, so dropping it
+        is the silent all-clear this module exists to prevent.
+        """
+        root = tmp_path / "refs"
+        root.mkdir()
+        (root / "real").write_text(f"{'a' * 40}\n")
+        (root / "broken").symlink_to(tmp_path / "gone")
+        assert _gc_anchors.walk_files(root) is None
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="platform has no mkfifo")
+    def test_a_fifo_among_the_entries_is_unknown_not_skipped(self, tmp_path):
+        """A named pipe is neither a directory nor a regular file.
+
+        The walk cannot vouch for what it holds, and skipping it would report
+        the surviving siblings as the whole anchor list.
+        """
+        root = tmp_path / "refs"
+        root.mkdir()
+        (root / "real").write_text(f"{'a' * 40}\n")
+        os.mkfifo(root / "pipe")
+        assert _gc_anchors.walk_files(root) is None
+
+    def test_a_symlink_to_a_regular_file_is_still_collected(self, tmp_path):
+        """The refusal above must not reject an ordinary ref reached through a link.
+
+        ``worktree.useRelativePaths`` and ``git worktree repair`` both write
+        links, and a ref behind one still resolves through ``is_file``. Rejecting
+        it would turn every relative-link layout into an unreadable one.
+        """
+        root = tmp_path / "refs"
+        root.mkdir()
+        (tmp_path / "target").write_text(f"{'a' * 40}\n")
+        (root / "link").symlink_to(tmp_path / "target")
+        assert _gc_anchors.walk_files(root) == [root / "link"]
+
 
 class TestReflogsBeyondHead:
     """``reflog_oids`` reads every reflog the removal deletes, not just HEAD."""

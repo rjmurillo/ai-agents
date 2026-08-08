@@ -130,7 +130,16 @@ def walk_files(root: Path) -> list[Path] | None:
 
 
 def _route_entries(entries: list[os.DirEntry[str]], pending: list[Path], found: list[Path]) -> bool:
-    """Send each entry to the walk queue or the results. ``False`` if one is opaque."""
+    """Send each entry to the walk queue or the results. ``False`` if one is opaque.
+
+    An entry that is neither a directory, a regular file, nor a directory
+    symlink is opaque too: a dangling symlink, socket, FIFO, or device file
+    matches none of the ref shapes this walk understands, and letting it fall
+    through would drop it from the anchor list while still reporting that list
+    as complete. That is the silent all-clear the walk exists to prevent, so an
+    unrecognised entry refuses rather than being skipped. A symlink to a regular
+    file still resolves through ``is_file`` and is collected unchanged.
+    """
     for entry in entries:
         try:
             if entry.is_symlink() and entry.is_dir():
@@ -139,6 +148,8 @@ def _route_entries(entries: list[os.DirEntry[str]], pending: list[Path], found: 
                 pending.append(Path(entry.path))
             elif entry.is_file():
                 found.append(Path(entry.path))
+            else:
+                return False
         except OSError:
             return False
     return True
