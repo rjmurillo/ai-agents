@@ -25,10 +25,13 @@ try:
         copilot_auth_failed,
         copilot_auth_failure_headline,
         copilot_auth_rejected,
+        copilot_block_reason,
         copilot_rate_limited,
         copilot_run_blocked,
+        copilot_run_blocked_headline,
         copilot_transient_failure,
         copilot_transient_failure_headline,
+        copilot_transport_failure,
     )
 finally:
     sys.path[:] = _original_sys_path
@@ -238,13 +241,14 @@ def test_rate_limited_detects_secondary_rate_limit() -> None:
     assert copilot_rate_limited(result) is True
 
 
-def test_rate_limited_detects_vendor_hedge_sentence() -> None:
-    """The vendor's 'token may still be valid' line is itself a rate-limit signal."""
+def test_transport_failure_detects_vendor_hedge_sentence() -> None:
+    """The vendor hedge proves transport uncertainty, not a specific rate limit."""
     result = _completed(
         stderr="Your token may still be valid. Check your network connection and try again.",
         returncode=1,
     )
-    assert copilot_rate_limited(result) is True
+    assert copilot_transport_failure(result) is True
+    assert copilot_rate_limited(result) is False
 
 
 def test_rate_limited_false_on_healthy_run() -> None:
@@ -300,6 +304,116 @@ def test_run_blocked_false_for_unrelated_failure() -> None:
     assert copilot_run_blocked(result) is False
 
 
+def test_block_reason_classifies_each_operator_action() -> None:
+    primary_limit = _completed(
+        stderr=(
+            "API rate limit exceeded for user ID 12345.\n"
+            "Set the COPILOT_GITHUB_TOKEN environment variable."
+        ),
+        returncode=1,
+    )
+    secondary_limit = _completed(
+        stderr=(
+            "You have exceeded a secondary rate limit. Please wait a few minutes.\n"
+            "Failed to fetch PAT user login."
+        ),
+        returncode=1,
+    )
+    empty_token = _completed(
+        stderr="No authentication information found. Set COPILOT_GITHUB_TOKEN.",
+        returncode=1,
+    )
+    rejected_token = _completed(
+        stderr="Failed to fetch PAT user login (401): GitHub returned: Bad credentials",
+        returncode=1,
+    )
+    transport_failure = _completed(
+        stderr=(
+            "Failed to fetch PAT user login: connection reset by peer.\n"
+            "Set the COPILOT_GITHUB_TOKEN environment variable."
+        ),
+        returncode=1,
+    )
+
+    assert copilot_block_reason(primary_limit) == "rate_limit"
+    assert copilot_block_reason(secondary_limit) == "rate_limit"
+    assert copilot_block_reason(empty_token) == "auth_absent"
+    assert copilot_block_reason(rejected_token) == "auth_rejected"
+    assert copilot_block_reason(transport_failure) == "transport"
+
+
+def test_transport_failure_is_transient_not_auth() -> None:
+    result = _completed(
+        stderr=(
+            "Failed to fetch PAT user login: connection reset by peer.\n"
+            "To authenticate, set the COPILOT_GITHUB_TOKEN environment variable."
+        ),
+        returncode=1,
+    )
+
+    assert copilot_transport_failure(result) is True
+    assert copilot_transient_failure(result) is True
+    assert copilot_auth_absent(result) is False
+    assert copilot_auth_rejected(result) is False
+    assert copilot_auth_failed(result) is False
+    assert copilot_run_blocked(result) is True
+
+
+def test_block_reason_ignores_success_and_unclassified_failure() -> None:
+    successful_noise = _completed(
+        stderr="API rate limit exceeded. Failed to fetch PAT user login.",
+        returncode=0,
+    )
+    unrelated_failure = _completed(stderr="plugin manifest is malformed", returncode=1)
+
+    assert copilot_block_reason(successful_noise) is None
+    assert copilot_block_reason(unrelated_failure) is None
+
+
+def test_blocked_headline_separates_rate_limit_transport_and_auth_advice() -> None:
+    rate_limit = copilot_run_blocked_headline(
+        _completed(stderr="API rate limit exceeded for user ID 12345.", returncode=1)
+    ).lower()
+    transport = copilot_run_blocked_headline(
+        _completed(
+            stderr="Failed to fetch PAT user login: connection reset by peer.",
+            returncode=1,
+        )
+    ).lower()
+    empty = copilot_run_blocked_headline(
+        _completed(stderr="No authentication information found.", returncode=1)
+    ).lower()
+    rejected = copilot_run_blocked_headline(
+        _completed(stderr="GitHub returned: Bad credentials", returncode=1)
+    ).lower()
+
+    assert "rate limit" in rate_limit
+    assert "wait" in rate_limit
+    assert "provision" not in rate_limit
+    assert "rotate" not in rate_limit
+    assert "transport" in transport
+    assert "network" in transport
+    assert "provision" not in transport
+    assert "rotate" not in transport
+    assert "empty" in empty
+    assert "provision" in empty
+    assert "rejected" in rejected
+    assert "rotate" in rejected
+
+
+def test_blocked_headline_redacts_secrets_from_diagnostics() -> None:
+    secret = "ghp_" + "A" * 36
+    result = _completed(
+        stderr=f"Failed to fetch PAT user login: connection reset. token={secret}",
+        returncode=1,
+    )
+
+    headline = copilot_run_blocked_headline(result)
+
+    assert secret not in headline
+    assert "[redacted: github-token]" in headline
+
+
 # ---------------------------------------------------------------------------
 # Head+tail excerpt (issue #4504)
 # ---------------------------------------------------------------------------
@@ -315,12 +429,12 @@ def test_head_tail_excerpt_short_string_returns_repr() -> None:
 
 def test_head_tail_excerpt_long_string_shows_drop_count() -> None:
     """Long strings show how many chars were dropped in the middle."""
-    s = "A" * 100 + "B" * 100 + "C" * 100
+    s = "X" * 100 + "Y" * 100 + "Z" * 100
     result = _head_tail_excerpt(s, head=50, tail=50)
     assert "dropped" in result
     assert "200 chars dropped" in result
-    assert repr("A" * 50) in result
-    assert repr("C" * 50) in result
+    assert repr("X" * 50) in result
+    assert repr("Z" * 50) in result
 
 
 def test_head_tail_excerpt_none_is_empty_repr() -> None:
@@ -371,9 +485,11 @@ _RATE_LIMITED_STDERR = (
 )
 
 
-def test_transient_failure_detects_the_measured_rate_limited_run() -> None:
-    """The captured rate-limit stderr is classified as transient (issue #4504)."""
+def test_transient_failure_detects_the_measured_transport_uncertainty() -> None:
+    """The captured excerpt lacks a rate marker, so transport is the honest class."""
     assert copilot_transient_failure(_completed(stderr=_RATE_LIMITED_STDERR, returncode=1))
+    assert copilot_transport_failure(_completed(stderr=_RATE_LIMITED_STDERR, returncode=1))
+    assert not copilot_rate_limited(_completed(stderr=_RATE_LIMITED_STDERR, returncode=1))
 
 
 def test_rate_limited_run_is_not_an_auth_failure() -> None:
@@ -468,8 +584,8 @@ def test_transient_headline_names_the_cause_and_denies_an_auth_fault() -> None:
         _completed(stderr=_RATE_LIMITED_STDERR, returncode=1)
     )
     lowered = text.lower()
-    assert "transient" in lowered
-    assert "not an auth" in lowered
+    assert "transport" in lowered
+    assert "credential status is unknown" in lowered
     assert "rc=1" in lowered
     assert "provision" not in lowered
     assert "rotate" not in lowered
