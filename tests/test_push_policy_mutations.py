@@ -20,14 +20,33 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+import pytest
+
+from scripts.testing.mutation_workspace import isolated_mutation_worktree
+
 _REPO = Path(__file__).parent.parent
-_POLICY = _REPO / "scripts" / "validation" / "git_hook_policy.py"
-_TESTS = _REPO / "tests" / "test_lefthook_integration.py"
-_BACKUP = _REPO / "scripts" / "validation" / "git_hook_policy.py.mutation_backup"
+_POLICY_REL = Path("scripts") / "validation" / "git_hook_policy.py"
+_TESTS_REL = Path("tests") / "test_lefthook_integration.py"
+_POLICY = _REPO / _POLICY_REL
+_TESTS = _REPO / _TESTS_REL
+_BACKUP = _POLICY.with_suffix(".py.mutation_backup")
+
+
+@pytest.fixture(autouse=True)
+def mutation_repo(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Run each mutation test against a marked detached worktree."""
+    module = sys.modules[__name__]
+    with isolated_mutation_worktree(_REPO, [_POLICY_REL]) as workspace:
+        policy = workspace.root / _POLICY_REL
+        monkeypatch.setattr(module, "_REPO", workspace.root)
+        monkeypatch.setattr(module, "_POLICY", policy)
+        monkeypatch.setattr(module, "_TESTS", workspace.root / _TESTS_REL)
+        monkeypatch.setattr(module, "_BACKUP", policy.with_suffix(".py.mutation_backup"))
+        yield
 
 
 def _run_targeted(test_filter: str) -> subprocess.CompletedProcess[str]:

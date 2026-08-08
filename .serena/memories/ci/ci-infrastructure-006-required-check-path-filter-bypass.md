@@ -14,6 +14,34 @@
 
 **Command**: `gh workflow run pester-tests.yml --ref <branch-name>`
 
+## Direct-Input Filter Rule
+
+Issue #4408 exposed a second failure mode. A required check can report success
+without running tests when its internal filter omits non-code files that tests
+read directly.
+
+For a diff-scoped test workflow:
+
+1. Enumerate every tracked direct input from `HEAD`, not the working tree.
+2. Add each input root explicitly to the internal filter.
+3. Test every tracked file under each root against the pinned action's matcher.
+4. Keep an unrelated-file negative control so a broad glob cannot hide overreach.
+
+The `Run Python Tests` workflow needs all three rule and instruction roots:
+
+- `.claude/rules/**`
+- `.github/instructions/**`
+- `src/copilot-cli/instructions/**`
+
+A global Markdown glob is wrong because historical session logs do not affect
+pytest outcomes. The regression test belongs beside the workflow and must parse
+the workflow YAML rather than duplicate the filter in test data.
+
+Live validation for issue #4408 used push run
+<https://github.com/rjmurillo/ai-agents/actions/runs/31252274700>. The pushed
+range changed only `.claude/rules/claude-model-patches.md`. `Run Python Tests`
+collected 24,561 tests and finished with 24,525 passed and 36 skipped.
+
 **Related Skills**:
 - Skill-CI-Infrastructure-004 (label/check validation before deployment)
 - skills-dorny-paths-filter-checkout-requirement

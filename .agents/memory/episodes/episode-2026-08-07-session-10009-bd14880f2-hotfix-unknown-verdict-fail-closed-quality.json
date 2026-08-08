@@ -1,0 +1,66 @@
+{
+  "id": "episode-2026-08-07-session-10009-bd14880f2-hotfix-unknown-verdict-fail-closed-quality",
+  "session": "2026-08-07-session-10009-bd14880f2-hotfix-unknown-verdict-fail-closed-quality",
+  "timestamp": "2026-08-07T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Hotfix unknown verdict fail-closed quality gate",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-07T18:57:07+00:00",
+      "type": "commit",
+      "content": "Commit: 84c76708c",
+      "caused_by": [
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10009-bd14880f2-hotfix-unknown-verdict-fail-closed-quality"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Investigated the quality-gate downgrade path: it treated any final verdict in ATTENTION_VERDICTS (FAIL_VERDICTS | UNKNOWN | DID_NOT_RUN) as downgradeable to WARN whenever no non-infra CODE_QUALITY failure existed, without checking whether each individual infra-flagged verdict was actually an explicit infra-failure token.",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-07-session-10009-bd14880f2-hotfix-unknown-verdict-fail-closed-quality"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added is_blocking_unknown_verdict() and should_downgrade_infra_only_failures() to .github/scripts/aggregate_quality_verdicts.py, and replaced the blanket ATTENTION_VERDICTS downgrade check in main() with a per-agent verification that every failing verdict is an explicit member of DOWNGRADEABLE_INFRA_VERDICTS (FAIL_VERDICTS | DID_NOT_RUN) before allowing the WARN downgrade.",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-07-session-10009-bd14880f2-hotfix-unknown-verdict-fail-closed-quality"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added regression tests test_unknown_infra_failure_stays_blocking and test_unrecognized_verdict_token_stays_blocking to tests/test_aggregate_quality_verdicts.py, pinning that DID_NOT_RUN plus a literal UNKNOWN (or plus an unrecognized token like FOOBAR) on infra-flagged axes still resolves to final_verdict UNKNOWN rather than WARN.",
+      "caused_by": [],
+      "leads_to": [
+        "e001"
+      ],
+      "_source_session": "2026-08-07-session-10009-bd14880f2-hotfix-unknown-verdict-fail-closed-quality"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}

@@ -153,7 +153,7 @@ class TestMain:
         ) as mock_run:
             rc = main(["--label", "bug,P1"])
         assert rc == 0
-        cmd = mock_run.call_args[0][0]
+        cmd = mock_run.call_args_list[0][0][0]
         # Each label gets its own --label flag.
         assert cmd.count("--label") == 2
         assert "bug" in cmd and "P1" in cmd
@@ -169,7 +169,7 @@ class TestMain:
             return_value=_completed(stdout="[]", rc=0),
         ) as mock_run:
             main(["--assignee", "@me"])
-        cmd = mock_run.call_args[0][0]
+        cmd = mock_run.call_args_list[0][0][0]
         assert "--assignee" in cmd
         assert "@me" in cmd
 
@@ -186,7 +186,7 @@ class TestMain:
             return_value=_completed(stdout="[]", rc=0),
         ) as mock_run:
             main(["--state", "all"])
-        cmd = mock_run.call_args[0][0]
+        cmd = mock_run.call_args_list[0][0][0]
         assert "--state" in cmd
         assert "all" in cmd
 
@@ -358,10 +358,32 @@ class TestMain:
         ), patch(
             "subprocess.run",
             return_value=_completed(stdout="[]", rc=0),
-        ):
+        ) as mock_run:
             rc = main([])
         assert rc == 0
         assert json.loads(capsys.readouterr().out)["Data"]["issues"] == []
+        assert mock_run.call_args_list[1][0][0][:4] == ["gh", "api", "graphql", "-f"]
+
+    def test_unverified_empty_results_exit_3(self, capsys):
+        calls = [
+            _completed(stdout="[]", rc=0),
+            _completed(stderr="GraphQL: API rate limit exceeded for user ID 1", rc=1),
+        ]
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=calls,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+        assert exc.value.code == 3
+        error = json.loads(capsys.readouterr().out)["Error"]
+        assert error["Type"] == "ApiError"
+        assert "Could not verify empty issue list" in error["Message"]
 
     def test_invalid_limit_exits_2(self, capsys):
         with patch(
