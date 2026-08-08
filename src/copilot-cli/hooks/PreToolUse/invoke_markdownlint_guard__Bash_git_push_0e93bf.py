@@ -383,7 +383,6 @@ def _original_main(stdin_bytes):
         2 = Block (trusted verifier unavailable, failed, or reported violations)
     """
 
-    from __future__ import annotations
 
     import os
     import subprocess
