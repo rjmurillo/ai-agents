@@ -1,0 +1,341 @@
+{
+  "id": "episode-2026-08-07-session-10017-repair-4730-review-findings",
+  "session": "2026-08-07-session-10017-repair-4730-review-findings",
+  "timestamp": "2026-08-07T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair PR 4730 review findings",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-07T17:31:00+00:00",
+      "type": "milestone",
+      "content": "Refreshed issue #4416, PR #4730, all six unresolved threads, and linked issue and PR discussions. Added eyes reactions to all six review comments.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-07T17:40:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main into fix/memory-episode-cluster without rewriting history.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-07T17:43:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced all six findings: alias duplicates passed, malformed causal events returned no findings, one-sided causal edges passed, valid empty ranges fell back to prose, staged files beat the session range, and the timezone test used a zero offset.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-07T17:48:00+00:00",
+      "type": "milestone",
+      "content": "Added positive, negative, and edge regression coverage. The new tests failed 17 assertions before the fixes and passed afterward.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-07T17:53:00+00:00",
+      "type": "milestone",
+      "content": "Committed canonical path duplicate detection in d7a8d0e5c and range precedence plus causal validation in 426b93956. Regenerated the Copilot mirror.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-07T18:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated session 4672 episode from its commit range. metrics.files_changed now reports 9 and episode validation reports zero violations.",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-07T18:06:00+00:00",
+      "type": "milestone",
+      "content": "Full pytest collected 24169 tests and exited 0. Initial pre_pr detected origin/main advanced by one commit and the merge tree conflicted.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-07T18:09:00+00:00",
+      "type": "milestone",
+      "content": "Merged latest origin/main. Resolved memory-index conflict by preserving the PR consolidation and adding main decision-portability-ratchet-symlink-toctou entry. Conflict verifier and memory index validator passed.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-07T18:11:00+00:00",
+      "type": "milestone",
+      "content": "Post-merge affected tests passed 402 tests. Build, portability, ruff, mypy, merge-tree ratchets, pre_pr.py, and episode validation passed.",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-07T17:53:06+00:00",
+      "type": "commit",
+      "content": "Commit: d7a8d0e5c",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-07T17:53:21+00:00",
+      "type": "commit",
+      "content": "Commit: 426b93956",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-07T18:09:13+00:00",
+      "type": "commit",
+      "content": "Commit: 44ae03e18",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-07T18:27:00+00:00",
+      "type": "milestone",
+      "content": "Pushed dc0414f07 to the existing PR branch through the branch lock. Remote head matched and no history was rewritten.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-07T18:31:00+00:00",
+      "type": "milestone",
+      "content": "Replied to all six review threads with reproduction and commit evidence, resolved each thread after the fix was reachable, then waited 45 seconds and confirmed zero unresolved threads.",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-07T18:32:00+00:00",
+      "type": "milestone",
+      "content": "Corrected the PR description from Fixes #4705 to Refs #4705 because that issue retains separate base and head ratchet, fail-closed git read, CommonMark parsing, and symlink scope. Live validation returned no critical findings.",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-07T18:45:00+00:00",
+      "type": "milestone",
+      "content": "Required checks completed with no failures and GitHub reported mergeStateStatus CLEAN. Auto-merge was paused only to keep this final session-log commit inside PR 4730.",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-07T18:14:43+00:00",
+      "type": "commit",
+      "content": "Commit: dc0414f07",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-07T18:46:08+00:00",
+      "type": "commit",
+      "content": "Commit: 7de0746c3",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-07T20:05:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main through d516d7bbb without rewriting history. Affected tests passed 563 tests, and the final pre-push hook passed 24108 tests.",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-07T20:17:00+00:00",
+      "type": "milestone",
+      "content": "A late Copilot thread found that list and object event types raised TypeError before validation. Two regression cases reproduced the crash. Commit 60b78f3c3 validates the JSON type before set membership; the affected suite passed 565 tests.",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-07T20:17:51+00:00",
+      "type": "commit",
+      "content": "Commit: 60b78f3c3",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-07T20:18:23+00:00",
+      "type": "commit",
+      "content": "Commit: f8e29e5a6",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-07T21:15:00+00:00",
+      "type": "milestone",
+      "content": "Two late review threads found that three-dot range counting included files merged from main. A real repository test reproduced 3 counted files for 2 branch files, and preserve mode retained a stale count of 95 instead of 3.",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-07T21:35:00+00:00",
+      "type": "milestone",
+      "content": "Changed range counting to unique paths from non-merge commits on the ending commit first-parent path. Preserve mode now reapplies the measured source. The affected suite passed 567 tests, and this episode now reports 9 files instead of 86 with 22 events preserved.",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-07T21:37:49+00:00",
+      "type": "commit",
+      "content": "Commit: 05c5c9a2d",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10017-repair-4730-review-findings"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 244,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 8,
+    "files_changed": 9
+  },
+  "lessons": []
+}

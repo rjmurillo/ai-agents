@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10007,
+    "date": "2026-08-07",
+    "branch": "fix/worktree-walk-timeouts",
+    "startingCommit": "f0d881cfa664adcf27d65084efd079ab783d2a5d",
+    "objective": "Unblock a five-PR stack, and record the two measurement defects the session exposed: a push-receipt grep pattern that never matches, and a repo script that validates its own worktree when invoked by absolute path."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Serena MCP activate_project was not exposed in this harness session. Used the AGENTS.md documented fallback and read .serena/memories directly, including memory-index.md and the git domain memories."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Not callable without Serena MCP. Satisfied by the same documented fallback: read the memory index and the relevant domain memories directly before acting."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .agents/HANDOFF.md earlier in the session."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "This file. Created late, after session-policy blocked a commit that touched .agents without a staged session log."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "git rev-parse --abbrev-ref HEAD reported fix/worktree-walk-timeouts in worktree ~/src/scratch/wt-walk before every commit."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "All work on fix/worktree-walk-timeouts and docs/memory-script-root-wrong-tree."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Checked the session-log-fixer skill before hand-diagnosing the session validation failure; it does not cover the unreachable-endingCommit mode."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .serena/memories/usage-mandatory.md earlier in the session."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md earlier in the session."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .serena/memories/memory-index.md and the git domain memories on worktree and push behaviour."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Walked the session-end checklist before committing."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": ".agents/HANDOFF.md was not modified; git status shows no entry for it."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Added .serena/memories/git/git-a-script-run-by-absolute-path-validates-its-own-worktree.md on branch docs/memory-script-root-wrong-tree, indexed in memory-index.md in the same change, token counts recomputed by the worktree's own copy of scripts/update_memory_index_tokens.py."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "markdown-autofix and markdown-check ran in pre-commit. Both reported selecting 0 of 1 target because .agents/retrospective is excluded by .markdownlint-cli2.yaml, so this is a not-linted PASS rather than a clean PASS."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Commit 741763c22 repointed endingCommit; this commit adds the retrospective and this log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "scripts/validate_session_json.py passed on the repaired 2026-08-05-session-10005.json with a negative control reproducing CI's original complaint. git_hook_policy.py retrospective passed with a two-direction control: exit 0 with the retrospective present, exit 1 with it moved aside."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-07T03:15:00Z",
+      "entry": "Confirmed the Windows path-contract job passes on PR #4728 after 6c45185bf; gh pr checks reports zero failing checks."
+    },
+    {
+      "time": "2026-08-07T03:40:00Z",
+      "entry": "Proved the wrong-worktree script-root trap with a two-direction control. Planted a stale token count, then ran the main clone's update_memory_index_tokens.py by absolute path from a worktree (reported current, exit 0) and the worktree's own copy from the same cwd (reported stale, exit 1)."
+    },
+    {
+      "time": "2026-08-07T03:55:00Z",
+      "entry": "Wrote git-a-script-run-by-absolute-path-validates-its-own-worktree.md, indexed it, and caught an angle-bracket placeholder in my own shell fence, the same defect a prior memory warns about."
+    },
+    {
+      "time": "2026-08-07T04:00:00Z",
+      "entry": "Push of 741763c22 was refused by retrospective-policy. Investigating it exposed that my push-receipt grep pattern 'To github.com' matches 0 of 779 captured push logs, while the correct 'To (https://)?github.com' matches 313. Three pushes previously judged silent failures had in fact succeeded."
+    },
+    {
+      "time": "2026-08-07T04:05:00Z",
+      "entry": "Compared git rev-parse against git ls-remote for all five stack branches. Three in sync, one diverged by a documented gh pr update-branch, one genuinely unpushed. Wrote the retrospective on the measurement defect."
+    }
+  ],
+  "endingCommit": "741763c22d0db2de65f9f0c1dc67b775c3143a22",
+  "nextSteps": [
+    "Merge the stack bottom-up once green: #4694, #4718, #4728, then #4726 and #4732.",
+    "Read the Gemini adversarial review of the new script-root memory and apply any Critical or High findings.",
+    "Continue the worktree triage; docs/memory-rebase-after-push drops an exit 1 from a detached-HEAD guard that main has, so merging it would regress main."
+  ]
+}
