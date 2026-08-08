@@ -27,6 +27,11 @@ def _import_script(name: str):
 
 _mod = _import_script("add_comment_reaction")
 main = _mod.main
+_UNRESOLVED_STATE = {
+    "pull_request": 42,
+    "thread_id": "PRRT_abc",
+    "is_resolved": False,
+}
 
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
@@ -41,7 +46,12 @@ def test_single_reaction(mock_run, capsys):
         _completed(rc=0, stdout="{}"),  # add reaction
     ]
 
-    rc = main(["--comment-id", "123", "--reaction", "eyes"])
+    with patch.object(
+        _mod,
+        "query_review_comment_thread_state",
+        return_value=_UNRESOLVED_STATE,
+    ):
+        rc = main(["--comment-id", "123", "--reaction", "eyes"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
     assert output["Data"]["succeeded"] == 1
@@ -58,7 +68,12 @@ def test_batch_reactions(mock_run, capsys):
         _completed(rc=0, stdout="{}"),  # third
     ]
 
-    rc = main(["--comment-id", "1", "2", "3", "--reaction", "+1"])
+    with patch.object(
+        _mod,
+        "query_review_comment_thread_state",
+        return_value=_UNRESOLVED_STATE,
+    ):
+        rc = main(["--comment-id", "1", "2", "3", "--reaction", "+1"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
     assert output["Data"]["total_count"] == 3
@@ -74,7 +89,12 @@ def test_partial_failure(mock_run, capsys):
         _completed(rc=1, stderr="error"),
     ]
 
-    rc = main(["--comment-id", "1", "2", "--reaction", "heart"])
+    with patch.object(
+        _mod,
+        "query_review_comment_thread_state",
+        return_value=_UNRESOLVED_STATE,
+    ):
+        rc = main(["--comment-id", "1", "2", "--reaction", "heart"])
     assert rc == 3
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
@@ -92,7 +112,12 @@ def test_mixed_timeout_and_api_failure_reports_api_error(mock_run, capsys):
         _completed(rc=1, stderr="server error"),
     ]
 
-    rc = main(["--comment-id", "1", "2", "--reaction", "heart"])
+    with patch.object(
+        _mod,
+        "query_review_comment_thread_state",
+        return_value=_UNRESOLVED_STATE,
+    ):
+        rc = main(["--comment-id", "1", "2", "--reaction", "heart"])
 
     assert rc == 3
     output = json.loads(capsys.readouterr().out)
