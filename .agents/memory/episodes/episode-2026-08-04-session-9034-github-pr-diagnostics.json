@@ -1,0 +1,114 @@
+{
+  "id": "episode-2026-08-04-session-9034-github-pr-diagnostics",
+  "session": "2026-08-04-session-9034-github-pr-diagnostics",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix #4359 (missing required checks), #4393 (why_pr_blocked), #4462 (closing-claim auditor, safe PR body editor), #4490 (merge REST quota)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix #4359: detect missing required checks in get_pr_checks.py",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9034-github-pr-diagnostics"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix #4490: tolerate REST quota in merge_pr.py",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9034-github-pr-diagnostics"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix #4393: add why_pr_blocked.py diagnostic",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9034-github-pr-diagnostics"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix #4462: add audit_closing_claims.py and edit_pr_body.py",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9034-github-pr-diagnostics"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Write 52 tests in test_github_pr_diagnostics.py",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9034-github-pr-diagnostics"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/test_github_pr_diagnostics.py: 52 passed",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9034-github-pr-diagnostics"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix ruff count ratchet: remove unused noqa directives from authored files",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-04-session-9034-github-pr-diagnostics"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-04T06:24:53+00:00",
+      "type": "commit",
+      "content": "Commit: 9c563dab1d10aba66c8b6f255e0c092df8ae8aef",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-9034-github-pr-diagnostics"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 10
+  },
+  "lessons": []
+}

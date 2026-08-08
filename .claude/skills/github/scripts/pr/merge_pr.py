@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, CLI script keeps merge orchestration and output contract together.
+# taste-lint: ignore complexity, CLI script keeps merge orchestration and output contract together.
 """Merge a GitHub Pull Request.
 
 Merges a PR using the specified strategy. Supports auto-merge
@@ -130,6 +132,16 @@ def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
         raise ValueError(f"Failed to decode JSON from GitHub API response: {e}") from e
 
 
+def _is_rest_quota_error(exc: Exception) -> bool:
+    """Return True when a REST settings lookup failed because quota is exhausted."""
+    message = str(exc).lower()
+    return (
+        "x-ratelimit-remaining: 0" in message
+        or "api rate limit exceeded" in message
+        or "rate limit" in message
+    )
+
+
 def resolve_default_strategy(repo_settings: dict[str, bool]) -> str | None:
     """Pick a sensible default strategy from the repo's allowed methods.
 
@@ -146,7 +158,7 @@ def resolve_default_strategy(repo_settings: dict[str, bool]) -> str | None:
 
 def validate_strategy(
     strategy: str,
-    repo_settings: dict[str, bool],
+    repo_settings: dict[str, bool] | None,
     repo_flag: str,
     output_format: str,
 ) -> None:
@@ -155,7 +167,13 @@ def validate_strategy(
     Regression guard for issue #2449: before this change, validation
     called error_and_exit which wrote plain text to stderr and produced
     no stdout, breaking consumers that piped to json.loads.
+
+    When repo_settings is None (REST quota exhausted with explicit strategy),
+    skip validation; GitHub will reject a disallowed method at merge time and
+    _handle_merge_failure surfaces that as a structured error.
     """
+    if repo_settings is None:
+        return
     field = _STRATEGY_TO_REPO_FIELD.get(strategy)
     if field and repo_settings.get(field, False):
         return
@@ -368,9 +386,17 @@ def main(argv: list[str] | None = None) -> int:
     pr = args.pull_request
     repo_flag = f"{owner}/{repo}"
 
-    repo_settings = get_allowed_merge_methods(repo_flag)
-
+    # Issue #4490: REST core quota is distinct from GraphQL quota and can be
+    # exhausted by other callers. If the caller gives an explicit strategy, a
+    # quota failure may skip preflight validation because the merge endpoint
+    # still rejects a bad strategy. Other REST failures stay fatal.
     if args.strategy is None:
+        # No explicit strategy: must fetch repo settings to auto-pick one.
+        # Wrap REST failures in a structured envelope so consumers can parse.
+        try:
+            repo_settings = get_allowed_merge_methods(repo_flag)
+        except (RuntimeError, ValueError) as exc:
+            _emit_error(str(exc), 3, "ApiError", output_format, pr)
         chosen = resolve_default_strategy(repo_settings)
         if chosen is None:
             _emit_error(
@@ -381,6 +407,20 @@ def main(argv: list[str] | None = None) -> int:
                 pr,
             )
         args.strategy = chosen
+    else:
+        # Explicit strategy: attempt REST preflight for validation, but if the
+        # REST core quota is exhausted (distinct from GraphQL quota), skip the
+        # preflight and let GitHub's merge endpoint reject the strategy itself.
+        # Issue #4490: unconditional REST calls were exhausting quota for fleets
+        # that always pass --strategy explicitly.
+        try:
+            repo_settings = get_allowed_merge_methods(repo_flag)
+        except RuntimeError as exc:
+            if not _is_rest_quota_error(exc):
+                _emit_error(str(exc), 3, "ApiError", output_format, pr)
+            repo_settings = None
+        except ValueError as exc:
+            _emit_error(str(exc), 3, "ApiError", output_format, pr)
 
     validate_strategy(args.strategy, repo_settings, repo_flag, output_format)
 
