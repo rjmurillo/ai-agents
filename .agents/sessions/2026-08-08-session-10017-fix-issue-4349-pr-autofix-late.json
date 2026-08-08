@@ -89,12 +89,12 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No markdown files changed"
+        "Evidence": "pre_pr.py --markdown-lint-only passed for 2 selected Markdown files: .claude/commands/pr-autofix.md and src/copilot-cli/skills/pr-autofix/SKILL.md"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation commits b6d60e922, 43908b2d0, and 8c634453d"
+        "Evidence": "Implementation commits b6d60e922, 43908b2d0, 8c634453d, d97f1141d, c9dbfe1a7, and 5bbda22c0"
       },
       "validationPassed": {
         "level": "MUST",
@@ -170,11 +170,27 @@
     {
       "action": "Re-ran race and pr-autofix validation",
       "outcome": "48 focused tests and 311 broader pr-autofix tests passed after the identity-drift fix; mypy and ruff passed"
+    },
+    {
+      "action": "Bound late mutations to readiness identity",
+      "outcome": "Every late guard now compares the current head SHA, base ref, and base SHA with values captured by the same readiness cycle; changed identity returns SKIP while unchanged probe failures remain fail-open ACT"
+    },
+    {
+      "action": "Made lease release causal",
+      "outcome": "Each claim now has an immutable random ID; release tombstones match owner, session, base SHA, claim ID, and verified author, so delayed releases cannot clear newer or foreign claims"
+    },
+    {
+      "action": "Closed independent review findings",
+      "outcome": "Three review rounds found stale tombstone interleavings and an unbound fail-open harness; exact claim identity and populated expected identity resolved them, and the final independent review returned APPROVE"
+    },
+    {
+      "action": "Ran final validation",
+      "outcome": "445 broader pr-autofix tests passed with 1 expected skip; 114 final lease tests passed; ruff, Markdown lint for 2 files, generated artifact parity, diff check, and full pre_pr.py passed"
     }
   ],
-  "endingCommit": "8c634453d",
+  "endingCommit": "5bbda22c0",
   "nextSteps": [
-    "Push the identity-drift review fix, reply to and resolve all three threads",
+    "Push the readiness identity and causal lease commits, reply to and resolve all reachable threads",
     "Retain auto-merge and drive PR #4769 to merge"
   ]
 }
