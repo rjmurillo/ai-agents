@@ -20,9 +20,9 @@ scripts:
     wait_for_settled_zero: "python3 .claude/skills/github/scripts/pr/wait_for_unresolved_zero.py --pull-request {number}"
     get_unaddressed_comments: "python3 .claude/skills/github/scripts/pr/get_unaddressed_comments.py --pull-request {number}"
     get_pr_checks: "python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {number}"
-    add_thread_reply: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request {number} --thread-id {thread_id} --body {body}"
-    add_thread_reply_resolve: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request {number} --thread-id {thread_id} --body {body} --resolve"
-    resolve_thread: "python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --expected-pull-request {number} --thread-id {thread_id}"
+    add_thread_reply: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --thread-id {thread_id} --body {body}"
+    add_thread_reply_resolve: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --thread-id {thread_id} --body {body} --resolve"
+    resolve_thread: "python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --thread-id {thread_id}"
   copilot:
     get_pr_context: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}"
     test_pr_merged: "pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}"

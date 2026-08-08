@@ -143,6 +143,44 @@ def test_subdirectories_skipped(tmp_path: Path) -> None:
     assert not (tmp_path / "out_skills" / "nested" / "SKILL.md").exists()
 
 
+def test_command_resources_copy_to_configured_output_dir(tmp_path: Path) -> None:
+    """A command resource needed at runtime should ship with the plugin."""
+    _write_command(tmp_path / "cmds", "pr-review", body="Review PRs.\n")
+    resource = tmp_path / "cmds" / "pr-review-config.yaml"
+    resource.write_text("completion_criteria: []\n", encoding="utf-8")
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  commands:
+    sourceDir: "cmds"
+    outputDir: "out_skills"
+    resourceOutputDir: "out_commands"
+    resourceSuffixes: [".yaml"]
+    transform: "command-to-skill"
+    appendFrontmatter:
+      user-invocable: true
+""",
+        encoding="utf-8",
+    )
+
+    rc = generate_commands.generate_commands(cfg, tmp_path)
+
+    assert rc == 0
+    copied = tmp_path / "out_commands" / "pr-review-config.yaml"
+    assert copied.read_text(encoding="utf-8") == "completion_criteria: []\n"
+
+
+def test_committed_pr_review_config_mirror_matches_claude_config() -> None:
+    source = REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
+    mirror = REPO_ROOT / "src" / "copilot-cli" / "commands" / "pr-review-config.yaml"
+
+    assert mirror.is_file()
+    assert mirror.read_bytes() == source.read_bytes()
+
+
 # Collision detection --------------------------------------------------------
 
 
