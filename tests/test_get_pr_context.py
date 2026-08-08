@@ -49,6 +49,30 @@ main = _mod.main
 build_parser = _mod.build_parser
 
 
+def _review_threads_response(**overrides):
+    review_threads = {
+        "totalCount": 0,
+        "pageInfo": {"hasNextPage": False, "endCursor": None},
+        "nodes": [],
+    }
+    review_threads.update(overrides)
+    return {"repository": {"pullRequest": {"reviewThreads": review_threads}}}
+
+
+def _thread(thread_id: int, is_resolved: bool) -> dict[str, object]:
+    return {"id": f"PRRT_{thread_id}", "isResolved": is_resolved}
+
+
+def _threads(count: int, *, start: int = 1) -> list[dict[str, object]]:
+    return [_thread(thread_id, True) for thread_id in range(start, start + count)]
+
+
+@pytest.fixture(autouse=True)
+def _mock_review_threads():
+    with patch("get_pr_context.gh_graphql", return_value=_review_threads_response()):
+        yield
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -84,6 +108,19 @@ def _pr_data(**overrides):
         "deletions": 5,
         "changedFiles": 2,
         "mergeable": "MERGEABLE",
+        "statusCheckRollup": [
+            {
+                "__typename": "CheckRun",
+                "name": "tests",
+                "status": "COMPLETED",
+                "conclusion": "SUCCESS",
+            },
+            {
+                "__typename": "StatusContext",
+                "context": "legacy-check",
+                "state": "SUCCESS",
+            },
+        ],
         "mergedAt": None,
         "mergedBy": None,
         "createdAt": "2025-01-01T00:00:00Z",
@@ -186,6 +223,291 @@ class TestMainErrors:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
 
+    def test_missing_status_check_rollup_exits_3(self):
+        """Missing check rollup is an API failure, not an empty result."""
+        pr = json.loads(_pr_json())
+        pr.pop("statusCheckRollup")
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(pr), rc=0),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+
+    def test_object_status_check_rollup_exits_3(self):
+        """The helper rejects the GraphQL connection shape gh does not return."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(
+                    stdout=_pr_json(statusCheckRollup={"contexts": {"nodes": []}}),
+                    rc=0,
+                ),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+
+    def test_malformed_status_check_exits_3(self):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(
+                    stdout=_pr_json(statusCheckRollup=[{"__typename": "CheckRun"}]),
+                    rc=0,
+                ),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+
+    def test_non_object_pr_response_exits_3(self):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout="[]", rc=0),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+
+    def test_review_threads_fetch_failure_exits_3(self):
+        """GraphQL review-thread failure is not reported as zero threads."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch("get_pr_context.gh_graphql", side_effect=RuntimeError("rate limit")),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+
+    def test_review_threads_timeout_exits_3(self):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch(
+                "get_pr_context.gh_graphql",
+                side_effect=subprocess.TimeoutExpired("gh", 30),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+
+    def test_review_threads_missing_cursor_exits_3(self):
+        """A paginated response cannot silently stop without a cursor."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        response = _review_threads_response(
+            totalCount=101,
+            pageInfo={"hasNextPage": True, "endCursor": None},
+            nodes=_threads(100),
+        )
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch("get_pr_context.gh_graphql", return_value=response),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+
+    def test_review_threads_invalid_node_exits_3(self):
+        """A missing isResolved value cannot become a false zero."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        response = _review_threads_response(totalCount=1, nodes=[{}])
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch("get_pr_context.gh_graphql", return_value=response),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+
+    @pytest.mark.parametrize(
+        ("response", "expected_code"),
+        [
+            ([], 3),
+            ({}, 3),
+            ({"repository": {"pullRequest": None}}, 2),
+            ({"repository": {"pullRequest": []}}, 3),
+            ({"repository": {"pullRequest": {}}}, 3),
+        ],
+    )
+    def test_review_threads_reject_structural_failures(
+        self,
+        response,
+        expected_code,
+    ):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch("get_pr_context.gh_graphql", return_value=response),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == expected_code
+
+
+    def test_review_threads_invalid_page_metadata_exits_3(self):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        response = _review_threads_response(totalCount=-1)
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch("get_pr_context.gh_graphql", return_value=response),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+
+    def test_review_threads_changed_total_exits_3(self):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        first_page = _review_threads_response(
+            totalCount=2,
+            pageInfo={"hasNextPage": True, "endCursor": "cursor-1"},
+            nodes=[_thread(1, True)],
+        )
+        second_page = _review_threads_response(
+            totalCount=3,
+            nodes=[_thread(2, False)],
+        )
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch(
+                "get_pr_context.gh_graphql",
+                side_effect=[first_page, second_page],
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+
+    def test_review_threads_page_limit_exits_3(self):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        response = _review_threads_response(
+            totalCount=2,
+            pageInfo={"hasNextPage": True, "endCursor": "cursor-1"},
+            nodes=[_thread(1, True)],
+        )
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch("get_pr_context.gh_graphql", return_value=response),
+            patch("get_pr_context._MAX_REVIEW_THREAD_PAGES", 1),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+
+    def test_review_threads_repeated_cursor_exits_3(self):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        first_page = _review_threads_response(
+            totalCount=3,
+            pageInfo={"hasNextPage": True, "endCursor": "cursor-1"},
+            nodes=[_thread(1, True)],
+        )
+        second_page = _review_threads_response(
+            totalCount=3,
+            pageInfo={"hasNextPage": True, "endCursor": "cursor-1"},
+            nodes=[_thread(2, True)],
+        )
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch(
+                "get_pr_context.gh_graphql",
+                side_effect=[first_page, second_page],
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+
+    def test_review_threads_duplicate_thread_exits_3(self):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        first_page = _review_threads_response(
+            totalCount=2,
+            pageInfo={"hasNextPage": True, "endCursor": "cursor-1"},
+            nodes=[_thread(1, True)],
+        )
+        second_page = _review_threads_response(
+            totalCount=2,
+            nodes=[_thread(1, False)],
+        )
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch(
+                "get_pr_context.gh_graphql",
+                side_effect=[first_page, second_page],
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+    def test_review_threads_duplicate_thread_in_page_exits_3(self):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        response = _review_threads_response(
+            totalCount=2,
+            nodes=[_thread(1, True), _thread(1, False)],
+        )
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch("get_pr_context.gh_graphql", return_value=response),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
     def test_api_failure_uses_stdout_when_stderr_empty(self):
         """When stderr is empty, error message falls back to stdout."""
         auth_patch, repo_patch = _patch_auth_and_repo()
@@ -238,6 +560,12 @@ class TestMainSuccess:
         assert isinstance(data["changed_files"], int)
         assert data["changed_files"] == 2
         assert data["mergeable"] == "MERGEABLE"
+        assert len(data["status_checks"]) == 2
+        assert data["status_check_total_count"] == 2
+        assert data["review_thread_total_count"] == 0
+        assert data["review_thread_returned_count"] == 0
+        assert data["review_thread_unresolved_count"] == 0
+        assert data["review_thread_counts_complete"] is True
         assert isinstance(data["merged"], bool)
         assert data["merged"] is False
         assert data["merged_by"] is None
@@ -674,6 +1002,117 @@ class TestExtendedMetadata:
         assert rc == 0
         out = json.loads(capsys.readouterr().out)
         assert out["Data"]["review_counts"] == {"APPROVED": 2, "CHANGES_REQUESTED": 1}
+
+    def test_review_threads_count_unresolved(self, capsys):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        threads = [
+            {"id": "PRRT_1", "isResolved": False},
+            {"id": "PRRT_2", "isResolved": True},
+        ]
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch(
+                "get_pr_context.gh_graphql",
+                return_value=_review_threads_response(totalCount=2, nodes=threads),
+            ),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        data = out["Data"]
+        assert data["review_thread_total_count"] == 2
+        assert data["review_thread_returned_count"] == 2
+        assert data["review_thread_unresolved_count"] == 1
+        assert data["review_thread_counts_complete"] is True
+
+
+    def test_review_threads_paginates_past_first_hundred(self, capsys):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        first_page = _review_threads_response(
+            totalCount=101,
+            pageInfo={"hasNextPage": True, "endCursor": "cursor-100"},
+            nodes=_threads(100),
+        )
+        second_page = _review_threads_response(
+            totalCount=101,
+            nodes=[_thread(101, False)],
+        )
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch(
+                "get_pr_context.gh_graphql",
+                side_effect=[first_page, second_page],
+            ) as graphql,
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        data = out["Data"]
+        assert data["review_thread_total_count"] == 101
+        assert data["review_thread_returned_count"] == 101
+        assert data["review_thread_unresolved_count"] == 1
+        assert data["review_thread_counts_complete"] is True
+        assert "cursor" not in graphql.call_args_list[0].args[1]
+        assert graphql.call_args_list[1].args[1]["cursor"] == "cursor-100"
+
+
+    def test_review_thread_count_reports_hidden_nodes(self, capsys):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        response = _review_threads_response(
+            totalCount=2,
+            nodes=[_thread(1, False)],
+        )
+        with (
+            auth_patch,
+            repo_patch,
+            patch("subprocess.run", return_value=_completed(stdout=_pr_json(), rc=0)),
+            patch("get_pr_context.gh_graphql", return_value=response),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        data = out["Data"]
+        assert data["review_thread_total_count"] == 2
+        assert data["review_thread_returned_count"] == 1
+        assert data["review_thread_unresolved_count"] == 1
+        assert data["review_thread_counts_complete"] is False
+
+
+    def test_empty_status_checks_are_authoritative(self, capsys):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_pr_json(statusCheckRollup=[]), rc=0),
+            ),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Data"]["status_checks"] == []
+        assert out["Data"]["status_check_total_count"] == 0
+
+    def test_null_status_checks_are_authoritative(self, capsys):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_pr_json(statusCheckRollup=None), rc=0),
+            ),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Data"]["status_checks"] == []
+        assert out["Data"]["status_check_total_count"] == 0
 
     def test_missing_new_fields_handled_gracefully(self, capsys):
         """API response lacking new fields should not crash."""
