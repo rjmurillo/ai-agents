@@ -1,4 +1,4 @@
-# taste-lint: ignore file-size, one shared harness proves canonical and generated workflows remain behaviorally identical.
+# taste-lint: ignore file-size, shared harness checks both generated workflows.
 """Regression tests for the late pr-autofix live-state gate.
 
 Issue #4349 reproduced twice when a PR merged after review work but before a
