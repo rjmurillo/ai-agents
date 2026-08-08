@@ -46,8 +46,9 @@ def test_single_reaction(mock_run, capsys):
         _completed(rc=0, stdout="{}"),  # add reaction
     ]
 
-    with patch(
-        "add_comment_reaction.query_review_comment_thread_state",
+    with patch.object(
+        _mod,
+        "query_review_comment_thread_state",
         return_value=_UNRESOLVED_STATE,
     ):
         rc = main(["--comment-id", "123", "--reaction", "eyes"])
@@ -67,8 +68,9 @@ def test_batch_reactions(mock_run, capsys):
         _completed(rc=0, stdout="{}"),  # third
     ]
 
-    with patch(
-        "add_comment_reaction.query_review_comment_thread_state",
+    with patch.object(
+        _mod,
+        "query_review_comment_thread_state",
         return_value=_UNRESOLVED_STATE,
     ):
         rc = main(["--comment-id", "1", "2", "3", "--reaction", "+1"])
@@ -87,8 +89,9 @@ def test_partial_failure(mock_run, capsys):
         _completed(rc=1, stderr="error"),
     ]
 
-    with patch(
-        "add_comment_reaction.query_review_comment_thread_state",
+    with patch.object(
+        _mod,
+        "query_review_comment_thread_state",
         return_value=_UNRESOLVED_STATE,
     ):
         rc = main(["--comment-id", "1", "2", "--reaction", "heart"])
@@ -109,8 +112,9 @@ def test_mixed_timeout_and_api_failure_reports_api_error(mock_run, capsys):
         _completed(rc=1, stderr="server error"),
     ]
 
-    with patch(
-        "add_comment_reaction.query_review_comment_thread_state",
+    with patch.object(
+        _mod,
+        "query_review_comment_thread_state",
         return_value=_UNRESOLVED_STATE,
     ):
         rc = main(["--comment-id", "1", "2", "--reaction", "heart"])
