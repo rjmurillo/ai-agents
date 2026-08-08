@@ -54,7 +54,7 @@ import os
 import subprocess
 import sys
 import time
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +158,9 @@ query($owner: String!, $repo: String!, $number: Int!) {
             isDraft
             closed
             headRefName
+            headRefOid
             baseRefName
+            baseRefOid
         }
     }
 }"""
@@ -167,6 +169,91 @@ query($owner: String!, $repo: String!, $number: Int!) {
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _query_live_pr(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    output_format: str,
+    op_start: float,
+) -> dict[str, Any]:
+    """Query the current PR state or exit with the public error contract."""
+    try:
+        data = gh_graphql(
+            _LIVE_STATE_QUERY,
+            {"owner": owner, "repo": repo, "number": pr_number},
+        )
+    except RuntimeError as exc:
+        msg = str(exc)
+        duration_ms = int((time.monotonic() - op_start) * 1000)
+        if "Could not resolve" in msg:
+            logger.warning(
+                "op=live_state_failed pr=%d owner=%s repo=%s "
+                "reason=pr_not_found duration_ms=%d",
+                pr_number, owner, repo, duration_ms,
+            )
+            _emit_error(
+                f"PR #{pr_number} not found in {owner}/{repo}",
+                2,
+                "NotFound",
+                output_format,
+                pr_number,
+                owner,
+                repo,
+            )
+        logger.warning(
+            "op=live_state_failed pr=%d owner=%s repo=%s "
+            "reason=graphql_error duration_ms=%d error=%s",
+            pr_number, owner, repo, duration_ms, safe_log_str(msg),
+        )
+        _emit_error(
+            f"Failed to query PR live state: {msg}",
+            3,
+            "ApiError",
+            output_format,
+            pr_number,
+            owner,
+            repo,
+        )
+
+    pr = (data.get("repository") or {}).get("pullRequest")
+    if pr is None:
+        duration_ms = int((time.monotonic() - op_start) * 1000)
+        logger.warning(
+            "op=live_state_failed pr=%d owner=%s repo=%s "
+            "reason=pr_not_found duration_ms=%d",
+            pr_number, owner, repo, duration_ms,
+        )
+        _emit_error(
+            f"PR #{pr_number} not found in {owner}/{repo}",
+            2,
+            "NotFound",
+            output_format,
+            pr_number,
+            owner,
+            repo,
+        )
+    return cast(dict[str, Any], pr)
+
+
+def _identity_mismatches(
+    pr: dict[str, Any],
+    expected_head_sha: str,
+    expected_base_ref: str,
+    expected_base_sha: str,
+) -> list[str]:
+    """Return readiness identity fields that differ from current PR state."""
+    comparisons = (
+        ("head SHA", expected_head_sha, pr.get("headRefOid")),
+        ("base ref", expected_base_ref, pr.get("baseRefName")),
+        ("base SHA", expected_base_sha, pr.get("baseRefOid")),
+    )
+    return [
+        label
+        for label, expected, actual in comparisons
+        if expected and expected != actual
+    ]
 
 
 def parse_git_cherry(stdout: str) -> dict[str, Any]:
@@ -210,9 +297,10 @@ def parse_git_cherry(stdout: str) -> dict[str, Any]:
 def _probe_inconclusive(**extra: bool) -> dict[str, Any]:
     """Return an inconclusive-probe verdict (never a false supersession).
 
-    ``git_cherry_failed=True`` and ``probe_inconclusive=True`` tell the
-    caller the supersession check did not run to a trustworthy answer, so
-    it must not be read as a positive "not superseded" signal.
+    ``probe_inconclusive=True`` tells the caller the supersession check did
+    not produce a trustworthy answer. ``git_cherry_failed`` defaults to true
+    for the existing git failure paths and can be overridden when a later
+    live-state change invalidates an otherwise successful probe.
     """
     verdict = {
         "pr_commits": 0,
@@ -349,6 +437,10 @@ def classify_live_state(pr: dict[str, Any], supersession: dict[str, Any] | None)
       - isDraft=True: drafts are not actionable in pr-autofix (the
         triage protocol classifies them as non-mergeable; acting on
         them risks pushing to a workspace the author still owns).
+      - live_state_changed=True: the head or base moved while this check
+        ran, so earlier readiness evidence no longer covers the PR.
+      - expected_identity_changed=True: the current head or base differs
+        from the identity captured by the caller's readiness gate.
       - fully_superseded=True: every commit on the branch is already on
         the base via patch-id. Merging is a no-op or a conflict.
 
@@ -365,6 +457,22 @@ def classify_live_state(pr: dict[str, Any], supersession: dict[str, Any] | None)
     if pr.get("isDraft") is True:
         return {"action": "SKIP", "reason": "PR is in draft state"}
 
+    if supersession and supersession.get("live_state_changed"):
+        return {
+            "action": "SKIP",
+            "reason": (
+                "PR head or base changed during the live-state check; "
+                "rerun readiness gates before mutation"
+            ),
+        }
+    if supersession and supersession.get("expected_identity_changed"):
+        return {
+            "action": "SKIP",
+            "reason": (
+                "PR identity changed since the readiness gate; "
+                "rerun readiness gates before mutation"
+            ),
+        }
     if supersession and supersession.get("fully_superseded"):
         n = supersession.get("superseded_commits", 0)
         return {
@@ -426,6 +534,21 @@ def build_parser() -> argparse.ArgumentParser:
             "round-trip. Default: fetch."
         ),
     )
+    parser.add_argument(
+        "--expected-head-sha",
+        default="",
+        help="Head SHA captured by the caller's readiness gate",
+    )
+    parser.add_argument(
+        "--expected-base-ref",
+        default="",
+        help="Base ref captured by the caller's readiness gate",
+    )
+    parser.add_argument(
+        "--expected-base-sha",
+        default="",
+        help="Base SHA captured by the caller's readiness gate",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -439,61 +562,13 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
 
     op_start = time.monotonic()
-    try:
-        data = gh_graphql(
-            _LIVE_STATE_QUERY,
-            {"owner": owner, "repo": repo, "number": args.pull_request},
-        )
-    except RuntimeError as exc:
-        msg = str(exc)
-        duration_ms = int((time.monotonic() - op_start) * 1000)
-        if "Could not resolve" in msg:
-            logger.warning(
-                "op=live_state_failed pr=%d owner=%s repo=%s "
-                "reason=pr_not_found duration_ms=%d",
-                args.pull_request, owner, repo, duration_ms,
-            )
-            _emit_error(
-                f"PR #{args.pull_request} not found in {owner}/{repo}",
-                2,
-                "NotFound",
-                output_format,
-                args.pull_request,
-                owner,
-                repo,
-            )
-        logger.warning(
-            "op=live_state_failed pr=%d owner=%s repo=%s "
-            "reason=graphql_error duration_ms=%d error=%s",
-            args.pull_request, owner, repo, duration_ms, safe_log_str(msg),
-        )
-        _emit_error(
-            f"Failed to query PR live state: {msg}",
-            3,
-            "ApiError",
-            output_format,
-            args.pull_request,
-            owner,
-            repo,
-        )
-
-    pr = (data.get("repository") or {}).get("pullRequest")
-    if pr is None:
-        duration_ms = int((time.monotonic() - op_start) * 1000)
-        logger.warning(
-            "op=live_state_failed pr=%d owner=%s repo=%s "
-            "reason=pr_not_found duration_ms=%d",
-            args.pull_request, owner, repo, duration_ms,
-        )
-        _emit_error(
-            f"PR #{args.pull_request} not found in {owner}/{repo}",
-            2,
-            "NotFound",
-            output_format,
-            args.pull_request,
-            owner,
-            repo,
-        )
+    pr = _query_live_pr(
+        owner,
+        repo,
+        args.pull_request,
+        output_format,
+        op_start,
+    )
 
     # Only run the supersession probe when the PR is still OPEN; for a
     # MERGED/CLOSED/DRAFT PR the verdict is already settled and the git
@@ -506,11 +581,49 @@ def main(argv: list[str] | None = None) -> int:
         and pr.get("isDraft") is not True
     )
     if pr_open:
+        initial_head_sha = pr.get("headRefOid")
+        initial_base_ref = pr.get("baseRefName")
+        initial_base_sha = pr.get("baseRefOid")
         supersession = is_superseded_by_base(
-            base_branch=pr.get("baseRefName", "main"),
+            base_branch=initial_base_ref or "main",
             pr_number=args.pull_request,
             skip_fetch=args.skip_fetch,
         )
+        pr = _query_live_pr(
+            owner,
+            repo,
+            args.pull_request,
+            output_format,
+            op_start,
+        )
+        if (
+            pr.get("state") == "OPEN"
+            and pr.get("merged") is not True
+            and pr.get("closed") is not True
+            and pr.get("isDraft") is not True
+            and (
+                pr.get("headRefOid") != initial_head_sha
+                or pr.get("baseRefName") != initial_base_ref
+                or pr.get("baseRefOid") != initial_base_sha
+            )
+        ):
+            supersession = _probe_inconclusive(
+                live_state_changed=True,
+                git_cherry_failed=False,
+            )
+
+    identity_mismatches = _identity_mismatches(
+        pr,
+        args.expected_head_sha,
+        args.expected_base_ref,
+        args.expected_base_sha,
+    )
+    if identity_mismatches:
+        supersession = _probe_inconclusive(
+            expected_identity_changed=True,
+            git_cherry_failed=False,
+        )
+        supersession["identity_mismatches"] = identity_mismatches
 
     verdict = classify_live_state(pr, supersession)
 
@@ -524,7 +637,9 @@ def main(argv: list[str] | None = None) -> int:
         "is_draft": pr.get("isDraft") is True,
         "closed": pr.get("closed") is True,
         "head_ref": pr.get("headRefName"),
+        "head_sha": pr.get("headRefOid"),
         "base_ref": pr.get("baseRefName"),
+        "base_sha": pr.get("baseRefOid"),
         "superseded_by_base": supersession or {
             "pr_commits": 0,
             "superseded_commits": 0,

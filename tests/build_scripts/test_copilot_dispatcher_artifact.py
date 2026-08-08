@@ -57,7 +57,7 @@ def _effective_commands(manifest: dict[str, Any], event: str | None = None) -> l
             for hook in group.get("hooks", []):
                 command = hook.get("command", "") or ""
                 if "invoke_dispatch_claude.py" in command:
-                    group_id = command.rsplit("--group", 1)[1].strip()
+                    group_id = command.rsplit("--group", 1)[1].strip().split(";")[0].strip()
                     commands.extend(
                         shim["file"] for shim in _DISPATCH_GROUPS[group_id]["shims"]
                     )

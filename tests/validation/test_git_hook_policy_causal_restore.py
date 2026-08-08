@@ -1540,9 +1540,9 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "config", "user.name", "Test User")
         (repo / "README.md").write_text("base\n", encoding="utf-8")
         _commit(repo, "base")
-        # `local` is cut here rather than by start-point later: the suite's
-        # head guard exports GIT_TRACE_REFS, and git 2.43 rejects an explicit
-        # commit as a branch point while that trace is on.
+        # `local` is cut here rather than by start-point later: git 2.43
+        # rejects an explicit commit as a branch point when GIT_TRACE_REFS
+        # leaks in from the environment. The head guard blocks that variable.
         _git(repo, "branch", "local")
 
         _git(repo, "checkout", "-b", "shared")
@@ -1598,9 +1598,9 @@ class TestAdrReviewPolicyMergeScope:
         _git(repo, "config", "user.name", "Test User")
         (repo / "README.md").write_text("base\n", encoding="utf-8")
         _commit(repo, "base")
-        # `local` is cut here rather than by start-point later: the suite's
-        # head guard exports GIT_TRACE_REFS, and git 2.43 rejects an explicit
-        # commit as a branch point while that trace is on.
+        # `local` is cut here rather than by start-point later: git 2.43
+        # rejects an explicit commit as a branch point when GIT_TRACE_REFS
+        # leaks in from the environment. The head guard blocks that variable.
         _git(repo, "branch", "local")
 
         _git(repo, "checkout", "-b", "shared")
