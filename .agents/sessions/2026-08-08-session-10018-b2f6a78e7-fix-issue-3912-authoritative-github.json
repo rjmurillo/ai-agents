@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All MUST items complete in commit transaction; SHA recorded in follow-up"
+        "Evidence": "All MUST session gates completed; implementation commit 8f490a083791"
       },
       "handoffNotUpdated": {
         "level": "MUST NOT",
@@ -104,7 +104,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit transaction includes implementation, tests, QA, memory, and session log; SHA recorded in follow-up"
+        "Evidence": "Implementation commit 8f490a08379143d65bf8d12b7654974d96771feb"
       },
       "validationPassed": {
         "level": "MUST",
@@ -157,7 +157,7 @@
       "outcome": "API reference updated; Serena memory written and indexed"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "8f490a08379143d65bf8d12b7654974d96771feb",
   "nextSteps": [
     "Push focused branch",
     "Close combined duplicate PR #4733",

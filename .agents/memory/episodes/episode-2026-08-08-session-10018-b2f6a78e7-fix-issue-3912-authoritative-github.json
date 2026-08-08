@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Triaged issue #3912 and linked discussions",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Checked duplicate pull requests",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Reproduced current behavior",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github"
     },
     {
@@ -40,7 +46,9 @@
       "type": "milestone",
       "content": "Implemented authoritative PR metadata",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github"
     },
     {
@@ -49,7 +57,9 @@
       "type": "milestone",
       "content": "Added positive, negative, and edge tests",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github"
     },
     {
@@ -58,7 +68,9 @@
       "type": "milestone",
       "content": "Verified live GitHub behavior",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github"
     },
     {
@@ -67,7 +79,9 @@
       "type": "milestone",
       "content": "Ran independent review and QA",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e009"
+      ],
       "_source_session": "2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github"
     },
     {
@@ -76,6 +90,26 @@
       "type": "milestone",
       "content": "Documented output contract and durable metadata shapes",
       "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-08T02:12:11+00:00",
+      "type": "commit",
+      "content": "Commit: 8f490a08379143d65bf8d12b7654974d96771feb",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e008"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github"
     }
@@ -85,7 +119,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 10
   },
   "lessons": []
