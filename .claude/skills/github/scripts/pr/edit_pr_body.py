@@ -218,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
             f"PR #{pr} body hash mismatch: expected {args.expected_hash[:12]}... "
             f"but current is {current_hash[:12]}...; concurrent edit detected, aborting",
             1,
-            error_type="StaleWrite",
+            error_type="VerificationFailed",
             output_format=fmt,
             script_name=_SCRIPT_NAME,
             extra={

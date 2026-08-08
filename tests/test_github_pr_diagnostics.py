@@ -815,7 +815,7 @@ class TestBodyHashAndValidate:
 class TestEditPrBodyStaleWriteGuard:
     """Stale-write guard: abort when current hash differs from expected."""
 
-    def test_abort_on_hash_mismatch(self):
+    def test_abort_on_hash_mismatch(self, capsys):
         current = "current body"
         wrong_hash = "0" * 64
 
@@ -823,15 +823,18 @@ class TestEditPrBodyStaleWriteGuard:
             patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
             patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
             patch(f"{_edit_mod.__name__}.fetch_current_body", return_value=current),
-            patch(f"{_edit_mod.__name__}.write_skill_error") as mock_err,
         ):
             rc = _edit_mod.main([
                 "--pull-request", "42",
                 "--body", "new body",
                 "--expected-hash", wrong_hash,
+                "--output-format", "json",
             ])
+
+        output = json.loads(capsys.readouterr().out)
+
         assert rc == 1
-        mock_err.assert_called_once()
+        assert output["Error"]["Type"] == "VerificationFailed"
 
     def test_no_write_when_body_unchanged(self):
         body = "same body"
