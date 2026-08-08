@@ -29,6 +29,8 @@ from push_guard_base import (
     run_guard,
 )
 
+STRICT_PUSH_CONFIG = push_guard_base._validate_strict_push_configuration
+
 
 def _stdin_payload(command: str | None) -> str:
     if command is None:
@@ -51,9 +53,56 @@ def _bad_diff() -> subprocess.CompletedProcess[str]:
     )
 
 
+def _missing_config() -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(
+        args=["git"], returncode=1, stdout="", stderr=""
+    )
+
+
+def _strict_push_responses() -> dict[
+    tuple[str, ...], subprocess.CompletedProcess[str]
+]:
+    missing = _missing_config()
+    return {
+        ("git", "branch", "--show-current"): _ok_diff("feature\n"),
+        ("git", "config", "--get-all", "push.default"): missing,
+        ("git", "config", "--get-all", "branch.feature.pushRemote"): missing,
+        ("git", "config", "--get-all", "remote.pushDefault"): missing,
+        ("git", "config", "--get-all", "branch.feature.remote"): _ok_diff(
+            "origin\n"
+        ),
+        ("git", "config", "--get-all", "remote.origin.push"): missing,
+        (
+            "git",
+            "config",
+            "--bool",
+            "--get",
+            "remote.origin.mirror",
+        ): missing,
+        ("git", "config", "--bool", "--get", "push.followTags"): missing,
+        ("git", "config", "--get-all", "push.recurseSubmodules"): missing,
+        ("git", "config", "--bool", "--get", "submodule.recurse"): missing,
+    }
+
+
+def _git_dispatch(
+    responses: dict[tuple[str, ...], subprocess.CompletedProcess[str]],
+    calls: list[list[str]] | None = None,
+):
+    def dispatch(args, **_kwargs):
+        if calls is not None:
+            calls.append(args)
+        response = responses.get(tuple(args))
+        if response is None:
+            raise AssertionError(f"unexpected git command: {args}")
+        return response
+
+    return dispatch
+
+
 @pytest.fixture
 def push_command(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("sys.stdin", io.StringIO(_stdin_payload("git push origin HEAD")))
+    monkeypatch.setattr("sys.stdin", io.StringIO(_stdin_payload("git push")))
 
 
 def _no_violations(matching: list[str], all_changed: list[str]) -> list[str]:
@@ -118,6 +167,12 @@ def _no_gh_base_ref():
     in by patching ``push_guard_base._gh_base_ref`` with their own value.
     """
     with patch("push_guard_base._gh_base_ref", return_value=None):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _safe_strict_push_configuration():
+    with patch("push_guard_base._validate_strict_push_configuration"):
         yield
 
 
@@ -956,6 +1011,172 @@ class TestFailClosed:
 
         assert rc == 2
         assert "invalid hook input" in capsys.readouterr().out
+
+    def test_empty_stdin_blocks(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.setattr("sys.stdin", io.StringIO(""))
+
+        rc = run_guard(
+            _always_violates,
+            ["*.md"],
+            "test-guard",
+            fail_closed=True,
+        )
+
+        assert rc == 2
+        assert "stdin empty" in capsys.readouterr().out
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git push origin HEAD",
+            "git push origin feature:main",
+            "git push --all",
+            "git push --mirror",
+            "git push --tags",
+        ],
+    )
+    def test_ambiguous_push_scope_blocks_before_git_diff(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        command: str,
+    ) -> None:
+        monkeypatch.setattr("sys.stdin", io.StringIO(_stdin_payload(command)))
+
+        with patch("push_guard_base.subprocess.run") as run:
+            rc = run_guard(
+                _always_violates,
+                ["*.md"],
+                "test-guard",
+                fail_closed=True,
+            )
+
+        assert rc == 2
+        assert "unsupported arguments" in capsys.readouterr().out
+        run.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "git push --signed=$(git reset --hard HEAD~1)",
+            "git push --force-with-lease=`git rev-parse HEAD~1`",
+        ],
+    )
+    def test_shell_expansion_blocks_before_subprocess(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+        command: str,
+    ) -> None:
+        monkeypatch.setattr("sys.stdin", io.StringIO(_stdin_payload(command)))
+
+        with patch("push_guard_base.subprocess.run") as run:
+            rc = run_guard(
+                _always_violates,
+                ["*.md"],
+                "test-guard",
+                fail_closed=True,
+            )
+
+        assert rc == 2
+        assert "shell expansion" in capsys.readouterr().out
+        run.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("config_key", "config_value", "expected_fragment"),
+        [
+            ("push.default", "matching", "matching"),
+            (
+                "remote.origin.push",
+                "refs/heads/*:refs/heads/*",
+                "remote.origin.push",
+            ),
+            ("remote.origin.mirror", "true", "remote.origin.mirror"),
+            ("push.followTags", "true", "push.followTags"),
+            (
+                "push.recurseSubmodules",
+                "on-demand",
+                "push.recurseSubmodules",
+            ),
+            ("push.recurseSubmodules", "only", "push.recurseSubmodules"),
+            ("submodule.recurse", "true", "submodule.recurse"),
+        ],
+    )
+    def test_unsafe_bare_push_configuration_blocks_before_diff(
+        self,
+        push_command: None,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        config_key: str,
+        config_value: str,
+        expected_fragment: str,
+    ) -> None:
+        responses = _strict_push_responses()
+        bool_keys = {
+            "remote.origin.mirror",
+            "push.followTags",
+            "submodule.recurse",
+        }
+        if config_key in bool_keys:
+            command = ("git", "config", "--bool", "--get", config_key)
+        else:
+            command = ("git", "config", "--get-all", config_key)
+        responses[command] = _ok_diff(f"{config_value}\n")
+
+        with patch(
+            "push_guard_base._validate_strict_push_configuration",
+            wraps=STRICT_PUSH_CONFIG,
+        ), patch(
+            "push_guard_base.subprocess.run",
+            side_effect=_git_dispatch(responses),
+        ), patch("push_guard_base.get_project_directory", return_value=str(tmp_path)):
+            rc = run_guard(
+                _always_violates,
+                ["*.md"],
+                "test-guard",
+                fail_closed=True,
+            )
+
+        assert rc == 2
+        assert expected_fragment in capsys.readouterr().out
+
+    def test_safe_bare_push_configuration_reaches_diff(
+        self,
+        push_command: None,
+        tmp_path: Path,
+    ) -> None:
+        calls: list[list[str]] = []
+        responses = _strict_push_responses()
+        responses[
+            (
+                "git",
+                "diff",
+                "--name-only",
+                "--diff-filter=ACMR",
+                "@{push}..HEAD",
+            )
+        ] = _ok_diff("docs/a.md\n")
+
+        with patch(
+            "push_guard_base._validate_strict_push_configuration",
+            wraps=STRICT_PUSH_CONFIG,
+        ), patch(
+            "push_guard_base.subprocess.run",
+            side_effect=_git_dispatch(responses, calls),
+        ), patch("push_guard_base.get_project_directory", return_value=str(tmp_path)):
+            rc = run_guard(
+                _no_violations,
+                ["*.md"],
+                "test-guard",
+                fail_closed=True,
+            )
+
+        assert rc == 0
+        assert any(call[:2] == ["git", "diff"] for call in calls)
 
 
 class TestHooksJsonContract:

@@ -67,6 +67,7 @@ import fnmatch
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 from collections.abc import Callable
@@ -126,6 +127,23 @@ MAX_STDIN_BYTES = 1_048_576
 # ``git push`` is too strict. ``re.match`` anchors at the start, but
 # accept optional leading whitespace too for robustness.
 _GIT_PUSH_RE = re.compile(r"\s*git\s+push(\s|$)")
+_SAFE_PUSH_OPTIONS = {
+    "--atomic",
+    "--dry-run",
+    "--force-with-lease",
+    "--force-if-includes",
+    "--no-signed",
+    "--porcelain",
+    "--quiet",
+    "--signed",
+    "--signed=false",
+    "--signed=if-asked",
+    "--signed=true",
+    "--verbose",
+    "-q",
+    "-v",
+}
+_SHELL_EXPANSION_RE = re.compile(r"[\n\r`$;&|<>()*?\[\]{}\\!]")
 
 
 class _HookInputError(ValueError):
@@ -218,6 +236,117 @@ def _filter_by_globs(paths: list[str], globs: list[str]) -> list[str]:
                 matched.append(path)
                 break
     return matched
+
+
+def _validate_strict_push_command(command: str) -> None:
+    """Reject push forms whose outgoing commit set cannot be determined safely."""
+    if _SHELL_EXPANSION_RE.search(command):
+        raise _HookInputError(
+            "strict push guards do not allow shell expansion or control syntax"
+        )
+    try:
+        tokens = shlex.split(command)
+    except ValueError as exc:
+        raise _HookInputError(f"unparseable git push command: {exc}") from exc
+
+    if len(tokens) < 2 or tokens[:2] != ["git", "push"]:
+        raise _HookInputError("command is not a direct git push")
+
+    unsupported = [
+        token
+        for token in tokens[2:]
+        if token not in _SAFE_PUSH_OPTIONS
+    ]
+    if unsupported:
+        rendered = " ".join(unsupported)
+        raise _HookInputError(
+            "strict push guards require the configured push target; "
+            f"unsupported arguments: {rendered}. Use git push."
+        )
+
+
+def _git_config_values(cwd: str, key: str) -> list[str]:
+    rc, out = _run_git_diff(["git", "config", "--get-all", key], cwd=cwd)
+    if rc == 1:
+        return []
+    if rc != 0:
+        raise _HookInputError(f"could not read git config {key}: {out}")
+    return [line for line in out.splitlines() if line.strip()]
+
+
+def _git_config_bool(cwd: str, key: str) -> bool:
+    rc, out = _run_git_diff(["git", "config", "--bool", "--get", key], cwd=cwd)
+    if rc == 1:
+        return False
+    if rc != 0:
+        raise _HookInputError(f"could not read git config {key}: {out}")
+    value = out.strip()
+    if value not in {"false", "true"}:
+        raise _HookInputError(f"git config {key} is not boolean: {value}")
+    return value == "true"
+
+
+def _strict_push_remote(cwd: str, branch: str) -> str:
+    for key in (
+        f"branch.{branch}.pushRemote",
+        "remote.pushDefault",
+        f"branch.{branch}.remote",
+    ):
+        values = _git_config_values(cwd, key)
+        if values:
+            return values[-1]
+
+    rc, out = _run_git_diff(["git", "remote"], cwd=cwd)
+    if rc != 0:
+        raise _HookInputError(f"could not list git remotes: {out}")
+    remotes = [line for line in out.splitlines() if line.strip()]
+    if "origin" in remotes:
+        return "origin"
+    if len(remotes) == 1:
+        return remotes[0]
+    raise _HookInputError("bare git push has no unambiguous push remote")
+
+
+def _validate_strict_push_configuration(cwd: str) -> None:
+    """Require a current-branch-only bare push configuration."""
+    rc, branch = _run_git_diff(["git", "branch", "--show-current"], cwd=cwd)
+    branch = branch.strip()
+    if rc != 0 or not branch:
+        raise _HookInputError("bare git push requires an attached branch")
+
+    push_defaults = _git_config_values(cwd, "push.default")
+    push_default = push_defaults[-1] if push_defaults else "simple"
+    if push_default not in {"current", "simple", "upstream"}:
+        raise _HookInputError(
+            "strict push guards require push.default=current, simple, or upstream; "
+            f"found {push_default}"
+        )
+
+    remote = _strict_push_remote(cwd, branch)
+    if remote == ".":
+        raise _HookInputError("strict push guards do not support remote '.'")
+    refspecs = _git_config_values(cwd, f"remote.{remote}.push")
+    if refspecs:
+        raise _HookInputError(
+            f"strict push guards do not support remote.{remote}.push refspecs"
+        )
+    for key in (f"remote.{remote}.mirror", "push.followTags"):
+        if _git_config_bool(cwd, key):
+            raise _HookInputError(f"strict push guards require {key}=false")
+
+    recurse_values = _git_config_values(cwd, "push.recurseSubmodules")
+    if recurse_values:
+        recurse = recurse_values[-1]
+        if recurse not in {"check", "false", "no"}:
+            raise _HookInputError(
+                "strict push guards require "
+                f"push.recurseSubmodules=no or check; found {recurse}"
+            )
+    elif _git_config_bool(cwd, "submodule.recurse"):
+        raise _HookInputError(
+            "strict push guards require submodule.recurse=false "
+            "when push.recurseSubmodules is unset"
+        )
 
 
 def _run_git_diff(args: list[str], cwd: str) -> tuple[int, str]:
@@ -403,9 +532,9 @@ def _read_stdin_command(name: str, fail_closed: bool = False) -> str | None:
     JSON, non-object payload, missing/mistyped tool_input, missing/mistyped
     command) emits a structured ``EVENT=...`` fail-open line via _emit_fail_open
     and still returns None, preserving the framework's documented allow-but-observe
-    contract (see the module docstring, "Operations and telemetry"). The isatty
-    and empty-stdin paths are legitimate no-ops (interactive terminal, nothing
-    piped) and do NOT emit an event.
+    contract (see the module docstring, "Operations and telemetry"). Interactive
+    stdin is always a no-op. Empty non-interactive stdin is a no-op for advisory
+    guards and invalid input for strict guards.
     """
     if sys.stdin.isatty():
         return None
@@ -419,6 +548,8 @@ def _read_stdin_command(name: str, fail_closed: bool = False) -> str | None:
         invalid(f"stdin exceeds {MAX_STDIN_BYTES} bytes")
         return None
     if not raw.strip():
+        if fail_closed:
+            invalid("stdin empty")
         return None
     try:
         payload = json.loads(raw)
@@ -539,6 +670,9 @@ def run_guard(
             return 0
 
         project_dir = get_project_directory()
+        if fail_closed:
+            _validate_strict_push_command(command)
+            _validate_strict_push_configuration(project_dir)
         all_changed = _changed_files(
             project_dir,
             name=name,
