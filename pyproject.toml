@@ -173,7 +173,12 @@ disallow_any_generics = true
 
 # Per-module overrides: suppress disallow_any_generics for pre-existing code
 [[tool.mypy.overrides]]
-module = "scripts.github_core.*"
+# Pre-existing generic-type debt also exists in the plugin-side github_core
+# package loaded by skill scripts via sys.path.insert(.../.claude/lib). The
+# per-file mypy gate resolves that import as github_core.*, not
+# scripts.github_core.*, so keep both names relaxed until the shared module is
+# fully annotated.
+module = ["scripts.github_core.*", "github_core.*"]
 disallow_any_generics = false
 
 [[tool.mypy.overrides]]
