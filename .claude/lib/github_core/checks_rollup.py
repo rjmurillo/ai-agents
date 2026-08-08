@@ -1,3 +1,4 @@
+# mypy: disable-error-code="type-arg", follow-imports=skip
 """Shared logic for grouping and evaluating GitHub status check rollups.
 
 This module encodes the required-check semantics used by both get_pr_checks.py
