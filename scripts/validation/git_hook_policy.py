@@ -43,7 +43,10 @@ from scripts.validation.pr_commit_count import (
     MAIN_MERGE_BLOCK_THRESHOLD,
     main_first_parent_shas,
 )
-from scripts.validation.session_scope import new_session_logs
+from scripts.validation.session_scope import (
+    added_session_paths_in_index,
+    committed_session_validation_modes,
+)
 from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PATTERN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1740,16 +1743,27 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if not sessions:
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
-    for session in sessions:
-        result = _run_command(
-            [
-                sys.executable,
-                "scripts/validate_session_json.py",
-                session,
-                "--pre-commit",
-            ],
-            repo_root,
+    new_logs = added_session_paths_in_index(sessions, repo_root)
+    if new_logs is None:
+        print(
+            "ERROR: unable to determine which staged session logs are new; "
+            "refusing to guess creation-mode",
+            file=sys.stderr,
         )
+        return 1
+    for session in sessions:
+        command = [
+            sys.executable,
+            "scripts/validate_session_json.py",
+            session,
+            "--pre-commit",
+        ]
+        if session in new_logs:
+            # Only the staged add that creates the log gets --creation-mode.
+            # Later commits that edit the same path must run the full checklist
+            # instead of skipping protocol-compliance checks forever.
+            command.append("--creation-mode")
+        result = _run_command(command, repo_root)
         if result.returncode != 0:
             _print_process_output(result)
             return result.returncode
@@ -6367,17 +6381,29 @@ def run_cli_e2e(
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
-    new_logs = new_session_logs(paths, repo_root)
-    for path in paths:
+    session_paths = [
+        path
+        for raw_path in paths
+        if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
+    ]
+    validation_modes = committed_session_validation_modes(session_paths, repo_root)
+    if validation_modes is None:
+        print(
+            "ERROR: unable to determine which committed session logs were added "
+            "by HEAD; refusing to guess creation-mode",
+            file=sys.stderr,
+        )
+        return 1
+    for path in session_paths:
         command = [sys.executable, "scripts/validate_session_json.py", path]
-        if path not in new_logs:
-            command.append("--existing-log")
-        else:
-            # A log this branch is adding for the first time is being committed
-            # at session-start, before session-end runs. Pass --creation-mode so
-            # the validator skips protocol-compliance checks that can only be
-            # satisfied after the session completes (issue #4425).
+        mode = validation_modes.get(path, "full")
+        if mode == "creation":
+            # Only the commit that introduces the path gets --creation-mode.
+            # A later commit on the same branch must run the full checklist,
+            # while logs proven to predate the branch stay on --existing-log.
             command.append("--creation-mode")
+        elif mode == "existing":
+            command.append("--existing-log")
         result = _run_command(command, repo_root)
         _print_process_output(result)
         failed |= result.returncode != 0

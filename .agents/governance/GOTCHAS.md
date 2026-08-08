@@ -847,6 +847,36 @@ the way out, so the same rule is smaller in the plugin tree than on disk. And th
 two 8KB multipliers move independently: the `.py`-edit multiplier can hold steady
 while the always-on one shifts, so re-measure both rather than assuming one
 tracks the other.
+## Never move a branch ref that is checked out in a linked worktree
+
+A worktree that checks out branch `feature` has its own index and files. When
+you run `git update-ref refs/heads/feature <new-sha>` from outside that
+worktree, git moves the branch pointer but does NOT update the worktree index
+or files. The result is a split state: `git rev-parse HEAD` returns the new
+commit but `git write-tree` returns the old tree, and `git status` presents the
+A-to-B diff as staged. Commits, tests, and issue claims based on this state are
+attributed to the wrong commit.
+
+This happens in an agent correction queue when a queued correction calls
+`git update-ref` (or any command that moves the branch, such as `git commit
+--amend` or `git reset`) while another agent's worktree has the same branch
+checked out.
+
+Rules:
+- Before moving a branch ref, check whether it is checked out in any registered
+  worktree: `git worktree list --porcelain | grep -B2 "branch refs/heads/<name>"`.
+- If it is checked out, do not move the ref remotely. Instead, coordinate:
+  either have the worktree owner move its own HEAD, or remove the worktree first
+  and re-add it after the move.
+- After any ref move, verify the target worktree is in the expected state:
+  `git -C <worktree-path> status --porcelain` should be empty.
+- Create safety refs for any commit or tree that could become unreachable before
+  moving: `git tag safe/<sha> <sha>`.
+
+Reproduced locally with one modified file: `git update-ref refs/heads/<branch>
+<new-sha>` while `<branch>` is checked out in a linked worktree leaves the
+worktree with `HEAD == new-sha` and `git write-tree == old-tree`. Issue #4498.
+
 
 ## Built-in `explore` and `research` subagent types cannot write anything
 

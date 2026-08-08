@@ -131,6 +131,12 @@ def _gh_base_ref(repo_root: Path) -> str | None:
     Asks the gh CLI for the PR's base branch name, then prefixes
     ``origin/`` so callers can pass the result to ``git diff`` directly.
 
+    When the local branch name differs from the PR head (e.g. a worktree
+    checked out as ``pr-4294`` tracking ``origin/fix/gc-report-time-budget``),
+    ``gh pr view`` without ``--head`` fails to find the PR. This function
+    detects that case and retries using the configured upstream branch name
+    (``branch.<name>.merge`` via ``git config --get``).
+
     Behavior:
     - If gh is not on PATH, return None.
     - If the bare lookup finds no PR, retry naming the upstream head branch

@@ -927,3 +927,4 @@ class TestGhBaseRefLocalBranchDiffersFromPrHead:
 
         assert result == "origin/develop"
         assert head_arg_seen == ["fix/has/slashes"]
+

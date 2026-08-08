@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 9020,
+    "date": "2026-08-03",
+    "branch": "fix/push-locks-worktree-session",
+    "startingCommit": "2fe21a2870",
+    "objective": "Fix issues #4366 #4382 #4425 #4498: push lock docs, stale base ref, session log deadlock, worktree ref desync"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena not available in Copilot CLI harness; skipped per protocol"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena not available in Copilot CLI harness; skipped per protocol"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md reviewed at start"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/ and src/copilot-cli/skills/ reviewed"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "lefthook.yml and skill scripts reviewed"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md reviewed"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memories read via git grep and direct file read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/push-locks-worktree-session"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/push-locks-worktree-session"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "2fe21a2870"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "all MUST items satisfied"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated two Serena memories in commit 6a0e4a5"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scoped lint ran during pre-commit hooks"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits 817a3f4, 6a0e4a5, e6d4bd6, 4cba2e0"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py passed on push"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Triaged issues #4366, #4382, #4425, #4498 against current origin/main code"
+    },
+    {
+      "action": "Fixed #4425: added --creation-mode for new logs in validate_branch_sessions and check_sessions"
+    },
+    {
+      "action": "Fixed #4425: added exclude_path to _test_uncommitted_changes in complete_session_log.py"
+    },
+    {
+      "action": "Fixed #4382: added upstream fallback in _gh_base_ref in checks_common.py"
+    },
+    {
+      "action": "Fixed #4366/#4498: updated GOTCHAS.md and Serena memories with canonical lock path and worktree desync warning"
+    },
+    {
+      "action": "Added SESSION_PATH_RE filter in validate_branch_sessions and check_sessions"
+    },
+    {
+      "action": "Synced src/copilot-cli mirror of complete_session_log.py"
+    },
+    {
+      "action": "Fixed episode metrics for session-9020"
+    }
+  ],
+  "endingCommit": "4cba2e03e",
+  "nextSteps": []
+}

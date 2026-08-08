@@ -284,14 +284,14 @@ def _run_markdown_lint() -> tuple[bool, str]:
 
 
 def _test_uncommitted_changes(exclude_path: str | None = None) -> bool:
-    """Return True when uncommitted changes exist, excluding ``exclude_path``.
+    """Return True if the working tree has uncommitted changes.
 
-    ``exclude_path`` should be the repo-relative path of the session log being
-    completed. The log is itself staged or modified while this check runs, so
-    it would always appear in ``git status`` output and make ``changesCommitted``
-    impossible to satisfy without a workaround (issue #4425). Excluding it
-    means ``changesCommitted`` reflects whether all *other* work is committed,
-    which is what the field is trying to express.
+    ``exclude_path`` names one file to ignore, typically the session log
+    being completed. The session log is always dirty while this function
+    runs (it was just written), so including it in the check would make
+    ``changesCommitted`` impossible to satisfy. Excluding it makes the
+    field mean "all work OTHER than this log is committed", which is the
+    intended semantics. Fixes #4425.
     """
     result = subprocess.run(
         ["git", "status", "--porcelain"],
@@ -304,9 +304,17 @@ def _test_uncommitted_changes(exclude_path: str | None = None) -> bool:
         return True
     lines = result.stdout.splitlines()
     if exclude_path:
-        # porcelain v1 format: "XY path" or "XY old -> new"; match the path
-        # portion at the end of each line after the two-character status prefix.
-        lines = [ln for ln in lines if not ln[3:].rstrip().endswith(exclude_path)]
+        norm = os.path.normpath(exclude_path)
+        filtered = []
+        for ln in lines:
+            # porcelain v1 status prefix is always "XY " (3 chars: two status
+            # chars plus one space). The path starts at index 3.
+            # For renames the path field is "old -> new"; check both sides.
+            path_part = ln[3:] if len(ln) > 3 else ""
+            candidates = [os.path.normpath(p.strip()) for p in path_part.split(" -> ")]
+            if norm not in candidates:
+                filtered.append(ln)
+        lines = filtered
     return bool(lines)
 
 
@@ -559,14 +567,19 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # 5. changesCommitted
-    # Exclude the session log itself: it is staged or modified while this
-    # check runs and would always appear in porcelain output, making
-    # changesCommitted impossible to satisfy (issue #4425).
+    # git-porcelain outputs repo-relative paths; session_path is absolute after
+    # _validate_path_containment. Convert to relative so the exclusion matches.
+    # If session_path is on a different drive (Windows cross-drive) or outside
+    # the repo, relpath raises ValueError or yields a path starting with "..".
+    # In either case git porcelain cannot list the file, so no exclusion needed.
+    _session_rel: str | None = None
     try:
-        session_rel = os.path.relpath(session_path, repo_root)
+        candidate = os.path.relpath(session_path, repo_root)
+        if not (candidate == os.pardir or candidate.startswith(os.pardir + os.sep)):
+            _session_rel = candidate
     except ValueError:
-        session_rel = None
-    has_uncommitted = _test_uncommitted_changes(exclude_path=session_rel)
+        pass
+    has_uncommitted = _test_uncommitted_changes(exclude_path=_session_rel)
     if "changesCommitted" in session_end:
         check = session_end["changesCommitted"]
         if not has_uncommitted:
