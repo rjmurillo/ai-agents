@@ -105,20 +105,25 @@ number alone catches one and skips the other.
 5. Re-run the two files, fix the multipliers the numeric substitution missed,
    then `build_all.py` for the generated copies.
 
-## Why this costs more than it looks
+## Why this fits one commit
 
-The commit-file-count hook caps a commit at five authored files. Only the
-memory under `.serena/memories/` is exempt: the exemption list covers session
-episodes, MCP config, agent catalog, and every file under
-`.serena/memories/**/*.md`. The generated instruction mirrors and the generated
-`src/copilot-cli/skills/` copies are **not** exempt.
+The commit-file-count hook caps authored files at five.
+`scripts/validation/git_hook_policy.py` defines `_GENERATED_MIRRORS` for
+generated mirrors from tracked `.claude/` sources, added under Refs #4671. The
+mapped output trees are `.github/instructions/` from `.claude/rules/`,
+`src/copilot-cli/instructions/` from `.claude/rules/`, `src/copilot-cli/lib/`
+from `.claude/lib/`, `src/copilot-cli/skills/` from `.claude/skills/`, and
+`src/copilot-cli/hooks/` from `.claude/hooks/`. `_is_generated` calls
+`_mirror_source(...)` and exempts the output only when
+`_is_staged_regular_file(root, source)` is true, so invented files under those
+output trees still count.
 
-Counted with the hook's own tables, a full refresh alongside the rule edit that
-triggered it puts ten files against the cap of five: the rule and its two
-mirrors, three authored prose documents, and four generated companions. Split
-it into three commits or fewer files each. The hook skips merge commits
-(`skip: [merge]` in `lefthook.yml`), so a refresh that lands inside a merge
-resolution is not blocked.
+`GENERATED_GLOBS` also exempts `.serena/memories/**/*.md`. For the refresh
+described here, the authored count is four files: the rule edit plus three prose
+documents. The two instruction mirrors, four generated
+`src/copilot-cli/skills/` companions, and the memory file are exempt. Four
+authored files fit under `MAX_AUTHORED_FILES_PER_COMMIT = 5`, so the refresh
+belongs in one commit and has no atomic-file-count block.
 
 ## Related
 
