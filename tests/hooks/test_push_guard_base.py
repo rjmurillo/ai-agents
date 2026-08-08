@@ -1121,6 +1121,7 @@ class TestFailClosed:
             "push.followTags",
             "submodule.recurse",
         }
+        command: tuple[str, ...]
         if config_key in bool_keys:
             command = ("git", "config", "--bool", "--get", config_key)
         else:
