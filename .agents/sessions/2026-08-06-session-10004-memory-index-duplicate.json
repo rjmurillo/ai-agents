@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10004,
+    "date": "2026-08-06",
+    "branch": "fix/memory-index-duplicate-after-4687",
+    "startingCommit": "00a95ad5a",
+    "objective": "Repair the duplicate memory-index target path introduced after PR 4687 and add a regression guard"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools loaded; activation tool was unavailable in this harness"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill issue and pull request scripts loaded and inspected"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Root AGENTS.md skill-first rules applied"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository instructions and path-scoped rules loaded"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/memory-index.md duplicate rows and matching Git memory entry read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/memory-index-duplicate-after-4687"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Isolated worktree branch created from current origin/main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "New isolated worktree started clean"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "00a95ad5a"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py --markdown-lint-only: 1 of 2 files linted"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: 2559c8e0f4)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue 4705 records the defect, evidence, and completed scope"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-06-session-10004-pr-4707-correction.md"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: scripts/validation/memory_index.py edited 16 times\nrework-warning: tests/test_validation_memory_index.py edited 15 times\nrework-warning: scripts/validate_session_json.py edited 8 times\nrework-warning: tests/test_validate_session_json.py edited 8 times\nrework-warning: .claude/skills/session-end/tests/test_complete_session_log.py edited 7 times\nrework-warning: src/copilot-cli/skills/session-end/tests/test_complete_session_log.py edited 7 times"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-07-pr-4735-closing-review.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-06T14:35:54+00:00",
+      "task": "Triage post-merge duplicate",
+      "outcome": "Confirmed two rows target one memory, found the existing validator deduplicates references before validation, and opened issue 4705"
+    },
+    {
+      "time": "2026-08-06T14:43:00+00:00",
+      "task": "Repair and guard memory index",
+      "outcome": "Consolidated every useful keyword into the GitHub and PR Operations row, restored the duplicate-path count from six to five, and added a guard that rejects any duplicate beyond the five inherited paths"
+    },
+    {
+      "time": "2026-08-06T14:44:00+00:00",
+      "task": "Validate corrective change",
+      "outcome": "Passed 89 tests, all requested ratchets, the full memory index validator, ruff, and a mutation control that disabled the new guard"
+    }
+  ],
+  "episodeMetrics": {
+    "filesChanged": 4,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "00a95ad5a",
+      "head": "2559c8e0f45fb7dbe2107bd42e347e6ea8cb63e0"
+    }
+  },
+  "endingCommit": "2559c8e0f4",
+  "nextSteps": [
+    "Commit, push, and open the corrective pull request"
+  ]
+}
