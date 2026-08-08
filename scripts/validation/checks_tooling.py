@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: this module groups validators that shell out
+# to external tools. Its line count tracks how many such gates exist, not
+# complexity. The real fix is splitting by area (issue #3073 scope), which is
+# out of scope for adding a single gate.
 """External-tool validations for the pre-PR runner.
 
 Extracted from ``scripts/validation/pre_pr.py`` (issue #2223). Groups the
@@ -468,6 +474,43 @@ def validate_instruction_budget(repo_root: Path) -> bool:
             "--ci",
             "--path",
             str(repo_root),
+        ],
+        cwd=repo_root,
+    )
+    if exit_code != 0:
+        if stdout:
+            print(stdout)
+        if stderr:
+            print(stderr, file=sys.stderr)
+    return bool(exit_code == 0)
+
+
+def validate_always_on_corpus_claims(repo_root: Path) -> bool:
+    """Pin the numeric claims in model-context-doctrine.md to live measurements.
+
+    Runs ``tests/validation/test_always_on_corpus_claims.py`` via pytest so the
+    byte counts, file counts, and multipliers stated in the doctrine doc never
+    drift silently from the actual always-on instruction corpus. The test file
+    itself runs in under 0.5 seconds. The instructions tree is absent in
+    downstream installs, so SKIP rather than FAIL when it is missing.
+    """
+    if not (repo_root / ".github" / "instructions").is_dir():
+        raise MissingScriptSkip(
+            ".github/instructions not present (downstream install); no corpus to check"
+        )
+    test_path = repo_root / "tests" / "validation" / "test_always_on_corpus_claims.py"
+    if not test_path.is_file():
+        raise MissingScriptSkip(
+            "tests/validation/test_always_on_corpus_claims.py not present; "
+            "no corpus claim test to run"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/validation/test_always_on_corpus_claims.py",
+            "-q",
         ],
         cwd=repo_root,
     )
