@@ -26,7 +26,12 @@ def _load_module():
 
 
 def _sessions_dir(tmp_path):
-    return str(tmp_path / ".agents" / "sessions")
+    return str(_load_module().artifact_dir("sessions", base=tmp_path))
+
+
+def _session_log(mod):
+    report = mod.artifact_dir("sessions", base=Path()) / "session.json"
+    return report.relative_to(Path.cwd()).as_posix()
 
 
 class TestCompleteSessionLog:
@@ -239,12 +244,13 @@ class TestCompleteSessionLog:
 
     def test_qa_report_evidence_accepts_report_under_qa_root(self, tmp_path):
         mod = _load_module()
+        session_log = _session_log(mod)
         report = mod.artifact_dir("qa", base=tmp_path) / "report.md"
         report.parent.mkdir(parents=True)
         report.write_text(
             "---\n"
             "qaVerdict: PASS\n"
-            "qaSessionLog: .agents/sessions/session.json\n"
+            f"qaSessionLog: {session_log}\n"
             f"qaCommit: {'a' * 40}\n"
             "---\n"
             "# QA\n",
@@ -255,7 +261,7 @@ class TestCompleteSessionLog:
             tmp_path,
             str(report),
             mod.QaBinding(
-                session_log=".agents/sessions/session.json",
+                session_log=session_log,
                 commit="a" * 40,
             ),
         )
@@ -264,12 +270,13 @@ class TestCompleteSessionLog:
 
     def test_qa_report_evidence_rejects_deferred_report(self, tmp_path):
         mod = _load_module()
+        session_log = _session_log(mod)
         report = mod.artifact_dir("qa", base=tmp_path) / "report.md"
         report.parent.mkdir(parents=True)
         report.write_text(
             "---\n"
             "qaVerdict: DEFERRED\n"
-            "qaSessionLog: .agents/sessions/session.json\n"
+            f"qaSessionLog: {session_log}\n"
             f"qaCommit: {'a' * 40}\n"
             "---\n"
             "# QA\n",
@@ -281,13 +288,14 @@ class TestCompleteSessionLog:
                 tmp_path,
                 str(report),
                 mod.QaBinding(
-                    session_log=".agents/sessions/session.json",
+                    session_log=session_log,
                     commit="a" * 40,
                 ),
             )
 
     def test_qa_report_evidence_rejects_path_outside_qa_root(self, tmp_path):
         mod = _load_module()
+        session_log = _session_log(mod)
         report = tmp_path / "report.md"
         report.write_text("# QA\n", encoding="utf-8")
 
@@ -296,13 +304,14 @@ class TestCompleteSessionLog:
                 tmp_path,
                 str(report),
                 mod.QaBinding(
-                    session_log=".agents/sessions/session.json",
+                    session_log=session_log,
                     commit="a" * 40,
                 ),
             )
 
     def test_qa_report_evidence_rejects_missing_report(self, tmp_path):
         mod = _load_module()
+        session_log = _session_log(mod)
         report = mod.artifact_dir("qa", base=tmp_path) / "missing.md"
 
         with pytest.raises(ValueError, match="not found"):
@@ -310,7 +319,7 @@ class TestCompleteSessionLog:
                 tmp_path,
                 str(report),
                 mod.QaBinding(
-                    session_log=".agents/sessions/session.json",
+                    session_log=session_log,
                     commit="a" * 40,
                 ),
             )
