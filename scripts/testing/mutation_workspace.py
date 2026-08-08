@@ -24,32 +24,18 @@ from pathlib import Path
 from types import FrameType
 from typing import Any, TextIO
 
-from scripts.testing.mutation_workspace_git import (
-    SCRATCH_DIRECTORY,
-    MutationWorkspaceError,
-    marker_directory,
-)
-from scripts.testing.mutation_workspace_git import (
-    add_worktree as _add_worktree,
-)
-from scripts.testing.mutation_workspace_git import (
-    git_root as _git_root,
-)
-from scripts.testing.mutation_workspace_git import (
-    relative_target as _relative_target,
-)
-from scripts.testing.mutation_workspace_git import (
-    remove_worktree as _remove_worktree,
-)
-from scripts.testing.mutation_workspace_git import (
-    require_git_stdout as _require_git_stdout,
-)
-from scripts.testing.mutation_workspace_git import (
-    run_git as _run_git,
-)
-from scripts.testing.mutation_workspace_git import (
-    tracked_repository_path as tracked_repository_path,
-)
+from scripts.testing import mutation_workspace_git
+
+SCRATCH_DIRECTORY = mutation_workspace_git.SCRATCH_DIRECTORY
+MutationWorkspaceError = mutation_workspace_git.MutationWorkspaceError
+marker_directory = mutation_workspace_git.marker_directory
+tracked_repository_path = mutation_workspace_git.tracked_repository_path
+_add_worktree = mutation_workspace_git.add_worktree
+_git_root = mutation_workspace_git.git_root
+_relative_target = mutation_workspace_git.relative_target
+_remove_worktree = mutation_workspace_git.remove_worktree
+_require_git_stdout = mutation_workspace_git.require_git_stdout
+_run_git = mutation_workspace_git.run_git
 
 EXIT_OK = 0
 EXIT_BLOCKED = 1
