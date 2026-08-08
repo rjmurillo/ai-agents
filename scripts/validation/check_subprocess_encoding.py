@@ -107,6 +107,8 @@ class _DeferredCallable:
     call_states: list[_AliasState]
     analyze_on_final_state: bool = True
     receiver_bindings: dict[str, list[_DeferredCallable]] | None = None
+    receiver_callable_aliases: dict[str, str] | None = None
+    receiver_pipe_aliases: set[str] | None = None
 
 
 @dataclass
@@ -116,6 +118,8 @@ class _AliasState:
     pipe_aliases: set[str]
     function_bindings: dict[str, list[_DeferredCallable]]
     receiver_method_bindings: dict[str, dict[str, list[_DeferredCallable]]]
+    receiver_callable_aliases: dict[str, dict[str, str]]
+    receiver_pipe_aliases: dict[str, set[str]]
 
 
 def _copy_receiver_method_bindings(
@@ -130,6 +134,24 @@ def _copy_receiver_method_bindings(
     }
 
 
+def _copy_receiver_callable_aliases(
+    bindings: dict[str, dict[str, str]],
+) -> dict[str, dict[str, str]]:
+    return {
+        name: dict(methods)
+        for name, methods in bindings.items()
+    }
+
+
+def _copy_receiver_pipe_aliases(
+    bindings: dict[str, set[str]],
+) -> dict[str, set[str]]:
+    return {
+        name: set(methods)
+        for name, methods in bindings.items()
+    }
+
+
 def _copy_alias_state(state: _AliasState) -> _AliasState:
     return _AliasState(
         set(state.module_aliases),
@@ -140,16 +162,26 @@ def _copy_alias_state(state: _AliasState) -> _AliasState:
             for name, bindings in state.function_bindings.items()
         },
         _copy_receiver_method_bindings(state.receiver_method_bindings),
+        _copy_receiver_callable_aliases(state.receiver_callable_aliases),
+        _copy_receiver_pipe_aliases(state.receiver_pipe_aliases),
     )
 
 
 def _snapshot_alias_state(
     state: _AliasState,
-) -> tuple[frozenset[str], dict[str, str], frozenset[str]]:
+) -> tuple[
+    frozenset[str],
+    dict[str, str],
+    frozenset[str],
+    dict[str, dict[str, str]],
+    dict[str, set[str]],
+]:
     return (
         frozenset(state.module_aliases),
         dict(state.callable_aliases),
         frozenset(state.pipe_aliases),
+        _copy_receiver_callable_aliases(state.receiver_callable_aliases),
+        _copy_receiver_pipe_aliases(state.receiver_pipe_aliases),
     )
 
 
@@ -178,15 +210,72 @@ def _bound_names(node: ast.AST) -> list[str]:
     return []
 
 
+def _top_level_bound_names(statements: list[ast.stmt]) -> set[str]:
+    names: set[str] = set()
+    for stmt in statements:
+        if isinstance(stmt, ast.Import):
+            names.update(alias.asname or alias.name for alias in stmt.names)
+            continue
+        if isinstance(stmt, ast.ImportFrom):
+            names.update(
+                alias.asname or alias.name
+                for alias in stmt.names
+                if alias.name != "*"
+            )
+            continue
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(stmt.name)
+            continue
+        if isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                names.update(_bound_names(target))
+            continue
+        if isinstance(stmt, ast.AnnAssign):
+            names.update(_bound_names(stmt.target))
+            continue
+        if isinstance(stmt, ast.AugAssign):
+            names.update(_bound_names(stmt.target))
+            continue
+        if isinstance(stmt, (ast.For, ast.AsyncFor)):
+            names.update(_bound_names(stmt.target))
+            continue
+        if isinstance(stmt, (ast.With, ast.AsyncWith)):
+            for item in stmt.items:
+                if item.optional_vars is not None:
+                    names.update(_bound_names(item.optional_vars))
+            continue
+        if isinstance(stmt, ast.Try):
+            for handler in stmt.handlers:
+                if handler.name is not None:
+                    names.add(handler.name)
+    return names
+
+
 def _resolve_assignment_aliases(
     node: ast.expr,
     state: _AliasState,
 ) -> tuple[bool, str | None, bool]:
-    module_aliases, callable_aliases, pipe_aliases = _snapshot_alias_state(state)
+    (
+        module_aliases,
+        callable_aliases,
+        pipe_aliases,
+        receiver_callable_aliases,
+        receiver_pipe_aliases,
+    ) = _snapshot_alias_state(state)
     return (
         _is_subprocess_module_alias(node, module_aliases),
-        _subprocess_callable_name(node, module_aliases, callable_aliases),
-        _is_pipe_capture_target(node, module_aliases, pipe_aliases),
+        _subprocess_callable_name(
+            node,
+            module_aliases,
+            callable_aliases,
+            receiver_callable_aliases,
+        ),
+        _is_pipe_capture_target(
+            node,
+            module_aliases,
+            pipe_aliases,
+            receiver_pipe_aliases,
+        ),
     )
 
 
@@ -205,6 +294,8 @@ def _clear_alias_binding(
     pipe_aliases: set[str],
     function_bindings: dict[str, list[_DeferredCallable]] | None = None,
     receiver_method_bindings: dict[str, dict[str, list[_DeferredCallable]]] | None = None,
+    receiver_callable_aliases: dict[str, dict[str, str]] | None = None,
+    receiver_pipe_aliases: dict[str, set[str]] | None = None,
 ) -> None:
     """Remove any alias binding currently attached to *name*."""
     module_aliases.discard(name)
@@ -214,6 +305,10 @@ def _clear_alias_binding(
         function_bindings.pop(name, None)
     if receiver_method_bindings is not None:
         receiver_method_bindings.pop(name, None)
+    if receiver_callable_aliases is not None:
+        receiver_callable_aliases.pop(name, None)
+    if receiver_pipe_aliases is not None:
+        receiver_pipe_aliases.pop(name, None)
 
 
 def _merge_function_bindings(
@@ -250,6 +345,33 @@ def _merge_receiver_method_bindings(
     return merged
 
 
+def _merge_receiver_callable_aliases(
+    states: list[_AliasState],
+) -> dict[str, dict[str, str]]:
+    merged: dict[str, dict[str, str]] = {}
+    for state in states:
+        for name, methods in state.receiver_callable_aliases.items():
+            target_methods = merged.setdefault(name, {})
+            for method_name, target in methods.items():
+                current = target_methods.get(method_name)
+                if current is None or (
+                    target in _UNCONDITIONAL_DECODE_CALLS
+                    and current not in _UNCONDITIONAL_DECODE_CALLS
+                ):
+                    target_methods[method_name] = target
+    return merged
+
+
+def _merge_receiver_pipe_aliases(
+    states: list[_AliasState],
+) -> dict[str, set[str]]:
+    merged: dict[str, set[str]] = {}
+    for state in states:
+        for name, methods in state.receiver_pipe_aliases.items():
+            merged.setdefault(name, set()).update(methods)
+    return merged
+
+
 def _merge_alias_states(states: list[_AliasState]) -> _AliasState:
     merged_callables: dict[str, str] = {}
     for state in states:
@@ -274,6 +396,8 @@ def _merge_alias_states(states: list[_AliasState]) -> _AliasState:
         },
         _merge_function_bindings(states),
         _merge_receiver_method_bindings(states),
+        _merge_receiver_callable_aliases(states),
+        _merge_receiver_pipe_aliases(states),
     )
 
 
@@ -281,12 +405,30 @@ def _is_pipe_capture_target(
     node: ast.expr | None,
     module_aliases: frozenset[str],
     pipe_aliases: frozenset[str],
+    receiver_pipe_aliases: dict[str, set[str]] | None = None,
 ) -> bool:
     """Return True when *node* resolves to subprocess.PIPE."""
     if node is None:
         return False
     if isinstance(node, ast.Name):
         return node.id in pipe_aliases
+    if (
+        isinstance(node, ast.Attribute)
+        and receiver_pipe_aliases is not None
+        and isinstance(node.value, ast.Name)
+        and node.value.id in receiver_pipe_aliases
+        and node.attr in receiver_pipe_aliases[node.value.id]
+    ):
+        return True
+    if (
+        isinstance(node, ast.Attribute)
+        and receiver_pipe_aliases is not None
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Name)
+        and node.value.func.id in receiver_pipe_aliases
+        and node.attr in receiver_pipe_aliases[node.value.func.id]
+    ):
+        return True
     return (
         isinstance(node, ast.Attribute)
         and isinstance(node.value, ast.Name)
@@ -299,18 +441,42 @@ def _subprocess_call_name(
     node: ast.Call,
     module_aliases: frozenset[str],
     callable_aliases: dict[str, str],
+    receiver_callable_aliases: dict[str, dict[str, str]] | None = None,
 ) -> str | None:
     """Return the canonical subprocess function name, or None."""
-    return _subprocess_callable_name(node.func, module_aliases, callable_aliases)
+    return _subprocess_callable_name(
+        node.func,
+        module_aliases,
+        callable_aliases,
+        receiver_callable_aliases,
+    )
 
 
 def _subprocess_callable_name(
     node: ast.expr,
     module_aliases: frozenset[str],
     callable_aliases: dict[str, str],
+    receiver_callable_aliases: dict[str, dict[str, str]] | None = None,
 ) -> str | None:
     """Return the canonical subprocess callable for *node*, or None."""
     func = node
+    if (
+        isinstance(func, ast.Attribute)
+        and receiver_callable_aliases is not None
+        and isinstance(func.value, ast.Name)
+        and func.value.id in receiver_callable_aliases
+        and func.attr in receiver_callable_aliases[func.value.id]
+    ):
+        return receiver_callable_aliases[func.value.id][func.attr]
+    if (
+        isinstance(func, ast.Attribute)
+        and receiver_callable_aliases is not None
+        and isinstance(func.value, ast.Call)
+        and isinstance(func.value.func, ast.Name)
+        and func.value.func.id in receiver_callable_aliases
+        and func.attr in receiver_callable_aliases[func.value.func.id]
+    ):
+        return receiver_callable_aliases[func.value.func.id][func.attr]
     # subprocess.run(...)
     if (
         isinstance(func, ast.Attribute)
@@ -330,13 +496,20 @@ def _is_flagged(
     module_aliases: frozenset[str],
     callable_aliases: dict[str, str],
     pipe_aliases: frozenset[str],
+    receiver_callable_aliases: dict[str, dict[str, str]] | None = None,
+    receiver_pipe_aliases: dict[str, set[str]] | None = None,
 ) -> bool:
     """Return True when this call violates the errors="replace" convention.
 
     A call is flagged when it reaches a subprocess text entry point, pins
     UTF-8 as the codec, captures decoded text, and omits ``errors=``.
     """
-    name = _subprocess_call_name(call, module_aliases, callable_aliases)
+    name = _subprocess_call_name(
+        call,
+        module_aliases,
+        callable_aliases,
+        receiver_callable_aliases,
+    )
     if name is None:
         return False
 
@@ -357,9 +530,15 @@ def _is_flagged(
     # Verify text mode is enabled (or the call decodes unconditionally).
     unconditional = name in _UNCONDITIONAL_DECODE_CALLS
     pipe_capture = _is_pipe_capture_target(
-        _keyword_value(call, "stdout"), module_aliases, pipe_aliases
+        _keyword_value(call, "stdout"),
+        module_aliases,
+        pipe_aliases,
+        receiver_pipe_aliases,
     ) or _is_pipe_capture_target(
-        _keyword_value(call, "stderr"), module_aliases, pipe_aliases
+        _keyword_value(call, "stderr"),
+        module_aliases,
+        pipe_aliases,
+        receiver_pipe_aliases,
     )
     text_enabled = (
         _is_true_literal(_keyword_value(call, "text"))
@@ -414,14 +593,27 @@ def _record_call_violations(
     source_lines: list[str],
     violations: list[int],
 ) -> None:
-    module_aliases, callable_aliases, pipe_aliases = _snapshot_alias_state(state)
+    (
+        module_aliases,
+        callable_aliases,
+        pipe_aliases,
+        receiver_callable_aliases,
+        receiver_pipe_aliases,
+    ) = _snapshot_alias_state(state)
     for call in _iter_immediate_calls(node):
         lineno = call.lineno
         if lineno < 1 or lineno > len(source_lines):
             continue
         if _SUPPRESSION_COMMENT in source_lines[lineno - 1]:
             continue
-        if _is_flagged(call, module_aliases, callable_aliases, pipe_aliases):
+        if _is_flagged(
+            call,
+            module_aliases,
+            callable_aliases,
+            pipe_aliases,
+            receiver_callable_aliases,
+            receiver_pipe_aliases,
+        ):
             violations.append(lineno)
 
 
@@ -467,6 +659,8 @@ def _scan_scope(
                 current_state.pipe_aliases,
                 current_state.function_bindings,
                 current_state.receiver_method_bindings,
+                current_state.receiver_callable_aliases,
+                current_state.receiver_pipe_aliases,
             )
 
         def _set_state(next_state: _AliasState) -> None:
@@ -480,6 +674,12 @@ def _scan_scope(
             current_state.receiver_method_bindings = _copy_receiver_method_bindings(
                 next_state.receiver_method_bindings
             )
+            current_state.receiver_callable_aliases = _copy_receiver_callable_aliases(
+                next_state.receiver_callable_aliases
+            )
+            current_state.receiver_pipe_aliases = _copy_receiver_pipe_aliases(
+                next_state.receiver_pipe_aliases
+            )
 
         def _resolve_receiver_binding(
             value: ast.expr,
@@ -489,6 +689,26 @@ def _scan_scope(
                 return source_state.receiver_method_bindings.get(value.id)
             if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
                 return source_state.receiver_method_bindings.get(value.func.id)
+            return None
+
+        def _resolve_receiver_callable_aliases(
+            value: ast.expr,
+            source_state: _AliasState,
+        ) -> dict[str, str] | None:
+            if isinstance(value, ast.Name):
+                return source_state.receiver_callable_aliases.get(value.id)
+            if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
+                return source_state.receiver_callable_aliases.get(value.func.id)
+            return None
+
+        def _resolve_receiver_pipe_aliases(
+            value: ast.expr,
+            source_state: _AliasState,
+        ) -> set[str] | None:
+            if isinstance(value, ast.Name):
+                return source_state.receiver_pipe_aliases.get(value.id)
+            if isinstance(value, ast.Call) and isinstance(value.func, ast.Name):
+                return source_state.receiver_pipe_aliases.get(value.func.id)
             return None
 
         def _record_expr(node: ast.AST | None) -> None:
@@ -523,6 +743,14 @@ def _scan_scope(
                 else []
             )
             receiver_bindings = _resolve_receiver_binding(value, binding_state)
+            receiver_callable_aliases = _resolve_receiver_callable_aliases(
+                value,
+                binding_state,
+            )
+            receiver_pipe_aliases = _resolve_receiver_pipe_aliases(
+                value,
+                binding_state,
+            )
             resolved_module, resolved_callable, resolved_pipe = _resolve_assignment_aliases(
                 value,
                 binding_state,
@@ -535,6 +763,12 @@ def _scan_scope(
                     method_name: list(method_bindings)
                     for method_name, method_bindings in receiver_bindings.items()
                 }
+            if receiver_callable_aliases is not None:
+                current_state.receiver_callable_aliases[name] = dict(
+                    receiver_callable_aliases
+                )
+            if receiver_pipe_aliases is not None:
+                current_state.receiver_pipe_aliases[name] = set(receiver_pipe_aliases)
             elif isinstance(value, ast.Lambda):
                 current_state.function_bindings[name] = [
                     _register_deferred(
@@ -631,17 +865,40 @@ def _scan_scope(
                     class_state.pipe_aliases,
                     class_state.function_bindings,
                     class_state.receiver_method_bindings,
+                    class_state.receiver_callable_aliases,
+                    class_state.receiver_pipe_aliases,
                 )
                 _scan_block(stmt.body, class_state, attribute_context=True)
+                class_bound_names = _top_level_bound_names(stmt.body)
+                class_callable_aliases = {
+                    name: target
+                    for name, target in class_state.callable_aliases.items()
+                    if name in class_bound_names
+                }
+                class_pipe_aliases = {
+                    name
+                    for name in class_state.pipe_aliases
+                    if name in class_bound_names
+                }
                 if class_state.function_bindings:
                     class_receiver_bindings = {
                         method_name: list(method_bindings)
                         for method_name, method_bindings in class_state.function_bindings.items()
+                        if method_name in class_bound_names
                     }
                     for method_bindings in class_receiver_bindings.values():
                         for deferred in method_bindings:
                             deferred.receiver_bindings = class_receiver_bindings
-                    current_state.receiver_method_bindings[stmt.name] = class_receiver_bindings
+                            deferred.receiver_callable_aliases = class_callable_aliases
+                            deferred.receiver_pipe_aliases = class_pipe_aliases
+                    if class_receiver_bindings:
+                        current_state.receiver_method_bindings[stmt.name] = (
+                            class_receiver_bindings
+                        )
+                if class_callable_aliases:
+                    current_state.receiver_callable_aliases[stmt.name] = class_callable_aliases
+                if class_pipe_aliases:
+                    current_state.receiver_pipe_aliases[stmt.name] = class_pipe_aliases
                 continue
 
             if isinstance(stmt, ast.Assign):
@@ -680,6 +937,8 @@ def _scan_scope(
                         body_state.pipe_aliases,
                         body_state.function_bindings,
                         body_state.receiver_method_bindings,
+                        body_state.receiver_callable_aliases,
+                        body_state.receiver_pipe_aliases,
                     )
                 _scan_block(stmt.body, body_state)
                 after_states = [zero_state, body_state]
@@ -741,6 +1000,8 @@ def _scan_scope(
                             handler_state.pipe_aliases,
                             handler_state.function_bindings,
                             handler_state.receiver_method_bindings,
+                            handler_state.receiver_callable_aliases,
+                            handler_state.receiver_pipe_aliases,
                         )
                     _scan_block(handler.body, handler_state)
                     branch_states.append(handler_state)
@@ -810,6 +1071,14 @@ def _scan_scope(
                 )
                 for name, methods in sorted(analysis_state.receiver_method_bindings.items())
             ),
+            tuple(
+                (name, tuple(sorted(methods.items())))
+                for name, methods in sorted(analysis_state.receiver_callable_aliases.items())
+            ),
+            tuple(
+                (name, tuple(sorted(methods)))
+                for name, methods in sorted(analysis_state.receiver_pipe_aliases.items())
+            ),
         )
 
     def _receiver_param_name(deferred: _DeferredCallable) -> str | None:
@@ -832,6 +1101,8 @@ def _scan_scope(
     ) -> None:
         receiver_param = _receiver_param_name(deferred)
         receiver_bindings = deferred.receiver_bindings
+        receiver_callable_aliases = deferred.receiver_callable_aliases
+        receiver_pipe_aliases = deferred.receiver_pipe_aliases
         if isinstance(deferred.node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             fn_state = _copy_alias_state(analysis_state)
             _clear_alias_binding(
@@ -841,6 +1112,8 @@ def _scan_scope(
                 fn_state.pipe_aliases,
                 fn_state.function_bindings,
                 fn_state.receiver_method_bindings,
+                fn_state.receiver_callable_aliases,
+                fn_state.receiver_pipe_aliases,
             )
             for name in _parameter_names(deferred.node.args):
                 _clear_alias_binding(
@@ -850,12 +1123,22 @@ def _scan_scope(
                     fn_state.pipe_aliases,
                     fn_state.function_bindings,
                     fn_state.receiver_method_bindings,
+                    fn_state.receiver_callable_aliases,
+                    fn_state.receiver_pipe_aliases,
                 )
             if receiver_param is not None and receiver_bindings is not None:
                 fn_state.receiver_method_bindings[receiver_param] = {
                     method_name: list(method_bindings)
                     for method_name, method_bindings in receiver_bindings.items()
                 }
+                if receiver_callable_aliases is not None:
+                    fn_state.receiver_callable_aliases[receiver_param] = dict(
+                        receiver_callable_aliases
+                    )
+                if receiver_pipe_aliases is not None:
+                    fn_state.receiver_pipe_aliases[receiver_param] = set(
+                        receiver_pipe_aliases
+                    )
             violations.extend(_scan_scope(deferred.node.body, fn_state, source_lines))
             return
 
@@ -868,12 +1151,22 @@ def _scan_scope(
                 lambda_state.pipe_aliases,
                 lambda_state.function_bindings,
                 lambda_state.receiver_method_bindings,
+                lambda_state.receiver_callable_aliases,
+                lambda_state.receiver_pipe_aliases,
             )
         if receiver_param is not None and receiver_bindings is not None:
             lambda_state.receiver_method_bindings[receiver_param] = {
                 method_name: list(method_bindings)
                 for method_name, method_bindings in receiver_bindings.items()
             }
+            if receiver_callable_aliases is not None:
+                lambda_state.receiver_callable_aliases[receiver_param] = dict(
+                    receiver_callable_aliases
+                )
+            if receiver_pipe_aliases is not None:
+                lambda_state.receiver_pipe_aliases[receiver_param] = set(
+                    receiver_pipe_aliases
+                )
         _record_call_violations(
             deferred.node.body,
             lambda_state,
@@ -968,7 +1261,7 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
         set(
             _scan_scope(
                 tree.body,
-                _AliasState({"subprocess"}, {}, set(), {}, {}),
+                _AliasState({"subprocess"}, {}, set(), {}, {}, {}, {}),
                 source_lines,
             )
         )

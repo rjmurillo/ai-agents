@@ -30,6 +30,7 @@ Coverage:
 - neg/lambda-use-before-rebind: assigned lambdas honor call-time rebind order
 - neg/branch-local-lambda-order: branch-defined lambdas honor outer call-time order
 - neg/class-method-order: class methods honor outer late-bind and rebind order
+- neg/class-attribute-aliases: class-scoped callable and PIPE aliases still resolve
 - neg/transitive-deferred-order: nested deferred calls preserve the outer call snapshot
 - neg/match-guard-order: match guards capture deferred call order before later rebinds
 - neg/universal-newlines: legacy text-mode alias is treated like text=True
@@ -465,6 +466,39 @@ def test_class_method_after_later_rebind_is_not_flagged() -> None:
         "runner = print\n"
     )
     assert find_violations(source) == []
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        (
+            "import subprocess\n"
+            "class C:\n"
+            "    runner = subprocess.check_output\n"
+            'C.runner(["x"], encoding="utf-8")\n',
+            [4],
+        ),
+        (
+            "import subprocess\n"
+            "class C:\n"
+            "    runner = subprocess.check_output\n"
+            'C().runner(["x"], encoding="utf-8")\n',
+            [4],
+        ),
+        (
+            "import subprocess\n"
+            "class C:\n"
+            "    PIPE = subprocess.PIPE\n"
+            'subprocess.run(["x"], stdout=C.PIPE, encoding="utf-8")\n',
+            [4],
+        ),
+    ],
+)
+def test_class_attribute_aliases_are_flagged(
+    source: str,
+    expected: list[int],
+) -> None:
+    assert find_violations(source) == expected
 
 
 @pytest.mark.parametrize(
