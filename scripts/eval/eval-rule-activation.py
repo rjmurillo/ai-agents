@@ -67,7 +67,12 @@ from _anthropic_api import call_api as _call_api
 from _anthropic_api import (
     load_api_key_for_selected_provider as _load_api_key,
 )
-from _eval_common import EST_TOKENS_PER_CALL, cost_basis
+from _eval_common import (
+    EST_TOKENS_PER_CALL,
+    MalformedProviderMetadataError,
+    cost_basis,
+    require_str_or_none,
+)
 
 # ---------------------------------------------------------------------------
 # Config
@@ -98,6 +103,7 @@ DEFAULT_SEED = 0
 DEFAULT_JUDGE_REPEATS = 3
 DEFAULT_JUDGE_REDUCER = "median"
 RESULTS_SCHEMA_VERSION = 1
+MAX_JUDGE_EVIDENCE_CHARS = 16_384
 _SCORE_KEYS = ("activation_score", "citation_score", "behavior_score")
 _SCORE_REDUCERS: dict[str, Callable[[list[float]], float]] = {
     "mean": statistics.fmean,
@@ -476,38 +482,54 @@ Respond in JSON only, no other text:
         metadata=metadata,
     )
 
+    # Reject before parsing so every parse failure can be replayed from the
+    # exact response stored in the sample record.
+    if len(raw) > MAX_JUDGE_EVIDENCE_CHARS:
+        return _failed_judge(
+            f"judge response exceeded {MAX_JUDGE_EVIDENCE_CHARS} character evidence limit",
+            raw_judge_response=raw,
+            judge_model=model,
+        )
+
     text = raw.strip()
 
     try:
         parsed = _strict_json_loads(text)
-    except ValueError:
+    except ValueError as exc:
         return _failed_judge(
             "judge response could not be parsed as JSON",
             raw_judge_response=raw,
+            judge_model=model,
+            parse_error=exc,
         )
     if not isinstance(parsed, dict):
         return _failed_judge(
             "judge returned non-object JSON",
             raw_judge_response=raw,
+            judge_model=model,
         )
     if _parsed_names_two_verdicts(parsed):
         return _failed_judge(
             "ambiguous judge output names two verdicts",
             raw_judge_response=raw,
+            judge_model=model,
         )
     score_error = _judge_score_shape_error(parsed)
     if score_error is not None:
-        return _failed_judge(score_error, raw_judge_response=raw)
+        return _failed_judge(score_error, raw_judge_response=raw, judge_model=model)
     result = {
         "activation_score": _clamp_score(parsed["activation_score"]),
         "citation_score": _clamp_score(parsed["citation_score"]),
         "behavior_score": _clamp_score(parsed["behavior_score"]),
         "reasoning": str(parsed.get("reasoning", ""))[:300],
         "judge_failed": False,
+        "judge_model": model,
         "raw_judge_response": raw,
     }
-    fingerprint = metadata.get("system_fingerprint")
-    if isinstance(fingerprint, str):
+    fingerprint = require_str_or_none(
+        metadata.get("system_fingerprint"), "system_fingerprint"
+    )
+    if fingerprint is not None:
         result["judge_system_fingerprint"] = fingerprint
     return result
 
@@ -867,7 +889,13 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
     return False
 
 
-def _failed_judge(reason: str, *, raw_judge_response: str = "") -> dict[str, Any]:
+def _failed_judge(
+    reason: str,
+    *,
+    raw_judge_response: str | None = None,
+    judge_model: str | None = None,
+    parse_error: ValueError | None = None,
+) -> dict[str, Any]:
     result: dict[str, Any] = {
         "activation_score": 0,
         "citation_score": 0,
@@ -875,9 +903,31 @@ def _failed_judge(reason: str, *, raw_judge_response: str = "") -> dict[str, Any
         "reasoning": reason,
         "judge_failed": True,
     }
-    if raw_judge_response:
-        result["raw_judge_response"] = raw_judge_response
+    if raw_judge_response is not None:
+        result.update(_bounded_judge_evidence(raw_judge_response))
+    if judge_model is not None:
+        result["judge_model"] = judge_model
+    if parse_error is not None:
+        result["judge_parse_error"] = str(parse_error)
+        result["judge_parse_error_type"] = type(parse_error).__name__
     return result
+
+
+def _bounded_judge_evidence(raw: str) -> dict[str, Any]:
+    if len(raw) <= MAX_JUDGE_EVIDENCE_CHARS:
+        return {"raw_judge_response": raw}
+
+    marker = "\n... omitted ...\n"
+    payload_chars = MAX_JUDGE_EVIDENCE_CHARS - len(marker)
+    prefix_chars = payload_chars // 2
+    suffix_chars = payload_chars - prefix_chars
+    excerpt = raw[:prefix_chars] + marker + raw[-suffix_chars:]
+    return {
+        "raw_judge_response": excerpt,
+        "raw_judge_response_chars": len(raw),
+        "raw_judge_response_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+        "raw_judge_response_truncated": True,
+    }
 
 
 def _judge_score_shape_error(parsed: dict[str, Any]) -> str | None:
@@ -949,6 +999,41 @@ def _declined_cell(system: str) -> dict[str, Any]:
         "declined": "prompt identical to baseline",
         "system_prompt_chars": len(system),
     }
+
+
+def _add_mechanism_metadata(
+    mechanism_result: dict[str, Any],
+    routing: dict[str, Any] | None,
+    fingerprint: str | None,
+) -> None:
+    """Add optional routing and already-validated provider provenance."""
+    if routing is not None:
+        mechanism_result["routing"] = routing
+    if fingerprint is not None:
+        mechanism_result["system_fingerprint"] = fingerprint
+
+
+def _score_judge_sample(
+    api_key: str,
+    scenario: dict[str, Any],
+    response: str,
+    model: str,
+    judge_seed: int | None,
+    sample_index: int,
+) -> dict[str, Any]:
+    """Score one judge sample while preserving provenance contract failures."""
+    try:
+        sample = score_response(api_key, scenario, response, model=model, seed=judge_seed)
+    except MalformedProviderMetadataError:
+        raise
+    except RuntimeError as error:
+        return {
+            "judge_failed": True,
+            "reasoning": f"judge API failure: {error}",
+            "sample_index": sample_index,
+        }
+    sample["sample_index"] = sample_index
+    return sample
 
 
 def eval_one_scenario(
@@ -1055,6 +1140,11 @@ def eval_one_scenario(
                 seed=seed,
                 metadata=metadata,
             )
+            fingerprint = require_str_or_none(
+                metadata.get("system_fingerprint"), "system_fingerprint"
+            )
+        except MalformedProviderMetadataError:
+            raise
         except RuntimeError as e:
             result["mechanisms"][mechanism] = {
                 "error": str(e),
@@ -1066,16 +1156,14 @@ def eval_one_scenario(
         score_samples: list[dict[str, Any]] = []
         for sample_index in range(judge_repeats):
             judge_seed = None if seed is None else seed + sample_index + 1
-            try:
-                sample = score_response(api_key, scenario, response, model=model, seed=judge_seed)
-            except RuntimeError as e:
-                sample = {
-                    "judge_failed": True,
-                    "reasoning": f"judge API failure: {e}",
-                    "sample_index": sample_index,
-                }
-            else:
-                sample["sample_index"] = sample_index
+            sample = _score_judge_sample(
+                api_key,
+                scenario,
+                response,
+                model,
+                judge_seed,
+                sample_index,
+            )
             score_samples.append(sample)
             time.sleep(RATE_LIMIT_SLEEP_SEC)
         scores = _reduce_score_samples(score_samples, judge_reducer)
@@ -1087,11 +1175,7 @@ def eval_one_scenario(
             "score_reducer": judge_reducer,
             "system_prompt_chars": len(system),
         }
-        if routing is not None:
-            mechanism_result["routing"] = routing
-        fingerprint = metadata.get("system_fingerprint")
-        if isinstance(fingerprint, str):
-            mechanism_result["system_fingerprint"] = fingerprint
+        _add_mechanism_metadata(mechanism_result, routing, fingerprint)
         result["mechanisms"][mechanism] = mechanism_result
     return result
 
