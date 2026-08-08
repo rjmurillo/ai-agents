@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, CLI script keeps merge orchestration and output contract together.
+# taste-lint: ignore complexity, CLI script keeps merge orchestration and output contract together.
 """Merge a GitHub Pull Request.
 
 Merges a PR using the specified strategy. Supports auto-merge
