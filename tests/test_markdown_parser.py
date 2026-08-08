@@ -14,11 +14,113 @@ from scripts.utils.markdown_parser import (
     Section,
     TableRow,
     blank_code_block_lines,
+    extract_lookup_references,
     find_checklist_item,
     find_section,
     parse_sections,
     parse_tables,
 )
+
+
+class TestExtractLookupReferences:
+    """Test rendered lookup-route extraction."""
+
+    def test_extracts_link_and_bare_table_targets(self) -> None:
+        markdown = """\
+| Keywords | File |
+|----------|------|
+| linked | [linked](quality/linked.md) |
+| bare | quality/bare |
+"""
+
+        assert extract_lookup_references(markdown) == [
+            "quality/linked.md",
+            "quality/bare.md",
+        ]
+
+    def test_ignores_links_outside_table_file_column(self) -> None:
+        markdown = """\
+| [Keywords](quality-index.md) | File |
+|------------------------------|------|
+| [keyword](other.md) | [target](quality/target.md) |
+"""
+
+        assert extract_lookup_references(markdown) == [
+            "quality/target.md"
+        ]
+
+    def test_extracts_custom_root_lookup_links(self) -> None:
+        markdown = (
+            "| quality routes: [one](quality/one.md), "
+            "[two](quality/two.md)\n"
+        )
+
+        assert extract_lookup_references(markdown) == [
+            "quality/one.md",
+            "quality/two.md",
+        ]
+
+    @pytest.mark.parametrize(
+        "hidden_markup",
+        [
+            "<!--\n| fake: [hidden](quality/hidden.md)",
+            "```\n| fake: [hidden](quality/hidden.md)\n```",
+            "    | fake: [hidden](quality/hidden.md)",
+            "| fake: `[hidden](quality/hidden.md)`",
+            r"| fake: \[hidden](quality/hidden.md)",
+        ],
+    )
+    def test_ignores_non_rendered_links(self, hidden_markup: str) -> None:
+        assert extract_lookup_references(hidden_markup) == []
+
+    def test_even_backslashes_preserve_rendered_link(self) -> None:
+        markdown = r"| live: \\[live](quality/live.md)"
+
+        assert extract_lookup_references(markdown) == ["quality/live.md"]
+
+    def test_comment_marker_inside_fence_does_not_hide_later_route(self) -> None:
+        markdown = (
+            "```\n"
+            "<!--\n"
+            "```\n"
+            "| live: [live](quality/live.md)\n"
+        )
+
+        assert extract_lookup_references(markdown) == ["quality/live.md"]
+
+    def test_adjacent_prose_link_is_not_a_lookup_route(self) -> None:
+        markdown = (
+            "| live: [live](quality/live.md)\n"
+            "ordinary prose [hidden](quality/hidden.md)\n"
+        )
+
+        assert extract_lookup_references(markdown) == ["quality/live.md"]
+
+    def test_reference_style_root_link_uses_document_definition(self) -> None:
+        markdown = (
+            "| live: [live][quality]\n\n"
+            "[quality]: quality/live.md\n"
+        )
+
+        assert extract_lookup_references(markdown) == ["quality/live.md"]
+
+    def test_multiline_inline_code_link_is_not_a_route(self) -> None:
+        markdown = (
+            "`code starts\n"
+            "| fake: [hidden](quality/hidden.md)\n"
+            "code ends`\n"
+            "| live: [live](quality/live.md)\n"
+        )
+
+        assert extract_lookup_references(markdown) == ["quality/live.md"]
+
+    def test_pipe_line_nested_in_list_is_not_root_route(self) -> None:
+        markdown = (
+            "- example\n"
+            "  | fake: [hidden](quality/hidden.md)\n"
+        )
+
+        assert extract_lookup_references(markdown) == []
 
 
 class TestParseTablesBasic:
