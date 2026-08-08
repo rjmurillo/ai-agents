@@ -123,27 +123,6 @@ def _subprocess_call_name(
     return None
 
 
-def _record_import_bindings(
-    node: ast.AST,
-    module_aliases: set[str],
-    callable_aliases: dict[str, str],
-    pipe_aliases: set[str],
-) -> None:
-    """Add subprocess bindings declared by one import node."""
-    if isinstance(node, ast.Import):
-        for alias in node.names:
-            if alias.name == "subprocess":
-                module_aliases.add(alias.asname or alias.name)
-        return
-    if not isinstance(node, ast.ImportFrom) or node.module != "subprocess":
-        return
-    for alias in node.names:
-        if alias.name in _ALL_SUBPROCESS_CALLS:
-            callable_aliases[alias.asname or alias.name] = alias.name
-        elif alias.name == "PIPE":
-            pipe_aliases.add(alias.asname or alias.name)
-
-
 def _assignment_pairs(node: ast.AST) -> list[tuple[str, ast.expr]]:
     """Return simple target names paired with their assigned value nodes."""
     if isinstance(node, ast.Assign):
@@ -193,52 +172,9 @@ def _resolve_value_binding(
         return "callable", callable_aliases[value.id]
     if isinstance(value, ast.Name) and value.id in pipe_aliases:
         return "pipe", "PIPE"
+    if isinstance(value, ast.Name) and value.id in module_aliases:
+        return "module", "subprocess"
     return None
-
-
-def _resolve_assignment_bindings(
-    node: ast.AST,
-    module_aliases: set[str],
-    callable_aliases: dict[str, str],
-    pipe_aliases: set[str],
-) -> list[tuple[str, str, str]]:
-    """Resolve subprocess aliases introduced by one assignment node."""
-    bindings: list[tuple[str, str, str]] = []
-    for name, value in _assignment_pairs(node):
-        resolved = _resolve_value_binding(value, module_aliases, callable_aliases, pipe_aliases)
-        if resolved is not None:
-            kind, canonical = resolved
-            bindings.append((kind, name, canonical))
-    return bindings
-
-
-def _subprocess_bindings(
-    tree: ast.AST,
-) -> tuple[set[str], dict[str, str], set[str]]:
-    """Return aliases resolving to subprocess modules, callables, and PIPE."""
-    module_aliases = {"subprocess"}
-    callable_aliases = {name: name for name in _ALL_SUBPROCESS_CALLS}
-    pipe_aliases = {"PIPE"}
-    nodes = list(ast.walk(tree))
-
-    for node in nodes:
-        _record_import_bindings(node, module_aliases, callable_aliases, pipe_aliases)
-
-    changed = True
-    while changed:
-        changed = False
-        for node in nodes:
-            bindings = _resolve_assignment_bindings(
-                node, module_aliases, callable_aliases, pipe_aliases
-            )
-            for kind, name, resolved in bindings:
-                if kind == "callable" and callable_aliases.get(name) != resolved:
-                    callable_aliases[name] = resolved
-                    changed = True
-                elif kind == "pipe" and name not in pipe_aliases:
-                    pipe_aliases.add(name)
-                    changed = True
-    return module_aliases, callable_aliases, pipe_aliases
 
 
 def _is_flagged(
@@ -284,6 +220,135 @@ def _is_flagged(
     return True
 
 
+class _SubprocessCallVisitor(ast.NodeVisitor):
+    """Find violations while tracking bindings in statement and scope order."""
+
+    def __init__(self) -> None:
+        self.module_aliases: set[str] = set()
+        self.callable_aliases: dict[str, str] = {}
+        self.pipe_aliases: set[str] = set()
+        self.flagged_lines: list[int] = []
+
+    def _clear(self, name: str) -> None:
+        self.module_aliases.discard(name)
+        self.callable_aliases.pop(name, None)
+        self.pipe_aliases.discard(name)
+
+    def _bind(self, name: str, resolved: tuple[str, str] | None) -> None:
+        self._clear(name)
+        if resolved is None:
+            return
+        kind, canonical = resolved
+        if kind == "module":
+            self.module_aliases.add(name)
+        elif kind == "callable":
+            self.callable_aliases[name] = canonical
+        else:
+            self.pipe_aliases.add(name)
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            bound = alias.asname or alias.name.split(".", maxsplit=1)[0]
+            resolved = ("module", "subprocess") if alias.name == "subprocess" else None
+            self._bind(bound, resolved)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        for alias in node.names:
+            bound = alias.asname or alias.name
+            resolved: tuple[str, str] | None = None
+            if node.module == "subprocess":
+                if alias.name in _ALL_SUBPROCESS_CALLS:
+                    resolved = ("callable", alias.name)
+                elif alias.name == "PIPE":
+                    resolved = ("pipe", "PIPE")
+            self._bind(bound, resolved)
+
+    def _visit_assignment(self, node: ast.AST, value: ast.expr) -> None:
+        self.visit(value)
+        resolved = [
+            (
+                name,
+                _resolve_value_binding(
+                    assigned,
+                    self.module_aliases,
+                    self.callable_aliases,
+                    self.pipe_aliases,
+                ),
+            )
+            for name, assigned in _assignment_pairs(node)
+        ]
+        for name, binding in resolved:
+            self._bind(name, binding)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        self._visit_assignment(node, node.value)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        if node.value is not None:
+            self._visit_assignment(node, node.value)
+        elif isinstance(node.target, ast.Name):
+            self._clear(node.target.id)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        self.visit(node.value)
+        if isinstance(node.target, ast.Name):
+            self._clear(node.target.id)
+
+    def _visit_scope(self, body: list[ast.stmt], shadowed: set[str]) -> None:
+        saved = (
+            self.module_aliases.copy(),
+            self.callable_aliases.copy(),
+            self.pipe_aliases.copy(),
+        )
+        for name in shadowed:
+            self._clear(name)
+        for statement in body:
+            self.visit(statement)
+        self.module_aliases, self.callable_aliases, self.pipe_aliases = saved
+
+    @staticmethod
+    def _argument_names(arguments: ast.arguments) -> set[str]:
+        args = arguments.posonlyargs + arguments.args + arguments.kwonlyargs
+        names = {arg.arg for arg in args}
+        if arguments.vararg is not None:
+            names.add(arguments.vararg.arg)
+        if arguments.kwarg is not None:
+            names.add(arguments.kwarg.arg)
+        return names
+
+    def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        defaults = [
+            *node.args.defaults,
+            *(value for value in node.args.kw_defaults if value is not None),
+        ]
+        for expression in [*node.decorator_list, *defaults]:
+            self.visit(expression)
+        self._visit_scope(node.body, self._argument_names(node.args))
+        self._clear(node.name)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_function(node)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        for expression in [*node.decorator_list, *node.bases, *node.keywords]:
+            self.visit(expression)
+        self._visit_scope(node.body, set())
+        self._clear(node.name)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        if _is_flagged(
+            node,
+            self.module_aliases,
+            self.callable_aliases,
+            self.pipe_aliases,
+        ):
+            self.flagged_lines.append(node.lineno)
+        self.generic_visit(node)
+
+
 _SUPPRESSION_COMMENT = "# subprocess-encoding: strict-ok"
 
 
@@ -306,7 +371,8 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
     replacement characters).
     """
     tree = ast.parse(source, filename=filename)
-    module_aliases, callable_aliases, pipe_aliases = _subprocess_bindings(tree)
+    visitor = _SubprocessCallVisitor()
+    visitor.visit(tree)
 
     source_lines = source.splitlines()
 
@@ -315,13 +381,7 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
             return False
         return _SUPPRESSION_COMMENT in source_lines[lineno - 1]
 
-    return sorted(
-        node.lineno
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and _is_flagged(node, module_aliases, callable_aliases, pipe_aliases)
-        and not _suppressed(node.lineno)
-    )
+    return sorted(lineno for lineno in visitor.flagged_lines if not _suppressed(lineno))
 
 
 def _collect_sources(repo_root: Path) -> list[Path]:
