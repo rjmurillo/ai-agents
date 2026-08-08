@@ -496,22 +496,27 @@ class TestBoundedJudgeEvidence:
         assert "raw_judge_response_truncated" not in result
         assert "judge_parse_error" in result
 
-    def test_response_over_limit_is_bounded_without_fabricated_parse_error(
+    def test_valid_response_over_limit_is_bounded_without_fabricated_parse_error(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        payload = "BEGIN" + "x" * eval_mod.MAX_JUDGE_EVIDENCE_CHARS + "END"
+        long_reasoning = "x" * eval_mod.MAX_JUDGE_EVIDENCE_CHARS
+        payload = (
+            '{"activation_score": 3, "citation_score": 3, "behavior_score": 3,'
+            f' "reasoning": "{long_reasoning}"}}'
+        )
         result = _score_response_with(monkeypatch, payload)
 
         assert result["judge_failed"] is True
         assert len(result["raw_judge_response"]) == eval_mod.MAX_JUDGE_EVIDENCE_CHARS
-        assert result["raw_judge_response"].startswith("BEGIN")
-        assert result["raw_judge_response"].endswith("END")
+        assert result["raw_judge_response"].startswith('{"activation_score"')
+        assert result["raw_judge_response"].endswith('"}')
         assert result["raw_judge_response_chars"] == len(payload)
         assert (
             result["raw_judge_response_sha256"]
             == hashlib.sha256(payload.encode("utf-8")).hexdigest()
         )
         assert result["raw_judge_response_truncated"] is True
+        assert result["reasoning"].endswith("character evidence limit")
         assert "judge_parse_error" not in result
 
 
