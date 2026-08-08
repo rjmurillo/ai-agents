@@ -22,6 +22,7 @@ import warnings
 from collections.abc import Iterable
 from pathlib import Path
 from types import ModuleType
+from typing import cast
 
 
 def _resolve_paths_lib_dir() -> Path:
@@ -521,9 +522,12 @@ def _qa_report_evidence(
 
 def _qa_session_log_identity(session_path: str, repo_root: str) -> str:
     """Return a stable session identity across artifact-root overrides."""
-    return session_log_identity(
-        Path(session_path),
-        sessions_root=artifact_dir("sessions", base=Path(repo_root)),
+    return cast(
+        str,
+        session_log_identity(
+            Path(session_path),
+            sessions_root=artifact_dir("sessions", base=Path(repo_root)),
+        ),
     )
 
 

@@ -35,7 +35,7 @@ import subprocess
 import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import jsonschema
 from jsonschema import FormatChecker
@@ -1500,7 +1500,10 @@ def _session_identity(path: Path) -> str:
     """Return the canonical logical identity for a physical session file."""
     for sessions_root in _session_roots():
         try:
-            return session_log_identity(path, sessions_root=sessions_root)
+            return cast(
+                str,
+                session_log_identity(path, sessions_root=sessions_root),
+            )
         except ValueError:
             continue
     raise ValueError(f"Session log is outside every supported sessions root: {path}")
