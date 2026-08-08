@@ -12,6 +12,7 @@ import json
 import subprocess
 import warnings
 from dataclasses import dataclass
+from enum import Enum
 
 DEFAULT_RATE_THRESHOLDS: dict[str, int] = {
     "core": 100,
@@ -21,15 +22,59 @@ DEFAULT_RATE_THRESHOLDS: dict[str, int] = {
 }
 
 
-@dataclass
+class RateLimitStatus(str, Enum):
+    """Three-state verdict for the rate-limit gate."""
+
+    VERIFIED_HEALTHY = "verified_healthy"
+    VERIFIED_LIMITED = "verified_limited"
+    COULD_NOT_DETERMINE = "could_not_determine"
+
+
+@dataclass(init=False)
 class RateLimitResult:
     """Structured result from rate limit check."""
 
-    success: bool
+    status: RateLimitStatus
     resources: dict[str, dict]
     summary_markdown: str
     core_remaining: int
     probe_error: str = ""
+
+    def __init__(
+        self,
+        success: bool | None = None,
+        resources: dict[str, dict] | None = None,
+        summary_markdown: str = "",
+        core_remaining: int = 0,
+        probe_error: str = "",
+        *,
+        status: RateLimitStatus | str | None = None,
+    ) -> None:
+        """Create a result while preserving the old keyword shape for callers."""
+        if status is None:
+            if success is None:
+                resolved_status = RateLimitStatus.COULD_NOT_DETERMINE
+            elif success:
+                resolved_status = RateLimitStatus.VERIFIED_HEALTHY
+            else:
+                resolved_status = RateLimitStatus.VERIFIED_LIMITED
+        else:
+            resolved_status = RateLimitStatus(status)
+            if success is not None and success != (
+                resolved_status == RateLimitStatus.VERIFIED_HEALTHY
+            ):
+                raise ValueError("success conflicts with status")
+
+        self.status = resolved_status
+        self.resources = {} if resources is None else resources
+        self.summary_markdown = summary_markdown
+        self.core_remaining = core_remaining
+        self.probe_error = probe_error
+
+    @property
+    def success(self) -> bool:
+        """Backward-compatible healthy verdict."""
+        return self.status == RateLimitStatus.VERIFIED_HEALTHY
 
 
 # GitHub refuses calls with "API rate limit exceeded" while ``gh api
@@ -176,9 +221,9 @@ def check_workflow_rate_limit(
 ) -> RateLimitResult:
     """Check GitHub API rate limits before workflow execution.
 
-    Reports ``success=True`` only when every threshold passes AND one live
-    non-exempt call is actually served. Callers read this as "the API will serve
-    requests" (``scripts/invoke_pr_maintenance.py``,
+    Reports ``status=VERIFIED_HEALTHY`` only when every threshold passes and one
+    live non-exempt call is actually served. Callers read this as "the API will
+    serve requests" (``scripts/invoke_pr_maintenance.py``,
     ``.github/scripts/invoke_pr_maintenance.py``,
     ``scripts/update_reviewer_signal_stats.py``), and before issue #4326 the
     payload-only check reported healthy quota during refusals that failed every
@@ -198,6 +243,8 @@ def check_workflow_rate_limit(
 
     resources: dict[str, dict] = {}
     all_passed = True
+    has_verified_limit = False
+    has_unknown = False
     summary_lines = [
         "### API Rate Limit Status",
         "",
@@ -210,6 +257,10 @@ def check_workflow_rate_limit(
         passed, entry, row = _evaluate_resource(resource, threshold, resource_data)
         if not passed:
             all_passed = False
+            if entry is None:
+                has_unknown = True
+            else:
+                has_verified_limit = True
         if entry is not None:
             resources[resource] = entry
         summary_lines.append(row)
@@ -217,19 +268,31 @@ def check_workflow_rate_limit(
     probe_error = _probe_api_serving(probe_graphql="graphql" in resource_thresholds)
     if probe_error and _probe_failure_is_a_refusal(probe_error):
         all_passed = False
+        has_verified_limit = True
         summary_lines.append("| live probe | N/A | served | X REFUSED |")
         summary_lines.append("")
         summary_lines.append(f"Live probe was refused: {probe_error}")
     elif probe_error:
-        summary_lines.append("| live probe | N/A | served | ! UNRESOLVED |")
+        all_passed = False
+        has_unknown = True
+        summary_lines.append("| live probe | N/A | served | ! INDETERMINATE |")
         summary_lines.append("")
         summary_lines.append(
             f"Live probe did not complete: {probe_error}. "
-            "Not a quota refusal, so the gate is not closed on it."
+            "Rate-limit status is INDETERMINATE."
         )
 
+    if all_passed:
+        status = RateLimitStatus.VERIFIED_HEALTHY
+    elif has_verified_limit:
+        status = RateLimitStatus.VERIFIED_LIMITED
+    elif has_unknown:
+        status = RateLimitStatus.COULD_NOT_DETERMINE
+    else:
+        status = RateLimitStatus.COULD_NOT_DETERMINE
+
     return RateLimitResult(
-        success=all_passed,
+        status=status,
         resources=resources,
         summary_markdown="\n".join(summary_lines),
         core_remaining=((rate_limit.get("resources") or {}).get("core") or {}).get(

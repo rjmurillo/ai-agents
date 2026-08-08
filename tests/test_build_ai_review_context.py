@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 _SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts/ci/build_ai_review_context.py"
 
@@ -54,6 +55,157 @@ def test_builds_full_pr_context(monkeypatch: pytest.MonkeyPatch):
     assert "## PR #7: Fix bad title" in context.text
     assert "## PR Description\nBody text" in context.text
     assert "diff --git" in context.text
+
+
+def test_run_gh_retries_rate_limit_before_returning_success(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A transient 403 during context build retries before declaring failure."""
+    calls: list[list[str]] = []
+    sleeps: list[float] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        if len(calls) == 1:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                1,
+                "",
+                "HTTP 403: API rate limit exceeded for user ID 6811113",
+            )
+        return _mod.subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "sleep", sleeps.append)
+
+    result = _mod.run_gh(["api", "repos/owner/repo/pulls/7"])
+
+    assert result.returncode == 0
+    assert result.stdout == "ok"
+    assert len(calls) == 2
+    assert sleeps == [_mod.GH_REFUSAL_BACKOFF_SECONDS[0]]
+
+
+def test_retry_budget_fits_ai_review_job_deadline():
+    """Exhausted retries must leave enough time to classify infrastructure failure."""
+    workflow_path = (
+        Path(__file__).resolve().parents[1]
+        / ".github/workflows/ai-pr-quality-gate.yml"
+    )
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    job_timeouts = [
+        int(job["timeout-minutes"])
+        for job in workflow["jobs"].values()
+        if any(
+            step.get("uses") == "./.github/actions/agent-review"
+            for step in job.get("steps", [])
+        )
+    ]
+    assert len(job_timeouts) == 10
+
+    shortest_job_seconds = min(job_timeouts) * 60
+
+    assert _mod.GH_CONTEXT_RETRY_BUDGET_SECONDS <= shortest_job_seconds - 120
+
+
+def test_shared_retry_budget_bounds_sequential_metadata_and_diff_ladders(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Metadata fallbacks cannot consume a fresh retry budget before diff fetch."""
+    now = [0.0]
+    sleeps: list[float] = []
+    calls: list[list[str]] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        if command[1:3] == ["pr", "view"] and len(calls) == 6:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                0,
+                _pulls_payload(7, "Recovered metadata", ""),
+                "",
+            )
+        return _mod.subprocess.CompletedProcess(
+            command,
+            1,
+            "",
+            "HTTP 403: API rate limit exceeded",
+        )
+
+    def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(_mod.time, "sleep", fake_sleep)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert context.infrastructure_failure is True
+    assert "retry budget exhausted" in context.text
+    assert sleeps == [60.0, 120.0, 60.0, 120.0]
+    assert sum(sleeps) < _mod.GH_CONTEXT_RETRY_BUDGET_SECONDS
+    assert len([call for call in calls if call[1:3] == ["pr", "diff"]]) == 1
+
+
+def test_run_gh_retries_timeout_as_infrastructure_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A hung gh process becomes a bounded refusal instead of escaping the gate."""
+    sleeps: list[float] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        raise _mod.subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "sleep", sleeps.append)
+
+    result = _mod.run_gh(["pr", "diff", "7"])
+
+    assert result.returncode == 124
+    assert "timed out" in result.stderr
+    assert sleeps == list(_mod.GH_REFUSAL_BACKOFF_SECONDS)
+
+
+def test_pr_diff_context_exhausted_rate_limit_records_infra_gap(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Retries that still 403 become indeterminate context, not a clean pass."""
+    calls: list[list[str]] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        if command[1:2] == ["api"]:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                0,
+                _pulls_payload(7, "Rate limited", ""),
+                "",
+            )
+        if command[1:3] == ["pr", "diff"]:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                1,
+                "",
+                "HTTP 403: API rate limit exceeded",
+            )
+        raise AssertionError(f"unexpected gh call: {command}")
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "sleep", lambda _seconds: None)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    diff_calls = [call for call in calls if call[1:3] == ["pr", "diff"]]
+    assert len(diff_calls) == len(_mod.GH_REFUSAL_BACKOFF_SECONDS) + 1
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert "INFRASTRUCTURE_FAILURE" in context.text
+    assert "rate limit" in context.text
 
 
 def test_marks_pr_number_mismatch_as_infrastructure_failure(
