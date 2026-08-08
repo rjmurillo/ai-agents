@@ -241,11 +241,50 @@ class TestCompleteSessionLog:
         mod = _load_module()
         report = mod.artifact_dir("qa", base=tmp_path) / "report.md"
         report.parent.mkdir(parents=True)
-        report.write_text("# QA\n", encoding="utf-8")
+        report.write_text(
+            "---\n"
+            "qaVerdict: PASS\n"
+            "qaSessionLog: .agents/sessions/session.json\n"
+            f"qaCommit: {'a' * 40}\n"
+            "---\n"
+            "# QA\n",
+            encoding="utf-8",
+        )
 
-        evidence = mod._qa_report_evidence(tmp_path, str(report))
+        evidence = mod._qa_report_evidence(
+            tmp_path,
+            str(report),
+            mod.QaBinding(
+                session_log=".agents/sessions/session.json",
+                commit="a" * 40,
+            ),
+        )
 
         assert evidence == report.relative_to(tmp_path).as_posix()
+
+    def test_qa_report_evidence_rejects_deferred_report(self, tmp_path):
+        mod = _load_module()
+        report = mod.artifact_dir("qa", base=tmp_path) / "report.md"
+        report.parent.mkdir(parents=True)
+        report.write_text(
+            "---\n"
+            "qaVerdict: DEFERRED\n"
+            "qaSessionLog: .agents/sessions/session.json\n"
+            f"qaCommit: {'a' * 40}\n"
+            "---\n"
+            "# QA\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="verdict must be PASS"):
+            mod._qa_report_evidence(
+                tmp_path,
+                str(report),
+                mod.QaBinding(
+                    session_log=".agents/sessions/session.json",
+                    commit="a" * 40,
+                ),
+            )
 
     def test_qa_report_evidence_rejects_path_outside_qa_root(self, tmp_path):
         mod = _load_module()
@@ -253,14 +292,28 @@ class TestCompleteSessionLog:
         report.write_text("# QA\n", encoding="utf-8")
 
         with pytest.raises(ValueError, match="must be under"):
-            mod._qa_report_evidence(tmp_path, str(report))
+            mod._qa_report_evidence(
+                tmp_path,
+                str(report),
+                mod.QaBinding(
+                    session_log=".agents/sessions/session.json",
+                    commit="a" * 40,
+                ),
+            )
 
     def test_qa_report_evidence_rejects_missing_report(self, tmp_path):
         mod = _load_module()
         report = mod.artifact_dir("qa", base=tmp_path) / "missing.md"
 
         with pytest.raises(ValueError, match="not found"):
-            mod._qa_report_evidence(tmp_path, str(report))
+            mod._qa_report_evidence(
+                tmp_path,
+                str(report),
+                mod.QaBinding(
+                    session_log=".agents/sessions/session.json",
+                    commit="a" * 40,
+                ),
+            )
 
     def test_required_evidence_rejects_missing_qa_validation(self):
         mod = _load_module()

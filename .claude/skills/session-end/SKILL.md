@@ -186,6 +186,19 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ses
 ```
 
 QA evidence files live under .agents/qa/ in the upstream repository.
+Each report must start with this machine-readable frontmatter:
+
+```yaml
+---
+qaVerdict: PASS
+qaSessionLog: .agents/sessions/2026-02-07-session-05.json
+qaCommit: 0123456789abcdef0123456789abcdef01234567
+---
+```
+
+`qaSessionLog` must match the exact session log path. `qaCommit` must be the full
+40-character commit validated by QA. Only `PASS` satisfies mandatory QA.
+Deferred, failed, stale, abbreviated, or unrelated evidence is rejected.
 The owner supports `investigation-only` after its policy checker verifies every
 changed path. Docs-only exemptions still require separate measured evidence.
 

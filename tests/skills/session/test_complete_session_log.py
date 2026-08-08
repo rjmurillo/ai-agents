@@ -337,6 +337,8 @@ class TestRunMarkdownLint:
 class TestMainReworkWarningShape:
     """Integration: main() writes reworkWarning.Evidence as a string, not a list (#3929, #3954)."""
 
+    COMMIT = "a" * 40
+
     def _make_session_json(self, path):
         """Write a minimal valid session JSON to path."""
         import json
@@ -457,7 +459,9 @@ class TestMainReworkWarningShape:
         mock_lint.return_value = (True, "lint passed")
         mock_rework.return_value = ("rework: none", ["rework-warning: none", "extra line"])
 
-        def validate_saved_state(*_args, **_kwargs):
+        def validate_saved_state(*run_args, **_kwargs):
+            command = run_args[0]
+            assert command[-2:] == ["--validation-head", "abc1234"]
             saved = json.loads(session_file.read_text())
             session_end = saved["protocolCompliance"]["sessionEnd"]
             assert session_end["validationPassed"]["Complete"] is True
@@ -478,7 +482,32 @@ class TestMainReworkWarningShape:
         assert isinstance(evidence, str), f"Evidence must be a string, got {type(evidence)}"
         assert "rework-warning: none" in evidence
 
-    def _run_main_with_rework(self, tmp_path, rework_return, extra_args=None):
+    @staticmethod
+    def _write_qa_report(
+        path,
+        *,
+        verdict="PASS",
+        session_log=".agents/sessions/2026-07-30-session-99-test.json",
+        commit=None,
+    ):
+        path.write_text(
+            "---\n"
+            f"qaVerdict: {verdict}\n"
+            f"qaSessionLog: {session_log}\n"
+            f"qaCommit: {commit or TestMainReworkWarningShape.COMMIT}\n"
+            "---\n"
+            "# QA\n",
+            encoding="utf-8",
+        )
+
+    def _run_main_with_rework(
+        self,
+        tmp_path,
+        rework_return,
+        extra_args=None,
+        *,
+        ending_commit="abc1234",
+    ):
         """Helper: run main() with a controlled rework step return value."""
         import json
 
@@ -486,11 +515,14 @@ class TestMainReworkWarningShape:
         sessions_dir.mkdir(parents=True)
         session_file = sessions_dir / "2026-07-30-session-99-test.json"
         self._make_session_json(session_file)
+        validator = tmp_path / "scripts" / "validate_session_json.py"
+        validator.parent.mkdir(parents=True)
+        validator.write_text("", encoding="utf-8")
 
         with (
             patch("complete_session_log._get_repo_root", return_value=str(tmp_path)),
             patch("complete_session_log._test_uncommitted_changes", return_value=False),
-            patch("complete_session_log._get_ending_commit", return_value="abc1234"),
+            patch("complete_session_log._get_ending_commit", return_value=ending_commit),
             patch("complete_session_log._test_handoff_modified", return_value=False),
             patch("complete_session_log._test_serena_memory_updated", return_value=True),
             patch("complete_session_log._run_markdown_lint", return_value=(True, "ok")),
@@ -498,29 +530,78 @@ class TestMainReworkWarningShape:
             patch("complete_session_log.subprocess.run", return_value=MagicMock(returncode=0)),
             patch("complete_session_log.resolve_artifact_root", return_value=sessions_dir),
         ):
-            complete_session_log.main(
+            exit_code = complete_session_log.main(
                 ["--session-path", str(session_file), *(extra_args or [])]
             )
 
+        self.last_exit_code = exit_code
         return json.loads(session_file.read_text())
 
     def test_main_records_validated_qa_report(self, tmp_path):
         report = tmp_path / ".agents" / "qa" / "report.md"
         report.parent.mkdir(parents=True)
-        report.write_text("# QA\n", encoding="utf-8")
+        self._write_qa_report(report)
 
         result = self._run_main_with_rework(
             tmp_path,
             ("Rework warning: none", ["rework-warning: none"]),
             ["--qa-report", str(report)],
+            ending_commit=self.COMMIT,
         )
 
+        assert self.last_exit_code == 0
         qa = result["protocolCompliance"]["sessionEnd"]["qaValidation"]
         assert qa == {
             "level": "MUST",
             "Complete": True,
             "Evidence": ".agents/qa/report.md",
         }
+
+    @pytest.mark.parametrize(
+        ("verdict", "session_log", "commit"),
+        [
+            (
+                "DEFERRED",
+                ".agents/sessions/2026-07-30-session-99-test.json",
+                COMMIT,
+            ),
+            (
+                "FAIL",
+                ".agents/sessions/2026-07-30-session-99-test.json",
+                COMMIT,
+            ),
+            ("PASS", ".agents/sessions/unrelated.json", COMMIT),
+            (
+                "PASS",
+                ".agents/sessions/2026-07-30-session-99-test.json",
+                "b" * 40,
+            ),
+        ],
+    )
+    def test_main_rejects_unbound_or_non_passing_qa_report(
+        self,
+        tmp_path,
+        verdict,
+        session_log,
+        commit,
+    ):
+        report = tmp_path / ".agents" / "qa" / "report.md"
+        report.parent.mkdir(parents=True)
+        self._write_qa_report(
+            report,
+            verdict=verdict,
+            session_log=session_log,
+            commit=commit,
+        )
+
+        self._run_main_with_rework(
+            tmp_path,
+            ("Rework warning: none", ["rework-warning: none"]),
+            ["--qa-report", str(report)],
+            ending_commit=self.COMMIT,
+        )
+
+        assert self.last_exit_code == 1
 
     def test_main_records_policy_qa_skip(self, tmp_path):
         with patch(
@@ -533,6 +614,7 @@ class TestMainReworkWarningShape:
                 ["--qa-skip-reason", "investigation-only"],
             )
 
+        assert self.last_exit_code == 0
         qa = result["protocolCompliance"]["sessionEnd"]["qaValidation"]
         assert qa == {
             "level": "MUST",

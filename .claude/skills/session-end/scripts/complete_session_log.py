@@ -52,6 +52,7 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from paths import artifact_dir, resolve_artifact_root  # noqa: E402
+from qa_report import QaBinding, validate_qa_report  # noqa: E402
 
 # Sibling-module loader for rework_warning (REQ-010).
 # Loaded lazily inside main() to keep import-time failures from breaking
@@ -486,8 +487,12 @@ def _validate_path_containment(session_path: str, sessions_dir: str) -> str | No
         return None
 
 
-def _qa_report_evidence(repo_root: Path, report_path: str) -> str:
-    """Return a validated QA report evidence path."""
+def _qa_report_evidence(
+    repo_root: Path,
+    report_path: str,
+    binding: QaBinding,
+) -> str:
+    """Return a passing QA report path bound to this session and commit."""
     candidate = Path(report_path)
     if not candidate.is_absolute():
         candidate = repo_root / candidate
@@ -503,6 +508,7 @@ def _qa_report_evidence(repo_root: Path, report_path: str) -> str:
         ) from exc
     if not resolved_report.is_file():
         raise ValueError(f"QA report not found: {resolved_report}")
+    validate_qa_report(resolved_report, binding)
     try:
         return resolved_report.relative_to(resolved_root).as_posix()
     except ValueError:
@@ -833,7 +839,21 @@ def main(argv: list[str] | None = None) -> int:
     qa_owned_path = ""
     if args.qa_report:
         try:
-            qa_owned_path = _qa_report_evidence(Path(repo_root), args.qa_report)
+            session_log = (
+                Path(session_path)
+                .resolve()
+                .relative_to(Path(repo_root).resolve())
+                .as_posix()
+            )
+            binding = QaBinding(
+                session_log=session_log,
+                commit=ending_commit,
+            )
+            qa_owned_path = _qa_report_evidence(
+                Path(repo_root),
+                args.qa_report,
+                binding,
+            )
         except ValueError as exc:
             print(f"[FAIL] {exc}", file=sys.stderr)
             return 1
@@ -948,7 +968,13 @@ def main(argv: list[str] | None = None) -> int:
     if os.path.isfile(validate_script):
         sys.stdout.flush()
         result = subprocess.run(
-            [sys.executable, validate_script, session_path],
+            [
+                sys.executable,
+                validate_script,
+                session_path,
+                "--validation-head",
+                ending_commit,
+            ],
             capture_output=False,
             timeout=60,
             check=False,
