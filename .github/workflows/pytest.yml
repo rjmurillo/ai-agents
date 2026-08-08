@@ -95,6 +95,7 @@ jobs:
               # A rules-only change must trigger the full suite.
               - '.claude/rules/**'
               - '.github/instructions/**'
+              - 'src/copilot-cli/instructions/**'
 
       - name: Report path check result
         env:

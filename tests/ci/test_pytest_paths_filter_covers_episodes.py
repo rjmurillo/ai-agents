@@ -29,6 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github/workflows/pytest.yml"
 EPISODE_STORE = REPO_ROOT / ".agents/memory/episodes"
 GITHUB_DIR = REPO_ROOT / ".github"
+COPILOT_INSTRUCTIONS_DIR = REPO_ROOT / "src/copilot-cli/instructions"
 
 PATHS_FILTER_ACTION = "dorny/paths-filter"
 # The action version ``_selected`` models. Re-read ``src/filter.ts`` at this
@@ -64,6 +65,10 @@ def test_the_filter_covers_the_episode_store():
     assert ".agents/memory/episodes/**" in _python_filter()
 
 
+def test_the_filter_covers_copilot_instruction_mirrors():
+    assert "src/copilot-cli/instructions/**" in _python_filter()
+
+
 def test_the_entry_matches_the_directory_the_pin_reads():
     """A filter naming a path the pin does not read protects nothing."""
     source = (
@@ -78,6 +83,11 @@ def test_the_gate_still_covers_plain_python_sources():
     entries = _python_filter()
     assert "**/*.py" in entries
     assert "tests/conftest.py" in entries
+
+
+def test_the_copilot_instruction_entry_matches_the_generated_tree():
+    assert COPILOT_INSTRUCTIONS_DIR.is_dir()
+    assert any(COPILOT_INSTRUCTIONS_DIR.iterdir())
 
 
 def _selected(path: str, patterns: Iterable[str]) -> bool:
