@@ -38,6 +38,9 @@ class MutationWorkspaceError(RuntimeError):
 def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     command = [
         "git",
+        f"--work-tree={repo_root.resolve()}",
+        "-c",
+        "core.bare=false",
         "-c",
         "trace2.normalTarget=0",
         "-c",
@@ -86,13 +89,30 @@ def require_git_stdout(cwd: Path, *args: str, error: str) -> str:
 
 
 def git_root(path: Path) -> Path:
+    candidate = _find_worktree_root(path)
+    if candidate is None:
+        raise MutationWorkspaceError(f"cannot find git worktree root from {path}")
     stdout = require_git_stdout(
-        path,
+        candidate,
         "rev-parse",
         "--show-toplevel",
         error=f"cannot find git worktree root from {path}",
     )
-    return Path(stdout).resolve()
+    root = Path(stdout).resolve()
+    if root != candidate:
+        raise MutationWorkspaceError(
+            f"git worktree root mismatch: expected {candidate}, got {root}"
+        )
+    return root
+
+
+def _find_worktree_root(path: Path) -> Path | None:
+    resolved = path.resolve()
+    start = resolved if resolved.is_dir() else resolved.parent
+    for candidate in (start, *start.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
 
 
 def marker_directory(repo_root: Path) -> Path:
@@ -114,14 +134,15 @@ def marker_directory(repo_root: Path) -> Path:
 def tracked_repository_path(path: Path) -> tuple[Path, Path] | None:
     """Return ``(repo_root, relative_path)`` when ``path`` is tracked by git."""
     resolved = path.resolve()
-    result = run_git(resolved.parent, "rev-parse", "--show-toplevel")
-    if result.returncode != 0 or not result.stdout.strip():
-        if any((parent / ".git").exists() for parent in (resolved.parent, *resolved.parents)):
-            raise MutationWorkspaceError(
-                f"cannot resolve repository for tracked path {resolved}: "
-                f"{result.stderr.strip()}"
-            )
+    candidate = _find_worktree_root(resolved)
+    if candidate is None:
         return None
+    result = run_git(candidate, "rev-parse", "--show-toplevel")
+    if result.returncode != 0 or not result.stdout.strip():
+        raise MutationWorkspaceError(
+            f"cannot resolve repository for tracked path {resolved}: "
+            f"{result.stderr.strip()}"
+        )
     stdout = result.stdout.strip()
     if "\n" in stdout or "\r" in stdout:
         raise MutationWorkspaceError(
@@ -129,6 +150,11 @@ def tracked_repository_path(path: Path) -> tuple[Path, Path] | None:
             "unexpected multiline git output"
         )
     repo_root = Path(stdout).resolve()
+    if repo_root != candidate:
+        raise MutationWorkspaceError(
+            f"repository root mismatch for tracked path {resolved}: "
+            f"expected {candidate}, got {repo_root}"
+        )
     if not resolved.is_relative_to(repo_root):
         return None
     relative = resolved.relative_to(repo_root)

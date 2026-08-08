@@ -220,6 +220,45 @@ def _restore_signal_handlers(previous: dict[int, Any]) -> None:
         signal.signal(signum, handler)
 
 
+def _cleanup_workspace(
+    repo_root: Path,
+    scratch_root: Path,
+    marker_path: Path,
+    snapshots: Sequence[TargetSnapshot],
+    payload: dict[str, Any],
+    signal_state: _SignalState,
+    body_error: BaseException | None,
+) -> None:
+    signal_state.cleaning_up = True
+    cleanup_errors: list[str] = []
+    try:
+        _remove_worktree(repo_root, scratch_root)
+    except (MutationWorkspaceError, OSError) as exc:
+        cleanup_errors.append(str(exc))
+    try:
+        _require_active_targets_unchanged(repo_root, snapshots)
+    except (MutationWorkspaceError, OSError) as exc:
+        cleanup_errors.append(str(exc))
+
+    if not cleanup_errors:
+        try:
+            marker_path.unlink(missing_ok=True)
+        except OSError as exc:
+            cleanup_errors.append(f"cannot remove mutation marker: {exc}")
+
+    if cleanup_errors:
+        try:
+            _mark_run_finished(marker_path, payload)
+        except OSError as exc:
+            cleanup_errors.append(f"cannot mark mutation run finished: {exc}")
+        if body_error is None:
+            if signal_state.pending_signal is not None:
+                raise MutationInterrupted(128 + signal_state.pending_signal)
+            raise MutationWorkspaceError("; ".join(cleanup_errors))
+    if body_error is None and signal_state.pending_signal is not None:
+        raise MutationInterrupted(128 + signal_state.pending_signal)
+
+
 @contextmanager
 def isolated_mutation_worktree(
     repo_root: Path,
@@ -247,7 +286,7 @@ def isolated_mutation_worktree(
     signal_state = _SignalState()
     previous_handlers = _install_signal_handlers(signal_state)
     body_error: BaseException | None = None
-    transition_signal: MutationInterrupted | None = None
+    cleanup_completed = False
     try:
         try:
             _write_marker(marker_path, payload)
@@ -257,42 +296,28 @@ def isolated_mutation_worktree(
             body_error = exc
             raise
         finally:
-            try:
-                signal_state.cleaning_up = True
-            except MutationInterrupted as exc:
-                transition_signal = exc
-                signal_state.cleaning_up = True
-            cleanup_errors: list[str] = []
-            try:
-                _remove_worktree(root, scratch_root)
-            except (MutationWorkspaceError, OSError) as exc:
-                cleanup_errors.append(str(exc))
-            try:
-                _require_active_targets_unchanged(root, snapshots)
-            except (MutationWorkspaceError, OSError) as exc:
-                cleanup_errors.append(str(exc))
-
-            if not cleanup_errors:
-                try:
-                    marker_path.unlink(missing_ok=True)
-                except OSError as exc:
-                    cleanup_errors.append(f"cannot remove mutation marker: {exc}")
-
-            if cleanup_errors:
-                try:
-                    _mark_run_finished(marker_path, payload)
-                except OSError as exc:
-                    cleanup_errors.append(f"cannot mark mutation run finished: {exc}")
-                if body_error is None:
-                    if signal_state.pending_signal is not None:
-                        raise MutationInterrupted(128 + signal_state.pending_signal)
-                    if transition_signal is not None:
-                        raise transition_signal
-                    raise MutationWorkspaceError("; ".join(cleanup_errors))
-            if body_error is None and signal_state.pending_signal is not None:
-                raise MutationInterrupted(128 + signal_state.pending_signal)
-            if body_error is None and transition_signal is not None:
-                raise transition_signal
+            _cleanup_workspace(
+                root,
+                scratch_root,
+                marker_path,
+                snapshots,
+                payload,
+                signal_state,
+                body_error,
+            )
+            cleanup_completed = True
+    except MutationInterrupted as exc:
+        if not cleanup_completed:
+            _cleanup_workspace(
+                root,
+                scratch_root,
+                marker_path,
+                snapshots,
+                payload,
+                signal_state,
+                exc,
+            )
+        raise
     finally:
         _restore_signal_handlers(previous_handlers)
 

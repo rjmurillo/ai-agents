@@ -212,6 +212,11 @@ def test_local_trace_config_cannot_hide_tracked_inode_alias(tmp_path: Path) -> N
         cwd=repo,
         check=True,
     )
+    subprocess.run(
+        ["git", "config", "core.worktree", "/"],
+        cwd=repo,
+        check=True,
+    )
     alias = repo / "alias.py"
     os.link(target, alias)
 
