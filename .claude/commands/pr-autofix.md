@@ -4,6 +4,8 @@ allowed-tools: Bash, Read, Edit, Write, Skill
 size-exception: true
 ---
 
+<!-- # taste-lint: ignore file-size, this command is one end-to-end PR workflow; splitting it would hide required lease and mutation gates from the agent. -->
+
 # /pr-autofix
 
 <!--
