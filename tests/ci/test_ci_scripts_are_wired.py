@@ -60,6 +60,19 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "main() and no shebang; tests/ci/test_count_ratchet.py covers it "
         "directly (issue #3779)."
     ),
+    "merge_tree_materialization.py": (
+        "Library holding the exact-tree materialization and isolated Git helpers "
+        "for merge_tree_ratchet_check.py, which pr-validation.yml invokes. It has "
+        "no main() and no shebang; tests/ci/test_merge_tree_materialization.py "
+        "drives it directly."
+    ),
+    "merge_tree_ratchet_registry.py": (
+        "Library holding the single ownership registry of ratchets that "
+        "merge_tree_ratchet_check.py evaluates, and pr-validation.yml invokes "
+        "that checker. It has no main() and no shebang; "
+        "tests/test_lefthook_gate_config.py asserts the registry matches the "
+        "Lefthook jobs."
+    ),
     "mutation_harness_ciperms.py": (
         "Developer tool for verifying CI security tests (issues #3964 and #4151). "
         "Run manually with `uv run --frozen python3 scripts/ci/mutation_harness_ciperms.py`. "

@@ -19,6 +19,7 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.maintenance import _gc_apply
 from scripts.maintenance.gc_worktrees import (
     _DEFAULT_TIME_BUDGET_SECONDS,
     KEEP_MAIN,
@@ -26,15 +27,56 @@ from scripts.maintenance.gc_worktrees import (
     Decision,
     GcReport,
     Worktree,
-    apply_removals,
     build_report,
     format_report,
     main,
     parse_args,
 )
+from tests.gc_worktree_fixtures import no_reflog_only_work  # noqa: F401
+
+_MODULE = "scripts.maintenance.gc_worktrees"
+
+
+_STUB_HEAD = "f" * 40
+
+
+def _forbidden_git(*_args: str) -> str:
+    """Fail loudly if a mocked apply reaches real git.
+
+    Every apply test in this module patches the mutating helpers, so
+    ``run_git`` should never be called. A stub that raises turns a lost patch
+    seam into an immediate failure instead of a real subprocess against the
+    developer's own repository.
+    """
+    raise AssertionError("apply_removals reached real git in a mocked test")
+
+
+@pytest.fixture(autouse=True)
+def _stub_pre_removal_head():
+    """Unit tests name paths that do not exist, so the pre-removal HEAD read is stubbed.
+
+    ``apply_removals`` reads each candidate's HEAD twice, once with the recheck
+    and once immediately before removing it, and refuses when the two differ.
+    Against a fabricated path both reads fail and every removal is withheld,
+    which would hide what these tests are actually about. Tests that care about
+    the comparison patch it again with their own values.
+    """
+    with patch(f"{_MODULE}._gc_apply._head_of", return_value=_STUB_HEAD):
+        yield
+
 
 _MAIN = "/repo"
 _BASE = "origin/main"
+
+
+def _agrees(report: GcReport):
+    """A recheck that reproduces the plan, i.e. nothing changed underneath it.
+
+    ``apply_removals`` only reads the fresh report, so handing back the same
+    object is the honest way to say the second look found the same repository.
+    """
+    return lambda: report
+
 
 # The deadline is tested before each worktree, so a run can start one last
 # inspection just under it. That inspection makes at most three git calls,
@@ -76,7 +118,7 @@ def _build(worktrees, *, time_budget, clock, apply=False):
     """Build a report with git fully mocked so only the budget varies."""
     with (
         patch(
-            "scripts.maintenance.gc_worktrees.list_worktrees",
+            "scripts.maintenance.gc_worktrees._gc_parse.list_worktrees",
             return_value=worktrees,
         ),
         patch("scripts.maintenance.gc_worktrees._run_git", return_value=_MAIN),
@@ -142,7 +184,7 @@ class TestTimeBudget:
         clock = _Clock(step=1.0)
         with (
             patch(
-                "scripts.maintenance.gc_worktrees.list_worktrees",
+                "scripts.maintenance.gc_worktrees._gc_parse.list_worktrees",
                 return_value=_worktrees(3),
             ),
             patch("scripts.maintenance.gc_worktrees._run_git", return_value=_MAIN),
@@ -252,39 +294,37 @@ class TestPartialReportsRefuseToMutate:
             ]
         )
         with (
-            patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
+            patch("scripts.maintenance.gc_worktrees._gc_apply.remove_worktree") as remove,
         ):
-            apply_removals(report)
+            _gc_apply.apply_removals(report, revalidate=_agrees(report), run_git=_forbidden_git)
         remove.assert_not_called()
-        prune.assert_not_called()
         assert report.removed == []
 
-    def test_a_partial_report_with_no_candidates_still_refuses_to_prune(self):
-        """Q1: zero candidates does not make pruning safe on a partial report."""
+    def test_a_partial_report_with_no_candidates_still_refuses(self):
+        """Q1: zero candidates does not make a partial report safe to apply."""
         report = self._report(
             [Decision("/repo/z", "feat/z", remove=False, reason=KEEP_TIME_BUDGET)]
         )
-        with (
-            patch("scripts.maintenance.gc_worktrees.remove_worktree"),
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
-        ):
-            apply_removals(report)
-        prune.assert_not_called()
+        with patch("scripts.maintenance.gc_worktrees._gc_apply.remove_worktree") as remove:
+            _gc_apply.apply_removals(report, revalidate=_agrees(report), run_git=_forbidden_git)
+        remove.assert_not_called()
+        assert report.removed == []
+        assert any("not inspected" in e for e in report.remove_errors)
 
     def test_the_refusal_names_the_remedy(self):
         report = self._report(
             [Decision("/repo/z", "feat/z", remove=False, reason=KEEP_TIME_BUDGET)]
         )
         with (
-            patch("scripts.maintenance.gc_worktrees.remove_worktree"),
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees"),
+            patch("scripts.maintenance.gc_worktrees._gc_apply.remove_worktree"),
         ):
-            apply_removals(report)
+            _gc_apply.apply_removals(report, revalidate=_agrees(report), run_git=_forbidden_git)
         assert len(report.remove_errors) == 1
         message = report.remove_errors[0]
         assert "--time-budget 0" in message
-        assert "1 worktree(s) were not inspected" in message
+        assert "1 worktree(s)" in message
+        assert "not inspected" in message
+        assert "the plan" in message, "the reader needs to know which run was partial"
 
     def test_a_complete_report_is_not_refused(self):
         """Negative control: the guard must not fire on a full inspection."""
@@ -295,12 +335,10 @@ class TestPartialReportsRefuseToMutate:
             ]
         )
         with (
-            patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
+            patch("scripts.maintenance.gc_worktrees._gc_apply.remove_worktree") as remove,
         ):
-            apply_removals(report)
+            _gc_apply.apply_removals(report, revalidate=_agrees(report), run_git=_forbidden_git)
         assert [c.args[0] for c in remove.call_args_list] == ["/repo/a"]
-        prune.assert_called_once()
         assert report.remove_errors == []
 
 
@@ -333,12 +371,10 @@ class TestApplyRefusesWhenOccupancyWasUnavailable:
             occupancy_unavailable=True,
         )
         with (
-            patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
+            patch("scripts.maintenance.gc_worktrees._gc_apply.remove_worktree") as remove,
         ):
-            apply_removals(report)
+            _gc_apply.apply_removals(report, revalidate=_agrees(report), run_git=_forbidden_git)
         remove.assert_not_called()
-        prune.assert_not_called()
         assert report.removed == []
 
     def test_the_refusal_names_proc_and_the_remedy(self):
@@ -348,10 +384,9 @@ class TestApplyRefusesWhenOccupancyWasUnavailable:
             occupancy_unavailable=True,
         )
         with (
-            patch("scripts.maintenance.gc_worktrees.remove_worktree"),
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees"),
+            patch("scripts.maintenance.gc_worktrees._gc_apply.remove_worktree"),
         ):
-            apply_removals(report)
+            _gc_apply.apply_removals(report, revalidate=_agrees(report), run_git=_forbidden_git)
         assert len(report.remove_errors) == 1
         message = report.remove_errors[0]
         assert "/proc" in message
@@ -368,31 +403,28 @@ class TestApplyRefusesWhenOccupancyWasUnavailable:
             occupancy_unavailable=False,
         )
         with (
-            patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
+            patch("scripts.maintenance.gc_worktrees._gc_apply.remove_worktree") as remove,
         ):
-            apply_removals(report)
+            _gc_apply.apply_removals(report, revalidate=_agrees(report), run_git=_forbidden_git)
         assert [c.args[0] for c in remove.call_args_list] == ["/repo/a"]
-        prune.assert_called_once()
         assert report.remove_errors == []
 
-    def test_an_unavailable_scan_with_no_candidates_still_refuses_to_prune(self):
-        """Edge: zero candidates does not make pruning safe.
+    def test_an_unavailable_scan_with_no_candidates_still_refuses(self):
+        """Edge: zero candidates does not make an unreadable scan safe.
 
-        ``git worktree prune`` drops admin records for directories that are
-        gone. With occupancy unknown the run has no standing to assert anything
-        about the tree, so the whole mutation is withheld, not just removals.
+        With occupancy unknown the run has no standing to assert anything about
+        the tree, so the whole mutation is withheld, not just the removals it
+        happened to plan.
         """
         report = self._report(
             [Decision("/repo/b", "feat/b", remove=False, reason=KEEP_MAIN)],
             occupancy_unavailable=True,
         )
-        with (
-            patch("scripts.maintenance.gc_worktrees.remove_worktree"),
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees") as prune,
-        ):
-            apply_removals(report)
-        prune.assert_not_called()
+        with patch("scripts.maintenance.gc_worktrees._gc_apply.remove_worktree") as remove:
+            _gc_apply.apply_removals(report, revalidate=_agrees(report), run_git=_forbidden_git)
+        remove.assert_not_called()
+        assert report.removed == []
+        assert any("/proc" in e for e in report.remove_errors)
 
     def test_occupancy_outranks_a_partial_report(self):
         """Edge: both refusals apply; the data-loss one is reported.
@@ -409,10 +441,9 @@ class TestApplyRefusesWhenOccupancyWasUnavailable:
             occupancy_unavailable=True,
         )
         with (
-            patch("scripts.maintenance.gc_worktrees.remove_worktree") as remove,
-            patch("scripts.maintenance.gc_worktrees.prune_worktrees"),
+            patch("scripts.maintenance.gc_worktrees._gc_apply.remove_worktree") as remove,
         ):
-            apply_removals(report)
+            _gc_apply.apply_removals(report, revalidate=_agrees(report), run_git=_forbidden_git)
         remove.assert_not_called()
         assert len(report.remove_errors) == 1
         assert "/proc" in report.remove_errors[0]
