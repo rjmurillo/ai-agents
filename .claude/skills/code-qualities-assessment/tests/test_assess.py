@@ -910,6 +910,7 @@ class TestCheckRegressions:
         """Pre-existing debt that is unchanged must exit 0 (decisive test for #4364)."""
         f = tmp_path / "legacy.py"
         body = "def a():\n    return 1\n"
+        f.write_text(body, encoding="utf-8")
         head_assessment = assess_file(f, "production", False)
         # Identical base: same score, no regression.
         base_assessments = {str(f): self._make_assessment(f, body)}
