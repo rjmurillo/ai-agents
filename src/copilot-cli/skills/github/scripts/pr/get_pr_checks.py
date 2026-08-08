@@ -805,8 +805,8 @@ def main(argv: list[str] | None = None) -> int:
         if rc is not None:
             return rc
 
-        # Fetch ruleset required contexts once (on the first iteration);  # ctrl the
-        # base branch does not change across poll iterations.
+        # Fetch ruleset required contexts once. The base branch does not
+        # change across poll iterations.
         if iteration == 1:
             base_branch = check_data.get("BaseBranch", "")
             if base_branch:

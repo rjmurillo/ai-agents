@@ -130,6 +130,16 @@ def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
         raise ValueError(f"Failed to decode JSON from GitHub API response: {e}") from e
 
 
+def _is_rest_quota_error(exc: Exception) -> bool:
+    """Return True when a REST settings lookup failed because quota is exhausted."""
+    message = str(exc).lower()
+    return (
+        "x-ratelimit-remaining: 0" in message
+        or "api rate limit exceeded" in message
+        or "rate limit" in message
+    )
+
+
 def resolve_default_strategy(repo_settings: dict[str, bool]) -> str | None:
     """Pick a sensible default strategy from the repo's allowed methods.
 
@@ -374,12 +384,10 @@ def main(argv: list[str] | None = None) -> int:
     pr = args.pull_request
     repo_flag = f"{owner}/{repo}"
 
-    # Issue #4490: only call the REST settings endpoint when --strategy is
-    # absent.  The REST core quota is distinct from the GraphQL quota and can
-    # be exhausted by other callers.  When the caller already knows the
-    # strategy (the common case) the preflight is wasted.  When it is needed,
-    # wrap the RuntimeError in the structured error envelope so consumers can
-    # still parse the output.
+    # Issue #4490: REST core quota is distinct from GraphQL quota and can be
+    # exhausted by other callers. If the caller gives an explicit strategy, a
+    # quota failure may skip preflight validation because the merge endpoint
+    # still rejects a bad strategy. Other REST failures stay fatal.
     if args.strategy is None:
         # No explicit strategy: must fetch repo settings to auto-pick one.
         # Wrap REST failures in a structured envelope so consumers can parse.
@@ -405,8 +413,12 @@ def main(argv: list[str] | None = None) -> int:
         # that always pass --strategy explicitly.
         try:
             repo_settings = get_allowed_merge_methods(repo_flag)
-        except (RuntimeError, ValueError):
+        except RuntimeError as exc:
+            if not _is_rest_quota_error(exc):
+                _emit_error(str(exc), 3, "ApiError", output_format, pr)
             repo_settings = None
+        except ValueError as exc:
+            _emit_error(str(exc), 3, "ApiError", output_format, pr)
 
     validate_strategy(args.strategy, repo_settings, repo_flag, output_format)
 
