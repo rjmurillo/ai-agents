@@ -21,7 +21,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.github_core.repo import get_repo_root
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.github_core.repo import get_repo_root  # noqa: E402
 
 SKILL_RELPATH = Path(".claude/skills/github/scripts/pr/new_pr.py")
 """Dispatch target, relative to the repo root.

@@ -53,7 +53,12 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 if TYPE_CHECKING:
     from scripts.maintenance import _gc_apply, _gc_parse, _gc_reasons, _gc_remote, _gc_stale
@@ -73,12 +78,12 @@ else:
         import _gc_remote
         import _gc_stale
 
-from scripts.maintenance.worktree_occupancy import (
+from scripts.maintenance.worktree_occupancy import (  # noqa: E402
     Occupancy,
     is_occupied,
     occupied_paths,
 )
-from scripts.maintenance.worktree_report import (
+from scripts.maintenance.worktree_report import (  # noqa: E402
     KEEP_BARE,
     KEEP_DETACHED,
     KEEP_DIRTY,
