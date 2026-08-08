@@ -31,7 +31,8 @@ from scripts.testing.mutation_workspace import (
     purge_bytecode,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+ACTIVE_REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = ACTIVE_REPO_ROOT
 TARGETS = (
     Path("tests/workflows/test_workflow_job_permissions.py"),
     Path("tests/ci/test_pr_validation_workflow.py"),
@@ -71,8 +72,8 @@ class Result:
     note: str = ""
 
 
-def _run_tests(repo_root: Path, test_filter: str) -> subprocess.CompletedProcess[str]:
-    purge_bytecode(repo_root)
+def _run_tests(test_filter: str) -> subprocess.CompletedProcess[str]:
+    purge_bytecode(REPO_ROOT)
     return subprocess.run(
         [
             "uv",
@@ -90,7 +91,7 @@ def _run_tests(repo_root: Path, test_filter: str) -> subprocess.CompletedProcess
         text=True,
         encoding="utf-8",
         errors="replace",
-        cwd=repo_root,
+        cwd=REPO_ROOT,
     )
 
 
@@ -98,7 +99,7 @@ def _recovery_checkout_hint(target: Path) -> str:
     return f"git checkout -- {quote(str(target))}"
 
 
-def apply_mutation(mutation: Mutation, repo_root: Path) -> Result:
+def apply_mutation(mutation: Mutation) -> Result:
     """Apply mutation, run tests, restore file, return outcome."""
     target = mutation.target_file
     backup = target.read_bytes()
@@ -130,7 +131,7 @@ def apply_mutation(mutation: Mutation, repo_root: Path) -> Result:
     target.write_bytes(mutated)
     note = ""
     try:
-        proc = _run_tests(repo_root, mutation.test_filter)
+        proc = _run_tests(mutation.test_filter)
         outcome, note = _classify(proc)
     finally:
         # Always restore. Wrap the write so an OSError exits 2 (tree dirty,
@@ -185,10 +186,10 @@ def _classify(proc: subprocess.CompletedProcess[str]) -> tuple[str, str]:
     return NOT_RUN, f"pytest exited {proc.returncode} ({meaning}): {detail}"
 
 
-def build_mutations(repo_root: Path) -> list[Mutation]:
-    wf_perms_test = repo_root / "tests/workflows/test_workflow_job_permissions.py"
-    pr_val_test = repo_root / "tests/ci/test_pr_validation_workflow.py"
-    pr_val_workflow = repo_root / ".github/workflows/pr-validation.yml"
+def build_mutations() -> list[Mutation]:
+    wf_perms_test = REPO_ROOT / "tests/workflows/test_workflow_job_permissions.py"
+    pr_val_test = REPO_ROOT / "tests/ci/test_pr_validation_workflow.py"
+    pr_val_workflow = REPO_ROOT / ".github/workflows/pr-validation.yml"
 
     perms_gate = (
         "tests/workflows/test_workflow_job_permissions.py"
@@ -311,7 +312,7 @@ def build_mutations(repo_root: Path) -> list[Mutation]:
     ]
 
 
-def _verify_repo_root(repo_root: Path) -> None:
+def _verify_repo_root() -> None:
     """Refuse to mutate anything unless REPO_ROOT is a real worktree.
 
     ``REPO_ROOT`` is derived from this file's own path, so ``cd`` cannot
@@ -321,20 +322,20 @@ def _verify_repo_root(repo_root: Path) -> None:
     Checking before the first write turns that into an error instead of an
     unrecoverable edit.
     """
-    if not (repo_root / ".git").exists():
+    if not (REPO_ROOT / ".git").exists():
         raise SystemExit(
-            f"config error: {repo_root} is not a git worktree, refusing to "
+            f"config error: {REPO_ROOT} is not a git worktree, refusing to "
             "mutate tracked files with no way to restore them"
         )
 
 
-def _run_mutations(repo_root: Path) -> int:
-    _verify_repo_root(repo_root)
-    mutations = build_mutations(repo_root)
+def _run_mutations() -> int:
+    _verify_repo_root()
+    mutations = build_mutations()
     results: list[Result] = []
 
     for m in mutations:
-        r = apply_mutation(m, repo_root)
+        r = apply_mutation(m)
         results.append(r)
         icon = {"DEAD": "✓", "SURVIVED": "✗", "DID-NOT-APPLY": "?", "NOT-RUN": "!"}.get(
             r.outcome, "?"
@@ -370,8 +371,14 @@ def _run_mutations(repo_root: Path) -> int:
 
 
 def main() -> int:
-    with isolated_mutation_worktree(REPO_ROOT, TARGETS) as workspace:
-        return _run_mutations(workspace.root)
+    global REPO_ROOT
+    with isolated_mutation_worktree(ACTIVE_REPO_ROOT, TARGETS) as workspace:
+        previous_root = REPO_ROOT
+        REPO_ROOT = workspace.root
+        try:
+            return _run_mutations()
+        finally:
+            REPO_ROOT = previous_root
 
 
 if __name__ == "__main__":

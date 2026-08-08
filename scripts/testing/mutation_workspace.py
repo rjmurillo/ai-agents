@@ -71,24 +71,32 @@ def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _git_root(path: Path) -> Path:
-    result = _run_git(path, "rev-parse", "--show-toplevel")
+def _require_git_stdout(cwd: Path, *args: str, error: str) -> str:
+    """Run git and return stripped stdout, or raise ``error`` with git's stderr."""
+    result = _run_git(cwd, *args)
     if result.returncode != 0 or not result.stdout.strip():
-        raise MutationWorkspaceError(
-            f"cannot find git worktree root from {path}: {result.stderr.strip()}"
-        )
-    return Path(result.stdout.strip()).resolve()
+        raise MutationWorkspaceError(f"{error}: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def _git_root(path: Path) -> Path:
+    stdout = _require_git_stdout(
+        path, "rev-parse", "--show-toplevel", error=f"cannot find git worktree root from {path}"
+    )
+    return Path(stdout).resolve()
 
 
 def marker_directory(repo_root: Path) -> Path:
     """Return the worktree-specific mutation marker directory."""
     root = _git_root(repo_root)
-    result = _run_git(root, "rev-parse", "--git-path", MARKER_DIRECTORY_NAME)
-    if result.returncode != 0 or not result.stdout.strip():
-        raise MutationWorkspaceError(
-            f"cannot locate git marker directory: {result.stderr.strip()}"
-        )
-    path = Path(result.stdout.strip())
+    stdout = _require_git_stdout(
+        root,
+        "rev-parse",
+        "--git-path",
+        MARKER_DIRECTORY_NAME,
+        error="cannot locate git marker directory",
+    )
+    path = Path(stdout)
     if not path.is_absolute():
         path = root / path
     return path.resolve()

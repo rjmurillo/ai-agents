@@ -34,7 +34,6 @@ import argparse
 import json
 import os
 import shlex
-import shutil
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -44,6 +43,7 @@ from typing import Any
 
 from scripts.testing.mutation_workspace import (
     isolated_mutation_worktree,
+    purge_bytecode,
     tracked_repository_path,
 )
 
@@ -230,13 +230,13 @@ class MutationRunner:
         mutated = original.replace(entry.old, entry.new, 1)
 
         try:
-            _purge_pycache(entry.path.parent)
+            purge_bytecode(entry.path.parent)
             entry.path.write_text(mutated, encoding="utf-8")
             completed = self._run_command(entry.command, entry.timeout_seconds)
             return MutationResult(entry=entry, returncode=completed.returncode)
         finally:
             entry.path.write_text(original, encoding="utf-8")
-            _purge_pycache(entry.path.parent)
+            purge_bytecode(entry.path.parent)
 
     def _run_command(
         self,
@@ -268,12 +268,6 @@ def format_validation_problems(problems: Sequence[ValidationProblem]) -> str:
     for problem in problems:
         lines.append(f"{problem.entry.name}: {problem.entry.path}: {problem.message}")
     return "\n".join(lines)
-
-
-def _purge_pycache(root: Path) -> None:
-    for pycache in sorted(root.rglob("__pycache__"), reverse=True):
-        if pycache.is_dir():
-            shutil.rmtree(pycache)
 
 
 def _find_containment_root() -> Path:
