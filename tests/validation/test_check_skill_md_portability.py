@@ -1914,6 +1914,40 @@ class TestTraversalErrorsSurface:
         assert rc == 2
 
     @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    def test_dangling_directory_symlink_outside_root_raises(self, tmp_path: Path) -> None:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
+        (skills / "escape-dir").symlink_to(
+            tmp_path.parent / "outside-dir" / "gone",
+            target_is_directory=True,
+        )
+        with pytest.raises(OSError, match="outside the repository root"):
+            cmp.scan_skill_markdown(tmp_path / ".claude" / "skills")
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    def test_dangling_directory_symlink_outside_root_makes_cli_exit_2(
+        self, tmp_path: Path
+    ) -> None:
+        skills = tmp_path / ".claude" / "skills" / "a"
+        skills.mkdir(parents=True)
+        (skills / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
+        (skills / "escape-dir").symlink_to(
+            tmp_path.parent / "outside-dir" / "gone",
+            target_is_directory=True,
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
+        rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert rc == 2
+
+    @pytest.mark.skipif(
         getattr(os, "geteuid", lambda: -1)() == 0,
         reason="chmod-based permission denial is a no-op for root (web containers)",
     )
