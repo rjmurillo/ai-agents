@@ -168,31 +168,47 @@ def main(argv: list[str] | None = None) -> int:
         write_log(f"{agent.capitalize()} category: {categories[agent]}")
 
     code_quality_failures = any(cat == "CODE_QUALITY" for cat in categories.values())
+    # Read the verdict itself, not only its category. get_category maps
+    # DID_NOT_RUN to CODE_QUALITY when infra_flag is false, so a security review
+    # that plainly did not run reads as "ran" whenever that flag is missing or
+    # mis-set. The gate then passes a pull request whose security review never
+    # happened, which is the failure this whole change exists to close, reached
+    # through the classifier instead of through the aggregate.
+    security_review_ran = (
+        categories.get("security") != "INFRASTRUCTURE"
+        and verdicts.get("security") != "DID_NOT_RUN"
+    )
 
     final = merge_verdicts([verdicts[agent] for agent in _AGENTS])
     write_log(f"Final verdict: {final}")
 
-    if not code_quality_failures and should_downgrade_infra_only_failures(verdicts, infra_flags):
-        write_log("All failures are explicit infra verdicts - downgrading to WARN")
-        final = "WARN"
-    elif final == "WARN" and has_infra_masked_unknown_verdict(verdicts, infra_flags):
+    if final == "WARN" and has_infra_masked_unknown_verdict(
+        verdicts, infra_flags
+    ):
         # A real WARN from one agent outranks UNKNOWN in merge_verdicts()'s
         # own precedence, which can mask an infra-flagged agent's raw or
         # unrecognized token (or a literal UNKNOWN) that should have kept the
-        # gate blocking. should_downgrade_infra_only_failures() already
-        # refused to downgrade for this reason; restore the blocking verdict
-        # instead of leaving the masked WARN in place.
+        # gate blocking. Restore the blocking verdict first.
         write_log(
             "Infra-flagged blocking-unknown verdict masked by WARN - "
             "restoring UNKNOWN"
         )
         final = "UNKNOWN"
+    elif final == "UNKNOWN":
+        pass
+    elif not security_review_ran and not code_quality_failures:
+        write_log("Security review did not run - forcing DID_NOT_RUN")
+        final = "DID_NOT_RUN"
+    elif not code_quality_failures and should_downgrade_infra_only_failures(
+        verdicts, infra_flags
+    ):
+        write_log("All failures are explicit infra verdicts - downgrading to WARN")
+        final = "WARN"
 
     # Issue #2821 option c: the WARN downgrade is owner policy, but a security
     # review that never ran must not be indistinguishable from one that
     # passed. Surface a distinct annotation and a dedicated output so the PR
     # comment and downstream tooling can render a non-ignorable notice.
-    security_review_ran = categories.get("security") != "INFRASTRUCTURE"
     if not security_review_ran:
         write_log("Security review did not run (infrastructure failure)")
         print(
