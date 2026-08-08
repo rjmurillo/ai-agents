@@ -21,7 +21,7 @@ import time
 import unicodedata
 import warnings
 from collections import Counter
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from fnmatch import fnmatch
@@ -48,6 +48,26 @@ from scripts.validation.sha_pinning import LOCAL_ACTION_PATTERN, VERSION_TAG_PAT
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROHIBITED_DASHES = ("\N{EN DASH}", "\N{EM DASH}")
+# Repo-root filenames that remain valid when HEAD cannot be read (issue #4600).
+# When HEAD is readable, existing root files pass by identity and root dotfiles
+# pass by prefix. This fallback list matters only for unborn or unreadable HEAD,
+# or for the rare newly introduced root filename.
+ROOT_SCRATCH_ALLOWLIST = frozenset(
+    {
+        "AGENTS.md",
+        "CLAUDE.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "README.md",
+        "RELEASING.md",
+        "THIRD-PARTY-NOTICES.TXT",
+        "conftest.py",
+        "lefthook.yml",
+        "pyproject.toml",
+        "renovate.json",
+        "uv.lock",
+    }
+)
 SESSION_PATH_RE = re.compile(r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$")
 EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
 ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
@@ -1764,6 +1784,87 @@ def check_commit_message(message_path: Path) -> int:
         return 0
     print(
         "ERROR: commit message contains em-dash (U+2014) or en-dash (U+2013)",
+        file=sys.stderr,
+    )
+    return 1
+
+
+def _is_repo_root_path(path: str) -> bool:
+    """True when ``path`` names a file directly at the repository root."""
+    return bool(path) and "/" not in path
+
+
+def _root_scratch_violations(paths: Sequence[str], head_root_entries: Iterable[str]) -> list[str]:
+    """Staged repo-root paths that are neither known nor allowlisted.
+
+    ``head_root_entries`` is what HEAD already carries at the root. Membership
+    there is the primary allowance: editing a root file the repo already has is
+    not new litter, and it covers every current root file without listing any of
+    them. Dotfiles pass by prefix. ROOT_SCRATCH_ALLOWLIST only has to name root
+    files that do not exist yet, which is why it stays small.
+    """
+    known = set(head_root_entries)
+    return sorted(
+        {
+            path
+            for path in paths
+            if _is_repo_root_path(path)
+            and path not in known
+            and path not in ROOT_SCRATCH_ALLOWLIST
+            and not path.startswith(".")
+        }
+    )
+
+
+def _head_root_entries(repo_root: Path) -> list[str]:
+    """Root-level names in HEAD, or [] when HEAD cannot be read.
+
+    An empty list is the conservative direction: with no known-root set every
+    non-dotfile, non-allowlisted root path is refused, so an unborn HEAD makes
+    the gate stricter rather than silently open.
+    """
+    result = _run_git(repo_root, ["ls-tree", "--name-only", "HEAD"])
+    if result.returncode != 0:
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def check_root_scratch(paths: Sequence[str], repo_root: Path) -> int:
+    """Block a new scratch file staged at the repository root (issue #4600).
+
+    ``.gitignore`` handles this one filename at a time (``/metrics.json``,
+    ``/pr-validation-report.md``, and seven more), so it stops the producers
+    someone already found and nothing else. Investigation dumps an agent writes
+    ad hoc (``pr4147_threads.json``, ``report.*.json``) match no entry.
+
+    Untracked files never reach a pre-commit gate, so the catch point is the
+    ``git add`` that makes one committable. That is the exact sequence issue
+    #3756 reported: ``git add -A`` during a conflict resolution swept an
+    unignored root report into the commit.
+
+    Rule source: ``AGENTS.md`` Never list, "Scratch in tree".
+    """
+    safe_paths: list[str] = []
+    for raw_path in paths:
+        path = _safe_relative_path(raw_path)
+        if path is None:
+            print(f"ERROR: unsafe staged path: {raw_path}", file=sys.stderr)
+            return 2
+        safe_paths.append(path)
+    violations = _root_scratch_violations(safe_paths, _head_root_entries(repo_root))
+    if not violations:
+        return 0
+    print(
+        "ERROR: new repository-root files look like scratch "
+        "(AGENTS.md Never list: no scratch in tree):",
+        file=sys.stderr,
+    )
+    for path in violations:
+        print(f"  {path}", file=sys.stderr)
+    print(
+        "Write scratch outside the repository, or under a gitignored path. "
+        "If the file genuinely belongs at the root, add its name to "
+        "ROOT_SCRATCH_ALLOWLIST in scripts/validation/git_hook_policy.py.",
         file=sys.stderr,
     )
     return 1
@@ -6531,6 +6632,10 @@ def _handle_staged_action_pins(args: argparse.Namespace) -> int:
     return check_staged_action_pins(args.paths, _repo_root(args))
 
 
+def _handle_root_scratch(args: argparse.Namespace) -> int:
+    return check_root_scratch(args.paths, _repo_root(args))
+
+
 def _handle_staged_conflict_markers(args: argparse.Namespace) -> int:
     return check_staged_conflict_markers(args.paths, _repo_root(args))
 
@@ -6686,6 +6791,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("session", _handle_session),
         ("staged-dashes", _handle_staged_dashes),
         ("staged-action-pins", _handle_staged_action_pins),
+        ("root-scratch", _handle_root_scratch),
         ("staged-conflict-markers", _handle_staged_conflict_markers),
         ("github-bash", _handle_github_bash),
         ("security-suppressions", _handle_security_suppressions),
