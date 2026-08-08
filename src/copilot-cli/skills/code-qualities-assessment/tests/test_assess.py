@@ -903,7 +903,7 @@ class TestCheckRegressions:
     (exit 10). A new file has no base assessment and is never gated.
     """
 
-    def _make_assessment(self, file_path: Path, content: str) -> _mod.FileAssessment:
+    def _make_assessment(self, file_path: Path, content: str) -> Any:
         return assess_file_content(file_path, content, "production")
 
     def test_no_regression_passes(self, tmp_path: Path) -> None:
