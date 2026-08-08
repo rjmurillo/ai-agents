@@ -102,9 +102,10 @@ _GRAPHQL_PROBE_ARGS = ("api", "graphql", "-f", "query=query { viewer { login } }
 
 def _run_probe(args: tuple[str, ...]) -> str:
     """Run one non-exempt gh call and return its refusal text, else ""."""
+    gh_args = ["api", "-i", *args[1:]] if args[:1] == ("api",) else [*args]
     try:
         result = subprocess.run(
-            ["gh", *args],
+            ["gh", *gh_args],
             capture_output=True,
             text=True,
             encoding="utf-8",

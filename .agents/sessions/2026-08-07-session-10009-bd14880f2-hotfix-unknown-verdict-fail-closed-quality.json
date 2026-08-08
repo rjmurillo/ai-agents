@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10009,
+    "date": "2026-08-07",
+    "branch": "fix/4757-unknown-verdict",
+    "startingCommit": "e0ac3ff6d",
+    "objective": "Hotfix unknown verdict fail-closed quality gate"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools were available in this harness; memory and code-intelligence calls succeeded in this session."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Ran serena-initial_instructions at session start."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, .agents/AGENT-INSTRUCTIONS.md, .agents/HANDOFF.md, and .agents/SESSION-PROTOCOL.md before editing."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/*.py and used the session-init and GitHub issue/PR skill scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the usage-mandatory Serena memory before GitHub operations."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md, root AGENTS.md, .github/AGENTS.md, and the Python, testing, ci-scripts, universal, and canonical-source-mirror rules."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index plus task memories: usage-mandatory, ci/ci-ai-gate-blocks-when-the-security-review-did-not-run, skills-github-cli-index, project/project-labels-milestones, ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff, and skills-pr-review-index."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4757-unknown-verdict"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4757-unknown-verdict"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified git status in the worktree before edits and after validation runs."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e0ac3ff6d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified and validation passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote quality/unknown-verdict-infra-downgrade-stays-blocking."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: 84c76708c)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Investigated the quality-gate downgrade path: it treated any final verdict in ATTENTION_VERDICTS (FAIL_VERDICTS | UNKNOWN | DID_NOT_RUN) as downgradeable to WARN whenever no non-infra CODE_QUALITY failure existed, without checking whether each individual infra-flagged verdict was actually an explicit infra-failure token.",
+      "result": "Confirmed the gap: a literal UNKNOWN verdict or an unrecognized/raw token (e.g. a typo'd verdict string) on an infra-flagged axis would downgrade to WARN and pass the gate, even though neither token is a real infra-failure signal (only FAIL_VERDICTS and DID_NOT_RUN are)."
+    },
+    {
+      "action": "Added is_blocking_unknown_verdict() and should_downgrade_infra_only_failures() to .github/scripts/aggregate_quality_verdicts.py, and replaced the blanket ATTENTION_VERDICTS downgrade check in main() with a per-agent verification that every failing verdict is an explicit member of DOWNGRADEABLE_INFRA_VERDICTS (FAIL_VERDICTS | DID_NOT_RUN) before allowing the WARN downgrade.",
+      "result": "Literal UNKNOWN and unrecognized/raw verdict tokens on an infra-flagged axis now block should_downgrade_infra_only_failures() from returning True, so the gate can no longer be silently downgraded to WARN by those tokens."
+    },
+    {
+      "action": "Added regression tests test_unknown_infra_failure_stays_blocking and test_unrecognized_verdict_token_stays_blocking to tests/test_aggregate_quality_verdicts.py, pinning that DID_NOT_RUN plus a literal UNKNOWN (or plus an unrecognized token like FOOBAR) on infra-flagged axes still resolves to final_verdict UNKNOWN rather than WARN.",
+      "result": "Ran the targeted pytest suite for tests/test_aggregate_quality_verdicts.py: all cases passed, including the two new regressions and the pre-existing infra downgrade cases. Committed as 84c76708c (fix(quality-gate): keep unknown verdicts blocking)."
+    }
+  ],
+  "endingCommit": "84c76708c",
+  "nextSteps": []
+}

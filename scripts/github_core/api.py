@@ -23,6 +23,7 @@ import subprocess
 import sys
 import time
 import warnings
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -259,6 +260,9 @@ _SECONDARY_RATE_LIMIT_SIGNATURE = re.compile(
 # ("... (HTTP 403)"), without one ("GraphQL: API rate limit already exceeded
 # for user ID ..."), and the REST body form (issues #4326, #4344).
 _RATE_LIMIT_SIGNATURE = re.compile(r"rate limit (?:already )?exceeded", re.IGNORECASE)
+_RATE_LIMIT_REMAINING_HEADER = re.compile(
+    r"(?im)^x-ratelimit-remaining:\s*(\d+)\s*$"
+)
 
 
 def _sanitize_auth_detail(text: str, limit: int = 200) -> str:
@@ -281,10 +285,41 @@ def classify_gh_failure_text(text: str) -> GhAuthStatus:
     if _SECONDARY_RATE_LIMIT_SIGNATURE.search(haystack):
         return GhAuthStatus.SECONDARY_RATE_LIMITED
     if _RATE_LIMIT_SIGNATURE.search(haystack):
+        remaining = _RATE_LIMIT_REMAINING_HEADER.search(haystack)
+        if remaining is not None and int(remaining.group(1)) > 0:
+            return GhAuthStatus.SECONDARY_RATE_LIMITED
         return GhAuthStatus.RATE_LIMITED
     if _TRANSIENT_SIGNATURE.search(haystack):
         return GhAuthStatus.TRANSIENT_ERROR
     return GhAuthStatus.INVALID_CREDENTIALS
+
+
+def classify_gh_failure_response(
+    text: str,
+    headers: Mapping[str, str] | None = None,
+) -> GhAuthStatus:
+    """Classify a failed GitHub response from its own headers.
+
+    ``gh api rate_limit`` is exempt from the limiter it reports, so it cannot
+    prove a 403 is not throttling. The failed response's ``x-ratelimit-*``
+    headers are the local evidence: remaining zero means primary exhaustion;
+    remaining above zero with rate-limit wording means a secondary limiter.
+    """
+    status = classify_gh_failure_text(text)
+    if status is not GhAuthStatus.RATE_LIMITED:
+        return status
+
+    normalized = {key.lower(): value for key, value in (headers or {}).items()}
+    remaining = normalized.get("x-ratelimit-remaining")
+    if remaining is None:
+        return status
+    try:
+        remaining_count = int(remaining.strip())
+    except ValueError:
+        return status
+    if remaining_count > 0:
+        return GhAuthStatus.SECONDARY_RATE_LIMITED
+    return GhAuthStatus.RATE_LIMITED
 
 
 def _run_gh(args: list[str], timeout: int = 10) -> subprocess.CompletedProcess[str]:

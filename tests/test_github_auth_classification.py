@@ -25,6 +25,7 @@ from scripts.github_core.api import (
     _is_transient_graphql_error,
     assert_gh_authenticated,
     check_gh_auth,
+    classify_gh_failure_response,
     classify_gh_failure_text,
     gh_graphql,
     is_gh_authenticated,
@@ -90,6 +91,11 @@ class TestClassifyGhFailureText:
             is GhAuthStatus.SECONDARY_RATE_LIMITED
         )
 
+    def test_rate_limit_text_with_remaining_header_is_secondary(self):
+        body = f"{REST_403_QUOTA}\nX-Ratelimit-Remaining: 4935"
+
+        assert classify_gh_failure_text(body) is GhAuthStatus.SECONDARY_RATE_LIMITED
+
     def test_rest_5xx_is_transient(self):
         assert classify_gh_failure_text(REST_503) is GhAuthStatus.TRANSIENT_ERROR
 
@@ -111,6 +117,29 @@ class TestClassifyGhFailureText:
 
     def test_empty_text_is_invalid(self):
         assert classify_gh_failure_text("") is GhAuthStatus.INVALID_CREDENTIALS
+
+
+class TestClassifyGhFailureResponse:
+    def test_403_with_remaining_budget_is_secondary_limit(self):
+        headers = {"x-ratelimit-remaining": "4935", "x-ratelimit-resource": "core"}
+
+        assert (
+            classify_gh_failure_response(REST_403_QUOTA, headers)
+            is GhAuthStatus.SECONDARY_RATE_LIMITED
+        )
+
+    def test_403_with_zero_remaining_is_primary_exhaustion(self):
+        headers = {"x-ratelimit-remaining": "0", "x-ratelimit-resource": "core"}
+
+        assert classify_gh_failure_response(REST_403_QUOTA, headers) is GhAuthStatus.RATE_LIMITED
+
+    def test_auth_failure_stays_auth_failure_with_rate_headers(self):
+        headers = {"x-ratelimit-remaining": "4935", "x-ratelimit-resource": "core"}
+
+        assert (
+            classify_gh_failure_response(PERMISSION_DENIED, headers)
+            is GhAuthStatus.INVALID_CREDENTIALS
+        )
 
 
 class TestIsTransientGraphqlError:
