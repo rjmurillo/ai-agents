@@ -980,6 +980,47 @@ def _emit_error(message: str, code: int, error_type: str, output_format: str, pr
     raise SystemExit(code)
 
 
+def _emit_fail_open_result(
+    *,
+    command: str,
+    output_format: str,
+    pr: int,
+    owner: str,
+    repo: str,
+    exit_code: int,
+) -> int:
+    """Emit the lease-store-unavailable ACT envelope and return success."""
+    logger.warning(
+        "op=lease_main_failopen exit_code=%d command=%s pr=%d",
+        exit_code,
+        command,
+        pr,
+    )
+    fail_open_result = {
+        "success": True,
+        "pull_request": pr,
+        "owner": owner,
+        "repo": repo,
+        "command": command,
+        "action": "ACT",
+        "reason": "lease-store-unavailable",
+        "expires_at": None,
+        "base_sha": None,
+        "local_head_sha": None,
+    }
+    write_skill_output(
+        fail_open_result,
+        output_format=output_format,
+        human_summary=(
+            f"PR #{pr} lease {command}: "
+            f"ACT (lease-store-unavailable; auth/store failure, original exit {exit_code})"
+        ),
+        status="PASS",
+        script_name=_SCRIPT_NAME,
+    )
+    return 0
+
+
 def _run_command(args: argparse.Namespace, owner: str, repo: str) -> LeaseResult:
     if args.command == "status":
         return status(owner, repo, args.pull_request)
@@ -1006,53 +1047,35 @@ def _run_command(args: argparse.Namespace, owner: str, repo: str) -> LeaseResult
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     output_format = args.output_format
-    # ADR-076 part 3 step 6: API/auth store failures must fail open to ACT
-    # with reason=lease-store-unavailable, never exit 4 before lease logic.
-    # assert_gh_authenticated() raises SystemExit(4) on auth failure, which
-    # converts an advisory coordination mechanism into a workflow outage
-    # (issue #4375). The repo param resolution below is I/O that can fail
-    # too; catch both as store failures and fail open.
     try:
         assert_gh_authenticated()
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 3
+        return _emit_fail_open_result(
+            command=args.command,
+            output_format=output_format,
+            pr=args.pull_request,
+            owner=args.owner or "",
+            repo=args.repo or "",
+            exit_code=code,
+        )
+
+    try:
         resolved = resolve_repo_params(args.owner, args.repo)
     except SystemExit as exc:
-        # Auth / repo resolution failure. Fail open per ADR-076 part 3
-        # step 6: emit an ACT/lease-store-unavailable result on the same
-        # output channel so the caller sees a structured verdict, then exit
-        # 0 (ACT). The SHA gate is the backstop. We emit a best-effort
-        # result. Output serialization failures remain fatal because callers
-        # cannot act safely without a readable lease verdict.
+        # Preserve code 2 validation errors from resolve_repo_params(). Only
+        # confirmed auth/store failures fail open to ACT.
+        if exc.code == 2:
+            raise
         code = exc.code if isinstance(exc.code, int) else 3
-        logger.warning(
-            "op=lease_main_failopen exit_code=%d command=%s pr=%d",
-            code,
-            args.command,
-            args.pull_request,
-        )
-        fail_open_result = {
-            "success": True,
-            "pull_request": args.pull_request,
-            "owner": args.owner or "",
-            "repo": args.repo or "",
-            "command": args.command,
-            "action": "ACT",
-            "reason": "lease-store-unavailable",
-            "expires_at": None,
-            "base_sha": None,
-            "local_head_sha": None,
-        }
-        write_skill_output(
-            fail_open_result,
+        return _emit_fail_open_result(
+            command=args.command,
             output_format=output_format,
-            human_summary=(
-                f"PR #{args.pull_request} lease {args.command}: "
-                f"ACT (lease-store-unavailable; auth/repo resolution failed, "
-                f"original exit {code})"
-            ),
-            status="PASS",
-            script_name=_SCRIPT_NAME,
+            pr=args.pull_request,
+            owner=args.owner or "",
+            repo=args.repo or "",
+            exit_code=code,
         )
-        return 0
     owner, repo = resolved.owner, resolved.repo
 
     result = _run_command(args, owner, repo)

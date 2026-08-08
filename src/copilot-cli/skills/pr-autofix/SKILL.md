@@ -73,6 +73,31 @@ resolve_pr_scripts_dir() {
 }
 SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 
+LEASE_RENEWAL_PID=""
+start_lease_renewal() {
+    (
+        while sleep 300; do
+            python3 "$SCRIPTS_DIR/pr_autofix_lease.py" renew \
+                --pull-request "$PR" --session "$SESSION_ID" --output-format json || exit 0
+        done
+    ) &
+    LEASE_RENEWAL_PID=$!
+}
+
+stop_lease_renewal() {
+    if [ -n "$LEASE_RENEWAL_PID" ]; then
+        kill "$LEASE_RENEWAL_PID" || true
+        wait "$LEASE_RENEWAL_PID" || true
+        LEASE_RENEWAL_PID=""
+    fi
+}
+
+release_branch_lease() {
+    stop_lease_renewal
+    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
+        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+}
+
 # late-live-state-guard:start
 recheck_pr_live_state() {
     local late_live late_rc late_action late_reason late_state late_head late_base
@@ -134,6 +159,7 @@ LEASE=$(python3 "$SCRIPTS_DIR/pr_autofix_lease.py" acquire \
     echo "Lease acquire failed (exit $LEASE_RC) for #$PR; skipping to avoid racing."
     continue
 }
+start_lease_renewal
 
 # Step 2: Live-state gate (BLOCKING, issue #2455).
 LIVE=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" \
@@ -142,8 +168,7 @@ ACTION=$(echo "$LIVE" | jq -r '.Data.action')
 if [ "$ACTION" = "SKIP" ]; then
     REASON=$(echo "$LIVE" | jq -r '.Data.reason')
     echo "Skipping #$PR: $REASON"
-    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+    release_branch_lease
     # If Data.superseded_by_base.fully_superseded == true, recommend close
     # via the queue's close-handling path; do NOT push or merge.
     continue
@@ -153,8 +178,7 @@ EXPECTED_BASE_REF=$(echo "$LIVE" | jq -r '.Data.base_ref // empty')
 EXPECTED_BASE_SHA=$(echo "$LIVE" | jq -r '.Data.base_sha // empty')
 if [ -z "$EXPECTED_HEAD_SHA" ] || [ -z "$EXPECTED_BASE_REF" ] || [ -z "$EXPECTED_BASE_SHA" ]; then
     echo "Cannot bind mutation to the live PR identity for #$PR; skipping."
-    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+    release_branch_lease
     continue
 fi
 # ACTION == "ACT": proceed with the tier's planned action set.
@@ -171,8 +195,7 @@ AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/d
 # that as "armed" would fire the disarm path on no evidence, so skip instead.
 if [ -z "$AUTO_MERGE" ]; then
     echo "Cannot read auto-merge state for #$PR (context fetch or parse failed); skipping."
-    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+    release_branch_lease
     continue
 fi
 if [ "$AUTO_MERGE" != "null" ] && [ "$TIER" != "T1" ]; then
@@ -231,8 +254,7 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
     --json \
     --evidence-path ".agents/pr-comments/PR-$PR/gate-evidence.json"
 
-python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-    --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+release_branch_lease
 ```
 
 ## Workflow

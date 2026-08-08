@@ -1339,10 +1339,11 @@ class TestMainExitCodes:
 
 
 class TestAuthFailOpenFix:
-    """Fix: main() catches SystemExit from assert_gh_authenticated() and
-    resolve_repo_params() and returns ACT/lease-store-unavailable (exit 0)
-    instead of propagating exit 4, so an auth store failure cannot convert
-    the advisory lease into a workflow outage."""
+    """Fix: main() fail-opens only for confirmed auth/store failures.
+
+    Auth failures still return ACT/lease-store-unavailable, but validation
+    errors from resolve_repo_params() must keep their original exit 2.
+    """
 
     def test_auth_failure_exits_zero_act(self, capsys):
         # assert_gh_authenticated raises SystemExit(4) on auth failure.
@@ -1382,19 +1383,26 @@ class TestAuthFailOpenFix:
         assert payload["Data"]["action"] == "ACT"
         assert payload["Data"]["reason"] == "lease-store-unavailable"
 
-    def test_repo_resolution_failure_exits_zero_act(self, capsys):
-        # resolve_repo_params raises SystemExit(3) when repo can't resolve.
+    def test_repo_resolution_usage_error_preserves_exit_two(self, capsys):
+        # resolve_repo_params uses exit 2 for invalid or missing repo params.
         with (
             patch.object(_mod, "assert_gh_authenticated", return_value=None),
-            patch.object(_mod, "resolve_repo_params", side_effect=SystemExit(3)),
+            patch.object(_mod, "resolve_repo_params", side_effect=SystemExit(2)),
         ):
-            rc = main(
-                ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
-            )
-        assert rc == 0
-        payload = json.loads(capsys.readouterr().out)
-        assert payload["Data"]["action"] == "ACT"
-        assert payload["Data"]["reason"] == "lease-store-unavailable"
+            with pytest.raises(SystemExit) as exc:
+                main(
+                    [
+                        "acquire",
+                        "--pull-request",
+                        "1",
+                        "--session",
+                        _SESSION,
+                        "--output-format",
+                        "json",
+                    ]
+                )
+        assert exc.value.code == 2
+        assert capsys.readouterr().out == ""
 
     def test_auth_success_proceeds_to_acquire(self, capsys):
         # Positive control: when auth succeeds, normal acquire runs.

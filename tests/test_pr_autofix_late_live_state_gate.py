@@ -196,6 +196,15 @@ def test_guard_is_shipped_in_each_agent_surface(relative_path: str) -> None:
 
 
 @pytest.mark.parametrize("relative_path", GUARDED_DOCS)
+def test_lease_renewal_loop_is_shipped_in_each_agent_surface(relative_path: str) -> None:
+    text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+    assert "start_lease_renewal()" in text
+    assert "LEASE_RENEWAL_PID" in text
+    assert 'python3 "$SCRIPTS_DIR/pr_autofix_lease.py" renew' in text
+    assert "release_branch_lease()" in text
+
+
+@pytest.mark.parametrize("relative_path", GUARDED_DOCS)
 def test_mutation_examples_use_the_late_guard(relative_path: str) -> None:
     text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
     expected = (
