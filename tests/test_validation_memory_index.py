@@ -802,8 +802,32 @@ class TestFindOrphanedFiles:
         assert [(orphan.file, orphan.expected_index) for orphan in orphans] == [
             (
                 "decision-use-one-source-of-truth",
-                "skills-decision-index.md",
+                "a domain index referenced by memory-index.md",
             )
+        ]
+
+    def test_suggests_existing_general_index_for_nested_orphan(
+        self, tmp_path: Path
+    ) -> None:
+        """Remediation names the index that owns the orphan's directory."""
+        create_memory_structure(tmp_path, {
+            "adr-reference-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| existing adr route keywords | "
+                "[existing](adr/adr-014-review-findings.md) |\n"
+            ),
+            "adr/adr-014-review-findings.md": "indexed",
+            "adr/adr-099-new.md": "orphan",
+        })
+
+        orphans = find_orphaned_files(
+            find_domain_indices(tmp_path),
+            tmp_path,
+        )
+
+        assert [(orphan.file, orphan.expected_index) for orphan in orphans] == [
+            ("adr/adr-099-new", "adr-reference-index.md")
         ]
 
     def test_generic_domain_index_reference_prevents_false_orphan(

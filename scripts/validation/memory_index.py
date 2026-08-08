@@ -588,6 +588,7 @@ def find_orphaned_files(
 ) -> list[Orphan]:
     """Find atomic memories not referenced by the root or a domain index."""
     referenced_files: set[str] = set()
+    owner_counts: dict[str, dict[str, int]] = {}
 
     index_paths = [
         path
@@ -601,12 +602,23 @@ def find_orphaned_files(
     resolved_root = memory_path.resolve()
     for index_path in index_paths:
         content = index_path.read_text(encoding="utf-8")
+        index_references: set[str] = set()
         for reference in extract_lookup_references(content):
             resolved = (memory_path / reference).resolve()
             if resolved.is_relative_to(resolved_root):
-                referenced_files.add(
-                    resolved.relative_to(resolved_root).as_posix()
-                )
+                canonical = resolved.relative_to(resolved_root).as_posix()
+                referenced_files.add(canonical)
+                index_references.add(canonical)
+
+        if index_path == root_index:
+            continue
+        for reference in index_references:
+            reference_path = Path(reference)
+            domain = _memory_domain(reference_path)
+            domain_counts = owner_counts.setdefault(domain, {})
+            domain_counts[index_path.name] = (
+                domain_counts.get(index_path.name, 0) + 1
+            )
 
     orphans: list[Orphan] = []
     for file_path in sorted(memory_path.rglob("*.md")):
@@ -652,20 +664,32 @@ def find_orphaned_files(
             )
             continue
 
-        domain = (
-            relative_path.parts[0]
-            if len(relative_path.parts) > 1
-            else file_path.stem.split("-", 1)[0]
+        domain = _memory_domain(relative_path)
+        domain_counts = owner_counts.get(domain, {})
+        expected_index = (
+            min(
+                domain_counts,
+                key=lambda name: (-domain_counts[name], name),
+            )
+            if domain_counts
+            else "a domain index referenced by memory-index.md"
         )
         orphans.append(
             Orphan(
                 file=file_name,
                 domain=domain,
-                expected_index=f"skills-{domain}-index.md",
+                expected_index=expected_index,
             )
         )
 
     return orphans
+
+
+def _memory_domain(relative_path: Path) -> str:
+    """Return the retrieval domain for a memory path."""
+    if len(relative_path.parts) > 1:
+        return relative_path.parts[0]
+    return relative_path.stem.split("-", 1)[0]
 
 
 def _validate_orphan_policy(orphan_policy: str) -> OrphanPolicy:
