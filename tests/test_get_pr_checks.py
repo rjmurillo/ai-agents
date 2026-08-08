@@ -38,6 +38,7 @@ normalize_check = _mod.normalize_check
 fetch_checks = _mod.fetch_checks
 build_output = _mod.build_output
 dedupe_checks = _mod.dedupe_checks
+_exit_code = _mod._exit_code
 
 from scripts.github_core.checks_rollup import (  # noqa: E402
     extract_workflow_run_id,
@@ -1890,6 +1891,271 @@ class TestSupersededCheckRuns:
         assert data["AllPassing"] is False
 
 
+# ---------------------------------------------------------------------------
+# Tests: MissingRequired (issue #4359)
+# ---------------------------------------------------------------------------
+
+
+class TestMissingRequired:
+    """Required checks that never reported are invisible to isRequired logic.
+
+    fetch_ruleset_required_contexts + find_missing_required bridge that gap.
+    """
+
+    def _green_rollup(self, check_name: str = "Run Python Tests"):
+        """A single passing required check -- looks green to isRequired logic."""
+        return _rollup_response(
+            [_check_run_node(check_name, "COMPLETED", "SUCCESS", required=True)],
+            state="SUCCESS",
+            mergeable="MERGEABLE",
+            merge_state_status="CLEAN",
+        )
+
+    def test_missing_required_returned_when_ruleset_contexts_provided(self, capsys):
+        """MissingRequiredChecks lists checks in the ruleset but absent from rollup."""
+        rollup = self._green_rollup("Run Python Tests")
+        ruleset = ["Run Python Tests", "Validate PR", "PR Validation"]
+
+        with patch("get_pr_checks.assert_gh_authenticated"), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql", return_value=rollup
+        ), patch(
+            "get_pr_checks.fetch_ruleset_required_contexts",
+            return_value=ruleset,
+        ):
+            rc = main(["--pull-request", "4009", "--output-format", "json"])
+
+        output = json.loads(capsys.readouterr().out)
+        data = output["Data"]
+        assert rc == 1, "exit 1 when missing required checks"
+        assert set(data["MissingRequiredChecks"]) == {"Validate PR", "PR Validation"}
+
+    def test_missing_required_is_none_when_ruleset_fetch_fails(self, capsys):
+        """MissingRequiredChecks is null when the ruleset API returns None."""
+        rollup = self._green_rollup()
+        with patch("get_pr_checks.assert_gh_authenticated"), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql", return_value=rollup
+        ), patch(
+            "get_pr_checks.fetch_ruleset_required_contexts",
+            return_value=None,
+        ):
+            rc = main(["--pull-request", "4009", "--output-format", "json"])
+
+        output = json.loads(capsys.readouterr().out)
+        data = output["Data"]
+        assert rc == 0, "no exit 1 when ruleset unavailable"
+        assert data["MissingRequiredChecks"] is None
+
+    def test_missing_required_empty_when_all_reported(self, capsys):
+        """MissingRequiredChecks is [] when every ruleset check reported."""
+        rollup = self._green_rollup("Run Python Tests")
+        ruleset = ["Run Python Tests"]
+        with patch("get_pr_checks.assert_gh_authenticated"), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql", return_value=rollup
+        ), patch(
+            "get_pr_checks.fetch_ruleset_required_contexts",
+            return_value=ruleset,
+        ):
+            rc = main(["--pull-request", "4009", "--output-format", "json"])
+
+        output = json.loads(capsys.readouterr().out)
+        data = output["Data"]
+        assert rc == 0
+        assert data["MissingRequiredChecks"] == []
+
+    def test_base_branch_empty_skips_ruleset_fetch(self, capsys):
+        """Passing --base-branch '' skips ruleset fetch entirely."""
+        rollup = self._green_rollup()
+        with patch("get_pr_checks.assert_gh_authenticated"), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql", return_value=rollup
+        ), patch(
+            "get_pr_checks.fetch_ruleset_required_contexts"
+        ) as mock_fetch:
+            rc = main([
+                "--pull-request", "4009",
+                "--base-branch", "",
+                "--output-format", "json",
+            ])
+
+        mock_fetch.assert_not_called()
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["MissingRequiredChecks"] is None
+        assert rc == 0
+
+    def test_missing_required_summary_names_checks(self, capsys):
+        """Human summary names the missing checks by count and sample."""
+        rollup = self._green_rollup("Run Python Tests")
+        ruleset = ["Run Python Tests", "A", "B", "C", "D"]
+        with patch("get_pr_checks.assert_gh_authenticated"), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql", return_value=rollup
+        ), patch(
+            "get_pr_checks.fetch_ruleset_required_contexts",
+            return_value=ruleset,
+        ):
+            rc = main(["--pull-request", "4009", "--output-format", "human"])
+
+        out = capsys.readouterr().out
+        assert rc == 1
+        assert "MISSING" in out or "missing" in out.lower()
+        assert "4" in out  # 4 missing (A, B, C, D)
+
+
+class TestExitCodePriority:
+    def test_incomplete_checks_take_precedence_over_missing_required(self):
+        output = {
+            "FailedCount": 0,
+            "MissingRequiredChecks": ["Validate PR"],
+            "MergeRefUsable": True,
+        }
+        assert _exit_code(output, checks_incomplete=True, timed_out_pending=False) == 7
+
+    def test_timed_out_pending_checks_take_precedence_over_missing_required(self):
+        output = {
+            "FailedCount": 0,
+            "MissingRequiredChecks": ["Validate PR"],
+            "MergeRefUsable": True,
+        }
+        assert _exit_code(output, checks_incomplete=False, timed_out_pending=True) == 7
+
+
+# ---------------------------------------------------------------------------
+# Tests: find_missing_required and fetch_ruleset_required_contexts
+# ---------------------------------------------------------------------------
+
+
+class TestChecksRollupRulesetHelpers:
+    """Unit tests for the two new helpers in github_core.checks_rollup."""
+
+    def test_find_missing_required_all_absent(self):
+        from github_core.checks_rollup import find_missing_required
+        missing = find_missing_required(["A", "B", "C"], set())
+        assert missing == ["A", "B", "C"]
+
+    def test_find_missing_required_all_reported(self):
+        from github_core.checks_rollup import find_missing_required
+        missing = find_missing_required(["A", "B"], {"A", "B", "C"})
+        assert missing == []
+
+    def test_find_missing_required_partial(self):
+        from github_core.checks_rollup import find_missing_required
+        missing = find_missing_required(["A", "B", "C"], {"B"})
+        assert missing == ["A", "C"]
+
+    def test_find_missing_required_returns_sorted(self):
+        from github_core.checks_rollup import find_missing_required
+        missing = find_missing_required(["C", "A", "B"], set())
+        assert missing == ["A", "B", "C"]
+
+    def test_fetch_ruleset_required_contexts_parses_api_response(self):
+        """Correctly extracts context names from a realistic API payload."""
+        import json as _json
+        import subprocess
+
+        from github_core.checks_rollup import fetch_ruleset_required_contexts
+
+        payload = [
+            {
+                "type": "required_status_checks",
+                "parameters": {
+                    "required_status_checks": [
+                        {"context": "Run Python Tests", "integration_id": 1},
+                        {"context": "Validate PR", "integration_id": 2},
+                    ]
+                },
+            },
+            {
+                "type": "pull_request",
+                "parameters": {"required_approving_review_count": 1},
+            },
+        ]
+
+        mock_result = subprocess.CompletedProcess(
+            args=["gh", "api", "repos/o/r/rules/branches/main"],
+            returncode=0,
+            stdout=_json.dumps(payload),
+            stderr="",
+        )
+        with patch("github_core.checks_rollup.subprocess.run", return_value=mock_result):
+            contexts = fetch_ruleset_required_contexts("o", "r", "main")
+
+        assert contexts == ["Run Python Tests", "Validate PR"]
+
+    def test_fetch_ruleset_required_contexts_returns_none_on_api_error(self):
+        """Returns None when gh api exits non-zero."""
+        import subprocess
+
+        from github_core.checks_rollup import fetch_ruleset_required_contexts
+
+        mock_result = subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="",
+            stderr="Not Found",
+        )
+        with patch("github_core.checks_rollup.subprocess.run", return_value=mock_result):
+            result = fetch_ruleset_required_contexts("o", "r", "main")
+
+        assert result is None
+
+    def test_fetch_ruleset_required_contexts_returns_none_on_bad_json(self):
+        """Returns None when gh api returns invalid JSON."""
+        import subprocess
+
+        from github_core.checks_rollup import fetch_ruleset_required_contexts
+
+        mock_result = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="not-json",
+            stderr="",
+        )
+        with patch("github_core.checks_rollup.subprocess.run", return_value=mock_result):
+            result = fetch_ruleset_required_contexts("o", "r", "main")
+
+        assert result is None
+
+    def test_fetch_ruleset_deduplicates_contexts(self):
+        """Duplicate context names in the payload are deduplicated."""
+        import json as _json
+        import subprocess
+
+        from github_core.checks_rollup import fetch_ruleset_required_contexts
+
+        payload = [
+            {
+                "type": "required_status_checks",
+                "parameters": {
+                    "required_status_checks": [
+                        {"context": "Run Python Tests"},
+                        {"context": "Run Python Tests"},
+                    ]
+                },
+            }
+        ]
+        mock_result = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=_json.dumps(payload),
+            stderr="",
+        )
+        with patch("github_core.checks_rollup.subprocess.run", return_value=mock_result):
+            contexts = fetch_ruleset_required_contexts("o", "r", "main")
+
+        assert contexts == ["Run Python Tests"]
 _RUN_A = "https://github.com/o/r/actions/runs/30827748904/job/91733674289"
 _RUN_A2 = "https://github.com/o/r/actions/runs/30827748904/job/91733675289"
 _RUN_B = "https://github.com/o/r/actions/runs/30826833314/job/91730700818"

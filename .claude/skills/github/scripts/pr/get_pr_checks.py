@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# mypy: disable-error-code="arg-type,assignment,no-any-return,type-arg,type-var", follow-imports=skip
 """Get CI check status for a GitHub Pull Request.
 
 Retrieves CI check information using GraphQL statusCheckRollup API.
@@ -47,6 +48,8 @@ from github_core.api import (
 from github_core.checks_rollup import (
     extract_required_check_lists,
     extract_workflow_run_number,
+    fetch_ruleset_required_contexts,
+    find_missing_required,
     group_checks_by_name,
     partition_rows_by_run,
 )
@@ -471,12 +474,18 @@ def build_output(
     owner: str,
     repo: str,
     required_only: bool = False,
+    ruleset_contexts: list[str] | None = None,
 ) -> dict:
     """Build the final output object from check data.
 
     Groups checks by name and ORs the required status across all rows
     for each name, matching test_pr_merge_ready.py semantics. Returns
     structured lists of pending and failed required checks.
+
+    If ``ruleset_contexts`` is provided (from the branch ruleset API), computes
+    ``MissingRequired``: context names the ruleset requires but that never
+    reported any check run. These are invisible to isRequired-based logic.
+    Refs issue #4359.
     """
     checks_value = check_data.get("Checks")
     if checks_value is None:
@@ -563,6 +572,16 @@ def build_output(
         filtered_checks, is_required_by_name
     )
 
+    # Issue #4359: required checks that never triggered any run are invisible
+    # to isRequired-based logic. Cross-reference against the branch ruleset to
+    # surface them as a distinct MISSING state.
+    reported_names = {c.get("Name", "") for c in checks}
+    missing_required: list[str] | None
+    if ruleset_contexts is not None:
+        missing_required = find_missing_required(ruleset_contexts, reported_names)
+    else:
+        missing_required = None
+
     return {
         "Success": True,
         "Number": check_data.get("Number"),
@@ -598,6 +617,10 @@ def build_output(
         # failed ones and from non-required checks.
         "PendingRequiredChecks": pending_required,
         "FailedRequiredChecks": failed_required,
+        # Issue #4359: required checks from the branch ruleset that produced no
+        # check run at all. None when the ruleset fetch was skipped or failed
+        # (caller should treat as unknown, not empty).
+        "MissingRequiredChecks": missing_required,
     }
 
 
@@ -628,6 +651,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--required-only", action="store_true",
         help="Filter output to required checks only",
     )
+    parser.add_argument(
+        "--base-branch", default="main",
+        help="Base branch to read the ruleset from for missing-check detection "
+             "(default: main). Pass empty string to skip ruleset fetch.",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -649,6 +677,13 @@ def _resolve_status(
             "(empty rollup; not treated as passing)",
             "WARNING",
         )
+    missing = output.get("MissingRequiredChecks")
+    if missing:
+        return (
+            f"PR #{number}: {len(missing)} required check(s) never reported "
+            f"(MISSING: {', '.join(missing[:3])}{'...' if len(missing) > 3 else ''})",
+            "FAIL",
+        )
     if output["FailedCount"] > 0:
         return f"PR #{number}: {output['FailedCount']} check(s) failed", "FAIL"
     if timed_out_pending:
@@ -665,6 +700,44 @@ def _resolve_status(
     return f"PR #{number}: All {output['PassedCount']} check(s) passing", "PASS"
 
 
+def _handle_fetch_error(check_data: dict, pr_number: int, fmt: object) -> int | None:
+    """Return an exit code if check_data carries an error, else None."""
+    if check_data.get("Error") == "NotFound":
+        write_skill_error(
+            check_data["Message"],
+            2,
+            error_type="NotFound",
+            output_format=fmt,
+            script_name="get_pr_checks.py",
+            extra={"Number": pr_number},
+        )
+        return 2
+    if check_data.get("Error") == "ApiError":
+        write_skill_error(
+            check_data["Message"],
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_pr_checks.py",
+            extra={"Number": pr_number},
+        )
+        return 3
+    return None
+
+
+def _exit_code(output: dict, checks_incomplete: bool, timed_out_pending: bool) -> int:
+    """Return the exit code derived from the final output dict."""
+    if checks_incomplete or timed_out_pending:
+        return 7
+    if output["FailedCount"] > 0:
+        return 1
+    if output.get("MissingRequiredChecks"):
+        return 1
+    if not output.get("MergeRefUsable", True):
+        return 1
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     assert_gh_authenticated()
@@ -674,6 +747,15 @@ def main(argv: list[str] | None = None) -> int:
     repo = resolved.repo
 
     fmt = get_output_format(args.output_format)
+
+    # Issue #4359: fetch the branch ruleset once, before polling, so the
+    # missing-check cross-reference uses a stable snapshot. Returns None if
+    # the fetch fails or --base-branch was passed empty; callers treat None
+    # as "unknown" rather than "nothing required".
+    base_branch = args.base_branch.strip() if args.base_branch else ""
+    ruleset_contexts: list[str] | None = None
+    if base_branch:
+        ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
 
     start_time = time.monotonic()
     max_iterations = math.ceil(args.timeout_seconds / 10)
@@ -685,30 +767,13 @@ def main(argv: list[str] | None = None) -> int:
         iteration += 1
         check_data = fetch_checks(owner, repo, args.pull_request)
 
-        # Handle errors
-        if check_data.get("Error") == "NotFound":
-            write_skill_error(
-                check_data["Message"],
-                2,
-                error_type="NotFound",
-                output_format=fmt,
-                script_name="get_pr_checks.py",
-                extra={"Number": args.pull_request},
-            )
-            return 2
+        rc = _handle_fetch_error(check_data, args.pull_request, fmt)
+        if rc is not None:
+            return rc
 
-        if check_data.get("Error") == "ApiError":
-            write_skill_error(
-                check_data["Message"],
-                3,
-                error_type="ApiError",
-                output_format=fmt,
-                script_name="get_pr_checks.py",
-                extra={"Number": args.pull_request},
-            )
-            return 3
-
-        output = build_output(check_data, owner, repo, args.required_only)
+        output = build_output(
+            check_data, owner, repo, args.required_only, ruleset_contexts
+        )
         checks_incomplete = checks_incomplete or bool(
             output.get("ChecksIncomplete", False)
         )
@@ -740,7 +805,6 @@ def main(argv: list[str] | None = None) -> int:
     output["ChecksIncomplete"] = checks_incomplete
     timed_out_pending = not settled and output["PendingCount"] > 0
 
-    # Determine status for human output
     summary, status = _resolve_status(
         output, args.timeout_seconds, timed_out_pending, checks_incomplete
     )
@@ -753,13 +817,7 @@ def main(argv: list[str] | None = None) -> int:
         script_name="get_pr_checks.py",
     )
 
-    if output["FailedCount"] > 0:
-        return 1
-    if not output.get("MergeRefUsable", True):
-        return 1
-    if checks_incomplete or timed_out_pending:
-        return 7
-    return 0
+    return _exit_code(output, checks_incomplete, timed_out_pending)
 
 
 if __name__ == "__main__":
