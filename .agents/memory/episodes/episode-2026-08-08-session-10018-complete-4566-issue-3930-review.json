@@ -119,7 +119,10 @@
         "e008",
         "e010"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e011",
+        "e012"
+      ],
       "_source_session": "2026-08-08-session-10018-complete-4566-issue-3930-review"
     },
     {
@@ -134,15 +137,37 @@
         "e009"
       ],
       "_source_session": "2026-08-08-session-10018-complete-4566-issue-3930-review"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-08T01:37:49+00:00",
+      "type": "milestone",
+      "content": "Merged latest origin/main in 08dfca0597 without rewriting history. Post-merge focused tests passed 137 tests, generated parity passed, and pre_pr.py passed every gate.",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10018-complete-4566-issue-3930-review"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-08T01:37:49+00:00",
+      "type": "commit",
+      "content": "Commit: 08dfca0597",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10018-complete-4566-issue-3930-review"
     }
   ],
   "metrics": {
-    "duration_minutes": 26,
+    "duration_minutes": 34,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 34
+    "commits": 2,
+    "files_changed": 37
   },
   "lessons": []
 }

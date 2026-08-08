@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and review commits are reachable locally through 668e0350fc."
+        "Evidence": "Implementation, session artifacts, and latest-main merge are reachable locally through 08dfca0597."
       },
       "validationPassed": {
         "level": "MUST",
@@ -149,9 +149,13 @@
     {
       "time": "2026-08-08T01:30:00Z",
       "entry": "Independent QA reran 72 in-scope tests and reported PASS. Its full-suite run found five failures in test_utility_scripts.py and confirmed the same failures on origin/main."
+    },
+    {
+      "time": "2026-08-08T01:37:49Z",
+      "entry": "Merged latest origin/main in 08dfca0597 without rewriting history. Post-merge focused tests passed 137 tests, generated parity passed, and pre_pr.py passed every gate."
     }
   ],
-  "endingCommit": "668e0350fc",
+  "endingCommit": "08dfca0597",
   "nextSteps": [
     "Push through the branch lock, verify remote reachability, reply to and resolve every review thread, monitor checks, retain auto-merge, and verify issue 3930 closes."
   ]
