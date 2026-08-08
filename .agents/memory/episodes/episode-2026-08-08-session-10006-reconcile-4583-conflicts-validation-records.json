@@ -79,7 +79,7 @@
         "e005"
       ],
       "leads_to": [
-        "e008"
+        "e009"
       ],
       "_source_session": "2026-08-08-session-10006-reconcile-4583-conflicts-validation-records"
     },
@@ -91,11 +91,24 @@
       "caused_by": [
         "e009"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-08-session-10006-reconcile-4583-conflicts-validation-records"
     },
     {
       "id": "e008",
+      "timestamp": "2026-08-08T19:25:00+00:00",
+      "type": "milestone",
+      "content": "Merged the latest origin/main after the completion gate reported the branch behind base.",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10006-reconcile-4583-conflicts-validation-records"
+    },
+    {
+      "id": "e009",
       "timestamp": "2026-08-08T16:59:23+00:00",
       "type": "commit",
       "content": "Commit: 075cbf1c0dbc0857045b86783921de378ad6985a",
@@ -103,26 +116,26 @@
         "e006"
       ],
       "leads_to": [
-        "e009"
+        "e007"
       ],
       "_source_session": "2026-08-08-session-10006-reconcile-4583-conflicts-validation-records"
     },
     {
-      "id": "e009",
-      "timestamp": "2026-08-08T17:15:41+00:00",
+      "id": "e010",
+      "timestamp": "2026-08-08T19:24:38+00:00",
       "type": "commit",
-      "content": "Commit: 4c44530cd23f4a5d3caf696dd92bc8a0a055ab17",
+      "content": "Commit: 62f1db42654a06fb08bde379e07a9033b8b2fa79",
       "caused_by": [
-        "e008"
+        "e007"
       ],
       "leads_to": [
-        "e007"
+        "e008"
       ],
       "_source_session": "2026-08-08-session-10006-reconcile-4583-conflicts-validation-records"
     }
   ],
   "metrics": {
-    "duration_minutes": 65,
+    "duration_minutes": 185,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
