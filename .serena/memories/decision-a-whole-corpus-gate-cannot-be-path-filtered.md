@@ -98,6 +98,20 @@ touch the same file. The ceiling is a sum, so the breach exists only after both
 land. `strict_required_status_checks_policy: false` on ruleset 11104075 permits
 exactly this.
 
+**Update 2026-08-05: that policy now reads `true` on the same ruleset.** Under
+the current architecture that closes this hole rather than narrowing it. Each
+PR must be current before it merges, and there is no merge queue, so admission
+is fully serialized: once the first PR lands the second goes BEHIND, and
+updating it re-measures the corpus against a base that already contains the
+first. The breach is caught before the second merge.
+
+The reserve band below is still the right fix for two reasons. It does not
+depend on admission being serialized, so it would also cover a future merge
+queue if merge-group validation permits this race. Issue #4608 records that
+hypothesis, but no merge group has been tested. The reserve also fails at PR
+time with headroom left, rather than at update time with the ceiling already
+breached.
+
 Any absolute (non-diff-relative) ceiling has this property. A ratchet that
 compares against `origin/main` does not, which is why the count ratchets caught
 their own drift and the budget did not.
@@ -130,7 +144,9 @@ Running an absolute ceiling at 100.0 percent utilization under
 admission is not serialized. The capacity answer is a **reserve band**: fail or
 warn at PR time when the merged result would leave less than a threshold of
 headroom, so two concurrent PRs cannot each consume the last bytes. That works
-with non-strict checks instead of fighting them.
+with non-strict checks instead of fighting them, and it keeps working under the
+strict setting now armed. Whether a future merge group preserves that
+serialization is unverified; issue #4608 tracks the question.
 
 ## Mechanism three: a pending run is evicted regardless of cancel-in-progress
 

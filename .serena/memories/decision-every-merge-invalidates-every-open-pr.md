@@ -19,11 +19,20 @@ PR is ever required to be current before merging, and there is nothing to make
 it current automatically:
 
 ```
+# Historical measurement before the 2026-08-05 ruleset change:
 gh api repos/rjmurillo/ai-agents/rules/branches/main
   -> "strict_required_status_checks_policy": false
 grep -rln merge_group .github/workflows/
   -> (nothing)
 ```
+
+**Measurement 2026-08-05: the first of those two reads `true`.** The second is
+unchanged, so there is still no merge queue and no `merge_group` trigger. In
+the measured queue, no automatic updater kept branches current. What changed is
+the allowed behavior. Under `false` a stale branch could merge; under `true` it
+cannot merge until someone updates it. Measured across the 56 open PRs on
+2026-08-05: 41 BEHIND, 13 DIRTY, 1 BLOCKED, 0 CLEAN. Those sum to 55, so one PR
+held a state I did not record. See issue #4646.
 
 The consequence is stronger than "branches go stale". The count ratchets compare
 a branch's whole tree against a baseline integer that main lowers whenever main

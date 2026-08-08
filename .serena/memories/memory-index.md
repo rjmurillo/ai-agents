@@ -10,7 +10,7 @@
 
 [GitHub and PR Operations]
 |self-assessment ready-to-push refuted independent review negative control inert fix guard does not bite: [decision-agent-self-assessment-does-not-survive-review](decision-agent-self-assessment-does-not-survive-review.md) (1149)
-|merge invalidates open PRs stale baseline ratchet strict status checks merge queue thread non-monotonic sweep turns main red green inputs do not compose global invariant: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (1994)
+|merge invalidates open PRs stale baseline ratchet strict status checks merge queue thread non-monotonic sweep turns main red green inputs do not compose global invariant: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (2158)
 |gh graphql rest rate limit budget separate exhaustion pr list api repos: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity exhaustion statusCheckRollup 504 mergeStateStatus UNKNOWN lazy: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)
 |rebase after push non-fast-forward force-push forbidden merge remote tip scope explosion miscount: [git/git-rebase-after-push-costs-two-cycles](git/git-rebase-after-push-costs-two-cycles.md) (1350)
@@ -28,7 +28,7 @@
 |triage stale closure verify history bot superseded duplicate: [pr-review/triage-001-verify-before-stale-closure](pr-review/triage-001-verify-before-stale-closure.md) (435), [pr-review/triage-002-bot-closure-verification](pr-review/triage-002-bot-closure-verification.md) (452)
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
 |pr checks read rollup truncation cancelled superseded severity required rerun get_pr_checks: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1935)
-|blocked pr mergeStateStatus ruleset required contexts thread resolution commit limit bypass diagnose: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (908)
+|blocked pr mergeStateStatus ruleset required contexts thread resolution commit limit bypass diagnose: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (1597)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads totalCount pagination cursor authoritative metadata: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 
 [Scripting and Testing]
@@ -79,7 +79,7 @@
 |local passes CI fails same commit gitignored build output untracked working tree existence baseline unreproducible ratchet machine-dependent merge ref worktree: [decision-local-pass-does-not-clear-red-ci](decision-local-pass-does-not-clear-red-ci.md) (942)
 |spec coverage acceptance criteria checkbox observe signal non-blocking required check push-pr body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
 |BOT_PAT github.token runner token AI review read calls rate limit budget user id: [ci/ci-ai-review-read-calls-use-runner-token](ci/ci-ai-review-read-calls-use-runner-token.md) (284)
-|count ratchet baseline branch freshness behind main stale higher baseline merge origin/main: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (822)
+|count ratchet baseline branch freshness behind main stale higher baseline merge origin/main: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (894)
 |taste count ratchet pre-push cost twelve minutes python-tests push lock queue file-size split not suppress run ratchets first: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (714)
 |taste baseline slack MAX_BASELINE_SLACK drift enforced by pytest not ratchet baseline_health no production caller merge queue batch collision: [ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet](ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet.md) (839)
 |ratchet declared twice lefthook checks_ratchet parity add/add conflict empty merge base keep both symmetric deletion silent 16 passed Ratchet extra_dev uses_base_ref: [ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice](ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice.md) (704)

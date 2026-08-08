@@ -1,15 +1,21 @@
-# The count ratchets make "behind main" a real merge blocker, even though the branch ruleset does not
+# Count ratchets required branch freshness before the ruleset did
 
 ## Question
 
-`main`'s branch ruleset sets `strict_required_status_checks_policy: false`, so being
-behind `main` does not block a merge. Does that mean a stale branch can be merged
-without syncing?
+`main`'s branch ruleset set `strict_required_status_checks_policy: false` when this
+was written, so being behind `main` did not block a merge. Does that mean a stale
+branch can be merged without syncing?
 
-## Conventional answer
+**Measurement 2026-08-05: the ruleset reads `true`, so being behind main blocks
+the merge directly.** The finding below still matters, because it explains why
+syncing was already mandatory when the ruleset did not demand it. The current
+setting adds a second, louder reason rather than replacing the first.
 
-Yes. `strict` is off, so GitHub will not demand the branch be current. Merging `main`
-into a feature branch just to "unblock" it adds a merge commit for nothing.
+## Historical conventional answer under `strict: false`
+
+Yes. At the time, `strict` was off, so GitHub did not demand the branch be
+current. Merging `main` into a feature branch just to "unblock" it added a
+merge commit for nothing.
 
 ## First-principles position
 
