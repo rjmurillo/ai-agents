@@ -15,13 +15,17 @@ Rules:
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+from scripts.testing.mutation_workspace import (
+    isolated_mutation_worktree,
+    purge_bytecode,
+)
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "validate-vendor-portability.yml"
+_WORKFLOW_REL = Path(".github") / "workflows" / "validate-vendor-portability.yml"
 _TESTS = [
     "tests/ci/test_validate_vendor_portability_wiring.py",
 ]
@@ -68,16 +72,11 @@ _MUTANTS: list[tuple[str, bytes, bytes, str]] = [
 ]
 
 
-def _clear_pycache() -> None:
-    for path in _REPO_ROOT.rglob("__pycache__"):
-        if path.is_dir() and not path.is_symlink():
-            shutil.rmtree(path)
-
-
-def _run_tests() -> subprocess.CompletedProcess[bytes]:
+def _run_tests(repo_root: Path) -> subprocess.CompletedProcess[bytes]:
+    purge_bytecode(repo_root)
     return subprocess.run(
         [sys.executable, "-m", "pytest", *_TESTS, "-x", "-q"],
-        cwd=_REPO_ROOT,
+        cwd=repo_root,
         capture_output=True,
     )
 
@@ -101,6 +100,7 @@ def _run_one_mutant(
     new: bytes,
     original_bytes: bytes,
     expected: str,
+    repo_root: Path,
 ) -> str:
     """Apply one mutant, run tests, restore. Return outcome string."""
     outcome, mutated_bytes = _apply_mutant(original_bytes, old, new)
@@ -112,12 +112,13 @@ def _run_one_mutant(
         print("  DID-NOT-APPLY: file unchanged after patch")
         return "DID-NOT-APPLY"
 
-    _WORKFLOW.write_bytes(mutated_bytes)
-    _clear_pycache()
-    result = _run_tests()
-    _WORKFLOW.write_bytes(original_bytes)
-    _clear_pycache()
-    restored = _WORKFLOW.read_bytes()
+    workflow = repo_root / _WORKFLOW_REL
+    try:
+        workflow.write_bytes(mutated_bytes)
+        result = _run_tests(repo_root)
+    finally:
+        workflow.write_bytes(original_bytes)
+    restored = workflow.read_bytes()
     assert restored == original_bytes, f"Restore not byte-identical for: {name!r}"
 
     output = result.stdout + result.stderr
@@ -149,15 +150,22 @@ def _print_summary(results: list[tuple[str, str, str]]) -> None:
     print("\nAll load-bearing mutants died. Inverted control survived.")
 
 
-def run_mutants() -> None:
-    original_bytes = _WORKFLOW.read_bytes()
+def run_mutants(repo_root: Path) -> None:
+    original_bytes = (repo_root / _WORKFLOW_REL).read_bytes()
     results: list[tuple[str, str, str]] = []
     for name, old, new, expected in _MUTANTS:
         print(f"\n--- Mutant: {name} ---")
-        actual = _run_one_mutant(name, old, new, original_bytes, expected)
+        actual = _run_one_mutant(
+            name, old, new, original_bytes, expected, repo_root
+        )
         results.append((name, actual, expected))
     _print_summary(results)
 
 
+def main() -> None:
+    with isolated_mutation_worktree(_REPO_ROOT, [_WORKFLOW_REL]) as workspace:
+        run_mutants(workspace.root)
+
+
 if __name__ == "__main__":
-    run_mutants()
+    main()

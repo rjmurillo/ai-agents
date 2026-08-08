@@ -24,6 +24,7 @@ from scripts.testing.mutation_harness import (
     main,
     validate_battery,
 )
+from scripts.testing.mutation_workspace import MutationWorkspaceError
 
 _WORKSPACE = Path(".pytest_tmp/mutation_harness")
 
@@ -409,6 +410,43 @@ class TestStreaming:
 
 
 class TestCli:
+    def test_workspace_failure_has_external_error_exit_code(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        workspace = _case_dir("cli_workspace_failure")
+        source = workspace / "subject.py"
+        source.write_text("def guard() -> bool:\n    return True\n", encoding="utf-8")
+        battery = workspace / "battery.json"
+        battery.write_text(
+            json.dumps(
+                {
+                    "command": [sys.executable, "-c", "pass"],
+                    "entries": [
+                        {
+                            "name": "workspace-failure",
+                            "path": "subject.py",
+                            "old": "return True",
+                            "new": "return False",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        def fail_workspace(
+            _self: MutationRunner,
+            _entries: Sequence[MutationEntry],
+        ) -> list[object]:
+            raise MutationWorkspaceError("injected workspace failure")
+
+        monkeypatch.setattr(MutationRunner, "run_all", fail_workspace)
+
+        assert main([str(battery)]) == EXIT_EXTERNAL_ERROR
+        assert "EXTERNAL_ERROR injected workspace failure" in capsys.readouterr().err
+
     def test_timeout_has_external_error_exit_code(
         self,
         capsys: pytest.CaptureFixture[str],
