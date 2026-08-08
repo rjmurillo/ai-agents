@@ -726,14 +726,14 @@ def _handle_fetch_error(check_data: dict, pr_number: int, fmt: object) -> int | 
 
 def _exit_code(output: dict, checks_incomplete: bool, timed_out_pending: bool) -> int:
     """Return the exit code derived from the final output dict."""
+    if checks_incomplete or timed_out_pending:
+        return 7
     if output["FailedCount"] > 0:
         return 1
     if output.get("MissingRequiredChecks"):
         return 1
     if not output.get("MergeRefUsable", True):
         return 1
-    if checks_incomplete or timed_out_pending:
-        return 7
     return 0
 
 

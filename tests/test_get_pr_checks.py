@@ -38,6 +38,7 @@ normalize_check = _mod.normalize_check
 fetch_checks = _mod.fetch_checks
 build_output = _mod.build_output
 dedupe_checks = _mod.dedupe_checks
+_exit_code = _mod._exit_code
 
 from scripts.github_core.checks_rollup import (  # noqa: E402
     extract_workflow_run_id,
@@ -2011,6 +2012,24 @@ class TestMissingRequired:
         assert rc == 1
         assert "MISSING" in out or "missing" in out.lower()
         assert "4" in out  # 4 missing (A, B, C, D)
+
+
+class TestExitCodePriority:
+    def test_incomplete_checks_take_precedence_over_missing_required(self):
+        output = {
+            "FailedCount": 0,
+            "MissingRequiredChecks": ["Validate PR"],
+            "MergeRefUsable": True,
+        }
+        assert _exit_code(output, checks_incomplete=True, timed_out_pending=False) == 7
+
+    def test_timed_out_pending_checks_take_precedence_over_missing_required(self):
+        output = {
+            "FailedCount": 0,
+            "MissingRequiredChecks": ["Validate PR"],
+            "MergeRefUsable": True,
+        }
+        assert _exit_code(output, checks_incomplete=False, timed_out_pending=True) == 7
 
 
 # ---------------------------------------------------------------------------
