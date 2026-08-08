@@ -74,7 +74,7 @@ One API call classifies the current fleet against the most recent 1,000 pull
 requests:
 
 ```bash
-gh pr list --state all --limit 1000 --json number,state,headRefName
+gh pr list --state all --limit 1000 --json number,state,headRefName,headRefOid
 ```
 
 Join that against the worktree list by branch name. Three populations fall out.
