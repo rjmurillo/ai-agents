@@ -21,8 +21,8 @@ Exit codes (ADR-035): 0=clean, 1=drift, 2=config error.
 from __future__ import annotations
 
 import argparse
-import itertools
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -32,7 +32,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.validation.portability_common import (
     build_portability_parser,
     read_previous_sections,
+    refuse_symlinked_scan_root,
     refuse_unsafe_baseline_write,
+    resolve_path_within_root,
     write_baseline_json,
 )
 from scripts.validation.portability_common import (
@@ -80,11 +82,6 @@ _MARKER_PATTERN = re.compile(
 _DEFAULT_BASELINE_NAME = "skill_md_exec_portability_baseline.json"
 
 SKILL_FILE_NAME = "SKILL.md"
-SCAN_FILE_PATTERNS: tuple[str, ...] = (
-    SKILL_FILE_NAME,
-    "references/**/*.md",
-    "scripts/README-*.md",
-)
 
 
 def _repo_root(start: Path) -> Path:
@@ -142,15 +139,10 @@ def scan_dangling_skill_relative_scripts(repo_root: Path) -> list[tuple[str, str
         root = repo_root.joinpath(*parts)
         if not root.is_dir():
             continue
-        valid = (
-            p
-            for p in root.iterdir()
-            if p.is_dir() and "__pycache__" not in p.parts and (p / SKILL_FILE_NAME).is_file()
-        )
-        for skill_root in sorted(valid):
-            paths = sorted(
-                set(itertools.chain.from_iterable(skill_root.glob(p) for p in SCAN_FILE_PATTERNS))
-            )
+        if refuse_symlinked_scan_root(repo_root, root):
+            raise OSError(f"Scan root {root} resolves outside the repository root")
+        for skill_root in _iter_skill_roots(repo_root, root):
+            paths = _iter_skill_files(repo_root, skill_root)
             dangling.extend(_scan_skill_for_dangling(paths, skill_root, repo_root, seen))
     return dangling
 
@@ -176,20 +168,84 @@ def count_marker_suppressed_invocations(text: str) -> int:
     return count_exec_invocations(text_without_markers)
 
 
-def _iter_skill_files(root: Path) -> list[Path]:
+def _refuse_exec_escape(root_resolved: Path, path: Path, label: str) -> None:
+    if resolve_path_within_root(root_resolved, path) is not None:
+        return
+    raise OSError(f"{label} {path} resolves outside the repository root")
+
+
+def _reraise_os_error(error: OSError) -> None:
+    raise error
+
+
+def _iter_reference_markdown(root_resolved: Path, references_dir: Path) -> list[Path]:
     paths: list[Path] = []
-    for skill_root in sorted(p for p in root.iterdir() if p.is_dir()):
-        if "__pycache__" in skill_root.parts:
+    for dirpath, dirnames, filenames in os.walk(
+        references_dir, onerror=_reraise_os_error
+    ):
+        directory = Path(dirpath)
+        _refuse_exec_escape(root_resolved, directory, "Skill directory")
+        kept_dirs: list[str] = []
+        for name in sorted(dirnames):
+            candidate = directory / name
+            if "__pycache__" in candidate.parts:
+                continue
+            _refuse_exec_escape(root_resolved, candidate, "Skill directory")
+            kept_dirs.append(name)
+        dirnames[:] = kept_dirs
+        for name in sorted(filenames):
+            path = directory / name
+            _refuse_exec_escape(root_resolved, path, "Skill path")
+            if path.suffix != ".md" or "__pycache__" in path.parts:
+                continue
+            if not path.is_file():
+                continue
+            paths.append(path)
+    return paths
+
+
+def _iter_skill_roots(repo_root: Path, root: Path) -> list[Path]:
+    root_resolved = repo_root.resolve()
+    skill_roots: list[Path] = []
+    for skill_root in sorted(root.iterdir()):
+        _refuse_exec_escape(root_resolved, skill_root, "Skill directory")
+        if "__pycache__" in skill_root.parts or not skill_root.is_dir():
             continue
-        if not (skill_root / SKILL_FILE_NAME).is_file():
+        skill_file = skill_root / SKILL_FILE_NAME
+        _refuse_exec_escape(root_resolved, skill_file, "Skill file")
+        if not skill_file.is_file():
             continue
-        for pattern in SCAN_FILE_PATTERNS:
-            paths.extend(
-                p
-                for p in sorted(skill_root.glob(pattern))
-                if p.is_file() and "__pycache__" not in p.parts
-            )
-    return sorted(dict.fromkeys(paths))
+        skill_roots.append(skill_root)
+    return skill_roots
+
+
+def _iter_skill_files(repo_root: Path, skill_root: Path) -> list[Path]:
+    root_resolved = repo_root.resolve()
+    paths: list[Path] = []
+    skill_file = skill_root / SKILL_FILE_NAME
+    _refuse_exec_escape(root_resolved, skill_file, "Skill file")
+    if skill_file.is_file():
+        paths.append(skill_file)
+
+    references_dir = skill_root / "references"
+    _refuse_exec_escape(root_resolved, references_dir, "Skill directory")
+    if references_dir.is_dir():
+        paths.extend(_iter_reference_markdown(root_resolved, references_dir))
+
+    scripts_dir = skill_root / "scripts"
+    _refuse_exec_escape(root_resolved, scripts_dir, "Skill directory")
+    if scripts_dir.is_dir():
+        for path in sorted(scripts_dir.iterdir()):
+            _refuse_exec_escape(root_resolved, path, "Skill path")
+            if "__pycache__" in path.parts:
+                continue
+            if not path.is_file():
+                continue
+            if not path.name.startswith("README-") or path.suffix != ".md":
+                continue
+            paths.append(path)
+
+    return paths
 
 
 def scan_all(repo_root: Path) -> tuple[dict[str, int], dict[str, int], dict[str, int]]:
@@ -207,22 +263,17 @@ def scan_all(repo_root: Path) -> tuple[dict[str, int], dict[str, int], dict[str,
     exec_counts: dict[str, int] = {}
     marker_counts: dict[str, int] = {}
     files_by_root: dict[str, int] = {}
-    repo_resolved = repo_root.resolve()
     for parts in SCAN_ROOTS:
         root_name = "/".join(parts)
         root = repo_root.joinpath(*parts)
         if not root.is_dir():
             files_by_root[root_name] = 0
             continue
-        resolved = root.resolve()
-        if not resolved.is_relative_to(repo_resolved):
-            raise OSError(
-                f"Scan root {root} resolves to {resolved}, "
-                "which is outside the repository. "
-                "A symlinked scan root scans files git does not track. "
-                "Remove the symlink or redirect it inside the repository."
-            )
-        files = _iter_skill_files(root)
+        if refuse_symlinked_scan_root(repo_root, root):
+            raise OSError(f"Scan root {root} resolves outside the repository root")
+        files: list[Path] = []
+        for skill_root in _iter_skill_roots(repo_root, root):
+            files.extend(_iter_skill_files(repo_root, skill_root))
         files_by_root[root_name] = len(files)
         for path in files:
             try:
@@ -425,24 +476,16 @@ def _write_baseline(
         baseline_path,
         {
             "_comment": (
-                    "Exec-path vendor-portability ratchet baseline for skill "
-                    "Markdown files (issues #2838, #4013, #4156). The files "
-                    "object counts bare '.claude/skills/...', 'build/...', or "
-                    "'scripts/...' executable invocations per file under "
-                    "SKILL.md, references/**/*.md, and scripts/README-*.md. "
-                    "The marker_files object records invocations suppressed by "
-                    "'<!-- vendor-portability-exec: ... -->' markers so stale "
-                    "declarations do not stay green forever. Generated by "
-                    "check_skill_md_exec_portability.py --update-baseline. Lower "
-                    "values in files are better; migrate "
-                    "'.claude/skills/...' offenders to "
-                    "the "
-                    "'${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}' "
-                    "resolved form and tighten this baseline. The 'build/' and "
-                    "'scripts/' trees are upstream-only and have no resolved "
-                    "form: drop the invocation or declare it with a "
-                    "'<!-- vendor-portability-exec: ... -->' marker."
-                ),
+                "Exec-path vendor-portability ratchet baseline for skill "
+                "Markdown files (issues #2838, #4013, #4156). files counts bare "
+                "'.claude/skills/...', 'build/...', or 'scripts/...' executable "
+                "invocations per file. marker_files records invocations suppressed "
+                "by '<!-- vendor-portability-exec: ... -->' markers. Generated by "
+                "check_skill_md_exec_portability.py --update-baseline. Lower files "
+                "values are better; migrate '.claude/skills/...' offenders to "
+                "'${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}' and "
+                "tighten. 'build/'/'scripts/' are upstream-only: drop or declare."
+            ),
             "files": entries,
             "marker_files": marker_entries,
         },
