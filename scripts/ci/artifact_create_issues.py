@@ -133,20 +133,25 @@ def run(_argv: list[str] | None = None) -> int:
         full_body = body + footer
 
         sys.stdout.flush()
-        result = subprocess.run(
-            [
-                "gh",
-                "issue",
-                "create",
-                "--title",
-                title,
-                "--body",
-                full_body,
-                "--label",
-                ",".join(labels),
-            ],
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                [
+                    "gh",
+                    "issue",
+                    "create",
+                    "--title",
+                    title,
+                    "--body",
+                    full_body,
+                    "--label",
+                    ",".join(labels),
+                ],
+                check=False,
+            )
+        except OSError as exc:
+            print(f"::error::Failed to launch gh for issue '{title}': {exc}", file=sys.stderr)
+            failed_count += 1
+            continue
 
         if result.returncode == 0:
             created_count += 1

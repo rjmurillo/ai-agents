@@ -50,25 +50,29 @@ def _gh_issue_body(issue_ref: str, default_repo: str) -> tuple[int, str]:
         repo = default_repo
         num = issue_ref
 
-    result = subprocess.run(
-        [
-            "gh",
-            "issue",
-            "view",
-            num,
-            "--repo",
-            repo,
-            "--json",
-            "title,body",
-            "-q",
-            '.title + "\n\n" + .body',
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "view",
+                num,
+                "--repo",
+                repo,
+                "--json",
+                "title,body",
+                "-q",
+                '.title + "\n\n" + .body',
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError as exc:
+        print(f"::error::failed to launch gh for issue {issue_ref}: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL, ""
     if result.returncode != 0:
         print(
             f"::error::gh issue view failed for {issue_ref}: {result.stderr.strip()}",

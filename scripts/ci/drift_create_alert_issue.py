@@ -71,20 +71,24 @@ def run(_argv: list[str] | None = None) -> int:
 
     title = f"Agent Drift Detected - {now.strftime('%Y-%m-%d')}"
     sys.stdout.flush()
-    result = subprocess.run(
-        [
-            "gh",
-            "issue",
-            "create",
-            "--title",
-            title,
-            "--body-file",
-            str(issue_body_path),
-            "--label",
-            "drift-detected,automated",
-        ],
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "create",
+                "--title",
+                title,
+                "--body-file",
+                str(issue_body_path),
+                "--label",
+                "drift-detected,automated",
+            ],
+            check=False,
+        )
+    except OSError as exc:
+        print(f"::error::failed to launch gh issue create: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL
     if result.returncode != 0:
         print("::error::gh issue create failed", file=sys.stderr)
         return EXIT_EXTERNAL

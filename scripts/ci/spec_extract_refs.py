@@ -47,25 +47,29 @@ def write_github_output(key: str, value: str) -> None:
 
 def _gh_pr_field(pr_number: str, repository: str, field: str) -> tuple[int, str]:
     """Fetch one field from a PR via gh CLI."""
-    result = subprocess.run(
-        [
-            "gh",
-            "pr",
-            "view",
-            pr_number,
-            "--repo",
-            repository,
-            "--json",
-            field,
-            "-q",
-            f".{field}",
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "view",
+                pr_number,
+                "--repo",
+                repository,
+                "--json",
+                field,
+                "-q",
+                f".{field}",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError as exc:
+        print(f"::error::failed to launch gh while reading {field}: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL, ""
     if result.returncode != 0:
         print(
             f"::error::gh pr view failed while reading {field}: {result.stderr.strip()}",
@@ -107,14 +111,18 @@ def _extract_issue_refs(combined: str) -> str:
 
 def _extract_incremental_scope(pr_title: str) -> tuple[int, str]:
     """Call extract_incremental_scope.py and return its output."""
-    result = subprocess.run(
-        [sys.executable, ".github/scripts/extract_incremental_scope.py", pr_title],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [sys.executable, ".github/scripts/extract_incremental_scope.py", pr_title],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError as exc:
+        print(f"::error::failed to launch incremental scope parser: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL, ""
     if result.returncode != 0:
         print(
             f"::error::incremental scope extraction failed: {result.stderr.strip()}",
