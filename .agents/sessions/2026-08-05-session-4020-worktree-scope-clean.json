@@ -1,0 +1,153 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4020,
+    "date": "2026-08-05",
+    "branch": "fix/4020-review-worktree-scope",
+    "startingCommit": "4d12c92d6",
+    "objective": "Rebase the review worktree-scope fix onto current main after issue #4377 closed upstream."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP transport closed in the parent run. Used committed .serena/memories fallback."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used previously loaded Serena fallback context for worktree liveness, mutation testing, and push gates."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md in the parent worktree and did not modify it."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "issueHandoffsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No issue-specific handoff files for #4020 or #4377 were present in the parent checkout."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md from the harness, .agents/SESSION-PROTOCOL.md, .agents/governance/TESTING-RIGOR.md, and matching instructions."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read GitHub skill instructions. Used REST only where the user explicitly required REST PR operations."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Identified review skill scripts, sync_plugin_lib.py, build_all.py, pre_pr.py, and validate_session_json.py."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded task-relevant committed Serena memories in the parent run."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4020-review-worktree-scope in isolated worktree /home/richard/src/GitHub/rjmurillo/ai-agents-subagentwt-clean."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4020-review-worktree-scope."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean branch created from current origin/main at 4d12c92d6."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "4d12c92d6"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reproduced #4020 in the parent run, cherry-picked the clean #4020 fix, regenerated mirrors from the original fix, and validated tests."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP was unavailable. No new durable memory was required because behavior is locked in tests and this session log."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py Markdown Linting passed in the parent validation. Pre-commit markdown checks passed for the changed skill markdown."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code committed as ec7c9e75f and bd538ad5c. Session log committed as fe66089b2."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Clean branch targeted pytest passed: 40 tests passed, including tests/mutation/test_mutate_validate_findings_scope.py. Clean branch pre_pr.py exited 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Work log records reproduction, upstream #4377 closure, clean cherry-pick, validation, and push preparation."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not needed. No new reusable process lesson beyond issue-specific fix."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Reproduced #4020 in parent worktree",
+      "detail": "Failing tests showed out-of-scope findings still produced blocking verdicts, and a two-worktree regression showed requested.py is the requested diff while other.py is unrelated."
+    },
+    {
+      "action": "Checked #4377 against current main",
+      "detail": "Issue #4377 is already closed. Current main contains auto_merge_guard.py and add_pr_review_thread_reply.py calls the guard before resolving threads."
+    },
+    {
+      "action": "Created clean current-main branch",
+      "detail": "Created /home/richard/src/GitHub/rjmurillo/ai-agents-subagentwt-clean on fix/4020-review-worktree-scope from origin/main 4d12c92d6."
+    },
+    {
+      "action": "Cherry-picked #4020 fix",
+      "detail": "Applied review scope code and tests as ec7c9e75f and bd538ad5c. The branch diff is limited to five review-skill files."
+    },
+    {
+      "action": "Preserved generated mirrors",
+      "detail": "The cherry-picked fix includes regenerated src/copilot-cli skill mirrors from the parent build_all.py run."
+    },
+    {
+      "action": "Validated clean branch",
+      "detail": "Ran targeted pytest with 40 tests and pre_pr.py on /home/richard/src/GitHub/rjmurillo/ai-agents-subagentwt-clean. Both exited 0."
+    }
+  ],
+  "endingCommit": "fe66089b25f0087afa4e2feef260851c564328c1",
+  "nextSteps": [
+    "Commit this validation update.",
+    "Push fix/4020-review-worktree-scope after verifying the remote head matches local HEAD.",
+    "Create a clean REST PR for #4020 and document that #4377 is closed on main."
+  ]
+}
