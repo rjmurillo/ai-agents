@@ -180,9 +180,14 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/ses
 
 # Record completed QA evidence through the session owner
 uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-end/scripts/complete_session_log.py" --session-path ".agents/sessions/2026-02-07-session-05.json" --qa-report .agents/qa/feature-validation.md
+
+# Record a policy-approved investigation-only QA exemption
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/session-end/scripts/complete_session_log.py" --session-path ".agents/sessions/2026-02-07-session-05.json" --qa-skip-reason investigation-only
 ```
 
 QA evidence files live under .agents/qa/ in the upstream repository.
+The owner supports `investigation-only` after its policy checker verifies every
+changed path. Docs-only exemptions still require separate measured evidence.
 
 ### Step 3: Address Any Failures
 
@@ -295,6 +300,7 @@ File: .agents/sessions/2026-02-07-session-05.json
 | `--refresh-ending-commit` | flag | No | Replace a stale value with current HEAD. |
 | `--markdown-files` | strings | No | Lint explicit Markdown paths. |
 | `--qa-report` | string | No | Record a completed report under the configured QA artifact root. |
+| `--qa-skip-reason` | enum | No | Verify and record an `investigation-only` QA exemption. |
 
 ---
 

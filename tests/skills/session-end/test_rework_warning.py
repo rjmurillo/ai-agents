@@ -345,7 +345,8 @@ class ReworkWarningSessionLogPersistenceTests(unittest.TestCase):
         """Build a minimal sessionEnd dict with all required MUST items."""
         required_items = [
             "handoffPreserved", "serenaMemoryUpdated", "markdownLintRun",
-            "changesCommitted", "validationPassed", "checklistComplete",
+            "qaValidation", "changesCommitted", "validationPassed",
+            "checklistComplete",
         ]
         section: dict[str, Any] = {
             name: {"Complete": True, "Evidence": "evidence", "level": "MUST"}
