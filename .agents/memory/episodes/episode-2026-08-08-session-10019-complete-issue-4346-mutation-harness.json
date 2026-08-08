@@ -80,7 +80,9 @@
       "caused_by": [
         "e005"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-08-session-10019-complete-issue-4346-mutation-harness"
     },
     {
@@ -95,15 +97,39 @@
         "e005"
       ],
       "_source_session": "2026-08-08-session-10019-complete-issue-4346-mutation-harness"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-08T10:53:38+00:00",
+      "type": "milestone",
+      "content": "The first pre-push full suite exposed four plain-script import failures added by current main. Commit 9bb9b545b bootstrapped the repository root in all four entrypoints; the entrypoint and mutation regression suite then passed 396 tests.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-08-session-10019-complete-issue-4346-mutation-harness"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-08T10:53:57+00:00",
+      "type": "commit",
+      "content": "Commit: 9bb9b545b",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10019-complete-issue-4346-mutation-harness"
     }
   ],
   "metrics": {
-    "duration_minutes": 226,
+    "duration_minutes": 264,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 27
+    "commits": 2,
+    "files_changed": 29
   },
   "lessons": []
 }

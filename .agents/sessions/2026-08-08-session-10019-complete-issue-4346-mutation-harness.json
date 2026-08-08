@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and latest-main merge are reachable locally through a340942a63. This final session record is included in the next commit."
+        "Evidence": "Implementation, latest-main merge, and entrypoint portability repair are reachable locally through 9bb9b545b. This final session record update is included in the next commit."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Ruff passed. Final focused suite passed 128 tests. Independent QA passed 156 tests. All 63 load-bearing mutants died; 2 inverted controls survived as expected. Marker check, scratch registration check, pre_pr.py, and validate_session_json.py passed."
+        "Evidence": "Ruff passed. Final focused suite passed 128 tests. Independent QA passed 156 tests. All 63 load-bearing mutants died; 2 inverted controls survived as expected. Marker check, scratch registration check, pre_pr.py, and validate_session_json.py passed. Post-merge entrypoint and mutation coverage passed 396 tests."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -137,9 +137,13 @@
     {
       "time": "2026-08-08T10:15:29Z",
       "entry": "Recorded final validation: Ruff passed, 128 focused tests passed, 63 load-bearing mutants died, 2 inverted controls survived as expected, marker and scratch registration checks passed, final independent code and security rechecks returned clean, and independent QA passed 156 tests."
+    },
+    {
+      "time": "2026-08-08T10:53:38Z",
+      "entry": "The first pre-push full suite exposed four plain-script import failures added by current main. Commit 9bb9b545b bootstrapped the repository root in all four entrypoints; the entrypoint and mutation regression suite then passed 396 tests."
     }
   ],
-  "endingCommit": "a340942a63",
+  "endingCommit": "9bb9b545b",
   "nextSteps": [
     "Commit this session record, push normally, verify commits are reachable, update PR 4571 evidence, address and resolve every valid thread, retain auto-merge, monitor checks, and verify issue 4346 closes."
   ]
