@@ -17,7 +17,7 @@ Coverage:
 - neg/splat: **kwargs present means errors may be absent -> flagged (conservative)
 - edge/text-true-int: text=1 (not literal True) -> not flagged (conservative on non-literal)
 - edge/encoding-variable: encoding=enc (variable) -> not flagged (cannot prove UTF-8)
-- edge/errors-wrong-value: errors="strict" counts as present -> not flagged
+- edge/errors-wrong-value: errors="strict" remains a violation
 - edge/syntax-error: invalid Python fails closed
 - edge/empty-source: empty source -> no violations
 - edge/invalid-root: non-existent directory -> exit 2
@@ -73,10 +73,6 @@ def make_repo(tmp_path: Path, files: dict[str, str]) -> Path:
             "import subprocess\n"
             'subprocess.run(["x"], text=True, encoding="utf-8", errors="replace")',
             "compliant: has errors=replace",
-        ),
-        (
-            'import subprocess\nsubprocess.run(["x"], encoding="utf-8", errors="strict")',
-            "compliant: errors present (strict counts as present)",
         ),
         (
             'import subprocess\nsubprocess.run(["x"], encoding="utf-8")',
@@ -137,6 +133,39 @@ def test_subprocess_check_output_missing_errors() -> None:
 def test_from_import_run_missing_errors() -> None:
     source = 'from subprocess import run\nrun(["x"], text=True, encoding="utf-8")'
     assert find_violations(source) == [2]
+
+
+def test_strict_errors_remains_a_violation() -> None:
+    source = (
+        "import subprocess\n"
+        'subprocess.run(["x"], text=True, encoding="utf-8", errors="strict")'
+    )
+    assert find_violations(source) == [2]
+
+
+@pytest.mark.parametrize(
+    "source,expected_line",
+    [
+        (
+            "import subprocess as sp\n"
+            'sp.run(["x"], text=True, encoding="utf-8")',
+            2,
+        ),
+        (
+            "from subprocess import run as runner\n"
+            'runner(["x"], text=True, encoding="utf-8")',
+            2,
+        ),
+        (
+            "import subprocess\n"
+            "runner = subprocess.run\n"
+            'runner(["x"], text=True, encoding="utf-8")',
+            3,
+        ),
+    ],
+)
+def test_subprocess_aliases_are_flagged(source: str, expected_line: int) -> None:
+    assert find_violations(source) == [expected_line]
 
 
 def test_splat_kwargs_flagged_conservatively() -> None:

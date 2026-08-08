@@ -74,15 +74,6 @@ def _keyword_value(call: ast.Call, name: str) -> ast.expr | None:
     return None
 
 
-def _has_keyword(call: ast.Call, name: str) -> bool:
-    return any(kw.arg == name for kw in call.keywords)
-
-
-def _has_splat(call: ast.Call) -> bool:
-    """True when the call has a ``**kwargs`` expansion."""
-    return any(kw.arg is None for kw in call.keywords)
-
-
 def _is_true_literal(node: ast.expr | None) -> bool:
     if node is None:
         return False
@@ -105,30 +96,79 @@ def _is_subprocess_pipe(node: ast.expr | None) -> bool:
     )
 
 
-def _subprocess_call_name(node: ast.Call) -> str | None:
+def _subprocess_call_name(
+    node: ast.Call,
+    module_aliases: set[str],
+    callable_aliases: dict[str, str],
+) -> str | None:
     """Return the bare function name for a ``subprocess.*`` call, or None."""
     func = node.func
-    # subprocess.run(...)
+    # subprocess.run(...) or an imported module alias such as sp.run(...)
     if (
         isinstance(func, ast.Attribute)
         and isinstance(func.value, ast.Name)
-        and func.value.id == "subprocess"
+        and func.value.id in module_aliases
         and func.attr in _ALL_SUBPROCESS_CALLS
     ):
         return func.attr
-    # from subprocess import run; run(...)
-    if isinstance(func, ast.Name) and func.id in _ALL_SUBPROCESS_CALLS:
-        return func.id
+    # from subprocess import run; run(...), imported aliases, or direct rebinding.
+    if isinstance(func, ast.Name):
+        return callable_aliases.get(func.id)
     return None
 
 
-def _is_flagged(call: ast.Call) -> bool:
+def _subprocess_bindings(tree: ast.AST) -> tuple[set[str], dict[str, str]]:
+    """Return module and callable aliases that resolve to subprocess entry points."""
+    module_aliases = {"subprocess"}
+    callable_aliases = {name: name for name in _ALL_SUBPROCESS_CALLS}
+    nodes = list(ast.walk(tree))
+
+    for node in nodes:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "subprocess":
+                    module_aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom) and node.module == "subprocess":
+            for alias in node.names:
+                if alias.name in _ALL_SUBPROCESS_CALLS:
+                    callable_aliases[alias.asname or alias.name] = alias.name
+
+    changed = True
+    while changed:
+        changed = False
+        for node in nodes:
+            if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+                continue
+            target = node.targets[0]
+            if not isinstance(target, ast.Name):
+                continue
+            resolved: str | None = None
+            if (
+                isinstance(node.value, ast.Attribute)
+                and isinstance(node.value.value, ast.Name)
+                and node.value.value.id in module_aliases
+                and node.value.attr in _ALL_SUBPROCESS_CALLS
+            ):
+                resolved = node.value.attr
+            elif isinstance(node.value, ast.Name):
+                resolved = callable_aliases.get(node.value.id)
+            if resolved is not None and callable_aliases.get(target.id) != resolved:
+                callable_aliases[target.id] = resolved
+                changed = True
+    return module_aliases, callable_aliases
+
+
+def _is_flagged(
+    call: ast.Call,
+    module_aliases: set[str],
+    callable_aliases: dict[str, str],
+) -> bool:
     """Return True when this call violates the errors="replace" convention.
 
     A call is flagged when it reaches a subprocess text entry point, pins
     UTF-8 as the codec, enables text mode, and omits ``errors=``.
     """
-    name = _subprocess_call_name(call)
+    name = _subprocess_call_name(call, module_aliases, callable_aliases)
     if name is None:
         return False
 
@@ -149,8 +189,13 @@ def _is_flagged(call: ast.Call) -> bool:
         # Binary mode with an explicit encoding is unusual but not our concern.
         return False
 
-    # If errors= is already present, the call is compliant.
-    if _has_keyword(call, "errors"):
+    # Only replacement decoding satisfies the convention. Strict decoding must
+    # use the line-scoped suppression marker when failure is intentional.
+    errors_node = _keyword_value(call, "errors")
+    if (
+        isinstance(errors_node, ast.Constant)
+        and errors_node.value == "replace"
+    ):
         return False
 
     # A **kwargs splat may carry errors= but we cannot verify; flag conservatively.
@@ -184,6 +229,7 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
     replacement characters).
     """
     tree = ast.parse(source, filename=filename)
+    module_aliases, callable_aliases = _subprocess_bindings(tree)
 
     source_lines = source.splitlines()
 
@@ -195,7 +241,9 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
     return sorted(
         node.lineno
         for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and _is_flagged(node) and not _suppressed(node.lineno)
+        if isinstance(node, ast.Call)
+        and _is_flagged(node, module_aliases, callable_aliases)
+        and not _suppressed(node.lineno)
     )
 
 
