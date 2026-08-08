@@ -1,8 +1,8 @@
-"""Structural tests for validate-vendor-portability.yml CI wiring (issues #4198, #4195).
+"""Structural tests for validate-vendor-portability.yml CI wiring.
 
-Verifies that the prose portability ratchet (check_skill_md_portability.py) is
-wired into the CI workflow so a merge that bypasses the local pre-push hook
-cannot silently skip the check and leave main red.
+The portability ratchets inspect the whole repository tree, so every supported
+event must run them. A per-change path filter can report success without
+measuring the tree and leave main red (issue #4752).
 
 Each test is a negative control: removing the structural property causes a test
 failure before anything runs in CI.  Tests parse the YAML rather than
@@ -15,6 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
 _WORKFLOW = (
@@ -23,9 +24,14 @@ _WORKFLOW = (
     / "workflows"
     / "validate-vendor-portability.yml"
 )
-_STEP_NAME = "Check skill prose portability ratchet"
-_SCRIPT = "check_skill_md_portability.py"
-_BASELINE = "skill_md_portability_baseline.json"
+_VALIDATOR_COMMANDS = (
+    "python3 scripts/validation/check_vendor_portability.py",
+    "python3 -m scripts.validation.check_skill_portability",
+    "uv run --frozen python scripts/validation/check_skill_md_exec_portability.py",
+    "uv run --frozen python scripts/validation/check_skill_md_portability.py",
+    "python3 scripts/validation/check_skill_resolver_anchoring.py",
+    "python3 scripts/validation/check_skill_contract_tests.py",
+)
 
 
 def _load_workflow() -> Any:
@@ -37,54 +43,47 @@ def _validate_job_steps() -> Any:
     return wf["jobs"]["validate-portability"]["steps"]
 
 
-def _filter_patterns() -> Any:
-    wf = _load_workflow()
-    check_steps = wf["jobs"]["check-changes"]["steps"]
-    filter_step = next(
-        (s for s in check_steps if s.get("id") == "filter"),
-        None,
-    )
-    assert filter_step is not None, "paths-filter step (id: filter) not found"
-    inner = yaml.safe_load(filter_step["with"]["filters"])
-    return inner["skills"]
-
-
-def test_prose_portability_step_present() -> None:
-    """The validate-portability job must contain the prose portability step."""
+@pytest.mark.parametrize("command", _VALIDATOR_COMMANDS)
+def test_each_validator_runs_unconditionally(command: str) -> None:
+    """Every validator command must run exactly once and propagate failures."""
     steps = _validate_job_steps()
-    names = [s.get("name") for s in steps]
-    assert _STEP_NAME in names, (
-        f"Step {_STEP_NAME!r} is missing from the validate-portability job. "
-        "Without it, a PR that adds prose upstream-path references escapes CI."
+    matches = [step for step in steps if step.get("run", "").strip() == command]
+    assert len(matches) == 1, f"Expected one unconditional step for {command!r}"
+    step = matches[0]
+    assert "if" not in step, f"{command!r} must not be conditionally skipped"
+    assert "continue-on-error" not in step, f"{command!r} must propagate failures"
+
+
+def test_validation_job_is_unconditional() -> None:
+    """Every push, pull request, and dispatch must execute the ratchets."""
+    job = _load_workflow()["jobs"]["validate-portability"]
+    assert "needs" not in job, "validation must not depend on a change-detector job"
+    assert "if" not in job, "validation must not be gated by a path-filter result"
+
+
+def test_path_filter_and_skip_jobs_are_absent() -> None:
+    """A skip announcer must not manufacture success without a measurement."""
+    jobs = _load_workflow()["jobs"]
+    assert "check-changes" not in jobs
+    assert "skip-validation" not in jobs
+    assert all(
+        "dorny/paths-filter@" not in step.get("uses", "")
+        for job in jobs.values()
+        for step in job.get("steps", [])
     )
 
 
-def test_prose_portability_step_calls_correct_script() -> None:
-    """The prose portability step must invoke check_skill_md_portability.py."""
-    steps = _validate_job_steps()
-    step = next((s for s in steps if s.get("name") == _STEP_NAME), None)
-    assert step is not None, f"Step {_STEP_NAME!r} not found"
-    run_cmd: str = step.get("run", "")
-    assert _SCRIPT in run_cmd, (
-        f"Step {_STEP_NAME!r} run field {run_cmd!r} does not invoke {_SCRIPT}."
-    )
+def test_all_supported_events_run_the_workflow() -> None:
+    """Push, pull-request, and manual runs must all reach validation."""
+    triggers = _load_workflow()[True]
+    assert triggers["push"]["branches"] == ["main"]
+    assert triggers["pull_request"]["branches"] == ["main"]
+    assert "workflow_dispatch" in triggers
 
 
-def test_prose_portability_script_in_filter() -> None:
-    """The paths-filter must include the prose portability script."""
-    patterns = _filter_patterns()
-    target = f"scripts/validation/{_SCRIPT}"
-    assert any(target in p for p in patterns), (
-        f"paths-filter skills block is missing {target!r}. "
-        "Without this, a PR that only changes the script skips the CI check."
-    )
-
-
-def test_prose_portability_baseline_in_filter() -> None:
-    """The paths-filter must include the prose portability baseline file."""
-    patterns = _filter_patterns()
-    target = f"scripts/validation/{_BASELINE}"
-    assert any(target in p for p in patterns), (
-        f"paths-filter skills block is missing {target!r}. "
-        "Without this, a widened baseline bypasses the CI gate."
-    )
+@pytest.mark.parametrize("event_name", ("push", "pull_request"))
+def test_triggers_have_no_path_filters(event_name: str) -> None:
+    """Event-level filters must not suppress a whole-tree measurement."""
+    event = _load_workflow()[True][event_name]
+    assert "paths" not in event
+    assert "paths-ignore" not in event
