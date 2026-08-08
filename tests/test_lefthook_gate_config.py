@@ -177,3 +177,13 @@ class TestMemoryTierGateEnforcement:
             command.startswith("uv run --frozen python ")
             for command in validator_commands
         )
+
+    def test_memory_workflow_blocks_tier_structure_errors(self) -> None:
+        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-memories"]["steps"]
+        tier_validation = next(
+            step for step in steps if step.get("id") == "tier-validation"
+        )
+
+        assert "continue-on-error" not in tier_validation
+        assert "--ci" not in tier_validation["run"]
