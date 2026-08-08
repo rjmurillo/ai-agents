@@ -89,7 +89,11 @@ def apply_removals(
     only for candidates that got that far. It cannot replace the HEAD check:
     ``rev-list --not --all`` examines every worktree's HEAD, so a commit that
     is still this worktree's own HEAD reads as reachable right up until the
-    removal destroys the thing making it so.
+    removal destroys the thing making it so. For the same reason the HEAD check
+    cannot precede the probe alone: a commit landing while the probe's
+    subprocess runs passes the earlier HEAD read and then reads as reachable to
+    the probe, so the HEAD is read a second time after the probe returns, and a
+    move seen only then withholds the removal.
 
     The checkout identity is re-read last, against the same window. Removals run
     in series, so between the recheck and this candidate's turn the directory at
@@ -140,6 +144,20 @@ def apply_removals(
         orphaned = _gc_reasons.reflog_only_work(decision.path, fresh.main_worktree, run_git)
         if orphaned:
             report.remove_errors.append(f"{decision.path}: skipped, {orphaned}")
+            continue
+        # The reflog probe runs a subprocess, and a commit can land while it
+        # does. That commit stays this worktree's HEAD, so the probe's own
+        # ``rev-list --not --all`` reads it as reachable and reports no orphan,
+        # and the HEAD check above already passed before the commit existed.
+        # Re-reading HEAD here is what catches it; without this second read the
+        # removal would delete the only thing anchoring that commit.
+        moved_during_probe = _head_moved_since(
+            decision.path, still_safe[decision.path].head, run_git
+        )
+        if moved_during_probe:
+            report.remove_errors.append(
+                f"{decision.path}: skipped, {moved_during_probe}, seen only after the reflog probe"
+            )
             continue
         operation = _gc_stale.in_progress_operation(decision.path)
         if operation is not None:

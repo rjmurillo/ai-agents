@@ -258,13 +258,43 @@ class TestPerCandidateHead:
         assert any("HEAD moved" in e for e in report.remove_errors)
 
     def test_each_candidate_is_re_read_on_its_own_turn_not_once_up_front(self):
-        """A single up-front snapshot is exactly the staleness this guard exists to fix."""
+        """A single up-front snapshot is exactly the staleness this guard exists to fix.
+
+        HEAD is read twice per candidate, once before the reflog probe and once
+        after it, and both reads fall on that candidate's own turn. What must
+        never happen is a single up-front pass that reads every candidate's HEAD
+        before any removal, so the reads stay grouped by candidate here.
+        """
         report = _report(_live("/repo/a"), _live("/repo/b"))
         with patch(f"{_MODULE}._gc_apply._head_of", return_value=_STUB_HEAD) as head:
             with patch(f"{_MODULE}._gc_apply.remove_worktree"):
                 _gc_apply.apply_removals(report, revalidate=lambda: report, run_git=_forbidden_git)
         reads = [c.args[0] for c in head.call_args_list]
-        assert reads == ["/repo/a", "/repo/b"], "one read each, taken on that candidate's turn"
+        assert reads == ["/repo/a", "/repo/a", "/repo/b", "/repo/b"], (
+            "two reads each (before and after the reflog probe), grouped by candidate turn"
+        )
+
+    def test_a_head_that_moved_during_the_reflog_probe_withholds_that_removal(self):
+        """The window the pre-probe HEAD read cannot see.
+
+        The first HEAD read agrees, so the candidate clears the early check and
+        the reflog probe runs. A commit landing while that probe's subprocess
+        runs stays the worktree's HEAD, so ``rev-list --not --all`` inside the
+        probe reads it as reachable and reports no orphan. Only reading HEAD
+        again after the probe catches the move, which is what keeps the removal
+        from deleting the new commit's only anchor. Proved against real git in
+        ``test_gc_worktrees_real_git_apply.py``.
+        """
+        report = _report(_live("/repo/a"))
+        reads = iter([_STUB_HEAD, "9" * 40])  # agrees before the probe, moved after it
+
+        with patch(f"{_MODULE}._gc_apply._head_of", side_effect=lambda p, _g: next(reads)):
+            with patch(f"{_MODULE}._gc_apply.remove_worktree") as remove:
+                _gc_apply.apply_removals(report, revalidate=lambda: report, run_git=_forbidden_git)
+        remove.assert_not_called()
+        assert any(
+            "/repo/a" in e and "after the reflog probe" in e for e in report.remove_errors
+        ), report.remove_errors
 
     def test_a_reflog_that_became_the_only_anchor_withholds_that_removal(self):
         """The case no comparison of HEAD against HEAD can see.

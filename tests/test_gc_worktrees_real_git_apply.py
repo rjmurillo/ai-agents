@@ -27,7 +27,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.maintenance import _gc_apply, gc_worktrees
+from scripts.maintenance import _gc_apply, _gc_reasons, gc_worktrees
 from tests.gc_real_git import GitSandbox, git, write_and_commit
 
 
@@ -119,6 +119,54 @@ def test_a_worktree_that_commits_and_goes_back_is_not_removed(
     )
     assert str(worktree) not in report.removed, report.remove_errors
     assert _unreachable(git_sandbox, stranded[0]), "the stranded commit must still be in the odb"
+
+
+def test_a_commit_landing_during_the_reflog_probe_is_not_removed(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A commit made while the reflog probe runs is caught only by a second HEAD read.
+
+    The early HEAD read agrees, so the candidate clears it and the reflog probe
+    runs. A commit landing during that probe stays the worktree's HEAD, so the
+    probe's own ``rev-list --not --all`` reads it as reachable and reports no
+    orphan, and the earlier HEAD read passed before the commit existed. Only
+    reading HEAD again after the probe catches the move. The commit is injected
+    inside the probe and only on the apply loop's call, armed after revalidate
+    returns, so the planning passes are left alone.
+    """
+    worktree = _merged_candidate(git_sandbox, "probe-racer")
+    monkeypatch.chdir(git_sandbox.main)
+
+    landed: list[str] = []
+    armed = {"go": False}
+    real_reflog = _gc_reasons.reflog_only_work
+
+    def reflog_probe(path: str, main: str, run_git: Callable[..., str]) -> str:
+        if armed["go"] and not landed and path == str(worktree):
+            landed.append(write_and_commit(worktree, "late.txt", "late\n", "late"))
+        return real_reflog(path, main, run_git)
+
+    monkeypatch.setattr(_gc_apply._gc_reasons, "reflog_only_work", reflog_probe)
+
+    report = gc_worktrees.build_report("origin/main", apply=True)
+
+    def revalidate() -> gc_worktrees.GcReport:
+        fresh = gc_worktrees.build_report("origin/main", apply=True)
+        armed["go"] = True  # the next probe call is the apply loop's, not planning's
+        return fresh
+
+    _gc_apply.apply_removals(report, revalidate, gc_worktrees._run_git)
+
+    assert landed, "the interference hook never ran"
+    assert str(worktree) not in report.removed, report.remove_errors
+    assert _unreachable(git_sandbox, landed[0]), (
+        "the late commit must still be in the odb with no ref reaching it"
+    )
+    assert any(
+        str(worktree) in error and "after the reflog probe" in error
+        for error in report.remove_errors
+    ), report.remove_errors
 
 
 def test_a_candidate_with_nothing_stranded_is_still_removed(
