@@ -6,8 +6,8 @@
 # tracked in scripts/validation/vendor_portability_baseline.txt and allowed;
 # the ratchet only blocks regressions.
 #
-# Uses dorny/paths-filter: fires on all PRs to satisfy the required-check
-# contract, skips with a passing status when no relevant files changed.
+# These ratchets inspect the whole repository tree. Every supported event must
+# run them because a per-change path filter can report green without measuring.
 
 name: Validate Vendor Portability
 
@@ -22,55 +22,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-changes:
-    name: Check for Skill Script Changes
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 3
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      should-run-vendor: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.skills }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Check path filters
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
-        id: filter
-        if: github.event_name != 'workflow_dispatch'
-        with:
-          filters: |
-            skills:
-              - '.claude/skills/**/*.py'
-              - '.claude/skills/**/*.sh'
-              - '.claude/skills/**/*.ps1'
-              - '.claude/skills/**/SKILL.md'
-              - '.claude/skills/**/references/**/*.md'
-              - '.claude/skills/**/scripts/README-*.md'
-              - 'src/copilot-cli/skills/**/SKILL.md'
-              - 'src/copilot-cli/skills/**/references/**/*.md'
-              - 'src/copilot-cli/skills/**/scripts/README-*.md'
-              - '.claude/lib/paths.py'
-              - 'scripts/validation/check_vendor_portability.py'
-              - 'scripts/validation/vendor_portability_baseline.txt'
-              - 'scripts/validation/check_skill_portability.py'
-              - 'scripts/validation/skill_portability_baseline.json'
-              - 'scripts/validation/portability_common.py'
-              - 'scripts/validation/check_skill_md_exec_portability.py'
-              - 'scripts/validation/skill_md_exec_portability_baseline.json'
-              - 'scripts/validation/check_skill_md_portability.py'
-              - 'scripts/validation/skill_md_portability_baseline.json'
-              - 'scripts/validation/check_skill_resolver_anchoring.py'
-              - 'scripts/validation/check_skill_contract_tests.py'
-              - 'scripts/validation/skill_contract_test_baseline.txt'
-              - 'tests/validation/test_skill_resolver_and_contract_guards.py'
-              - '.github/workflows/validate-vendor-portability.yml'
-
   validate-portability:
     name: Validate Vendor Portability
-    needs: check-changes
-    if: needs.check-changes.outputs.should-run-vendor == 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 3
     permissions:
@@ -145,16 +98,3 @@ jobs:
           echo "   Update:   python3 scripts/validation/check_skill_md_portability.py --update-baseline"
           echo ""
           echo "See issues #2050 and #2838 for context."
-
-  skip-validation:
-    name: Skip Validation (No Skill Changes)
-    needs: check-changes
-    if: needs.check-changes.outputs.should-run-vendor != 'true'
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 1
-    permissions:
-      contents: read
-    steps:
-      - name: Skip message
-        run: |
-          echo "Vendor portability validation skipped - no skill scripts changed"
