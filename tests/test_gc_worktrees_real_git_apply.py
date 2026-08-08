@@ -21,6 +21,7 @@ the object database back.
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Callable
 from pathlib import Path
 
@@ -184,3 +185,38 @@ def test_the_window_probe_still_removes_an_untouched_candidate(
 
     assert str(worktree) in report.removed, report.remove_errors
     assert not worktree.exists()
+
+
+def test_a_checkout_swapped_for_another_inside_the_window_is_not_removed(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The identity window a HEAD comparison cannot see.
+
+    A HEAD that reads the same value can still belong to a different checkout.
+    Delete the candidate and move another worktree that sits at the same commit
+    onto its path: ``git rev-parse HEAD`` there answers the recorded value, the
+    reflog probe reads the intruder's clean reflog, and no operation is running,
+    so every earlier guard passes. Only re-reading whether the marker still
+    points back at this entry withholds the removal, which is what keeps
+    ``git worktree remove`` from deleting the checkout that moved in.
+
+    The intruder is locked so it is never itself a candidate, which isolates the
+    identity probe from the removal of a second entry.
+    """
+    victim = _merged_candidate(git_sandbox, "swap-victim")
+    intruder = _merged_candidate(git_sandbox, "swap-intruder")
+    git(git_sandbox.main, "worktree", "lock", str(intruder))
+
+    def swap() -> None:
+        shutil.rmtree(victim)
+        shutil.move(str(intruder), str(victim))
+
+    report = _apply_with(git_sandbox, monkeypatch, swap)
+
+    assert report.removed == [], report.removed
+    assert any(
+        str(victim) in error and "no longer the one registered" in error
+        for error in report.remove_errors
+    ), report.remove_errors
+    assert (victim / ".git").is_file(), "the checkout that moved in must still be there"

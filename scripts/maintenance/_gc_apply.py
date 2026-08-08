@@ -91,6 +91,15 @@ def apply_removals(
     is still this worktree's own HEAD reads as reachable right up until the
     removal destroys the thing making it so.
 
+    The checkout identity is re-read last, against the same window. Removals run
+    in series, so between the recheck and this candidate's turn the directory at
+    its path can be deleted and replaced, or another worktree can be moved onto
+    it. ``git worktree remove`` names a path, so it would then act on whatever
+    now sits there rather than on the entry the plan reviewed. The recheck
+    excluded that at plan time, but only as the plan found it; re-asking here
+    costs two file reads and skips the candidate when the checkout at its path
+    is no longer the one the entry records.
+
     Refuses to mutate anything when either report is partial. A truncated run
     inspects whichever worktrees the clock allowed, so applying it would remove
     a different set than the dry run a reader reviewed. Rerun with
@@ -134,8 +143,12 @@ def apply_removals(
             continue
         operation = _gc_stale.in_progress_operation(decision.path)
         if operation is not None:
+            report.remove_errors.append(f"{decision.path}: skipped, {operation} since the recheck")
+            continue
+        if not _gc_stale.linked_checkout_present(decision.path):
             report.remove_errors.append(
-                f"{decision.path}: skipped, {operation} since the recheck"
+                f"{decision.path}: skipped, its checkout is no longer the one "
+                "registered at that path since the recheck"
             )
             continue
         try:

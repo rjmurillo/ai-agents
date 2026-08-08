@@ -50,15 +50,16 @@ def _forbidden_git(*_args: str) -> str:
 
 @pytest.fixture(autouse=True)
 def _stub_pre_removal_probes():
-    """Unit tests name paths that do not exist, so both pre-removal reads are stubbed.
+    """Unit tests name paths that do not exist, so the pre-removal reads are stubbed.
 
-    ``apply_removals`` asks two questions immediately before each removal:
+    ``apply_removals`` asks three questions immediately before each removal:
     whether the worktree's HEAD is still where the recheck decision recorded
-    it, and whether its reflog has since become the only anchor for a commit.
-    Both read the filesystem, both fail against a fabricated path, and either
-    failure withholds every removal, which would hide what these tests are
-    about. Tests that care about a comparison patch it again with their own
-    values.
+    it, whether its reflog has since become the only anchor for a commit, and
+    whether the checkout at its path is still the one the entry records. All
+    three read the filesystem, all three fail or answer "gone" against a
+    fabricated path, and any one of them withholds every removal, which would
+    hide what these tests are about. Tests that care about a probe patch it
+    again with their own value.
 
     What the stubs replace is measured in
     ``test_gc_worktrees_real_git_apply.py``, which builds both races against
@@ -67,6 +68,7 @@ def _stub_pre_removal_probes():
     with (
         patch(f"{_MODULE}._gc_apply._head_of", return_value=_STUB_HEAD),
         patch(f"{_MODULE}._gc_reasons.reflog_only_work", return_value=""),
+        patch(f"{_MODULE}._gc_stale.linked_checkout_present", return_value=True),
     ):
         yield
 
@@ -285,6 +287,29 @@ class TestPerCandidateHead:
                 _gc_apply.apply_removals(report, revalidate=lambda: report, run_git=_forbidden_git)
         assert [c.args[0] for c in remove.call_args_list] == ["/repo/a"]
         assert any("/repo/b" in e and "only anchor" in e for e in report.remove_errors)
+
+    def test_a_checkout_replaced_after_the_recheck_withholds_that_removal(self):
+        """The identity window the HEAD, reflog, and operation probes cannot see.
+
+        Between the recheck and this candidate's own turn the directory at its
+        path can be deleted and replaced, or another worktree moved onto it.
+        ``git worktree remove`` names a path, so it would then act on whatever
+        now sits there. Re-reading ``linked_checkout_present`` on each turn is
+        what withholds the removal when the checkout is no longer the one the
+        entry records.
+        """
+        report = _report(_live("/repo/a"), _live("/repo/b"))
+        present = {"/repo/a": True, "/repo/b": False}
+
+        with patch(
+            f"{_MODULE}._gc_stale.linked_checkout_present", side_effect=lambda p: present[p]
+        ):
+            with patch(f"{_MODULE}._gc_apply.remove_worktree") as remove:
+                _gc_apply.apply_removals(report, revalidate=lambda: report, run_git=_forbidden_git)
+        assert [c.args[0] for c in remove.call_args_list] == ["/repo/a"]
+        assert any(
+            "/repo/b" in e and "no longer the one registered" in e for e in report.remove_errors
+        )
 
 
 class TestRevalidation:
