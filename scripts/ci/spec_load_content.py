@@ -102,6 +102,35 @@ def _read_spec(path: Path, display: str) -> tuple[int, str]:
     return EXIT_OK, content
 
 
+def _load_spec_refs(spec_refs: list[str]) -> tuple[int, list[str]]:
+    """Load local spec references."""
+    parts: list[str] = []
+    for ref in spec_refs:
+        path = Path(ref) if ref.endswith(".md") else _find_spec_by_id(ref)
+        if path is None or not path.is_file():
+            label = "spec file" if ref.endswith(".md") else "spec ID"
+            print(f"::error::{label} not found: {ref}", file=sys.stderr)
+            return EXIT_CONFIG, []
+        exit_code, content = _read_spec(path, ref)
+        if exit_code != EXIT_OK:
+            return exit_code, []
+        parts.append(f"## Spec: {path}\n\n{content}")
+    return EXIT_OK, parts
+
+
+def _load_issue_refs(issue_refs: list[str], repository: str) -> tuple[int, list[str]]:
+    """Load linked issue references."""
+    parts: list[str] = []
+    for issue in issue_refs:
+        exit_code, body = _gh_issue_body(issue, repository)
+        if exit_code != EXIT_OK:
+            return exit_code, []
+        if body:
+            display = f"#{issue}" if "/" not in issue else issue
+            parts.append(f"## Issue {display}\n\n{body}")
+    return EXIT_OK, parts
+
+
 def run(_argv: list[str] | None = None) -> int:
     """Load spec content and write to temp file."""
     spec_refs_raw = os.environ.get("SPEC_REFS", "")
@@ -112,35 +141,13 @@ def run(_argv: list[str] | None = None) -> int:
     spec_refs = spec_refs_raw.split() if spec_refs_raw.strip() else []
     issue_refs = issue_refs_raw.split() if issue_refs_raw.strip() else []
 
-    parts: list[str] = []
-
-    for ref in spec_refs:
-        if ref.endswith(".md"):
-            p = Path(ref)
-            if not p.is_file():
-                print(f"::error::spec file not found: {ref}", file=sys.stderr)
-                return EXIT_CONFIG
-            exit_code, content = _read_spec(p, ref)
-            if exit_code != EXIT_OK:
-                return exit_code
-            parts.append(f"## Spec: {ref}\n\n{content}")
-        else:
-            matched_path = _find_spec_by_id(ref)
-            if matched_path is None:
-                print(f"::error::spec ID not found: {ref}", file=sys.stderr)
-                return EXIT_CONFIG
-            exit_code, content = _read_spec(matched_path, str(matched_path))
-            if exit_code != EXIT_OK:
-                return exit_code
-            parts.append(f"## Spec: {matched_path}\n\n{content}")
-
-    for issue in issue_refs:
-        exit_code, body = _gh_issue_body(issue, repository)
-        if exit_code != EXIT_OK:
-            return exit_code
-        if body:
-            display = f"#{issue}" if "/" not in issue else issue
-            parts.append(f"## Issue {display}\n\n{body}")
+    exit_code, parts = _load_spec_refs(spec_refs)
+    if exit_code != EXIT_OK:
+        return exit_code
+    exit_code, issue_parts = _load_issue_refs(issue_refs, repository)
+    if exit_code != EXIT_OK:
+        return exit_code
+    parts.extend(issue_parts)
 
     spec_content = "\n\n".join(parts)
     if not spec_content:
