@@ -7,10 +7,12 @@ with monkeypatched counter functions to keep tests fast and hermetic.
 Coverage:
 - clean merge: all counters under baseline -> EXIT_OK
 - regression: one counter over baseline -> EXIT_REGRESSION
-- conflict: merge-tree exits 1 -> EXIT_OK with skip message
+- conflict: merge-tree exits 1 -> distinct nonzero conflict exit
 - git failure: merge-tree exits 2 -> EXIT_EXTERNAL
 - counter returns None: -> EXIT_EXTERNAL
 - baseline unreadable at base ref: -> EXIT_CONFIG
+- baseline diagnostics identify whether the base or merged tree is unreadable
+- baseline is read from the merged tree, not HEAD or the working tree
 - scratch dir cleanup: always cleaned up, even on failure
 - negative control: a cosmetic comment change to the script does NOT break
   the regression test (proves the test is not asserting on line number)
@@ -53,7 +55,9 @@ def _commit_all(repo: Path, message: str) -> None:
     subprocess.run(["git", "-C", str(repo), "commit", "-qm", message], check=True)
 
 
-def _make_repo_with_baselines(tmp_path: Path, ruff: int, taste: int, ignore: int) -> Path:
+def _make_repo_with_baselines(
+    tmp_path: Path, ruff: int, taste: int, ignore: int, memory: int = 10
+) -> Path:
     """A repo with committed baseline files and one tracked Python file."""
     repo = tmp_path / "repo"
     _init_repo(repo)
@@ -62,6 +66,10 @@ def _make_repo_with_baselines(tmp_path: Path, ruff: int, taste: int, ignore: int
     (ci / "ruff_count_baseline.txt").write_text(f"{ruff}\n", encoding="utf-8")
     (ci / "taste_count_baseline.txt").write_text(f"{taste}\n", encoding="utf-8")
     (ci / "type_ignore_count_baseline.txt").write_text(f"{ignore}\n", encoding="utf-8")
+    (ci / "memory_index_count_baseline.txt").write_text(
+        f"{memory}\n", encoding="utf-8"
+    )
+    (ci / "cli_exit_contract_baseline.txt").write_text("10\n", encoding="utf-8")
     (repo / "hello.py").write_text("x = 1\n", encoding="utf-8")
     _commit_all(repo, "main baseline")
     return repo
@@ -78,6 +86,7 @@ def _run(repo: Path, base_ref: str = "HEAD") -> int:
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+@pytest.mark.usefixtures("_zero_non_target_aggregate_counts")
 class TestMergeTreeRatchetCheck:
     def test_clean_merge_passes(self, tmp_path: Path) -> None:
         """All counters under baseline -> EXIT_OK."""
@@ -101,7 +110,9 @@ class TestMergeTreeRatchetCheck:
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
         assert rc == _m.EXIT_OK
 
-    def test_regression_blocks(self, tmp_path: Path) -> None:
+    def test_regression_blocks(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """One counter above baseline -> EXIT_REGRESSION."""
         repo = _make_repo_with_baselines(tmp_path, ruff=5, taste=10, ignore=10)
         with (
@@ -110,10 +121,31 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
+
+        assert rc == _m.EXIT_REGRESSION
+        error = capsys.readouterr().err
+        assert "BLOCKED. The merged result breaches a ratchet ceiling." in error
+        assert "Merge or rebase from HEAD and re-check." in error
+
+    def test_memory_index_regression_blocks(self, tmp_path: Path) -> None:
+        """The merge-tree gate covers the memory-index count ratchet too."""
+        repo = _make_repo_with_baselines(
+            tmp_path, ruff=10, taste=10, ignore=10, memory=5
+        )
+        with (
+            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch(
+                "scripts.ci.memory_index_count_ratchet.current_count", return_value=6
+            ),
+        ):
+            rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
         assert rc == _m.EXIT_REGRESSION
 
-    def test_conflict_skips_with_ok(self, tmp_path: Path) -> None:
-        """Merge conflict -> EXIT_OK; counters are NOT invoked."""
+    def test_conflict_fails_closed_without_running_counters(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
 
         # Create a branch that conflicts with main on hello.py
@@ -128,7 +160,7 @@ class TestMergeTreeRatchetCheck:
         # Check out feature so HEAD is the feature branch
         _git(repo, "checkout", "feature")
 
-        call_counts = {"ruff": 0, "taste": 0, "ignore": 0}
+        call_counts = {"ruff": 0, "taste": 0, "ignore": 0, "memory": 0}
 
         def _ruff(_root):
             call_counts["ruff"] += 1
@@ -142,16 +174,27 @@ class TestMergeTreeRatchetCheck:
             call_counts["ignore"] += 1
             return 0
 
+        def _memory(_root):
+            call_counts["memory"] += 1
+            return 0
+
         with (
             patch("scripts.ci.ruff_count_ratchet.current_count", side_effect=_ruff),
             patch("scripts.ci.taste_count_ratchet.current_count", side_effect=_taste),
             patch("scripts.ci.type_ignore_count_ratchet.current_count", side_effect=_ignore),
+            patch(
+                "scripts.ci.memory_index_count_ratchet.current_count",
+                side_effect=_memory,
+            ),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
 
-        assert rc == _m.EXIT_OK
-        # None of the counters should run - conflict was detected and skipped
-        assert call_counts == {"ruff": 0, "taste": 0, "ignore": 0}, (
+        assert rc == _m.EXIT_CONFLICT
+        error = capsys.readouterr().err
+        assert "merge has conflicts" in error
+        assert "resolve the conflicts and rerun the ratchet" in error
+        assert "breaches a ratchet ceiling" not in error
+        assert call_counts == {"ruff": 0, "taste": 0, "ignore": 0, "memory": 0}, (
             f"Counters ran despite conflict: {call_counts}"
         )
 
@@ -163,7 +206,9 @@ class TestMergeTreeRatchetCheck:
         )
         assert rc == _m.EXIT_EXTERNAL
 
-    def test_counter_returns_none_is_external(self, tmp_path: Path) -> None:
+    def test_counter_returns_none_is_external(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """Counter returning None -> EXIT_EXTERNAL."""
         repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
         with (
@@ -172,9 +217,15 @@ class TestMergeTreeRatchetCheck:
             patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
         ):
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
-        assert rc == _m.EXIT_EXTERNAL
 
-    def test_missing_baseline_returns_config(self, tmp_path: Path) -> None:
+        assert rc == _m.EXIT_EXTERNAL
+        error = capsys.readouterr().err
+        assert "counter returned None" in error
+        assert "BLOCKED. The merged result breaches a ratchet ceiling." not in error
+
+    def test_missing_baseline_returns_config(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """Missing baseline at base ref -> EXIT_CONFIG."""
         repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
         _git(repo, "rm", "scripts/ci/ruff_count_baseline.txt")
@@ -188,6 +239,9 @@ class TestMergeTreeRatchetCheck:
             rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
 
         assert rc == _m.EXIT_CONFIG
+        error = capsys.readouterr().err
+        assert "CONFIG ERROR" in error
+        assert "BLOCKED. The merged result breaches a ratchet ceiling." not in error
 
     def test_scratch_dir_cleaned_on_success(self, tmp_path: Path) -> None:
         """Scratch dir must be removed on a clean run."""
