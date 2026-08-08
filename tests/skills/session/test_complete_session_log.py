@@ -25,6 +25,27 @@ from scripts.validate_session_json import (
 class TestQaValidationContract:
     """Regression coverage for the session-init to session-end QA contract."""
 
+    def test_qa_session_identity_supports_external_artifact_root(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        artifact_root = tmp_path / "artifacts"
+        session_path = artifact_root / "sessions" / "session.json"
+        session_path.parent.mkdir(parents=True)
+        session_path.write_text("{}", encoding="utf-8")
+        monkeypatch.setenv(
+            "AI_AGENTS_ARTIFACT_ROOT",
+            str(artifact_root),
+        )
+
+        identity = complete_session_log._qa_session_log_identity(
+            str(session_path),
+            str(tmp_path),
+        )
+
+        assert identity == ".agents/sessions/session.json"
+
     def test_new_session_declares_required_qa_validation(self):
         log = build_session_log(
             branch="fix/test",
