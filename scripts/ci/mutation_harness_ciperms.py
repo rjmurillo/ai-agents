@@ -108,10 +108,15 @@ def _write_bytes_by_sibling_replace(target: Path, data: bytes, purpose: str) -> 
         raise
 
 
-def _purge_pycache(target: Path) -> None:
+def _purge_pycache(target: Path) -> str | None:
     pycache = target.parent / "__pycache__"
-    if pycache.exists():
+    if not pycache.exists():
+        return None
+    try:
         shutil.rmtree(pycache)
+    except OSError as exc:
+        return f"pycache purge failed for {pycache}: {exc}"
+    return None
 
 
 def _exit_restore_failed(target: Path, detail: str) -> None:
@@ -157,15 +162,17 @@ def apply_mutation(mutation: Mutation) -> Result:
     except OSError as exc:
         return Result(mutation, DID_NOT_APPLY, f"could not write mutant: {exc}")
 
-    try:
-        if target.read_bytes() != mutated:
-            return Result(mutation, DID_NOT_APPLY, "mutant bytes differed after write")
-    except OSError as exc:
-        return Result(mutation, DID_NOT_APPLY, f"could not verify mutant write: {exc}")
-
     note = ""
     try:
-        _purge_pycache(target)
+        try:
+            if target.read_bytes() != mutated:
+                return Result(mutation, DID_NOT_APPLY, "mutant bytes differed after write")
+        except OSError as exc:
+            return Result(mutation, DID_NOT_APPLY, f"could not verify mutant write: {exc}")
+
+        if purge_error := _purge_pycache(target):
+            return Result(mutation, NOT_RUN, purge_error)
+
         proc = _run_tests(mutation.test_filter)
         outcome, note = _classify(proc)
     finally:

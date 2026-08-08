@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import portability_common as common
+from scripts.validation import portability_git
 from scripts.validation.portability_git import GIT_TIMEOUT_RETURN_CODE
 
 
@@ -118,25 +119,17 @@ def test_git_lines_refuses_when_the_shared_git_runner_times_out(
 def test_git_lines_ignores_case_insensitive_pathspec_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    root = tmp_path / "repo"
-    root.mkdir()
-    for args in (
-        ["init", "-q", "-b", "main"],
-        ["config", "user.email", "t@example.com"],
-        ["config", "user.name", "Test"],
-    ):
-        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
-    (root / "Skills").mkdir()
-    (root / "Skills" / "a.md").write_text("x", encoding="utf-8")
-    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True, capture_output=True)
-    subprocess.run(
-        ["git", "-C", str(root), "commit", "-qm", "seed"],
-        check=True,
-        capture_output=True,
-    )
-    monkeypatch.setenv("GIT_ICASE_PATHSPECS", "1")
+    captured_env: dict[str, str] = {}
 
-    assert common._git_lines(root, ["ls-files", "-z", "--", "skills"]) == []
+    def fake_run(_command, **kwargs):
+        captured_env.update(kwargs["env"])
+        return subprocess.CompletedProcess(_command, 0, stdout=b"", stderr=b"")
+
+    monkeypatch.setenv("GIT_ICASE_PATHSPECS", "1")
+    monkeypatch.setattr(portability_git.subprocess, "run", fake_run)
+
+    assert common._git_lines(tmp_path, ["ls-files", "-z", "--", "skills"]) == []
+    assert "GIT_ICASE_PATHSPECS" not in captured_env
 
 
 def test_git_lines_disables_replacement_objects(

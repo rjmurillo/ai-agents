@@ -178,6 +178,54 @@ class TestApplyMutation:
 
         assert result.outcome == harness.DEAD
 
+    def test_pycache_purge_failure_is_not_run_and_restores(
+        self, tmp_path, monkeypatch
+    ):
+        mutation = self._mutation(tmp_path)
+        pycache = mutation.target_file.parent / "__pycache__"
+        pycache.mkdir()
+        monkeypatch.setattr(
+            harness.shutil,
+            "rmtree",
+            lambda _path: (_ for _ in ()).throw(OSError("locked")),
+        )
+        monkeypatch.setattr(
+            harness,
+            "_run_tests",
+            lambda _test_filter: pytest.fail("pytest should not run after purge failure"),
+        )
+
+        result = harness.apply_mutation(mutation)
+
+        assert result.outcome == harness.NOT_RUN
+        assert "pycache purge failed" in result.note
+        assert mutation.target_file.read_bytes() == b"target\n"
+
+    def test_verify_mismatch_restores_before_did_not_apply(
+        self, tmp_path, monkeypatch
+    ):
+        mutation = self._mutation(tmp_path)
+        real_replace = harness._write_bytes_by_sibling_replace
+
+        def write_wrong_mutant(target, data, purpose):
+            if purpose == "mutant":
+                target.write_bytes(b"wrong\n")
+                return
+            real_replace(target, data, purpose)
+
+        monkeypatch.setattr(harness, "_write_bytes_by_sibling_replace", write_wrong_mutant)
+        monkeypatch.setattr(
+            harness,
+            "_run_tests",
+            lambda _test_filter: pytest.fail("pytest should not run after verify mismatch"),
+        )
+
+        result = harness.apply_mutation(mutation)
+
+        assert result.outcome == harness.DID_NOT_APPLY
+        assert "mutant bytes differed" in result.note
+        assert mutation.target_file.read_bytes() == b"target\n"
+
 
 class TestRunTests:
     def test_run_tests_disables_bytecode_writes(self, monkeypatch):
