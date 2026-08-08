@@ -46,8 +46,6 @@ class TestValidateMarkdownLint:
             [
                 "npx",
                 "markdownlint-cli2@0.23.1",
-                "--config",
-                str(tmp_path / ".markdownlint-cli2.yaml"),
                 "--fix",
                 "--",
                 "README.md",
@@ -78,8 +76,6 @@ class TestValidateMarkdownLint:
             [
                 "npx",
                 "markdownlint-cli2@0.23.1",
-                "--config",
-                str(tmp_path / ".markdownlint-cli2.yaml"),
                 "--",
                 "README.md",
             ],
@@ -104,8 +100,6 @@ class TestValidateMarkdownLint:
             [
                 "npx",
                 "markdownlint-cli2@0.23.1",
-                "--config",
-                str(tmp_path / ".markdownlint-cli2.yaml"),
                 "--fix",
                 "--",
                 "**/*.md",
