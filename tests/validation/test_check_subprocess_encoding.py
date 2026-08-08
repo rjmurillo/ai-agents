@@ -428,6 +428,32 @@ def test_class_method_used_after_late_outer_bind_is_flagged() -> None:
     assert find_violations(source) == [4]
 
 
+def test_class_method_call_before_later_rebind_is_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.check_output\n"
+        "class C:\n"
+        "    def method(self):\n"
+        '        runner(["x"], encoding="utf-8")\n'
+        "C().method()\n"
+        "runner = print\n"
+    )
+    assert find_violations(source) == [5]
+
+
+def test_class_method_call_before_later_bind_is_not_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = print\n"
+        "class C:\n"
+        "    def method(self):\n"
+        '        runner(["x"], encoding="utf-8")\n'
+        "C().method()\n"
+        "runner = subprocess.check_output\n"
+    )
+    assert find_violations(source) == []
+
+
 def test_class_method_after_later_rebind_is_not_flagged() -> None:
     source = (
         "import subprocess\n"
