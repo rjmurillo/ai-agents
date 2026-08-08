@@ -15,6 +15,7 @@ Covers:
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import math
@@ -456,6 +457,51 @@ class TestSampleModelIdentity:
         )
         assert "judge_model" in result
         assert result["judge_model"] == eval_mod.DEFAULT_MODEL
+
+
+class TestBoundedJudgeEvidence:
+    def test_parse_failure_replays_from_stored_response(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        payload = '{"activation_score": 3, "reasoning": "unterminated}'
+        result = _score_response_with(monkeypatch, payload)
+
+        with pytest.raises(ValueError) as replayed:
+            eval_mod._strict_json_loads(result["raw_judge_response"].strip())
+
+        assert result["judge_failed"] is True
+        assert result["judge_parse_error"] == str(replayed.value)
+        assert result["judge_parse_error_type"] == type(replayed.value).__name__
+        assert result["raw_judge_response"] == payload
+
+    def test_response_at_limit_keeps_exact_parse_evidence(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        payload = "x" * eval_mod.MAX_JUDGE_EVIDENCE_CHARS
+        result = _score_response_with(monkeypatch, payload)
+
+        assert result["judge_failed"] is True
+        assert result["raw_judge_response"] == payload
+        assert "raw_judge_response_truncated" not in result
+        assert "judge_parse_error" in result
+
+    def test_response_over_limit_is_bounded_without_fabricated_parse_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        payload = "BEGIN" + "x" * eval_mod.MAX_JUDGE_EVIDENCE_CHARS + "END"
+        result = _score_response_with(monkeypatch, payload)
+
+        assert result["judge_failed"] is True
+        assert len(result["raw_judge_response"]) == eval_mod.MAX_JUDGE_EVIDENCE_CHARS
+        assert result["raw_judge_response"].startswith("BEGIN")
+        assert result["raw_judge_response"].endswith("END")
+        assert result["raw_judge_response_chars"] == len(payload)
+        assert (
+            result["raw_judge_response_sha256"]
+            == hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        )
+        assert result["raw_judge_response_truncated"] is True
+        assert "judge_parse_error" not in result
 
 
 class TestLoadScenariosFile:
