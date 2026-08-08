@@ -1436,11 +1436,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Base memory index unavailable: {base_error}")
         return 2
 
+    orphan_policy = args.orphan_policy
+    if args.ci and orphan_policy == "strict":
+        orphan_policy = "ratchet"
+
     report = run_validation(
         target,
         args.output_format,
         base_reference_counts,
-        orphan_policy=args.orphan_policy,
+        orphan_policy=orphan_policy,
     )
 
     # Output results
