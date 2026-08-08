@@ -28,6 +28,7 @@ def _sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
     sequence = run_all_validations.__globals__["_SEQUENCE"]
     corpus_gates = {
         "Documented Interpreter Portability",
+        "Duplicate Test Helper Detection",
         "Subprocess Encoding Convention",
         "Unreachable Code Detection",
     }
