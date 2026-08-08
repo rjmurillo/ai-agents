@@ -183,7 +183,7 @@ def read_baseline(path: Path) -> int | None:
         return None
 
 
-MAX_BASELINE_SLACK = 5
+MAX_BASELINE_SLACK = 6
 """How far a baseline may sit above the tree before it must be trued up.
 
 Zero is wrong here, and that is not a style preference. Issue #4057 recorded
@@ -197,9 +197,11 @@ a change none of them made" (``test_count_ratchet_concurrent_merge``).
 Demanding equality re-opens that outage at the test layer: every collision
 reddens the default branch for every contributor until a human notices and
 edits the scalar. The gap is bounded instead, so the accepted slack cannot
-grow into unbounded dead allowance. Five exceeds the largest collision
-observed on this repository (two) with room to spare, and any pull request may
-close the gap by writing the measured count.
+grow into unbounded dead allowance. Six covers a seven-PR merge queue group
+where each branch removes one violation and all seven write the same lowered
+baseline: the merged tree has improved seven times while the scalar fell once,
+leaving six slack. Any pull request may close the gap by writing the measured
+count.
 """
 
 
@@ -345,9 +347,7 @@ def build_parser(description: str, default_baseline: Path) -> argparse.ArgumentP
     return parser
 
 
-def _above_base_message(
-    base_ref: str, *, label: str, baseline: int, base: int, count: int
-) -> str:
+def _above_base_message(base_ref: str, *, label: str, baseline: int, base: int, count: int) -> str:
     """Report a baseline above the base ref without guessing who raised it.
 
     Two histories land on identical numbers here: a branch cut before the base
@@ -403,9 +403,7 @@ def _base_ref_verdict(
     if baseline <= base:
         return None
     print(
-        _above_base_message(
-            args.base_ref, label=label, baseline=baseline, base=base, count=count
-        ),
+        _above_base_message(args.base_ref, label=label, baseline=baseline, base=base, count=count),
         file=sys.stderr,
     )
     return EXIT_REGRESSION

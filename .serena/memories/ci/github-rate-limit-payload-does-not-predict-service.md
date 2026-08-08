@@ -172,6 +172,22 @@ In the exhaustion reading above, the reset epoch decoded to 11:32:46 PDT, two
 and a half minutes out. Sleeping to that timestamp and issuing one call returned
 `rjmurillo` on the first try. No polling, no retry loop, no re-auth.
 
+The two instruments can contradict each other on the same named bucket, not
+merely describe different ones. Measured 2026-08-05, 94 seconds apart:
+
+```text
+10:13:48Z  gh api rate_limit   ->  core: remaining=4829/5000
+10:15:22Z  gh api user -i      ->  403, X-Ratelimit-Resource: core
+                                        X-Ratelimit-Remaining: 0
+                                        X-Ratelimit-Used: 5001
+```
+
+Both readings name `core`. One reports the bucket 96 percent free, the other
+reports it over-drained by one call. So the payload is not lagging by a few
+hundred calls, it is accounting for something other than the caller's own
+budget. Treat a healthy `core` figure in that payload as carrying no
+information about a `core` call, not as a stale version of the truth.
+
 So the earlier advice not to reconcile against `rate_limit` still stands, and for
 the reason already given: that endpoint is exempt and reports a bucket state that
 does not describe your call. It is the wrong instrument, not a broken one. The
@@ -192,3 +208,132 @@ mergeability lazily. The first query enqueues the computation. Wait about a
 minute and query again rather than treating `UNKNOWN` as a state. In one reading
 48 of 55 were `UNKNOWN` on the first pass and 0 on the second.
 
+## The blast radius reaches other people's CI
+
+Measured 2026-08-04. The AI PR quality gate builds each agent's review context
+by fetching the PR diff, and it authenticates as `user ID 6811113`, which is
+`rjmurillo`. An interactive agent session authenticates as the same account.
+They share one REST budget and one GraphQL budget.
+
+On PR #4567, run `30929337949`, every one of the ten review agents failed at the
+context step:
+
+```
+##[error]Failed to fetch PR diff for #4567 ... HTTP 403: API rate limit
+exceeded for user ID 6811113
+PR diff has 0 lines
+##[error]Process completed with exit code 3.
+```
+
+`scripts/ci/build_ai_review_context.py` has no retry, so one 403 ends the job.
+The remaining steps skip, `INFRA_FAILURE` is written as `false`, the verdict
+comes back empty, and the required `Aggregate Results` check goes red while
+every underlying job reports success. Issue #4547 tracks both halves.
+
+Half of that landed. Re-measured 2026-08-05 on PR #4598, run `30988215939`:
+the classification half is fixed and the retry half is not. The file grew from
+424 to 515 lines, line 325 names issue #4547, and lines 247 to 252 match the
+`rate limit|secondary rate|abuse detection` signature, so the 403 is now
+classified as an infrastructure failure. The run recorded `INFRA_FAILURE: true`
+and added the `infrastructure-failure` label. Re-running the issue's own grep,
+`grep -nE "retry|retries|sleep|backoff|403|rate.?limit"`, still returns no
+retry logic: all five hits are the rate-limit signature and its comments.
+
+So the outcome is unchanged for the author. All ten agents logged
+`retries: 0` and the PR is still blocked, because the step named "Invoke
+Copilot CLI (with retry for infrastructure failures)" is *skipped* by the
+infra gate rather than retried. A retry attached to the invocation cannot fire
+for a failure that happens before the invocation. Check `retries: 0` in the
+aggregate log to tell "retried and failed" from "never retried".
+
+The consequence that is easy to miss: this is not confined to the PR the agent
+is working on. Ten agents fetch a diff per run, so an agent polling `gh` across
+a queue can drain the shared budget and turn *unrelated* PRs red. Nine or ten
+identical `NEEDS_REVIEW` verdicts across independent agents is that signature,
+not nine findings.
+
+So throttle polling when a queue is in flight, prefer one paginated REST call
+over repeated `gh pr checks`, and read a uniform verdict sweep as infrastructure
+before reading it as review feedback.
+
+## Re-running the failed jobs does not clear it
+
+The obvious recovery is `gh run rerun <id> --failed`, and on this workflow it
+cannot work. GitHub replays the jobs that already succeeded instead of running
+them again, and the ten review jobs *did* succeed: the 403 poisoned their
+output, not their exit status. So the aggregate re-reads the same empty
+verdicts and fails identically.
+
+Measured on run `30929337949` (PR #4567, 2026-08-04). Attempt 1 failed with
+nine `NEEDS_REVIEW`. Attempt 2 failed with the same nine. The tell is in
+`started_at`: the review rows still read 16:30 while the aggregate ran at
+17:09, a 39 minute gap that no re-execution would produce.
+
+Re-run the whole workflow instead:
+
+```bash
+gh run rerun <run_id>          # no --failed
+```
+
+Two traps around that command:
+
+- **It prints nothing on success.** An empty response is not a failure. Confirm
+  with `gh api repos/<owner>/<repo>/actions/runs/<id> --jq .run_attempt` and
+  look for the number to increase.
+- **Check the budget first.** Re-running into a drained budget just spends ten
+  more agent jobs to reproduce the same red. Read
+  `.resources.graphql.remaining` and, when it is low,
+  `(.reset - now)` for the seconds to wait, before triggering anything.
+
+## Git keeps working when the API does not
+
+Measured 2026-08-05. Three consecutive `gh api` calls were refused with "API
+rate limit exceeded for user ID 6811113" while `core` read 4785. In the same
+window, against the same remote:
+
+```
+$ git fetch origin main        # exit 0, refs updated
+$ git ls-remote origin main    # 5ec85be51aad2245...
+$ git push origin HEAD:<branch>  # exit 0, new branch created
+```
+
+REST and GraphQL exhaustion does not touch the git transport. They are separate
+services with separate limits.
+
+So a rate limit does not stop work. Commit, merge, fetch, push, and run tests
+during the outage. Only issue and pull request metadata is blocked. Do not idle
+waiting for the bucket, and do not treat a refused `gh` call as a signal to
+stop.
+
+One trap that follows: `git ls-remote` reads the server, so it is the right
+instrument for "did my push land". A push in this repository runs the full
+Lefthook pre-push suite and takes 15 minutes or more. An empty `ls-remote`
+during that window means "not yet", not "failed". Re-check before re-pushing.
+Tailing the push log has the same hazard, because the file is still being
+written and the tail lands in the middle of hook output.
+
+## The shared budget had a root cause, and it was one secret
+
+`BOT_PAT` authenticates as `rjmurillo` (user ID `6811113`), not the
+`rjmurillo-bot` service account (`250269933`) that ADR-026 Decision 5
+specifies. Verified 2026-08-05:
+
+```
+$ gh api user --jq .id              # 6811113   (interactive session)
+$ gh api users/rjmurillo-bot --jq .id  # 250269933
+```
+
+At measurement time, `.github/actions/ai-review/action.yml` "Build context"
+set `GH_TOKEN` from `inputs.bot-pat`, and 22 sites matched
+`bot-pat: ${{ secrets.BOT_PAT }}`. Name that pattern when citing the count: a
+bare grep for `secrets.BOT_PAT` returns 56 hits across 12 files. That step's
+403 named `6811113`.
+
+Later on 2026-08-05, `origin/main` changed read paths to
+`${{ inputs.github-token || github.token || inputs.bot-pat }}`. Repository reads
+now prefer the runner token and no longer require the shared `BOT_PAT` budget.
+Copilot calls and write operations still use `bot-pat` where their permissions
+require it. Issue #4607 remains open.
+
+The earlier shared-budget measurements describe historical behavior, not the
+current read path. Do not design around that shared read budget as permanent.

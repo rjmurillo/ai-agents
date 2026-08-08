@@ -236,16 +236,6 @@ jobs:
         if: steps.should-run.outputs.skip == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # Must match the skip != 'true' checkout above. The ratchet steps
-          # below are unconditional (issue #4151), and `Run merge-tree ratchet`
-          # calls `git merge-tree`, which needs a merge base. A default checkout
-          # is depth 1, so on this leg merge-base resolves to nothing and the
-          # step dies with "refusing to merge unrelated histories" (rc 128,
-          # exit 3). Every bot PR took this leg, so the required check was red
-          # for all of them: Renovate PR #4552 is the recorded instance.
-          # Removing --depth=1 from the fetches below does not reach this,
-          # because a plain undepthed fetch does not clear an existing graft;
-          # only --unshallow does. The depth has to be right at checkout.
           fetch-depth: 0
 
       - name: Setup uv for workflow validation
@@ -295,14 +285,9 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # This fetch MUST NOT pass --depth=1. The checkout above already used
-          # fetch-depth: 0, so a depth-limited fetch does not save a full clone;
-          # it writes .git/shallow and grafts the fetched tip parentless. That
-          # destroys merge-base for every later step in this job, and a plain
-          # undepthed fetch does NOT repair it (only --unshallow does). See the
-          # merge-tree ratchet step below, which is the step that breaks.
-          # Because the checkout is already complete, this fetch transfers only
-          # the commits main gained since checkout.
+          # This job later runs merge-tree and count-ratchet diagnostics that
+          # need a merge base. A depth-limited fetch writes .git/shallow for
+          # the whole job, and a later plain fetch does not repair it.
           git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/taste_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4039: type: ignore suppressions bypass the mypy ratchet by inflating
@@ -312,7 +297,8 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # No --depth=1: see the taste-lint ratchet step above.
+          # Keep this fetch full-depth; an earlier shallow fetch would graft
+          # .git/shallow for the later merge-tree ratchet.
           git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/type_ignore_count_ratchet.py --base-ref FETCH_HEAD
       # Issue #4313: 425 atomic memories are unreachable through the retrieval
@@ -325,14 +311,22 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # No --depth=1: see the taste-lint ratchet step above. This step needs
-          # only a single file at the base ref, but it shares a working directory
-          # with `Run merge-tree ratchet` below, and a depth-limited fetch here
-          # writes .git/shallow for the rest of the job. The later step's plain
-          # fetch does not repair that graft, so merge-base returns nothing and
-          # merge-tree aborts with "refusing to merge unrelated histories".
+          # Keep this fetch full-depth; an earlier shallow fetch would graft
+          # .git/shallow for the later merge-tree ratchet.
           git fetch origin "$BASE_REF"
           uv run --frozen python3 scripts/ci/memory_index_count_ratchet.py --base-ref FETCH_HEAD
+      # Issue #4441: `memory-token-update` repairs every index token count on
+      # pre-commit, but it carries `skip: [merge, "test $SKIP_AUTOFIX = 1"]` and
+      # nothing verifies its result. An autofix with no verifier is not a gate.
+      # A memory edited inside a merge commit reached main with the old count
+      # still recorded: measured on pristine main, `skills-git-index` read 287
+      # against an actual 324, a 13% undercount. This needs the same server-side
+      # leg as the count ratchet above, and for the same reason: every route
+      # that skips local hooks reaches the remote unchecked. It takes no
+      # --base-ref because its floor is fixed at zero, so there is no baseline
+      # to compare against and nothing a contributor could raise to silence it.
+      - name: Run memory-index token ratchet
+        run: uv run --frozen python3 scripts/ci/memory_index_token_ratchet.py
       # Issue #4398: the three count ratchets measure the branch head, not the
       # merged result. A branch cut before main lowered a baseline can pass its
       # own count check yet breach the ceiling once it lands. This step evaluates

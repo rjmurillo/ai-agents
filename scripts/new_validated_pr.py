@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Create a validated PR with all guardrails enforced.
 
-Wrapper around the New-PR skill that provides a convenient interface for
-creating PRs with validation. Delegates to the skill for better cohesion.
+Wrapper around the `new_pr` skill script that provides a convenient interface
+for creating PRs with validation. Delegates to the skill for better cohesion.
 
 EXIT CODES:
   0  - Success
@@ -19,11 +19,23 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
-from scripts.github_core.repo import get_repo_root
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.github_core.repo import get_repo_root  # noqa: E402
+
+SKILL_RELPATH = Path(".claude/skills/github/scripts/pr/new_pr.py")
+"""Dispatch target, relative to the repo root.
+
+Exported so tests can assert the wrapper points at a script that exists rather
+than restating the path and drifting from it.
+"""
 
 
-def main(argv: list[str] | None = None) -> int:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Create a validated PR with guardrails")
     parser.add_argument("--title", default="", help="PR title in conventional commit format")
     parser.add_argument("--body", default="", help="PR description body")
@@ -36,7 +48,49 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--skip-validation", action="store_true", help="Skip validation checks")
     parser.add_argument("--audit-reason", default="", help="Reason for skipping validation")
-    args = parser.parse_args(argv)
+    return parser
+
+
+def _run_web_mode(base: str) -> int:
+    """Hand off to `gh pr create --web`, which needs a browser and so refuses in CI."""
+    is_ci = os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS")
+    if is_ci or not os.environ.get("DISPLAY"):
+        print("ERROR: Web mode not available in CI or headless environments", file=sys.stderr)
+        return 2
+
+    gh_args = ["gh", "pr", "create", "--web"]
+    if base:
+        gh_args.extend(["--base", base])
+
+    sys.stdout.flush()
+    return subprocess.run(gh_args).returncode
+
+
+def _build_skill_args(skill_script: Path, args: argparse.Namespace) -> list[str]:
+    """Translate this wrapper's flags into the target script's command line."""
+    skill_args = [
+        sys.executable, str(skill_script),
+        "--title", args.title, "--base", args.base,
+    ]
+
+    if args.head:
+        skill_args.extend(["--head", args.head])
+    if args.body:
+        skill_args.extend(["--body", args.body])
+    if args.body_file:
+        skill_args.extend(["--body-file", args.body_file])
+    if args.draft:
+        skill_args.append("--draft")
+    if args.skip_validation:
+        skill_args.append("--skip-validation")
+        if args.audit_reason:
+            skill_args.extend(["--audit-reason", args.audit_reason])
+
+    return skill_args
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _build_parser().parse_args(argv)
 
     repo_root = get_repo_root()
     if not repo_root:
@@ -48,47 +102,19 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.web:
-        is_ci = os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS")
-        if is_ci or not os.environ.get("DISPLAY"):
-            print("ERROR: Web mode not available in CI or headless environments", file=sys.stderr)
-            return 2
-        gh_args = ["gh", "pr", "create", "--web"]
-        if args.base:
-            gh_args.extend(["--base", args.base])
-        sys.stdout.flush()
-        result = subprocess.run(gh_args)
-        return result.returncode
+        return _run_web_mode(args.base)
 
     if not args.title:
         print("ERROR: Title required (use --title or --web)", file=sys.stderr)
         return 2
 
-    skill_script = repo_root / ".claude" / "skills" / "github" / "scripts" / "pr" / "New-PR.ps1"
+    skill_script = repo_root / SKILL_RELPATH
     if not skill_script.exists():
         print(f"ERROR: PR creation skill not found: {skill_script}", file=sys.stderr)
         return 2
 
-    skill_args = [
-        "pwsh", "-NoProfile", "-File", str(skill_script),
-        "-Title", args.title, "-Base", args.base,
-    ]
-
-    if args.head:
-        skill_args.extend(["-Head", args.head])
-    if args.body:
-        skill_args.extend(["-Body", args.body])
-    if args.body_file:
-        skill_args.extend(["-BodyFile", args.body_file])
-    if args.draft:
-        skill_args.append("-Draft")
-    if args.skip_validation:
-        skill_args.append("-SkipValidation")
-        if args.audit_reason:
-            skill_args.extend(["-AuditReason", args.audit_reason])
-
     sys.stdout.flush()
-    result = subprocess.run(skill_args)
-    return result.returncode
+    return subprocess.run(_build_skill_args(skill_script, args)).returncode
 
 
 if __name__ == "__main__":

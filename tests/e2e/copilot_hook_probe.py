@@ -29,6 +29,7 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
+from typing import Literal
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -43,6 +44,7 @@ _original_sys_path = sys.path.copy()
 try:
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     from cli_exec import resolve_executable
+    from redact_secrets import redact
 finally:
     sys.path[:] = _original_sys_path
 
@@ -124,25 +126,123 @@ def write_marker_probe_plugin(plugin_dir: Path, marker: Path) -> str:
 # hook-resolution bug. These pure predicates let each smoke lead with an
 # accurate headline instead. Kept pytest-free so they unit-test as plain
 # functions and impose no test-framework dependency on this probe primitive.
-COPILOT_AUTH_ABSENT_MARKERS = (
-    "no authentication information found",
-    "set the copilot_github_token",
-)
+COPILOT_AUTH_ABSENT_MARKERS = ("no authentication information found",)
 
 # Auth-rejected detection. A populated but expired or revoked token reaches the
 # CLI's auth gate and is turned away by GitHub, and the CLI still prints its
 # "you can use any of the following methods" list naming COPILOT_GITHUB_TOKEN.
 # That list matches COPILOT_AUTH_ABSENT_MARKERS, so a rejected token reads as an
 # empty one and the headline sends the reader to provision a secret that is
-# already provisioned. These markers only appear when a credential was actually
-# presented, so they take precedence over the absent markers. Both are anchored
-# to the CLI's own auth-gate phrasing: a bare "401" or a bare "bad credentials"
-# is too loose for a stream that carries arbitrary model output, which can quote
-# either while auth is fine.
-COPILOT_AUTH_REJECTED_MARKERS = (
-    "github returned: bad credentials",
+# already provisioned. Only ``github returned: bad credentials`` is anchored to
+# the CLI's own auth-gate 401 path. ``failed to fetch pat user login`` without
+# ``bad credentials`` fires on network errors, 5xx, and rate limits too and is
+# therefore not reliable as a standalone rejection marker (issue #4504).
+COPILOT_AUTH_REJECTED_MARKERS = ("github returned: bad credentials",)
+
+# Rate-limit detection (issue #4504). A 403 refusal from GitHub's rate limiter
+# carries its own boilerplate that overlaps with both the absent and rejected
+# markers. The CLI may also print "Your token may still be valid. Check your
+# network connection and try again." A rate-limited run has healthy auth; the
+# correct advice is to retry after the reset window, not to rotate the token.
+# This predicate takes precedence over both auth predicates.
+COPILOT_RATE_LIMIT_MARKERS = ("api rate limit exceeded", "secondary rate limit")
+COPILOT_TRANSPORT_FAILURE_MARKERS = (
     "failed to fetch pat user login",
+    "your token may still be valid",
+    "check your network connection and try again",
+    "connection timed out",
+    "connection reset by peer",
+    "connection refused",
+    "could not resolve host",
+    "temporary failure in name resolution",
+    "tls handshake timeout",
 )
+
+CopilotBlockReason = Literal["rate_limit", "transport", "auth_rejected", "auth_absent"]
+
+
+def _copilot_haystack(result: subprocess.CompletedProcess[str]) -> str:
+    """Lowercased concatenation of stderr and stdout for marker search."""
+    return f"{result.stderr or ''}\n{result.stdout or ''}".lower()
+
+
+def _head_tail_excerpt(text: str | None, head: int = 300, tail: int = 300) -> str:
+    """Return a redacted head+tail excerpt with a drop count in the middle.
+
+    Captures both the leading diagnostic sentence (where GitHub puts the cause)
+    and the trailing boilerplate. Replaces the tail-only slice that hid the
+    cause while keeping the useless boilerplate (issue #4504).
+    """
+    s = redact(text or "").text
+    total = len(s)
+    if total <= head + tail:
+        return repr(s)
+    dropped = total - head - tail
+    return repr(s[:head]) + f" ... [{dropped} chars dropped] ... " + repr(s[-tail:])
+
+
+def copilot_block_reason(
+    result: subprocess.CompletedProcess[str],
+) -> CopilotBlockReason | None:
+    """Classify a blocked Copilot run by the operator action it requires."""
+    if result.returncode == 0:
+        return None
+
+    haystack = _copilot_haystack(result)
+    if any(marker in haystack for marker in COPILOT_RATE_LIMIT_MARKERS):
+        return "rate_limit"
+    if any(marker in haystack for marker in COPILOT_AUTH_REJECTED_MARKERS):
+        return "auth_rejected"
+    if any(marker in haystack for marker in COPILOT_AUTH_ABSENT_MARKERS):
+        return "auth_absent"
+    if any(marker in haystack for marker in COPILOT_TRANSPORT_FAILURE_MARKERS):
+        return "transport"
+    return None
+
+
+def copilot_rate_limited(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when GitHub explicitly refused the run for a rate limit."""
+    return copilot_block_reason(result) == "rate_limit"
+
+
+def copilot_transport_failure(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when the CLI could not determine credential state due to transport."""
+    return copilot_block_reason(result) == "transport"
+
+
+def copilot_transient_failure(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when retrying later can succeed without changing credentials."""
+    return copilot_block_reason(result) in {"rate_limit", "transport"}
+
+
+def _transient_diagnostics(result: subprocess.CompletedProcess[str]) -> str:
+    return (
+        f"rc={result.returncode} "
+        f"stderr={_head_tail_excerpt(result.stderr, head=300, tail=300)} "
+        f"stdout={_head_tail_excerpt(result.stdout, head=300, tail=300)}"
+    )
+
+
+def copilot_transient_failure_headline(result: subprocess.CompletedProcess[str]) -> str:
+    """Skip reason that separates rate limiting from transport failure."""
+    reason = copilot_block_reason(result)
+    if reason == "rate_limit":
+        return (
+            "GitHub rate limit blocked Copilot CLI. This is not an auth failure. "
+            "Wait for the reset window and re-run. Do not change credentials "
+            f"based on this result. {_transient_diagnostics(result)}"
+        )
+    if reason == "transport":
+        return (
+            "Copilot transport failure prevented a GitHub response. Credential "
+            "status is unknown. Check network and GitHub availability, then re-run. "
+            "Do not change credentials based on this result. "
+            f"{_transient_diagnostics(result)}"
+        )
+    return (
+        "Copilot CLI aborted on an unclassified transient fault. Re-run after "
+        f"checking GitHub availability. {_transient_diagnostics(result)}"
+    )
 
 
 def copilot_auth_rejected(result: subprocess.CompletedProcess[str]) -> bool:
@@ -152,11 +252,11 @@ def copilot_auth_rejected(result: subprocess.CompletedProcess[str]) -> bool:
     run before any plugin loads, so both gate the same failure, but they need
     different remediation: rotate the secret versus create it. Same rc and
     stream handling as :func:`copilot_auth_absent`.
+
+    Rate-limited runs are excluded: the CLI may print the same auth-method list
+    after a 403 refusal, so rate-limit detection takes precedence (issue #4504).
     """
-    if result.returncode == 0:
-        return False
-    haystack = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
-    return any(marker in haystack for marker in COPILOT_AUTH_REJECTED_MARKERS)
+    return copilot_block_reason(result) == "auth_rejected"
 
 
 def copilot_auth_absent(result: subprocess.CompletedProcess[str]) -> bool:
@@ -177,18 +277,30 @@ def copilot_auth_absent(result: subprocess.CompletedProcess[str]) -> bool:
     absent markers match a token that plainly exists. Returning True there would
     make this predicate's own name false and would silently depend on every
     caller checking :func:`copilot_auth_rejected` first.
+
+    Rate-limited runs are also excluded: they share auth-boilerplate wording but
+    have healthy credentials (issue #4504).
     """
-    if result.returncode == 0:
-        return False
-    if copilot_auth_rejected(result):
-        return False
-    haystack = f"{result.stderr or ''}\n{result.stdout or ''}".lower()
-    return any(marker in haystack for marker in COPILOT_AUTH_ABSENT_MARKERS)
+    return copilot_block_reason(result) == "auth_absent"
+
+
+def copilot_run_blocked(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when a classified external or credential condition blocked the run.
+
+    Use this as the gate in smoke tests that must not proceed when the CLI
+    cannot complete a real run, regardless of cause. The specific cause
+    comes from :func:`copilot_block_reason`.
+    """
+    return copilot_block_reason(result) is not None
 
 
 def copilot_auth_failed(result: subprocess.CompletedProcess[str]) -> bool:
-    """True when the run died at the auth gate, whether absent or rejected."""
-    return copilot_auth_rejected(result) or copilot_auth_absent(result)
+    """True when the run died at the auth gate, whether absent or rejected.
+
+    Does not include rate-limited runs: those have healthy auth and should
+    not trigger a credential-rotation or provision headline.
+    """
+    return copilot_block_reason(result) in {"auth_rejected", "auth_absent"}
 
 
 def copilot_auth_failure_headline(result: subprocess.CompletedProcess[str]) -> str:
@@ -198,9 +310,8 @@ def copilot_auth_failure_headline(result: subprocess.CompletedProcess[str]) -> s
     (missing hook marker / rc=1), so the dogfood failure is actionable at a
     glance. Names which of the two auth failures happened, because "provision
     the secret" is wrong advice for a secret that exists and has expired.
-    Surfaces rc and both streams because the detectors scan stdout too
-    (stream-swap resilience), so a stdout-only auth failure stays actionable.
-    See issue #3275.
+    Uses a head+tail excerpt so the leading diagnostic sentence (where GitHub
+    puts the cause) is preserved alongside the trailing boilerplate (issue #4504).
     """
     cause = (
         "Copilot auth token was rejected (expired or revoked); rotate "
@@ -211,8 +322,20 @@ def copilot_auth_failure_headline(result: subprocess.CompletedProcess[str]) -> s
     return (
         f"{cause}. The shipped-base dogfood never ran (issue #3275). "
         f"rc={result.returncode} "
-        f"stderr={(result.stderr or '')[-400:]!r} "
-        f"stdout={(result.stdout or '')[-400:]!r}"
+        f"stderr={_head_tail_excerpt(result.stderr)} "
+        f"stdout={_head_tail_excerpt(result.stdout)}"
+    )
+
+
+def copilot_run_blocked_headline(result: subprocess.CompletedProcess[str]) -> str:
+    """Return operator guidance for the classified reason the run was blocked."""
+    if copilot_transient_failure(result):
+        return copilot_transient_failure_headline(result)
+    if copilot_auth_failed(result):
+        return copilot_auth_failure_headline(result)
+    return (
+        "Copilot CLI run failed for an unclassified reason. "
+        f"{_transient_diagnostics(result)}"
     )
 
 

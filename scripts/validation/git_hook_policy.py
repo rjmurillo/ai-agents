@@ -457,7 +457,40 @@ GENERATED_GLOBS = {
     ),
     "episodes": (".agents/memory/episodes/episode-*.json",),
     "memory": (".serena/memories/**/*.md",),
+    "prompts": (".github/prompts/pr-quality-gate-*.md",),
 }
+
+# Generated mirror trees, as (output prefix, source prefix, suffix rewrite).
+# Taken from .agents/governance/GENERATOR-FILES.md, which is the inventory of
+# every tree the build pipeline writes from a canonical source.
+#
+# Editing one rule under .claude/rules/ regenerates two instruction mirrors, so
+# a one-file rule change staged three files and a four-file change was
+# unshippable. Universal rule 5 already exempts hook-generated companions from
+# the five-file limit; the counter simply did not know about these trees.
+# Refs #4671.
+_GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
+    (".github/instructions/", ".claude/rules/", (".instructions.md", ".md")),
+    (
+        "src/copilot-cli/instructions/",
+        ".claude/rules/",
+        (".instructions.md", ".md"),
+    ),
+    ("src/copilot-cli/lib/", ".claude/lib/", None),
+    ("src/copilot-cli/skills/", ".claude/skills/", None),
+    ("src/copilot-cli/hooks/", ".claude/hooks/", None),
+)
+_PROMPT_OUTPUT_PREFIX = ".github/prompts/pr-quality-gate-"
+_PROMPT_SOURCE_PREFIX = ".claude/skills/review/references/"
+# build/scripts/generate_pr_quality_prompts.py:_FILENAME_RE
+_PROMPT_ROLE_FILE_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
+# templates/platforms/copilot-cli.yaml:artifacts.skills.excludeFilenames.
+# Reject every configured name before mirror mapping. Even top-level files that
+# the generator never visits must not gain an exemption merely because a
+# canonical file with the same name is tracked.
+_COPILOT_SKILL_EXCLUDES = frozenset(
+    {"AGENTS.md", "CLAUDE.md", "merge-resolver"}
+)
 
 # Per-commit atomic file limit (AGENTS.md:24, .claude/rules/universal.md:15).
 # Generated companions (episodes, mcp, agents, memory-index) are exempt.
@@ -873,11 +906,29 @@ def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
 
 
 def _session_log_for_branch(sessions_dir: Path, branch: str) -> Path | None:
-    """Return a recent session log whose branch field is ``branch``."""
+    """Return the newest recent session log whose branch field is ``branch``.
+
+    Tie-break is mtime-newest, matching complete_session_log.py's
+    ``_match_log_for_branch`` so both selectors agree when multiple logs
+    exist for the same branch (issue #4288).
+    """
     candidates = _recent_session_candidates(sessions_dir)
     if candidates is None:
         return None
-    for candidate in sorted(candidates):
+    # Build (mtime, path) pairs, skipping unreadable files.
+    timed: list[tuple[float, Path]] = []
+    for p in candidates:
+        try:
+            timed.append((p.stat().st_mtime, p))
+        except OSError:
+            warnings.warn(
+                f"Skipping unreadable session log: {p.name}",
+                UserWarning,
+                stacklevel=2,
+            )
+    # Sort by mtime descending so the first match is the newest.
+    timed.sort(key=lambda t: t[0], reverse=True)
+    for _, candidate in timed:
         if _session_branch(candidate) == branch:
             return candidate
     return None
@@ -2110,14 +2161,75 @@ def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
     return 0
 
 
-def _is_generated(relative_path: str) -> bool:
+def _mirror_source(relative_path: str) -> str | None:
+    """Return the canonical source a generated mirror was built from, or None.
+
+    A path is only a mirror if its canonical source actually exists. That is
+    what separates a generated companion from a file that merely lives under a
+    generated tree: ``src/copilot-cli/lib/invented.py`` with no
+    ``.claude/lib/invented.py`` behind it is authored work and still counts.
+    Exempting by prefix alone would let anything written into an output tree
+    escape the limit, which is a larger hole than the friction it removes.
+    """
+    if relative_path.startswith(_PROMPT_OUTPUT_PREFIX):
+        role_file = relative_path[len(_PROMPT_OUTPUT_PREFIX):]
+        if _PROMPT_ROLE_FILE_RE.fullmatch(role_file):
+            return _PROMPT_SOURCE_PREFIX + role_file
+        return None
+    if relative_path.startswith("src/copilot-cli/skills/"):
+        remainder = relative_path.removeprefix("src/copilot-cli/skills/")
+        skill_name = PurePosixPath(remainder).parts[0] if remainder else ""
+        if skill_name in _COPILOT_SKILL_EXCLUDES:
+            return None
+
+    for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
+        if not relative_path.startswith(output_prefix):
+            continue
+        remainder = relative_path[len(output_prefix):]
+        if suffix_map is not None:
+            output_suffix, source_suffix = suffix_map
+            if not remainder.endswith(output_suffix):
+                continue
+            remainder = remainder[: -len(output_suffix)] + source_suffix
+        return source_prefix + remainder
+    return None
+
+
+def _is_staged_regular_file(repo_root: Path, relative_path: str) -> bool:
+    """Return True only for a stage-zero regular blob in Git's index."""
+    safe_path = _safe_relative_path(relative_path)
+    if safe_path is None:
+        return False
+    result = _run_git(
+        repo_root,
+        [
+            "ls-files",
+            "--stage",
+            "--error-unmatch",
+            "--",
+            f":(literal){safe_path}",
+        ],
+    )
+    if result.returncode != 0:
+        return False
+    fields = result.stdout.partition("\t")[0].split()
+    return len(fields) >= 3 and fields[0] in {"100644", "100755"} and fields[2] == "0"
+
+
+def _is_generated(relative_path: str, repo_root: Path | None = None) -> bool:
     """Return True when *relative_path* matches any generated-file pattern."""
     for entries in GENERATED_PATHS.values():
         if relative_path in entries:
             return True
-    for globs in GENERATED_GLOBS.values():
+    for kind, globs in GENERATED_GLOBS.items():
+        if kind == "prompts":
+            continue
         if any(_matches_generated_glob(relative_path, pat) for pat in globs):
             return True
+    source = _mirror_source(relative_path)
+    if source is not None:
+        root = repo_root if repo_root is not None else Path.cwd()
+        return _is_staged_regular_file(root, source)
     return False
 
 
@@ -2135,13 +2247,39 @@ def _atomic_commit_paths(diff_output: str) -> list[str]:
     return paths
 
 
+def _merge_brought_paths(repo_root: Path, staged_paths: list[str]) -> set[str]:
+    """Return staged paths brought in by a merge without author modification.
+
+    During a merge commit, ``git diff --cached`` reports ALL files that differ
+    from HEAD, including those the merge parent introduces untouched. To find
+    which files the author actually changed (conflict resolutions, manual edits
+    during merge), we diff the staged content against MERGE_HEAD. Files with no
+    diff against MERGE_HEAD are purely brought in by the merge (issue #4307).
+    """
+    result = _run_git(repo_root, ["rev-parse", "MERGE_HEAD"])
+    if result.returncode != 0:
+        return set()
+    merge_head = result.stdout.strip()
+
+    # Diff the index (staged) against MERGE_HEAD. Files that show NO diff
+    # are identical to the merge parent, meaning the author did not touch them.
+    diff_result = _run_git(
+        repo_root,
+        ["diff", "--cached", "--name-only", "--diff-filter=ACMRD", merge_head],
+    )
+    if diff_result.returncode != 0:
+        return set()
+    author_changed = set(diff_result.stdout.splitlines())
+    return {p for p in staged_paths if p not in author_changed}
+
+
 def check_atomic_commit(repo_root: Path) -> int:
     """Block when authored staged files exceed MAX_AUTHORED_FILES_PER_COMMIT.
 
     Generated companions (episodes, mcp, agents, memory-index) are exempt from
     the count so that a hook-generated sixth file cannot silently produce a
-    policy-violating commit. The function prints the generated files it found
-    so authors can see the full staged set.
+    policy-violating commit. During a merge commit, files brought in by the
+    merge parent without author modification are also exempt (issue #4307).
 
     EXIT CODES:
       0 - staged authored files are within the limit
@@ -2157,15 +2295,28 @@ def check_atomic_commit(repo_root: Path) -> int:
         return 2
 
     staged = _atomic_commit_paths(result.stdout)
+
+    # During a merge, exclude files the merge parent introduces untouched.
+    merge_brought = _merge_brought_paths(repo_root, staged)
+
     authored: list[str] = []
     generated: list[str] = []
+    merge_exempt: list[str] = []
     for path in staged:
-        if _is_generated(path):
+        if path in merge_brought:
+            merge_exempt.append(path)
+        elif _is_generated(path, repo_root):
             generated.append(path)
         else:
             authored.append(path)
 
     authored_count = len(authored)
+    if merge_exempt:
+        print(
+            f"INFO: {len(merge_exempt)} merge-brought file(s) excluded from "
+            "atomic-commit count.",
+            file=sys.stderr,
+        )
     if generated:
         print(
             f"INFO: {len(generated)} generated file(s) excluded from atomic-commit count:",
@@ -5260,14 +5411,157 @@ def warn_if_push_files_incomplete(
     )
 
 
+class _SquashMergeResult:
+    """Result of squash-merge detection for a push ref."""
+
+    __slots__ = ("lost_commits", "warning")
+
+    def __init__(
+        self, lost_commits: list[str] | None = None, warning: str | None = None
+    ) -> None:
+        self.lost_commits = lost_commits
+        self.warning = warning
+
+
+def _probe_squash_state(
+    remote_sha: str, local_sha: str, repo_root: Path
+) -> _SquashMergeResult:
+    """Interrogate git to determine whether a branch was squash-merged.
+
+    Returns a result with:
+    - lost_commits set when squash-merge is confirmed (block).
+    - warning set when the determination is indeterminate (warn and allow).
+    - both None when no squash-merge signature is found (allow silently).
+    """
+    # remote_sha must NOT be an ancestor of origin/main.
+    ancestor_check = _run_git(
+        repo_root,
+        ["merge-base", "--is-ancestor", remote_sha, "origin/main"],
+    )
+    if ancestor_check.returncode == 0:
+        return _SquashMergeResult()  # Normal merge, not squash.
+
+    # Find merge-base between origin/main and the remote tip.
+    base_result = _run_git(
+        repo_root, ["merge-base", "origin/main", remote_sha],
+    )
+    if base_result.returncode != 0:
+        return _SquashMergeResult(
+            warning="could not compute merge-base with origin/main "
+            "(is origin/main fetched?). Cannot determine whether this "
+            "branch was squash-merged. Verify manually before pushing."
+        )
+    merge_base = base_result.stdout.strip()
+    if not merge_base:
+        return _SquashMergeResult(
+            warning="merge-base with origin/main is empty. Cannot determine "
+            "squash-merge state."
+        )
+
+    # Files the branch touched relative to the merge-base.
+    files_result = _run_git(
+        repo_root, ["diff", "--name-only", merge_base, remote_sha],
+    )
+    if files_result.returncode != 0:
+        return _SquashMergeResult(
+            warning="could not diff branch against merge-base. Cannot "
+            "determine squash-merge state."
+        )
+    branch_files = [f for f in files_result.stdout.splitlines() if f.strip()]
+    if not branch_files:
+        return _SquashMergeResult()  # Branch touched no files, not squash.
+
+    # Check if origin/main has identical content for those files.
+    diff_cmd = ["diff", "--name-only", "origin/main", remote_sha, "--"]
+    diff_cmd.extend(branch_files)
+    diff_result = _run_git(repo_root, diff_cmd)
+    if diff_result.returncode != 0:
+        return _SquashMergeResult(
+            warning="could not compare branch content with origin/main. "
+            "Cannot determine squash-merge state."
+        )
+    remaining_diffs = [f for f in diff_result.stdout.splitlines() if f.strip()]
+    if remaining_diffs:
+        return _SquashMergeResult()  # Content differs, not squash-merged.
+
+    # Squash-merge confirmed. List commits that will be orphaned.
+    lost_result = _run_git(
+        repo_root, ["rev-list", "--oneline", f"origin/main..{local_sha}"],
+    )
+    if lost_result.returncode != 0:
+        return _SquashMergeResult(
+            warning="squash-merge signature detected but could not list "
+            "orphaned commits."
+        )
+    lost = [line for line in lost_result.stdout.splitlines() if line.strip()]
+    return _SquashMergeResult(lost_commits=lost if lost else None)
+
+
+def _is_branch_squash_merged(push_ref: PushRef, repo_root: Path) -> _SquashMergeResult:
+    """Detect when a branch's prior content was squash-merged into origin/main.
+
+    Detection (local git only, no API calls):
+    1. The push is to an existing branch (remote_sha is not the zero SHA).
+    2. remote_sha is NOT an ancestor of origin/main (not normally merged).
+    3. The files the branch changed (relative to merge-base with origin/main)
+       are already present on origin/main with identical content.
+
+    Returns a _SquashMergeResult distinguishing three states:
+    - Confirmed squash-merge (lost_commits populated): block.
+    - Indeterminate (warning populated): warn and allow.
+    - No squash signature (both None): allow silently.
+    """
+    if push_ref.is_new or push_ref.is_deletion:
+        return _SquashMergeResult()
+    if not _commit_ref_exists(repo_root, push_ref.remote_sha):
+        return _SquashMergeResult(
+            warning="remote tip is not present in local object store. "
+            "Cannot determine squash-merge state. Run 'git fetch' if unsure."
+        )
+    return _probe_squash_state(push_ref.remote_sha, push_ref.local_sha, repo_root)
+
+
 def _check_push_updates(updates: Sequence[PushUpdate], repo_root: Path) -> int:
     policy_failed = False
     config_failed = False
     for update in updates:
         destination = update.destination_branch
+        if destination is None:
+            # Non-branch refs (tags, notes) -- skip branch policy checks.
+            continue
         if destination in {"main", "master"}:
             print(f"ERROR: cannot push directly to '{destination}'", file=sys.stderr)
             policy_failed = True
+            continue
+        # Issue #4316: block push to a branch whose PR was already squash-merged.
+        # Commits pushed after squash-merge are silently lost (data loss).
+        squash_result = _is_branch_squash_merged(update.source, repo_root)
+        if squash_result.lost_commits:
+            lost_commits = squash_result.lost_commits
+            print(
+                f"ERROR: branch '{destination}' was already squash-merged into main.",
+                file=sys.stderr,
+            )
+            print(
+                f"  {len(lost_commits)} commit(s) will be LOST (orphaned) if pushed:",
+                file=sys.stderr,
+            )
+            for line in lost_commits[:5]:
+                print(f"    {line}", file=sys.stderr)
+            if len(lost_commits) > 5:
+                print(f"    ... and {len(lost_commits) - 5} more", file=sys.stderr)
+            print(
+                "  To recover: create a new branch from main and cherry-pick your work.",
+                file=sys.stderr,
+            )
+            policy_failed = True
+            continue
+        elif squash_result.warning:
+            print(
+                f"WARNING: squash-merge detection indeterminate for '{destination}': "
+                f"{squash_result.warning}",
+                file=sys.stderr,
+            )
         count_result = _check_commit_limit(update, repo_root)
         marker_result = _check_review_marker(update, repo_root)
         plugin_result = _check_plugin_version(update, repo_root)
@@ -5840,7 +6134,7 @@ def run_pytest(repo_root: Path) -> int:
     # pre-push can block, or the hook outlives lefthook's own deadline and the
     # timeout looks nondeterministic.
     deadline = time.monotonic() + TEST_SUITE_TIMEOUT_SECONDS
-    for command in _pytest_commands(repo_root):
+    for index, command in enumerate(_pytest_commands(repo_root)):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             print(
@@ -5856,6 +6150,31 @@ def run_pytest(repo_root: Path) -> int:
             timeout_seconds=remaining,
         )
         _print_process_output(result)
+        if result.returncode == 3:
+            # `remaining` is always fractionally below the full budget, even on
+            # the first command, because the deadline and this subtraction call
+            # time.monotonic() at two different instants. Comparing the two
+            # floats therefore cannot tell "earlier commands ate the budget"
+            # from "the first command used all of it", and reporting the former
+            # for a first-command timeout sends the reader hunting for commands
+            # that never ran. The loop index is the exact signal, so use it.
+            if index == 0:
+                print(
+                    "ERROR: pytest suite timed out; the first command "
+                    f"{command} consumed the whole "
+                    f"{TEST_SUITE_TIMEOUT_SECONDS}s budget on its own",
+                    file=sys.stderr,
+                )
+            else:
+                consumed = TEST_SUITE_TIMEOUT_SECONDS - remaining
+                plural = "" if index == 1 else "s"
+                print(
+                    f"ERROR: pytest suite timed out with {remaining:g}s left of "
+                    f"the {TEST_SUITE_TIMEOUT_SECONDS}s budget "
+                    f"({consumed:g}s already consumed by {index} earlier "
+                    f"command{plural} in the suite)",
+                    file=sys.stderr,
+                )
         if result.returncode != 0:
             return result.returncode
     return 0
@@ -5980,7 +6299,52 @@ def additions_advisory(repo_root: Path) -> int:
     return 0
 
 
-def run_cli_e2e(test_file: str, repo_root: Path) -> int:
+def _branch_delta_files(repo_root: Path, base: str = "origin/main") -> set[str] | None:
+    """Return files changed in the true branch delta (``base...HEAD``).
+
+    Returns ``None`` when the base ref is unresolvable so callers can fall back
+    to running unconditionally rather than silently skipping.
+    """
+    result = _run_git(repo_root, ["diff", "--name-only", f"{base}...HEAD"])
+    if result.returncode != 0:
+        return None
+    return {line for line in result.stdout.splitlines() if line.strip()}
+
+
+def _push_files_are_genuine(
+    push_files: Sequence[str],
+    repo_root: Path,
+) -> bool:
+    """Return True when at least one push file exists in the branch delta.
+
+    When ``@{push}`` is unresolvable (new branch), lefthook may include files
+    from upstream commits in ``{push_files}``.  This function confirms that at
+    least one of those files is actually in ``origin/main...HEAD`` so the
+    caller can skip the expensive gate when none are.
+
+    Falls back to ``True`` (run unconditionally) when the delta cannot be
+    computed, so the gate is never weaker than before this guard.
+    """
+    if not push_files:
+        return False
+    delta = _branch_delta_files(repo_root)
+    if delta is None:
+        return True
+    return bool(delta.intersection(push_files))
+
+
+def run_cli_e2e(
+    test_file: str,
+    repo_root: Path,
+    push_files: Sequence[str] | None = None,
+) -> int:
+    if push_files is not None and not _push_files_are_genuine(push_files, repo_root):
+        print(
+            "CLI E2E skipped: none of the glob-matched push files exist in the "
+            "true branch delta (origin/main...HEAD); the file list is contaminated "
+            "by upstream commits the branch is behind"
+        )
+        return 0
     if os.environ.get("SKIP_CLI_E2E") == "true":
         print("CLI E2E skipped (SKIP_CLI_E2E=true)")
         return 0
@@ -6008,6 +6372,12 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
         command = [sys.executable, "scripts/validate_session_json.py", path]
         if path not in new_logs:
             command.append("--existing-log")
+        else:
+            # A log this branch is adding for the first time is being committed
+            # at session-start, before session-end runs. Pass --creation-mode so
+            # the validator skips protocol-compliance checks that can only be
+            # satisfied after the session completes (issue #4425).
+            command.append("--creation-mode")
         result = _run_command(command, repo_root)
         _print_process_output(result)
         failed |= result.returncode != 0
@@ -6246,11 +6616,13 @@ def _handle_additions(args: argparse.Namespace) -> int:
 
 
 def _handle_cli_hook_e2e(args: argparse.Namespace) -> int:
-    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", _repo_root(args))
+    push_files = getattr(args, "files", None)
+    return run_cli_e2e("tests/e2e/test_cli_hook_e2e.py", _repo_root(args), push_files)
 
 
 def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
-    return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", _repo_root(args))
+    push_files = getattr(args, "files", None)
+    return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", _repo_root(args), push_files)
 
 
 def _handle_sessions(args: argparse.Namespace) -> int:
@@ -6341,8 +6713,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("pytest", _handle_pytest),
         ("placeholder-identity", _handle_placeholder_identity),
         ("additions", _handle_additions),
-        ("cli-hook-e2e", _handle_cli_hook_e2e),
-        ("cli-plugin-e2e", _handle_cli_plugin_e2e),
         ("bot-cascade", _handle_bot_cascade),
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
@@ -6356,6 +6726,18 @@ def build_parser() -> argparse.ArgumentParser:
         _add_path_command(subparsers, name, handler)
     for name, handler in simple_commands:
         _add_simple_command(subparsers, name, handler)
+    for name, handler in (
+        ("cli-hook-e2e", _handle_cli_hook_e2e),
+        ("cli-plugin-e2e", _handle_cli_plugin_e2e),
+    ):
+        e2e_cmd = subparsers.add_parser(name)
+        e2e_cmd.add_argument(
+            "--files",
+            nargs="*",
+            default=None,
+            help="Files passed by lefthook {push_files}; used to detect contaminated file sets",
+        )
+        e2e_cmd.set_defaults(handler=handler)
     message = subparsers.add_parser("commit-message")
     message.add_argument("message_path")
     message.set_defaults(handler=_handle_commit_message)

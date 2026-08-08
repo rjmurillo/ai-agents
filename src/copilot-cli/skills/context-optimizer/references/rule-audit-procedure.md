@@ -273,13 +273,45 @@ both model families: `full` wins 4 of 4 on Opus and 3 of 4 on Sol. Note also
 that the `description` row hides three exact ties, so its real record is one
 win against four losses. A sign test discards ties.
 
-**So run the eval at least four times per model and count signs.** A
+**So run the eval four times per model and count signs.** A
 consistent direction across runs is evidence. A large delta in one run is not.
-This is the reading that survived the noise in the one audit run so far. It
-was chosen after seeing those runs, so treat it as the protocol this document
-proposes, not as a protocol that has been validated. Pre-register the run
-count, the tie handling, and the decision threshold before the next audit
-(issue #3957).
+This is the reading that survived the noise in the one audit run so far, and it
+was chosen after seeing those runs, so those runs generated the rule and cannot
+also test it.
+
+#### Registered decision rule, 2026-08-03
+
+Fixed here before the next audit runs, which makes that audit this rule's first
+confirmatory test (issue #3957). Editing any line below after seeing a run
+makes that run exploratory too, so change it before, or not at all.
+
+- **Run count.** Exactly four runs per model across two model families, eight
+  runs in total. Each non-tied run contributes one sign. Runs are not added
+  because the count came out close, and a run is discarded only for a recorded
+  provider error, never for its result.
+- **The unit.** One run contributes one sign: the direction of that run's delta
+  between the two arms being compared. Magnitudes are recorded and do not vote.
+- **Ties.** An exact tie contributes no sign and lowers n. That is the sign
+  test's own convention, and it is why the `description` row above reads as one
+  win against four losses rather than one against seven.
+- **Tails.** Two-tailed, always. A direction is declared before the run and is
+  not rescored one-tailed afterwards. The 2026-07-29 result ran against the
+  predicted direction, which is the case a one-tailed reading mishandles.
+- **Threshold for an addition or a keep.** The deciding outcomes are exactly 8
+  of 8, 7 of 8, 7 of 7, 6 of 6, and 5 of 5 non-tied signs in one direction,
+  whose two-tailed p values under a fair-coin null are 0.008, 0.070, 0.016,
+  0.031, and 0.063. Every other outcome does not decide. With four or fewer
+  non-tied signs even unanimity reaches only 0.125, so that audit does not
+  decide. A later audit starts the same fixed eight-run design from zero.
+- **Threshold for a cut.** A cut fails when the pre-cut version wins the sign
+  count at that same threshold, and passes otherwise. This accepts a null and
+  cannot separate "no degradation" from "too few runs to see one". The fixed
+  run count is what keeps that blind spot the same size in every audit.
+
+Scored against this rule, the 2026-07-29 result is 7 of 8 for `full` over
+`description` at an n of 8, p 0.070, which is a deciding outcome. It is still
+recorded as the hypothesis rather than as a pass, because the rule was written
+after the runs.
 
 ### The eight runs, for comparison
 
@@ -382,8 +414,9 @@ Other limits, all real:
   lot. `unified-software-engineering` has 3; most rule scenario files have 2.
 - **The sign-counting rule was chosen after seeing these runs.** It is the
   reading that survived the noise, not a rule fixed in advance, so the p-value
-  above is exploratory (issue #3957). Treat the four-runs-per-model protocol as
-  a hypothesis this document proposes, and the next audit as its first test.
+  above is exploratory. The rule is now registered above and dated 2026-08-03,
+  which makes the first audit run after that date its first confirmatory test
+  (issue #3957). These eight runs stay exploratory whatever that audit returns.
 - **The judge is the same model family being evaluated.** A known validity
   weakness, not a settled one.
 - **Per-cell scores are a median of 3 judge samples.** That smooths judge
@@ -417,24 +450,37 @@ A single tie is the third row, not the first. Replication is what separates
 them: one run cannot distinguish a real equivalence from noise, and the noise
 floor here spans most of the usable range.
 
-The last row is the common case and the easy one to skip. As of 2026-07-29,
-`code-quality.md` (14,152 bytes) and `pragmatic-programmer.md` (12,219 bytes)
-have no scenario file at all. They are the two largest **book-derived**
-always-on rules, ranks 2 and 3 in the corpus; `voice.md` (19,624 bytes) is
-larger than either. They cannot be audited until someone writes scenarios for
-them.
+The last row is the common case and the easy one to skip. As of 2026-08-04,
+`code-quality.md` (14,152 bytes) already has a scenario file carrying four
+scenarios, added by PR #4017, and no scored result anywhere in
+`evals/reports/`. It is the only **book-derived** always-on rule left, rank 2
+in the corpus behind `voice.md` (17,527 bytes). `pragmatic-programmer.md`
+(11,375 bytes) sits on the same footing with four scenarios of its own, and was
+itself always-on until PR #4424 narrowed its `applyTo` to source files, so it
+now loads on a code edit and not otherwise.
+
+Written scenarios are not the missing piece for either rule. A scored run is.
+`check_rule_activation_coverage.py` lists both as uncovered and still exits 0,
+because the uncovered set is inside its recorded baseline. Nothing goes red
+while the gap stays open, which is why reading the scenario directory is a
+worse signal than reading `evals/reports/`.
 
 Note that always-on status is declared **three** different ways: `applyTo:
-'**'` (six rules), `alwaysApply: true` (two), and `paths: ["**"]` (one,
-`knowledge-persistence.md`). A survey that greps for one convention misses the
-others. That is how an earlier draft got the ranking wrong and then, after a
-correction that added only the second form, still reported 8 rules instead of
-9. Enumerate by parsing frontmatter.
+'**'` (six rules), `alwaysApply: true` (one, `code-quality.md`), and `paths:`
+carrying `**` (one, `knowledge-persistence.md`, which uses the block-list form
+rather than the inline `paths: ["**"]`). A survey that greps for one convention
+misses the others, and a regex written for the inline form misses the block
+list. That is how an earlier draft got the ranking wrong and then, after a
+correction that added only the second form, still undercounted. Enumerate by
+parsing frontmatter.
 
-Nine rules is the corpus. Do not hardcode its size; it changes on every rule
+Eight rules is the corpus. Do not hardcode its size; it changes on every rule
 edit. Regenerate it below, and say which basis you mean: this gate reads the
-generated `.github/instructions/` mirrors, which total 139 bytes less than the
-`.claude/rules/` sources because `generate_rules.py` strips `priority:`.
+generated `.github/instructions/` mirrors, which total 135 bytes less than the
+`.claude/rules/` sources. Two separate frontmatter rewrites produce that delta,
+not one. `generate_rules.py` strips `priority:` from the seven rules that carry
+it, worth 131 bytes, and it converts `code-quality.md` from `alwaysApply: true`
+to `applyTo: '**'`, worth the remaining 4 bytes.
 
 ```bash
 uv run --frozen python scripts/validation/instruction_budget.py --format table
@@ -451,13 +497,15 @@ After any change to always-on content:
 
 1. `uv run python build/scripts/generate_rules.py` to refresh the mirrors.
 2. Re-run Step 0 and record the byte delta.
-3. Re-run Step 1 on both models, at least four times per model, and apply the
-   test that matches the direction of the change. **A cut and an addition have
-   opposite success conditions.** For a cut, success is the absence of
-   replicated degradation: the sign count must not favor the pre-cut version.
-   Demanding that a cut clear the noise floor is incoherent, because a good cut
-   leaves the delta near zero. For an addition or a keep decision, success is
-   replicated improvement whose magnitude clears the floor.
+3. Re-run Step 1 on both models, four times per model, and apply the test that
+   matches the direction of the change. Both thresholds are fixed by the
+   registered decision rule in Step 3; read them there rather than deciding
+   here. **A cut and an addition have opposite success conditions.** For a cut,
+   success is the absence of replicated degradation: the sign count must not
+   favor the pre-cut version. Demanding that a cut clear the noise floor is
+   incoherent, because a good cut leaves the delta near zero. For an addition or
+   a keep decision, success is replicated improvement whose sign count reaches
+   the registered threshold. Magnitudes are recorded and do not vote.
 4. If the rule is fenced, update the fence in the same commit. The
    `software-engineering-library` skill currently fences the three book rules.
 

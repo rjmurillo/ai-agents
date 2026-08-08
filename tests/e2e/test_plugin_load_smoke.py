@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- always-on unit tests and opt-in e2e smokes must
+# coexist in one file (same plugin contract, one source of truth per issue #3148).
 """End-to-end plugin-load smoke for the shipped CLI plugins (issue #2736).
 
 PR #2735 was green on unit tests, schema checks, and generated-file checks, yet a
@@ -71,12 +73,25 @@ finally:
 # Fired-hook probe: ONE source of truth shared with test_cli_hook_e2e.py (#3148).
 from copilot_hook_probe import (  # noqa: E402
     PROBE_EVENT,
-    copilot_auth_failed,
-    copilot_auth_failure_headline,
     copilot_command,
+    copilot_run_blocked,
+    copilot_run_blocked_headline,
     run_copilot_plugin_dir,
     write_marker_probe_plugin,
 )
+
+
+def _skip_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
+    """Skip when an external or credential condition blocks Copilot.
+
+    A rate limit, transport failure, or auth gate is not a branch defect.
+    Skipping lets the pre-push proceed. The nightly workflow uses
+    assert_smoke_ran.py to detect skipped smokes, so the nightly still fails red
+    when the real CLI cannot run (issues #4504, #4483, #3275).
+    """
+    if copilot_run_blocked(result):
+        pytest.skip(copilot_run_blocked_headline(result))
+
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 
@@ -255,8 +270,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
         pytest.skip(
             f"copilot --plugin-dir probe exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
         )
-    if copilot_auth_failed(fired):
-        pytest.fail(copilot_auth_failure_headline(fired))
+    _skip_on_copilot_block(fired)
     assert fired.returncode == 0, (
         f"copilot --plugin-dir probe run failed (rc={fired.returncode}). "
         f"stdout={fired.stdout[-600:]!r} stderr={fired.stderr[-600:]!r}"
@@ -284,8 +298,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
     except subprocess.TimeoutExpired:
         pytest.skip(f"copilot skill list exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
 
-    if copilot_auth_failed(run):
-        pytest.fail(copilot_auth_failure_headline(run))
+    _skip_on_copilot_block(run)
     assert run.returncode == 0, (
         f"copilot skill list failed (rc={run.returncode}). "
         f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
@@ -362,6 +375,7 @@ def test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path: Path) -> No
         pytest.skip(
             f"copilot --plugin-dir empty exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
         )
+    _skip_on_copilot_block(run)
     assert not marker.is_file(), (
         "negative control failed: copilot fired the probe hook while pointed at an EMPTY "
         "--plugin-dir, so a fired marker cannot distinguish load from no-load and the smoke's "
@@ -656,3 +670,63 @@ def test_run_cli_uses_cwd_and_decodes_utf8(tmp_path: Path) -> None:
     assert run.returncode == 0
     lines = run.stdout.splitlines()
     assert lines == [str(tmp_path), chr(0x2713)]
+
+
+@pytest.mark.parametrize("blocked_phase", ["probe", "skill-list"])
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "API rate limit exceeded for user ID 12345.",
+        "Failed to fetch PAT user login: connection reset by peer.",
+    ],
+)
+def test_copilot_plugin_smoke_skips_classified_block(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    blocked_phase: str,
+    stderr: str,
+) -> None:
+    """Both real Copilot calls skip before plugin assertions on external blocks."""
+    success = subprocess.CompletedProcess(["copilot"], 0, stdout="[]", stderr="")
+    blocked = subprocess.CompletedProcess(["copilot"], 1, stdout="", stderr=stderr)
+
+    def fake_run_cli(argv: tuple[str, ...], **_: object) -> subprocess.CompletedProcess[str]:
+        if "--version" in argv:
+            return success
+        return blocked if blocked_phase == "skill-list" else success
+
+    def fake_run_plugin(
+        plugin_dir: Path, **_: object
+    ) -> subprocess.CompletedProcess[str]:
+        if blocked_phase == "probe":
+            return blocked
+        (plugin_dir.parent / "probe_marker.txt").write_text("MARKER", encoding="utf-8")
+        return success
+
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke.copilot_command", lambda *a: a)
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", fake_run_cli)
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
+        fake_run_plugin,
+    )
+
+    with pytest.raises(pytest.skip.Exception):
+        test_copilot_plugin_loads_expected_skills(tmp_path)
+
+
+def test_empty_plugin_negative_control_skips_classified_block(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    blocked = subprocess.CompletedProcess(
+        ["copilot"],
+        1,
+        stdout="",
+        stderr="API rate limit exceeded for user ID 12345.",
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
+        lambda *args, **kwargs: blocked,
+    )
+
+    with pytest.raises(pytest.skip.Exception):
+        test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path)

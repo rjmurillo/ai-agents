@@ -71,8 +71,25 @@ _copilot_command = copilot_hook_probe.copilot_command
 _manifest = copilot_hook_probe.manifest
 _probe_name = copilot_hook_probe.probe_name
 _write_probe_script = copilot_hook_probe.write_probe_script
-_copilot_auth_failed = copilot_hook_probe.copilot_auth_failed
-_copilot_auth_failure_headline = copilot_hook_probe.copilot_auth_failure_headline
+_copilot_run_blocked = copilot_hook_probe.copilot_run_blocked
+_copilot_run_blocked_headline = copilot_hook_probe.copilot_run_blocked_headline
+
+
+def _skip_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
+    """Skip when an external or credential condition blocks Copilot.
+
+    A rate limit, transport failure, or auth gate is not a branch defect.
+    Skipping lets the pre-push proceed. The nightly workflow uses
+    assert_smoke_ran.py to detect skipped smokes, so the nightly still fails red
+    when the real CLI cannot run (issues #4504, #4483, #3275).
+
+    Using pytest.skip rather than pytest.fail here is the contractual choice:
+    fail would block every pre-push on external or auth state. The
+    existing timeout paths in this file already follow the same pattern.
+    """
+    if _copilot_run_blocked(result):
+        pytest.skip(_copilot_run_blocked_headline(result))
+
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 
@@ -201,8 +218,7 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         )
     except subprocess.TimeoutExpired:
         pytest.skip("copilot plugin install exceeded 240s (CLI/infra latency)")
-    if _copilot_auth_failed(install):
-        pytest.fail(_copilot_auth_failure_headline(install))
+    _skip_on_copilot_block(install)
     assert install.returncode == 0, install.stderr or install.stdout
 
     try:
@@ -223,8 +239,7 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         )
     except subprocess.TimeoutExpired:
         pytest.skip("copilot run exceeded 240s (CLI/infra latency)")
-    if _copilot_auth_failed(run):
-        pytest.fail(_copilot_auth_failure_headline(run))
+    _skip_on_copilot_block(run)
 
     assert marker.is_file(), _copilot_failure_diagnostics(
         probe_name, plugin, userland, run, install_root
@@ -426,3 +441,34 @@ def test_probe_script_writes_marker_when_run(tmp_path: Path) -> None:
     assert "MARKER" in text
     assert f"script={script}" in text
     assert f"COPILOT_PLUGIN_ROOT={tmp_path}" in text
+
+
+@pytest.mark.parametrize("blocked_phase", ["install", "run"])
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "API rate limit exceeded for user ID 12345.",
+        "Failed to fetch PAT user login: connection reset by peer.",
+    ],
+)
+def test_copilot_vendor_consumer_skips_classified_block(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    blocked_phase: str,
+    stderr: str,
+) -> None:
+    """The install and prompt calls both stop before hook assertions."""
+    success = subprocess.CompletedProcess(["copilot"], 0, stdout="", stderr="")
+    blocked = subprocess.CompletedProcess(["copilot"], 1, stdout="", stderr=stderr)
+
+    def fake_run(argv: tuple[str, ...], **_: object) -> subprocess.CompletedProcess[str]:
+        is_install = "plugin" in argv and "install" in argv
+        if blocked_phase == "install":
+            return blocked if is_install else success
+        return success if is_install else blocked
+
+    monkeypatch.setattr("tests.e2e.test_cli_hook_e2e._copilot_command", lambda *a: a)
+    monkeypatch.setattr("tests.e2e.test_cli_hook_e2e.subprocess.run", fake_run)
+
+    with pytest.raises(pytest.skip.Exception):
+        test_copilot_vendor_install_hook_resolves(tmp_path)
