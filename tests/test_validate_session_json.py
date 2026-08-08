@@ -413,6 +413,7 @@ def test_detects_code_touched_then_reverted_after_qa(tmp_path: Path) -> None:
             "log",
             "--format=",
             "--name-only",
+            "--no-renames",
             "-m",
             "-z",
             f"{'a' * 40}..{'b' * 40}",

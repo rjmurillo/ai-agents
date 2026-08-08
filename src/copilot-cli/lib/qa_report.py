@@ -234,6 +234,7 @@ def post_qa_code_changes(
             "log",
             "--format=",
             "--name-only",
+            "--no-renames",
             "-m",
             "-z",
             f"{commit}..{head}",
