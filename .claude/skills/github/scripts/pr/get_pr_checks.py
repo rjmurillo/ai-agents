@@ -303,7 +303,7 @@ _UNKNOWN_RANK = 3
 _TYPE_RANK = {"CheckRun": 0, "StatusContext": 1}
 
 
-def _check_rank(check: dict) -> int:
+def _check_rank(check: dict[str, Any]) -> int:
     """Rank a normalized check by precedence: passing < failing < pending."""
     if check.get("IsPassing"):
         return _PASSING_RANK
@@ -314,16 +314,21 @@ def _check_rank(check: dict) -> int:
     return _UNKNOWN_RANK
 
 
-def _dedupe_rank(check: dict) -> tuple[int, int]:
+def _dedupe_rank(check: dict[str, Any]) -> tuple[int, int]:
     """Rank by source type first, then verdict precedence."""
-    return (_TYPE_RANK.get(check.get("Type"), 2), _check_rank(check))
+    check_type = str(check.get("Type") or "")
+    return (_TYPE_RANK.get(check_type, 2), _check_rank(check))
 
 
-def _check_workflow_run_number(check: dict) -> int | None:
+def _check_workflow_run_number(check: dict[str, Any]) -> int | None:
     """Return a CheckRun workflow run id when the details URL exposes one."""
     if check.get("Type") != "CheckRun":
         return None
-    return extract_workflow_run_number(check.get("DetailsUrl"))
+    details_url = check.get("DetailsUrl")
+    run_number = extract_workflow_run_number(
+        details_url if isinstance(details_url, str) else None
+    )
+    return run_number if isinstance(run_number, int) else None
 
 
 def _select_cross_run_winner(candidates: list[dict[Any, Any]]) -> dict[Any, Any]:
@@ -336,7 +341,12 @@ def _select_cross_run_winner(candidates: list[dict[Any, Any]]) -> dict[Any, Any]
     if check_run_pairs and all(
         run_number is not None for _, run_number in check_run_pairs
     ):
-        latest_run = max(run_number for _, run_number in check_run_pairs)
+        known_run_numbers = [
+            run_number
+            for _, run_number in check_run_pairs
+            if run_number is not None
+        ]
+        latest_run = max(known_run_numbers)
         latest_candidates = [
             check for check, run_number in check_run_pairs
             if run_number == latest_run
@@ -369,7 +379,9 @@ def _collapse_same_run_siblings(rows: list[dict[Any, Any]]) -> list[dict[Any, An
     return representatives
 
 
-def dedupe_checks(checks: list[dict]) -> list[dict]:
+def dedupe_checks(
+    checks: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Collapse multiple runs of one check identity to the winning entry.
 
     Groups by ``Name`` plus GitHub App integration id and keeps the latest
@@ -388,12 +400,15 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
             name = str(check.get("Name") or "")
             integration_ids_by_name.setdefault(name, set()).add(integration_id)
 
-    rows_by_identity: dict[tuple[str, int | None], list[dict]] = {}
+    rows_by_identity: dict[
+        tuple[str, int | None],
+        list[dict[str, Any]],
+    ] = {}
     required_by_identity: dict[tuple[str, int | None], bool] = {}
     order: list[tuple[str, int | None]] = []
     for check in checks:
         name_value = check.get("Name")
-        name = "" if name_value is None else name_value
+        name = "" if name_value is None else str(name_value)
         integration_id = check.get("IntegrationId")
         known_ids = integration_ids_by_name.get(str(name), set())
         if check.get("Type") == "StatusContext" and len(known_ids) == 1:
@@ -445,12 +460,12 @@ def _paginate_contexts(
     pr_number: int,
     oid: str,
     start_cursor: str | None,
-) -> tuple[list[dict], bool]:
+) -> tuple[list[dict[str, Any]], bool]:
     """Fetch remaining status-check contexts by cursor pagination."""
     if not start_cursor:
         return [], False
 
-    extras: list[dict] = []
+    extras: list[dict[str, Any]] = []
     cursor = start_cursor
     for _ in range(_CONTEXTS_MAX_PAGES):
         try:
@@ -473,16 +488,17 @@ def _paginate_contexts(
         page_info = contexts_obj.get("pageInfo") or {}
         if not page_info.get("hasNextPage", False):
             return extras, True
-        cursor = page_info.get("endCursor")
-        if not cursor:
+        next_cursor = page_info.get("endCursor")
+        if not isinstance(next_cursor, str) or not next_cursor:
             return extras, False
+        cursor = next_cursor
 
     return extras, False
 
 
 def fetch_checks(
     owner: str, repo: str, pr_number: int,
-) -> dict:
+) -> dict[str, Any]:
     """Execute GraphQL query and return parsed result."""
     try:
         data = gh_graphql(

@@ -34,6 +34,7 @@ import json
 import os
 import subprocess
 import sys
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -126,10 +127,16 @@ def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
         raise RuntimeError(f"Failed to query repository settings: {result.stderr.strip()}")
 
     try:
-        return json.loads(result.stdout)
+        data = json.loads(result.stdout)
     except json.JSONDecodeError as e:
         print(f"Error decoding JSON from GitHub API: {e}", file=sys.stderr)
         raise ValueError(f"Failed to decode JSON from GitHub API response: {e}") from e
+    if not isinstance(data, dict):
+        raise ValueError("GitHub repository settings response must be an object")
+    return {
+        field: bool(data.get(field, False))
+        for field in _STRATEGY_TO_REPO_FIELD.values()
+    }
 
 
 def _is_rest_quota_error(exc: Exception) -> bool:
@@ -217,7 +224,11 @@ def _emit_error(
     raise SystemExit(code)
 
 
-def _fetch_pr_state(pr: int, repo_flag: str, output_format: str) -> dict:
+def _fetch_pr_state(
+    pr: int,
+    repo_flag: str,
+    output_format: str,
+) -> dict[str, Any]:
     """Fetch the PR state via gh; emit envelope and exit on failure."""
     pr_result = subprocess.run(
         [
@@ -236,10 +247,23 @@ def _fetch_pr_state(pr: int, repo_flag: str, output_format: str) -> dict:
             _emit_error(f"PR #{pr} not found in {repo_flag}", 2, "NotFound", output_format, pr)
         _emit_error(f"Failed to get PR state: {output}", 3, "ApiError", output_format, pr)
 
-    return json.loads(pr_result.stdout)
+    data = json.loads(pr_result.stdout)
+    if not isinstance(data, dict):
+        _emit_error(
+            f"PR #{pr} response was not a JSON object",
+            3,
+            "ApiError",
+            output_format,
+            pr,
+        )
+    return {str(key): value for key, value in data.items()}
 
 
-def _reject_unknown_merge_state(pr_data: dict, pr: int, output_format: str) -> None:
+def _reject_unknown_merge_state(
+    pr_data: dict[str, Any],
+    pr: int,
+    output_format: str,
+) -> None:
     """Reject a direct merge while GitHub is still calculating mergeability.
 
     Issue #2637: after a base update, GitHub reports mergeable=UNKNOWN and
@@ -301,7 +325,7 @@ def _rest_merge(
     head_sha: str,
     subject: str,
     body: str,
-) -> subprocess.CompletedProcess:
+) -> subprocess.CompletedProcess[str]:
     """Attempt a merge via the REST PUT endpoint.
 
     Issue #4362: the GraphQL ``mergePullRequest`` mutation used by ``gh pr
@@ -333,7 +357,7 @@ def _rest_merge(
 
 
 def _handle_merge_failure(
-    merge_result: subprocess.CompletedProcess,
+    merge_result: subprocess.CompletedProcess[str],
     pr: int,
     repo_flag: str,
     strategy: str,

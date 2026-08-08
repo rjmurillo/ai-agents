@@ -266,14 +266,19 @@ _TYPE_RANK = {"CheckRun": 0, "StatusContext": 1}
 
 def _dedupe_rank(check: dict[str, Any]) -> tuple[int, int]:
     """Rank by source type first, then verdict precedence."""
-    return (_TYPE_RANK.get(check.get("Type"), 2), _check_rank(check))
+    check_type = str(check.get("Type") or "")
+    return (_TYPE_RANK.get(check_type, 2), _check_rank(check))
 
 
 def _check_workflow_run_number(check: dict[str, Any]) -> int | None:
     """Return the workflow run id exposed by a CheckRun details URL."""
     if check.get("Type") != "CheckRun":
         return None
-    return extract_workflow_run_number(check.get("DetailsUrl"))
+    details_url = check.get("DetailsUrl")
+    run_number = extract_workflow_run_number(
+        details_url if isinstance(details_url, str) else None
+    )
+    return run_number if isinstance(run_number, int) else None
 
 
 def _collapse_same_run_siblings(
@@ -307,7 +312,12 @@ def _select_cross_run_winner(
     if check_run_pairs and all(
         run_number is not None for _, run_number in check_run_pairs
     ):
-        latest_run = max(run_number for _, run_number in check_run_pairs)
+        known_run_numbers = [
+            run_number
+            for _, run_number in check_run_pairs
+            if run_number is not None
+        ]
+        latest_run = max(known_run_numbers)
         latest_candidates = [
             check
             for check, run_number in check_run_pairs
