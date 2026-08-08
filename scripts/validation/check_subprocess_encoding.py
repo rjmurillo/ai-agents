@@ -102,68 +102,123 @@ def _is_utf8_literal(node: ast.expr | None) -> bool:
 def _subprocess_alias_sets(
     tree: ast.AST,
 ) -> tuple[frozenset[str], dict[str, str], frozenset[str]]:
-    """Return module, callable, and PIPE aliases that resolve to subprocess."""
+    """Return ordered top-level aliases that resolve to subprocess."""
     module_aliases = {"subprocess"}
     callable_aliases: dict[str, str] = {}
     pipe_aliases: set[str] = set()
 
-    for node in ast.walk(tree):
+    if not isinstance(tree, ast.Module):
+        return frozenset(module_aliases), callable_aliases, frozenset(pipe_aliases)
+
+    for node in tree.body:
         if isinstance(node, ast.Import):
             for alias in node.names:
+                bound_name = alias.asname or alias.name
+                _clear_alias_binding(
+                    bound_name,
+                    module_aliases,
+                    callable_aliases,
+                    pipe_aliases,
+                )
                 if alias.name == "subprocess":
-                    module_aliases.add(alias.asname or alias.name)
-        elif isinstance(node, ast.ImportFrom) and node.module == "subprocess":
+                    module_aliases.add(bound_name)
+        elif isinstance(node, ast.ImportFrom):
             for alias in node.names:
                 if alias.name == "*":
-                    callable_aliases.update({name: name for name in _ALL_SUBPROCESS_CALLS})
-                    pipe_aliases.add("PIPE")
+                    if node.module == "subprocess":
+                        callable_aliases.update({name: name for name in _ALL_SUBPROCESS_CALLS})
+                        pipe_aliases.add("PIPE")
                     continue
                 bound_name = alias.asname or alias.name
+                _clear_alias_binding(
+                    bound_name,
+                    module_aliases,
+                    callable_aliases,
+                    pipe_aliases,
+                )
+                if node.module != "subprocess":
+                    continue
                 if alias.name in _ALL_SUBPROCESS_CALLS:
                     callable_aliases[bound_name] = alias.name
                 elif alias.name == "PIPE":
                     pipe_aliases.add(bound_name)
-
-    changed = True
-    while changed:
-        changed = False
-        current_module_aliases = frozenset(module_aliases)
-        current_callable_aliases = dict(callable_aliases)
-        current_pipe_aliases = frozenset(pipe_aliases)
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Assign):
-                continue
-
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            _clear_alias_binding(node.name, module_aliases, callable_aliases, pipe_aliases)
+        elif isinstance(node, ast.Assign):
             resolved_module = _is_subprocess_module_alias(
                 node.value,
-                current_module_aliases,
+                frozenset(module_aliases),
             )
             resolved_callable = _subprocess_callable_name(
                 node.value,
-                current_module_aliases,
-                current_callable_aliases,
+                frozenset(module_aliases),
+                dict(callable_aliases),
             )
             resolved_pipe = _is_pipe_capture_target(
                 node.value,
-                current_module_aliases,
-                current_pipe_aliases,
+                frozenset(module_aliases),
+                frozenset(pipe_aliases),
             )
-
             for target in node.targets:
                 if not isinstance(target, ast.Name):
                     continue
-                if resolved_module and target.id not in module_aliases:
+                _clear_alias_binding(
+                    target.id,
+                    module_aliases,
+                    callable_aliases,
+                    pipe_aliases,
+                )
+                if resolved_module:
                     module_aliases.add(target.id)
-                    changed = True
-                if (
-                    resolved_callable is not None
-                    and callable_aliases.get(target.id) != resolved_callable
-                ):
+                elif resolved_callable is not None:
                     callable_aliases[target.id] = resolved_callable
-                    changed = True
-                if resolved_pipe and target.id not in pipe_aliases:
+                elif resolved_pipe:
                     pipe_aliases.add(target.id)
-                    changed = True
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            if not isinstance(node.target, ast.Name):
+                continue
+            resolved_module = _is_subprocess_module_alias(
+                node.value,
+                frozenset(module_aliases),
+            )
+            resolved_callable = _subprocess_callable_name(
+                node.value,
+                frozenset(module_aliases),
+                dict(callable_aliases),
+            )
+            resolved_pipe = _is_pipe_capture_target(
+                node.value,
+                frozenset(module_aliases),
+                frozenset(pipe_aliases),
+            )
+            _clear_alias_binding(
+                node.target.id,
+                module_aliases,
+                callable_aliases,
+                pipe_aliases,
+            )
+            if resolved_module:
+                module_aliases.add(node.target.id)
+            elif resolved_callable is not None:
+                callable_aliases[node.target.id] = resolved_callable
+            elif resolved_pipe:
+                pipe_aliases.add(node.target.id)
+        elif isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name):
+            _clear_alias_binding(
+                node.target.id,
+                module_aliases,
+                callable_aliases,
+                pipe_aliases,
+            )
+        elif isinstance(node, ast.Delete):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    _clear_alias_binding(
+                        target.id,
+                        module_aliases,
+                        callable_aliases,
+                        pipe_aliases,
+                    )
 
     return (
         frozenset(module_aliases),
@@ -178,6 +233,18 @@ def _is_subprocess_module_alias(
 ) -> bool:
     """Return True when *node* resolves to the subprocess module."""
     return isinstance(node, ast.Name) and node.id in module_aliases
+
+
+def _clear_alias_binding(
+    name: str,
+    module_aliases: set[str],
+    callable_aliases: dict[str, str],
+    pipe_aliases: set[str],
+) -> None:
+    """Remove any alias binding currently attached to *name*."""
+    module_aliases.discard(name)
+    callable_aliases.pop(name, None)
+    pipe_aliases.discard(name)
 
 
 def _is_pipe_capture_target(

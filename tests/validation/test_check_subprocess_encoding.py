@@ -21,6 +21,8 @@ Coverage:
 - neg/splat: **kwargs present means errors may be absent -> flagged (conservative)
 - pos/pipe-capture-binary: PIPE capture without encoding/text semantics -> not flagged
 - pos/shadowed-run-helper: unrelated local `run` helper aliases stay clean
+- pos/shadowed-imported-run: later rebinding of imported `run` stays clean
+- pos/inner-scope-alias-leak: function-local aliases do not leak outward
 - edge/text-true-int: text=1 (not literal True) -> not flagged (conservative on non-literal)
 - edge/encoding-variable: encoding=enc (variable) -> not flagged (cannot prove UTF-8)
 - edge/errors-wrong-value: errors="strict" counts as present -> not flagged
@@ -283,6 +285,26 @@ def test_shadowed_run_helper_is_not_flagged() -> None:
         "    return argv\n"
         "runner = run\n"
         'runner(["x"], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_shadowed_imported_run_is_not_flagged() -> None:
+    source = (
+        "from subprocess import run\n"
+        "def run(argv, *, text=False, encoding=None):\n"
+        "    return argv\n"
+        'run(["x"], text=True, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_inner_scope_aliases_do_not_leak_outward() -> None:
+    source = (
+        "import subprocess\n"
+        "def wrapper():\n"
+        "    runner = subprocess.check_output\n"
+        'runner(["x"], encoding="utf-8")\n'
     )
     assert find_violations(source) == []
 
