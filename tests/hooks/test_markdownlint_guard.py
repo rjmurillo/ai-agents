@@ -62,6 +62,7 @@ def _make_dispatcher(diff_out, lint_handler):
 def _run(diff_out, lint_handler, tmp_path):
     dispatcher = _make_dispatcher(diff_out, lint_handler)
     with patch("push_guard_base.subprocess.run", side_effect=dispatcher), \
+         patch("push_guard_base._validate_strict_push_configuration"), \
          patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
          patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
         return guard.main()
@@ -164,6 +165,7 @@ class TestBinaryAbsent:
             return lint(args, **kwargs)
 
         with patch("push_guard_base.subprocess.run", side_effect=dispatcher), \
+             patch("push_guard_base._validate_strict_push_configuration"), \
              patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
              patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
             rc = guard.main()
@@ -259,6 +261,8 @@ class TestGuardWiring:
 
         with patch(
             "push_guard_base.subprocess.run", side_effect=dispatch
+        ), patch(
+            "push_guard_base._validate_strict_push_configuration"
         ), patch(
             "push_guard_base.get_project_directory", return_value=str(tmp_path)
         ), patch(
