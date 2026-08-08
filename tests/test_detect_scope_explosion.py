@@ -493,7 +493,13 @@ class TestDetectScope:
             # Counted against the merge base, not HEAD or the working tree.
             assert captured_ref == ["base987654321"]
 
-    def test_in_progress_non_base_merge_counts_head_against_merge_base(self) -> None:
+    def test_in_progress_non_base_merge_counts_final_index_against_merge_base(self) -> None:
+        captured_args: list[str] = []
+
+        def fake_index_files(ref: str) -> list[str]:
+            captured_args.append(ref)
+            return ["pr.py", "tests/test_pr.py"]
+
         with (
             patch(
                 "scripts.detect_scope_explosion.get_current_branch",
@@ -520,18 +526,19 @@ class TestDetectScope:
                 return_value=False,
             ),
             patch(
-                "scripts.detect_scope_explosion.get_head_files_against_ref",
-                return_value=["pr.py", "tests/test_pr.py"],
+                "scripts.detect_scope_explosion.get_index_files_against_ref",
+                side_effect=fake_index_files,
             ),
             patch(
-                "scripts.detect_scope_explosion.get_index_files_against_ref"
-            ) as mock_get_index_files,
+                "scripts.detect_scope_explosion.get_head_files_against_ref"
+            ) as mock_get_head_files,
         ):
             result = detect_scope()
             assert result is not None
             assert result.file_count == 2
             assert result.files == ("pr.py", "tests/test_pr.py")
-            mock_get_index_files.assert_not_called()
+            assert captured_args == ["base987654321"]
+            mock_get_head_files.assert_not_called()
 
     def test_in_progress_base_lineage_merge_counts_final_index(self) -> None:
         # When MERGE_HEAD is the base branch being merged, count the final
@@ -588,15 +595,10 @@ class TestDetectScope:
         # remote tip (behind main), counting staged files against MERGE_HEAD
         # inflates the count by every file main gained since that tip.
         # Observed: 635 reported when 17 were real.
-        captured_head_args: list[str] = []
+        captured_index_args: list[str] = []
 
-        def fake_head_files(ref: str) -> list[str]:
-            captured_head_args.append(ref)
-            # Against merge_head (behind main): staged index has 635 files
-            # because main's delta leaks in as "PR changes".
-            if ref == "remote_tip_sha":
-                return [f"inflated_{i}.py" for i in range(635)]
-            # Against the true merge-base: only the 17 real PR files.
+        def fake_index_files(ref: str) -> list[str]:
+            captured_index_args.append(ref)
             return [f"real_pr_{i}.py" for i in range(17)]
 
         with (
@@ -621,20 +623,22 @@ class TestDetectScope:
                 return_value=False,
             ),
             patch(
-                "scripts.detect_scope_explosion.get_head_files_against_ref",
-                side_effect=fake_head_files,
+                "scripts.detect_scope_explosion.get_index_files_against_ref",
+                side_effect=fake_index_files,
             ),
             patch(
                 "scripts.detect_scope_explosion.get_merge_base",
                 return_value="real_merge_base_sha",
             ),
+            patch(
+                "scripts.detect_scope_explosion.get_head_files_against_ref"
+            ) as mock_get_head_files,
         ):
             result = detect_scope()
             assert result is not None
-            # Must reflect the real PR diff (17), not the inflated count (635).
             assert result.file_count == 17
-            # Must NOT have counted against the remote tip.
-            assert "remote_tip_sha" not in captured_head_args
+            assert captured_index_args == ["real_merge_base_sha"]
+            mock_get_head_files.assert_not_called()
 
     def test_equal_merge_head_counts_against_merge_head_index(self) -> None:
         # A base-side merge where MERGE_HEAD equals the resolved base ref
@@ -681,10 +685,15 @@ class TestDetectScope:
             assert captured_index_args == ["base_sha"]
             mock_get_head_files.assert_not_called()
 
-    def test_sibling_merge_head_uses_head_diff_not_staged_index(self) -> None:
-        # Isolating control: the sibling path must call get_merge_base, not
-        # use MERGE_HEAD as the comparison ref. If get_merge_base is not
-        # called, the count is wrong.
+    def test_sibling_merge_head_uses_merge_base_index_not_merge_head(self) -> None:
+        # Isolating control: the sibling path must count the final staged tree
+        # against the merge base, not against MERGE_HEAD.
+        captured_index_args: list[str] = []
+
+        def fake_index_files(ref: str) -> list[str]:
+            captured_index_args.append(ref)
+            return ["real.py"]
+
         with (
             patch(
                 "scripts.detect_scope_explosion.get_current_branch",
@@ -707,20 +716,21 @@ class TestDetectScope:
                 return_value=False,
             ),
             patch(
-                "scripts.detect_scope_explosion.get_head_files_against_ref",
-                return_value=["real.py"],
+                "scripts.detect_scope_explosion.get_index_files_against_ref",
+                side_effect=fake_index_files,
             ),
             patch(
                 "scripts.detect_scope_explosion.get_merge_base",
                 return_value="real_merge_base_sha",
             ) as mock_get_merge_base,
             patch(
-                "scripts.detect_scope_explosion.get_index_files_against_ref"
-            ) as mock_get_index_files,
+                "scripts.detect_scope_explosion.get_head_files_against_ref"
+            ) as mock_get_head_files,
         ):
             detect_scope()
             mock_get_merge_base.assert_called_once()
-            mock_get_index_files.assert_not_called()
+            assert captured_index_args == ["real_merge_base_sha"]
+            mock_get_head_files.assert_not_called()
 
     def test_sibling_merged_into_local_main_does_not_trigger_index_path(self) -> None:
         with (
@@ -745,7 +755,7 @@ class TestDetectScope:
                 return_value=False,
             ),
             patch(
-                "scripts.detect_scope_explosion.get_head_files_against_ref",
+                "scripts.detect_scope_explosion.get_index_files_against_ref",
                 return_value=["real.py"],
             ),
             patch(
@@ -753,14 +763,14 @@ class TestDetectScope:
                 return_value="real_merge_base_sha",
             ) as mock_get_merge_base,
             patch(
-                "scripts.detect_scope_explosion.get_index_files_against_ref"
-            ) as mock_get_index_files,
+                "scripts.detect_scope_explosion.get_head_files_against_ref"
+            ) as mock_get_head_files,
         ):
             result = detect_scope()
             assert result is not None
             assert result.file_count == 1
             mock_get_merge_base.assert_called_once()
-            mock_get_index_files.assert_not_called()
+            mock_get_head_files.assert_not_called()
 
     def test_stale_remote_base_merge_still_counts_final_index(self) -> None:
         captured_index_args: list[str] = []
@@ -864,6 +874,37 @@ class TestMergeHeadRealGit:
         _check_git(repo, "checkout", "--detach", feature_tip)
         _check_git(repo, "merge", "--no-commit", "--no-ff", main_tip)
         assert _run_main(repo, monkeypatch) == 2
+
+    def test_sibling_merge_counts_final_index_against_merge_base(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = tmp_path / "repo"
+        _init_scope_repo(repo)
+        _check_git(repo, "checkout", "-qb", "feature")
+        for index in range(45):
+            _write_file(repo, f"feature/file_{index}.py", f"value = {index}\n")
+        _commit_all(repo, "feature files")
+
+        _check_git(repo, "checkout", "main")
+        _check_git(repo, "checkout", "-qb", "sibling")
+        for index in range(10):
+            _write_file(repo, f"sibling/file_{index}.py", f"value = {index}\n")
+        sibling_tip = _commit_all(repo, "sibling files")
+
+        _check_git(repo, "checkout", "feature")
+        _check_git(repo, "merge", "--no-commit", "--no-ff", sibling_tip)
+
+        merge_base = _check_git(repo, "merge-base", "HEAD", "origin/main")
+        staged = _git(repo, "diff", "--cached", "--name-only", "--diff-filter=ACMR", merge_base)
+        assert staged.returncode == 0
+        staged_paths = {line for line in staged.stdout.splitlines() if line}
+        assert len(staged_paths) == 55
+
+        monkeypatch.chdir(repo)
+        result = detect_scope()
+        assert result is not None
+        assert result.file_count == 55
+        assert _run_main(repo, monkeypatch) == 1
 
 
 class TestReport:

@@ -277,11 +277,11 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
             # `origin/main`.
             files = sorted(set(get_index_files_against_ref(merge_head)))
         else:
-            # A sibling merge can leave MERGE_HEAD off the base lineage.
-            # Counting the staged index against that sibling inflates scope by
-            # upstream files, so fall back to committed branch-authored files
-            # against the true merge base.
-            files = sorted(set(get_head_files_against_ref(merge_base)))
+            # A sibling merge leaves MERGE_HEAD off the base lineage. Count
+            # the final staged tree against the true merge base so merged
+            # sibling files and any post-merge staged edits contribute to
+            # scope, without treating the sibling tip itself as the baseline.
+            files = sorted(set(get_index_files_against_ref(merge_base)))
         return ScopeResult(
             file_count=len(files),
             merge_base=merge_base[:12],
