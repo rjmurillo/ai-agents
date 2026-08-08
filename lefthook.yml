@@ -285,7 +285,7 @@ pre-commit:
 
           - name: memory-index
             timeout: 5m
-            run: uv run --frozen python scripts/validation/memory_index.py --path .serena/memories --ci
+            run: uv run --frozen python scripts/validation/memory_index.py --path .serena/memories --ci --orphan-policy ratchet
             glob: ".serena/memories/**/*.md"
 
           - name: memory-token-counts

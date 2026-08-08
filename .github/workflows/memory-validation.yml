@@ -84,7 +84,7 @@ jobs:
       - name: Validate memory index consistency (ADR-017)
         if: steps.should-run.outputs.skip != 'true'
         id: index-validation
-        run: python3 scripts/validation/memory_index.py --path .serena/memories --ci --format console
+        run: python3 scripts/validation/memory_index.py --path .serena/memories --ci --format console --orphan-policy ratchet
 
       - name: Verify all memories
         if: steps.should-run.outputs.skip != 'true'

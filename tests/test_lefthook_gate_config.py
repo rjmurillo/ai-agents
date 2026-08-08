@@ -8,6 +8,12 @@ import yaml
 from scripts.ci.merge_tree_ratchet_registry import RATCHETS, trigger_globs
 
 LEFTHOOK_PATH = Path(__file__).parent.parent / "lefthook.yml"
+MEMORY_WORKFLOW_PATH = (
+    Path(__file__).parent.parent
+    / ".github"
+    / "workflows"
+    / "memory-validation.yml"
+)
 
 
 def _iter_all_jobs(data) -> list[dict]:
@@ -89,3 +95,26 @@ class TestMemoryTierGateEnforcement:
         job = self._find_job("memory-index")
         run = job.get("run", "")
         assert "--ci" in run, f"memory-index is missing --ci: {run!r}"
+
+    def test_memory_index_job_uses_ratchet_orphan_policy(self) -> None:
+        job = self._find_job("memory-index")
+        run = job.get("run", "")
+        assert "--orphan-policy ratchet" in run, (
+            "memory-index must leave the legacy backlog to the count ratchet: "
+            f"{run!r}"
+        )
+
+    def test_memory_workflow_uses_ratchet_orphan_policy(self) -> None:
+        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-memories"]["steps"]
+        run_blocks = [
+            step["run"]
+            for step in steps
+            if isinstance(step, dict) and isinstance(step.get("run"), str)
+        ]
+        command = next(
+            run
+            for run in run_blocks
+            if "scripts/validation/memory_index.py" in run
+        )
+        assert "--orphan-policy ratchet" in command
