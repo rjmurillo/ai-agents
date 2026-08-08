@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, cohesive GC reporter; crossed 500 only by the #4770 main merge.
 """Garbage-collect stale git worktrees safely.
 
 Agent and PR workflows create git worktrees that accumulate without cleanup.
