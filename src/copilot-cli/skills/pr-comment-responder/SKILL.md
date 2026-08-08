@@ -189,7 +189,9 @@ for the threads that remain.
 1. Extract PR number from prompt (BLOCKING) using `extract_github_context.py`
 2. Load `pr-comment-responder-skills` memory
 3. Gather PR metadata, reviewers, all comments (use `--group-by-domain` for priority triage)
-4. Batch eyes reactions on all comments
+4. Run the PR-level live-state gate before using cached review data
+5. Batch eyes reactions with `--pull-request` so each review target is
+   requeried immediately before mutation
 
 ### Phase 2: Triage and Delegate
 

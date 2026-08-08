@@ -14,6 +14,8 @@ import re
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 
+from scripts.validation.tracked_paths import path_exists_in_repo
+
 # Paths that legitimately do not exist in this repo because the skill WRITES
 # them into a consumer workspace rather than reading them here. Exemption is
 # checked on path COMPONENTS, not string prefixes, so .agents/sessions matches
@@ -23,6 +25,13 @@ _CONSUMER_WORKSPACE_PATHS: tuple[tuple[str, ...], ...] = (
     (".agents", "analysis"),
     (".agents", "critique"),
     (".agents", "memory"),
+)
+
+# Generated artifacts named in prose that no clean checkout contains. Listed as
+# exact paths, not a directory prefix, so a typo under the same directory is
+# still reported as an existence miss.
+_GENERATED_ARTIFACTS: frozenset[str] = frozenset(
+    {"build/audit/GENERATION-AUDIT.md"}
 )
 
 # Regex for the vendor-portability HTML comment marker (same as main module).
@@ -293,7 +302,7 @@ def marker_path_drift(
     # (c) existence: check every path (declared and prose) for real resolution
     all_paths = declared | prose_paths
     for path_str in sorted(all_paths):
-        if _is_consumer_workspace_path(path_str):
+        if _is_consumer_workspace_path(path_str) or path_str in _GENERATED_ARTIFACTS:
             continue
         candidate = (repo_root / path_str).resolve()
         # Containment check: resolved path must be under the repo root
@@ -303,7 +312,7 @@ def marker_path_drift(
                 f"outside the repository root"
             )
             continue
-        if not candidate.exists():
+        if not path_exists_in_repo(repo_root, path_str):
             failures.append(
                 f"{rel_path}: existence miss: '{path_str}' is declared and/or "
                 f"referenced but does not exist under the repository root"
