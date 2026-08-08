@@ -9,6 +9,8 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.ci.spec_extract_refs import (
+    EXIT_EXTERNAL,
+    EXIT_OK,
     _extract_incremental_scope,
     _extract_issue_refs,
     _extract_spec_refs,
@@ -74,12 +76,12 @@ class TestExtractIncrementalScope:
     def test_returns_stdout_on_success(self) -> None:
         mock = MagicMock(returncode=0, stdout="phase-1\n")
         with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=mock):
-            assert _extract_incremental_scope("feat: phase-1 impl") == "phase-1"
+            assert _extract_incremental_scope("feat: phase-1 impl") == (EXIT_OK, "phase-1")
 
-    def test_returns_empty_on_failure(self) -> None:
-        mock = MagicMock(returncode=1, stdout="")
+    def test_returns_external_error_on_failure(self) -> None:
+        mock = MagicMock(returncode=1, stdout="", stderr="parser failed")
         with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=mock):
-            assert _extract_incremental_scope("feat: unknown") == ""
+            assert _extract_incremental_scope("feat: unknown") == (EXIT_EXTERNAL, "")
 
 
 class TestRun:
@@ -134,6 +136,39 @@ class TestRun:
             with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=gh_mock):
                 rc = run()
         assert rc == 0
+
+    def test_incremental_scope_failure_main_returns_external(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "PR_TITLE_INPUT": "feat: Phase 2 of #100",
+            "PR_BODY_INPUT": "Fixes #10",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "0",
+        }
+        failure = MagicMock(returncode=1, stdout="", stderr="parser failed")
+
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=failure):
+                assert main() == EXIT_EXTERNAL
+
+        assert not out_file.exists()
+
+    def test_pr_lookup_failure_main_returns_external(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "PR_TITLE_INPUT": "",
+            "PR_BODY_INPUT": "",
+            "PR_NUMBER": "7",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+        }
+        failure = MagicMock(returncode=1, stdout="", stderr="API unavailable")
+
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=failure):
+                assert main() == EXIT_EXTERNAL
 
 
 class TestMain:

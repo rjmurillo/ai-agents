@@ -15,7 +15,9 @@ Outputs:
   spec_file - absolute path to the spec content markdown file
 
 EXIT CODES (ADR-035):
-  0 - content loaded (or no content found; still 0)
+  0 - content loaded
+  2 - referenced spec content is missing
+  3 - GitHub issue lookup failed
 """
 
 from __future__ import annotations
@@ -24,6 +26,10 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+
+EXIT_OK = 0
+EXIT_CONFIG = 2
+EXIT_EXTERNAL = 3
 
 
 def write_github_output(key: str, value: str) -> None:
@@ -36,8 +42,8 @@ def write_github_output(key: str, value: str) -> None:
         print(f"{key}={value}")
 
 
-def _gh_issue_body(issue_ref: str, default_repo: str) -> str:
-    """Fetch title + body for an issue ref."""
+def _gh_issue_body(issue_ref: str, default_repo: str) -> tuple[int, str]:
+    """Fetch title and body for an issue ref."""
     if "/" in issue_ref and "#" in issue_ref:
         repo, num = issue_ref.rsplit("#", 1)
     else:
@@ -63,7 +69,37 @@ def _gh_issue_body(issue_ref: str, default_repo: str) -> str:
         errors="replace",
         check=False,
     )
-    return result.stdout.strip() if result.returncode == 0 else ""
+    if result.returncode != 0:
+        print(
+            f"::error::gh issue view failed for {issue_ref}: {result.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return EXIT_EXTERNAL, ""
+    return EXIT_OK, result.stdout.strip()
+
+
+def _find_spec_by_id(ref: str) -> Path | None:
+    """Find a spec ID in the recursive specs tree."""
+    specs_root = Path(".agents/specs")
+    if not specs_root.is_dir():
+        return None
+    return next(
+        (path for path in sorted(specs_root.rglob(f"*{ref}*")) if path.is_file()),
+        None,
+    )
+
+
+def _read_spec(path: Path, display: str) -> tuple[int, str]:
+    """Read nonempty spec content."""
+    try:
+        content = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"::error::failed to read spec {display}: {exc}", file=sys.stderr)
+        return EXIT_CONFIG, ""
+    if not content.strip():
+        print(f"::error::spec content is empty: {display}", file=sys.stderr)
+        return EXIT_CONFIG, ""
+    return EXIT_OK, content
 
 
 def run(_argv: list[str] | None = None) -> int:
@@ -81,35 +117,44 @@ def run(_argv: list[str] | None = None) -> int:
     for ref in spec_refs:
         if ref.endswith(".md"):
             p = Path(ref)
-            if p.is_file():
-                parts.append(f"## Spec: {ref}\n\n{p.read_text(encoding='utf-8')}")
+            if not p.is_file():
+                print(f"::error::spec file not found: {ref}", file=sys.stderr)
+                return EXIT_CONFIG
+            exit_code, content = _read_spec(p, ref)
+            if exit_code != EXIT_OK:
+                return exit_code
+            parts.append(f"## Spec: {ref}\n\n{content}")
         else:
-            # Search for spec file by ID
-            import glob as glob_module
-
-            matches = glob_module.glob(f".agents/specs/*{ref}*")
-            if matches:
-                matched_path = matches[0]
-                parts.append(
-                    f"## Spec: {matched_path}\n\n{Path(matched_path).read_text(encoding='utf-8')}"
-                )
+            matched_path = _find_spec_by_id(ref)
+            if matched_path is None:
+                print(f"::error::spec ID not found: {ref}", file=sys.stderr)
+                return EXIT_CONFIG
+            exit_code, content = _read_spec(matched_path, str(matched_path))
+            if exit_code != EXIT_OK:
+                return exit_code
+            parts.append(f"## Spec: {matched_path}\n\n{content}")
 
     for issue in issue_refs:
-        body = _gh_issue_body(issue, repository)
+        exit_code, body = _gh_issue_body(issue, repository)
+        if exit_code != EXIT_OK:
+            return exit_code
         if body:
             display = f"#{issue}" if "/" not in issue else issue
             parts.append(f"## Issue {display}\n\n{body}")
 
     spec_content = "\n\n".join(parts)
     if not spec_content:
-        print("Warning: Could not load any spec content")
-        spec_content = f"No spec content found for references: {spec_refs_raw} {issue_refs_raw}"
+        print(
+            f"::error::no spec content found for references: {spec_refs_raw} {issue_refs_raw}",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
 
     spec_file = Path(runner_temp) / f"spec-content-{os.environ.get('GITHUB_RUN_ID', '0')}.md"
     spec_file.write_text(spec_content, encoding="utf-8")
     write_github_output("spec_file", str(spec_file))
 
-    return 0
+    return EXIT_OK
 
 
 def main() -> int:
