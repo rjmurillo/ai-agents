@@ -170,7 +170,7 @@ _TABLE_ROW_PATTERN: re.Pattern[str] = re.compile(
     r"^\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|$"
 )
 _MARKDOWN_LINK_PATTERN: re.Pattern[str] = re.compile(
-    r"\[([^\]]+)\]\(([^)]+)\)"
+    r"(?<!\\)\[([^\]]+)\]\(([^)]+)\)"
 )
 _DOMAIN_INDEX_FILENAME_PATTERN: re.Pattern[str] = re.compile(
     r"^[a-z][\w-]*-index\.md$"
@@ -185,7 +185,42 @@ OrphanPolicy = Literal["strict", "ratchet"]
 
 def _strip_html_comments(content: str) -> str:
     """Remove Markdown HTML comments before parsing retrieval links."""
-    return re.sub(r"<!--.*?-->", "", content, flags=re.DOTALL)
+    return re.sub(r"<!--.*?(?:-->|\Z)", "", content, flags=re.DOTALL)
+
+
+def _visible_lookup_content(content: str) -> str:
+    """Return lookup rows outside comments and code contexts."""
+    content = _strip_html_comments(content)
+    visible_lines: list[str] = []
+    fence_char = ""
+    fence_length = 0
+
+    for line in content.splitlines():
+        stripped = line.lstrip()
+        fence_match = re.match(r"(`{3,}|~{3,})", stripped)
+        if fence_char:
+            if (
+                fence_match
+                and fence_match.group(1)[0] == fence_char
+                and len(fence_match.group(1)) >= fence_length
+                and re.fullmatch(
+                    rf"{re.escape(fence_char)}{{{fence_length},}}[ \t]*",
+                    stripped,
+                )
+            ):
+                fence_char = ""
+                fence_length = 0
+            continue
+        if fence_match:
+            fence = fence_match.group(1)
+            fence_char = fence[0]
+            fence_length = len(fence)
+            continue
+        if not stripped.startswith("|"):
+            continue
+        visible_lines.append(re.sub(r"(`+).*?\1", "", line))
+
+    return "\n".join(visible_lines)
 
 
 def find_domain_indices(memory_path: Path) -> list[DomainIndex]:
@@ -208,7 +243,7 @@ def parse_index_entries(index_path: Path) -> list[IndexEntry]:
     if not index_path.exists():
         return []
 
-    content = _strip_html_comments(
+    content = _visible_lookup_content(
         index_path.read_text(encoding="utf-8")
     )
     entries: list[IndexEntry] = []
@@ -506,7 +541,7 @@ def check_memory_index_references(
         return result
 
     content = memory_index_path.read_text(encoding="utf-8")
-    lookup_content = _strip_html_comments(content)
+    lookup_content = _visible_lookup_content(content)
     resolved_memory = memory_path.resolve()
 
     # P1: Check validity of references
@@ -621,7 +656,7 @@ def find_orphaned_files(
         index_paths.append(root_index)
 
     for index_path in index_paths:
-        content = _strip_html_comments(
+        content = _visible_lookup_content(
             index_path.read_text(encoding="utf-8")
         )
         for match in _MARKDOWN_LINK_PATTERN.finditer(content):

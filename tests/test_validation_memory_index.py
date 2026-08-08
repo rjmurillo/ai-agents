@@ -806,15 +806,26 @@ class TestFindOrphanedFiles:
 
         assert orphans == []
 
-    def test_commented_domain_link_does_not_hide_orphan(
-        self, tmp_path: Path
+    @pytest.mark.parametrize(
+        "hidden_markup",
+        [
+            "<!--\n| fake: [hidden](quality/hidden-memory.md)",
+            "```\n| fake: [hidden](quality/hidden-memory.md)\n```",
+            "| fake: `[hidden](quality/hidden-memory.md)`",
+            r"| fake: \[hidden](quality/hidden-memory.md)",
+        ],
+    )
+    def test_non_route_markdown_link_does_not_hide_orphan(
+        self,
+        tmp_path: Path,
+        hidden_markup: str,
     ) -> None:
-        """HTML comments are not retrieval routes."""
+        """Comments, code, and escaped links are not retrieval routes."""
         create_memory_structure(tmp_path, {
             "quality-index.md": (
                 "| Keywords | File |\n"
                 "|----------|------|\n"
-                "<!-- [hidden](quality/hidden-memory.md) -->\n"
+                f"{hidden_markup}\n"
             ),
             "quality/hidden-memory.md": "orphan",
         })

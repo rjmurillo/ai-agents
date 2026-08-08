@@ -23,7 +23,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # Regex for markdown links: [text](path.md) or [text](dir/path.md)
-MARKDOWN_LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+\.md)\)")
+MARKDOWN_LINK_RE = re.compile(
+    r"(?<!\\)\[([^\]]*)\]\(([^)]+\.md)\)"
+)
 
 # Regex for domain index table rows: | keywords | [file](path.md) |
 INDEX_TABLE_ROW_RE = re.compile(
@@ -55,17 +57,52 @@ class ValidationResult:
 
 
 def extract_file_references(content: str) -> list[str]:
-    """Extract all .md file references from markdown links."""
-    visible_content = re.sub(
-        r"<!--.*?-->",
-        "",
-        content,
-        flags=re.DOTALL,
-    )
+    """Extract .md references from visible lookup rows."""
+    visible_content = _visible_lookup_content(content)
     return [
         match.group(2)
         for match in MARKDOWN_LINK_RE.finditer(visible_content)
     ]
+
+
+def _visible_lookup_content(content: str) -> str:
+    """Return lookup rows outside comments and code contexts."""
+    content = re.sub(
+        r"<!--.*?(?:-->|\Z)",
+        "",
+        content,
+        flags=re.DOTALL,
+    )
+    visible_lines: list[str] = []
+    fence_char = ""
+    fence_length = 0
+
+    for line in content.splitlines():
+        stripped = line.lstrip()
+        fence_match = re.match(r"(`{3,}|~{3,})", stripped)
+        if fence_char:
+            if (
+                fence_match
+                and fence_match.group(1)[0] == fence_char
+                and len(fence_match.group(1)) >= fence_length
+                and re.fullmatch(
+                    rf"{re.escape(fence_char)}{{{fence_length},}}[ \t]*",
+                    stripped,
+                )
+            ):
+                fence_char = ""
+                fence_length = 0
+            continue
+        if fence_match:
+            fence = fence_match.group(1)
+            fence_char = fence[0]
+            fence_length = len(fence)
+            continue
+        if not stripped.startswith("|"):
+            continue
+        visible_lines.append(re.sub(r"(`+).*?\1", "", line))
+
+    return "\n".join(visible_lines)
 
 
 def validate_references_exist(

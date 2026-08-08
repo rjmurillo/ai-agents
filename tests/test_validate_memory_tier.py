@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts.validate_memory_tier import (
     ValidationResult,
     extract_file_references,
@@ -21,20 +23,26 @@ class TestExtractFileReferences:
         assert refs == ["foo/bar.md"]
 
     def test_extracts_multiple_links(self) -> None:
-        content = "[a](one.md) text [b](two/three.md)"
+        content = "| links: [a](one.md) text [b](two/three.md)"
         refs = extract_file_references(content)
         assert refs == ["one.md", "two/three.md"]
 
     def test_ignores_non_md_links(self) -> None:
-        content = "[link](page.html) [other](doc.md)"
+        content = "| links: [link](page.html) [other](doc.md)"
         refs = extract_file_references(content)
         assert refs == ["doc.md"]
 
-    def test_ignores_html_commented_links(self) -> None:
-        content = (
-            "[live](live.md)\n"
-            "<!-- [hidden](quality/hidden.md) -->\n"
-        )
+    @pytest.mark.parametrize(
+        "hidden_markup",
+        [
+            "<!--\n| fake: [hidden](quality/hidden.md)",
+            "```\n| fake: [hidden](quality/hidden.md)\n```",
+            "| fake: `[hidden](quality/hidden.md)`",
+            r"| fake: \[hidden](quality/hidden.md)",
+        ],
+    )
+    def test_ignores_non_route_links(self, hidden_markup: str) -> None:
+        content = f"| live: [live](live.md)\n{hidden_markup}\n"
 
         refs = extract_file_references(content)
 
