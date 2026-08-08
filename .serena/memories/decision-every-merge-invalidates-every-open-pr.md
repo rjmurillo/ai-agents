@@ -146,20 +146,17 @@ than it is to be drift.
 as one.** `scripts/ci/merge_tree_ratchet_check.py` (issue #4398) is blocking on
 every pull request: it runs in job `validate-pr` of `pr-validation.yml`, whose
 name `Validate PR` is one of the 17 required contexts, with no `if` guard and no
-`continue-on-error`. But it evaluates only three ratchets against the merged
-result: ruff count, taste count, and type-ignore count, which are the three
-modules it imports at `scripts/ci/merge_tree_ratchet_check.py:61-63` and the
-three keys of `_baseline_map` at lines 259 to 262. Strict is what makes the
-other sixteen required contexts run against a tree containing current `main`.
+`continue-on-error`. It evaluates five ratchets from
+`scripts/ci/merge_tree_ratchet_registry.py` against the merged result: ruff
+count, taste count, type-ignore count, memory-index count, and the CLI exit
+contract. `merge_tree_ratchet_check.py` imports `RATCHETS` and iterates that
+registry. Strict is what makes the other sixteen required contexts run against
+a tree containing current `main`.
 
-Do not cite a five-ratchet registry here. An earlier draft of this memory said
-`scripts/ci/merge_tree_ratchet_check.py` reads five ratchets from
-`scripts/ci/merge_tree_ratchet_registry.py`. That file does not exist on `main`.
-It exists only on the unmerged branch `fix/pr4545-review-remediation`, added by
-commit `a30dc42600`, and `git merge-base --is-ancestor a30dc42600 origin/main`
-reports it is not an ancestor. The claim reached this memory from a subagent
-report that had read the other branch, and it was committed without checking the
-path resolved. Verify the import list before quoting a count.
+The registry reached `main` through PR #4545 in commit `11b8fb8833`, after an
+earlier version of this memory correctly recorded that it was branch-only.
+That dated correction then became stale. Verify the current `RATCHETS` entries
+before quoting a count instead of relying on either historical state.
 
 The uncovered class is the one that caused the incident. `Run Python Tests`
 carries whole-tree assertions, including the pinned corpus figures in
