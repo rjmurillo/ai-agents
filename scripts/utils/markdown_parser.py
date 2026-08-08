@@ -290,23 +290,111 @@ def _ignored_block_lines(tokens: list[Token]) -> set[int]:
     return ignored
 
 
-def _mask_inline_code(markdown: str) -> list[str]:
-    """Blank closed backtick spans while preserving lines and columns."""
+def _root_paragraph_lines(tokens: list[Token]) -> set[int]:
+    """Return source lines owned by top-level inline blocks."""
+    lines: set[int] = set()
+    for token in tokens:
+        if token.type == "inline" and token.level == 1 and token.map:
+            lines.update(range(token.map[0], token.map[1]))
+    return lines
+
+
+def _mask_range(
+    characters: list[str],
+    start: int,
+    end: int,
+) -> None:
+    """Blank a source range without changing line positions."""
+    for index in range(start, end):
+        if characters[index] != "\n":
+            characters[index] = " "
+
+
+def _next_unescaped_backtick(
+    line: str,
+    start: int,
+) -> tuple[int, int] | None:
+    """Return the next backtick run that CommonMark can open."""
+    for run in re.finditer(r"`+", line[start:]):
+        absolute_start = start + run.start()
+        prefix = line[:absolute_start]
+        backslashes = len(prefix) - len(prefix.rstrip("\\"))
+        if backslashes % 2 == 0:
+            return absolute_start, len(run.group(0))
+    return None
+
+
+def _mask_inline_contexts(
+    markdown: str,
+    ignored_lines: set[int],
+) -> list[str]:
+    """Blank inline code and HTML comments outside ignored block lines."""
     characters = list(markdown)
-    opening: re.Match[str] | None = None
-    for run in re.finditer(r"`+", markdown):
-        if opening is None:
-            preceding = markdown[:run.start()]
-            backslashes = len(preceding) - len(preceding.rstrip("\\"))
-            if backslashes % 2 == 0:
-                opening = run
+    code_start: int | None = None
+    code_length = 0
+    in_comment = False
+    offset = 0
+
+    for line_number, line in enumerate(markdown.splitlines(keepends=True)):
+        if line_number in ignored_lines:
+            code_start = None
+            code_length = 0
+            in_comment = False
+            offset += len(line)
             continue
-        if len(run.group(0)) != len(opening.group(0)):
-            continue
-        for index in range(opening.start(), run.end()):
-            if characters[index] != "\n":
-                characters[index] = " "
-        opening = None
+
+        position = 0
+        while position < len(line):
+            if in_comment:
+                close = line.find("-->", position)
+                if close < 0:
+                    _mask_range(characters, offset + position, offset + len(line))
+                    break
+                _mask_range(characters, offset + position, offset + close + 3)
+                in_comment = False
+                position = close + 3
+                continue
+
+            if code_start is not None:
+                closing = next(
+                    (
+                        run
+                        for run in re.finditer(r"`+", line[position:])
+                        if len(run.group(0)) == code_length
+                    ),
+                    None,
+                )
+                if closing is None:
+                    break
+                closing_end = position + closing.end()
+                _mask_range(characters, code_start, offset + closing_end)
+                code_start = None
+                code_length = 0
+                position = closing_end
+                continue
+
+            comment_start = line.find("<!--", position)
+            backtick = _next_unescaped_backtick(line, position)
+            backtick_start = backtick[0] if backtick is not None else -1
+            if comment_start >= 0 and (
+                backtick_start < 0 or comment_start < backtick_start
+            ):
+                in_comment = True
+                _mask_range(
+                    characters,
+                    offset + comment_start,
+                    offset + comment_start + 4,
+                )
+                position = comment_start + 4
+                continue
+            if backtick is None:
+                break
+            code_start = offset + backtick_start
+            code_length = backtick[1]
+            position = backtick_start + code_length
+
+        offset += len(line)
+
     return "".join(characters).splitlines()
 
 
@@ -319,9 +407,12 @@ def extract_lookup_references(markdown: str) -> list[str]:
 
     references, table_lines = _table_lookup_references(tokens)
     ignored_lines = _ignored_block_lines(tokens) | table_lines
+    root_lines = _root_paragraph_lines(tokens) - ignored_lines
 
-    for line_number, line in enumerate(_mask_inline_code(markdown)):
-        if line_number in ignored_lines:
+    for line_number, line in enumerate(
+        _mask_inline_contexts(markdown, ignored_lines)
+    ):
+        if line_number not in root_lines:
             continue
         if not line.startswith("|"):
             continue
