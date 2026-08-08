@@ -29,6 +29,7 @@ Coverage:
 - neg/lambda-body: violating subprocess calls inside lambdas are flagged
 - neg/lambda-use-before-rebind: assigned lambdas honor call-time rebind order
 - neg/branch-local-lambda-order: branch-defined lambdas honor outer call-time order
+- neg/class-method-order: class methods honor outer late-bind and rebind order
 - neg/match-guard-order: match guards capture deferred call order before later rebinds
 - neg/universal-newlines: legacy text-mode alias is treated like text=True
 - neg/from-import: ``from subprocess import run; run(...)`` -> flagged
@@ -413,6 +414,30 @@ def test_match_guard_deferred_call_before_later_rebind_is_flagged() -> None:
         "runner = print\n"
     )
     assert find_violations(source) == [4]
+
+
+def test_class_method_used_after_late_outer_bind_is_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "class C:\n"
+        "    def method(self):\n"
+        '        runner(["x"], encoding="utf-8")\n'
+        "runner = subprocess.check_output\n"
+        "C().method()\n"
+    )
+    assert find_violations(source) == [4]
+
+
+def test_class_method_after_later_rebind_is_not_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.check_output\n"
+        "class C:\n"
+        "    def method(self):\n"
+        '        runner(["x"], encoding="utf-8")\n'
+        "runner = print\n"
+    )
+    assert find_violations(source) == []
 
 
 def test_from_import_run_missing_errors() -> None:

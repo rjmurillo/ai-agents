@@ -540,7 +540,7 @@ def _scan_scope(
                     class_state.pipe_aliases,
                     class_state.function_bindings,
                 )
-                violations.extend(_scan_scope(stmt.body, class_state, source_lines))
+                _scan_block(stmt.body, class_state)
                 continue
 
             if isinstance(stmt, ast.Assign):
