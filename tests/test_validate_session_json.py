@@ -46,6 +46,7 @@ from scripts.validate_session_json import (
     validate_filename_number,
     validate_must_item,
     validate_protocol_compliance,
+    validate_qa_report_evidence,
     validate_qa_skip_scope,
     validate_session_end,
     validate_session_log,
@@ -75,6 +76,11 @@ def _make_complete_end_section(**overrides: dict) -> dict:
     section["handoffPreserved"] = {
         "complete": True,
         "evidence": "HANDOFF.md not modified",
+        "level": "MUST",
+    }
+    section["qaValidation"] = {
+        "complete": True,
+        "evidence": ".agents/qa/2026-08-07-pr-4735-closing-review.md",
         "level": "MUST",
     }
     section.update(overrides)
@@ -766,6 +772,97 @@ class TestValidateProtocolCompliance:
         assert "Missing: protocolCompliance.sessionEnd" not in result.errors
 
 
+class TestValidateQaReportEvidence:
+    """Tests for owned QA report evidence."""
+
+    @staticmethod
+    def _session_end(evidence: str) -> dict[str, Any]:
+        return {
+            "qaValidation": {
+                "complete": True,
+                "evidence": evidence,
+                "level": "MUST",
+            }
+        }
+
+    def test_existing_report_under_qa_root_passes(
+        self, tmp_path: Path
+    ) -> None:
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        report.write_text("# QA\n", encoding="utf-8")
+        result = ValidationResult()
+
+        with mock.patch(
+            "scripts.validate_session_json.artifact_dir",
+            return_value=qa_root,
+        ):
+            validate_qa_report_evidence(
+                self._session_end(str(report)),
+                result,
+            )
+
+        assert result.errors == []
+
+    def test_missing_report_fails_closed(self, tmp_path: Path) -> None:
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        result = ValidationResult()
+
+        with mock.patch(
+            "scripts.validate_session_json.artifact_dir",
+            return_value=qa_root,
+        ):
+            validate_qa_report_evidence(
+                self._session_end(str(qa_root / "missing.md")),
+                result,
+            )
+
+        assert result.errors == [
+            f"QA report not found: {(qa_root / 'missing.md').resolve()}"
+        ]
+
+    def test_report_outside_qa_root_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        outside = tmp_path / "outside.md"
+        outside.write_text("# Not QA\n", encoding="utf-8")
+        result = ValidationResult()
+
+        with mock.patch(
+            "scripts.validate_session_json.artifact_dir",
+            return_value=qa_root,
+        ):
+            validate_qa_report_evidence(
+                self._session_end(str(outside)),
+                result,
+            )
+
+        assert result.errors == [
+            "QA evidence must name a report under the configured QA "
+            f"artifact root: {str(outside)!r}"
+        ]
+
+    def test_verified_skip_does_not_require_report(
+        self, tmp_path: Path
+    ) -> None:
+        result = ValidationResult()
+
+        with mock.patch(
+            "scripts.validate_session_json.artifact_dir"
+        ) as artifact_dir_mock:
+            validate_qa_report_evidence(
+                self._session_end("SKIPPED: investigation-only"),
+                result,
+            )
+
+        assert result.errors == []
+        artifact_dir_mock.assert_not_called()
+
+
 class TestValidateSessionLog:
     """Tests for validate_session_log function."""
 
@@ -987,6 +1084,9 @@ class TestMainFunction:
     @pytest.fixture
     def valid_session_file(self, tmp_path: Path) -> Path:
         """Create a valid session log file."""
+        qa_report = tmp_path / ".agents" / "qa" / "report.md"
+        qa_report.parent.mkdir(parents=True)
+        qa_report.write_text("# QA\n", encoding="utf-8")
         data = {
             "schemaVersion": "1.0",
             "session": {
@@ -998,7 +1098,13 @@ class TestMainFunction:
             },
             "protocolCompliance": {
                 "sessionStart": _make_complete_start_section(),
-                "sessionEnd": _make_complete_end_section(),
+                "sessionEnd": _make_complete_end_section(
+                    qaValidation={
+                        "complete": True,
+                        "evidence": ".agents/qa/report.md",
+                        "level": "MUST",
+                    }
+                ),
             },
             "workLog": [],
             "endingCommit": "",

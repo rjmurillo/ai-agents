@@ -1087,6 +1087,56 @@ class TestCheckMemoryIndexReferences:
 
         assert result.passed is True
 
+    @pytest.mark.parametrize(
+        "raw_html",
+        [
+            "<span>[hidden](shared.md)</span>",
+            "<span><em>[hidden](shared.md)</em></span>",
+            "<!-- [hidden](shared.md) -->",
+        ],
+    )
+    def test_raw_html_does_not_contribute_links(
+        self,
+        tmp_path: Path,
+        raw_html: str,
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| direct: [one](shared.md)\n"
+                f"{raw_html}\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is True
+        assert result.duplicate_references == []
+
+    def test_link_after_void_raw_html_still_counts(
+        self, tmp_path: Path
+    ) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| direct: [one](shared.md)\n"
+                "<br> [two](shared.md)\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(
+            tmp_path,
+            [],
+            Counter(),
+        )
+
+        assert result.passed is False
+        assert result.duplicate_references == ["shared"]
+
     def test_dot_alias_counts_as_same_target(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (

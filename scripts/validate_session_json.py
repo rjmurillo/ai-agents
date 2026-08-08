@@ -46,6 +46,10 @@ from jsonschema.validators import validator_for
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
+_CLAUDE_LIB_DIR = _PROJECT_ROOT / ".claude" / "lib"
+sys.path.insert(0, str(_CLAUDE_LIB_DIR))
+
+from paths import artifact_dir  # noqa: E402
 
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 from scripts.validation.models import ValidationResult  # noqa: E402
@@ -882,6 +886,7 @@ def validate_session_end(session_end: dict[str, Any], result: ValidationResult) 
         required = (required - {"handoffPreserved"}) | {_LEGACY_HANDOFF_FIELD}
 
     validate_checklist_section(session_end, required, "sessionEnd", result)
+    validate_qa_report_evidence(session_end, result)
 
     # Legacy MUST NOT check: Complete=true means HANDOFF.md was modified (violation).
     if _LEGACY_HANDOFF_FIELD in session_end and "handoffPreserved" not in session_end:
@@ -890,6 +895,35 @@ def validate_session_end(session_end: dict[str, Any], result: ValidationResult) 
         level = get_case_insensitive(check_data, "level")
         if level == "MUST NOT" and is_complete:
             result.errors.append(f"{_MUST_NOT_VIOLATED_PREFIX}HANDOFF.md was modified (read-only)")
+
+
+def validate_qa_report_evidence(
+    session_end: dict[str, Any],
+    result: ValidationResult,
+) -> None:
+    """Require completed QA evidence to name an existing owned report."""
+    qa_validation = get_case_insensitive(session_end, "qaValidation")
+    if not isinstance(qa_validation, dict):
+        return
+    evidence = get_case_insensitive(qa_validation, "evidence")
+    if not isinstance(evidence, str) or evidence in _QA_SKIP_EVIDENCE:
+        return
+
+    candidate = Path(evidence)
+    if not candidate.is_absolute():
+        candidate = _PROJECT_ROOT / candidate
+    qa_root = artifact_dir("qa", base=_PROJECT_ROOT).resolve()
+    resolved_report = candidate.resolve()
+    try:
+        resolved_report.relative_to(qa_root)
+    except ValueError:
+        result.errors.append(
+            "QA evidence must name a report under the configured QA "
+            f"artifact root: {evidence!r}"
+        )
+        return
+    if not resolved_report.is_file():
+        result.errors.append(f"QA report not found: {resolved_report}")
 
 
 def validate_protocol_compliance(

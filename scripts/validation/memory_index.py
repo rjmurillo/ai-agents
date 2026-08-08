@@ -186,6 +186,27 @@ _MARKDOWN_LINK_PATTERN: re.Pattern[str] = re.compile(
     r"\[([^\]]+)\]\(([^)]+)\)"
 )
 _URL_PERCENT_ESCAPE_PATTERN = re.compile(r"%[0-9A-Fa-f]{2}")
+_HTML_TAG_PATTERN = re.compile(
+    r"^<\s*(?P<closing>/)?\s*(?P<name>[A-Za-z][A-Za-z0-9:-]*)"
+)
+_HTML_VOID_ELEMENTS = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
 _MARKDOWN_PARSER = _create_parser()
 
 
@@ -230,6 +251,19 @@ def _invalid_destination_reason(destination: str) -> str | None:
     return None
 
 
+def _raw_html_depth(content: str, depth: int) -> int:
+    """Track whether later inline tokens render inside raw HTML."""
+    match = _HTML_TAG_PATTERN.match(content)
+    if match is None:
+        return depth
+    if match.group("closing"):
+        return max(depth - 1, 0)
+    tag_name = match.group("name").lower()
+    if content.rstrip().endswith("/>") or tag_name in _HTML_VOID_ELEMENTS:
+        return depth
+    return depth + 1
+
+
 def _extract_memory_reference_names(
     content: str,
 ) -> tuple[list[str], list[str], list[str]]:
@@ -271,16 +305,19 @@ def _extract_memory_reference_names(
         children = token.children or []
         inline_destinations: list[str] = []
         plain_text: list[str] = []
+        html_depth = 0
         link_depth = 0
         for child in children:
-            if child.type == "link_open":
+            if child.type == "html_inline":
+                html_depth = _raw_html_depth(child.content, html_depth)
+            elif child.type == "link_open":
                 link_depth += 1
                 href = child.attrGet("href")
                 if not isinstance(href, str):
                     issues.append(
                         "P1 VALIDITY: parsed link has no destination"
                     )
-                else:
+                elif html_depth == 0:
                     inline_destinations.append(href)
             elif child.type == "link_close":
                 link_depth = max(link_depth - 1, 0)
