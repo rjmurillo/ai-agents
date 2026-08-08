@@ -1,0 +1,94 @@
+{
+  "id": "episode-2026-08-08-session-10006-fleet-pr-4651",
+  "session": "2026-08-08-session-10006-fleet-pr-4651",
+  "timestamp": "2026-08-08T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "partial",
+  "task": "Reassess PR 4651 and issues 4632 and 4633, resolve current main conflicts, fix exact-head CI failures, validate, review, and push.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-08T16:22:15+00:00",
+      "type": "milestone",
+      "content": "Acquired the PR autofix lease for PR 4651 and confirmed auto-merge was disabled.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-08T16:22:47+00:00",
+      "type": "milestone",
+      "content": "Live-state gate reported PR 4651 open, actionable, and not superseded by main.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-08T16:28:00+00:00",
+      "type": "milestone",
+      "content": "Exact head 07fbbfd2 failed Validate PR and Run Python Tests. Both failures trace to memory_index_token_ratchet.py calling strip on a tuple.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-08T16:28:30+00:00",
+      "type": "milestone",
+      "content": "Local trial merge against origin/main found conflicts in scripts/update_memory_index_tokens.py and tests/test_lefthook_gate_config.py.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-08T21:46:25+00:00",
+      "type": "milestone",
+      "content": "Completed main and concurrent-remote merges, fixed all verified Sol High findings, passed mutation controls and recursive CLEAN review, received security approval, passed local and pre-push gates, and pushed c6e0c05bd167aed433a39af6f8d09ff5bd25bf79 normally.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-08T20:41:51+00:00",
+      "type": "commit",
+      "content": "Commit: c6e0c05bd1",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 324,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 10
+  },
+  "lessons": []
+}
