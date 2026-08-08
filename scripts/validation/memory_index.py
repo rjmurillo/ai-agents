@@ -31,9 +31,16 @@ import dataclasses
 import json
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.utils.markdown_parser import extract_lookup_references  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -170,7 +177,7 @@ _TABLE_ROW_PATTERN: re.Pattern[str] = re.compile(
     r"^\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|$"
 )
 _MARKDOWN_LINK_PATTERN: re.Pattern[str] = re.compile(
-    r"(?<!\\)\[([^\]]+)\]\(([^)]+)\)"
+    r"\[([^\]]+)\]\(([^)]+)\)"
 )
 _DOMAIN_INDEX_FILENAME_PATTERN: re.Pattern[str] = re.compile(
     r"^[a-z][\w-]*-index\.md$"
@@ -181,46 +188,6 @@ _SPECIAL_MEMORY_FILENAMES = frozenset({
     "memory-index.md",
 })
 OrphanPolicy = Literal["strict", "ratchet"]
-
-
-def _strip_html_comments(content: str) -> str:
-    """Remove Markdown HTML comments before parsing retrieval links."""
-    return re.sub(r"<!--.*?(?:-->|\Z)", "", content, flags=re.DOTALL)
-
-
-def _visible_lookup_content(content: str) -> str:
-    """Return lookup rows outside comments and code contexts."""
-    content = _strip_html_comments(content)
-    visible_lines: list[str] = []
-    fence_char = ""
-    fence_length = 0
-
-    for line in content.splitlines():
-        stripped = line.lstrip()
-        fence_match = re.match(r"(`{3,}|~{3,})", stripped)
-        if fence_char:
-            if (
-                fence_match
-                and fence_match.group(1)[0] == fence_char
-                and len(fence_match.group(1)) >= fence_length
-                and re.fullmatch(
-                    rf"{re.escape(fence_char)}{{{fence_length},}}[ \t]*",
-                    stripped,
-                )
-            ):
-                fence_char = ""
-                fence_length = 0
-            continue
-        if fence_match:
-            fence = fence_match.group(1)
-            fence_char = fence[0]
-            fence_length = len(fence)
-            continue
-        if not stripped.startswith("|"):
-            continue
-        visible_lines.append(re.sub(r"(`+).*?\1", "", line))
-
-    return "\n".join(visible_lines)
 
 
 def find_domain_indices(memory_path: Path) -> list[DomainIndex]:
@@ -243,9 +210,7 @@ def parse_index_entries(index_path: Path) -> list[IndexEntry]:
     if not index_path.exists():
         return []
 
-    content = _visible_lookup_content(
-        index_path.read_text(encoding="utf-8")
-    )
+    content = index_path.read_text(encoding="utf-8")
     entries: list[IndexEntry] = []
 
     for line in content.split("\n"):
@@ -541,33 +506,11 @@ def check_memory_index_references(
         return result
 
     content = memory_index_path.read_text(encoding="utf-8")
-    lookup_content = _visible_lookup_content(content)
     resolved_memory = memory_path.resolve()
 
     # P1: Check validity of references
     # Collect file references from both table rows and pipe-delimited lines
-    file_refs: list[str] = []
-    for line in lookup_content.splitlines():
-        # Try table row format first: | keywords | files |
-        match = _TABLE_ROW_PATTERN.match(line)
-        if match:
-            file_entry = match.group(2).strip()
-            skip_values = {
-                "File", "Essential Memories", "Memory", "Memory Index"
-            }
-            if file_entry in skip_values or re.match(r"^-+$", file_entry):
-                continue
-            file_refs.extend(
-                f.strip() for f in file_entry.split(",") if f.strip()
-            )
-            continue
-
-        # Try pipe-delimited format: |keywords: [name](file.md), ...
-        stripped = line.strip()
-        if stripped.startswith("|") and not stripped.startswith("|---"):
-            # Extract all markdown links from the line
-            for link_match in _MARKDOWN_LINK_PATTERN.finditer(stripped):
-                file_refs.append(link_match.group(0))
+    file_refs = extract_lookup_references(content)
 
     normalized_refs: list[tuple[str, Path]] = []
     for raw_ref in file_refs:
@@ -656,15 +599,8 @@ def find_orphaned_files(
         index_paths.append(root_index)
 
     for index_path in index_paths:
-        content = _visible_lookup_content(
-            index_path.read_text(encoding="utf-8")
-        )
-        for match in _MARKDOWN_LINK_PATTERN.finditer(content):
-            referenced_files.add(Path(match.group(2)).as_posix())
-        for entry in parse_index_entries(index_path):
-            reference = entry.file_name
-            if not reference.endswith(".md"):
-                reference = f"{reference}.md"
+        content = index_path.read_text(encoding="utf-8")
+        for reference in extract_lookup_references(content):
             referenced_files.add(Path(reference).as_posix())
 
     orphans: list[Orphan] = []

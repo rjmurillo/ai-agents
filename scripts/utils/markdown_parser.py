@@ -224,6 +224,78 @@ def parse_tables(markdown: str) -> list[ParsedTable]:
     return tables
 
 
+def extract_lookup_references(markdown: str) -> list[str]:
+    """Return .md targets from rendered lookup rows and table file cells."""
+    md = _create_parser()
+    tokens = md.parse(markdown)
+    _raise_if_nesting_truncated(markdown, tokens, md)
+
+    references: list[str] = []
+    in_table = False
+    in_body = False
+    cell_index = -1
+    source_lines = markdown.splitlines()
+
+    for token in tokens:
+        if token.type == "table_open":
+            in_table = True
+            continue
+        if token.type == "table_close":
+            in_table = False
+            in_body = False
+            continue
+        if token.type == "tbody_open":
+            in_body = True
+            continue
+        if token.type == "tbody_close":
+            in_body = False
+            continue
+        if token.type == "tr_open":
+            cell_index = -1
+            continue
+        if token.type in {"th_open", "td_open"}:
+            cell_index += 1
+            continue
+        if token.type != "inline":
+            continue
+
+        children = token.children or []
+        link_targets: list[str] = []
+        for child in children:
+            if child.type != "link_open":
+                continue
+            href = child.attrGet("href")
+            if isinstance(href, str) and href.endswith(".md"):
+                link_targets.append(href)
+        if in_table:
+            if link_targets:
+                references.extend(link_targets)
+            elif in_body and cell_index == 1:
+                bare_target = token.content.strip()
+                if bare_target:
+                    references.append(
+                        bare_target
+                        if bare_target.endswith(".md")
+                        else f"{bare_target}.md"
+                    )
+            continue
+
+        if token.map is None:
+            continue
+        start_line, end_line = token.map
+        lookup_row_present = any(
+            re.match(r"^ {0,3}\|", source_lines[line_number])
+            for line_number in range(
+                max(start_line, 0),
+                min(end_line, len(source_lines)),
+            )
+        )
+        if lookup_row_present:
+            references.extend(link_targets)
+
+    return references
+
+
 def iter_table_cell_text(markdown: str) -> Iterator[TableCell]:
     """Yield the rendered text of every table cell with its source line.
 

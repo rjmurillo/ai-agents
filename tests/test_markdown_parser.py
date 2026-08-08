@@ -14,11 +14,68 @@ from scripts.utils.markdown_parser import (
     Section,
     TableRow,
     blank_code_block_lines,
+    extract_lookup_references,
     find_checklist_item,
     find_section,
     parse_sections,
     parse_tables,
 )
+
+
+class TestExtractLookupReferences:
+    """Test rendered lookup-route extraction."""
+
+    def test_extracts_link_and_bare_table_targets(self) -> None:
+        markdown = """\
+| Keywords | File |
+|----------|------|
+| linked | [linked](quality/linked.md) |
+| bare | quality/bare |
+"""
+
+        assert extract_lookup_references(markdown) == [
+            "quality/linked.md",
+            "quality/bare.md",
+        ]
+
+    def test_extracts_custom_root_lookup_links(self) -> None:
+        markdown = (
+            "| quality routes: [one](quality/one.md), "
+            "[two](quality/two.md)\n"
+        )
+
+        assert extract_lookup_references(markdown) == [
+            "quality/one.md",
+            "quality/two.md",
+        ]
+
+    @pytest.mark.parametrize(
+        "hidden_markup",
+        [
+            "<!--\n| fake: [hidden](quality/hidden.md)",
+            "```\n| fake: [hidden](quality/hidden.md)\n```",
+            "    | fake: [hidden](quality/hidden.md)",
+            "| fake: `[hidden](quality/hidden.md)`",
+            r"| fake: \[hidden](quality/hidden.md)",
+        ],
+    )
+    def test_ignores_non_rendered_links(self, hidden_markup: str) -> None:
+        assert extract_lookup_references(hidden_markup) == []
+
+    def test_even_backslashes_preserve_rendered_link(self) -> None:
+        markdown = r"| live: \\[live](quality/live.md)"
+
+        assert extract_lookup_references(markdown) == ["quality/live.md"]
+
+    def test_comment_marker_inside_fence_does_not_hide_later_route(self) -> None:
+        markdown = (
+            "```\n"
+            "<!--\n"
+            "```\n"
+            "| live: [live](quality/live.md)\n"
+        )
+
+        assert extract_lookup_references(markdown) == ["quality/live.md"]
 
 
 class TestParseTablesBasic:
