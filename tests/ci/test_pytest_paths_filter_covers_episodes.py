@@ -24,6 +24,7 @@ Markdown such as historical session logs.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
@@ -175,6 +176,7 @@ def test_the_filter_names_each_rule_input_root(root: str):
 
 
 @pytest.mark.parametrize("root", RULE_INPUT_ROOTS)
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 def test_the_filter_covers_every_tracked_rule_input(root: str):
     """Issue #4408: every tracked rule source and mirror must trigger pytest."""
     patterns = _python_filter()
@@ -189,6 +191,7 @@ def test_the_filter_covers_every_tracked_rule_input(root: str):
     )
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 def test_the_filter_still_skips_tracked_session_markdown():
     """The fix must not widen the filter to unrelated Markdown."""
     patterns = _python_filter()
