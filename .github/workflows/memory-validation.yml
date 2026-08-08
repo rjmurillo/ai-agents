@@ -61,6 +61,8 @@ jobs:
       - name: Checkout code
         if: steps.should-run.outputs.skip != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Setup code environment
         if: steps.should-run.outputs.skip != 'true'
@@ -85,6 +87,12 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         id: index-validation
         run: python3 scripts/validation/memory_index.py --path .serena/memories --ci --format console --orphan-policy ratchet
+
+      - name: Enforce memory index count ratchet
+        if: steps.should-run.outputs.skip != 'true'
+        env:
+          BASE_REF: origin/${{ github.base_ref }}
+        run: uv run --frozen python3 scripts/ci/memory_index_count_ratchet.py --base-ref "$BASE_REF"
 
       - name: Verify all memories
         if: steps.should-run.outputs.skip != 'true'

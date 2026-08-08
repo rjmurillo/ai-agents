@@ -118,3 +118,29 @@ class TestMemoryTierGateEnforcement:
             if "scripts/validation/memory_index.py" in run
         )
         assert "--orphan-policy ratchet" in command
+
+    def test_memory_workflow_runs_count_ratchet(self) -> None:
+        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-memories"]["steps"]
+        commands = [
+            step["run"]
+            for step in steps
+            if isinstance(step, dict) and isinstance(step.get("run"), str)
+        ]
+
+        assert any(
+            "scripts/ci/memory_index_count_ratchet.py" in command
+            and "--base-ref" in command
+            for command in commands
+        )
+
+    def test_memory_workflow_fetches_base_history(self) -> None:
+        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-memories"]["steps"]
+        checkout = next(
+            step
+            for step in steps
+            if step.get("uses", "").startswith("actions/checkout@")
+        )
+
+        assert checkout.get("with", {}).get("fetch-depth") == 0
