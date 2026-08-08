@@ -2,8 +2,8 @@
 """Audit closing claims across open pull requests.
 
 Paginates open PRs and extracts closing keywords (Fixes, Closes, Resolves,
-etc.) from the PR body and title. Classifies each claim by Markdown context
-and resolves the target state.
+etc.) from the PR body. Classifies each claim by Markdown context and resolves
+the target issue state when GitHub exposes it.
 
 Markdown context classification:
   active         - plain prose, closes the referenced issue on merge
@@ -12,7 +12,6 @@ Markdown context classification:
   html_comment   - inside <!-- ... -->
   escaped_hash   - hash escaped with backslash (\\#NNN), does not close
   negated        - phrase like "does not close #NNN" or "won't fix #NNN"
-  pr_number      - target is a PR number, not an issue
 
 Exit codes follow ADR-035:
     0 - Audit complete
@@ -63,7 +62,7 @@ _SCRIPT_NAME = "audit_closing_claims.py"
 # GitHub's recognised closing keywords (case-insensitive).
 _CLOSING_KEYWORDS_RE = re.compile(
     r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+"
-    r"(?:(?P<owner>[a-zA-Z0-9_.-]+)/(?P<repo2>[a-zA-Z0-9_.-]+))?#(?P<number>\d+)",
+    r"(?:(?P<owner>[a-zA-Z0-9_.-]+)/(?P<repo2>[a-zA-Z0-9_.-]+))?(?P<escape>\\?)#(?P<number>\d+)",
     re.IGNORECASE,
 )
 
@@ -210,11 +209,11 @@ def extract_claims(
     if not body:
         return []
 
-    text_no_fence, fenced_positions = _strip_fenced_code(body)
-    text_no_html, html_positions = _strip_html_comments(text_no_fence)
+    _, fenced_positions = _strip_fenced_code(body)
+    _, html_positions = _strip_html_comments(body)
 
     claims: list[dict[str, Any]] = []
-    for m in _CLOSING_KEYWORDS_RE.finditer(text_no_html):
+    for m in _CLOSING_KEYWORDS_RE.finditer(body):
         target_num = int(m.group("number"))
         context_cls = classify_claim(body, m, fenced_positions, html_positions)
         target_owner = m.group("owner") or owner

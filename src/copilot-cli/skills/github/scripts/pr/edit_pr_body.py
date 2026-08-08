@@ -92,13 +92,13 @@ def validate_body(new_body: str) -> list[str]:
             "bot reviewers flag each occurrence"
         )
 
-    # Detect `Fixes #A #B` on one line (GitHub closes only #A).
-    for m in _CLOSING_MULTI_RE.finditer(new_body):
-        warnings.append(
-            f"Multiple issue references on one closing-keyword line: "
-            f"'{m.group(0)}' - GitHub closes only the first target; "
-            "use one 'Fixes #N' per line"
-        )
+    for pattern in (_CLOSING_MULTI_RE, _MULTI_CLOSE_RE):
+        for m in pattern.finditer(new_body):
+            warnings.append(
+                f"Multiple issue references on one closing-keyword line: "
+                f"'{m.group(0)}' - GitHub closes only the first target; "
+                "use one 'Fixes #N' per line"
+            )
 
     return warnings
 
