@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4068,
+    "date": "2026-08-08",
+    "branch": "fix/4068-adr006-exit-contracts",
+    "startingCommit": "d260ef60b",
+    "objective": "Fix ADR-006 extraction exit contracts for issue 4068"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena active for repository; worktree activation tool was unavailable."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions completed."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/check_skill_exists.py --list-available completed."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub, security, review, and session skills used."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS.md, GOTCHAS.md, CI rules, Python rules, and testing rules read."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory search found no ADR-006 or exit-contract memory."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4068-adr006-exit-contracts"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4068-adr006-exit-contracts"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Isolated worktree started with only this session log untracked."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "d260ef60b"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session MUST items completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed existing memories; code, tests, and issue discussion carry the durable exit-contract evidence."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation committed through d8f34432d."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Full repository suite exited 0; targeted Ruff, ratchets, security scan, and session validation passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "scope",
+      "detail": "Audited all six issue instances. smoke_install_tarball.py and measure_npm_pack_size.py were already fixed on origin/main. Four silent passes remained."
+    },
+    {
+      "action": "fix",
+      "detail": "Made spec loading, incremental scope parsing, drift issue creation, and artifact issue creation fail with ADR-035 config or external error codes."
+    },
+    {
+      "action": "test",
+      "detail": "Added CLI positive, negative, and edge coverage. Killed four old-behavior mutants. Targeted and safeguard suites passed 169 tests."
+    },
+    {
+      "action": "validation",
+      "detail": "Full repository suite exited 0 after collecting 24285 tests. Targeted Ruff passed. Repository-wide Ruff still reports 30 pre-existing findings outside this diff."
+    },
+    {
+      "action": "review",
+      "detail": "Independent review found one empty-spec bypass. Fixed it and added two tests. CWE-78 scan covered four scripts with no findings. Security verdict: OK."
+    }
+  ],
+  "endingCommit": "d8f34432d",
+  "nextSteps": []
+}

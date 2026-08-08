@@ -44,7 +44,9 @@ def create_memory_structure(
     """Create test memory files from a dictionary."""
     base.mkdir(parents=True, exist_ok=True)
     for name, content in files.items():
-        (base / name).write_text(content, encoding="utf-8")
+        path = base / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -125,11 +127,13 @@ class TestFindDomainIndices:
     def test_finds_indices(self, tmp_path: Path) -> None:
         (tmp_path / "skills-test-index.md").write_text("content")
         (tmp_path / "skills-other-index.md").write_text("content")
+        (tmp_path / "adr-reference-index.md").write_text("content")
         indices = find_domain_indices(tmp_path)
-        assert len(indices) == 2
+        assert len(indices) == 3
         domains = {i.domain for i in indices}
         assert "test" in domains
         assert "other" in domains
+        assert "adr-reference" in domains
 
     def test_nonexistent_path(self, tmp_path: Path) -> None:
         indices = find_domain_indices(tmp_path / "missing")
@@ -140,11 +144,14 @@ class TestFindDomainIndices:
         indices = find_domain_indices(tmp_path)
         assert indices == []
 
+    def test_excludes_root_index(self, tmp_path: Path) -> None:
+        (tmp_path / "memory-index.md").write_text("content")
+        assert find_domain_indices(tmp_path) == []
+
     def test_domain_extraction(self, tmp_path: Path) -> None:
         (tmp_path / "skills-multi-word-index.md").write_text("c")
         indices = find_domain_indices(tmp_path)
         assert indices[0].domain == "multi-word"
-
 
 # ---------------------------------------------------------------------------
 # check_file_references
@@ -345,6 +352,18 @@ class TestCheckIndexFormat:
         assert result.passed is False
         assert any("Non-table content detected" in i for i in result.issues)
 
+    def test_prose_before_table_detected(self, tmp_path: Path) -> None:
+        index = tmp_path / "skills-test-index.md"
+        index.write_text(
+            "This is prose text.\n"
+            "| Keywords | File |\n"
+            "|----------|------|\n"
+            "| alpha | skill |\n"
+        )
+        result = check_index_format(index)
+        assert result.passed is False
+        assert any("Non-table content detected" in i for i in result.issues)
+
     def test_empty_lines_between_rows_allowed(self, tmp_path: Path) -> None:
         index = tmp_path / "index.md"
         index.write_text(
@@ -493,6 +512,36 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is False
         assert "skills-test-index" in result.unreferenced_indices
 
+    def test_unreferenced_generic_domain_index(self, tmp_path: Path) -> None:
+        """Completeness covers every ADR-017 {domain}-index file."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": "| Keywords | File |\n|----------|------|\n",
+            "quality-index.md": "| Keywords | File |\n|----------|------|\n",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert result.unreferenced_indices == ["quality-index"]
+
+    def test_comment_and_link_label_do_not_satisfy_completeness(
+        self, tmp_path: Path
+    ) -> None:
+        """Only an exact lookup target makes a domain index retrievable."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| hidden: <!-- [quality](quality-index.md) -->\n"
+                "| label: [quality-index](other.md)\n"
+            ),
+            "quality-index.md": "| Keywords | File |\n|----------|------|\n",
+            "other.md": "other",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert result.unreferenced_indices == ["quality-index"]
+
     def test_broken_reference(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (
@@ -565,6 +614,39 @@ class TestCheckMemoryIndexReferences:
         result = check_memory_index_references(tmp_path, [])
         assert result.passed is True
         assert not result.broken_references
+
+    def test_duplicate_link_targets_fail(self, tmp_path: Path) -> None:
+        """Issue #4705: memory-index must not point at one target twice."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "[Section]\n"
+                "|alpha beta: [one](shared.md)\n"
+                "|gamma delta: [also one](shared.md)\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert "shared" in result.duplicate_references
+        assert any("Duplicate memory-index target" in issue for issue in result.issues)
+
+    def test_duplicate_alias_link_targets_fail(self, tmp_path: Path) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "[Section]\n"
+                "|alpha beta: [one](shared.md)\n"
+                "|gamma delta: [also one](./shared.md)\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert "shared" in result.duplicate_references
+        assert any("Duplicate memory-index target" in issue for issue in result.issues)
 
     def test_path_traversal_detected(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
@@ -682,6 +764,169 @@ class TestFindOrphanedFiles:
         orphans = find_orphaned_files(indices, tmp_path)
         skill_orphans = [o for o in orphans if o.domain == "INVALID"]
         assert len(skill_orphans) == 3
+
+    def test_finds_nested_orphan_without_known_domain_prefix(
+        self, tmp_path: Path
+    ) -> None:
+        """Nested atomic memories are checked regardless of file prefix."""
+        create_memory_structure(tmp_path, {
+            "skills-quality-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| indexed nested control unique keywords | "
+                "[nested](quality/indexed-memory.md) |\n"
+            ),
+            "quality/indexed-memory.md": "indexed",
+            "quality/unprefixed-memory.md": "orphan",
+        })
+
+        orphans = find_orphaned_files(
+            find_domain_indices(tmp_path),
+            tmp_path,
+        )
+
+        assert [(orphan.file, orphan.expected_index) for orphan in orphans] == [
+            ("quality/unprefixed-memory", "skills-quality-index.md")
+        ]
+
+    def test_finds_top_level_orphan_without_existing_domain_index(
+        self, tmp_path: Path
+    ) -> None:
+        """A new namespace cannot hide because no matching index exists yet."""
+        create_memory_structure(tmp_path, {
+            "decision-use-one-source-of-truth.md": "orphan",
+        })
+
+        orphans = find_orphaned_files([], tmp_path)
+
+        assert [(orphan.file, orphan.expected_index) for orphan in orphans] == [
+            (
+                "decision-use-one-source-of-truth",
+                "a domain index referenced by memory-index.md",
+            )
+        ]
+
+    def test_suggests_existing_general_index_for_nested_orphan(
+        self, tmp_path: Path
+    ) -> None:
+        """Remediation names the index that owns the orphan's directory."""
+        create_memory_structure(tmp_path, {
+            "adr-reference-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| existing adr route keywords | "
+                "[existing](adr/adr-014-review-findings.md) |\n"
+            ),
+            "adr/adr-014-review-findings.md": "indexed",
+            "adr/adr-099-new.md": "orphan",
+        })
+
+        orphans = find_orphaned_files(
+            find_domain_indices(tmp_path),
+            tmp_path,
+        )
+
+        assert [(orphan.file, orphan.expected_index) for orphan in orphans] == [
+            ("adr/adr-099-new", "adr-reference-index.md")
+        ]
+
+    def test_generic_domain_index_reference_prevents_false_orphan(
+        self, tmp_path: Path
+    ) -> None:
+        """All ADR-017 index shapes contribute references to orphan detection."""
+        create_memory_structure(tmp_path, {
+            "quality-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| generic domain index reference keywords | "
+                "[memory](quality/indexed-memory.md) |\n"
+            ),
+            "quality/indexed-memory.md": "indexed",
+        })
+
+        orphans = find_orphaned_files([], tmp_path)
+
+        assert orphans == []
+
+    def test_parent_segment_alias_is_canonicalized(
+        self, tmp_path: Path
+    ) -> None:
+        """A valid segment/../ alias resolves to the indexed atomic path."""
+        create_memory_structure(tmp_path, {
+            "quality-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| alias route canonical path keywords | "
+                "[memory](quality/../quality/indexed-memory.md) |\n"
+            ),
+            "quality/indexed-memory.md": "indexed",
+        })
+
+        orphans = find_orphaned_files([], tmp_path)
+
+        assert orphans == []
+
+    @pytest.mark.parametrize(
+        "hidden_markup",
+        [
+            "<!--\n| fake: [hidden](quality/hidden-memory.md)",
+            "```\n| fake: [hidden](quality/hidden-memory.md)\n```",
+            "| fake: `[hidden](quality/hidden-memory.md)`",
+            r"| fake: \[hidden](quality/hidden-memory.md)",
+        ],
+    )
+    def test_non_route_markdown_link_does_not_hide_orphan(
+        self,
+        tmp_path: Path,
+        hidden_markup: str,
+    ) -> None:
+        """Comments, code, and escaped links are not retrieval routes."""
+        create_memory_structure(tmp_path, {
+            "quality-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                f"{hidden_markup}\n"
+            ),
+            "quality/hidden-memory.md": "orphan",
+        })
+
+        orphans = find_orphaned_files([], tmp_path)
+
+        assert [orphan.file for orphan in orphans] == [
+            "quality/hidden-memory"
+        ]
+
+    def test_nested_index_named_atomic_is_not_exempt(
+        self, tmp_path: Path
+    ) -> None:
+        """Only top-level domain indexes receive the index-file exemption."""
+        create_memory_structure(tmp_path, {
+            "quality/retry-index.md": "atomic memory",
+        })
+
+        orphans = find_orphaned_files([], tmp_path)
+
+        assert [orphan.file for orphan in orphans] == ["quality/retry-index"]
+
+    def test_excludes_special_index_and_hidden_files(
+        self, tmp_path: Path
+    ) -> None:
+        """Intentional non-atomic files remain outside orphan enforcement."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": "root",
+            "README.md": "readme",
+            "CLAUDE.md": "instructions",
+            "skills-quality-index.md": "| Keywords | File |\n|---|---|\n",
+            "quality-index.md": "| Keywords | File |\n|---|---|\n",
+            ".scratch/hidden-memory.md": "scratch",
+        })
+
+        orphans = find_orphaned_files(
+            find_domain_indices(tmp_path),
+            tmp_path,
+        )
+
+        assert orphans == []
 
 
 # ---------------------------------------------------------------------------
@@ -942,11 +1187,17 @@ class TestBuildParser:
         assert args.ci is False
         assert args.output_format == "console"
         assert args.fix_orphans is False
+        assert args.orphan_policy == "strict"
 
     def test_ci_flag(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["--ci"])
         assert args.ci is True
+
+    def test_orphan_policy_flag(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["--orphan-policy", "ratchet"])
+        assert args.orphan_policy == "ratchet"
 
     def test_format_choices(self) -> None:
         parser = build_parser()
@@ -1068,3 +1319,141 @@ class TestOrphanEnforcesFailure:
         report = run_validation(tmp_path, "json")
         assert report.passed is True
         assert report.orphans == []
+
+    def test_ratchet_policy_reports_orphan_without_failing(
+        self, tmp_path: Path
+    ) -> None:
+        """The count ratchet, not the legacy backlog, controls repository gates."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| quality retrieval index keywords | "
+                "[quality](skills-quality-index.md) |\n"
+            ),
+            "skills-quality-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| indexed atomic memory unique keywords | "
+                "[indexed](quality-indexed-memory.md) |\n"
+            ),
+            "quality-indexed-memory.md": "indexed",
+            "decision-unindexed-memory.md": "legacy orphan",
+        })
+
+        report = run_validation(
+            tmp_path,
+            "json",
+            orphan_policy="ratchet",
+        )
+
+        assert report.passed is True
+        assert [orphan.file for orphan in report.orphans] == [
+            "decision-unindexed-memory",
+        ]
+
+    def test_ratchet_policy_still_fails_unreferenced_domain_index(
+        self, tmp_path: Path
+    ) -> None:
+        """A new retrieval dead end cannot trade against atomic cleanup."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": "| Keywords | File |\n|----------|------|\n",
+            "legacy-index.md": "| Keywords | File |\n|----------|------|\n",
+        })
+
+        report = run_validation(
+            tmp_path,
+            "json",
+            orphan_policy="ratchet",
+        )
+
+        assert report.passed is False
+        assert [orphan.file for orphan in report.orphans] == ["legacy-index"]
+
+    def test_ratchet_policy_rejects_malformed_general_domain_index(
+        self, tmp_path: Path
+    ) -> None:
+        """Every ADR-017 domain index must remain a pure lookup table."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| general route | [general](general-index.md) |\n"
+            ),
+            "general-index.md": (
+                "Prose before the lookup table.\n"
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| general route | [atomic](general-atomic.md) |\n"
+            ),
+            "general-atomic.md": "content",
+        })
+
+        report = run_validation(
+            tmp_path,
+            "json",
+            orphan_policy="ratchet",
+        )
+
+        assert report.passed is False
+        assert report.domain_results["general"].index_format.passed is False
+
+    def test_ratchet_policy_rejects_general_index_path_traversal(
+        self, tmp_path: Path
+    ) -> None:
+        """A general domain index cannot route outside the memory root."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| general route | [general](general-index.md) |\n"
+            ),
+            "general-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| escaped route | [outside](../../outside.md) |\n"
+            ),
+        })
+
+        report = run_validation(
+            tmp_path,
+            "json",
+            orphan_policy="ratchet",
+        )
+
+        assert report.passed is False
+        issues = report.domain_results["general"].file_references.issues
+        assert any("Path traversal detected" in issue for issue in issues)
+
+    def test_general_index_skips_skills_keyword_policy(
+        self, tmp_path: Path
+    ) -> None:
+        """Legacy domains get structural checks, not skills-only density rules."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| general route | [general](general-index.md) |\n"
+            ),
+            "general-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| repeated words | [one](general-one.md) |\n"
+                "| repeated words | [two](general-two.md) |\n"
+                "| repeated words | [one again](general-one.md) |\n"
+            ),
+            "general-one.md": "one",
+            "general-two.md": "two",
+        })
+
+        report = run_validation(
+            tmp_path,
+            "json",
+            orphan_policy="ratchet",
+        )
+
+        assert report.passed is True
+        result = report.domain_results["general"]
+        assert result.keyword_density.passed is True
+        assert result.keyword_density.densities == {}
+        assert result.duplicate_entries.passed is True

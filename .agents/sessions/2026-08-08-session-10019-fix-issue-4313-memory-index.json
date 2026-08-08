@@ -1,0 +1,168 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10019,
+    "date": "2026-08-08",
+    "branch": "fix/4313-memory-index-enforcement",
+    "startingCommit": "7d05b74a0",
+    "objective": "Fix issue 4313 memory index enforcement on PR 4638"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active for /home/richard/sessions/fix-4313"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions completed"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only reference"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git ls-files found 169 skill script files"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory usage-mandatory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded usage-mandatory, memory/serena-memory-subdirectory-convention, and memory/retrieval-led-reasoning-2026-02-08"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4313-memory-index-enforcement"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4313-memory-index-enforcement"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Only this untracked session log present before implementation"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "7d05b74a0"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items verified; full pre_pr.py passed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md remained read-only and unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No separate memory needed; validator behavior and regressions are encoded in committed code and tests"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 passed; changed .serena memory files are intentionally excluded by repository configuration"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation through 304e877a3 committed; current origin/main merged without force-push"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "263 targeted tests, ruff, mypy, all memory ratchets, and full pre_pr.py passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "SQL todo fix-4313 remains in progress until PR #4638 merges and issue #4313 closes"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped for focused issue repair; tests and review comments preserve the durable findings"
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Revalidated issue #4313 and PR #4638",
+      "outcome": "Current main had 424 advisory tier findings, no blocking atomic coverage, and top-level-only prefix-dependent orphan discovery"
+    },
+    {
+      "action": "Merged current main into the existing PR branch",
+      "outcome": "Resolved the earlier generated-script conflict without force-push and preserved current token validation"
+    },
+    {
+      "action": "Implemented recursive prefix-independent orphan discovery",
+      "outcome": "Every tracked atomic memory is inventoried recursively; strict mode blocks all findings while ratchet mode preserves the legacy backlog"
+    },
+    {
+      "action": "Added complete index routes",
+      "outcome": "Added the decision-record index and five missing root routes, reducing the measured backlog from 425 to 387"
+    },
+    {
+      "action": "Hardened Markdown route extraction",
+      "outcome": "Only rendered file cells count; comments, code, fences, lazy continuations, reference definitions, aliases, and nested blocks cannot launder routes"
+    },
+    {
+      "action": "Closed security review findings",
+      "outcome": "Exact canonical paths prevent substring and domain-swap bypasses; every top-level ADR-017 index now receives blocking format, reference, and traversal checks"
+    },
+    {
+      "action": "Preserved intentional legacy policies",
+      "outcome": "Keyword density, duplicate, minimum-keyword, and prefix guidance remain scoped to skills domain indexes; all index shapes contribute valid routes"
+    },
+    {
+      "action": "Corrected orphan remediation",
+      "outcome": "Messages name a real owning index based on canonical routes, or give a truthful generic instruction when no owner exists"
+    },
+    {
+      "action": "Ran independent review",
+      "outcome": "Final code review and security recheck returned PASS after all findings were fixed"
+    },
+    {
+      "action": "Ran final validation",
+      "outcome": "263 targeted tests passed; ruff, mypy, pre_pr.py, count ratchet, and token ratchet passed; ratchet reports exactly 387 atomic findings"
+    }
+  ],
+  "endingCommit": "304e877a3",
+  "nextSteps": [
+    "Push the existing PR #4638 branch and answer every review thread",
+    "Retain auto-merge, drive PR #4638 to merge, verify issue #4313 closes, and mark SQL todo done"
+  ]
+}

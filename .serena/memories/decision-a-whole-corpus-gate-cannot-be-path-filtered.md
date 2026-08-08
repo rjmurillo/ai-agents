@@ -337,6 +337,10 @@ sets are not the same.
 
 ## Related
 
+- Issue #4752 applied this rule to `validate-vendor-portability.yml`. Its six
+  ratchets inspect the repository tree, so the fix removed the dorny filter,
+  change-detector job, and success-producing skip job instead of forcing only
+  pushes through the filter.
 - `ci/ci-infrastructure-006-required-check-path-filter-bypass.md` is the
   **opposite** failure: a path filter stops a required check from ever
   reporting, so the PR waits forever. That one is loud and self-announcing.
