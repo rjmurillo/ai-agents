@@ -28,6 +28,7 @@ from scripts.detect_scope_explosion import (
     get_ref_commit,
     main,
     report,
+    rescope_against_pr_base,
     resolve_base_ref,
 )
 
@@ -787,3 +788,404 @@ class TestBypassHintContext:
         report(self._blocked_result(), from_prepush=True)
         out = capsys.readouterr().out
         assert "git stash" not in out
+
+
+class TestRescopeAgainstPrBase:
+    """Tests for rescope_against_pr_base.
+
+    Credibility is a graph property. The blocked result forks from main at
+    MAIN_FORK; a genuine stack base forks later at STACK_FORK. Tests that want
+    the rescope accepted must supply both, because identical fork points mean
+    the base is not a stack and are refused without consulting git.
+    """
+
+    MAIN_FORK = "aaaa111"
+    STACK_FORK = "bbbb222"
+
+    @classmethod
+    def _result(
+        cls,
+        count: int,
+        branch: str = "feat/stacked",
+        merge_base: str | None = None,
+    ) -> ScopeResult:
+        return ScopeResult(
+            file_count=count,
+            merge_base=cls.MAIN_FORK if merge_base is None else merge_base,
+            current_branch=branch,
+            files=tuple(f"file{i}.py" for i in range(count)),
+        )
+
+    @classmethod
+    def _stacked(cls, count: int) -> ScopeResult:
+        """A re-measurement whose fork point is downstream of main's."""
+        return cls._result(count, merge_base=cls.STACK_FORK)
+
+    @staticmethod
+    def _no_merge():
+        """Patch the merge check off so a test exercises the normal path."""
+        return patch(
+            "scripts.detect_scope_explosion.get_merge_head_commit", return_value=None
+        )
+
+    @staticmethod
+    def _downstream(result: bool = True):
+        """Patch the ancestry test the credibility check delegates to."""
+        return patch("scripts.detect_scope_explosion.is_ancestor", return_value=result)
+
+    def test_rescopes_to_the_pr_base(self) -> None:
+        """A stacked PR is re-measured against its real base."""
+        blocked = self._result(52)
+        narrowed = self._stacked(13)
+        with (
+            self._no_merge(),
+            self._downstream(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope", return_value=narrowed),
+        ):
+            assert rescope_against_pr_base(None, blocked) is narrowed
+
+    def test_passes_the_pr_base_to_detect_scope(self) -> None:
+        """The re-measurement uses the resolved base, not the original one."""
+        with (
+            self._no_merge(),
+            self._downstream(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._stacked(13),
+            ) as detect,
+        ):
+            rescope_against_pr_base(None, self._result(52))
+        detect.assert_called_once_with("fix/parent")
+
+    def test_looks_up_the_pr_for_the_branch_that_was_measured(self) -> None:
+        """The branch comes from the blocked result, not a fresh git read.
+
+        Re-reading would let a branch switch between the two measurements
+        resolve a PR belonging to a branch nobody measured.
+        """
+        blocked = self._result(52, branch="feat/measured")
+        with (
+            self._no_merge(),
+            self._downstream(),
+            patch(
+                "scripts.detect_scope_explosion.get_current_branch",
+                return_value="feat/switched-underneath-us",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ) as resolve,
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._stacked(13),
+            ),
+        ):
+            rescope_against_pr_base(None, blocked)
+        resolve.assert_called_once_with("feat/measured")
+
+    def test_skips_rescoping_during_a_merge(self) -> None:
+        """detect_scope compares differently mid-merge, so the numbers differ in kind."""
+        with (
+            patch(
+                "scripts.detect_scope_explosion.get_merge_head_commit",
+                return_value="deadbeef",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch"
+            ) as resolve,
+        ):
+            assert rescope_against_pr_base(None, self._result(52)) is None
+        resolve.assert_not_called()
+
+    def test_returns_none_on_detached_head(self) -> None:
+        """With no branch name on the measured result there is no PR to look up."""
+        detached = self._result(52, branch="")
+        with (
+            self._no_merge(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch"
+            ) as resolve,
+        ):
+            assert rescope_against_pr_base(None, detached) is None
+        resolve.assert_not_called()
+
+    def test_returns_none_when_no_pr_base(self) -> None:
+        """With no PR resolved the caller keeps the original measurement."""
+        with (
+            self._no_merge(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value=None,
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope") as detect,
+        ):
+            assert rescope_against_pr_base(None, self._result(52)) is None
+        detect.assert_not_called()
+
+    def test_returns_none_when_pr_base_is_already_the_measured_base(self) -> None:
+        """Re-measuring against the same base would repeat the same work."""
+        with (
+            self._no_merge(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="main",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope") as detect,
+        ):
+            assert rescope_against_pr_base("main", self._result(52)) is None
+        detect.assert_not_called()
+
+    def test_normalizes_the_remote_prefix_before_comparing(self) -> None:
+        """origin/main and main name the same branch; pre-push passes the former."""
+        with (
+            self._no_merge(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="main",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope") as detect,
+        ):
+            assert rescope_against_pr_base("origin/main", self._result(52)) is None
+        detect.assert_not_called()
+
+    def test_compares_against_the_requested_base_not_a_hardcoded_main(self) -> None:
+        """A caller measuring against something other than main is honored.
+
+        Every other test here passes None or a form of main, so hardcoding
+        "main" in the comparison behaves identically in all of them and the
+        parameter can be ignored without a single failure.
+        """
+        with (
+            self._no_merge(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="release/next",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope") as detect,
+        ):
+            assert (
+                rescope_against_pr_base("origin/release/next", self._result(52)) is None
+            )
+        detect.assert_not_called()
+
+    def test_still_rescopes_when_the_requested_base_is_not_the_pr_base(self) -> None:
+        """The negative control for the test above.
+
+        Same non-main requested base, different PR base. This must re-measure,
+        which proves the previous test refused for the reason it claims rather
+        than because any non-main base is refused outright.
+        """
+        narrowed = self._stacked(13)
+        with (
+            self._no_merge(),
+            self._downstream(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope", return_value=narrowed),
+        ):
+            assert (
+                rescope_against_pr_base("origin/release/next", self._result(52))
+                is narrowed
+            )
+
+    def test_returns_none_when_remeasurement_fails(self) -> None:
+        """An unresolvable second measurement keeps the original block."""
+        with (
+            self._no_merge(),
+            self._downstream(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope", return_value=None),
+        ):
+            assert rescope_against_pr_base(None, self._result(52)) is None
+
+    def test_refuses_a_zero_file_remeasurement(self) -> None:
+        """A failed git diff reads as zero files, which would clear the block.
+
+        get_index_files_against_ref returns [] on any nonzero git diff and
+        detect_scope wraps that into ScopeResult(file_count=0) rather than
+        None, so this is the shape a broken diff actually takes.
+        """
+        with (
+            self._no_merge(),
+            self._downstream(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._stacked(0),
+            ),
+        ):
+            assert rescope_against_pr_base(None, self._result(52)) is None
+
+    def test_refuses_a_base_that_forks_where_main_forks(self) -> None:
+        """An unrelated branch shares main's fork point, so it is not a stack."""
+        not_stacked = self._result(13, merge_base=self.MAIN_FORK)
+        with (
+            self._no_merge(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/unrelated",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope", return_value=not_stacked
+            ),
+        ):
+            assert rescope_against_pr_base(None, self._result(52)) is None
+
+    def test_refuses_a_base_whose_fork_point_is_not_downstream(self) -> None:
+        """When git says the fork points are unordered the numbers are incomparable."""
+        with (
+            self._no_merge(),
+            self._downstream(result=False),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._stacked(13),
+            ),
+        ):
+            assert rescope_against_pr_base(None, self._result(52)) is None
+
+    def test_accepts_a_stacked_base_naming_a_file_main_never_saw(self) -> None:
+        """The regression path-set containment caused.
+
+        A child that reverts a file its parent changed differs from its parent
+        on exactly that file, and agrees with main about it, so the file is
+        absent from the main-relative set. Containment rejected this honest
+        stacked PR; ancestry accepts it.
+        """
+        blocked = ScopeResult(
+            file_count=51,
+            merge_base=self.MAIN_FORK,
+            current_branch="feat/stacked",
+            files=tuple(f"f{i:02d}.txt" for i in range(1, 52)),
+        )
+        reverted = ScopeResult(
+            file_count=1,
+            merge_base=self.STACK_FORK,
+            current_branch="feat/stacked",
+            files=("f00.txt",),
+        )
+        with (
+            self._no_merge(),
+            self._downstream(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch("scripts.detect_scope_explosion.detect_scope", return_value=reverted),
+        ):
+            assert rescope_against_pr_base(None, blocked) is reverted
+
+    def test_reports_both_counts(self, capsys: CaptureFixture[str]) -> None:
+        """The operator sees which base produced which number."""
+        with (
+            self._no_merge(),
+            self._downstream(),
+            patch(
+                "scripts.detect_scope_explosion.resolve_pr_base_branch",
+                return_value="fix/parent",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._stacked(13),
+            ),
+        ):
+            rescope_against_pr_base(None, self._result(52))
+        err = capsys.readouterr().err
+        assert "origin/fix/parent" in err
+        assert "13 files" in err
+        assert "52" in err
+
+
+class TestMainConsultsPrBaseOnlyWhenBlocking:
+    """Tests for the main() gate around rescope_against_pr_base."""
+
+    @staticmethod
+    def _result(count: int) -> ScopeResult:
+        return ScopeResult(
+            file_count=count,
+            merge_base="abc123def456",
+            current_branch="feat/stacked",
+            files=tuple(f"file{i}.py" for i in range(count)),
+        )
+
+    def test_under_the_limit_skips_the_lookup(self) -> None:
+        """The common path pays no gh call."""
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("sys.argv", ["detect_scope_explosion.py"]),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._result(BLOCK_THRESHOLD),
+            ),
+            patch("scripts.detect_scope_explosion.rescope_against_pr_base") as rescope,
+        ):
+            assert main() == 0
+        rescope.assert_not_called()
+
+    def test_over_the_limit_consults_the_pr_base(self) -> None:
+        """A blocking count triggers exactly one re-measurement attempt."""
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("sys.argv", ["detect_scope_explosion.py"]),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._result(BLOCK_THRESHOLD + 2),
+            ),
+            patch(
+                "scripts.detect_scope_explosion.rescope_against_pr_base",
+                return_value=self._result(13),
+            ) as rescope,
+        ):
+            assert main() == 0
+        assert rescope.call_count == 1
+
+    def test_still_blocks_a_genuinely_large_pr(self) -> None:
+        """Re-measuring does not rescue a PR that is large against its own base."""
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("sys.argv", ["detect_scope_explosion.py"]),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._result(BLOCK_THRESHOLD + 40),
+            ),
+            patch(
+                "scripts.detect_scope_explosion.rescope_against_pr_base",
+                return_value=self._result(BLOCK_THRESHOLD + 30),
+            ),
+        ):
+            assert main() == 1
+
+    def test_blocks_when_no_pr_base_resolves(self) -> None:
+        """Unchanged behavior when gh cannot answer: the main count stands."""
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("sys.argv", ["detect_scope_explosion.py"]),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._result(BLOCK_THRESHOLD + 2),
+            ),
+            patch(
+                "scripts.detect_scope_explosion.rescope_against_pr_base",
+                return_value=None,
+            ),
+        ):
+            assert main() == 1
