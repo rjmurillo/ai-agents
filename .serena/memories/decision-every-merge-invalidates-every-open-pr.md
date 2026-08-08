@@ -134,6 +134,28 @@ Owner decision recorded 2026-08-03: enable a merge queue, sequenced after the
 drain rather than before it, since a queue serializes merges and would have made
 the drain slower.
 
+## Implementation update, 2026-08-08
+
+Issue #4691's workflow count was stale. Ruleset 11104075 still requires 17
+contexts, but current main produces them from 12 workflows. Both `Analyze`
+contexts come from `codeql-analysis.yml`; `ai-metrics-analysis.yml` is not a
+required-check producer.
+
+The code-readiness change adds `merge_group` support to those 12 workflows.
+Tree-sensitive checks run against the queued merge ref. PR-shaped checks
+conclude at job level because the PR already passed the same required context
+before queue entry. Structural tests pin all 17 live contexts, main-only event
+targeting, queue-ref concurrency, path-filter forcing, and PR anti-vacuity.
+Local `gh act merge_group` execution ran `Validate Path Normalization` against
+3,967 tracked Markdown files.
+
+Code readiness cannot enable the queue by itself. The repository API reports
+`owner.type = User`, while GitHub limits merge queues to organization-owned
+repositories for this repository configuration. The owner must transfer the
+repository to an organization or GitHub must expand eligibility. Only then can
+the ruleset gain a `merge_queue` rule. Keep its timeout above the observed
+Python test ceiling.
+
 ## Corollary: the merged result can be red even when every input was green
 
 The section above is about PRs behind main going red. The sharper failure is the
