@@ -55,6 +55,18 @@ SERENA_WRITES = {
     "onboarding",
 }
 
+REQUIRED_GITHUB_READ_TOOLS = {
+    "github/issue_read",
+    "github/pull_request_read",
+    "github/get_file_contents",
+    "github/list_commits",
+}
+
+REQUIRED_CI_READ_TOOLS = {
+    "github/list_workflow_runs",
+    "github/get_workflow_run",
+}
+
 
 def _extract_frontmatter(text: str) -> str:
     """Extract YAML frontmatter from a file."""
@@ -128,6 +140,30 @@ class TestNoUnsafeToolsInFrontmatter:
                     pytest.fail(
                         f"{path.relative_to(REPO_ROOT)}: serena write op '{tool}'"
                     )
+
+
+class TestRequiredReadOnlyGitHubTools:
+    """Analyst outputs must keep PR, issue, file, commit, and CI read tools."""
+
+    @pytest.mark.parametrize(
+        "path",
+        ALL_ANALYST_FILES,
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    )
+    def test_required_read_tools_present(self, path: Path) -> None:
+        text = path.read_text()
+        frontmatter = _extract_frontmatter(text)
+        tools = set(_extract_tools(frontmatter))
+        missing_github = REQUIRED_GITHUB_READ_TOOLS - tools
+        missing_ci = REQUIRED_CI_READ_TOOLS - tools
+        assert not missing_github, (
+            f"{path.relative_to(REPO_ROOT)}: missing GitHub read tools "
+            f"{sorted(missing_github)}"
+        )
+        assert not missing_ci, (
+            f"{path.relative_to(REPO_ROOT)}: missing CI read tools "
+            f"{sorted(missing_ci)}"
+        )
 
 
 class TestNoDirectGitHubGuidance:
