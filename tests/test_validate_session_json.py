@@ -46,6 +46,7 @@ from scripts.validate_session_json import (
     validate_filename_number,
     validate_must_item,
     validate_protocol_compliance,
+    validate_qa_skip_scope,
     validate_session_end,
     validate_session_log,
     validate_session_section,
@@ -827,6 +828,120 @@ class TestValidateSessionLog:
         # The schema owns presence reporting since #3346; the
         # hand-rolled "Missing: protocolCompliance" duplicate was removed.
         assert any("'protocolCompliance' is a required property" in e for e in result.errors)
+
+
+class TestValidateQaSkipScope:
+    """Tests for blocking investigation-only claim verification."""
+
+    @staticmethod
+    def _log() -> dict[str, Any]:
+        return {
+            "session": {"startingCommit": "a" * 40},
+            "endingCommit": "b" * 40,
+            "protocolCompliance": {
+                "sessionEnd": {
+                    "qaValidation": {
+                        "Complete": True,
+                        "Evidence": "SKIPPED: investigation-only",
+                        "level": "MUST",
+                    }
+                }
+            },
+        }
+
+    def test_eligible_range_passes(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps({"Eligible": True, "Violations": []}),
+            stderr="",
+        )
+        result = ValidationResult()
+
+        with mock.patch("subprocess.run", return_value=completed) as run:
+            validate_qa_skip_scope(self._log(), result)
+
+        assert result.errors == []
+        assert run.call_args.args[0][-4:] == [
+            "--base-ref",
+            "a" * 40,
+            "--head-ref",
+            "b" * 40,
+        ]
+
+    def test_validation_head_extends_beyond_stale_ending_commit(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps({"Eligible": True, "Violations": []}),
+            stderr="",
+        )
+        result = ValidationResult()
+
+        with mock.patch("subprocess.run", return_value=completed) as run:
+            validate_qa_skip_scope(
+                self._log(),
+                result,
+                validation_head="c" * 40,
+            )
+
+        assert result.errors == []
+        assert run.call_args.args[0][-4:] == [
+            "--base-ref",
+            "a" * 40,
+            "--head-ref",
+            "c" * 40,
+        ]
+
+    def test_ineligible_range_fails(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps(
+                {"Eligible": False, "Violations": ["scripts/main.py"]}
+            ),
+            stderr="",
+        )
+        result = ValidationResult()
+
+        with mock.patch("subprocess.run", return_value=completed):
+            validate_qa_skip_scope(self._log(), result)
+
+        assert result.errors == [
+            "QA investigation-only scope includes non-investigation files: "
+            "scripts/main.py"
+        ]
+
+    def test_checker_error_fails_closed(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps(
+                {"Eligible": False, "Violations": [], "Error": "bad ref"}
+            ),
+            stderr="",
+        )
+        result = ValidationResult()
+
+        with mock.patch("subprocess.run", return_value=completed):
+            validate_qa_skip_scope(self._log(), result)
+
+        assert result.errors == [
+            "QA investigation-only scope cannot be verified: bad ref"
+        ]
+
+    def test_docs_only_skip_requires_qa_report(self) -> None:
+        log = self._log()
+        log["protocolCompliance"]["sessionEnd"]["qaValidation"]["Evidence"] = (
+            "SKIPPED: docs-only"
+        )
+        result = ValidationResult()
+
+        validate_qa_skip_scope(log, result)
+
+        assert result.errors == [
+            "QA docs-only scope cannot be verified automatically; provide a QA report"
+        ]
 
 
 class TestLoadSessionFile:

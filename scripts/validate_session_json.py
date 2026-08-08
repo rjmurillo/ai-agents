@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -142,8 +143,18 @@ SESSION_END_REQUIRED_ITEMS = frozenset(
         "handoffPreserved",
         "serenaMemoryUpdated",
         "markdownLintRun",
+        "qaValidation",
         "changesCommitted",
         "validationPassed",
+    }
+)
+
+# .agents/SESSION-PROTOCOL.md defines these exact QA exemption values:
+# "SKIPPED: docs-only" and "SKIPPED: investigation-only".
+_QA_SKIP_EVIDENCE = frozenset(
+    {
+        "SKIPPED: docs-only",
+        "SKIPPED: investigation-only",
     }
 )
 
@@ -797,11 +808,16 @@ def validate_must_item(
         result.warnings.append(f"Missing evidence: {section_name}.{item_name}")
 
     if level == "MUST" and is_complete and evidence and isinstance(evidence, str):
-        if _has_contradiction(evidence):
-            result.warnings.append(
+        permitted_qa_skip = item_name == "qaValidation" and evidence in _QA_SKIP_EVIDENCE
+        if not permitted_qa_skip and _has_contradiction(evidence):
+            message = (
                 f"Evidence contradiction: {section_name}.{item_name} "
                 f"is complete but evidence suggests otherwise: {evidence!r}"
             )
+            if item_name == "qaValidation":
+                result.errors.append(message)
+            else:
+                result.warnings.append(message)
 
 
 def validate_checklist_section(
@@ -1061,6 +1077,123 @@ def validate_session_log(
     return result
 
 
+def _qa_skip_claim(data: object) -> tuple[str, object, object] | None:
+    """Return the evidence and recorded range for a recognized QA skip."""
+    if not isinstance(data, dict):
+        return None
+    protocol = data.get("protocolCompliance")
+    if not isinstance(protocol, dict):
+        return None
+    session_end = get_case_insensitive(protocol, "sessionEnd")
+    if not isinstance(session_end, dict):
+        return None
+    qa_validation = get_case_insensitive(session_end, "qaValidation")
+    if not isinstance(qa_validation, dict):
+        return None
+    evidence = get_case_insensitive(qa_validation, "evidence")
+    if not isinstance(evidence, str) or evidence not in _QA_SKIP_EVIDENCE:
+        return None
+
+    session = data.get("session")
+    starting_commit = (
+        get_case_insensitive(session, "startingCommit")
+        if isinstance(session, dict)
+        else None
+    )
+    return evidence, starting_commit, data.get("endingCommit")
+
+
+def _investigation_scope_payload(
+    starting_commit: str,
+    ending_commit: str,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Run the owning eligibility checker for one recorded commit range."""
+    checker = (
+        _PROJECT_ROOT
+        / ".claude"
+        / "skills"
+        / "session"
+        / "scripts"
+        / "test_investigation_eligibility.py"
+    )
+    if not checker.is_file():
+        return None, f"scope checker not found: {checker}"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(checker),
+            "--base-ref",
+            starting_commit,
+            "--head-ref",
+            ending_commit,
+        ],
+        cwd=_PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or f"exit {completed.returncode}"
+        return None, f"scope checker failed: {detail}"
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return None, "scope checker returned invalid JSON"
+    if not isinstance(payload, dict):
+        return None, "scope checker returned non-object JSON"
+    return payload, None
+
+
+def validate_qa_skip_scope(
+    data: object,
+    result: ValidationResult,
+    *,
+    validation_head: str | None = None,
+) -> None:
+    """Verify an investigation-only QA claim through the validation endpoint."""
+    claim = _qa_skip_claim(data)
+    if claim is None:
+        return
+    evidence, starting_commit, ending_commit = claim
+    if evidence == "SKIPPED: docs-only":
+        result.errors.append(
+            "QA docs-only scope cannot be verified automatically; "
+            "provide a QA report"
+        )
+        return
+    if not isinstance(starting_commit, str) or not isinstance(ending_commit, str):
+        result.errors.append(
+            "QA investigation-only scope cannot be verified: "
+            "startingCommit and endingCommit are required"
+        )
+        return
+
+    payload, error = _investigation_scope_payload(
+        starting_commit,
+        validation_head or ending_commit,
+    )
+    if error:
+        result.errors.append(f"QA investigation-only {error}")
+        return
+    assert payload is not None
+    error = payload.get("Error")
+    if error:
+        result.errors.append(
+            f"QA investigation-only scope cannot be verified: {error}"
+        )
+        return
+    if not payload.get("Eligible", False):
+        violations = payload.get("Violations", [])
+        detail = ", ".join(str(path) for path in violations) or "unknown changed path"
+        result.errors.append(
+            f"QA investigation-only scope includes non-investigation files: {detail}"
+        )
+
+
 _FILENAME_NUMBER_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}-session-(\d+)(?:-|$)")
 
 
@@ -1281,6 +1414,13 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--validation-head",
+        help=(
+            "Validate investigation-only scope through this commit instead of "
+            "stopping at the recorded endingCommit."
+        ),
+    )
+    parser.add_argument(
         "--json-output",
         type=Path,
         metavar="PATH",
@@ -1354,6 +1494,11 @@ def main() -> int:
             data, existing_log=existing_log, creation_mode=args.creation_mode
         )
         validate_filename_number(validated_path, data, result)
+        validate_qa_skip_scope(
+            data,
+            result,
+            validation_head=args.validation_head,
+        )
 
         # Report results
         report_results(validated_path, result, args.pre_commit)
