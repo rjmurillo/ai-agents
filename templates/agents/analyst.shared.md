@@ -5,6 +5,12 @@ argument-hint: Describe the topic, issue, or feature to research
 tools_vscode:
   - read
   - search
+  - github/issue_read
+  - github/pull_request_read
+  - github/get_file_contents
+  - github/list_commits
+  - github/list_workflow_runs
+  - github/get_workflow_run
   - cognitionai/deepwiki/*
   - context7/*
   - serena/find_symbol
@@ -19,6 +25,12 @@ tools_vscode:
 tools_copilot:
   - read
   - search
+  - github/issue_read
+  - github/pull_request_read
+  - github/get_file_contents
+  - github/list_commits
+  - github/list_workflow_runs
+  - github/get_workflow_run
   - cognitionai/deepwiki/*
   - context7/*
   - serena/find_symbol
