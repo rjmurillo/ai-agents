@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10021,
+    "date": "2026-08-08",
+    "branch": "fix/4691-merge-group-support",
+    "startingCommit": "0f2ee4533",
+    "objective": "Fix issue 4691 merge queue event support"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project context active for /home/richard/src/GitHub/rjmurillo/ai-agents2"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions completed"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read as read-only"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/github/scripts inventory loaded from github skill"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/usage-mandatory.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md and GOTCHAS.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded merge queue, required-check, concurrency, path-filter, and job-name memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4691-merge-group-support"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Feature branch in isolated worktree"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Only this untracked session log is present"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "0f2ee4533"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUST items complete before the final session-log commit"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit markdown lint ran; the changed Serena memory is excluded by .markdownlint-cli2.yaml"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All implementation and memory changes committed at HEAD 6efdd58210; this session log is the final artifact"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed before the final session-log commit"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SQL todo fix-4691 remains in_progress until the PR merges and issue closes"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "triage",
+      "detail": "Confirmed 17 live required contexts from ruleset 11104075 map to 12 workflows. Current main had no merge_group triggers. Repository ownership remains User, so GitHub does not offer final merge-queue enablement."
+    },
+    {
+      "action": "implement",
+      "detail": "Added main-scoped merge_group triggers. Tree-sensitive checks run on queued refs. PR-shaped checks conclude after their pull request checks passed. Queue refs use isolated concurrency groups."
+    },
+    {
+      "action": "test",
+      "detail": "Added structural positive, negative, and edge controls for all 17 contexts. The focused suite passed 466 tests. Workflow validation, actionlint dry runs, ADR-006 scanning, Ruff, and pre_pr.py passed."
+    },
+    {
+      "action": "execute",
+      "detail": "Ran Validate Path Normalization with a merge_group payload through gh act. Both jobs passed and scanned 3,967 Markdown files."
+    },
+    {
+      "action": "review",
+      "detail": "DevOps review passed after two fixes. Adversarial Sol findings were rejected against issue acceptance criteria: PR-shaped success is deliberate, and three Aggregate Results producers are the existing live ruleset contract."
+    }
+  ],
+  "endingCommit": "6efdd58210",
+  "nextSteps": []
+}
