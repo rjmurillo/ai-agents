@@ -15,7 +15,8 @@ ENV (required in the calling step):
 
 EXIT CODES (ADR-035):
   0 - issue created
-  1 - template missing / gh error
+  2 - template or drift details missing
+  3 - GitHub issue creation failed
 """
 
 from __future__ import annotations
@@ -28,7 +29,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 EXIT_OK = 0
-EXIT_ERR = 1
+EXIT_CONFIG = 2
+EXIT_EXTERNAL = 3
 
 _TEMPLATE_PATH = Path(".github/prompts/drift-alert-issue.md")
 
@@ -41,13 +43,19 @@ def run(_argv: list[str] | None = None) -> int:
     run_id = os.environ.get("RUN_ID", os.environ.get("GITHUB_RUN_ID", ""))
 
     if not _TEMPLATE_PATH.exists():
-        print(f"::error::template not found: {_TEMPLATE_PATH}")
-        return EXIT_ERR
+        print(f"::error::template not found: {_TEMPLATE_PATH}", file=sys.stderr)
+        return EXIT_CONFIG
 
     tmpl = string.Template(_TEMPLATE_PATH.read_text(encoding="utf-8"))
 
     details_path = Path(runner_temp) / "drift-details.md"
-    drift_details = details_path.read_text(encoding="utf-8") if details_path.exists() else ""
+    if not details_path.is_file():
+        print(f"::error::drift details not found: {details_path}", file=sys.stderr)
+        return EXIT_CONFIG
+    drift_details = details_path.read_text(encoding="utf-8")
+    if not drift_details.strip():
+        print(f"::error::drift details are empty: {details_path}", file=sys.stderr)
+        return EXIT_CONFIG
 
     now = datetime.now(UTC)
     body = tmpl.substitute(
@@ -77,7 +85,10 @@ def run(_argv: list[str] | None = None) -> int:
         ],
         check=False,
     )
-    return EXIT_OK if result.returncode == 0 else EXIT_ERR
+    if result.returncode != 0:
+        print("::error::gh issue create failed", file=sys.stderr)
+        return EXIT_EXTERNAL
+    return EXIT_OK
 
 
 def main() -> int:

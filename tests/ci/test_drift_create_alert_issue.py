@@ -17,7 +17,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from scripts.ci.drift_create_alert_issue import run
+from scripts.ci.drift_create_alert_issue import (
+    EXIT_CONFIG,
+    EXIT_EXTERNAL,
+    EXIT_OK,
+    main,
+    run,
+)
 
 
 def _make_template(tmp_path: Path) -> Path:
@@ -46,8 +52,8 @@ def test_missing_template_returns_error(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
     rc = run()
-    assert rc == 1
-    assert "template not found" in capsys.readouterr().out
+    assert rc == EXIT_CONFIG
+    assert "template not found" in capsys.readouterr().err
 
 
 def test_success_calls_gh_issue_create(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -64,7 +70,7 @@ def test_success_calls_gh_issue_create(tmp_path: Path, monkeypatch: pytest.Monke
     ) as mock_sub:
         rc = run()
 
-    assert rc == 0
+    assert rc == EXIT_OK
     call_args = mock_sub.call_args[0][0]
     assert "gh" in call_args
     assert "issue" in call_args
@@ -78,11 +84,12 @@ def test_gh_failure_propagated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("SERVER_URL", "https://github.com")
     monkeypatch.setenv("REPOSITORY", "owner/repo")
     monkeypatch.setenv("RUN_ID", "1")
+    (tmp_path / "drift-details.md").write_text("- agent: foo", encoding="utf-8")
 
     with patch("scripts.ci.drift_create_alert_issue.subprocess.run", return_value=_mock_gh(1)):
         rc = run()
 
-    assert rc == 1
+    assert rc == EXIT_EXTERNAL
 
 
 def test_gh_nonzero_exit_maps_to_exit_err(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -93,11 +100,12 @@ def test_gh_nonzero_exit_maps_to_exit_err(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setenv("SERVER_URL", "https://github.com")
     monkeypatch.setenv("REPOSITORY", "owner/repo")
     monkeypatch.setenv("RUN_ID", "1")
+    (tmp_path / "drift-details.md").write_text("- agent: foo", encoding="utf-8")
 
     with patch("scripts.ci.drift_create_alert_issue.subprocess.run", return_value=_mock_gh(2)):
         rc = run()
 
-    assert rc == 1, "returncode=2 from gh must be mapped to EXIT_ERR=1"
+    assert rc == EXIT_EXTERNAL
 
 
 def test_template_substitution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -130,7 +138,9 @@ def test_template_substitution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert "drift here" in body
 
 
-def test_missing_drift_details_handled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_missing_drift_details_main_returns_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.chdir(tmp_path)
     _make_template(tmp_path)
     monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
@@ -139,10 +149,26 @@ def test_missing_drift_details_handled(tmp_path: Path, monkeypatch: pytest.Monke
     monkeypatch.setenv("RUN_ID", "1")
     # drift-details.md does NOT exist
 
-    with patch("scripts.ci.drift_create_alert_issue.subprocess.run", return_value=_mock_gh(0)):
-        rc = run()
+    with patch("scripts.ci.drift_create_alert_issue.subprocess.run") as mock_run:
+        rc = main()
 
-    assert rc == 0
+    assert rc == EXIT_CONFIG
+    mock_run.assert_not_called()
+
+
+def test_empty_drift_details_returns_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _make_template(tmp_path)
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    (tmp_path / "drift-details.md").write_text("", encoding="utf-8")
+
+    with patch("scripts.ci.drift_create_alert_issue.subprocess.run") as mock_run:
+        rc = main()
+
+    assert rc == EXIT_CONFIG
+    mock_run.assert_not_called()
 
 
 def test_fallback_env_vars_used(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -155,6 +181,7 @@ def test_fallback_env_vars_used(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setenv("GITHUB_REPOSITORY", "fallback/repo")
     monkeypatch.delenv("RUN_ID", raising=False)
     monkeypatch.setenv("GITHUB_RUN_ID", "7")
+    (tmp_path / "drift-details.md").write_text("- agent: foo", encoding="utf-8")
 
     captured_body: list[str] = []
 
