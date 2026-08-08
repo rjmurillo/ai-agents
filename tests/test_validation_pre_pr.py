@@ -394,9 +394,7 @@ class TestHookModeBanner:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """A failing run in hook mode must not print either banner."""
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
+        mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {"SKIP_AUTOFIX": "1"}):
