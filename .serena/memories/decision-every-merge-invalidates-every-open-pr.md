@@ -49,12 +49,22 @@ GitHub refuses the merge outright until the branch is current, so the
 invalidation is no longer advisory: after each landing, every other open PR is
 hard-blocked until someone refreshes it.
 
-The drain is therefore strictly serial. Measured the same day: 64 PRs open,
-four landed (#4614, #4572, #4755, #4741), 60 open at the end, with every
-remaining PR pushed back to `BEHIND` by the landings. An armed auto-merge does not
-rescue this, since auto-merge does not update a branch: #4766 was armed, knocked
-back to `BEHIND` by an intervening merge, and had to be refreshed and re-armed
-by hand.
+The drain is therefore strictly serial. Measured the same day: four PRs landed
+(#4614, #4572, #4755, #4741) and the open count ended at 60, with every
+remaining PR pushed back to `BEHIND` by the landings.
+
+Do not read that as "64 minus four equals 60". Reconstructing open-PR state
+from the API puts 65 open immediately before the first landing, and five PRs
+left the queue in that window, because #4683 was closed unmerged at 14:57:16Z
+alongside the four merges. Queue size is not a landing ledger, so measure the
+count and the landings separately rather than deriving one from the other.
+
+An armed auto-merge does not rescue the serialization, because auto-merge never
+updates a branch: it stays armed and waits indefinitely while the PR sits
+`BEHIND`. Observed on #4766, whose `autoMergeRequest.enabledAt` of
+`2026-08-08T18:38:05Z` survived both a later landing that knocked it back and
+two subsequent branch refreshes. Refreshing the branch is the step a human
+still has to take; re-arming is not.
 
 The merge-queue caveat below is unchanged and is now the binding constraint,
 not the staleness itself.
