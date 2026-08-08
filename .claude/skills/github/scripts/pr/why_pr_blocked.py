@@ -7,6 +7,7 @@ cause list:
 
   MISSING  - required by the ruleset, never ran (produced no row in the rollup)
   FAILING  - required by the ruleset or isRequired=true, conclusion is failing
+  REVIEWS  - an approval is required or changes were requested
   THREADS  - unresolved review threads requiring resolution
 
 When all gates are satisfied, reports "likely mergeable" because BLOCKED is not
@@ -50,7 +51,7 @@ from github_core.api import (
     gh_graphql,
     resolve_repo_params,
 )
-from github_core.checks_rollup import group_checks_by_name
+from github_core.checks_rollup import extract_workflow_run_number, partition_rows_by_run
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
@@ -68,6 +69,8 @@ _FAILING_CONCLUSIONS = {
     "STALE", "STARTUP_FAILURE",
 }
 _PENDING_STATUSES = {"QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"}
+_BLOCKING_MERGE_STATES = {"CONFLICTING", "UNKNOWN"}
+_BLOCKING_MERGE_STATE_STATUSES = {"DIRTY", "UNKNOWN"}
 
 _PR_QUERY = """\
 query($owner: String!, $repo: String!, $number: Int!) {
@@ -78,6 +81,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
             baseRefName
             mergeable
             mergeStateStatus
+            reviewDecision
             commits(last: 1) {
                 nodes {
                     commit {
@@ -88,6 +92,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
                                 nodes {
                                     ... on CheckRun {
                                         __typename name status conclusion detailsUrl
+                                        checkSuite { app { databaseId } }
                                         isRequired(pullRequestNumber: $number)
                                     }
                                     ... on StatusContext {
@@ -119,6 +124,7 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
                         nodes {
                             ... on CheckRun {
                                 __typename name status conclusion detailsUrl
+                                checkSuite { app { databaseId } }
                                 isRequired(pullRequestNumber: $number)
                             }
                             ... on StatusContext {
@@ -155,8 +161,12 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _fetch_ruleset_contexts(owner: str, repo: str, base_branch: str) -> list[str]:
-    """Return required context names from the branch ruleset. Empty on error."""
+def _fetch_ruleset_contexts(
+    owner: str,
+    repo: str,
+    base_branch: str,
+) -> list[dict[str, Any]]:
+    """Return required context and integration identities."""
     import json as _json
 
     result = subprocess.run(
@@ -167,7 +177,8 @@ def _fetch_ruleset_contexts(owner: str, repo: str, base_branch: str) -> list[str
             (
                 "[.[]"
                 "| select(.type==\"required_status_checks\")"
-                "| .parameters.required_status_checks[].context]"
+                "| .parameters.required_status_checks[]"
+                "| {context: .context, integration_id: .integration_id}]"
             ),
         ],
         capture_output=True,
@@ -177,12 +188,27 @@ def _fetch_ruleset_contexts(owner: str, repo: str, base_branch: str) -> list[str
         check=False,
     )
     if result.returncode != 0:
-        return []
+        detail = result.stderr.strip() or f"gh api exited {result.returncode}"
+        raise RuntimeError(f"Required-check ruleset lookup failed: {detail}")
     try:
         raw = result.stdout.strip()
-        return list(_json.loads(raw)) if raw else []
-    except Exception:
-        return []
+        if not raw:
+            raise ValueError("empty response")
+        items = _json.loads(raw)
+        if not isinstance(items, list):
+            raise TypeError("expected a list")
+        return [
+            {
+                "Context": str(item["context"]),
+                "IntegrationId": item.get("integration_id"),
+            }
+            for item in items
+            if isinstance(item, dict) and item.get("context")
+        ]
+    except (TypeError, ValueError, _json.JSONDecodeError) as exc:
+        raise RuntimeError(
+            f"Required-check ruleset response was invalid: {exc}"
+        ) from exc
 
 
 def _normalize_check(node: dict[str, Any]) -> dict[str, Any] | None:
@@ -200,6 +226,9 @@ def _normalize_check(node: dict[str, Any]) -> dict[str, Any] | None:
             "State": status,
             "Conclusion": conclusion,
             "DetailsUrl": node.get("detailsUrl", ""),
+            "IntegrationId": (
+                ((node.get("checkSuite") or {}).get("app") or {}).get("databaseId")
+            ),
             "IsRequired": bool(node.get("isRequired", False)),
             "IsPending": is_pending,
             "IsPassing": is_passing,
@@ -213,6 +242,7 @@ def _normalize_check(node: dict[str, Any]) -> dict[str, Any] | None:
             "State": state,
             "Conclusion": state,
             "DetailsUrl": node.get("targetUrl", ""),
+            "IntegrationId": None,
             "IsRequired": bool(node.get("isRequired", False)),
             "IsPending": state in ("PENDING", "EXPECTED"),
             "IsPassing": state == "SUCCESS",
@@ -231,27 +261,100 @@ def _check_rank(check: dict[str, Any]) -> int:
     return 3
 
 
+_TYPE_RANK = {"CheckRun": 0, "StatusContext": 1}
+
+
+def _dedupe_rank(check: dict[str, Any]) -> tuple[int, int]:
+    """Rank by source type first, then verdict precedence."""
+    return (_TYPE_RANK.get(check.get("Type"), 2), _check_rank(check))
+
+
+def _check_workflow_run_number(check: dict[str, Any]) -> int | None:
+    """Return the workflow run id exposed by a CheckRun details URL."""
+    if check.get("Type") != "CheckRun":
+        return None
+    return extract_workflow_run_number(check.get("DetailsUrl"))
+
+
+def _collapse_same_run_siblings(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Keep a failing same-name sibling when both ran in one workflow run."""
+    representatives: list[dict[str, Any]] = []
+    for group in partition_rows_by_run(rows, "DetailsUrl"):
+        if len(group) == 1:
+            representatives.append(group[0])
+            continue
+        failing = [row for row in group if row.get("IsFailing")]
+        pool = failing if failing else group
+        representative = {
+            **sorted(pool, key=_dedupe_rank)[0],
+            "IsPending": any(row.get("IsPending") for row in group),
+        }
+        representatives.append(representative)
+    return representatives
+
+
+def _select_cross_run_winner(
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Select the latest workflow run when every CheckRun exposes its id."""
+    check_run_pairs = [
+        (check, _check_workflow_run_number(check))
+        for check in candidates
+        if check.get("Type") == "CheckRun"
+    ]
+    if check_run_pairs and all(
+        run_number is not None for _, run_number in check_run_pairs
+    ):
+        latest_run = max(run_number for _, run_number in check_run_pairs)
+        latest_candidates = [
+            check
+            for check, run_number in check_run_pairs
+            if run_number == latest_run
+        ]
+        return sorted(latest_candidates, key=_dedupe_rank)[0]
+    return sorted(candidates, key=_dedupe_rank)[0]
+
+
 def _dedupe_checks(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Collapse duplicate check rows before grouping by name."""
-    rows_by_name: dict[str, list[dict[str, Any]]] = {}
-    required_by_name: dict[str, bool] = {}
-    order: list[str] = []
+    integration_ids_by_name: dict[str, set[int]] = {}
+    for check in checks:
+        integration_id = check.get("IntegrationId")
+        if integration_id is not None:
+            name = str(check.get("Name") or "")
+            integration_ids_by_name.setdefault(name, set()).add(integration_id)
+
+    rows_by_identity: dict[tuple[str, int | None], list[dict[str, Any]]] = {}
+    required_by_identity: dict[tuple[str, int | None], bool] = {}
+    order: list[tuple[str, int | None]] = []
 
     for check in checks:
         name_value = check.get("Name")
         name = "" if name_value is None else str(name_value)
-        required_by_name[name] = required_by_name.get(name, False) or bool(
+        integration_id = check.get("IntegrationId")
+        known_ids = integration_ids_by_name.get(name, set())
+        if check.get("Type") == "StatusContext" and len(known_ids) == 1:
+            integration_id = next(iter(known_ids))
+        identity = (name, integration_id)
+        required_by_identity[identity] = required_by_identity.get(
+            identity, False
+        ) or bool(
             check.get("IsRequired")
         )
-        if name not in rows_by_name:
-            rows_by_name[name] = []
-            order.append(name)
-        rows_by_name[name].append(check)
+        if identity not in rows_by_identity:
+            rows_by_identity[identity] = []
+            order.append(identity)
+        rows_by_identity[identity].append(check)
 
     deduped = []
-    for name in order:
-        winner = sorted(rows_by_name[name], key=_check_rank)[0]
-        deduped.append({**winner, "IsRequired": required_by_name[name]})
+    for identity in order:
+        candidates = _collapse_same_run_siblings(rows_by_identity[identity])
+        winner = _select_cross_run_winner(candidates)
+        deduped.append(
+            {**winner, "IsRequired": required_by_identity[identity]}
+        )
     return deduped
 
 
@@ -299,7 +402,9 @@ def diagnose(
         return {"Error": "NotFound", "Message": f"PR #{pr_number} not found in response"}
 
     base_branch = pr.get("baseRefName", "")
+    mergeable = pr.get("mergeable") or "UNKNOWN"
     merge_state_status = pr.get("mergeStateStatus", "")
+    review_decision = pr.get("reviewDecision") or ""
 
     # Collect raw check nodes from rollup.
     commits = (pr.get("commits") or {}).get("nodes") or []
@@ -324,37 +429,58 @@ def diagnose(
         n for node in raw_nodes if (n := _normalize_check(node)) is not None
     ])
 
-    # Group by name and OR the isRequired flag (same semantics as sibling
-    # scripts).
-    checks_by_name, is_required_by_name, _ = group_checks_by_name(checks)
-
-    # Best verdict per name: passing beats failing beats pending.
-    def _best(name: str) -> dict[str, Any]:
-        return dict(checks_by_name[name])
-
     # Ruleset required contexts (ground truth independent of what reported).
-    ruleset_required = _fetch_ruleset_contexts(owner, repo, base_branch) if base_branch else []
+    try:
+        ruleset_required = (
+            _fetch_ruleset_contexts(owner, repo, base_branch)
+            if base_branch
+            else []
+        )
+    except RuntimeError as exc:
+        return {
+            "Error": "ApiError",
+            "Message": f"Required-check inventory failed: {exc}",
+        }
 
-    # Reported context names.
-    reported: set[str] = set(checks_by_name)
+    def matches_requirement(
+        check: dict[str, Any],
+        requirement: dict[str, Any],
+    ) -> bool:
+        if check.get("Name") != requirement.get("Context"):
+            return False
+        integration_id = requirement.get("IntegrationId")
+        return (
+            integration_id is None
+            or check.get("IntegrationId") == integration_id
+        )
 
-    # MISSING: required by ruleset but never reported.
-    missing: list[str] = sorted(c for c in ruleset_required if c not in reported)
+    missing: list[str] = sorted({
+        str(requirement["Context"])
+        for requirement in ruleset_required
+        if not any(
+            matches_requirement(check, requirement)
+            for check in checks
+        )
+    })
 
-    # FAILING: required (by ruleset or isRequired) and conclusion is failing.
-    required_names = set(ruleset_required) | {
-        name for name, req in is_required_by_name.items() if req
-    }
-    failing: list[str] = sorted(
-        name for name in required_names
-        if name in checks_by_name and _best(name).get("IsFailing")
-    )
-
-    # PENDING: required and still running.
-    pending_required: list[str] = sorted(
-        name for name in required_names
-        if name in checks_by_name and _best(name).get("IsPending")
-    )
+    required_checks = [
+        check for check in checks
+        if check.get("IsRequired")
+        or any(
+            matches_requirement(check, requirement)
+            for requirement in ruleset_required
+        )
+    ]
+    failing: list[str] = sorted({
+        str(check.get("Name", ""))
+        for check in required_checks
+        if check.get("IsFailing")
+    })
+    pending_required: list[str] = sorted({
+        str(check.get("Name", ""))
+        for check in required_checks
+        if check.get("IsPending")
+    })
 
     # Unresolved review threads.
     review_threads = pr.get("reviewThreads") or {}
@@ -368,12 +494,23 @@ def diagnose(
     unresolved_threads = count_unresolved_threads(thread_nodes)
 
     causes: list[str] = []
+    if mergeable == "CONFLICTING" or merge_state_status == "DIRTY":
+        causes.append("MERGE (conflicts)")
+    elif (
+        mergeable in _BLOCKING_MERGE_STATES
+        or merge_state_status in _BLOCKING_MERGE_STATE_STATUSES
+    ):
+        causes.append("MERGE (state unknown)")
     if missing:
         causes.append(f"MISSING ({len(missing)} required check(s) never reported)")
     if failing:
         causes.append(f"FAILING ({len(failing)} required check(s))")
     if pending_required:
         causes.append(f"PENDING ({len(pending_required)} required check(s))")
+    if review_decision == "CHANGES_REQUESTED":
+        causes.append("REVIEWS (changes requested)")
+    elif review_decision == "REVIEW_REQUIRED":
+        causes.append("REVIEWS (approval required)")
     if unresolved_threads:
         causes.append(f"THREADS ({unresolved_threads} unresolved review thread(s))")
 
@@ -385,14 +522,19 @@ def diagnose(
         "Owner": owner,
         "Repo": repo,
         "BaseBranch": base_branch,
+        "Mergeable": mergeable,
         "MergeStateStatus": merge_state_status,
+        "ReviewDecision": review_decision,
         "LikelyMergeable": likely_mergeable,
         "Causes": causes,
         "MissingRequiredChecks": missing,
         "FailingRequiredChecks": failing,
         "PendingRequiredChecks": pending_required,
         "UnresolvedThreads": unresolved_threads,
-        "RulesetRequiredContexts": ruleset_required,
+        "RulesetRequiredContexts": [
+            requirement["Context"] for requirement in ruleset_required
+        ],
+        "RulesetRequiredChecks": ruleset_required,
     }
 
 

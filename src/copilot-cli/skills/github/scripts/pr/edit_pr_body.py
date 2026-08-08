@@ -3,10 +3,12 @@
 
 Reads the current body, checks the SHA-256 hash against an expected value
 (when provided), and only writes if the body has actually changed. This
-prevents clobbering concurrent edits and avoids no-op API calls.
+detects edits made before the final read and avoids no-op API calls. GitHub
+rejects conditional headers on this PATCH endpoint, so it cannot prevent an
+edit made between that read and the update request.
 
 Safety invariants enforced:
-  - Never overwrites a body that has changed since the hash was captured.
+  - Rejects a body that changed between hash capture and the final read.
   - No-ops when the new body is identical to the current body.
   - Validates that the new body does not introduce em/en dashes.
   - Each `Fixes #N` / `Closes #N` on its own line (warns when multiple

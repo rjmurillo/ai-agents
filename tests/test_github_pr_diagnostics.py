@@ -87,15 +87,30 @@ def _rollup_response(nodes, state="SUCCESS", number=100, *, oid="abc123"):
     }
 
 
-def _check_run_node(name, status, conclusion, *, required=True):
+def _check_run_node(
+    name,
+    status,
+    conclusion,
+    *,
+    required=True,
+    integration_id=15368,
+):
     return {
         "__typename": "CheckRun",
         "name": name,
         "status": status,
         "conclusion": conclusion,
         "detailsUrl": "",
+        "checkSuite": {"app": {"databaseId": integration_id}},
         "isRequired": required,
     }
+
+
+def _required_checks(*names, integration_id=15368):
+    return [
+        {"Context": name, "IntegrationId": integration_id}
+        for name in names
+    ]
 
 
 _MOCK_REPO = RepoInfo(owner="testowner", repo="testrepo")
@@ -109,29 +124,33 @@ class TestFetchRulesetRequiredContexts:
     """Unit tests for fetch_ruleset_required_contexts."""
 
     def test_returns_list_on_success(self):
-        contexts = ["CI / build", "CI / test", "Validate PR"]
+        contexts = [
+            {"context": "CI / build", "integration_id": 15368},
+            {"context": "CI / test", "integration_id": 15368},
+            {"context": "Validate PR", "integration_id": 15368},
+        ]
         mock_result = _completed(stdout=json.dumps(contexts))
         with patch("subprocess.run", return_value=mock_result):
             result = _checks_mod.fetch_ruleset_required_contexts("o", "r", "main")
-        assert result == contexts
+        assert result == _required_checks("CI / build", "CI / test", "Validate PR")
 
-    def test_returns_empty_on_nonzero_rc(self):
+    def test_raises_on_nonzero_rc(self):
         mock_result = _completed(stdout="", stderr="404", rc=1)
         with patch("subprocess.run", return_value=mock_result):
-            result = _checks_mod.fetch_ruleset_required_contexts("o", "r", "main")
-        assert result == []
+            with pytest.raises(RuntimeError, match="ruleset lookup failed"):
+                _checks_mod.fetch_ruleset_required_contexts("o", "r", "main")
 
-    def test_returns_empty_on_empty_stdout(self):
+    def test_raises_on_empty_stdout(self):
         mock_result = _completed(stdout="")
         with patch("subprocess.run", return_value=mock_result):
-            result = _checks_mod.fetch_ruleset_required_contexts("o", "r", "main")
-        assert result == []
+            with pytest.raises(RuntimeError, match="response was invalid"):
+                _checks_mod.fetch_ruleset_required_contexts("o", "r", "main")
 
-    def test_returns_empty_on_malformed_json(self):
+    def test_raises_on_malformed_json(self):
         mock_result = _completed(stdout="not-json")
         with patch("subprocess.run", return_value=mock_result):
-            result = _checks_mod.fetch_ruleset_required_contexts("o", "r", "main")
-        assert result == []
+            with pytest.raises(RuntimeError, match="response was invalid"):
+                _checks_mod.fetch_ruleset_required_contexts("o", "r", "main")
 
 
 class TestBuildOutputMissingChecks:
@@ -156,6 +175,7 @@ class TestBuildOutputMissingChecks:
             "State": "COMPLETED",
             "Conclusion": "SUCCESS" if passing else "FAILURE",
             "DetailsUrl": "",
+            "IntegrationId": 15368,
             "IsRequired": required,
             "IsPending": False,
             "IsPassing": passing,
@@ -166,7 +186,7 @@ class TestBuildOutputMissingChecks:
         """If ruleset contexts all appeared in rollup, MissingRequiredChecks is empty."""
         checks = [self._norm("CI / build"), self._norm("CI / test")]
         data = self._make_check_data(checks)
-        ruleset = ["CI / build", "CI / test"]
+        ruleset = _required_checks("CI / build", "CI / test")
         output = _checks_mod.build_output(data, "o", "r", ruleset_required=ruleset)
         assert output["MissingRequiredChecks"] == []
         assert output["AllPassing"] is True
@@ -180,14 +200,14 @@ class TestBuildOutputMissingChecks:
         """
         checks = [self._norm("CI / build")]
         data = self._make_check_data(checks)
-        ruleset = ["CI / build", "CI / test"]  # test never ran
+        ruleset = _required_checks("CI / build", "CI / test")
         output = _checks_mod.build_output(data, "o", "r", ruleset_required=ruleset)
         assert "CI / test" in output["MissingRequiredChecks"]
         assert output["AllPassing"] is False
 
     def test_missing_16_of_17_required_checks(self):
         """Real-world scenario from issue #4359: 16 of 17 required checks absent."""
-        ruleset = [f"Check/{i}" for i in range(17)]
+        ruleset = _required_checks(*(f"Check/{i}" for i in range(17)))
         checks = [self._norm("Check/0")]  # only one reported
         data = self._make_check_data(checks)
         output = _checks_mod.build_output(data, "o", "r", ruleset_required=ruleset)
@@ -202,13 +222,14 @@ class TestBuildOutputMissingChecks:
             "State": "COMPLETED",
             "Conclusion": "SKIPPED",
             "DetailsUrl": "",
+            "IntegrationId": 15368,
             "IsRequired": True,
             "IsPending": False,
             "IsPassing": True,
             "IsFailing": False,
         }]
         data = self._make_check_data(checks)
-        ruleset = ["CI / test"]
+        ruleset = _required_checks("CI / test")
         output = _checks_mod.build_output(data, "o", "r", ruleset_required=ruleset)
         assert output["MissingRequiredChecks"] == []
 
@@ -224,6 +245,7 @@ class TestBuildOutputMissingChecks:
             "status": "COMPLETED",
             "conclusion": "SKIPPED",
             "detailsUrl": "",
+            "checkSuite": {"app": {"databaseId": 15368}},
             "isRequired": False,
         }
         normalised = _checks_mod.normalize_check(raw_ctx)  # the exported normalization fn
@@ -245,6 +267,42 @@ class TestBuildOutputMissingChecks:
         data = self._make_check_data([])
         output = _checks_mod.build_output(data, "o", "r")
         assert "MissingRequiredChecks" in output
+
+    def test_wrong_integration_does_not_satisfy_requirement(self):
+        checks = [{
+            **self._norm("CI / build"),
+            "IntegrationId": 99999,
+            "IsRequired": False,
+        }]
+        data = self._make_check_data(checks)
+        output = _checks_mod.build_output(
+            data,
+            "o",
+            "r",
+            ruleset_required=_required_checks("CI / build"),
+        )
+        assert output["MissingRequiredChecks"] == ["CI / build"]
+        assert output["AllPassing"] is False
+
+    def test_latest_success_discards_older_pending_run(self):
+        older_pending = {
+            **self._norm("CI / build", passing=False),
+            "State": "IN_PROGRESS",
+            "Conclusion": "",
+            "DetailsUrl": "https://github.com/o/r/actions/runs/100/job/1",
+            "IsPending": True,
+            "IsFailing": False,
+        }
+        latest_success = {
+            **self._norm("CI / build"),
+            "DetailsUrl": "https://github.com/o/r/actions/runs/200/job/1",
+        }
+
+        result = _checks_mod.dedupe_checks([older_pending, latest_success])
+
+        assert len(result) == 1
+        assert result[0]["IsPassing"] is True
+        assert result[0]["IsPending"] is False
 
 
 class TestResolveStatusMissingChecks:
@@ -286,7 +344,10 @@ class TestMainGetPrChecksMissingExitCode:
         rollup_data = _rollup_response(
             [_check_run_node("CI / build", "COMPLETED", "SUCCESS")],
         )
-        ruleset_contexts = json.dumps(["CI / build", "CI / test"])
+        ruleset_contexts = json.dumps([
+            {"context": "CI / build", "integration_id": 15368},
+            {"context": "CI / test", "integration_id": 15368},
+        ])
 
         with (
             patch(f"{_checks_mod.__name__}.assert_gh_authenticated"),
@@ -432,7 +493,9 @@ class TestDiagnose:
         base="main",
         contexts=None,
         thread_nodes=None,
+        mergeable="MERGEABLE",
         merge_state_status="CLEAN",
+        review_decision="APPROVED",
     ):
         contexts = contexts or []
         thread_nodes = thread_nodes or []
@@ -442,8 +505,9 @@ class TestDiagnose:
                     "number": number,
                     "state": "OPEN",
                     "baseRefName": base,
-                    "mergeable": "MERGEABLE",
+                    "mergeable": mergeable,
                     "mergeStateStatus": merge_state_status,
+                    "reviewDecision": review_decision,
                     "commits": {
                         "nodes": [{
                             "commit": {
@@ -461,13 +525,29 @@ class TestDiagnose:
             },
         }
 
-    def _ck(self, name, conclusion="SUCCESS", *, required=True):
+    def _ck(
+        self,
+        name,
+        conclusion="SUCCESS",
+        *,
+        required=True,
+        run_id=None,
+        job_id=1,
+        integration_id=15368,
+        status="COMPLETED",
+    ):
         return {
             "__typename": "CheckRun",
             "name": name,
-            "status": "COMPLETED",
+            "status": status,
             "conclusion": conclusion,
             "isRequired": required,
+            "checkSuite": {"app": {"databaseId": integration_id}},
+            "detailsUrl": (
+                f"https://github.com/o/r/actions/runs/{run_id}/job/{job_id}"
+                if run_id is not None
+                else ""
+            ),
         }
 
     def test_likely_mergeable_when_all_clear(self):
@@ -475,7 +555,7 @@ class TestDiagnose:
         with (
             patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
             patch(f"{_why_mod.__name__}._fetch_ruleset_contexts",
-                  return_value=["CI / build"]),
+                  return_value=_required_checks("CI / build")),
         ):
             result = _why_mod.diagnose("o", "r", 100)
         assert result["LikelyMergeable"] is True
@@ -487,7 +567,7 @@ class TestDiagnose:
         with (
             patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
             patch(f"{_why_mod.__name__}._fetch_ruleset_contexts",
-                  return_value=["CI / build", "CI / test"]),
+                  return_value=_required_checks("CI / build", "CI / test")),
         ):
             result = _why_mod.diagnose("o", "r", 100)
         assert result["LikelyMergeable"] is False
@@ -499,7 +579,7 @@ class TestDiagnose:
         with (
             patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
             patch(f"{_why_mod.__name__}._fetch_ruleset_contexts",
-                  return_value=["CI / build"]),
+                  return_value=_required_checks("CI / build")),
         ):
             result = _why_mod.diagnose("o", "r", 100)
         assert result["LikelyMergeable"] is False
@@ -514,7 +594,7 @@ class TestDiagnose:
         with (
             patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
             patch(f"{_why_mod.__name__}._fetch_ruleset_contexts",
-                  return_value=["CI / build"]),
+                  return_value=_required_checks("CI / build")),
         ):
             result = _why_mod.diagnose("o", "r", 100)
         assert result["LikelyMergeable"] is False
@@ -527,24 +607,126 @@ class TestDiagnose:
         with (
             patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
             patch(f"{_why_mod.__name__}._fetch_ruleset_contexts",
-                  return_value=["CI / test"]),
+                  return_value=_required_checks("CI / test")),
         ):
             result = _why_mod.diagnose("o", "r", 100)
         assert result["LikelyMergeable"] is True
 
     def test_duplicate_success_overrides_stale_failure(self):
         data = self._pr_graphql(contexts=[
-            self._ck("CI / test", "FAILURE"),
-            self._ck("CI / test", "SUCCESS"),
+            self._ck("CI / test", "FAILURE", run_id=100),
+            self._ck("CI / test", "SUCCESS", run_id=200),
         ])
         with (
             patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
             patch(f"{_why_mod.__name__}._fetch_ruleset_contexts",
-                  return_value=["CI / test"]),
+                  return_value=_required_checks("CI / test")),
         ):
             result = _why_mod.diagnose("o", "r", 100)
         assert result["LikelyMergeable"] is True
         assert result["FailingRequiredChecks"] == []
+
+    def test_latest_failure_overrides_older_success(self):
+        data = self._pr_graphql(contexts=[
+            self._ck("CI / test", "SUCCESS", run_id=100),
+            self._ck("CI / test", "FAILURE", run_id=200),
+        ])
+        with (
+            patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
+            patch(
+                f"{_why_mod.__name__}._fetch_ruleset_contexts",
+                return_value=_required_checks("CI / test"),
+            ),
+        ):
+            result = _why_mod.diagnose("o", "r", 100)
+        assert result["LikelyMergeable"] is False
+        assert result["FailingRequiredChecks"] == ["CI / test"]
+
+    def test_same_run_pending_sibling_blocks(self):
+        data = self._pr_graphql(contexts=[
+            self._ck("CI / test", "SUCCESS", run_id=200, job_id=1),
+            self._ck(
+                "CI / test",
+                "",
+                run_id=200,
+                job_id=2,
+                status="IN_PROGRESS",
+            ),
+        ])
+        with (
+            patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
+            patch(
+                f"{_why_mod.__name__}._fetch_ruleset_contexts",
+                return_value=_required_checks("CI / test"),
+            ),
+        ):
+            result = _why_mod.diagnose("o", "r", 100)
+        assert result["LikelyMergeable"] is False
+        assert result["PendingRequiredChecks"] == ["CI / test"]
+
+    @pytest.mark.parametrize(
+        ("mergeable", "merge_state_status"),
+        [
+            ("CONFLICTING", "DIRTY"),
+            ("UNKNOWN", "UNKNOWN"),
+        ],
+    )
+    def test_unusable_merge_ref_is_a_cause(
+        self,
+        mergeable,
+        merge_state_status,
+    ):
+        data = self._pr_graphql(
+            contexts=[self._ck("CI / build")],
+            mergeable=mergeable,
+            merge_state_status=merge_state_status,
+        )
+        with (
+            patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
+            patch(
+                f"{_why_mod.__name__}._fetch_ruleset_contexts",
+                return_value=_required_checks("CI / build"),
+            ),
+        ):
+            result = _why_mod.diagnose("o", "r", 100)
+        assert result["LikelyMergeable"] is False
+        assert any("MERGE" in item for item in result["Causes"])
+
+    @pytest.mark.parametrize(
+        ("review_decision", "cause"),
+        [
+            ("REVIEW_REQUIRED", "approval required"),
+            ("CHANGES_REQUESTED", "changes requested"),
+        ],
+    )
+    def test_required_review_is_a_cause(self, review_decision, cause):
+        data = self._pr_graphql(
+            contexts=[self._ck("CI / build")],
+            review_decision=review_decision,
+        )
+        with (
+            patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
+            patch(
+                f"{_why_mod.__name__}._fetch_ruleset_contexts",
+                return_value=_required_checks("CI / build"),
+            ),
+        ):
+            result = _why_mod.diagnose("o", "r", 100)
+        assert result["LikelyMergeable"] is False
+        assert any(cause in item for item in result["Causes"])
+
+    def test_ruleset_lookup_failure_returns_api_error(self):
+        data = self._pr_graphql(contexts=[self._ck("CI / build")])
+        with (
+            patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
+            patch(
+                f"{_why_mod.__name__}._fetch_ruleset_contexts",
+                side_effect=RuntimeError("HTTP 403"),
+            ),
+        ):
+            result = _why_mod.diagnose("o", "r", 100)
+        assert result["Error"] == "ApiError"
+        assert "HTTP 403" in result["Message"]
 
     def test_paginated_contexts_are_checked_for_missing(self):
         first_page = self._pr_graphql(contexts=[self._ck("CI / build")])
@@ -561,7 +743,7 @@ class TestDiagnose:
                   return_value=([self._ck("CI / test")],
                                 {"hasNextPage": False, "endCursor": None})),
             patch(f"{_why_mod.__name__}._fetch_ruleset_contexts",
-                  return_value=["CI / build", "CI / test"]),
+                  return_value=_required_checks("CI / build", "CI / test")),
         ):
             result = _why_mod.diagnose("o", "r", 100)
         assert result["MissingRequiredChecks"] == []
@@ -577,7 +759,7 @@ class TestDiagnose:
         with (
             patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
             patch(f"{_why_mod.__name__}._fetch_ruleset_contexts",
-                  return_value=["CI / build"]),
+                  return_value=_required_checks("CI / build")),
             patch(f"{_why_mod.__name__}._fetch_review_thread_page",
                   return_value=([{"isResolved": False}],
                                 {"hasNextPage": False, "endCursor": None})),
@@ -603,10 +785,29 @@ class TestDiagnose:
         with (
             patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
             patch(f"{_why_mod.__name__}._fetch_ruleset_contexts",
-                  return_value=["CI / build", "CI / missing"]),
+                  return_value=_required_checks("CI / build", "CI / missing")),
         ):
             result = _why_mod.diagnose("o", "r", 100)
         assert len(result["Causes"]) >= 2
+
+    def test_wrong_integration_is_reported_missing(self):
+        data = self._pr_graphql(contexts=[
+            self._ck(
+                "CI / build",
+                integration_id=99999,
+                required=False,
+            )
+        ])
+        with (
+            patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
+            patch(
+                f"{_why_mod.__name__}._fetch_ruleset_contexts",
+                return_value=_required_checks("CI / build"),
+            ),
+        ):
+            result = _why_mod.diagnose("o", "r", 100)
+        assert result["LikelyMergeable"] is False
+        assert result["MissingRequiredChecks"] == ["CI / build"]
 
 
 class TestWhyPrBlockedMain:
@@ -717,7 +918,7 @@ class TestClassifyClaim:
             result = _audit_mod.classify_claim(full, m2, fenced2, html2)
             assert result == "escaped_hash"
 
-    def test_negated_phrase(self):
+    def test_negated_phrase_still_closes(self):
         text = "This does not close #55"
         _, fenced = _audit_mod._strip_fenced_code(text)
         _, html = _audit_mod._strip_html_comments(text)
@@ -726,7 +927,7 @@ class TestClassifyClaim:
         m = re.search(r"close\s+#55", text, re.IGNORECASE)
         assert m is not None
         result = _audit_mod.classify_claim(text, m, fenced, html)
-        assert result == "negated"
+        assert result == "active"
 
 
 class TestExtractClaims:

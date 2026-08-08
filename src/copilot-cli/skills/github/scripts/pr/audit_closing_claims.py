@@ -11,7 +11,6 @@ Markdown context classification:
   fenced_code    - inside triple-backtick or triple-tilde block
   html_comment   - inside <!-- ... -->
   escaped_hash   - hash escaped with backslash (\\#NNN), does not close
-  negated        - phrase like "does not close #NNN" or "won't fix #NNN"
 
 Exit codes follow ADR-035:
     0 - Audit complete
@@ -63,12 +62,6 @@ _SCRIPT_NAME = "audit_closing_claims.py"
 _CLOSING_KEYWORDS_RE = re.compile(
     r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+"
     r"(?:(?P<owner>[a-zA-Z0-9_.-]+)/(?P<repo2>[a-zA-Z0-9_.-]+))?(?P<escape>\\?)#(?P<number>\d+)",
-    re.IGNORECASE,
-)
-
-# Negation phrases that precede the keyword.
-_NEGATION_RE = re.compile(
-    r"\b(?:does\s+not|won'?t|will\s+not|doesn'?t|not)\s+",
     re.IGNORECASE,
 )
 
@@ -175,11 +168,6 @@ def classify_claim(
     backtick_count = before.count("`") - before.count("``")
     if backtick_count % 2 == 1:
         return "code_span"
-
-    # Check for negation immediately before the keyword.
-    preceding = text[max(0, start - 30):start]
-    if _NEGATION_RE.search(preceding):
-        return "negated"
 
     return "active"
 
