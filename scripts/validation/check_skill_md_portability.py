@@ -93,6 +93,7 @@ from scripts.validation.portability_common import (
     build_portability_parser,
     refuse_symlinked_scan_root,
     refuse_unsafe_baseline_write,
+    resolve_path_within_root,
     write_baseline_json,
 )
 from scripts.validation.portability_common import (
@@ -395,7 +396,40 @@ class MarkdownScan(NamedTuple):
     scanned: int
 
 
-def scan_skill_markdown(skills_dir: Path) -> MarkdownScan:
+def _refuse_markdown_escape(root_resolved: Path, path: Path, label: str) -> None:
+    if resolve_path_within_root(root_resolved, path) is not None:
+        return
+    raise OSError(f"{label} {path} resolves outside the repository root")
+
+
+def _iter_markdown_files(root: Path, scan_dir: Path) -> list[Path]:
+    root_resolved = root.resolve()
+    paths: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(scan_dir, onerror=_reraise_os_error):
+        directory = Path(dirpath)
+        _refuse_markdown_escape(root_resolved, directory, "Scan directory")
+        kept_dirs: list[str] = []
+        for name in sorted(dirnames):
+            if name == "__pycache__":
+                continue
+            candidate = directory / name
+            _refuse_markdown_escape(root_resolved, candidate, "Scan directory")
+            kept_dirs.append(name)
+        dirnames[:] = kept_dirs
+        for name in sorted(filenames):
+            path = directory / name
+            _refuse_markdown_escape(root_resolved, path, "Scan entry")
+            if path.suffix != MARKDOWN_SUFFIX:
+                continue
+            if path.is_symlink() and not path.exists():
+                raise OSError(f"Broken .md symlink (configuration error): {path}")
+            paths.append(path)
+    return paths
+
+
+def scan_skill_markdown(
+    skills_dir: Path, repo_root: Path | None = None
+) -> MarkdownScan:
     """Return offending counts and the scanned-file total for skill ``.md`` files.
 
     Paths in ``counts`` are relative to the skills dir's parent, so they begin
@@ -408,32 +442,24 @@ def scan_skill_markdown(skills_dir: Path) -> MarkdownScan:
     as clean; ``os.walk`` with a re-raising ``onerror`` refuses instead. A
     broken ``.md`` symlink is a configuration error, not a file to skip
     silently, because ``Path.is_file`` follows the link and returns False for a
-    dangling target, which would drop it from the scan unnoticed.
+    dangling target, which would drop it from the scan unnoticed. Descendant
+    symlinks that resolve outside the repository are refused before traversal or
+    read, because a child escape expands scan scope just like a symlinked root.
     """
     counts: dict[str, int] = {}
     scanned = 0
     base = skills_dir.parent
+    root = _common_resolve_root(repo_root, skills_dir, require_repo_marker=False)
 
-    def _reraise(error: OSError) -> None:
-        raise error
-
-    for dirpath, dirnames, filenames in os.walk(skills_dir, onerror=_reraise):
-        dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
-        directory = Path(dirpath)
-        for name in sorted(filenames):
-            path = directory / name
-            if path.suffix != MARKDOWN_SUFFIX:
-                continue
-            if path.is_symlink() and not path.exists():
-                raise OSError(f"Broken .md symlink (configuration error): {path}")
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError) as exc:
-                raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
-            scanned += 1
-            n = count_file_refs(text)
-            if n > 0:
-                counts[path.relative_to(base).as_posix()] = n
+    for path in _iter_markdown_files(root, skills_dir):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
+        scanned += 1
+        n = count_file_refs(text)
+        if n > 0:
+            counts[path.relative_to(base).as_posix()] = n
     return MarkdownScan(counts, scanned)
 
 
@@ -574,44 +600,27 @@ def scan_all(
             raise OSError(f"Scan root {scan_dir} resolves outside the repository root")
         rel_parent = scan_dir.parent.relative_to(root)
         root_key = (rel_parent / scan_dir.name).as_posix()
-        scanned = 0
-        for dirpath, dirnames, filenames in os.walk(scan_dir, onerror=_reraise_os_error):
-            dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
-            directory = Path(dirpath)
-            for fname in sorted(filenames):
-                path = directory / fname
-                if path.suffix != MARKDOWN_SUFFIX:
-                    continue
-                if path.is_symlink() and not path.exists():
-                    raise OSError(f"Broken .md symlink (configuration error): {path}")
-                try:
-                    text = path.read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError) as exc:
-                    raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
-                scanned += 1
-                rel_key = (rel_parent / path.relative_to(scan_dir.parent)).as_posix()
-                _process_file(text, rel_key)
-        files_by_root[root_key] = scanned
+        paths = _iter_markdown_files(root, scan_dir)
+        files_by_root[root_key] = len(paths)
+        for path in paths:
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
+            rel_key = (rel_parent / path.relative_to(scan_dir.parent)).as_posix()
+            _process_file(text, rel_key)
 
     for extra_dir in extra_dirs:
         if refuse_symlinked_scan_root(root, extra_dir):
             raise OSError(f"Scan root {extra_dir} resolves outside the repository root")
         rel_parent = extra_dir.parent.relative_to(root)
-        for dirpath, dirnames, filenames in os.walk(extra_dir, onerror=_reraise_os_error):
-            dirnames[:] = sorted(name for name in dirnames if name != "__pycache__")
-            directory = Path(dirpath)
-            for fname in sorted(filenames):
-                path = directory / fname
-                if path.suffix != MARKDOWN_SUFFIX:
-                    continue
-                if path.is_symlink() and not path.exists():
-                    raise OSError(f"Broken .md symlink (configuration error): {path}")
-                try:
-                    text = path.read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError) as exc:
-                    raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
-                rel_key = (rel_parent / path.relative_to(extra_dir.parent)).as_posix()
-                _process_file(text, rel_key)
+        for path in _iter_markdown_files(root, extra_dir):
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise OSError(f"Failed to read skill markdown {path}: {exc}") from exc
+            rel_key = (rel_parent / path.relative_to(extra_dir.parent)).as_posix()
+            _process_file(text, rel_key)
 
     return ref_counts, marker_counts, files_by_root, drift_failures
 

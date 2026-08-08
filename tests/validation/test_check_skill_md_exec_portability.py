@@ -223,6 +223,35 @@ class TestScan:
             "src/copilot-cli/skills/beta/references/ref.md": 1,
         }
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    def test_scan_refuses_dangling_reference_markdown_escape(self, tmp_path: Path) -> None:
+        self._skill_md(tmp_path, (".claude", "skills"), "alpha/SKILL.md", "clean\n")
+        references = tmp_path / ".claude" / "skills" / "alpha" / "references"
+        references.mkdir(parents=True)
+        (references / "escape.md").symlink_to(tmp_path.parent / "outside-ref" / "gone.md")
+
+        with pytest.raises(OSError, match="outside the repository root"):
+            cep.scan_skill_execs(tmp_path)
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    def test_scan_refuses_dangling_scripts_descendant_escape(self, tmp_path: Path) -> None:
+        self._skill_md(tmp_path, (".claude", "skills"), "alpha/SKILL.md", "clean\n")
+        scripts = tmp_path / ".claude" / "skills" / "alpha" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / "escape-dir").symlink_to(
+            tmp_path.parent / "outside-scripts" / "gone",
+            target_is_directory=True,
+        )
+
+        with pytest.raises(OSError, match="outside the repository root"):
+            cep.scan_skill_execs(tmp_path)
+
     def test_scan_skips_marked_files(self, tmp_path: Path) -> None:
         self._skill_md(
             tmp_path,
