@@ -58,6 +58,10 @@ from paths import artifact_dir, resolve_artifact_root  # noqa: E402
 # session-end entirely if the sibling is missing or has a syntax error.
 # Pattern documented in implementation-007-pr1989-recursive-failure-learnings.
 
+# .agents/SESSION-PROTOCOL.md defines this exact QA exemption value:
+# "SKIPPED: investigation-only".
+_QA_SKIP_REASONS = ("investigation-only",)
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -91,11 +95,17 @@ def build_parser() -> argparse.ArgumentParser:
             "unstaged files."
         ),
     )
-    parser.add_argument(
+    qa_group = parser.add_mutually_exclusive_group()
+    qa_group.add_argument(
         "--qa-report",
         default="",
         metavar="FILE",
         help="Record a completed report under the configured QA artifact root.",
+    )
+    qa_group.add_argument(
+        "--qa-skip-reason",
+        choices=_QA_SKIP_REASONS,
+        help="Verify and record a policy-approved investigation-only QA exemption.",
     )
     return parser
 
@@ -432,7 +442,7 @@ def _test_uncommitted_changes(
     satisfy (issue #4425).
     """
     result = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=all"],
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"],
         capture_output=True,
         text=True,
         timeout=10,
@@ -443,14 +453,25 @@ def _test_uncommitted_changes(
     excluded = {Path(path).as_posix() for path in exclude_paths}
     if exclude_path:
         excluded.add(Path(exclude_path).as_posix())
-    lines = []
-    for line in result.stdout.splitlines():
-        path = line[3:].rstrip()
-        if " -> " in path:
-            path = path.rsplit(" -> ", maxsplit=1)[1]
-        if path not in excluded:
-            lines.append(line)
-    return bool(lines)
+    records = result.stdout.split("\0")
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
+        if not record:
+            continue
+        if len(record) < 4:
+            return True
+        status = record[:2]
+        paths = [record[3:]]
+        if "R" in status or "C" in status:
+            if index >= len(records) or not records[index]:
+                return True
+            paths.append(records[index])
+            index += 1
+        if any(Path(path).as_posix() not in excluded for path in paths):
+            return True
+    return False
 
 
 def _validate_path_containment(session_path: str, sessions_dir: str) -> str | None:
@@ -488,7 +509,65 @@ def _qa_report_evidence(repo_root: Path, report_path: str) -> str:
         return str(resolved_report)
 
 
-def _must_items_complete(session_end: dict[str, object]) -> bool:
+def _investigation_skip_evidence(repo_root: Path, starting_commit: object) -> str:
+    """Validate investigation-only scope and return its evidence value."""
+    if not isinstance(starting_commit, str) or not starting_commit:
+        raise ValueError("Investigation-only QA requires a session starting commit")
+    eligibility_script = (
+        Path(__file__).resolve().parents[2]
+        / "session"
+        / "scripts"
+        / "test_investigation_eligibility.py"
+    )
+    if not eligibility_script.is_file():
+        raise ValueError(f"Investigation eligibility checker not found: {eligibility_script}")
+    result = subprocess.run(
+        [sys.executable, str(eligibility_script), "--base-ref", starting_commit],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise ValueError("Investigation eligibility checker failed")
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Investigation eligibility checker returned invalid JSON") from exc
+    if payload.get("Error"):
+        raise ValueError(str(payload["Error"]))
+    if payload.get("Eligible") is not True:
+        violations = payload.get("Violations", [])
+        detail = ", ".join(str(path) for path in violations) or "unknown changed path"
+        raise ValueError(f"Investigation-only QA is not eligible: {detail}")
+    return "SKIPPED: investigation-only"
+
+
+def _owned_evidence_paths(
+    session_path: str,
+    repo_root: str,
+    qa_owned_path: str | None,
+) -> list[str]:
+    """Return session artifacts allowed in the final evidence commit."""
+    try:
+        session_rel = os.path.relpath(session_path, repo_root)
+    except ValueError:
+        session_rel = None
+    episode_path = (
+        artifact_dir("memory", base=Path(repo_root))
+        / "episodes"
+        / f"episode-{Path(session_path).stem}.json"
+    )
+    episode_rel = os.path.relpath(episode_path, repo_root)
+    return [path for path in (session_rel, qa_owned_path, episode_rel) if path]
+
+
+def _must_items_complete(
+    session_end: dict[str, object],
+    *,
+    include_validation: bool = True,
+) -> bool:
     """Return whether every required session-end item is complete."""
     handoff_key = (
         "handoffPreserved"
@@ -506,8 +585,9 @@ def _must_items_complete(session_end: dict[str, object]) -> bool:
         "markdownLintRun",
         "qaValidation",
         "changesCommitted",
-        "validationPassed",
     ]
+    if include_validation:
+        required_items.append("validationPassed")
     for item in required_items:
         check = session_end.get(item)
         if not isinstance(check, dict):
@@ -750,12 +830,25 @@ def main(argv: list[str] | None = None) -> int:
         changes.append(f"Markdown lint: {lint_output}")
 
     qa_evidence = ""
+    qa_owned_path = ""
     if args.qa_report:
         try:
-            qa_evidence = _qa_report_evidence(Path(repo_root), args.qa_report)
+            qa_owned_path = _qa_report_evidence(Path(repo_root), args.qa_report)
         except ValueError as exc:
             print(f"[FAIL] {exc}", file=sys.stderr)
             return 1
+        qa_evidence = qa_owned_path
+    elif args.qa_skip_reason:
+        try:
+            qa_evidence = _investigation_skip_evidence(
+                Path(repo_root),
+                session.get("session", {}).get("startingCommit"),
+            )
+        except ValueError as exc:
+            print(f"[FAIL] {exc}", file=sys.stderr)
+            return 1
+
+    if qa_evidence:
         session_end["qaValidation"] = {
             "level": "MUST",
             "Complete": True,
@@ -787,11 +880,11 @@ def main(argv: list[str] | None = None) -> int:
     # Exclude the session log itself: it is staged or modified while this
     # check runs and would always appear in porcelain output, making
     # changesCommitted impossible to satisfy (issue #4425).
-    try:
-        session_rel = os.path.relpath(session_path, repo_root)
-    except ValueError:
-        session_rel = None
-    owned_evidence = [path for path in (session_rel, qa_evidence) if path]
+    owned_evidence = _owned_evidence_paths(
+        session_path,
+        repo_root,
+        qa_owned_path,
+    )
     has_uncommitted = _test_uncommitted_changes(
         exclude_paths=owned_evidence
     )
@@ -803,9 +896,24 @@ def main(argv: list[str] | None = None) -> int:
             check["Evidence"] = f"All changes committed (HEAD: {ending_commit_label})"
             changes.append("All changes committed")
         else:
+            check["Complete"] = False
+            check["Evidence"] = "Uncommitted changes remain"
             changes.append("[TODO] Uncommitted changes exist - commit before completing")
 
-    # 6. checklistComplete - evaluate after all others
+    # 6. Prepare the self-referential validation fields before validation.
+    # The validator requires both fields to be complete, so a prior failed run
+    # otherwise cannot recover after its underlying evidence is fixed.
+    validation_ready = _must_items_complete(session_end, include_validation=False)
+    validation_check = session_end.get("validationPassed")
+    if isinstance(validation_check, dict):
+        validation_check["Complete"] = validation_ready
+        validation_check["Evidence"] = (
+            "Validation preconditions satisfied"
+            if validation_ready
+            else "Validation blocked by incomplete MUST items"
+        )
+
+    # 7. checklistComplete - evaluate after all others
     all_must_complete = _must_items_complete(session_end)
 
     if "checklistComplete" in session_end:
@@ -862,6 +970,11 @@ def main(argv: list[str] | None = None) -> int:
                 session_end["checklistComplete"]["Evidence"] = (
                     "All MUST items verified and validation passed"
                 )
+            else:
+                session_end["checklistComplete"]["Complete"] = False
+                session_end["checklistComplete"]["Evidence"] = (
+                    "Some MUST items still incomplete"
+                )
 
             with open(session_path, "w", encoding="utf-8") as f:
                 json.dump(session, f, indent=2)
@@ -871,7 +984,19 @@ def main(argv: list[str] | None = None) -> int:
             print("[FAIL] Session validation failed. Fix issues above and re-run.", file=sys.stderr)
             return 1
     else:
-        print(f"WARNING: Validation script not found: {validate_script}", file=sys.stderr)
+        if not args.dry_run and "validationPassed" in session_end:
+            session_end["validationPassed"]["Complete"] = False
+            session_end["validationPassed"]["Evidence"] = (
+                "validate_session_json.py not found"
+            )
+            session_end["checklistComplete"]["Complete"] = False
+            session_end["checklistComplete"]["Evidence"] = (
+                "Validation script unavailable"
+            )
+            with open(session_path, "w", encoding="utf-8") as f:
+                json.dump(session, f, indent=2)
+        print(f"ERROR: Validation script not found: {validate_script}", file=sys.stderr)
+        return 1
 
     if not all_must_complete:
         print("", file=sys.stderr)

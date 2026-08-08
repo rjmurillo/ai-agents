@@ -4,10 +4,81 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-SCRIPT_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "session-end" / "scripts"
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+SCRIPT_DIR = REPO_ROOT / ".claude" / "skills" / "session-end" / "scripts"
+SESSION_INIT_DIR = REPO_ROOT / ".claude" / "skills" / "session-init"
 sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(SESSION_INIT_DIR))
 
 import complete_session_log
+from session_init.session_structure import build_session_log
+
+from scripts.validate_session_json import (
+    SESSION_END_REQUIRED_ITEMS,
+    ValidationResult,
+    validate_must_item,
+)
+
+
+class TestQaValidationContract:
+    """Regression coverage for the session-init to session-end QA contract."""
+
+    def test_new_session_declares_required_qa_validation(self):
+        log = build_session_log(
+            branch="fix/test",
+            commit="a" * 40,
+            session_number=1,
+            objective="test",
+            current_date="2026-08-07",
+        )
+
+        qa = log["protocolCompliance"]["sessionEnd"]["qaValidation"]
+
+        assert qa == {"level": "MUST", "Complete": False, "Evidence": ""}
+        assert "qaValidation" in SESSION_END_REQUIRED_ITEMS
+
+    def test_policy_qa_skips_do_not_contradict_completion(self):
+        for evidence in ("SKIPPED: docs-only", "SKIPPED: investigation-only"):
+            result = ValidationResult()
+
+            validate_must_item(
+                {"level": "MUST", "Complete": True, "Evidence": evidence},
+                "qaValidation",
+                "sessionEnd",
+                result,
+                is_required=True,
+            )
+
+            assert result.errors == []
+            assert result.warnings == []
+
+    def test_unapproved_qa_skip_fails_validation(self):
+        result = ValidationResult()
+
+        validate_must_item(
+            {"level": "MUST", "Complete": True, "Evidence": "SKIPPED: feature-code"},
+            "qaValidation",
+            "sessionEnd",
+            result,
+            is_required=True,
+        )
+
+        assert any("Evidence contradiction" in error for error in result.errors)
+
+    def test_qa_report_and_skip_reason_are_mutually_exclusive(self):
+        parser = complete_session_log.build_parser()
+
+        with pytest.raises(SystemExit):
+            parser.parse_args(
+                [
+                    "--qa-report",
+                    ".agents/qa/report.md",
+                    "--qa-skip-reason",
+                    "investigation-only",
+                ]
+            )
 
 
 class TestGetRepoRoot:
@@ -327,6 +398,26 @@ class TestMainReworkWarningShape:
         path.write_text(json.dumps(data, indent=2))
         return data
 
+    def test_owned_evidence_includes_session_qa_and_episode(self, tmp_path):
+        session_path = (
+            tmp_path
+            / ".agents"
+            / "sessions"
+            / "2026-07-30-session-99-test.json"
+        )
+
+        paths = complete_session_log._owned_evidence_paths(
+            str(session_path),
+            str(tmp_path),
+            ".agents/qa/report.md",
+        )
+
+        assert paths == [
+            ".agents/sessions/2026-07-30-session-99-test.json",
+            ".agents/qa/report.md",
+            ".agents/memory/episodes/episode-2026-07-30-session-99-test.json",
+        ]
+
     @patch("complete_session_log.subprocess.run")
     @patch("complete_session_log._run_rework_warning_step")
     @patch("complete_session_log._run_markdown_lint")
@@ -365,8 +456,15 @@ class TestMainReworkWarningShape:
         mock_serena.return_value = True
         mock_lint.return_value = (True, "lint passed")
         mock_rework.return_value = ("rework: none", ["rework-warning: none", "extra line"])
-        # subprocess.run is for the final validate step; skip it
-        mock_subprocess.return_value = MagicMock(returncode=0)
+
+        def validate_saved_state(*_args, **_kwargs):
+            saved = json.loads(session_file.read_text())
+            session_end = saved["protocolCompliance"]["sessionEnd"]
+            assert session_end["validationPassed"]["Complete"] is True
+            assert session_end["checklistComplete"]["Complete"] is True
+            return MagicMock(returncode=0)
+
+        mock_subprocess.side_effect = validate_saved_state
 
         with patch(
             "complete_session_log.resolve_artifact_root",
@@ -423,6 +521,68 @@ class TestMainReworkWarningShape:
             "Complete": True,
             "Evidence": ".agents/qa/report.md",
         }
+
+    def test_main_records_policy_qa_skip(self, tmp_path):
+        with patch(
+            "complete_session_log._investigation_skip_evidence",
+            return_value="SKIPPED: investigation-only",
+        ):
+            result = self._run_main_with_rework(
+                tmp_path,
+                ("Rework warning: none", ["rework-warning: none"]),
+                ["--qa-skip-reason", "investigation-only"],
+            )
+
+        qa = result["protocolCompliance"]["sessionEnd"]["qaValidation"]
+        assert qa == {
+            "level": "MUST",
+            "Complete": True,
+            "Evidence": "SKIPPED: investigation-only",
+        }
+
+    def test_main_fails_when_validator_is_missing(self, tmp_path):
+        import json
+
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        session_file = sessions_dir / "2026-07-30-session-99-test.json"
+        self._make_session_json(session_file)
+
+        with (
+            patch("complete_session_log._get_repo_root", return_value=str(tmp_path)),
+            patch("complete_session_log._test_uncommitted_changes", return_value=False),
+            patch("complete_session_log._get_ending_commit", return_value="abc1234"),
+            patch("complete_session_log._test_handoff_modified", return_value=False),
+            patch("complete_session_log._test_serena_memory_updated", return_value=True),
+            patch("complete_session_log._run_markdown_lint", return_value=(True, "ok")),
+            patch(
+                "complete_session_log._run_rework_warning_step",
+                return_value=("Rework warning: none", ["rework-warning: none"]),
+            ),
+            patch("complete_session_log.resolve_artifact_root", return_value=sessions_dir),
+        ):
+            exit_code = complete_session_log.main(
+                ["--session-path", str(session_file)]
+            )
+
+        result = json.loads(session_file.read_text())
+        session_end = result["protocolCompliance"]["sessionEnd"]
+        assert exit_code == 1
+        assert session_end["validationPassed"]["Complete"] is False
+        assert session_end["checklistComplete"]["Complete"] is False
+
+    def test_investigation_skip_rejects_disallowed_changes(self, tmp_path):
+        completed = MagicMock(
+            returncode=0,
+            stdout='{"Eligible": false, "Violations": ["scripts/main.py"]}',
+        )
+
+        with patch("complete_session_log.subprocess.run", return_value=completed):
+            with pytest.raises(ValueError, match="scripts/main.py"):
+                complete_session_log._investigation_skip_evidence(
+                    tmp_path,
+                    "a" * 40,
+                )
 
     def test_rework_complete_true_when_step_runs(self, tmp_path):
         """Complete=True when rework step ran without skipping (post-#4001)."""

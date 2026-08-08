@@ -364,8 +364,8 @@ class TestCompleteSessionLog:
             [],
             0,
             stdout=(
-                f"A  {qa_report}\n"
-                f" M {session_log}\n"
+                f"A  {qa_report}\0"
+                f" M {session_log}\0"
             ),
             stderr="",
         )
@@ -382,7 +382,8 @@ class TestCompleteSessionLog:
             [
                 "git",
                 "status",
-                "--porcelain",
+                "--porcelain=v1",
+                "-z",
                 "--untracked-files=all",
             ],
             capture_output=True,
