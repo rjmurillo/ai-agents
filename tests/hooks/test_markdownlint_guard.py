@@ -79,28 +79,22 @@ class TestCleanFiles:
         assert rc == 0
         assert "BLOCKED" not in capsys.readouterr().out
 
-    def test_invokes_with_no_globs_flag(self, push_command, tmp_path):
-        """--no-globs is required so markdownlint lints only the changed
-        files, not the repo's default **/*.md set. Pre-mortem mitigation:
-        unrelated pre-existing violations would otherwise block valid pushes.
-        """
+    def test_invokes_trusted_verifier_only(self, push_command, tmp_path):
+        """The hook must invoke the trusted verifier, not consumer binaries."""
         captured_args: list[list[str]] = []
 
         def lint(args):
             captured_args.append(list(args))
-            if "--version" in args:
-                return _ok(stdout="0.21.0\n")
             return _ok()
 
         _run("docs/a.md\n", lint, tmp_path)
 
-        # Find the lint invocation (not --version) and assert --no-globs
-        lint_calls = [a for a in captured_args if "--version" not in a]
-        assert lint_calls, "Expected at least one markdownlint-cli2 invocation"
-        for call_args in lint_calls:
-            assert "--no-globs" in call_args, (
-                f"--no-globs missing from invocation: {call_args}"
-            )
+        assert captured_args, "Expected a trusted verifier invocation"
+        call_args = captured_args[0]
+        assert call_args[0] == sys.executable
+        assert call_args[1] == str(guard.VERIFIER)
+        assert call_args[2:4] == ["--markdown-lint-only", "--"]
+        assert call_args[-1] == "docs/a.md"
 
 
 class TestViolations:
