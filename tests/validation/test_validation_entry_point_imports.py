@@ -1,9 +1,8 @@
-"""Validation entry points must import when run as a plain script.
+"""Script entry points must import when run as a plain script.
 
-CI invokes several validators as ``python3 scripts/validation/<name>.py`` after
-``actions/setup-python`` with no project install. In that mode ``sys.path[0]``
-is ``scripts/validation``, not the repository root, so an absolute
-``scripts.validation.*`` import fails unless the entry point puts the root on
+CI and documentation invoke scripts through file paths. In that mode
+``sys.path[0]`` is the script's directory, not the repository root, so an
+absolute ``scripts.*`` import fails unless the entry point puts the root on
 ``sys.path`` itself.
 
 Local runs never reproduce this. ``uv`` installs the project in editable mode,
@@ -23,6 +22,7 @@ Refs #4210 (recurrence catalogue), #3073 (the first fix of this shape).
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -30,8 +30,15 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
+SCRIPTS_DIR = REPO_ROOT / "scripts"
 MAIN_GUARD = '__name__ == "__main__"'
+MODULE_ONLY_ENTRY_POINTS = frozenset(
+    {
+        SCRIPTS_DIR / "memory_enhancement" / "__main__.py",
+        SCRIPTS_DIR / "memory_enhancement" / "hooks" / "post_tool_call_memory.py",
+        SCRIPTS_DIR / "memory_enhancement" / "hooks" / "session_end_memory.py",
+    }
+)
 
 # Reproduce a bare `python3 <script>` interpreter: repository root absent from
 # `sys.path`, editable-install finders removed, script directory present.
@@ -51,6 +58,10 @@ _RUNNER = (
 
 def _import_as_script(script: Path, repo_root: Path) -> subprocess.CompletedProcess[str]:
     """Import ``script`` with the repository root off the import path."""
+    env = os.environ.copy()
+    plugin_root = str(repo_root / ".claude")
+    env["COPILOT_PLUGIN_ROOT"] = plugin_root
+    env["CLAUDE_PLUGIN_ROOT"] = plugin_root
     return subprocess.run(
         [sys.executable, "-c", _RUNNER, str(repo_root), str(script)],
         capture_output=True,
@@ -58,14 +69,16 @@ def _import_as_script(script: Path, repo_root: Path) -> subprocess.CompletedProc
         timeout=120,
         cwd=str(repo_root),
         check=False,
+        env=env,
     )
 
 
 def _entry_points() -> list[Path]:
     return sorted(
         path
-        for path in VALIDATION_DIR.glob("*.py")
-        if MAIN_GUARD in path.read_text(encoding="utf-8")
+        for path in SCRIPTS_DIR.rglob("*.py")
+        if path not in MODULE_ONLY_ENTRY_POINTS
+        and MAIN_GUARD in path.read_text(encoding="utf-8")
     )
 
 
@@ -75,7 +88,10 @@ def _entry_point_ids() -> list[str]:
 
 def test_the_scan_finds_entry_points() -> None:
     """Guard the population: an empty scan would make every case vacuous."""
-    assert len(_entry_points()) >= 20
+    entry_points = _entry_points()
+
+    assert len(entry_points) >= 250
+    assert SCRIPTS_DIR / "issue_triage.py" in entry_points
 
 
 @pytest.mark.parametrize("script", _entry_points(), ids=_entry_point_ids())

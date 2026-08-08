@@ -25,10 +25,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-from scripts.memory_sync.freshness import check_freshness
-from scripts.memory_sync.mcp_client import McpClient, McpError
-from scripts.memory_sync.models import FreshnessStatus, SyncOperation
-from scripts.memory_sync.sync_engine import (
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.memory_sync.freshness import check_freshness  # noqa: E402
+from scripts.memory_sync.mcp_client import McpClient, McpError  # noqa: E402
+from scripts.memory_sync.models import FreshnessStatus, SyncOperation  # noqa: E402
+from scripts.memory_sync.sync_engine import (  # noqa: E402
     StateError,
     detect_changes,
     is_memory_file,
