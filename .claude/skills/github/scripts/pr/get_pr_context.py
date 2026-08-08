@@ -148,7 +148,10 @@ def _load_pr_data(repo_flag: str, pr: int) -> JsonObject:
             error_and_exit(f"PR #{pr} not found in {repo_flag}", 2)
         error_and_exit(f"Failed to get PR #{pr}: {err_msg}", 3)
 
-    parsed_pr_data = json.loads(pr_result.stdout)
+    try:
+        parsed_pr_data = json.loads(pr_result.stdout)
+    except json.JSONDecodeError as exc:
+        error_and_exit(f"Failed to get PR #{pr}: invalid JSON: {exc}", 3)
     if not isinstance(parsed_pr_data, dict):
         error_and_exit(f"Failed to get PR #{pr}: response is not an object", 3)
     return cast(JsonObject, parsed_pr_data)

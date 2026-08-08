@@ -99,7 +99,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-4767-issue-3912-authoritative-pr-context-test-report.md issue-scoped PASS"
+        "Evidence": ".agents/qa/pr-4767-issue-3912-authoritative-pr-context-test-report.md PASS; 62 focused and 1337 broader tests"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -150,7 +150,7 @@
     },
     {
       "action": "Ran independent review and QA",
-      "outcome": "Blocking nullable-rollup finding fixed; follow-up review CLEAN; issue-scoped QA PASS with 1335 broader regression tests"
+      "outcome": "Blocking nullable-rollup finding fixed; follow-up review CLEAN; reviewer fixes validated; issue-scoped QA PASS with 1337 broader regression tests"
     },
     {
       "action": "Documented output contract and durable metadata shapes",

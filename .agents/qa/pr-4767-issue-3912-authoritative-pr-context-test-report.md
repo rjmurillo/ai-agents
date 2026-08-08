@@ -46,12 +46,12 @@ here.
 
 | Metric | Value |
 |--------|-------|
-| Total Tests (targeted file) | 60 |
-| Passed | 60 |
+| Total Tests (targeted file) | 62 |
+| Passed | 62 |
 | Failed | 0 |
 | Skipped | 0 |
 | Line coverage (get_pr_context.py) | 96% (169 stmts, 7 missed: lines 30, 32, 38-39, 249, 273, 434; plugin-root fallback branches and unreachable defensive asserts, none in issue-scoped code paths) |
-| Broader regression suite (`-k "github or pr_context or pr_review or review_thread"`) | 1335 passed, 0 failed, 20.19s |
+| Broader regression suite (`-k "github or pr_context or pr_review or review_thread"`) | 1337 passed, 0 failed, 21.33s |
 | Lint (ruff) | All checks passed |
 | Type check (mypy) | Success, no issues |
 | Live GitHub probes (re-run 2026-08-08) | 4, all reproduced identically to 2026-08-07 |
@@ -65,7 +65,7 @@ Promised (issue #3912 scope, per reopening comment): actual status checks +
           authoritative zero; malformed/missing external responses exit 3;
           canonical/generated mirrors match; docs describe new fields.
 Delivered: status_checks + status_check_total_count fields (typed,
-          validated); 60 deterministic tests, all pass; review_thread_
+          validated); 62 deterministic tests, all pass; review_thread_
           total_count/returned_count/unresolved_count/counts_complete
           fields; verified deterministically and against live PR
           rjmurillo/ai-agents#4733 (144 status checks, 16/16/16 review
@@ -98,6 +98,18 @@ Result: PASS
 
 **QA COMPLETE**
 
+## Review Fix Validation
+
+Two PR review findings were reproduced and fixed.
+
+- Invalid JSON from a successful `gh pr view` call exits 3 without a traceback.
+- A consumer-wiring test asserts the real `--json` field list includes `statusCheckRollup`.
+
+Focused tests: 62 passed. Broader regression selection: 1337 passed.
+Canonical and generated helpers remain byte-identical. Live PR #4733 output
+matched independent GitHub status-check and review-thread counts.
+
+
 ## Infrastructure
 
 No infrastructure gaps. `pytest`, `ruff`, `mypy`, and `gh` (v2.97.0) were all
@@ -109,7 +121,7 @@ queries) all succeeded without error throughout this evaluation.
 
 ### Deterministic Suite (`tests/test_get_pr_context.py`)
 
-All 60 tests passed in 0.68-0.80s (re-run 2026-08-08). Coverage: 96% line
+All 62 tests passed in 0.71s (re-run 2026-08-08). Coverage: 96% line
 (169 stmts, 7 missed - none in issue-scoped code).
 
 Issue #3912 acceptance-criteria tests, all [PASS]:
@@ -147,7 +159,7 @@ below) and is excluded from the issue #3912 acceptance-criteria table above.
 
 ```
 $ python -m pytest -k "github or pr_context or pr_review or review_thread" -q
-1335 passed, 22938 deselected, 1 warning in 20.19s
+1337 passed, 22938 deselected, 1 warning in 21.33s
 ```
 
 No regressions. The one warning is an expected `UserWarning` emitted by

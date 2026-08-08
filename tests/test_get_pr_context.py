@@ -223,6 +223,16 @@ class TestMainErrors:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
 
+    def test_invalid_json_pr_response_exits_3(self):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout="not-json", rc=0),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
     def test_missing_status_check_rollup_exits_3(self):
         """Missing check rollup is an API failure, not an empty result."""
         pr = json.loads(_pr_json())
@@ -573,6 +583,19 @@ class TestMainSuccess:
         assert data["files"] is None
         assert data["owner"] == "o"
         assert data["repo"] == "r"
+
+    def test_status_check_rollup_is_requested(self, capsys):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_pr_json(), rc=0),
+        ) as run:
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        capsys.readouterr()
+        command = run.call_args.args[0]
+        fields = command[command.index("--json") + 1].split(",")
+        assert "statusCheckRollup" in fields
 
     def test_commits_count_from_list(self, capsys):
         """Regression: commits field is a list, not a dict with totalCount."""
