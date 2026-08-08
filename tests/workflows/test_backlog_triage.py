@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +29,7 @@ def _step(job: dict[str, Any], name: str) -> dict[str, Any]:
     raise AssertionError(f"missing step {name!r}")
 
 
-def _workflow_dispatch(workflow: dict[str, Any]) -> dict[str, Any]:
+def _workflow_dispatch(workflow: dict[Any, Any]) -> dict[str, Any]:
     trigger = workflow.get("on") or workflow.get(True)
     assert isinstance(trigger, dict)
     dispatch = trigger.get("workflow_dispatch")
@@ -47,6 +48,22 @@ class TestRecommendationArtifacts:
 
         fail = _step(recommend, "Fail on incomplete recommendation manifest")
         assert fail["if"] == "steps.recommend.outcome == 'failure'"
+
+
+class TestIssueDiscovery:
+    def test_issue_triage_runs_as_module(self) -> None:
+        workflow = _load_workflow()
+        discover = workflow["jobs"]["discover-issues"]
+        step = _step(discover, "Discover open issues for AI triage")
+
+        assert shlex.split(step["run"])[:6] == [
+            "uv",
+            "run",
+            "--frozen",
+            "python",
+            "-m",
+            "scripts.issue_triage",
+        ]
 
 
 class TestApplyApprovalGate:

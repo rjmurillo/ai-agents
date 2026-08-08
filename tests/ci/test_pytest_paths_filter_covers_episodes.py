@@ -15,10 +15,17 @@ outcomes, not the set of Python files.
 The ``.github`` YAML tree is the second such population (issue #3964). The gates
 under ``tests/workflows/`` read those files, so a PR touching only them is the
 change class those gates exist for.
+
+The canonical rule tree and both generated instruction trees are a third
+population (issue #4408). Contract tests read their tracked Markdown directly,
+so all three roots must trigger pytest without widening the filter to unrelated
+Markdown such as historical session logs.
 """
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 
@@ -29,7 +36,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github/workflows/pytest.yml"
 EPISODE_STORE = REPO_ROOT / ".agents/memory/episodes"
 GITHUB_DIR = REPO_ROOT / ".github"
-COPILOT_INSTRUCTIONS_DIR = REPO_ROOT / "src/copilot-cli/instructions"
+RULE_INPUT_ROOTS = (
+    ".claude/rules",
+    ".github/instructions",
+    "src/copilot-cli/instructions",
+)
 
 PATHS_FILTER_ACTION = "dorny/paths-filter"
 # The action version ``_selected`` models. Re-read ``src/filter.ts`` at this
@@ -65,10 +76,6 @@ def test_the_filter_covers_the_episode_store():
     assert ".agents/memory/episodes/**" in _python_filter()
 
 
-def test_the_filter_covers_copilot_instruction_mirrors():
-    assert "src/copilot-cli/instructions/**" in _python_filter()
-
-
 def test_the_entry_matches_the_directory_the_pin_reads():
     """A filter naming a path the pin does not read protects nothing."""
     source = (
@@ -83,11 +90,6 @@ def test_the_gate_still_covers_plain_python_sources():
     entries = _python_filter()
     assert "**/*.py" in entries
     assert "tests/conftest.py" in entries
-
-
-def test_the_copilot_instruction_entry_matches_the_generated_tree():
-    assert COPILOT_INSTRUCTIONS_DIR.is_dir()
-    assert any(COPILOT_INSTRUCTIONS_DIR.iterdir())
 
 
 def _selected(path: str, patterns: Iterable[str]) -> bool:
@@ -112,6 +114,17 @@ def _github_yaml_files() -> list[str]:
         for path in GITHUB_DIR.rglob("*.y*ml")
         if path.is_file()
     )
+
+
+def _tracked_files(*roots: str) -> list[str]:
+    """Return tracked files from HEAD, never untracked working-tree residue."""
+    result = subprocess.run(
+        ["git", "ls-tree", "-r", "-z", "--name-only", "HEAD", "--", *roots],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+    )
+    return sorted(path.decode("utf-8") for path in result.stdout.split(b"\0") if path)
 
 
 def test_the_matcher_model_matches_the_pinned_action_version():
@@ -153,6 +166,47 @@ def test_the_filter_covers_every_github_yaml_file():
         "These files match no entry in pytest.yml's `python` filter, so a PR "
         "touching only them skips pytest and every gate that reads them "
         f"(issue #3964): {unselected}\nFilter entries: {patterns}"
+    )
+
+
+@pytest.mark.parametrize("root", RULE_INPUT_ROOTS)
+def test_the_filter_names_each_rule_input_root(root: str):
+    """Keep the three contract trees explicit instead of matching all Markdown."""
+    assert f"{root}/**" in _python_filter()
+
+
+@pytest.mark.parametrize("root", RULE_INPUT_ROOTS)
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_the_filter_covers_every_tracked_rule_input(root: str):
+    """Issue #4408: every tracked rule source and mirror must trigger pytest."""
+    patterns = _python_filter()
+    inputs = _tracked_files(root)
+    assert inputs, f"{root} has no tracked files, so this assertion would be vacuous"
+
+    unselected = [path for path in inputs if not _selected(path, patterns)]
+
+    assert not unselected, (
+        "These tracked Python-test inputs match no entry in pytest.yml's "
+        f"`python` filter: {unselected}\nFilter entries: {patterns}"
+    )
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_the_filter_still_skips_tracked_session_markdown():
+    """The fix must not widen the filter to unrelated Markdown."""
+    patterns = _python_filter()
+    inputs = [
+        path
+        for path in _tracked_files(".agents/sessions")
+        if path.endswith(".md")
+    ]
+    assert inputs, "no tracked Markdown session logs, so this control is vacuous"
+
+    selected = [path for path in inputs if _selected(path, patterns)]
+
+    assert not selected, (
+        "Unrelated session Markdown now triggers pytest; keep the filter scoped "
+        f"to direct test inputs: {selected}"
     )
 
 

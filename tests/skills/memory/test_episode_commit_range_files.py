@@ -1,12 +1,11 @@
 """Tests for the commit-range files-changed tier (issue #4416).
 
 The extractor derives ``metrics.files_changed`` from three sources in order:
-the staged diff, then the commit range the log names, then work-log prose. The
-middle tier is the one this module covers. Without it, any run where nothing is
-staged fell straight through to prose, and ``_FILES_RE`` matches the first
-"N files" phrase anywhere in the log, including a linter's own summary line.
-Nothing is staged on a ``--preserve`` re-extraction, a backfill, or any
-post-commit invocation, so the fallback was not a rare path.
+the commit range the log names, the staged diff, then work-log prose. Without
+the range, any run where nothing is staged fell straight through to prose, and
+``_FILES_RE`` matches the first "N files" phrase anywhere in the log, including
+a linter's own summary line. A valid range also excludes unrelated files staged
+after the session ended.
 """
 
 from __future__ import annotations
@@ -36,7 +35,7 @@ def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedPro
 
 class TestRangeFilesChanged:
     def test_counts_name_only_lines(self) -> None:
-        names = "a.py\nb.md\nc.txt\n"
+        names = "a.py\nb.md\na.py\nc.txt\n"
         with patch.object(ese.subprocess, "run", return_value=_completed(names)):
             assert ese._range_files_changed(_SHA_A, _SHA_B) == 3
 
@@ -44,19 +43,19 @@ class TestRangeFilesChanged:
         with patch.object(ese.subprocess, "run", return_value=_completed("")):
             assert ese._range_files_changed(_SHA_A, _SHA_B) == 0
 
-    def test_zero_on_nonzero_returncode(self) -> None:
+    def test_none_on_nonzero_returncode(self) -> None:
         with patch.object(ese.subprocess, "run", return_value=_completed("x\n", returncode=128)):
-            assert ese._range_files_changed(_SHA_A, _SHA_B) == 0
+            assert ese._range_files_changed(_SHA_A, _SHA_B) is None
 
-    def test_zero_when_git_missing(self) -> None:
+    def test_none_when_git_missing(self) -> None:
         with patch.object(ese.subprocess, "run", side_effect=OSError):
-            assert ese._range_files_changed(_SHA_A, _SHA_B) == 0
+            assert ese._range_files_changed(_SHA_A, _SHA_B) is None
 
-    def test_zero_on_timeout(self) -> None:
+    def test_none_on_timeout(self) -> None:
         with patch.object(
             ese.subprocess, "run", side_effect=subprocess.TimeoutExpired(cmd="git", timeout=10)
         ):
-            assert ese._range_files_changed(_SHA_A, _SHA_B) == 0
+            assert ese._range_files_changed(_SHA_A, _SHA_B) is None
 
     @pytest.mark.parametrize(
         ("start", "end"),
@@ -77,7 +76,7 @@ class TestRangeFilesChanged:
         would otherwise be handed to git as a flag rather than a revision.
         """
         with patch.object(ese.subprocess, "run") as run:
-            assert ese._range_files_changed(start, end) == 0
+            assert ese._range_files_changed(start, end) is None
         run.assert_not_called()
 
     def test_zero_when_start_equals_end(self) -> None:
@@ -97,6 +96,7 @@ class TestRangeFilesChanged:
             ese._range_files_changed(_SHA_A, _SHA_B, "/some/where")
         argv = run.call_args[0][0]
         assert argv[:3] == ["git", "-C", "/some/where"]
+        assert argv[3:6] == ["log", "--first-parent", "--no-merges"]
         assert f"{_SHA_A}..{_SHA_B}" in argv
 
     def test_runs_git_with_clean_env_and_c_locale(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -137,6 +137,29 @@ def repo(tmp_path: Path) -> Path:
     _git("add", "seed.txt", cwd=root)
     _git("commit", "-q", "-m", "seed", cwd=root)
     return root
+
+
+class TestRangeFilesChangedWithGit:
+    def test_excludes_files_merged_from_main(self, repo: Path) -> None:
+        _git("checkout", "-q", "-b", "feature", cwd=repo)
+        start = _git("rev-parse", "HEAD", cwd=repo)
+        (repo / "feature-before.txt").write_text("feature\n", encoding="utf-8")
+        _git("add", "feature-before.txt", cwd=repo)
+        _git("commit", "-q", "-m", "feature before sync", cwd=repo)
+
+        _git("checkout", "-q", "main", cwd=repo)
+        (repo / "main-only.txt").write_text("main\n", encoding="utf-8")
+        _git("add", "main-only.txt", cwd=repo)
+        _git("commit", "-q", "-m", "main work", cwd=repo)
+
+        _git("checkout", "-q", "feature", cwd=repo)
+        _git("merge", "-q", "--no-ff", "-m", "sync main", "main", cwd=repo)
+        (repo / "feature-after.txt").write_text("feature\n", encoding="utf-8")
+        _git("add", "feature-after.txt", cwd=repo)
+        _git("commit", "-q", "-m", "feature after sync", cwd=repo)
+        end = _git("rev-parse", "HEAD", cwd=repo)
+
+        assert ese._range_files_changed(start, end, repo) == 2
 
 
 class TestExtractorUsesTheCommitRange:
@@ -195,6 +218,31 @@ class TestExtractorUsesTheCommitRange:
         # The prose says 99. The range says 3. The range wins.
         assert episode["metrics"]["files_changed"] == 3
 
+    def test_range_count_beats_unrelated_staged_files(self, repo: Path, tmp_path: Path) -> None:
+        log, _start, _end = self._build(repo, tmp_path, changed=3)
+        (repo / "unrelated.txt").write_text("staged later\n", encoding="utf-8")
+        _git("add", "unrelated.txt", cwd=repo)
+        out = tmp_path / "episodes"
+
+        rc = ese.main([str(log), "--output-path", str(out), "--force"])
+
+        assert rc == 0
+        episode = json.loads((out / "episode-2026-08-03-session-1.json").read_text())
+        assert episode["metrics"]["files_changed"] == 3
+
+    def test_valid_empty_range_beats_the_prose_number(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        log, _start, _end = self._build(repo, tmp_path, changed=3)
+        out = tmp_path / "episodes"
+
+        with patch.object(ese, "_range_files_changed", return_value=0):
+            rc = ese.main([str(log), "--output-path", str(out), "--force"])
+
+        assert rc == 0
+        episode = json.loads((out / "episode-2026-08-03-session-1.json").read_text())
+        assert episode["metrics"]["files_changed"] == 0
+
     def test_authoritative_count_beats_staged_range_and_prose(
         self, repo: Path, tmp_path: Path
     ) -> None:
@@ -247,6 +295,23 @@ class TestExtractorUsesTheCommitRange:
         assert rc == 0
         preserved = json.loads(episode_file.read_text(encoding="utf-8"))
         assert preserved["metrics"]["files_changed"] == 10
+
+    def test_range_count_replaces_larger_preserved_metric(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        log, _start, _end = self._build(repo, tmp_path, changed=3)
+        out = tmp_path / "episodes"
+        assert ese.main([str(log), "--output-path", str(out), "--force"]) == 0
+        episode_file = out / "episode-2026-08-03-session-1.json"
+        episode = json.loads(episode_file.read_text(encoding="utf-8"))
+        episode["metrics"]["files_changed"] = 95
+        episode_file.write_text(json.dumps(episode), encoding="utf-8")
+
+        rc = ese.main([str(log), "--output-path", str(out), "--preserve"])
+
+        assert rc == 0
+        preserved = json.loads(episode_file.read_text(encoding="utf-8"))
+        assert preserved["metrics"]["files_changed"] == 3
 
     def test_prose_still_answers_when_the_range_is_unusable(
         self, repo: Path, tmp_path: Path
