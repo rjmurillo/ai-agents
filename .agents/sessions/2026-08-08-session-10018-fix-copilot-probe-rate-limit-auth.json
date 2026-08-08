@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation committed in 11e60ced3 and fc9b63058; scope cleanup and this log commit together"
+        "Evidence": "Implementation committed in 11e60ced3 and fc9b63058; focused session evidence committed in a0decc088"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "24578 tests passed with 34 skips; 78 focused tests passed with 5 expected CLI skips; changed-file Ruff and mypy passed"
+        "Evidence": "Full pre_pr.py passed; 24578 tests passed with 34 skips; 78 focused tests passed with 5 expected CLI skips; changed-file Ruff and mypy passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -140,7 +140,7 @@
     },
     {
       "action": "Validated the repository",
-      "outcome": "Full pytest passed 24578 tests with 34 skips in 908.55 seconds; focused Ruff and mypy passed; full Ruff still reports unrelated baseline files outside this diff"
+      "outcome": "Full pytest passed 24578 tests with 34 skips in 908.55 seconds; focused Ruff and mypy passed; pre_pr.py passed; full Ruff still reports unrelated baseline files outside this diff"
     }
   ],
   "endingCommit": "fc9b63058",
