@@ -117,6 +117,48 @@ def _subprocess_call_name(
     return None
 
 
+def _record_import_bindings(
+    node: ast.AST,
+    module_aliases: set[str],
+    callable_aliases: dict[str, str],
+) -> None:
+    """Add subprocess bindings declared by one import node."""
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            if alias.name == "subprocess":
+                module_aliases.add(alias.asname or alias.name)
+        return
+    if not isinstance(node, ast.ImportFrom) or node.module != "subprocess":
+        return
+    for alias in node.names:
+        if alias.name in _ALL_SUBPROCESS_CALLS:
+            callable_aliases[alias.asname or alias.name] = alias.name
+
+
+def _resolve_assignment_binding(
+    node: ast.AST,
+    module_aliases: set[str],
+    callable_aliases: dict[str, str],
+) -> tuple[str, str] | None:
+    """Resolve one simple callable rebinding, if present."""
+    if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+        return None
+    target = node.targets[0]
+    if not isinstance(target, ast.Name):
+        return None
+    value = node.value
+    if (
+        isinstance(value, ast.Attribute)
+        and isinstance(value.value, ast.Name)
+        and value.value.id in module_aliases
+        and value.attr in _ALL_SUBPROCESS_CALLS
+    ):
+        return target.id, value.attr
+    if isinstance(value, ast.Name) and value.id in callable_aliases:
+        return target.id, callable_aliases[value.id]
+    return None
+
+
 def _subprocess_bindings(tree: ast.AST) -> tuple[set[str], dict[str, str]]:
     """Return module and callable aliases that resolve to subprocess entry points."""
     module_aliases = {"subprocess"}
@@ -124,36 +166,20 @@ def _subprocess_bindings(tree: ast.AST) -> tuple[set[str], dict[str, str]]:
     nodes = list(ast.walk(tree))
 
     for node in nodes:
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name == "subprocess":
-                    module_aliases.add(alias.asname or alias.name)
-        elif isinstance(node, ast.ImportFrom) and node.module == "subprocess":
-            for alias in node.names:
-                if alias.name in _ALL_SUBPROCESS_CALLS:
-                    callable_aliases[alias.asname or alias.name] = alias.name
+        _record_import_bindings(node, module_aliases, callable_aliases)
 
     changed = True
     while changed:
         changed = False
         for node in nodes:
-            if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            binding = _resolve_assignment_binding(
+                node, module_aliases, callable_aliases
+            )
+            if binding is None:
                 continue
-            target = node.targets[0]
-            if not isinstance(target, ast.Name):
-                continue
-            resolved: str | None = None
-            if (
-                isinstance(node.value, ast.Attribute)
-                and isinstance(node.value.value, ast.Name)
-                and node.value.value.id in module_aliases
-                and node.value.attr in _ALL_SUBPROCESS_CALLS
-            ):
-                resolved = node.value.attr
-            elif isinstance(node.value, ast.Name):
-                resolved = callable_aliases.get(node.value.id)
-            if resolved is not None and callable_aliases.get(target.id) != resolved:
-                callable_aliases[target.id] = resolved
+            name, resolved = binding
+            if callable_aliases.get(name) != resolved:
+                callable_aliases[name] = resolved
                 changed = True
     return module_aliases, callable_aliases
 
