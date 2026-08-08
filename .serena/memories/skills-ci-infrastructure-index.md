@@ -21,3 +21,4 @@
 | copilot-cli frontmatter regression agent model argument-hint version pin auto-update diagnostic runbook | [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) |
 | job log truncated blob redirect gh api exits zero empty grep silent wc bytes allow-escape-sequences | [ci/ci-a-truncated-job-log-greps-exactly-like-a-clean-one](ci/ci-a-truncated-job-log-greps-exactly-like-a-clean-one.md) |
 | episode ratchet metrics violations grew push blocked episode predates commit timestamp | [ci/episode-ratchet-trips-because-the-episode-predates-the-commit](ci/episode-ratchet-trips-because-the-episode-predates-the-commit.md) |
+| shallow fetch depth graft merge-base merge-tree unrelated histories checkout fetch-depth unshallow | [decision-shallow-fetch-kills-merge-base-in-ci](decision-shallow-fetch-kills-merge-base-in-ci.md) |
