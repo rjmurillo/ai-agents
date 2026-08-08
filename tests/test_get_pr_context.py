@@ -529,6 +529,44 @@ class TestMainDiffAndFiles:
             {"field": "files", "message": "files failed"}
         ]
 
+    def test_diff_and_files_failures_without_output_use_return_code_fallback(self, capsys):
+        """Blank child output still produces actionable diff and file failure records."""
+        call_count = 0
+
+        def _side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _completed(stdout=_pr_json(), rc=0)
+            if call_count == 2:
+                return _completed(rc=17)
+            return _completed(rc=19)
+
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            side_effect=_side_effect,
+        ):
+            rc = main([
+                "--pull-request", "50",
+                "--include-diff",
+                "--include-changed-files",
+            ])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["context_fetch_failures"] == [
+            {
+                "field": "diff",
+                "message": "gh pr diff exited with return code 17 and no error output",
+            },
+            {
+                "field": "files",
+                "message": (
+                    "gh pr diff --name-only exited with return code 19 and no error output"
+                ),
+            },
+        ]
+
     def test_both_diff_and_files(self, capsys):
         """Both flags trigger two additional subprocess calls."""
         call_count = 0

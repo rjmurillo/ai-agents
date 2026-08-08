@@ -90,6 +90,32 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _context_fetch_failure_message(
+    result: subprocess.CompletedProcess[str],
+    command: str,
+) -> str:
+    message = (result.stderr or result.stdout).strip()
+    if message:
+        return message
+    return f"{command} exited with return code {result.returncode} and no error output"
+
+
+def _record_context_fetch_failure(
+    data: dict[str, object],
+    field: str,
+    result: subprocess.CompletedProcess[str],
+    command: str,
+) -> None:
+    failures = data.get("context_fetch_failures")
+    if not isinstance(failures, list):
+        failures = []
+        data["context_fetch_failures"] = failures
+    failures.append({
+        "field": field,
+        "message": _context_fetch_failure_message(result, command),
+    })
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -181,12 +207,7 @@ def main(argv: list[str] | None = None) -> int:
         if diff_result.returncode == 0:
             data["diff"] = diff_result.stdout
         else:
-            failures = data["context_fetch_failures"]
-            assert isinstance(failures, list)
-            failures.append({
-                "field": "diff",
-                "message": (diff_result.stderr or diff_result.stdout).strip(),
-            })
+            _record_context_fetch_failure(data, "diff", diff_result, "gh pr diff")
 
     if args.include_changed_files:
         files_result = subprocess.run(
@@ -199,12 +220,12 @@ def main(argv: list[str] | None = None) -> int:
         if files_result.returncode == 0:
             data["files"] = [f for f in files_result.stdout.splitlines() if f.strip()]
         else:
-            failures = data["context_fetch_failures"]
-            assert isinstance(failures, list)
-            failures.append({
-                "field": "files",
-                "message": (files_result.stderr or files_result.stdout).strip(),
-            })
+            _record_context_fetch_failure(
+                data,
+                "files",
+                files_result,
+                "gh pr diff --name-only",
+            )
 
     write_skill_output(
         data,
