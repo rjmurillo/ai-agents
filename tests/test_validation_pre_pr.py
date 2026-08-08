@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -42,6 +43,25 @@ def _sequence_with_failing_python_syntax() -> tuple[Any, ...]:
         else gate
         for gate in sequence
     )
+
+
+def _healthy_git_run(*args: Any, **_kwargs: Any) -> Any:
+    """Model a working toolchain: every tool exits 0, git answers plausibly.
+
+    A blanket ``stdout = ""`` makes ``git symbolic-ref --short
+    refs/remotes/origin/HEAD`` look like a repository with no remote HEAD, and
+    the count-ratchet gate fails closed on exactly that. Answering per command
+    keeps these tests on the all-pass path without feeding a branch name to
+    every other gate that reads stdout.
+    """
+    argv = args[0] if args else []
+    if "symbolic-ref" in argv:
+        stdout = "origin/main"
+    elif "rev-parse" in argv:
+        stdout = "0" * 40
+    else:
+        stdout = ""
+    return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
 
 
 class TestFindLatestSessionLog:
@@ -173,17 +193,30 @@ class TestValidateSessionEnd:
         assert result is True
 
     def test_missing_script_raises_skip(self, tmp_path: Path) -> None:
+        """When validate_session_json.py is absent and there ARE changed logs,
+        the gate raises MissingScriptSkip (downstream install scenario)."""
+        from unittest.mock import patch
+
         from scripts.validation.pre_pr import MissingScriptSkip
 
         sessions = tmp_path / ".agents" / "sessions"
         sessions.mkdir(parents=True)
-        (sessions / "2025-12-01-session-1.md").write_text("log", encoding="utf-8")
-        # scripts/Validate-Session.ps1 does not exist (ADR-042 expungement).
+        (sessions / "2025-12-01-session-1.json").write_text("{}", encoding="utf-8")
+        # No scripts/validate_session_json.py at tmp_path.
         (tmp_path / "scripts").mkdir(exist_ok=True)
 
-
-        with pytest.raises(MissingScriptSkip):
-            validate_session_end(tmp_path)
+        # Patch _resolve_branch_base_ref to return a ref (so the gate tries to
+        # run rather than skipping on "no base ref"), and _run_subprocess to
+        # return the session log in the diff.
+        with patch(
+            "checks_tooling._resolve_branch_base_ref", return_value="main"
+        ):
+            with patch(
+                "checks_tooling._run_subprocess",
+                return_value=(0, ".agents/sessions/2025-12-01-session-1.json\n", ""),
+            ):
+                with pytest.raises(MissingScriptSkip):
+                    validate_session_end(tmp_path)
 
 
 class TestBuildParser:
@@ -230,9 +263,7 @@ class TestMain:
         mock_run: Any,
         _mock_sequence: Any,
     ) -> None:
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
+        mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
         # Quick mode should skip path normalization, planning, agent drift, yaml style
@@ -251,9 +282,7 @@ class TestMain:
         mock_run: Any,
         _mock_sequence: Any,
     ) -> None:
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
+        mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
         # All external tools pass
@@ -287,9 +316,7 @@ class TestHookModeBanner:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Direct invocation (no hook env) must still say 'Ready to create pull request!'."""
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
+        mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {}, clear=False):
@@ -318,9 +345,7 @@ class TestHookModeBanner:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """SKIP_AUTOFIX=1 (hook mode) must suppress the PR-ready banner. Issue #4506."""
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
+        mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {"SKIP_AUTOFIX": "1"}):
@@ -345,9 +370,7 @@ class TestHookModeBanner:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """SKIP_AUTOFIX=0 is not hook mode; the PR-ready banner must still print."""
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
+        mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {"SKIP_AUTOFIX": "0"}):
@@ -371,9 +394,7 @@ class TestHookModeBanner:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         """A failing run in hook mode must not print either banner."""
-        mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = ""
-        mock_run.return_value.stderr = ""
+        mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {"SKIP_AUTOFIX": "1"}):

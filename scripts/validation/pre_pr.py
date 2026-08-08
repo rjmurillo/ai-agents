@@ -106,7 +106,6 @@ from checks_tooling import (
     validate_copilot_version_pin,
     validate_markdown_lint,
     validate_path_normalization,
-    validate_pester_tests,
     validate_planning_artifacts,
     validate_session_end,
     validate_workflow_yaml,

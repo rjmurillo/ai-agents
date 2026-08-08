@@ -25,7 +25,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from scripts.github_core.repo import get_repo_root as _shared_get_repo_root
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.github_core.repo import get_repo_root as _shared_get_repo_root  # noqa: E402
 
 
 def get_repo_root(override: str | None = None) -> Path:

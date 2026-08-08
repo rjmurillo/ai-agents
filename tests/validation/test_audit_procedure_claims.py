@@ -23,10 +23,10 @@ import sys
 
 import pytest
 
+from tests.validation.always_on_corpus_helpers import _frontmatter
 from tests.validation.test_always_on_corpus_claims import (
     MIRROR_DIR,
     REPO_ROOT,
-    _frontmatter,
     measured_always_on,
 )
 
