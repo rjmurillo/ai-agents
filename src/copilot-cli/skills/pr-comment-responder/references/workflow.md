@@ -143,6 +143,19 @@ SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments
 ```
 
+### Step 1.4: Confirm the PR is still actionable
+
+Run the PR-level gate before using cached review data:
+
+```bash
+python3 "$SCRIPTS_DIR/pr/check_pr_live_state.py" --pull-request [number]
+```
+
+Stop when `Data.action` is `SKIP`. The mutation helpers then run a second,
+target-level gate immediately before each reaction, reply, or resolve action.
+Always pass the expected PR number so a thread or comment from another PR
+returns `Data.action=SKIP` without mutation.
+
 ## Phase 2: Comment Map Generation
 
 ### Step 2.1: Acknowledge All Comments (Batch)
@@ -150,12 +163,22 @@ python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --in
 ```bash
 SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 
-# Get all comment IDs
+# Review and issue comments use different endpoints. Keep the batches separate.
 comments=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
-ids=$(echo "$comments" | jq -r '.Comments[].id')
+review_ids=$(echo "$comments" | jq -r '.Comments[] | select(.CommentType == "Review") | .Id')
+issue_ids=$(echo "$comments" | jq -r '.Comments[] | select(.CommentType == "Issue") | .Id')
 
-# Batch acknowledge with eyes reaction
-python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" --comment-id $ids --reaction eyes
+# Review reactions requery each target thread and reject resolved, missing,
+# or wrong-PR comments before mutation.
+if [ -n "$review_ids" ]; then
+  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" \
+    --pull-request [number] --comment-id $review_ids --reaction eyes
+fi
+
+if [ -n "$issue_ids" ]; then
+  python3 "$SCRIPTS_DIR/reactions/add_comment_reaction.py" \
+    --comment-type issue --comment-id $issue_ids --reaction eyes
+fi
 ```
 
 ### Step 2.2: Generate Comment Map
@@ -218,8 +241,10 @@ Reply to Won't Fix, Questions, Clarification Needed before implementation.
 ```bash
 SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 
-# In-thread reply
-python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --comment-id [id] --body "[response]"
+# In-thread reply. The thread helper requeries the target immediately before
+# posting and again before an optional resolve mutation.
+python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
+  --pull-request [number] --thread-id [thread-id] --body "[response]"
 ```
 
 ## Phase 6: Implementation

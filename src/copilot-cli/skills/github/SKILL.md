@@ -134,8 +134,8 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `test_pr_merged.py` | Check if PR is merged | `--pull-request` |
 | `detect_copilot_followup_pr.py` | Detect Copilot follow-up PRs | `--pr-number`, `--owner`, `--repo` |
 | `post_pr_comment_reply.py` | Thread-preserving replies | `--pull-request`, `--comment-id`, `--body` |
-| `add_pr_review_thread_reply.py` | Reply to thread by ID (GraphQL) | `--thread-id`, `--body`, `--resolve` |
-| `resolve_pr_review_thread.py` | Mark threads resolved | `--thread-id` or `--pull-request --all` |
+| `add_pr_review_thread_reply.py` | Reply to thread by ID (GraphQL) | `--pull-request`, `--thread-id`, `--body`, `--resolve` |
+| `resolve_pr_review_thread.py` | Mark threads resolved | `--thread-id --expected-pull-request` or `--pull-request --all` |
 | `unresolve_pr_review_thread.py` | Mark threads unresolved | `--thread-id` or `--pull-request --all` |
 | `get_thread_by_id.py` | Get single thread by ID | `--thread-id` |
 | `get_thread_conversation_history.py` | Full thread comment history | `--thread-id`, `--include-minimized` |
@@ -173,7 +173,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `add_comment_reaction.py` | Add emoji reactions (batch support) | `--comment-ids`, `--reaction`, `--comment-type` |
+| `add_comment_reaction.py` | Add emoji reactions (batch support) | `--comment-id`, `--reaction`, `--comment-type`, `--pull-request` |
 
 ### Notifications (`scripts/notifications/`)
 
