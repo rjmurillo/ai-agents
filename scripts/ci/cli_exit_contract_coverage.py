@@ -140,6 +140,54 @@ def _spec_from_file_aliases(source: str, stems: frozenset[str]) -> dict[str, str
     return aliases
 
 
+def _spec_loader_stem(node: ast.AST, stems: frozenset[str]) -> str | None:
+    if not isinstance(node, ast.Call):
+        return None
+    if not isinstance(node.func, ast.Attribute):
+        return None
+    if node.func.attr != "spec_from_file_location":
+        return None
+    if not node.args or not isinstance(node.args[0], ast.Constant):
+        return None
+    if not isinstance(node.args[0].value, str):
+        return None
+    return node.args[0].value if node.args[0].value in stems else None
+
+
+def _helper_loader_stems(tree: ast.Module, stems: frozenset[str]) -> dict[str, str]:
+    helper_stems: dict[str, str] = {}
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for inner in ast.walk(node):
+            if stem := _spec_loader_stem(inner, stems):
+                helper_stems[node.name] = stem
+    return helper_stems
+
+
+def _helper_loader_aliases(source: str, stems: frozenset[str]) -> dict[str, str]:
+    """Aliases assigned from local helpers that import one tracked script."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return {}
+
+    helper_stems = _helper_loader_stems(tree, stems)
+    aliases: dict[str, str] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not isinstance(node.value, ast.Call) or not isinstance(node.value.func, ast.Name):
+            continue
+        stem = helper_stems.get(node.value.func.id)
+        if stem is None:
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                aliases[target.id] = stem
+    return aliases
+
+
 def _module_aliases(source: str, stems: frozenset[str]) -> dict[str, str]:
     """Names bound to a ``scripts/ci`` module in this test file, alias -> stem."""
     aliases = _from_import_aliases(source, stems)
@@ -151,6 +199,7 @@ def _module_aliases(source: str, stems: frozenset[str]) -> dict[str, str]:
         if stem in stems:
             aliases[alias] = stem
     aliases.update(_spec_from_file_aliases(source, stems))
+    aliases.update(_helper_loader_aliases(source, stems))
     for stem, alias in _SYS_MODULES_ALIAS.findall(source):
         if stem in stems:
             aliases[alias] = stem
@@ -277,6 +326,7 @@ def _main_target(
         stem = binding.aliases.get(func.value.id)
         if stem is not None:
             return {stem}
+        return set()
     return set(bare_credit)
 
 

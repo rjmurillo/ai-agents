@@ -259,6 +259,18 @@ def test_a_hand_rolled_module_loader_still_counts():
     assert ratchet.covered_stems(source, frozenset({"widget"})) == {"widget"}
 
 
+def test_an_unrecognized_method_named_main_does_not_use_bare_credit():
+    source = (
+        "from require_job_results import main\n"
+        "\n\n"
+        "def test_helper_wrapper():\n"
+        "    helper = object()\n"
+        "    assert helper.main([]) == 1\n"
+    )
+
+    assert ratchet.covered_stems(source, frozenset({"require_job_results"})) == set()
+
+
 def test_a_subprocess_driven_cli_counts_by_script_path():
     source = (
         "def test_x():\n"
@@ -432,4 +444,3 @@ class TestLocalMainScopeGateBehavior:
             ),
         )
         assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
-
