@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-08-05-session-10001",
+  "session": "2026-08-05-session-10001",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Audit dead validation gates and fix top confirmed findings outside count_ratchet ownership",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Enumerated real entrypoints from lefthook, pre_pr_sequence, workflows, hook manifests, and skill scripts. Traced tested validator-like functions to production callers.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-10001"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed validate_pr_description.py validate_no_escaped_newlines was dead in its own CLI path. Base main lines 133-238 skipped the guard, which started at line 241 after __main__.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-10001"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wired validate_no_escaped_newlines into validate_pr_description.py main after body resolution, moved the __main__ block below the function, regenerated the Copilot skill mirror, and added subprocess CLI wiring tests.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-10001"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Before fix, corrupt literal-backslash-n body exited 0. After fix it exits 1. Targeted pytest passed, ruff passed, and mutation proof killed the call-removal and guard-bypass mutants while the cosmetic control survived.",
+      "caused_by": [],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-05-session-10001"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T16:00:20+00:00",
+      "type": "commit",
+      "content": "Commit: 046a1b9466dfdb63c6ef9387949187d355bc8d78",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-10001"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
