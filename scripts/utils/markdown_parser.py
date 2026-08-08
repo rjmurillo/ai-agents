@@ -14,6 +14,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from markdown_it import MarkdownIt
+from markdown_it.token import Token
 
 
 @dataclass(frozen=True)
@@ -222,6 +223,205 @@ def parse_tables(markdown: str) -> list[ParsedTable]:
         i += 1
 
     return tables
+
+
+def _inline_markdown_links(token: Token) -> list[str]:
+    """Return rendered .md link targets from one inline token."""
+    references: list[str] = []
+    for child in token.children or []:
+        if child.type != "link_open":
+            continue
+        href = child.attrGet("href")
+        if isinstance(href, str) and href.endswith(".md"):
+            references.append(href)
+    return references
+
+
+def _table_lookup_references(
+    tokens: list[Token],
+) -> tuple[list[str], set[int]]:
+    """Return file-column references and occupied table source lines."""
+    references: list[str] = []
+    table_lines: set[int] = set()
+    in_body = False
+    cell_index = -1
+
+    for token in tokens:
+        if token.type == "tbody_open":
+            in_body = True
+            continue
+        if token.type == "tbody_close":
+            in_body = False
+            continue
+        if token.type == "tr_open":
+            cell_index = -1
+            if token.map:
+                table_lines.update(range(token.map[0], token.map[1]))
+            continue
+        if token.type in {"th_open", "td_open"}:
+            cell_index += 1
+            continue
+        if token.type != "inline" or not in_body or cell_index != 1:
+            continue
+
+        link_targets = _inline_markdown_links(token)
+        if link_targets:
+            references.extend(link_targets)
+            continue
+        bare_target = token.content.strip()
+        if bare_target:
+            references.append(
+                bare_target
+                if bare_target.endswith(".md")
+                else f"{bare_target}.md"
+            )
+
+    return references, table_lines
+
+
+def _ignored_block_lines(tokens: list[Token]) -> set[int]:
+    """Return source lines rendered as code or HTML blocks."""
+    ignored: set[int] = set()
+    for token in tokens:
+        if token.type not in {"fence", "code_block", "html_block"}:
+            continue
+        if token.map:
+            ignored.update(range(token.map[0], token.map[1]))
+    return ignored
+
+
+def _root_paragraph_lines(tokens: list[Token]) -> set[int]:
+    """Return source lines owned by top-level inline blocks."""
+    lines: set[int] = set()
+    for token in tokens:
+        if token.type == "inline" and token.level == 1 and token.map:
+            lines.update(range(token.map[0], token.map[1]))
+    return lines
+
+
+def _mask_range(
+    characters: list[str],
+    start: int,
+    end: int,
+) -> None:
+    """Blank a source range without changing line positions."""
+    for index in range(start, end):
+        if characters[index] != "\n":
+            characters[index] = " "
+
+
+def _next_unescaped_backtick(
+    line: str,
+    start: int,
+) -> tuple[int, int] | None:
+    """Return the next backtick run that CommonMark can open."""
+    for run in re.finditer(r"`+", line[start:]):
+        absolute_start = start + run.start()
+        prefix = line[:absolute_start]
+        backslashes = len(prefix) - len(prefix.rstrip("\\"))
+        if backslashes % 2 == 0:
+            return absolute_start, len(run.group(0))
+    return None
+
+
+def _mask_inline_contexts(
+    markdown: str,
+    ignored_lines: set[int],
+) -> list[str]:
+    """Blank inline code and HTML comments outside ignored block lines."""
+    characters = list(markdown)
+    code_start: int | None = None
+    code_length = 0
+    in_comment = False
+    offset = 0
+
+    for line_number, line in enumerate(markdown.splitlines(keepends=True)):
+        if line_number in ignored_lines:
+            code_start = None
+            code_length = 0
+            in_comment = False
+            offset += len(line)
+            continue
+
+        position = 0
+        while position < len(line):
+            if in_comment:
+                close = line.find("-->", position)
+                if close < 0:
+                    _mask_range(characters, offset + position, offset + len(line))
+                    break
+                _mask_range(characters, offset + position, offset + close + 3)
+                in_comment = False
+                position = close + 3
+                continue
+
+            if code_start is not None:
+                closing = next(
+                    (
+                        run
+                        for run in re.finditer(r"`+", line[position:])
+                        if len(run.group(0)) == code_length
+                    ),
+                    None,
+                )
+                if closing is None:
+                    break
+                closing_end = position + closing.end()
+                _mask_range(characters, code_start, offset + closing_end)
+                code_start = None
+                code_length = 0
+                position = closing_end
+                continue
+
+            comment_start = line.find("<!--", position)
+            backtick = _next_unescaped_backtick(line, position)
+            backtick_start = backtick[0] if backtick is not None else -1
+            if comment_start >= 0 and (
+                backtick_start < 0 or comment_start < backtick_start
+            ):
+                in_comment = True
+                _mask_range(
+                    characters,
+                    offset + comment_start,
+                    offset + comment_start + 4,
+                )
+                position = comment_start + 4
+                continue
+            if backtick is None:
+                break
+            code_start = offset + backtick_start
+            code_length = backtick[1]
+            position = backtick_start + code_length
+
+        offset += len(line)
+
+    return "".join(characters).splitlines()
+
+
+def extract_lookup_references(markdown: str) -> list[str]:
+    """Return .md targets from rendered lookup rows and table file cells."""
+    md = _create_parser()
+    environment: dict[str, object] = {}
+    tokens = md.parse(markdown, environment)
+    _raise_if_nesting_truncated(markdown, tokens, md)
+
+    references, table_lines = _table_lookup_references(tokens)
+    ignored_lines = _ignored_block_lines(tokens) | table_lines
+    root_lines = _root_paragraph_lines(tokens) - ignored_lines
+
+    for line_number, line in enumerate(
+        _mask_inline_contexts(markdown, ignored_lines)
+    ):
+        if line_number not in root_lines:
+            continue
+        if not line.startswith("|"):
+            continue
+        inline_tokens = md.parseInline(line, environment)
+        for token in inline_tokens:
+            if token.type == "inline":
+                references.extend(_inline_markdown_links(token))
+
+    return references
 
 
 def iter_table_cell_text(markdown: str) -> Iterator[TableCell]:
