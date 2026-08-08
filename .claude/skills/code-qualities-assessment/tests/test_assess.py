@@ -17,10 +17,12 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+import json
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -31,14 +33,28 @@ assert _spec is not None and _spec.loader is not None
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
+assess_content = _mod.assess_content
 assess_file = _mod.assess_file
+build_comparisons = _mod.build_comparisons
+ChangedFile = _mod.ChangedFile
+check_regression = _mod.check_regression
 check_thresholds = _mod.check_thresholds
+compare_assessments = _mod.compare_assessments
+get_changed_files = _mod.get_changed_files
+get_file_at_revision = _mod.get_file_at_revision
+main = _mod.main
+resolve_gate_mode = _mod.resolve_gate_mode
+resolve_revision = _mod.resolve_revision
 detect_language = _mod.detect_language
 get_files_to_assess = _mod.get_files_to_assess
 classify_file_category = _mod.classify_file_category
 generate_json_report = _mod.generate_json_report
 generate_markdown_report = _mod.generate_markdown_report
 load_config = _mod.load_config
+_parse_changed_files = _mod._parse_changed_files
+_match_path_glob = _mod._match_path_glob
+_resolve_target_path = _mod._resolve_target_path
+parse_args = _mod.parse_args
 
 
 def _write(tmp_path: Path, name: str, body: str) -> Path:
@@ -420,13 +436,39 @@ def test_web_indented_local_var_not_counted_as_global(tmp_path: Path) -> None:
     assert local_score.value > global_score.value
 
 
-def test_directory_scan_includes_all_supported_suffixes(tmp_path: Path) -> None:
+def test_directory_scan_includes_all_supported_suffixes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Directory assessment must pick up every suffix detect_language supports,
     including .go, .tsx, .jsx, .mjs, .cjs (previously omitted)."""
     for name in ("a.go", "b.tsx", "c.jsx", "d.mjs", "e.cjs", "f.py"):
         _write(tmp_path, name, "x = 1\n")
-    found = {p.name for p in get_files_to_assess(str(tmp_path), False)}
+    monkeypatch.chdir(tmp_path)
+    found = {p.name for p in get_files_to_assess(".", False)}
     assert {"a.go", "b.tsx", "c.jsx", "d.mjs", "e.cjs", "f.py"} <= found
+
+
+def test_parse_changed_files_retains_old_and_new_paths() -> None:
+    raw = (
+        b"M\0same.py\0"
+        b"A\0new.py\0"
+        b"D\0gone.py\0"
+        b"R095\0old.py\0renamed.py\0"
+    )
+
+    assert _parse_changed_files(raw) == [
+        ChangedFile("M", Path("same.py"), Path("same.py")),
+        ChangedFile("A", None, Path("new.py")),
+        ChangedFile("D", Path("gone.py"), None),
+        ChangedFile("R095", Path("old.py"), Path("renamed.py")),
+    ]
+
+
+@pytest.mark.parametrize("raw", [b"M\0", b"R095\0old.py\0"])
+def test_parse_changed_files_rejects_truncated_records(raw: bytes) -> None:
+    with pytest.raises(ValueError, match="Malformed git"):
+        _parse_changed_files(raw)
 
 
 def test_changed_only_uses_base_for_clean_committed_branch(
@@ -449,10 +491,179 @@ def test_changed_only_uses_base_for_clean_committed_branch(
     assert changed.exists()
 
 
+def test_changed_only_respects_target_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "other").mkdir()
+    _commit(tmp_path, "src/in_scope.py", _FOCUSED, "in scope")
+    _commit(tmp_path, "other/out_of_scope.py", _FOCUSED, "out of scope")
+    monkeypatch.chdir(tmp_path)
+
+    assert get_files_to_assess("src", True, "main") == [
+        Path("src/in_scope.py")
+    ]
+
+
+def test_regression_mode_passes_when_target_has_no_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / "src").mkdir()
+    _commit(tmp_path, "src/unchanged.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    (tmp_path / "other").mkdir()
+    _commit(tmp_path, "other/changed.py", _FOCUSED, "other change")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--target", "src", *_regression_argv()[2:]]) == 0
+    assert json.loads(capsys.readouterr().out)["summary"]["file_count"] == 0
+
+
+def test_regression_mode_rejects_unknown_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "changed.py", _FOCUSED, "change")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--target", "typo", *_regression_argv()[2:]]) == 1
+
+
+def test_base_glob_does_not_cross_directory_boundaries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / "src" / "nested").mkdir(parents=True)
+    _commit(tmp_path, "src/nested/base.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    (tmp_path / "other").mkdir()
+    _commit(tmp_path, "other/changed.py", _FOCUSED, "change")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["--target", "src/*.py", *_regression_argv()[2:]]) == 1
+
+
+@pytest.mark.parametrize(
+    ("path", "pattern", "expected"),
+    [
+        ("a.py", "*.py", True),
+        ("nested/a.py", "*.py", False),
+        ("src/a.py", "src/*.py", True),
+        ("src/nested/a.py", "src/*.py", False),
+        ("src/a.py", "src/**/*.py", True),
+        ("src/nested/a.py", "src/**/*.py", True),
+    ],
+)
+def test_path_glob_is_rooted_and_segment_aware(
+    path: str,
+    pattern: str,
+    expected: bool,
+) -> None:
+    assert _match_path_glob(path, pattern) is expected
+
+
+def test_changed_only_resolves_glob_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = _write(tmp_path, "first.py", _FOCUSED)
+    second = _write(tmp_path, "second.py", _FOCUSED)
+    monkeypatch.chdir(tmp_path)
+    changes = [
+        ChangedFile("M", Path("first.py"), Path("first.py")),
+        ChangedFile("M", Path("second.py"), Path("second.py")),
+    ]
+    with patch.object(
+        _mod,
+        "_glob_target_matches",
+        return_value={first.resolve(), second.resolve()},
+    ) as resolve_glob:
+        files = get_files_to_assess("*.py", True, changed_files=changes)
+
+    assert files == [Path("first.py"), Path("second.py")]
+    resolve_glob.assert_called_once_with("*.py")
+
+
+def test_main_resolves_empty_target_glob_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _init_repo(tmp_path)
+    (tmp_path / "src").mkdir()
+    _commit(tmp_path, "src/unchanged.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    (tmp_path / "other").mkdir()
+    _commit(tmp_path, "other/changed.py", _FOCUSED, "other change")
+    monkeypatch.chdir(tmp_path)
+
+    with patch.object(
+        _mod,
+        "_glob_target_matches",
+        wraps=_mod._glob_target_matches,
+    ) as resolve_glob:
+        assert main(["--target", "src/*.py", *_regression_argv()[2:]]) == 0
+
+    assert json.loads(capsys.readouterr().out)["summary"]["file_count"] == 0
+    resolve_glob.assert_called_once()
+
+
 def test_changed_only_rejects_option_like_base() -> None:
     """CWE-88: an option-like --base is rejected before git runs."""
     with pytest.raises(ValueError):
         get_files_to_assess(".", True, "--output=/tmp/should_not_be_written")
+
+
+@pytest.mark.parametrize("abbreviation", ["--bas=main", "--gate-m=regression"])
+def test_cli_rejects_abbreviated_options(abbreviation: str) -> None:
+    with pytest.raises(SystemExit):
+        parse_args(["--target", ".", abbreviation])
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf", "-0.1"])
+def test_cli_rejects_invalid_regression_tolerance(value: str) -> None:
+    with pytest.raises(SystemExit):
+        parse_args(["--target", ".", "--regression-tolerance", value])
+
+
+def test_target_rejects_a_sibling_prefix_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "repo"
+    sibling = tmp_path / "repo-other"
+    workspace.mkdir()
+    sibling.mkdir()
+    monkeypatch.chdir(workspace)
+
+    with pytest.raises(ValueError, match="escapes the workspace"):
+        _resolve_target_path(str(sibling))
+
+
+def test_candidate_rejects_a_symlink_escape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "repo"
+    workspace.mkdir()
+    outside = tmp_path / "outside.py"
+    outside.write_text(_FOCUSED, encoding="utf-8")
+    (workspace / "escaped.py").symlink_to(outside)
+    monkeypatch.chdir(workspace)
+
+    with pytest.raises(ValueError, match="escapes the workspace"):
+        get_files_to_assess(".", False)
 
 
 def test_changed_only_passes_end_of_options_guard(
@@ -462,7 +673,7 @@ def test_changed_only_passes_end_of_options_guard(
     captured: dict[str, list[str]] = {}
 
     class _Result:
-        stdout = ""
+        stdout = b""
 
     def _fake_run(cmd: list[str], **_kwargs: Any) -> _Result:
         captured["cmd"] = cmd
@@ -471,6 +682,7 @@ def test_changed_only_passes_end_of_options_guard(
     monkeypatch.setattr(subprocess, "run", _fake_run)
     get_files_to_assess(".", True, "origin/main")
     cmd = captured["cmd"]
+    assert ["--name-status", "-M", "-z"] == cmd[2:5]
     assert "--end-of-options" in cmd
     assert cmd.index("--end-of-options") < cmd.index("origin/main...HEAD")
 
@@ -887,82 +1099,584 @@ def test_assess_non_utf8_file_does_not_crash(tmp_path: Path) -> None:
     assert assessment.category in {"authored", "test"}
 
 
-# ---------------------------------------------------------------------------
-# Issue #4364: regression mode for --changed-only gate
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------- #
+# Regression gate mode (issue #4364)
+#
+# --changed-only used to select changed files and then apply absolute
+# thresholds, so a comment-only edit to a legacy file failed the gate on debt
+# it did not introduce. Exit 10 was documented and unreachable.
+# --------------------------------------------------------------------------- #
 
-check_regressions = _mod.check_regressions
-assess_file_content = _mod.assess_file_content
+_FOCUSED = "def alpha():\n    return 1\n"
+# 21 definitions: enough to score cohesion well below the default minimum of 7.
+_SPRAWLING = _FOCUSED + "".join(f"def f{i}():\n    return {i}\n" for i in range(20))
 
 
-class TestCheckRegressions:
-    """Tests for the regression gate (issue #4364).
+def _init_repo(tmp_path: Path) -> None:
+    _run_git(tmp_path, "init")
+    _run_git(tmp_path, "checkout", "-b", "main")
+    _run_git(tmp_path, "config", "user.email", "test@example.com")
+    _run_git(tmp_path, "config", "user.name", "Test")
 
-    The decisive assertion: a changed file that carries pre-existing absolute
-    debt but adds none must pass (exit 0). A file that regresses must fail
-    (exit 10). A new file has no base assessment and is never gated.
+
+def _commit(tmp_path: Path, name: str, body: str, message: str) -> Path:
+    path = _write(tmp_path, name, body)
+    _run_git(tmp_path, "add", name)
+    _run_git(tmp_path, "commit", "-m", message)
+    return path
+
+
+def _repo_with_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    base_body: str,
+    head_body: str,
+    name: str = "legacy.py",
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, name, base_body, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, name, head_body, "head")
+    monkeypatch.chdir(tmp_path)
+
+
+def _regression_argv() -> list[str]:
+    return ["--target", ".", "--changed-only", "--base", "main", "--format", "json"]
+
+
+def test_regression_mode_passes_a_comment_only_change_to_a_legacy_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reported repro: legacy debt plus one comment must not fail the gate."""
+    _repo_with_change(tmp_path, monkeypatch, _SPRAWLING, "# added note\n" + _SPRAWLING)
+
+    assert main(_regression_argv()) == 0
+
+
+def test_absolute_mode_still_fails_the_same_legacy_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Control for the test above: the two modes disagree on the same tree."""
+    _repo_with_change(tmp_path, monkeypatch, _SPRAWLING, "# added note\n" + _SPRAWLING)
+
+    assert main([*_regression_argv(), "--gate-mode", "absolute"]) == 11
+
+
+def test_regression_mode_passes_an_improved_legacy_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _repo_with_change(tmp_path, monkeypatch, _SPRAWLING, _FOCUSED)
+
+    assert main(_regression_argv()) == 0
+
+
+def test_regression_mode_passes_a_deletion_only_change(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "deleted.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _run_git(tmp_path, "rm", "deleted.py")
+    _run_git(tmp_path, "commit", "-m", "delete")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 0
+    assert json.loads(capsys.readouterr().out)["summary"]["file_count"] == 0
+
+
+def test_regression_mode_fails_a_degraded_file_and_names_the_quality(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _SPRAWLING)
+
+    assert main(_regression_argv()) == 10
+    assert "cohesion regressed" in capsys.readouterr().err
+
+
+def test_regression_mode_gates_a_new_file_absolutely(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file absent at base has no delta, so absolute thresholds decide."""
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "newly_added.py", _SPRAWLING, "add file")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 11
+
+
+def test_regression_mode_passes_a_new_file_that_meets_thresholds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "newly_added.py", _FOCUSED, "add file")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 0
+
+
+def test_regression_mode_reads_a_renamed_files_old_base_blob(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "legacy.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _run_git(tmp_path, "mv", "legacy.py", "renamed.py")
+    _run_git(tmp_path, "commit", "-m", "rename")
+    monkeypatch.chdir(tmp_path)
+
+    changes = get_changed_files("main")
+    files = get_files_to_assess(".", True, "main", changes)
+    assessment = assess_file(files[0], "production", False)
+    comparisons, new_files = build_comparisons(
+        [assessment],
+        "main",
+        changed_files=changes,
+    )
+
+    assert files == [Path("renamed.py")]
+    assert new_files == []
+    assert comparisons[0].is_new_file is False
+    assert comparisons[0].base_file_path == "legacy.py"
+    assert comparisons[0].change_status.startswith("R")
+    payload = json.loads(
+        generate_json_report([assessment], comparisons, "regression")
+    )
+    assert payload["comparisons"][0]["base_file_path"] == "legacy.py"
+    assert payload["comparisons"][0]["file_path"] == "renamed.py"
+
+
+def test_unscored_r095_rename_is_gated_absolutely(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "legacy.txt", _SPRAWLING, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _run_git(tmp_path, "mv", "legacy.txt", "renamed.py")
+    with (tmp_path / "renamed.py").open("a", encoding="utf-8") as stream:
+        stream.write("#xxxxxxxxxxxxxxxxxxxx\n")
+    _run_git(tmp_path, "add", "renamed.py")
+    _run_git(tmp_path, "commit", "-m", "rename to scored code")
+    monkeypatch.chdir(tmp_path)
+
+    changes = get_changed_files("main")
+    assert changes == [
+        ChangedFile(
+            "R095",
+            Path("legacy.txt"),
+            Path("renamed.py"),
+        )
+    ]
+    assessment = assess_file(Path("renamed.py"), "production", False)
+    comparisons, absolute_assessments = build_comparisons(
+        [assessment],
+        "main",
+        changed_files=changes,
+    )
+
+    assert comparisons[0].is_new_file is False
+    assert comparisons[0].absolute_gate_reason == "base_unscored"
+    assert absolute_assessments == [assessment]
+    assert main(_regression_argv()) == 11
+
+
+def test_json_report_carries_base_head_and_delta(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _SPRAWLING)
+
+    main(_regression_argv())
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["gate_mode"] == "regression"
+    cohesion = next(
+        d
+        for c in payload["comparisons"]
+        for d in c["deltas"]
+        if d["quality"] == "cohesion"
+    )
+    assert cohesion["base"] is not None
+    assert cohesion["head"] is not None
+    assert cohesion["delta"] < 0
+    assert cohesion["status"] == "compared"
+
+
+def test_regression_mode_rejects_a_missing_base(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    rc = main(["--target", ".", "--changed-only", "--gate-mode", "regression"])
+
+    assert rc == 1
+
+
+def test_regression_mode_rejects_a_missing_changed_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    rc = main(["--target", ".", "--base", "main", "--gate-mode", "regression"])
+
+    assert rc == 1
+
+
+def test_unresolvable_base_is_an_error_not_a_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A typo in --base must not read as 'every file is new' and pass."""
+    _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _SPRAWLING)
+
+    with pytest.raises(ValueError):
+        resolve_revision("no-such-ref")
+
+
+def test_no_common_ancestor_uses_the_resolved_base() -> None:
+    result = subprocess.CompletedProcess(
+        args=[],
+        returncode=1,
+        stdout="",
+        stderr="",
+    )
+    with patch.object(_mod, "resolve_revision", return_value="abc123"), patch(
+        "subprocess.run",
+        return_value=result,
+    ):
+        assert _mod.resolve_comparison_base("main") == "abc123"
+
+
+def test_regression_mode_handles_unrelated_histories(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "base.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "--orphan", "feature")
+    _run_git(tmp_path, "rm", "-f", "base.py")
+    _commit(tmp_path, "new.py", _FOCUSED, "unrelated head")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 0
+
+
+@pytest.mark.parametrize(
+    "result",
+    [
+        subprocess.CompletedProcess(
+            args=[],
+            returncode=2,
+            stdout="",
+            stderr="fatal: repository unavailable",
+        ),
+        subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="",
+            stderr="",
+        ),
+    ],
+)
+def test_merge_base_operational_failures_do_not_fall_back(
+    result: subprocess.CompletedProcess[str],
+) -> None:
+    with patch.object(_mod, "resolve_revision", return_value="abc123"), patch(
+        "subprocess.run",
+        return_value=result,
+    ):
+        with pytest.raises(RuntimeError, match="git merge-base"):
+            _mod.resolve_comparison_base("main")
+
+
+def test_regression_mode_returns_1_when_base_blob_read_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _SPRAWLING)
+
+    with patch.object(
+        _mod,
+        "get_file_at_revision",
+        side_effect=RuntimeError("blob read failed"),
+    ):
+        assert main(_regression_argv()) == 1
+    assert "blob read failed" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("gate_mode", "changed_only", "base", "expected"),
+    [
+        ("auto", True, "main", "regression"),
+        ("auto", True, None, "absolute"),
+        ("auto", False, "main", "absolute"),
+        ("auto", False, None, "absolute"),
+        ("absolute", True, "main", "absolute"),
+        ("regression", True, "main", "regression"),
+    ],
+)
+def test_resolve_gate_mode(
+    gate_mode: str, changed_only: bool, base: str | None, expected: str
+) -> None:
+    assert resolve_gate_mode(gate_mode, changed_only, base) == expected
+
+
+def test_resolve_revision_rejects_option_like_base() -> None:
+    """CWE-88: an option-like --base is rejected before git runs."""
+    with pytest.raises(ValueError):
+        resolve_revision("--output=/tmp/should_not_be_written")
+
+
+def test_get_file_at_revision_rejects_option_like_revision() -> None:
+    with pytest.raises(ValueError):
+        get_file_at_revision(Path("a.py"), "--upload-pack=touch")
+
+
+def test_get_file_at_revision_returns_none_for_an_absent_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    monkeypatch.chdir(tmp_path)
+
+    assert get_file_at_revision(Path("seed.py"), "main") == _FOCUSED.encode("utf-8")
+    assert get_file_at_revision(Path("never_existed.py"), "main") is None
+
+
+def test_get_file_at_revision_raises_when_tree_lookup_fails() -> None:
+    failure = subprocess.CompletedProcess(
+        args=[],
+        returncode=128,
+        stdout=b"",
+        stderr=b"tree failure",
+    )
+    with patch("subprocess.run", return_value=failure):
+        with pytest.raises(RuntimeError, match="git ls-tree failed"):
+            get_file_at_revision(Path("seed.py"), "main")
+
+
+def test_get_file_at_revision_raises_when_blob_read_fails() -> None:
+    present = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout=b"entry",
+        stderr=b"",
+    )
+    failure = subprocess.CompletedProcess(
+        args=[],
+        returncode=128,
+        stdout=b"",
+        stderr=b"show failure",
+    )
+    with patch("subprocess.run", side_effect=[present, failure]):
+        with pytest.raises(RuntimeError, match="git show failed"):
+            get_file_at_revision(Path("seed.py"), "main")
+
+
+def test_build_comparisons_separates_new_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    monkeypatch.chdir(tmp_path)
+    existing = assess_file(Path("seed.py"), "production", False)
+    fresh = assess_content(Path("brand_new.py"), _FOCUSED)
+
+    comparisons, new_files = build_comparisons([existing, fresh], "main")
+
+    assert [c.is_new_file for c in comparisons] == [False, True]
+    assert [a.file_path for a in new_files] == ["brand_new.py"]
+
+
+# --------------------------------------------------------------------------- #
+# compare_assessments: per-quality independence
+# --------------------------------------------------------------------------- #
+
+
+def _delta(comparison: Any, quality: str) -> Any:
+    return next(d for d in comparison.deltas if d.quality == quality)
+
+
+def test_unscored_qualities_are_never_compared() -> None:
+    """A quality unscored in both revisions produces no delta and no verdict."""
+    base = assess_content(Path("a.rb"), "puts 1\n")
+    head = assess_content(Path("a.rb"), "puts 2\n")
+
+    comparison = compare_assessments(base, head)
+
+    assert _delta(comparison, "testability").status == "not_scored"
+    assert _delta(comparison, "testability").delta is None
+    assert comparison.regressions == []
+
+
+def test_newly_scored_quality_reports_no_fabricated_delta() -> None:
+    unscored = assess_content(Path("a.py"), "x = 1\n")
+    unscored.cohesion.confidence = 0.0
+    head = assess_content(Path("a.py"), "x = 1\n")
+
+    comparison = compare_assessments(unscored, head)
+
+    delta = _delta(comparison, "cohesion")
+    assert delta.status == "newly_scored"
+    assert delta.base is None
+    assert delta.delta is None
+    assert comparison.regressions == []
+
+
+def test_scored_to_unscored_is_evidence_loss() -> None:
+    base = assess_content(Path("a.py"), _FOCUSED)
+    head = assess_content(Path("a.py"), _FOCUSED)
+    head.cohesion.confidence = 0.0
+
+    comparison = compare_assessments(base, head)
+
+    assert comparison.evidence_loss == ["cohesion"]
+    assert check_regression([comparison], [], _default_config(), "production") == 10
+
+
+def test_evidence_loss_is_forgiven_for_a_generated_artifact() -> None:
+    base = assess_content(Path("a.py"), _FOCUSED)
+    head = assess_content(Path("a.py"), _FOCUSED)
+    head.category = "generated"
+    head.cohesion.confidence = 0.0
+
+    comparison = compare_assessments(base, head)
+
+    assert comparison.evidence_loss == []
+    assert check_regression([comparison], [], _default_config(), "production") == 0
+
+
+def test_tolerance_absorbs_a_small_drop() -> None:
+    base = assess_content(Path("a.py"), _FOCUSED)
+    head = assess_content(Path("a.py"), _FOCUSED)
+    head.cohesion.value = base.cohesion.value - 0.2
+
+    assert compare_assessments(base, head, tolerance=0.0).regressions == ["cohesion"]
+    assert compare_assessments(base, head, tolerance=0.5).regressions == []
+
+
+def test_an_improvement_is_never_a_regression() -> None:
+    base = assess_content(Path("a.py"), _SPRAWLING)
+    head = assess_content(Path("a.py"), _FOCUSED)
+
+    comparison = compare_assessments(base, head)
+
+    assert comparison.regressions == []
+    assert _delta(comparison, "cohesion").delta > 0
+
+
+# --------------------------------------------------------------------------- #
+# Inputs a real pull request produces and the fixture above does not: a base
+# branch that moved after the fork, a changed file with no language, a base
+# revision that is not UTF-8, and ordinary additive work (issue #4364).
+# --------------------------------------------------------------------------- #
+
+
+def test_a_base_that_moved_after_the_fork_is_not_charged_to_the_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Selection uses the merge base, so scoring must use it too.
+
+    Main improves the file after the fork. Scored against main's tip the branch
+    looks like it sprawled a focused file; scored against the fork point it
+    added one comment, which is what it actually did.
     """
+    _init_repo(tmp_path)
+    _commit(tmp_path, "legacy.py", _SPRAWLING, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "legacy.py", "# added note\n" + _SPRAWLING, "comment only")
+    _run_git(tmp_path, "checkout", "main")
+    _commit(tmp_path, "legacy.py", _FOCUSED, "main focuses the file")
+    _run_git(tmp_path, "checkout", "feature")
+    monkeypatch.chdir(tmp_path)
 
-    def _make_assessment(self, file_path: Path, content: str) -> Any:
-        return assess_file_content(file_path, content, "production")
+    assert main(_regression_argv()) == 0
 
-    def test_no_regression_passes(self, tmp_path: Path) -> None:
-        """Pre-existing debt that is unchanged must exit 0 (decisive test for #4364)."""
-        f = tmp_path / "legacy.py"
-        body = "def a():\n    return 1\n"
-        f.write_text(body, encoding="utf-8")
-        head_assessment = assess_file(f, "production", False)
-        # Identical base: same score, no regression.
-        base_assessments = {str(f): self._make_assessment(f, body)}
-        assert check_regressions([head_assessment], base_assessments) == 0
 
-    def test_regression_detected(self, tmp_path: Path) -> None:
-        """A quality that drops by more than 0.05 must exit 10."""
-        f = tmp_path / "mod.py"
-        # Base: clean, small file.
-        base_body = "def a():\n    return 1\n"
-        # Head: many imports added; coupling score will drop sharply.
-        head_body = (
-            "import os\nimport sys\nimport re\nimport json\nimport pathlib\n"
-            "import collections\nimport itertools\nimport functools\nimport typing\n"
-            "import hashlib\nimport logging\nimport datetime\nimport uuid\n"
-            "def a():\n    return 1\n"
-        )
-        f.write_text(head_body, encoding="utf-8")
-        head_assessment = assess_file(f, "production", False)
-        base_assessments = {str(f): self._make_assessment(f, base_body)}
-        assert check_regressions([head_assessment], base_assessments) == 10
+def test_a_changed_binary_file_does_not_fail_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reported repro plus one PNG: 26 binary files are tracked in this repo."""
+    _init_repo(tmp_path)
+    _commit(tmp_path, "legacy.py", _SPRAWLING, "base")
+    (tmp_path / "img.png").write_bytes(b"\x89PNG\r\n\x1a\n" + bytes(range(256)))
+    _run_git(tmp_path, "add", "img.png")
+    _run_git(tmp_path, "commit", "-m", "add image")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "legacy.py", "# added note\n" + _SPRAWLING, "head")
+    (tmp_path / "img.png").write_bytes(b"\x89PNG\r\n\x1a\nchanged")
+    _run_git(tmp_path, "add", "img.png")
+    _run_git(tmp_path, "commit", "-m", "change image")
+    monkeypatch.chdir(tmp_path)
 
-    def test_new_file_skipped(self, tmp_path: Path) -> None:
-        """A file absent from base_assessments is not flagged as a regression."""
-        f = tmp_path / "new.py"
-        f.write_text("def new():\n    return 1\n", encoding="utf-8")
-        head_assessment = assess_file(f, "production", False)
-        assert check_regressions([head_assessment], {}) == 0
+    assert main(_regression_argv()) == 0
 
-    def test_regression_gate_via_main(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """main() uses regression gate when --changed-only and --base are both given."""
-        for cmd in (
-            ("init",), ("checkout", "-b", "main"),
-            ("config", "user.email", "t@t.com"), ("config", "user.name", "T"),
-        ):
-            _run_git(tmp_path, *cmd)
-        monkeypatch.chdir(tmp_path)
 
-        body = "def f():\n    return 1\n"
-        _write(tmp_path, "f.py", body)
-        _run_git(tmp_path, "add", "f.py")
-        _run_git(tmp_path, "commit", "-m", "base")
-        _write(tmp_path, "f.py", body + "# comment\n")
-        _run_git(tmp_path, "add", "f.py")
-        _run_git(tmp_path, "commit", "-m", "head")
+def test_a_source_file_that_is_not_utf8_at_base_is_gated_absolutely(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable base has no comparison evidence, so head thresholds apply."""
+    _init_repo(tmp_path)
+    (tmp_path / "legacy.py").write_bytes(b"# caf\xe9 latin-1\n" + _SPRAWLING.encode("utf-8"))
+    _run_git(tmp_path, "add", "legacy.py")
+    _run_git(tmp_path, "commit", "-m", "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    _commit(tmp_path, "legacy.py", "# added note\n" + _SPRAWLING, "head")
+    monkeypatch.chdir(tmp_path)
 
-        import sys
-        monkeypatch.setattr(
-            sys, "argv",
-            ["assess.py", "--target", ".", "--changed-only", "--base", "HEAD~1", "--format", "json"],
-        )
-        rc = _mod.main()
-        assert rc == 0, "cosmetic change must not be flagged as regression"
+    assert main(_regression_argv()) == 11
+
+
+def test_a_new_supported_source_that_is_not_utf8_fails_the_absolute_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    _commit(tmp_path, "seed.py", _FOCUSED, "base")
+    _run_git(tmp_path, "checkout", "-b", "feature")
+    (tmp_path / "new.py").write_bytes(b"# caf\xe9 latin-1\n")
+    _run_git(tmp_path, "add", "new.py")
+    _run_git(tmp_path, "commit", "-m", "add unreadable source")
+    monkeypatch.chdir(tmp_path)
+
+    assert main(_regression_argv()) == 11
+
+
+def test_adding_one_small_function_is_not_a_regression(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ordinary additive work moves a size-derived score by tenths."""
+    healthy = "".join(f'def f{i}(a, b):\n    """Doc."""\n    return a + b\n\n' for i in range(5))
+    _repo_with_change(
+        tmp_path, monkeypatch, healthy, healthy + 'def g(a):\n    """Doc."""\n    return a\n'
+    )
+
+    assert main(_regression_argv()) == 0
+
+
+def test_the_default_tolerance_still_fails_a_real_degradation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Control for the test above: half a point separates noise from signal."""
+    _repo_with_change(tmp_path, monkeypatch, _FOCUSED, _SPRAWLING)
+
+    assert main(_regression_argv()) == 10
+
+
+def test_get_file_at_revision_returns_bytes_it_did_not_decode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Locale must not decide how the base revision is read."""
+    _init_repo(tmp_path)
+    (tmp_path / "a.py").write_bytes(b"S = 'caf\xc3\xa9'\n")
+    _run_git(tmp_path, "add", "a.py")
+    _run_git(tmp_path, "commit", "-m", "base")
+    monkeypatch.chdir(tmp_path)
+
+    raw = get_file_at_revision(Path("a.py"), resolve_revision("HEAD"))
+
+    assert raw == b"S = 'caf\xc3\xa9'\n"

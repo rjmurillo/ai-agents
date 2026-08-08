@@ -9,15 +9,22 @@ Assesses code maintainability using 5 foundational qualities:
 - Testability
 - Non-Redundancy
 
+Two gate modes decide what an exit code means. Absolute mode gates every
+assessed file against the configured thresholds. Regression mode scores each
+changed file at its base revision too and gates on the change, so inherited
+debt in a file you only touched does not fail the run.
+
 Exit codes:
-  0: Assessment complete, all thresholds met
-  10: Quality degraded vs previous run
-  11: Quality below configured thresholds
+  0: Gate passed
+  10: Regression mode: a comparable quality regressed, or scored evidence was lost
+  11: A file is below configured thresholds (absolute mode, or a new file in
+      regression mode, which has no base to compare against)
   1: Script error
 """
 
 import argparse
 import json
+import math
 import re
 import sys
 from dataclasses import asdict, dataclass
@@ -39,6 +46,14 @@ _LANGUAGE_BY_SUFFIX = {
     ".java": "java",
     ".go": "go",
 }
+
+# Every score here is size-derived, so adding one small function to a healthy
+# module moves a quality by a few tenths with nothing wrong. Measured: adding one
+# 2-line function to a 5-function module drops cohesion 8.7 -> 8.3. A zero
+# tolerance fails that change, which is the inherited-debt complaint of issue
+# #4364 in a new form. Real degradations move whole points (10.0 -> 3.3 in the
+# same harness), so half a point separates noise from signal.
+_DEFAULT_REGRESSION_TOLERANCE = 0.5
 
 # Single-line comment prefixes, used to exclude comment lines from the
 # lines-of-code count. Block comments are intentionally not stripped: this is an
@@ -343,10 +358,19 @@ class FileAssessment:
         return sum(scored_values) / len(scored_values)
 
 
-def parse_args() -> argparse.Namespace:
+def _non_negative_finite_float(value: str) -> float:
+    """Parse a finite, non-negative floating-point option."""
+    parsed = float(value)
+    if not math.isfinite(parsed) or parsed < 0:
+        raise argparse.ArgumentTypeError("must be a finite number greater than or equal to 0")
+    return parsed
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(
-        description="Assess code quality across 5 foundational qualities"
+        description="Assess code quality across 5 foundational qualities",
+        allow_abbrev=False,
     )
     parser.add_argument(
         "--target", required=True, help="File, directory, or glob pattern to assess"
@@ -364,6 +388,26 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--base", help="Base revision for --changed-only, such as origin/main")
     parser.add_argument(
+        "--gate-mode",
+        choices=["auto", "regression", "absolute"],
+        default="auto",
+        help=(
+            "regression: gate on base-to-head change (needs --changed-only --base). "
+            "absolute: gate on configured thresholds. "
+            "auto (default): regression when --changed-only and --base are both set, "
+            "otherwise absolute."
+        ),
+    )
+    parser.add_argument(
+        "--regression-tolerance",
+        type=_non_negative_finite_float,
+        default=_DEFAULT_REGRESSION_TOLERANCE,
+        help=(
+            "Score drop tolerated before a quality counts as regressed "
+            f"(default {_DEFAULT_REGRESSION_TOLERANCE})"
+        ),
+    )
+    parser.add_argument(
         "--format", choices=["markdown", "json", "html"], default="markdown", help="Output format"
     )
     parser.add_argument("--config", default=".qualityrc.json", help="Path to configuration file")
@@ -374,7 +418,25 @@ def parse_args() -> argparse.Namespace:
         default="auto",
         help="Use Serena for symbol extraction",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def resolve_gate_mode(gate_mode: str, changed_only: bool, base: str | None) -> str:
+    """Resolve the requested gate mode, rejecting a regression run with no base.
+
+    Regression mode without a base has nothing to compare against, and silently
+    falling back to absolute thresholds is how a gate that claims to block only
+    regressions ends up blocking inherited debt.
+    """
+    if gate_mode == "regression":
+        if not base:
+            raise ValueError("--gate-mode regression requires --base")
+        if not changed_only:
+            raise ValueError("--gate-mode regression requires --changed-only")
+        return "regression"
+    if gate_mode == "absolute":
+        return "absolute"
+    return "regression" if changed_only and base else "absolute"
 
 
 def load_config(config_path: str) -> dict[str, Any]:
@@ -398,26 +460,102 @@ def load_config(config_path: str) -> dict[str, Any]:
         }
 
 
-def get_files_to_assess(target: str, changed_only: bool, base: str | None = None) -> list[Path]:
-    """Get files to assess, using the PR base when one is supplied."""
+@dataclass(frozen=True)
+class ChangedFile:
+    """One path change between the comparison base and head."""
+
+    status: str
+    base_path: Path | None
+    head_path: Path | None
+
+
+def _parse_changed_files(raw: bytes) -> list[ChangedFile]:
+    """Parse ``git diff --name-status -z`` output."""
+    import os
+
+    tokens = raw.split(b"\0")
+    if tokens and not tokens[-1]:
+        tokens.pop()
+    changes: list[ChangedFile] = []
+    index = 0
+    while index < len(tokens):
+        status = tokens[index].decode("ascii")
+        index += 1
+        base_path: Path | None
+        head_path: Path | None
+        if status.startswith(("R", "C")):
+            if index + 1 >= len(tokens):
+                raise ValueError("Malformed git rename record")
+            base_path = Path(os.fsdecode(tokens[index]))
+            head_path = Path(os.fsdecode(tokens[index + 1]))
+            index += 2
+        else:
+            if index >= len(tokens):
+                raise ValueError("Malformed git path record")
+            path = Path(os.fsdecode(tokens[index]))
+            index += 1
+            base_path = None if status == "A" else path
+            head_path = None if status == "D" else path
+        changes.append(ChangedFile(status, base_path, head_path))
+    return changes
+
+
+def get_changed_files(
+    base: str | None,
+    head: str = "HEAD",
+    *,
+    base_is_comparison: bool = False,
+) -> list[ChangedFile]:
+    """Return rename-aware changed paths between *base* and *head*."""
     import subprocess
+
+    if base is not None:
+        _reject_option_like_revision(base)
+    _reject_option_like_revision(head)
+    separator = ".." if base_is_comparison else "..."
+    revision_range = f"{base}{separator}{head}" if base else head
+    result = subprocess.run(
+        [
+            "git",
+            "diff",
+            "--name-status",
+            "-M",
+            "-z",
+            "--end-of-options",
+            revision_range,
+        ],
+        capture_output=True,
+        check=True,
+    )
+    return _parse_changed_files(result.stdout)
+
+
+def get_files_to_assess(
+    target: str,
+    changed_only: bool,
+    base: str | None = None,
+    changed_files: list[ChangedFile] | None = None,
+    target_glob_matches: set[Path] | None = None,
+) -> list[Path]:
+    """Get files to assess, using the PR base when one is supplied."""
     from glob import glob
 
     if changed_only:
-        # CWE-88: a --base beginning with "-" would be parsed by git as an
-        # option rather than a revision (for example --output=FILE makes
-        # git diff write to FILE). Reject option-like bases and pass
-        # --end-of-options so git always treats the range as a revision.
-        if base is not None and base.startswith("-"):
-            raise ValueError(f"--base must be a git revision, not an option: {base!r}")
-        revision_range = f"{base}...HEAD" if base else "HEAD"
-        result = subprocess.run(
-            ["git", "diff", "--name-only", "--end-of-options", revision_range],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        files = [Path(f) for f in result.stdout.splitlines() if f]
+        changes = changed_files if changed_files is not None else get_changed_files(base)
+        target_path = Path(target)
+        glob_matches = target_glob_matches
+        if (
+            glob_matches is None
+            and not target_path.is_file()
+            and not target_path.is_dir()
+        ):
+            glob_matches = _glob_target_matches(target)
+        files = [
+            change.head_path
+            for change in changes
+            if change.head_path is not None
+            and _target_contains(change.head_path, target, glob_matches)
+        ]
     else:
         target_path = Path(target)
         if target_path.is_file():
@@ -428,7 +566,515 @@ def get_files_to_assess(target: str, changed_only: bool, base: str | None = None
             # Glob pattern
             files = [Path(f) for f in glob(target, recursive=True)]
 
-    return [f for f in files if f.exists()]
+    existing_files: list[Path] = []
+    for file_path in files:
+        if not file_path.exists():
+            continue
+        _resolve_in_workspace(file_path, "assessment candidate")
+        existing_files.append(file_path)
+    return existing_files
+
+
+def _resolve_in_workspace(path: Path, label: str) -> Path:
+    """Resolve *path* and require it to remain inside the current workspace."""
+    workspace = Path.cwd().resolve()
+    resolved = path.resolve()
+    try:
+        resolved.relative_to(workspace)
+    except ValueError as exc:
+        raise ValueError(f"{label} escapes the workspace: {path}") from exc
+    return resolved
+
+
+def _glob_target_matches(target: str) -> set[Path]:
+    """Resolve one glob target into a reusable candidate set."""
+    from glob import glob
+
+    return {
+        _resolve_in_workspace(Path(match), "assessment candidate")
+        for match in glob(target, recursive=True)
+    }
+
+
+def _target_contains(
+    file_path: Path,
+    target: str,
+    glob_matches: set[Path] | None = None,
+) -> bool:
+    """Return whether *file_path* belongs to the requested target scope."""
+    resolved_file = _resolve_in_workspace(file_path, "assessment candidate")
+    target_path = Path(target)
+    if target_path.is_file():
+        return resolved_file == _resolve_in_workspace(target_path, "--target")
+    if target_path.is_dir():
+        resolved_target = _resolve_in_workspace(target_path, "--target")
+        try:
+            resolved_file.relative_to(resolved_target)
+            return True
+        except ValueError:
+            return False
+    matches = glob_matches if glob_matches is not None else _glob_target_matches(target)
+    return resolved_file in matches
+
+
+def _target_exists_at_revision(target: str, revision: str) -> bool:
+    """Return whether a missing target matched any path at *revision*."""
+    import subprocess
+
+    workspace = Path.cwd().resolve()
+    resolved_target = Path(target)
+    try:
+        relative_target = resolved_target.relative_to(workspace).as_posix()
+    except ValueError as exc:
+        raise ValueError(f"--target escapes the workspace: {target}") from exc
+    result = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", revision],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"git ls-tree failed for target validation at {revision}")
+    names = result.stdout.splitlines()
+    if any(character in relative_target for character in "*?["):
+        return any(_match_path_glob(name, relative_target) for name in names)
+    prefix = relative_target.rstrip("/")
+    return any(name == prefix or name.startswith(f"{prefix}/") for name in names)
+
+
+def _match_path_glob(path: str, pattern: str) -> bool:
+    """Match a root-anchored glob where ``**`` spans zero or more segments."""
+    import fnmatch
+
+    path_parts = tuple(part for part in path.split("/") if part)
+    pattern_parts = tuple(part for part in pattern.split("/") if part)
+
+    def matches(path_index: int, pattern_index: int) -> bool:
+        if pattern_index == len(pattern_parts):
+            return path_index == len(path_parts)
+        part = pattern_parts[pattern_index]
+        if part == "**":
+            return matches(path_index, pattern_index + 1) or (
+                path_index < len(path_parts)
+                and matches(path_index + 1, pattern_index)
+            )
+        return (
+            path_index < len(path_parts)
+            and fnmatch.fnmatchcase(path_parts[path_index], part)
+            and matches(path_index + 1, pattern_index + 1)
+        )
+
+    return matches(0, 0)
+
+
+def _target_is_known(
+    target: str,
+    revision: str,
+    glob_matches: set[Path] | None = None,
+) -> bool:
+    """Return whether target exists in HEAD or matched the comparison base."""
+    target_path = Path(target)
+    if target_path.exists():
+        return True
+    if any(character in target for character in "*?["):
+        matches = glob_matches if glob_matches is not None else _glob_target_matches(target)
+        if matches:
+            return True
+    return _target_exists_at_revision(target, revision)
+
+
+def _reject_option_like_revision(revision: str) -> None:
+    """Refuse a revision git would read as an option (CWE-88)."""
+    if revision.startswith("-"):
+        raise ValueError(f"--base must be a git revision, not an option: {revision!r}")
+
+
+def resolve_revision(revision: str) -> str:
+    """Return the commit SHA for *revision*, raising when it does not resolve.
+
+    Resolving once up front is what lets a later per-file ``git show`` failure
+    mean "absent at base", and therefore "new file", rather than "your --base
+    was a typo". Without it every file looks new and the gate passes silently.
+    """
+    import subprocess
+
+    _reject_option_like_revision(revision)
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "--end-of-options", f"{revision}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if result.returncode != 0:
+        raise ValueError(f"--base does not resolve to a commit: {revision!r}")
+    return result.stdout.strip()
+
+
+def resolve_comparison_base(base: str) -> str:
+    """Return the commit the head is compared against: the merge base with HEAD.
+
+    ``get_changed_files`` selects with ``base...HEAD``, which git resolves from
+    the merge base. Reading content at the tip of *base* instead charges the
+    branch for every change that landed on the base branch after the fork, which
+    is the inherited-debt failure this gate exists to prevent (issue #4364).
+    Falls back to the resolved commit when the two histories share no merge base.
+    """
+    import subprocess
+
+    revision = resolve_revision(base)
+    result = subprocess.run(
+        ["git", "merge-base", "--end-of-options", revision, "HEAD"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    merge_base = result.stdout.strip()
+    if result.returncode == 1:
+        return revision
+    if result.returncode != 0:
+        error = result.stderr.strip()
+        raise RuntimeError(f"git merge-base failed for {revision}: {error}")
+    if not merge_base:
+        raise RuntimeError(f"git merge-base returned no commit for {revision}")
+    return merge_base
+
+
+def get_file_at_revision(file_path: Path, revision: str) -> bytes | None:
+    """Return the file's bytes at *revision*, or None when absent there.
+
+    None means the path did not exist in that commit, which the regression gate
+    reads as a new file. Callers MUST have run ``resolve_revision`` first so a
+    bad revision cannot masquerade as every file being new.
+
+    Bytes, not text: ``text=True`` would decode with the locale codec, so the
+    same file scores from different characters on a UTF-8 runner and a cp1252
+    one, and a file that is not decodable at all raises UnicodeDecodeError
+    (a ValueError) that reads as a bad ``--base``.
+    """
+    import subprocess
+
+    _reject_option_like_revision(revision)
+    entry = subprocess.run(
+        ["git", "ls-tree", "-z", revision, "--", file_path.as_posix()],
+        capture_output=True,
+        check=False,
+    )
+    if entry.returncode != 0:
+        error = entry.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"git ls-tree failed for {revision}:{file_path}: {error}")
+    if not entry.stdout:
+        return None
+
+    result = subprocess.run(
+        ["git", "show", "--end-of-options", f"{revision}:{file_path.as_posix()}"],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        error = result.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(f"git show failed for {revision}:{file_path}: {error}")
+    return result.stdout
+
+
+def _get_base_assessments(
+    files: list[Path],
+    base: str,
+    context: str,
+) -> dict[str, FileAssessment]:
+    """Return safe base assessments for callers of the earlier regression API."""
+    import subprocess
+
+    repo_result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if repo_result.returncode != 0:
+        raise RuntimeError("git rev-parse --show-toplevel failed")
+    repo_root = Path(repo_result.stdout.strip()).resolve()
+    revision = resolve_comparison_base(base)
+    assessments: dict[str, FileAssessment] = {}
+    for file_path in files:
+        try:
+            relative_path = file_path.resolve().relative_to(repo_root)
+        except ValueError:
+            continue
+        raw = get_file_at_revision(relative_path, revision)
+        if raw is None:
+            continue
+        assessments[str(file_path)] = _assess_base_bytes(file_path, raw)
+    return assessments
+
+
+# Quality attributes on FileAssessment, in report order.
+_QUALITY_FIELDS = (
+    "cohesion",
+    "coupling",
+    "encapsulation",
+    "testability",
+    "non_redundancy",
+)
+
+
+@dataclass
+class QualityDelta:
+    """One quality compared between a base and a head assessment.
+
+    ``status`` is one of:
+      compared      both revisions scored it; ``delta`` is head minus base
+      newly_scored  only head scored it; no delta exists to report
+      evidence_lost only base scored it; the head stopped being measurable
+      not_scored    neither revision scored it
+    """
+
+    quality: str
+    base: float | None
+    head: float | None
+    delta: float | None
+    status: str
+
+
+@dataclass
+class FileComparison:
+    """Base-to-head comparison for one changed file."""
+
+    file_path: str
+    is_new_file: bool
+    deltas: list[QualityDelta]
+    regressions: list[str]
+    evidence_loss: list[str]
+    base_file_path: str | None = None
+    change_status: str = "M"
+    absolute_gate_reason: str | None = None
+
+
+def _delta_for(quality: str, base: QualityScore, head: QualityScore) -> QualityDelta:
+    base_scored = base.confidence > 0.0
+    head_scored = head.confidence > 0.0
+    if base_scored and head_scored:
+        return QualityDelta(
+            quality=quality,
+            base=base.value,
+            head=head.value,
+            delta=round(head.value - base.value, 4),
+            status="compared",
+        )
+    if head_scored:
+        # No fabricated delta: there is no base number to subtract from.
+        return QualityDelta(quality, None, head.value, None, "newly_scored")
+    if base_scored:
+        return QualityDelta(quality, base.value, None, None, "evidence_lost")
+    return QualityDelta(quality, None, None, None, "not_scored")
+
+
+def compare_assessments(
+    base: FileAssessment | None,
+    head: FileAssessment,
+    tolerance: float = 0.0,
+    base_file_path: str | None = None,
+    change_status: str = "M",
+    absolute_gate_reason: str | None = None,
+) -> FileComparison:
+    """Compare *head* against *base* quality by quality.
+
+    Qualities are compared independently and only where both revisions scored
+    them, so a file whose scored-quality set changed never produces a delta
+    against a different set. Aggregate averages are deliberately not compared
+    for the same reason.
+    """
+    if base is None:
+        return FileComparison(
+            head.file_path,
+            True,
+            [],
+            [],
+            [],
+            base_file_path,
+            change_status,
+            absolute_gate_reason,
+        )
+
+    deltas: list[QualityDelta] = []
+    regressions: list[str] = []
+    evidence_loss: list[str] = []
+    for field in _QUALITY_FIELDS:
+        delta = _delta_for(field, getattr(base, field), getattr(head, field))
+        deltas.append(delta)
+        if delta.status == "compared" and delta.delta is not None and delta.delta < -tolerance:
+            regressions.append(field)
+        elif delta.status == "evidence_lost" and head.category != "generated":
+            evidence_loss.append(field)
+    return FileComparison(
+        head.file_path,
+        False,
+        deltas,
+        regressions,
+        evidence_loss,
+        base_file_path,
+        change_status,
+        absolute_gate_reason,
+    )
+
+
+def check_regressions(
+    assessments: list[FileAssessment],
+    base_assessments: dict[str, FileAssessment],
+) -> int:
+    """Preserve the earlier regression helper on top of per-quality comparison."""
+    comparisons = [
+        compare_assessments(
+            base_assessments.get(str(head.file_path)),
+            head,
+            tolerance=0.05,
+        )
+        for head in assessments
+        if str(head.file_path) in base_assessments
+    ]
+    return 10 if any(c.regressions or c.evidence_loss for c in comparisons) else 0
+
+
+def _has_scored_quality(assessment: FileAssessment) -> bool:
+    return any(
+        getattr(assessment, field).confidence > 0.0
+        for field in _QUALITY_FIELDS
+    )
+
+
+def build_comparisons(
+    assessments: list[FileAssessment],
+    base: str,
+    tolerance: float = 0.0,
+    changed_files: list[ChangedFile] | None = None,
+) -> tuple[list[FileComparison], list[FileAssessment]]:
+    """Score each head assessment against its base revision.
+
+    Returns the per-file comparisons and, separately, the head assessments of
+    files that did not exist at base. New files carry no delta, so they are
+    handed to the absolute gate instead.
+    """
+    revision = resolve_comparison_base(base)
+    explicit_changes = changed_files is not None
+    change_by_head = {
+        change.head_path: change
+        for change in (changed_files or [])
+        if change.head_path is not None
+    }
+    comparisons: list[FileComparison] = []
+    new_files: list[FileAssessment] = []
+    for head in assessments:
+        path = Path(head.file_path)
+        change = change_by_head.get(path, ChangedFile("M", path, path))
+        base_path = change.base_path
+        if base_path is None:
+            comparisons.append(
+                compare_assessments(
+                    None,
+                    head,
+                    tolerance,
+                    None,
+                    change.status,
+                    "new_file",
+                )
+            )
+            new_files.append(head)
+            continue
+        raw = get_file_at_revision(base_path, revision)
+        if raw is None:
+            if explicit_changes and change.status != "A":
+                raise ValueError(f"Base blob is absent for {base_path} at {revision}")
+            comparisons.append(
+                compare_assessments(
+                    None,
+                    head,
+                    tolerance,
+                    None,
+                    "A",
+                    "new_file",
+                )
+            )
+            new_files.append(head)
+            continue
+        base_assessment = _assess_base_bytes(base_path, raw)
+        absolute_reason = (
+            None if _has_scored_quality(base_assessment) else "base_unscored"
+        )
+        comparisons.append(
+            compare_assessments(
+                base_assessment,
+                head,
+                tolerance,
+                base_path.as_posix(),
+                change.status,
+                absolute_reason,
+            )
+        )
+        if absolute_reason is not None:
+            new_files.append(head)
+    return comparisons, new_files
+
+
+def _assess_base_bytes(path: Path, raw: bytes) -> FileAssessment:
+    """Score the base revision's bytes, or record it as unmeasurable.
+
+    An undecodable base scores nothing, so every quality reads as newly scored
+    and no delta is fabricated from a file the assessor could not read.
+    """
+    try:
+        return assess_content(path, raw.decode("utf-8"))
+    except UnicodeDecodeError as exc:
+        return _unreadable_assessment(path, f"decode failed at base: {exc}")
+
+
+def check_regression(
+    comparisons: list[FileComparison],
+    new_file_assessments: list[FileAssessment],
+    config: dict[str, Any],
+    context: str,
+) -> int:
+    """Gate on change, not on inherited debt.
+
+    Returns:
+        0:  no comparable quality regressed and no new file failed absolutely
+        10: a comparable quality regressed, or scored evidence was lost
+        11: no regression, but a new authored file is below absolute thresholds
+    """
+    degraded = False
+    for comparison in comparisons:
+        for quality in comparison.regressions:
+            delta = next(d for d in comparison.deltas if d.quality == quality)
+            print(
+                f"❌ {comparison.file_path}: {quality} regressed "
+                f"{delta.base} -> {delta.head} (delta {delta.delta})",
+                file=sys.stderr,
+            )
+            degraded = True
+        for quality in comparison.evidence_loss:
+            print(
+                f"❌ {comparison.file_path}: {quality} was scored at base and is "
+                f"unscored at head (evidence loss)",
+                file=sys.stderr,
+            )
+            degraded = True
+
+    # New files and files whose base revision scored nothing have no comparable
+    # base. Absolute thresholds are the only policy that can apply to them.
+    new_file_code = check_thresholds(
+        new_file_assessments,
+        config,
+        context,
+        fail_unscored_supported=True,
+    )
+
+    if degraded:
+        return 10
+    return new_file_code
 
 
 def _score_cohesion(language: str | None, code_lines: list[str], loc: int) -> QualityScore:
@@ -617,27 +1263,16 @@ def _unreadable_assessment(file_path: Path, reason: str) -> FileAssessment:
     )
 
 
-def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessment:
-    """
-    Assess a single file for all 5 qualities.
+def assess_content(file_path: Path, content: str) -> FileAssessment:
+    """Score already-loaded *content* attributed to *file_path*.
 
-    This is a heuristic implementation. It detects the language from the file
-    suffix and applies language-aware approximations for each quality. Metrics
-    that cannot be scored for a given language are returned with confidence
-    0.0, and the threshold gate skips any quality with confidence 0.0 rather
-    than failing a file it could not measure. A production implementation would
-    parse symbols (using Serena if available) instead of scanning lines.
+    Split out of ``assess_file`` so the same scoring runs over a base revision
+    fetched with ``git show``, which never touches the working tree. Keeping
+    one scoring body is what makes a base-to-head delta meaningful: two bodies
+    would drift and the delta would measure the drift instead of the code.
     """
     language = detect_language(file_path)
     comment_prefixes = _LINE_COMMENT_PREFIXES.get(language, ()) if language else ()
-
-    try:
-        with open(file_path, encoding="utf-8") as f:
-            content = f.read()
-    except OSError as exc:
-        return _unreadable_assessment(file_path, f"read failed: {exc}")
-    except UnicodeDecodeError as exc:
-        return _unreadable_assessment(file_path, f"decode failed: {exc}")
 
     category = classify_file_category(file_path, content)
     if category == "generated":
@@ -660,6 +1295,37 @@ def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessme
         testability=_score_testability(language, code_lines),
         non_redundancy=_score_non_redundancy(lines, language is not None),
     )
+
+
+def assess_file_content(
+    file_path: Path,
+    content: str,
+    context: str,
+) -> FileAssessment:
+    """Preserve the earlier content-assessment helper."""
+    del context
+    return assess_content(file_path, content)
+
+
+def assess_file(file_path: Path, context: str, use_serena: bool) -> FileAssessment:
+    """
+    Assess a single file for all 5 qualities.
+
+    This is a heuristic implementation. It detects the language from the file
+    suffix and applies language-aware approximations for each quality. Metrics
+    that cannot be scored for a given language are returned with confidence
+    0.0, and the threshold gate skips any quality with confidence 0.0 rather
+    than failing a file it could not measure. A production implementation would
+    parse symbols (using Serena if available) instead of scanning lines.
+    """
+    try:
+        with open(file_path, encoding="utf-8") as f:
+            content = f.read()
+    except OSError as exc:
+        return _unreadable_assessment(file_path, f"read failed: {exc}")
+    except UnicodeDecodeError as exc:
+        return _unreadable_assessment(file_path, f"decode failed: {exc}")
+    return assess_content(file_path, content)
 
 
 def _average_scored(scores: list[QualityScore]) -> float | None:
@@ -742,11 +1408,52 @@ def generate_markdown_report(assessments: list[FileAssessment], config: dict[str
     return "\n".join(report)
 
 
-def generate_json_report(assessments: list[FileAssessment]) -> str:
+def generate_regression_section(comparisons: list[FileComparison]) -> str:
+    """Render the base/head/delta table for a regression-mode markdown report."""
+    if not comparisons:
+        return ""
+    lines = ["## Regression Comparison\n"]
+    for comparison in comparisons:
+        lines.append(f"### {comparison.file_path}\n")
+        if comparison.is_new_file:
+            lines.append("New file at head; no base score exists. Gated absolutely.\n")
+            continue
+        if (
+            comparison.base_file_path is not None
+            and comparison.base_file_path != comparison.file_path
+        ):
+            lines.append(
+                f"Renamed from `{comparison.base_file_path}` "
+                f"({comparison.change_status}).\n"
+            )
+        if comparison.absolute_gate_reason == "base_unscored":
+            lines.append(
+                "Base file had no scored qualities; head is gated absolutely.\n"
+            )
+        lines.append("| Quality | Base | Head | Delta | Status |")
+        lines.append("| --- | --- | --- | --- | --- |")
+        for delta in comparison.deltas:
+            base = "n/a" if delta.base is None else f"{delta.base:.1f}"
+            head = "n/a" if delta.head is None else f"{delta.head:.1f}"
+            change = "n/a" if delta.delta is None else f"{delta.delta:+.1f}"
+            lines.append(
+                f"| {delta.quality} | {base} | {head} | {change} | {delta.status} |"
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
+def generate_json_report(
+    assessments: list[FileAssessment],
+    comparisons: list[FileComparison] | None = None,
+    gate_mode: str = "absolute",
+) -> str:
     """Generate JSON report"""
     return json.dumps(
         {
             "files": [asdict(a) for a in assessments],
+            "gate_mode": gate_mode,
+            "comparisons": [asdict(c) for c in (comparisons or [])],
             "summary": {
                 "file_count": len(assessments),
                 "average_scores": {
@@ -762,134 +1469,12 @@ def generate_json_report(assessments: list[FileAssessment]) -> str:
     )
 
 
-def assess_file_content(
-    file_path: Path, content: str, context: str
-) -> FileAssessment:
-    """Assess a file from pre-loaded content (used for base-revision comparison).
-
-    Identical logic to :func:`assess_file` but takes content as a string
-    rather than reading from disk.  This lets callers feed ``git show
-    <base>:<file>`` output without writing a temp file.
-    """
-    language = detect_language(file_path)
-    comment_prefixes = _LINE_COMMENT_PREFIXES.get(language, ()) if language else ()
-    category = classify_file_category(file_path, content)
-    if category == "generated":
-        return _unscored_generated_assessment(file_path)
-
-    lines = content.split("\n")
-    code_lines = [
-        line
-        for line in lines
-        if line.strip() and not (comment_prefixes and line.strip().startswith(comment_prefixes))
-    ]
-    loc = len(code_lines)
-
-    return FileAssessment(
-        file_path=str(file_path),
-        category=category,
-        cohesion=_score_cohesion(language, code_lines, loc),
-        coupling=_score_coupling(language, code_lines),
-        encapsulation=_score_encapsulation(language, code_lines),
-        testability=_score_testability(language, code_lines),
-        non_redundancy=_score_non_redundancy(lines, language is not None),
-    )
-
-
-def _get_base_assessments(
-    files: list[Path], base: str, context: str
-) -> dict[str, FileAssessment]:
-    """Return assessments keyed by file path for each file at the base revision.
-
-    Uses ``git show <base>:<relpath>`` to fetch content.  Files that do not
-    exist at the base revision (new files) are omitted from the result; the
-    caller treats them as having no regression to report.
-    """
-    import subprocess
-
-    result: dict[str, FileAssessment] = {}
-    try:
-        repo_root_rc = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if repo_root_rc.returncode != 0:
-            return result
-        repo_root = Path(repo_root_rc.stdout.strip())
-    except OSError:
-        return result
-
-    for file_path in files:
-        try:
-            rel = file_path.resolve().relative_to(repo_root)
-        except ValueError:
-            continue
-        show_rc = subprocess.run(
-            ["git", "show", f"{base}:{rel.as_posix()}"],
-            capture_output=True,
-            text=True,
-            errors="replace",
-            encoding="utf-8",
-            check=False,
-        )
-        if show_rc.returncode != 0:
-            # File did not exist at base; treat as new, no regression possible.
-            continue
-        result[str(file_path)] = assess_file_content(file_path, show_rc.stdout, context)
-    return result
-
-
-def check_regressions(
-    assessments: list[FileAssessment],
-    base_assessments: dict[str, FileAssessment],
-) -> int:
-    """Compare head assessments against base and return 10 on any regression.
-
-    A regression is a quality score that was >= threshold confidence AND
-    dropped by more than 0.05 between base and head.  New files (not in
-    base_assessments) are not gated here; they may be gated by
-    :func:`check_thresholds` in absolute mode if the caller chooses.
-
-    Returns:
-        0:  No regressions detected.
-        10: At least one quality regressed.
-    """
-    regression_tolerance = 0.05
-    qualities: list[tuple[str, str]] = [
-        ("cohesion", "Cohesion"),
-        ("coupling", "Coupling"),
-        ("encapsulation", "Encapsulation"),
-        ("testability", "Testability"),
-        ("non_redundancy", "Non-Redundancy"),
-    ]
-
-    regressed = False
-    for head in assessments:
-        base = base_assessments.get(str(head.file_path))
-        if base is None:
-            # New file: skip regression check.
-            continue
-        for attr, label in qualities:
-            head_score: QualityScore = getattr(head, attr)
-            base_score: QualityScore = getattr(base, attr)
-            if head_score.confidence == 0.0 or base_score.confidence == 0.0:
-                continue
-            drop = base_score.value - head_score.value
-            if drop > regression_tolerance:
-                print(
-                    f"❌ {head.file_path}: {label} regressed "
-                    f"{base_score.value:.1f} -> {head_score.value:.1f} "
-                    f"(-{drop:.1f})",
-                    file=sys.stderr,
-                )
-                regressed = True
-    return 10 if regressed else 0
-
-
 def check_thresholds(
-    assessments: list[FileAssessment], config: dict[str, Any], context: str
+    assessments: list[FileAssessment],
+    config: dict[str, Any],
+    context: str,
+    *,
+    fail_unscored_supported: bool = False,
 ) -> int:
     """
     Check if quality scores meet configured thresholds.
@@ -906,6 +1491,18 @@ def check_thresholds(
         thresholds = {**thresholds, **context_thresholds}
 
     for assessment in assessments:
+        if (
+            fail_unscored_supported
+            and assessment.category != "generated"
+            and detect_language(Path(assessment.file_path)) is not None
+            and not _has_scored_quality(assessment)
+        ):
+            print(
+                f"❌ {assessment.file_path}: supported authored source could not be scored",
+                file=sys.stderr,
+            )
+            return 11
+
         if (
             assessment.cohesion.confidence > 0.0
             and assessment.cohesion.value < thresholds["cohesion"]["min"]
@@ -968,92 +1565,163 @@ def check_thresholds(
     return 0
 
 
-def main() -> int:
-    """Main entry point"""
-    args = parse_args()
+def _resolve_target_path(target: str) -> str:
+    """Return an absolute target path inside the current working directory."""
+    return str(_resolve_in_workspace(Path(target), "--target"))
 
-    # Load configuration
+
+def _assess_files(
+    files: list[Path],
+    context: str,
+    use_serena: bool,
+) -> list[FileAssessment]:
+    """Assess every readable file and report per-file failures."""
+    assessments: list[FileAssessment] = []
+    for file_path in files:
+        try:
+            assessments.append(assess_file(file_path, context, use_serena))
+        except Exception as e:
+            print(f"Error assessing {file_path}: {e}", file=sys.stderr)
+    return assessments
+
+
+def _build_regression_inputs(
+    assessments: list[FileAssessment],
+    gate_mode: str,
+    base: str | None,
+    tolerance: float,
+    changed_files: list[ChangedFile] | None,
+) -> tuple[list[FileComparison], list[FileAssessment]]:
+    """Build comparisons only when regression mode is active."""
+    if gate_mode != "regression":
+        return [], []
+    if base is None:
+        raise ValueError("--gate-mode regression requires --base")
+    return build_comparisons(assessments, base, tolerance, changed_files)
+
+
+def _render_report(
+    output_format: str,
+    assessments: list[FileAssessment],
+    comparisons: list[FileComparison],
+    config: dict[str, Any],
+    gate_mode: str,
+) -> str:
+    """Render the selected report format."""
+    if output_format == "markdown":
+        report = generate_markdown_report(assessments, config)
+        section = generate_regression_section(comparisons)
+        return f"{report}\n\n{section}" if section else report
+    if output_format == "json":
+        return generate_json_report(assessments, comparisons, gate_mode)
+    return "HTML format not yet implemented"
+
+
+def _write_report(report: str, output: str | None) -> None:
+    """Write the report to a file or stdout."""
+    if output:
+        with open(output, "w", encoding="utf-8") as f:
+            f.write(report)
+        print(f"Report written to {output}")
+        return
+    print(report)
+
+
+def _gate_result(
+    gate_mode: str,
+    comparisons: list[FileComparison],
+    new_file_assessments: list[FileAssessment],
+    assessments: list[FileAssessment],
+    config: dict[str, Any],
+    context: str,
+) -> int:
+    """Apply the gate policy selected for this run."""
+    if gate_mode == "regression":
+        return check_regression(comparisons, new_file_assessments, config, context)
+    return check_thresholds(assessments, config, context)
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Main entry point."""
+    args = parse_args(argv)
     config = load_config(args.config)
-
-    # Validate target path to prevent path traversal (CWE-22)
-    import os
-
     try:
-        allowed_base = os.path.abspath(".")
-        target_path = os.path.abspath(args.target)
-        if not target_path.startswith(allowed_base):
-            raise ValueError(f"Path traversal attempt detected in --target: {args.target}")
-    except ValueError as e:
+        gate_mode = resolve_gate_mode(args.gate_mode, args.changed_only, args.base)
+        target_path = _resolve_target_path(args.target)
+        comparison_base = args.base
+        base_is_comparison = False
+        if args.changed_only and gate_mode == "regression" and args.base is not None:
+            comparison_base = resolve_comparison_base(args.base)
+            base_is_comparison = True
+        target_glob_matches = None
+        resolved_target = Path(target_path)
+        if (
+            args.changed_only
+            and not resolved_target.is_file()
+            and not resolved_target.is_dir()
+        ):
+            target_glob_matches = _glob_target_matches(target_path)
+        changed_files = (
+            get_changed_files(
+                comparison_base,
+                base_is_comparison=base_is_comparison,
+            )
+            if args.changed_only
+            else None
+        )
+        files = get_files_to_assess(
+            target_path,
+            args.changed_only,
+            comparison_base,
+            changed_files,
+            target_glob_matches,
+        )
+    except (RuntimeError, ValueError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return 1
-
-    # Get files to assess
-    try:
-        files = get_files_to_assess(target_path, args.changed_only, args.base)
     except Exception as e:
         print(f"Error getting files: {e}", file=sys.stderr)
         return 1
 
     if not files:
+        if gate_mode == "regression" and changed_files is not None:
+            assert comparison_base is not None
+            if not _target_is_known(
+                target_path,
+                comparison_base,
+                target_glob_matches,
+            ):
+                print(f"ERROR: --target does not match HEAD or base: {args.target}", file=sys.stderr)
+                return 1
+            report = _render_report(args.format, [], [], config, gate_mode)
+            _write_report(report, args.output)
+            return 0
         print("No files to assess", file=sys.stderr)
         return 1
 
-    # Determine Serena availability
-    use_serena = args.use_serena == "yes"
-    if args.use_serena == "auto":
-        # Try to detect Serena (simplified - real version would check MCP)
-        use_serena = False
+    assessments = _assess_files(files, args.context, args.use_serena == "yes")
+    try:
+        comparisons, new_file_assessments = _build_regression_inputs(
+            assessments,
+            gate_mode,
+            comparison_base,
+            args.regression_tolerance,
+            changed_files,
+        )
+    except (RuntimeError, ValueError) as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 1
 
-    # Assess each file
-    assessments = []
-    for file_path in files:
-        try:
-            assessment = assess_file(file_path, args.context, use_serena)
-            assessments.append(assessment)
-        except Exception as e:
-            print(f"Error assessing {file_path}: {e}", file=sys.stderr)
-            continue
-
-    # Generate report
-    if args.format == "markdown":
-        report = generate_markdown_report(assessments, config)
-    elif args.format == "json":
-        report = generate_json_report(assessments)
-    else:  # HTML
-        report = "HTML format not yet implemented"
-
-    # Output report
-    if args.output:
-        with open(args.output, "w", encoding="utf-8") as f:
-            f.write(report)
-        print(f"Report written to {args.output}")
-    else:
-        print(report)
-
-    # Check thresholds or regressions
-    #
-    # When both --changed-only and --base are supplied the intent is a
-    # regression gate: only report a quality that WORSENED since the base
-    # commit.  A file that is below the absolute threshold but was already
-    # that way before the diff should not block the author; charging them for
-    # pre-existing debt is exactly the defect described in issue #4364.
-    #
-    # Without --base (or without --changed-only) fall back to the original
-    # absolute gate so the behaviour is unchanged for existing callers.
-    if args.changed_only and args.base:
-        base_assessments = _get_base_assessments(files, args.base, args.context)
-        exit_code = check_regressions(assessments, base_assessments)
-        if exit_code == 0:
-            new_assessments = [
-                assessment
-                for assessment in assessments
-                if str(assessment.file_path) not in base_assessments
-            ]
-            exit_code = check_thresholds(new_assessments, config, args.context)
-    else:
-        exit_code = check_thresholds(assessments, config, args.context)
-
-    return exit_code
+    report = _render_report(args.format, assessments, comparisons, config, gate_mode)
+    _write_report(report, args.output)
+    return _gate_result(
+        gate_mode,
+        comparisons,
+        new_file_assessments,
+        assessments,
+        config,
+        args.context,
+    )
 
 
 if __name__ == "__main__":

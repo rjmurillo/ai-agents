@@ -20,15 +20,13 @@ import json
 import os
 import subprocess
 import sys
+import warnings
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
@@ -43,12 +41,27 @@ from github_core.api import (
     assert_gh_authenticated,
     error_and_exit,
     gh_api_paginated,
+    gh_graphql,
     resolve_repo_params,
 )
+from github_core.bot_config import canonicalize_login
 
 # ---------------------------------------------------------------------------
 # Core logic
 # ---------------------------------------------------------------------------
+
+_PR_AUTHOR_QUERY = """\
+query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      author {
+        login
+        ... on Bot { databaseId }
+        ... on User { databaseId }
+      }
+    }
+  }
+}"""
 
 
 def _parse_iso_date(date_str: str) -> datetime | None:
@@ -64,26 +77,95 @@ def _parse_iso_date(date_str: str) -> datetime | None:
         return None
 
 
-def _fetch_pr_author(owner: str, repo: str, pr_number: int) -> str:
-    """Fetch the PR author login."""
-    result = subprocess.run(
-        [
-            "gh", "pr", "view", str(pr_number),
-            "--repo", f"{owner}/{repo}",
-            "--json", "author",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=False,
+def _account_id(actor: dict[str, Any]) -> int | None:
+    """Return a numeric REST or GraphQL account ID when present."""
+    account_id = actor.get("id")
+    if not isinstance(account_id, int):
+        account_id = actor.get("databaseId")
+    return account_id if isinstance(account_id, int) else None
+
+
+def _actor_login(actor: dict[str, Any], context: str) -> str:
+    """Return a string login, rejecting malformed API actor payloads."""
+    login = actor.get("login")
+    if login is None:
+        return ""
+    if not isinstance(login, str):
+        raise RuntimeError(f"{context} login is not a string")
+    return login
+
+
+def _fetch_complete_comments(endpoint: str) -> list[dict[str, Any]]:
+    """Reject the pagination helper's documented partial result."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        try:
+            return cast(list[dict[str, Any]], gh_api_paginated(endpoint))
+        except UserWarning as exc:
+            raise RuntimeError(f"Incomplete pagination for {endpoint}: {exc}") from exc
+
+
+def _fetch_pr_author(owner: str, repo: str, pr_number: int) -> tuple[str, int | None]:
+    """Fetch the PR author login and numeric account ID when available."""
+    response = gh_graphql(
+        _PR_AUTHOR_QUERY,
+        {
+            "owner": owner,
+            "repo": repo,
+            "number": pr_number,
+        },
     )
-    if result.returncode != 0:
-        err_msg = result.stderr or result.stdout
-        if "not found" in err_msg.lower():
-            error_and_exit(f"PR #{pr_number} not found", 2)
-        error_and_exit(f"Failed to get PR #{pr_number}: {err_msg}", 3)
-    data = json.loads(result.stdout)
-    return (data.get("author") or {}).get("login", "")
+    repository = response.get("repository")
+    pull_request = (
+        repository.get("pullRequest")
+        if isinstance(repository, dict)
+        else None
+    )
+    if not isinstance(pull_request, dict):
+        error_and_exit(f"PR #{pr_number} not found", 2)
+    assert isinstance(pull_request, dict)
+    author = pull_request.get("author")
+    if author is None:
+        return "", None
+    if not isinstance(author, dict):
+        raise RuntimeError("PR author payload is not an object")
+    return _actor_login(author, "PR author"), _account_id(author)
+
+
+def _reviewer_entry(
+    reviewer_map: dict[str, dict[str, Any]],
+    login: str,
+    user_type: str,
+    actor_id: int | None,
+) -> dict[str, Any]:
+    """Return an ID-first reviewer entry while preserving observed aliases."""
+    if actor_id is not None:
+        for candidate in reviewer_map.values():
+            if actor_id in candidate["actor_ids"]:
+                return candidate
+
+    existing_entry = reviewer_map.get(login)
+    if existing_entry is not None and (
+        actor_id is None
+        or not existing_entry["actor_ids"]
+        or actor_id in existing_entry["actor_ids"]
+    ):
+        return existing_entry
+
+    key = login if login not in reviewer_map else f"{login}#{actor_id}"
+    entry = {
+        "login": login,
+        "user_type": user_type,
+        "total_comments": 0,
+        "review_comments": 0,
+        "issue_comments": 0,
+        "prs": [],
+        "comments": [],
+        "aliases": [],
+        "actor_ids": [],
+    }
+    reviewer_map[key] = entry
+    return entry
 
 
 def get_pr_comments_by_reviewer(
@@ -116,25 +198,35 @@ def get_pr_comments_by_reviewer(
     """
     since_dt = _parse_iso_date(since)
     until_dt = _parse_iso_date(until)
-    include_set = set(include_reviewers) if include_reviewers else None
-    exclude_set = set(exclude_reviewers) if exclude_reviewers else set()
+    # Canonicalize both the filters and the observed logins so one integration
+    # reaching the API under several logins groups as one reviewer (issue
+    # #4378). Filters are canonicalized too, so a caller naming any alias still
+    # matches the actor.
+    include_set = {canonicalize_login(r) for r in include_reviewers} if include_reviewers else None
+    exclude_set = {canonicalize_login(r) for r in exclude_reviewers} if exclude_reviewers else set()
 
     reviewer_map: dict[str, dict[str, Any]] = {}
     total_comments = 0
     prs_processed = 0
 
     for pr_number in pr_numbers:
-        pr_author = _fetch_pr_author(owner, repo, pr_number)
-        comments: list[dict] = []
+        pr_author, pr_author_id = _fetch_pr_author(owner, repo, pr_number)
+        comments: list[dict[str, Any]] = []
 
         if comment_type in ("review", "all"):
-            review_comments = gh_api_paginated(
+            review_comments = _fetch_complete_comments(
                 f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
             )
             for c in review_comments:
+                user = c.get("user")
+                if user is None:
+                    continue
+                if not isinstance(user, dict):
+                    raise RuntimeError("Review comment user payload is not an object")
                 comments.append({
-                    "login": (c.get("user") or {}).get("login", ""),
-                    "user_type": (c.get("user") or {}).get("type", "User"),
+                    "login": _actor_login(user, "review comment author"),
+                    "actor_id": _account_id(user),
+                    "user_type": user.get("type", "User"),
                     "body": c.get("body", ""),
                     "created_at": c.get("created_at", ""),
                     "updated_at": c.get("updated_at", ""),
@@ -145,13 +237,19 @@ def get_pr_comments_by_reviewer(
                 })
 
         if comment_type in ("issue", "all"):
-            issue_comments = gh_api_paginated(
+            issue_comments = _fetch_complete_comments(
                 f"repos/{owner}/{repo}/issues/{pr_number}/comments"
             )
             for c in issue_comments:
+                user = c.get("user")
+                if user is None:
+                    continue
+                if not isinstance(user, dict):
+                    raise RuntimeError("Issue comment user payload is not an object")
                 comments.append({
-                    "login": (c.get("user") or {}).get("login", ""),
-                    "user_type": (c.get("user") or {}).get("type", "User"),
+                    "login": _actor_login(user, "issue comment author"),
+                    "actor_id": _account_id(user),
+                    "user_type": user.get("type", "User"),
                     "body": c.get("body", ""),
                     "created_at": c.get("created_at", ""),
                     "updated_at": c.get("updated_at", ""),
@@ -161,11 +259,21 @@ def get_pr_comments_by_reviewer(
                     "pr_number": pr_number,
                 })
 
+        author_key = canonicalize_login(pr_author, pr_author_id)
         for comment in comments:
-            login = comment["login"]
-            if not login:
+            observed = comment["login"]
+            if not isinstance(observed, str):
+                raise RuntimeError("Normalized comment login is not a string")
+            if not observed:
                 continue
-            if exclude_self_comments and login == pr_author:
+            actor_id = comment["actor_id"]
+            login = canonicalize_login(observed, actor_id)
+            is_self_comment = (
+                actor_id == pr_author_id
+                if actor_id is not None and pr_author_id is not None
+                else login == author_key
+            )
+            if exclude_self_comments and is_self_comment:
                 continue
             if include_set and login not in include_set:
                 continue
@@ -178,18 +286,16 @@ def get_pr_comments_by_reviewer(
             if until_dt and created_dt and created_dt > until_dt:
                 continue
 
-            if login not in reviewer_map:
-                reviewer_map[login] = {
-                    "login": login,
-                    "user_type": comment["user_type"],
-                    "total_comments": 0,
-                    "review_comments": 0,
-                    "issue_comments": 0,
-                    "prs": [],
-                    "comments": [],
-                }
-
-            entry = reviewer_map[login]
+            entry = _reviewer_entry(
+                reviewer_map,
+                login,
+                comment["user_type"],
+                actor_id,
+            )
+            if observed not in entry["aliases"]:
+                entry["aliases"].append(observed)
+            if actor_id is not None and actor_id not in entry["actor_ids"]:
+                entry["actor_ids"].append(actor_id)
             entry["total_comments"] += 1
             if comment["comment_type"] == "review":
                 entry["review_comments"] += 1
@@ -288,17 +394,20 @@ def main(argv: list[str] | None = None) -> int:
     owner = resolved.owner
     repo = resolved.repo
 
-    result = get_pr_comments_by_reviewer(
-        owner,
-        repo,
-        args.pull_request,
-        include_reviewers=args.include_reviewer,
-        exclude_reviewers=args.exclude_reviewer,
-        since=args.since,
-        until=args.until,
-        comment_type=args.comment_type,
-        exclude_self_comments=not args.include_self_comments,
-    )
+    try:
+        result = get_pr_comments_by_reviewer(
+            owner,
+            repo,
+            args.pull_request,
+            include_reviewers=args.include_reviewer,
+            exclude_reviewers=args.exclude_reviewer,
+            since=args.since,
+            until=args.until,
+            comment_type=args.comment_type,
+            exclude_self_comments=not args.include_self_comments,
+        )
+    except (RuntimeError, subprocess.TimeoutExpired) as exc:
+        error_and_exit(f"Failed to get PR comments: {exc}", 3)
 
     print(json.dumps(result, indent=2))
     return 0

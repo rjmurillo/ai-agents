@@ -48,6 +48,7 @@ from scripts.github_core import (
 )
 from scripts.github_core.api import (
     _403_PATTERN,
+    _ALL_PRS_QUERY,
     _retry_after_delay,
 )
 from scripts.github_core.bot_config import _DEFAULT_BOTS
@@ -744,6 +745,9 @@ class TestGetAllPRsWithComments:
         assert len(result) == 1
         assert result[0]["number"] == 1
 
+    def test_query_requests_actor_database_ids(self):
+        assert _ALL_PRS_QUERY.count("databaseId") == 4
+
     def test_excludes_prs_without_comments(self):
         pr_with = self._make_pr(1, "2026-01-15T00:00:00Z", has_comments=True)
         pr_without = self._make_pr(2, "2026-01-15T00:00:00Z", has_comments=False)
@@ -1040,6 +1044,59 @@ class TestGetBotAuthors:
         ):
             result = get_bot_authors()
         assert len(result) == len(set(b for v in _DEFAULT_BOTS.values() for b in v))
+
+
+class TestCanonicalizeLogin:
+    """Issue #4378: one integration under several logins is one actor."""
+
+    def test_known_alias_maps_to_canonical(self):
+        assert bot_config.canonicalize_login("Copilot") == "github-copilot[bot]"
+
+    def test_alias_matching_is_case_insensitive(self):
+        assert (
+            bot_config.canonicalize_login("COPILOT-PULL-REQUEST-REVIEWER") == "github-copilot[bot]"
+        )
+
+    def test_the_coding_agent_is_a_different_actor_from_the_code_reviewer(self):
+        """Two accounts (ids 175728472 and 198982749), not one (issue #4378)."""
+        assert bot_config.canonicalize_login("copilot-swe-agent[bot]") == "copilot-swe-agent[bot]"
+        assert bot_config.canonicalize_login("app/copilot-swe-agent") == "copilot-swe-agent[bot]"
+        assert bot_config.canonicalize_login("copilot-pull-request-reviewer[bot]") != (
+            bot_config.canonicalize_login("copilot-swe-agent[bot]")
+        )
+
+    def test_account_id_disambiguates_the_shared_copilot_login(self):
+        assert bot_config.canonicalize_login("Copilot", 175728472) == "github-copilot[bot]"
+        assert bot_config.canonicalize_login("Copilot", 198982749) == "copilot-swe-agent[bot]"
+
+    def test_account_id_wins_over_a_misleading_known_alias(self):
+        assert (
+            bot_config.canonicalize_login(
+                "copilot-pull-request-reviewer[bot]",
+                198982749,
+            )
+            == "copilot-swe-agent[bot]"
+        )
+
+    def test_unknown_account_id_falls_back_to_the_login_alias(self):
+        assert bot_config.canonicalize_login("Copilot", 1) == "github-copilot[bot]"
+
+    def test_github_actions_alias_keeps_its_existing_canonical_login(self):
+        assert bot_config.canonicalize_login("github-actions") == "github-actions[bot]"
+
+    def test_canonical_login_is_a_fixed_point(self):
+        assert bot_config.canonicalize_login("github-copilot[bot]") == "github-copilot[bot]"
+
+    def test_unmapped_login_is_returned_unchanged(self):
+        assert bot_config.canonicalize_login("alice") == "alice"
+
+    def test_empty_login_is_returned_unchanged(self):
+        assert bot_config.canonicalize_login("") == ""
+
+    def test_every_alias_resolves_to_a_bot(self):
+        for canonical, aliases in bot_config._DEFAULT_BOT_ALIASES.items():
+            for alias in [canonical, *aliases]:
+                assert bot_config.is_bot(bot_config.canonicalize_login(alias)) is True
 
 
 # ---------------------------------------------------------------------------

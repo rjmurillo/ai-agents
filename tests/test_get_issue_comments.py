@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ from scripts.github_core.api import RepoInfo
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
+_SCRIPT = _SCRIPTS_DIR / "get_issue_comments.py"
 
 
 def _import_script(name: str):
@@ -37,9 +39,14 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
-def _api_comment(login: str, body: str, at: str = "2026-06-06T00:00:00Z"):
+def _api_comment(
+    login: str,
+    body: str,
+    at: str = "2026-06-06T00:00:00Z",
+    author_id: int | None = None,
+):
     return {
-        "user": {"login": login},
+        "user": {"login": login, "id": author_id},
         "created_at": at,
         "updated_at": at,
         "body": body,
@@ -67,6 +74,24 @@ class TestBuildParser:
 
 
 class TestMain:
+    def test_foreign_github_workspace_uses_bundled_library(self):
+        env = os.environ.copy()
+        env.pop("COPILOT_PLUGIN_ROOT", None)
+        env.pop("CLAUDE_PLUGIN_ROOT", None)
+        env["GITHUB_WORKSPACE"] = str(Path(__file__).resolve().parent / "foreign-workspace")
+
+        result = subprocess.run(
+            [sys.executable, str(_SCRIPT), "--help"],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=Path(__file__).resolve().parents[1],
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "comment thread" in result.stdout
+
     def test_not_authenticated_exits_4(self):
         with patch("get_issue_comments.assert_gh_authenticated", side_effect=SystemExit(4)):
             with pytest.raises(SystemExit) as exc:
@@ -95,6 +120,7 @@ class TestMain:
         assert data["issue"] == 2099
         assert data["count"] == 2
         assert data["comments"][0]["author"] == "coderabbitai[bot]"
+        assert data["comments"][0]["author_id"] is None
         assert data["comments"][1]["author"] == "rjmurillo"
         assert data["comments"][1]["body"] == "keep open P3"
         assert "createdAt" in data["comments"][0]
@@ -203,6 +229,24 @@ class TestMain:
         env = _envelope(capsys)
         assert env["Success"] is False
 
+    def test_timeout_exits_3(self, capsys):
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired("gh", 60),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "1"])
+
+        assert exc.value.code == 3
+        assert _envelope(capsys)["Error"]["Type"] == "ApiError"
+
     def test_api_failure_respects_human_output_format(self, capsys):
         with (
             patch("get_issue_comments.assert_gh_authenticated"),
@@ -251,6 +295,58 @@ class TestMain:
         data = _envelope(capsys)["Data"]
         assert data["comments"][0]["author"] is None
         assert data["comments"][0]["body"] == "ghost"
+
+    def test_preserves_rest_id_and_node_id(self, capsys):
+        """Issue #4378: callers must not have to parse the html_url fragment."""
+        item = _api_comment("alice", "hi")
+        item["id"] = 5161211275
+        item["node_id"] = "IC_kwDOQoWRls8AAAABM6HViw"
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_slurped([item])]),
+        ):
+            rc = main(["--issue", "1"])
+        assert rc == 0
+        comment = _envelope(capsys)["Data"]["comments"][0]
+        assert comment["id"] == 5161211275
+        assert comment["node_id"] == "IC_kwDOQoWRls8AAAABM6HViw"
+
+    def test_preserves_author_id(self, capsys):
+        item = _api_comment("Copilot", "hi", author_id=175728472)
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_slurped([item])]),
+        ):
+            rc = main(["--issue", "1"])
+        assert rc == 0
+        comment = _envelope(capsys)["Data"]["comments"][0]
+        assert comment["author"] == "Copilot"
+        assert comment["author_id"] == 175728472
+
+    def test_absent_identifiers_are_none_not_missing(self, capsys):
+        """A payload without identifiers still carries every identifier key."""
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_slurped([_api_comment("alice", "hi")])]),
+        ):
+            rc = main(["--issue", "1"])
+        assert rc == 0
+        comment = _envelope(capsys)["Data"]["comments"][0]
+        assert comment["id"] is None
+        assert comment["node_id"] is None
+        assert comment["author_id"] is None
 
 
 if __name__ == "__main__":

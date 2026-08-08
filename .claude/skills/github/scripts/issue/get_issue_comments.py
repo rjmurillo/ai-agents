@@ -7,7 +7,7 @@ decisions, maintainer keep-open calls, or bot plans through the skill (Issue
 #2475). This script fills that gap: it pages through
 ``repos/{owner}/{repo}/issues/{n}/comments`` and emits the standard ADR-056
 envelope with ``Data.comments`` as a list of
-``{author, createdAt, updatedAt, body, url}``.
+``{id, node_id, author, author_id, createdAt, updatedAt, body, url}``.
 
 Exit codes follow ADR-035:
     0 - Success
@@ -26,11 +26,8 @@ import subprocess
 import sys
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
@@ -95,20 +92,31 @@ def _exit_code_for(message: str, *, not_found: bool) -> tuple[int, str]:
 
 def _fetch_comments(owner: str, repo: str, issue: int, fmt: str) -> list[dict[str, object]]:
     """Page through the issue's comments via gh api. Raises SystemExit on error."""
-    result = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"repos/{owner}/{repo}/issues/{issue}/comments?per_page=100",
-            "--paginate",
-            "--slurp",
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=60,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                f"repos/{owner}/{repo}/issues/{issue}/comments?per_page=100",
+                "--paginate",
+                "--slurp",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        write_skill_error(
+            f"Timed out fetching comments for issue #{issue}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT,
+            extra={"issue": issue},
+        )
+        raise SystemExit(3) from None
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
         not_found = "Could not resolve" in error_str or "not found" in error_str.lower()
@@ -148,10 +156,17 @@ def _fetch_comments(owner: str, repo: str, issue: int, fmt: str) -> list[dict[st
 def _normalize(item: dict[str, object]) -> dict[str, object]:
     user = item.get("user")
     author = user.get("login") if isinstance(user, dict) else None
+    author_id = user.get("id") if isinstance(user, dict) else None
+    if not isinstance(author_id, int):
+        author_id = None
     return {
+        # REST id and GraphQL node id, so a caller that wants to react to or
+        # reply to a comment does not have to parse the #issuecomment-<id>
+        # fragment back out of html_url (issue #4378).
         "id": item.get("id"),
         "node_id": item.get("node_id"),
         "author": author,
+        "author_id": author_id,
         "createdAt": item.get("created_at"),
         "updatedAt": item.get("updated_at"),
         "body": item.get("body") or "",
