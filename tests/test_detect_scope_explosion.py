@@ -695,13 +695,16 @@ class TestDetectScope:
 class TestMergeHeadRealGit:
     """Real-git coverage for merge scope counting."""
 
-    def test_attached_merge_counts_authored_files_not_merge_brought_files(
+    def test_attached_merge_counts_branch_local_staged_files_when_local_main_is_ahead(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         repo = tmp_path / "repo"
-        _feature_tip, main_tip = _make_merge_scope_repo(repo)
+        _feature_tip, _main_tip = _make_merge_scope_repo(repo)
+        _check_git(repo, "checkout", "main")
+        _write_file(repo, "main/local_only.py", "value = 'local'\n")
+        local_main_tip = _commit_all(repo, "local main only")
         _check_git(repo, "checkout", "feature")
-        _check_git(repo, "merge", "--no-commit", "--no-ff", main_tip)
+        _check_git(repo, "merge", "--no-commit", "--no-ff", local_main_tip)
         staged_feature_files = [f"feature/staged_{index}.py" for index in range(45)]
         for index, relative_path in enumerate(staged_feature_files):
             _write_file(repo, relative_path, f"staged = {index}\n")
@@ -718,7 +721,7 @@ class TestMergeHeadRealGit:
         )
         assert len(authored_paths) == 11
         assert staged_paths.issuperset(set(staged_feature_files))
-        assert len(staged_paths) == 142
+        assert len(staged_paths) == 143
 
         monkeypatch.chdir(repo)
         result = detect_scope()

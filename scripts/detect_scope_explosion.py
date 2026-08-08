@@ -260,11 +260,19 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         raise ScopeDetectionError(f"could not determine merge base with {base_branch}")
 
     if merge_head:
-        if is_ancestor_or_equal(merge_head, base_ref):
+        base_lineage_refs: list[str] = []
+        for candidate_ref in (base_ref, base_branch):
+            if candidate_ref not in base_lineage_refs and _ref_exists(candidate_ref):
+                base_lineage_refs.append(candidate_ref)
+
+        if any(
+            is_ancestor_or_equal(merge_head, candidate_ref) for candidate_ref in base_lineage_refs
+        ):
             # When MERGE_HEAD is the base branch being merged, diff the final
             # staged tree against that exact base-side commit. This keeps the
             # upstream merge files out of scope while still counting any new
-            # branch-local files staged after `git merge --no-commit`.
+            # branch-local files staged after `git merge --no-commit`, even
+            # when local `main` has advanced past `origin/main`.
             files = sorted(set(get_index_files_against_ref(merge_head)))
         else:
             # A sibling merge can leave MERGE_HEAD off the base lineage.
