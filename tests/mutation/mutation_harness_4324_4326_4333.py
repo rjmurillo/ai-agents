@@ -37,7 +37,6 @@ _API_TESTS = [
     "tests/test_github_core.py",
     "tests/test_github_auth_classification.py",
 ]
-_RATE_TESTS = ["tests/test_test_rate_limit.py"]
 _NEW_PR_TESTS = ["tests/test_new_pr.py"]
 
 
