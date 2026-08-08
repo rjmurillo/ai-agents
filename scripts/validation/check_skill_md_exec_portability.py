@@ -195,11 +195,11 @@ def _iter_reference_markdown(root_resolved: Path, references_dir: Path) -> list[
         dirnames[:] = kept_dirs
         for name in sorted(filenames):
             path = directory / name
+            _refuse_exec_escape(root_resolved, path, "Skill path")
             if path.suffix != ".md" or "__pycache__" in path.parts:
                 continue
             if not path.is_file():
                 continue
-            _refuse_exec_escape(root_resolved, path, "Skill file")
             paths.append(path)
     return paths
 
@@ -208,10 +208,12 @@ def _iter_skill_roots(repo_root: Path, root: Path) -> list[Path]:
     root_resolved = repo_root.resolve()
     skill_roots: list[Path] = []
     for skill_root in sorted(root.iterdir()):
+        _refuse_exec_escape(root_resolved, skill_root, "Skill directory")
         if "__pycache__" in skill_root.parts or not skill_root.is_dir():
             continue
-        _refuse_exec_escape(root_resolved, skill_root, "Skill directory")
-        if not (skill_root / SKILL_FILE_NAME).is_file():
+        skill_file = skill_root / SKILL_FILE_NAME
+        _refuse_exec_escape(root_resolved, skill_file, "Skill file")
+        if not skill_file.is_file():
             continue
         skill_roots.append(skill_root)
     return skill_roots
@@ -221,26 +223,26 @@ def _iter_skill_files(repo_root: Path, skill_root: Path) -> list[Path]:
     root_resolved = repo_root.resolve()
     paths: list[Path] = []
     skill_file = skill_root / SKILL_FILE_NAME
+    _refuse_exec_escape(root_resolved, skill_file, "Skill file")
     if skill_file.is_file():
-        _refuse_exec_escape(root_resolved, skill_file, "Skill file")
         paths.append(skill_file)
 
     references_dir = skill_root / "references"
+    _refuse_exec_escape(root_resolved, references_dir, "Skill directory")
     if references_dir.is_dir():
-        _refuse_exec_escape(root_resolved, references_dir, "Skill directory")
         paths.extend(_iter_reference_markdown(root_resolved, references_dir))
 
     scripts_dir = skill_root / "scripts"
     _refuse_exec_escape(root_resolved, scripts_dir, "Skill directory")
     if scripts_dir.is_dir():
         for path in sorted(scripts_dir.iterdir()):
+            _refuse_exec_escape(root_resolved, path, "Skill path")
             if "__pycache__" in path.parts:
                 continue
             if not path.is_file():
                 continue
             if not path.name.startswith("README-") or path.suffix != ".md":
                 continue
-            _refuse_exec_escape(root_resolved, path, "Skill file")
             paths.append(path)
 
     return paths

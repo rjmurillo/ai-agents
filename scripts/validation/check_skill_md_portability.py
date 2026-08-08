@@ -418,11 +418,11 @@ def _iter_markdown_files(root: Path, scan_dir: Path) -> list[Path]:
         dirnames[:] = kept_dirs
         for name in sorted(filenames):
             path = directory / name
+            _refuse_markdown_escape(root_resolved, path, "Scan entry")
             if path.suffix != MARKDOWN_SUFFIX:
                 continue
             if path.is_symlink() and not path.exists():
                 raise OSError(f"Broken .md symlink (configuration error): {path}")
-            _refuse_markdown_escape(root_resolved, path, "Skill markdown")
             paths.append(path)
     return paths
 

@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Lease, live-state, auto-merge, worktree SHA, merge-forward, targeted test, changed-file gate, and independent security checks completed before push."
+        "Evidence": "Lease, live-state, auto-merge, worktree SHA, merge-forward, blocker-fix, targeted test, changed-file gate, and independent security checks completed before push."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen pytest tests/validation/test_portability_common.py tests/validation/test_portability_scan_coverage_refusal.py tests/validation/test_check_skill_md_portability.py tests/validation/test_check_skill_md_exec_portability.py -x; uv run --frozen ruff check scripts/validation/check_skill_md_exec_portability.py scripts/validation/check_skill_md_portability.py scripts/validation/portability_common.py tests/validation/test_portability_scan_coverage_refusal.py; uv run --frozen python -c 'from pathlib import Path; from scripts.validation.checks_mypy import validate_mypy_changed_files; import sys; sys.exit(0 if validate_mypy_changed_files(Path(\".\")) else 1)'."
+        "Evidence": "uv run --frozen pytest tests/validation/test_portability_common.py tests/validation/test_portability_scan_coverage_refusal.py tests/validation/test_check_skill_md_portability.py tests/validation/test_check_skill_md_exec_portability.py -x (364 passed); uv run --frozen ruff check scripts/validation/check_skill_md_exec_portability.py scripts/validation/check_skill_md_portability.py tests/validation/test_check_skill_md_exec_portability.py tests/validation/test_check_skill_md_portability.py; uv run --frozen python -c 'from pathlib import Path; from scripts.validation.checks_mypy import validate_mypy_changed_files; import sys; sys.exit(0 if validate_mypy_changed_files(Path(\".\")) else 1)'."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -129,6 +129,10 @@
     {
       "action": "Ran an independent security review on the refreshed branch diff.",
       "result": "Security review verdict PASS. No Critical or High findings in the diff versus origin/main."
+    },
+    {
+      "action": "Addressed the two post-push Copilot review threads about dangling descendant symlink escapes.",
+      "result": "Moved descendant containment checks ahead of suffix and is_file filters in both portability scanners, added four targeted escape regressions, reran the portability suite to 364 passing tests, and got a second PASS security review with no Critical or High findings."
     }
   ],
   "endingCommit": "",
