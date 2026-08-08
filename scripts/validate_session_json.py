@@ -907,6 +907,8 @@ def _resolve_full_commit(commit: str) -> str | None:
         cwd=_PROJECT_ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
@@ -922,6 +924,8 @@ def _post_qa_code_changes(commit: str, validation_head: str) -> list[str] | None
         cwd=_PROJECT_ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
