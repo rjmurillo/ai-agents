@@ -37,11 +37,13 @@ hard safety boundary and is never replaced or relaxed by this module.
 
 Exit codes (within the ADR-035 range, matching `check_pr_live_state.py`'s
 ACT/SKIP convention):
-    0 - ACT: caller may proceed (lease acquired, renewed, or released)
-    1 - SKIP: a live lease is held by another loop (acquire only)
+    0 - ACT: caller may proceed (lease acquired, renewed, released, or
+        fail-open on auth/store error per ADR-076 part 3 step 6)
+    1 - SKIP: a live lease is held by another loop (acquire/renew only)
     2 - PR not found / usage error
     3 - External error (API failure)
-    4 - Auth error
+    4 - Auth error (only for non-lease operations; lease operations fail
+        open to exit 0 per ADR-076 part 3 step 6)
 
 Stricter/looser/different than canonical
 ========================================
@@ -938,7 +940,16 @@ def build_parser() -> argparse.ArgumentParser:
             "SHA gate remains the only hard safety boundary."
         ),
     )
-    parser.add_argument("command", choices=["acquire", "release", "status"], help="Lease operation")
+    parser.add_argument(
+        "command",
+        choices=["acquire", "renew", "release", "status"],
+        help=(
+            "Lease operation. 'renew' extends the TTL in place (call periodically "
+            "during a long pre-push validation so the lease outlives the hook; "
+            "issue #4376). Internally identical to 'acquire' on an existing live "
+            "lease held by this credential (self-renewal via ADR-076 part 3 step 4)."
+        ),
+    )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument("--pull-request", type=int, required=True, help="Pull request number")
@@ -980,7 +991,14 @@ def _run_command(args: argparse.Namespace, owner: str, repo: str) -> LeaseResult
             args.output_format,
             args.pull_request,
         )
-    if args.command == "acquire":
+    # 'renew' is acquire with self-renewal semantics: the caller already holds
+    # the lease and wants to extend the TTL in place. The acquire() function
+    # handles this via classify_acquire's self-renew branch (ADR-076 part 3
+    # step 4). Callers should invoke 'renew' periodically during a long
+    # pre-push validation run to keep the lease live for the full critical
+    # section (issue #4376). A renew that finds the lease free (e.g. expired)
+    # re-claims it, which is the correct recovery.
+    if args.command in ("acquire", "renew"):
         return acquire(args.lease_owner, args.session, owner, repo, args.pull_request)
     return release(args.lease_owner, args.session, owner, repo, args.pull_request)
 
@@ -988,9 +1006,53 @@ def _run_command(args: argparse.Namespace, owner: str, repo: str) -> LeaseResult
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     output_format = args.output_format
-    assert_gh_authenticated()
-
-    resolved = resolve_repo_params(args.owner, args.repo)
+    # ADR-076 part 3 step 6: API/auth store failures must fail open to ACT
+    # with reason=lease-store-unavailable, never exit 4 before lease logic.
+    # assert_gh_authenticated() raises SystemExit(4) on auth failure, which
+    # converts an advisory coordination mechanism into a workflow outage
+    # (issue #4375). The repo param resolution below is I/O that can fail
+    # too; catch both as store failures and fail open.
+    try:
+        assert_gh_authenticated()
+        resolved = resolve_repo_params(args.owner, args.repo)
+    except SystemExit as exc:
+        # Auth / repo resolution failure. Fail open per ADR-076 part 3
+        # step 6: emit an ACT/lease-store-unavailable result on the same
+        # output channel so the caller sees a structured verdict, then exit
+        # 0 (ACT). The SHA gate is the backstop. We emit a best-effort
+        # result. Output serialization failures remain fatal because callers
+        # cannot act safely without a readable lease verdict.
+        code = exc.code if isinstance(exc.code, int) else 3
+        logger.warning(
+            "op=lease_main_failopen exit_code=%d command=%s pr=%d",
+            code,
+            args.command,
+            args.pull_request,
+        )
+        fail_open_result = {
+            "success": True,
+            "pull_request": args.pull_request,
+            "owner": args.owner or "",
+            "repo": args.repo or "",
+            "command": args.command,
+            "action": "ACT",
+            "reason": "lease-store-unavailable",
+            "expires_at": None,
+            "base_sha": None,
+            "local_head_sha": None,
+        }
+        write_skill_output(
+            fail_open_result,
+            output_format=output_format,
+            human_summary=(
+                f"PR #{args.pull_request} lease {args.command}: "
+                f"ACT (lease-store-unavailable; auth/repo resolution failed, "
+                f"original exit {code})"
+            ),
+            status="PASS",
+            script_name=_SCRIPT_NAME,
+        )
+        return 0
     owner, repo = resolved.owner, resolved.repo
 
     result = _run_command(args, owner, repo)

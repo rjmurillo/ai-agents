@@ -1,3 +1,8 @@
+# taste-lint: ignore file-size
+# This test module covers ADR-076 Phase 1 (lease acquire/release/renew/status),
+# security must_fix items #6-8, CLI exit codes, and mutation-proven defect fixes
+# for issues #4375, #4376. Splitting it would scatter related ADR-076 scenarios
+# across files with no cohesion gain; the line count is test coverage, not debt.
 """Tests for pr_autofix_lease.py (ADR-076 Phase 1, local-only).
 
 The script is the advisory, fail-open branch-ownership lease that local
@@ -1325,3 +1330,263 @@ class TestMainExitCodes:
                 ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
             )
         assert rc == 0
+
+
+# ===========================================================================
+# Issue #4375: assert_gh_authenticated() exit must fail-open to ACT, not
+# propagate exit 4 before lease logic (ADR-076 part 3 step 6).
+# ===========================================================================
+
+
+class TestAuthFailOpenFix:
+    """Fix: main() catches SystemExit from assert_gh_authenticated() and
+    resolve_repo_params() and returns ACT/lease-store-unavailable (exit 0)
+    instead of propagating exit 4, so an auth store failure cannot convert
+    the advisory lease into a workflow outage."""
+
+    def test_auth_failure_exits_zero_act(self, capsys):
+        # assert_gh_authenticated raises SystemExit(4) on auth failure.
+        # main() must catch it and return 0 (ACT) with reason
+        # lease-store-unavailable.
+        with patch.object(
+            _mod, "assert_gh_authenticated", side_effect=SystemExit(4)
+        ):
+            rc = main(
+                ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
+    def test_auth_failure_on_status_exits_zero_act(self, capsys):
+        # status path also goes through main(); same contract.
+        with patch.object(
+            _mod, "assert_gh_authenticated", side_effect=SystemExit(4)
+        ):
+            rc = main(["status", "--pull-request", "1", "--output-format", "json"])
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
+    def test_auth_failure_on_release_exits_zero_act(self, capsys):
+        with patch.object(
+            _mod, "assert_gh_authenticated", side_effect=SystemExit(4)
+        ):
+            rc = main(
+                ["release", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
+    def test_repo_resolution_failure_exits_zero_act(self, capsys):
+        # resolve_repo_params raises SystemExit(3) when repo can't resolve.
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", side_effect=SystemExit(3)),
+        ):
+            rc = main(
+                ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
+    def test_auth_success_proceeds_to_acquire(self, capsys):
+        # Positive control: when auth succeeds, normal acquire runs.
+        from types import SimpleNamespace
+
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(
+                _mod, "resolve_repo_params", return_value=SimpleNamespace(owner="o", repo="r")
+            ),
+            _patch_list([]),
+            _patch_post(),
+            _patch_head(),
+            _patch_login(),
+        ):
+            rc = main(
+                ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        # Free lock: reason is "free", not "lease-store-unavailable".
+        assert payload["Data"]["reason"] == "free"
+
+
+# ===========================================================================
+# Issue #4376: 'renew' subcommand extends TTL for long pre-push validations.
+# ===========================================================================
+
+
+class TestRenewSubcommand:
+    """Fix: 'renew' is a subcommand alias for self-renewal acquire. A holder
+    running a pre-push validation that exceeds 15 minutes (the measured
+    python-tests ceiling is 1740s) calls 'renew' periodically to keep the
+    lease live for the full critical section."""
+
+    def _repo(self):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(owner="o", repo="r")
+
+    def test_renew_on_own_live_lease_extends_ttl(self, capsys):
+        # Positive: holder calls renew. Self-renewal branch returns ACT with
+        # self-renew reason and a fresh expires_at.
+        # Use real-clock timestamps so main() (which doesn't inject `now`)
+        # sees a live lease. _live_held_body() is the pattern for this.
+        real_now = datetime.now(UTC)
+        live_body = _body(
+            owner=_OWNER,
+            session=_SESSION,
+            acquired=real_now - timedelta(minutes=1),
+            expires=real_now + timedelta(minutes=10),
+        )
+        mine = _comment(live_body, _rfc(real_now - timedelta(minutes=1)), author=_AUTHOR)
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            _patch_list([mine]),
+            _patch_post(),
+            _patch_head(),
+            _patch_login(login=_AUTHOR),
+        ):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "self-renew"
+
+    def test_renew_on_free_lease_re_claims(self, capsys):
+        # Edge: renew when lease already expired re-claims it (same as acquire).
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            _patch_list([]),
+            _patch_post(),
+            _patch_head(),
+            _patch_login(login=_AUTHOR),
+        ):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "free"
+
+    def test_renew_returns_skip_when_held_by_other(self, capsys):
+        # Negative: another loop holds the lease; renew sees SKIP (exit 1).
+        held = _comment(
+            _live_held_body(owner="remote:coderabbit-autofix", session="ci-1"),
+            _now_iso(),
+            author="coderabbit[bot]",
+        )
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            _patch_list([held]),
+            _patch_post(),
+            _patch_head(),
+            _patch_login(login=_AUTHOR),
+        ):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 1
+
+    def test_renew_without_session_exits_two(self):
+        # Session is required for renew (same as acquire).
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["renew", "--pull-request", "1", "--output-format", "json"])
+        assert exc.value.code == 2
+
+    def test_renew_store_error_fails_open(self, capsys):
+        # Store error during renew must fail open to ACT (issue #4376 +
+        # ADR-076 part 3 step 6).
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            patch.object(_mod, "list_lease_comments", side_effect=LeaseStoreError("down")),
+            _patch_head(),
+            _patch_login(),
+        ):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
+    def test_duration_exceeding_ttl_covered_by_two_renewals(self):
+        # Integration-style: simulate a 30-minute validation run (2x TTL).
+        # Two renew calls, each at the 14-minute mark, keep the lease live.
+        # Each renew is a self-renewal (ACT/self-renew). This documents the
+        # intended usage pattern for pre-push hooks longer than TTL
+        # (issue #4376; measured ceiling: python-tests 1740s > 15min TTL).
+        posted = []
+        now_ptr = [_NOW]
+
+        def _advance_and_renew(minutes: int):
+            now_ptr[0] = now_ptr[0] + timedelta(minutes=minutes)
+            # The latest posted comment is the live lease at renew-time.
+            current = select_authoritative_lease(posted[-1:] if posted else [])
+            if current:
+                lease_list = [
+                    {
+                        "body": posted[-1]["body"],
+                        "created_at": posted[-1]["created_at"],
+                        "user": {"login": _AUTHOR},
+                    }
+                ]
+            else:
+                lease_list = []
+            with (
+                patch.object(_mod, "list_lease_comments", return_value=lease_list),
+                patch.object(
+                    _mod,
+                    "post_lease_comment",
+                    side_effect=lambda o, r, p, b: posted.append(
+                        {"body": b, "created_at": _rfc(now_ptr[0])}
+                    ),
+                ),
+                _patch_head(),
+            ):
+                return acquire(_OWNER, _SESSION, "o", "r", 1, now=now_ptr[0],
+                               acting_author=_AUTHOR)
+
+        # Initial acquire at t=0.
+        with (
+            patch.object(_mod, "list_lease_comments", return_value=[]),
+            patch.object(
+                _mod,
+                "post_lease_comment",
+                side_effect=lambda o, r, p, b: posted.append(
+                    {"body": b, "created_at": _rfc(_NOW)}
+                ),
+            ),
+            _patch_head(),
+        ):
+            r0 = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW, acting_author=_AUTHOR)
+        assert r0.action == "ACT"
+
+        # First renew at t+14m (within TTL; self-renewal should work).
+        r1 = _advance_and_renew(14)
+        assert r1.action == "ACT"
+
+        # Second renew at t+28m (14m after first renew; still within that
+        # lease's TTL window). Covers the 30-minute validation scenario.
+        r2 = _advance_and_renew(14)
+        assert r2.action == "ACT"
