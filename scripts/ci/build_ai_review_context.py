@@ -17,7 +17,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 GH_TIMEOUT_SECONDS = 60
-GH_REFUSAL_BACKOFF_SECONDS = (300.0, 600.0)
+# Three worst-case attempts plus these waits consume six minutes. The review
+# workflow has a ten-minute job deadline, so exhausted retries still reach the
+# infrastructure gate instead of being cancelled before classification.
+GH_REFUSAL_BACKOFF_SECONDS = (60.0, 120.0)
 MAX_FILE_PAGES = 5
 FILES_PER_PAGE = 100
 DIFF_TOO_LARGE = re.compile(

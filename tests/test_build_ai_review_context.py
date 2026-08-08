@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 _SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts/ci/build_ai_review_context.py"
 
@@ -84,6 +85,31 @@ def test_run_gh_retries_rate_limit_before_returning_success(
     assert result.stdout == "ok"
     assert len(calls) == 2
     assert sleeps == [_mod.GH_REFUSAL_BACKOFF_SECONDS[0]]
+
+
+def test_retry_budget_fits_ai_review_job_deadline():
+    """Exhausted retries must leave enough time to classify infrastructure failure."""
+    workflow_path = (
+        Path(__file__).resolve().parents[1]
+        / ".github/workflows/ai-pr-quality-gate.yml"
+    )
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    job_timeouts = [
+        int(job["timeout-minutes"])
+        for job in workflow["jobs"].values()
+        if any(
+            step.get("uses") == "./.github/actions/agent-review"
+            for step in job.get("steps", [])
+        )
+    ]
+    assert len(job_timeouts) == 10
+
+    attempts = len(_mod.GH_REFUSAL_BACKOFF_SECONDS) + 1
+    worst_case_seconds = (
+        sum(_mod.GH_REFUSAL_BACKOFF_SECONDS) + attempts * _mod.GH_TIMEOUT_SECONDS
+    )
+
+    assert worst_case_seconds < min(job_timeouts) * 60
 
 
 def test_pr_diff_context_exhausted_rate_limit_records_infra_gap(
