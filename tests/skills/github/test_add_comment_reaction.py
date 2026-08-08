@@ -24,6 +24,13 @@ def _mock_repo():
     return RepoInfo(owner="o", repo="r")
 
 
+_UNRESOLVED_STATE = {
+    "pull_request": 42,
+    "thread_id": "PRRT_abc",
+    "is_resolved": False,
+}
+
+
 @pytest.fixture
 def _import_module():
     import importlib
@@ -41,6 +48,10 @@ class TestAddCommentReaction:
         with (
             patch("add_comment_reaction.assert_gh_authenticated"),
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
             patch("subprocess.run", return_value=make_completed_process(
                 stdout=json.dumps({"id": 1})
             )) as run,
@@ -58,6 +69,10 @@ class TestAddCommentReaction:
         with (
             patch("add_comment_reaction.assert_gh_authenticated"),
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
             patch("subprocess.run", return_value=make_completed_process()),
         ):
             rc = mod.main(["--comment-id", "1", "2", "3", "--reaction", "heart"])
@@ -99,6 +114,10 @@ class TestAddCommentReaction:
             patch("add_comment_reaction.assert_gh_authenticated"),
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
             patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
+            patch(
                 "subprocess.run",
                 side_effect=subprocess.TimeoutExpired(
                     cmd="gh",
@@ -118,6 +137,10 @@ class TestAddCommentReaction:
         with (
             patch("add_comment_reaction.assert_gh_authenticated"),
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
             patch(
                 "subprocess.run",
                 side_effect=[
@@ -145,6 +168,10 @@ class TestAddCommentReaction:
         with (
             patch("add_comment_reaction.assert_gh_authenticated"),
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
             patch("subprocess.run", return_value=make_completed_process(
                 returncode=1, stdout="already reacted"
             )),
@@ -165,11 +192,210 @@ class TestAddCommentReaction:
         with (
             patch("add_comment_reaction.assert_gh_authenticated"),
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
             patch("subprocess.run", side_effect=fake_run),
         ):
             mod.main(["--comment-id", "99", "--reaction", "eyes"])
         api_calls = [c for c in captured if "pulls/comments" in str(c)]
         assert len(api_calls) >= 1
+
+    def test_resolved_review_thread_skips_reaction(self, _import_module, capsys):
+        mod = _import_module
+        live_state = {
+            "pull_request": 42,
+            "thread_id": "PRRT_abc",
+            "is_resolved": True,
+        }
+        with (
+            patch("add_comment_reaction.assert_gh_authenticated"),
+            patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                return_value=live_state,
+            ),
+            patch("subprocess.run") as run,
+        ):
+            rc = mod.main([
+                "--comment-id",
+                "99",
+                "--pull-request",
+                "42",
+                "--reaction",
+                "eyes",
+            ])
+        assert rc == 0
+        run.assert_not_called()
+        result = json.loads(capsys.readouterr().out)
+        assert result["Data"]["action"] == "SKIP"
+        assert result["Data"]["results"][0]["reason"] == "thread_resolved"
+
+    def test_wrong_pr_skips_reaction(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("add_comment_reaction.assert_gh_authenticated"),
+            patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
+            patch("subprocess.run") as run,
+        ):
+            rc = mod.main([
+                "--comment-id",
+                "99",
+                "--pull-request",
+                "7",
+                "--reaction",
+                "eyes",
+            ])
+        assert rc == 0
+        run.assert_not_called()
+        result = json.loads(capsys.readouterr().out)
+        assert result["Data"]["results"][0]["reason"] == "wrong_pull_request"
+
+    def test_missing_review_comment_skips_reaction(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("add_comment_reaction.assert_gh_authenticated"),
+            patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                return_value=None,
+            ),
+            patch("subprocess.run") as run,
+        ):
+            rc = mod.main([
+                "--comment-id",
+                "99",
+                "--pull-request",
+                "42",
+                "--reaction",
+                "eyes",
+            ])
+        assert rc == 0
+        run.assert_not_called()
+        result = json.loads(capsys.readouterr().out)
+        assert result["Data"]["results"][0]["reason"] == "comment_not_found"
+
+    def test_state_query_failure_exits_3_without_reaction(
+        self,
+        _import_module,
+        capsys,
+    ):
+        mod = _import_module
+        with (
+            patch("add_comment_reaction.assert_gh_authenticated"),
+            patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                side_effect=RuntimeError("API unavailable"),
+            ),
+            patch("subprocess.run") as run,
+        ):
+            rc = mod.main([
+                "--comment-id",
+                "99",
+                "--pull-request",
+                "42",
+                "--reaction",
+                "eyes",
+            ])
+        assert rc == 3
+        run.assert_not_called()
+        result = json.loads(capsys.readouterr().out)
+        assert result["Data"]["results"][0]["reason"] == "thread_state_query_failed"
+
+    def test_external_resolution_after_triage_skips_reaction(
+        self,
+        _import_module,
+        capsys,
+    ):
+        mod = _import_module
+        cached_triage_state = {"is_resolved": False}
+        live_state = {
+            "pull_request": 42,
+            "thread_id": "PRRT_abc",
+            "is_resolved": True,
+        }
+        with (
+            patch("add_comment_reaction.assert_gh_authenticated"),
+            patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                return_value=live_state,
+            ) as query_state,
+            patch("subprocess.run") as run,
+        ):
+            assert cached_triage_state["is_resolved"] is False
+            rc = mod.main([
+                "--comment-id",
+                "99",
+                "--pull-request",
+                "42",
+                "--reaction",
+                "eyes",
+            ])
+        assert rc == 0
+        query_state.assert_called_once_with("o", "r", 99, 42)
+        run.assert_not_called()
+        result = json.loads(capsys.readouterr().out)
+        assert result["Data"]["results"][0]["reason"] == "thread_resolved"
+
+    def test_query_state_maps_reply_to_root_thread(self, _import_module):
+        mod = _import_module
+        comment = {
+            "pull_request_url": "https://api.github.com/repos/o/r/pulls/42",
+            "in_reply_to_id": 100,
+        }
+        thread = {"id": "PRRT_abc", "isResolved": False}
+        with (
+            patch(
+                "add_comment_reaction._query_review_comment",
+                return_value=comment,
+            ),
+            patch(
+                "add_comment_reaction._find_review_thread",
+                return_value=thread,
+            ) as find_thread,
+        ):
+            state = mod.query_review_comment_thread_state("o", "r", 101)
+        find_thread.assert_called_once_with("o", "r", 42, 100)
+        assert state == {
+            "pull_request": 42,
+            "thread_id": "PRRT_abc",
+            "is_resolved": False,
+        }
+
+    def test_query_state_rejects_wrong_pr_before_thread_query(self, _import_module):
+        mod = _import_module
+        comment = {
+            "pull_request_url": "https://api.github.com/repos/o/r/pulls/42",
+            "in_reply_to_id": None,
+        }
+        with (
+            patch(
+                "add_comment_reaction._query_review_comment",
+                return_value=comment,
+            ),
+            patch(
+                "add_comment_reaction._find_review_thread",
+            ) as find_thread,
+        ):
+            state = mod.query_review_comment_thread_state(
+                "o",
+                "r",
+                101,
+                expected_pull_request=7,
+            )
+        find_thread.assert_not_called()
+        assert state == {
+            "pull_request": 42,
+            "thread_id": None,
+            "is_resolved": None,
+        }
 
     def test_issue_endpoint(self, _import_module):
         mod = _import_module

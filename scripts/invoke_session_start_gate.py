@@ -26,7 +26,11 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from scripts.github_core.repo import get_repo_root
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.github_core.repo import get_repo_root  # noqa: E402
 
 
 def run_git(*args: str, timeout: int = 10) -> subprocess.CompletedProcess[str]:
