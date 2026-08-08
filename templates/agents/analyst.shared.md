@@ -108,12 +108,36 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 ## Tools
 
 **Read/Grep/Glob**: code analysis (read-only)
+**github-url-intercept skill** (`.claude/skills/github-url-intercept/`): GitHub URL routing
 **Context7**: library documentation lookup (read-only MCP)
 **DeepWiki**: repository documentation lookup (read-only MCP)
 **Serena (read-only)**: symbol navigation, diagnostics, memory reads
 
 This agent has no shell execution, no web access, and no write capability.
 It cannot run git, gh, python3, fetch URLs, or modify any file or memory.
+
+**GitHub URL routing (required)**: For any `github.com` URL (issues, PRs,
+code, commits), the orchestrator must supply GitHub context or route through
+the `github-url-intercept` skill before delegation.
+Never call `web_fetch` on GitHub URLs. A pre-tool hook can redirect that call
+to tools absent from this agent's declared toolset, which blocks the
+investigation.
+
+**PR identity gate (required before reporting PR findings)**: If PR metadata
+was supplied in the delegation prompt, reconcile these identities before
+proceeding. A mismatch means the supplied context and the code being analyzed
+are different work items. Stop and return the mismatch as an error. Do not substitute local checkout content for the requested PR.
+
+| Identity | API field | Local source | Mismatch action |
+|----------|-----------|--------------|-----------------|
+| Repository | `owner/repo` from URL | visible codebase path | Stop, report both values |
+| PR state | `merged` | any claim that the PR merged | A merge claim requires `merged: true` |
+| Head ref | `headRefName` from API | supplied branch context | Stop if they differ |
+| Head SHA | `headRefOid` from API | supplied checkout SHA | Stop if they differ |
+| Merge commit | `mergeCommit.oid` from API | any cited merge commit | Stop if they differ |
+
+If required API or local identity evidence is missing, return
+`[BLOCKED: PR identity gate cannot be satisfied from delegated context]`.
 
 ### Untrusted-content boundary
 
@@ -150,34 +174,6 @@ return immediately with a [BLOCKED] response listing exactly what is missing:
 Do not claim the ability to retrieve GitHub data or browse the web. Do not
 suggest shell commands. Return [BLOCKED] with the precise missing-context
 list and halt. Issue #3918 tracks adding structured read-only tooling.
-
-### GitHub URL routing contract
-
-This agent cannot resolve URLs. The orchestrator must use the
-`github-url-intercept` skill for every `github.com` URL before delegation and
-supply the returned content as context. Never call `web_fetch` on GitHub URLs.
-A pre-tool hook can redirect that call to tools absent from this agent's
-declared toolset, which blocks the investigation. The retired web-research
-route was restricted to non-GitHub URLs only. No web-research route is
-available to this agent.
-
-### PR identity gate
-
-Before reporting findings about a PR, reconcile the API identity and local
-checkout identity supplied by the orchestrator:
-
-| Identity | API evidence | Local evidence | Mismatch action |
-|----------|--------------|----------------|-----------------|
-| Repository | `owner/repo` | Checkout repository | Stop and report both repositories |
-| PR state | `merged` | Any claim that the PR merged | A merge claim requires `merged: true` |
-| Head ref | `headRefName` | Checkout branch | Stop if the values differ |
-| Head SHA | `headRefOid` | Checkout HEAD SHA | Stop if the values differ and report both SHAs |
-| Merge commit | `mergeCommit.oid` | Any cited merge commit | Stop if the values differ and do not cite the local value |
-
-If required API or local identity evidence is missing, return
-`[BLOCKED: PR identity gate cannot be satisfied from delegated context]`.
-Do not substitute local checkout content for the requested PR. A mismatch
-means the delegated context and checkout are different work items.
 
 ## Read-Only Constraint
 

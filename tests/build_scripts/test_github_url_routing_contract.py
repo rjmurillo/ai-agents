@@ -92,12 +92,16 @@ def test_template_without_routing_guidance_fails_check() -> None:
     )
 
 
-def test_canonical_template_webfetch_note_restricts_to_non_github() -> None:
-    """The template's WebSearch/WebFetch line must scope to non-GitHub URLs."""
+def test_canonical_template_marks_web_tools_unavailable() -> None:
+    """The canonical template must not restore generic web access."""
     template = REPO_ROOT / "templates" / "agents" / "analyst.shared.md"
     assert template.is_file()
     body = template.read_text(encoding="utf-8")
-    assert "non-GitHub URLs only" in body, (
-        "templates/agents/analyst.shared.md: the WebSearch/WebFetch tool line must "
-        "include '(non-GitHub URLs only)' to clearly scope what web_fetch is for."
+    assert "no web access" in body, (
+        "templates/agents/analyst.shared.md must state that generic web tools "
+        "are unavailable to the analyst."
+    )
+    assert "non-GitHub URLs only" not in body, (
+        "templates/agents/analyst.shared.md must not direct the analyst to "
+        "unavailable web tools."
     )
