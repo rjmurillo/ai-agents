@@ -20,8 +20,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.github_core.repo import get_repo_root
-from scripts.github_core.worktree_identity import reset_worktree_identity
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.github_core.repo import get_repo_root  # noqa: E402
+from scripts.github_core.worktree_identity import reset_worktree_identity  # noqa: E402
 
 SUBPROCESS_TIMEOUT_SECONDS = 60
 

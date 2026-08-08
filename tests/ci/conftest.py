@@ -13,6 +13,7 @@ CI-only failures visible locally.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from unittest.mock import patch
 
 import pytest
 
@@ -36,3 +37,13 @@ def _scrub_gha_writer_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     for var in _GHA_WRITER_VARS:
         monkeypatch.delenv(var, raising=False)
     yield
+
+
+@pytest.fixture
+def _zero_non_target_aggregate_counts() -> Iterator[None]:
+    """Return zero from auxiliary counters only for tests that opt in."""
+    with (
+        patch("scripts.ci.memory_index_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
+    ):
+        yield
