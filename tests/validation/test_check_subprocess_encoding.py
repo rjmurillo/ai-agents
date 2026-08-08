@@ -124,6 +124,11 @@ def test_subprocess_check_output_missing_errors() -> None:
     assert find_violations(source) == [2]
 
 
+def test_aliased_check_output_missing_errors() -> None:
+    source = 'from subprocess import check_output as co\nco(["x"], encoding="utf-8")'
+    assert find_violations(source) == [2]
+
+
 def test_from_import_run_missing_errors() -> None:
     source = 'from subprocess import run\nrun(["x"], text=True, encoding="utf-8")'
     assert find_violations(source) == [2]

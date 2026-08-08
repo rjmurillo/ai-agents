@@ -101,10 +101,10 @@ def _is_utf8_literal(node: ast.expr | None) -> bool:
 
 def _subprocess_alias_sets(
     tree: ast.AST,
-) -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
+) -> tuple[frozenset[str], dict[str, str], frozenset[str]]:
     """Return module, callable, and PIPE aliases that resolve to subprocess."""
     module_aliases = {"subprocess"}
-    callable_aliases = set(_ALL_SUBPROCESS_CALLS)
+    callable_aliases = {name: name for name in _ALL_SUBPROCESS_CALLS}
     pipe_aliases: set[str] = set()
 
     for node in ast.walk(tree):
@@ -115,18 +115,18 @@ def _subprocess_alias_sets(
         elif isinstance(node, ast.ImportFrom) and node.module == "subprocess":
             for alias in node.names:
                 if alias.name == "*":
-                    callable_aliases.update(_ALL_SUBPROCESS_CALLS)
+                    callable_aliases.update({name: name for name in _ALL_SUBPROCESS_CALLS})
                     pipe_aliases.add("PIPE")
                     continue
                 bound_name = alias.asname or alias.name
                 if alias.name in _ALL_SUBPROCESS_CALLS:
-                    callable_aliases.add(bound_name)
+                    callable_aliases[bound_name] = alias.name
                 elif alias.name == "PIPE":
                     pipe_aliases.add(bound_name)
 
     return (
         frozenset(module_aliases),
-        frozenset(callable_aliases),
+        callable_aliases,
         frozenset(pipe_aliases),
     )
 
@@ -152,9 +152,9 @@ def _is_pipe_capture_target(
 def _subprocess_call_name(
     node: ast.Call,
     module_aliases: frozenset[str],
-    callable_aliases: frozenset[str],
+    callable_aliases: dict[str, str],
 ) -> str | None:
-    """Return the bare function name for a ``subprocess.*`` call, or None."""
+    """Return the canonical subprocess function name, or None."""
     func = node.func
     # subprocess.run(...)
     if (
@@ -166,14 +166,14 @@ def _subprocess_call_name(
         return func.attr
     # from subprocess import run; run(...)
     if isinstance(func, ast.Name) and func.id in callable_aliases:
-        return func.id
+        return callable_aliases[func.id]
     return None
 
 
 def _is_flagged(
     call: ast.Call,
     module_aliases: frozenset[str],
-    callable_aliases: frozenset[str],
+    callable_aliases: dict[str, str],
     pipe_aliases: frozenset[str],
 ) -> bool:
     """Return True when this call violates the errors="replace" convention.
