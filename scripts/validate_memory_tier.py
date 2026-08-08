@@ -56,7 +56,16 @@ class ValidationResult:
 
 def extract_file_references(content: str) -> list[str]:
     """Extract all .md file references from markdown links."""
-    return [match.group(2) for match in MARKDOWN_LINK_RE.finditer(content)]
+    visible_content = re.sub(
+        r"<!--.*?-->",
+        "",
+        content,
+        flags=re.DOTALL,
+    )
+    return [
+        match.group(2)
+        for match in MARKDOWN_LINK_RE.finditer(visible_content)
+    ]
 
 
 def validate_references_exist(

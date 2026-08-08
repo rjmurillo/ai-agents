@@ -30,6 +30,16 @@ class TestExtractFileReferences:
         refs = extract_file_references(content)
         assert refs == ["doc.md"]
 
+    def test_ignores_html_commented_links(self) -> None:
+        content = (
+            "[live](live.md)\n"
+            "<!-- [hidden](quality/hidden.md) -->\n"
+        )
+
+        refs = extract_file_references(content)
+
+        assert refs == ["live.md"]
+
 
 class TestValidateReferencesExist:
     def test_rejects_path_traversal(self, tmp_path: Path) -> None:

@@ -183,6 +183,11 @@ _SPECIAL_MEMORY_FILENAMES = frozenset({
 OrphanPolicy = Literal["strict", "ratchet"]
 
 
+def _strip_html_comments(content: str) -> str:
+    """Remove Markdown HTML comments before parsing retrieval links."""
+    return re.sub(r"<!--.*?-->", "", content, flags=re.DOTALL)
+
+
 def find_domain_indices(memory_path: Path) -> list[DomainIndex]:
     """Find all skill domain index files."""
     if not memory_path.exists():
@@ -203,7 +208,9 @@ def parse_index_entries(index_path: Path) -> list[IndexEntry]:
     if not index_path.exists():
         return []
 
-    content = index_path.read_text(encoding="utf-8")
+    content = _strip_html_comments(
+        index_path.read_text(encoding="utf-8")
+    )
     entries: list[IndexEntry] = []
 
     for line in content.split("\n"):
@@ -499,12 +506,7 @@ def check_memory_index_references(
         return result
 
     content = memory_index_path.read_text(encoding="utf-8")
-    lookup_content = re.sub(
-        r"<!--.*?-->",
-        "",
-        content,
-        flags=re.DOTALL,
-    )
+    lookup_content = _strip_html_comments(content)
     resolved_memory = memory_path.resolve()
 
     # P1: Check validity of references
@@ -619,7 +621,9 @@ def find_orphaned_files(
         index_paths.append(root_index)
 
     for index_path in index_paths:
-        content = index_path.read_text(encoding="utf-8")
+        content = _strip_html_comments(
+            index_path.read_text(encoding="utf-8")
+        )
         for match in _MARKDOWN_LINK_PATTERN.finditer(content):
             referenced_files.add(Path(match.group(2)).as_posix())
         for entry in parse_index_entries(index_path):

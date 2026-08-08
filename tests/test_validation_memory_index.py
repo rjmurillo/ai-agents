@@ -806,6 +806,25 @@ class TestFindOrphanedFiles:
 
         assert orphans == []
 
+    def test_commented_domain_link_does_not_hide_orphan(
+        self, tmp_path: Path
+    ) -> None:
+        """HTML comments are not retrieval routes."""
+        create_memory_structure(tmp_path, {
+            "quality-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "<!-- [hidden](quality/hidden-memory.md) -->\n"
+            ),
+            "quality/hidden-memory.md": "orphan",
+        })
+
+        orphans = find_orphaned_files([], tmp_path)
+
+        assert [orphan.file for orphan in orphans] == [
+            "quality/hidden-memory"
+        ]
+
     def test_nested_index_named_atomic_is_not_exempt(
         self, tmp_path: Path
     ) -> None:
