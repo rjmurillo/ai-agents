@@ -18,7 +18,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.validation.session_scope import committed_session_validation_modes
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.validation.session_scope import (  # noqa: E402  (path set above)
+    committed_session_validation_modes,
+)
 
 _RESULTS = Path("validation-results")
 _SUMMARY = Path("validation-summary.json")
