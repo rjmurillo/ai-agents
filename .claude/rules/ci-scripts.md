@@ -47,7 +47,7 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 ## SHOULD
 
 1. **Thin workflows**. Workflow YAML SHOULD delegate to a testable module (ADR-006). No inline multi-step logic.
-2. **Logging structure**. Scripts SHOULD emit structured output (JSON or key=value) to allow automated parsing.
+2. **Logging structure**. If another script, workflow step, or test parses a script's stdout, that script SHOULD emit JSON or `key=value` lines for the parsed fields, and the parser test SHOULD consume a real sample from that output shape. Human-only logs are exempt.
 3. **Use skills when available**. SHOULD prefer `.claude/skills/<name>` over inline `gh`, `git`, or shell commands.
 
 ## MUST NOT
