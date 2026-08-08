@@ -17,6 +17,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def _purge_cache(root: Path) -> None:
     for d in root.rglob("__pycache__"):
@@ -24,9 +26,19 @@ def _purge_cache(root: Path) -> None:
 
 
 def _apply_mutation(source: str, original: str, replacement: str) -> str:
-    if original not in source:
+    match_count = source.count(original)
+    if match_count == 0:
         raise ValueError(f"Mutation text not found in source:\n  {original!r}")
+    if match_count != 1:
+        raise ValueError(
+            f"Mutation text matched {match_count} times; expected exactly 1:\n  {original!r}"
+        )
     return source.replace(original, replacement, 1)
+
+
+def test_apply_mutation_rejects_ambiguous_target() -> None:
+    with pytest.raises(ValueError, match="expected exactly 1"):
+        _apply_mutation("needle\nneedle\n", "needle", "replacement")
 
 
 def _run_tests(repo_root: Path) -> int:

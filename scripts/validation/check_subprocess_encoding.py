@@ -436,15 +436,20 @@ def _scan_scope(
                 for binding in current_state.function_bindings.get(call.func.id, []):
                     binding.call_states.append(_copy_alias_state(current_state))
 
-        def _bind_name(name: str, value: ast.expr) -> None:
+        def _bind_name(
+            name: str,
+            value: ast.expr,
+            source_state: _AliasState | None = None,
+        ) -> None:
+            binding_state = current_state if source_state is None else source_state
             function_bindings = (
-                list(current_state.function_bindings.get(value.id, []))
+                list(binding_state.function_bindings.get(value.id, []))
                 if isinstance(value, ast.Name)
                 else []
             )
             resolved_module, resolved_callable, resolved_pipe = _resolve_assignment_aliases(
                 value,
-                current_state,
+                binding_state,
             )
             _clear(name)
             if function_bindings:
@@ -458,22 +463,28 @@ def _scan_scope(
             elif resolved_pipe:
                 current_state.pipe_aliases.add(name)
 
-        def _bind_target(target: ast.AST, value: ast.expr) -> None:
+        def _bind_target(
+            target: ast.AST,
+            value: ast.expr,
+            source_state: _AliasState | None = None,
+        ) -> None:
+            binding_state = current_state if source_state is None else source_state
             if isinstance(target, ast.Name):
-                _bind_name(target.id, value)
+                _bind_name(target.id, value, binding_state)
                 return
             if isinstance(target, (ast.Tuple, ast.List)) and isinstance(
                 value,
                 (ast.Tuple, ast.List),
             ):
+                snapshot_state = _copy_alias_state(binding_state)
                 for target_item, value_item in zip(target.elts, value.elts, strict=False):
-                    _bind_target(target_item, value_item)
+                    _bind_target(target_item, value_item, snapshot_state)
                 for target_item in target.elts[len(value.elts) :]:
                     for name in _bound_names(target_item):
                         _clear(name)
                 return
             for name in _bound_names(target):
-                _bind_name(name, value)
+                _bind_name(name, value, binding_state)
 
         for stmt in block:
             if isinstance(stmt, ast.Import):
@@ -648,7 +659,7 @@ def _scan_scope(
                 for case in stmt.cases:
                     case_state = _copy_alias_state(current_state)
                     if case.guard is not None:
-                        _record_call_violations(case.guard, case_state, source_lines, violations)
+                        _record_expr(case.guard)
                     _scan_block(case.body, case_state)
                     case_states.append(case_state)
                 _set_state(_merge_alias_states(case_states))

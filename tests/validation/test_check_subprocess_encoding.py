@@ -23,11 +23,13 @@ Coverage:
 - neg/function-use-before-rebind: function bodies still flag when a later outer rebind happens
 - neg/function-alias-use-before-rebind: aliased function calls still capture pre-rebind state
 - neg/branch-local-function-order: branch-defined deferred functions honor outer call-time order
+- neg/tuple-swap-order: destructuring alias swaps use the pre-assignment snapshot
 - neg/tuple-unpack-alias: tuple/list unpacking preserves alias bindings
 - neg/branch-join-alias: a subprocess alias in one branch still flags after the join
 - neg/lambda-body: violating subprocess calls inside lambdas are flagged
 - neg/lambda-use-before-rebind: assigned lambdas honor call-time rebind order
 - neg/branch-local-lambda-order: branch-defined lambdas honor outer call-time order
+- neg/match-guard-order: match guards capture deferred call order before later rebinds
 - neg/universal-newlines: legacy text-mode alias is treated like text=True
 - neg/from-import: ``from subprocess import run; run(...)`` -> flagged
 - neg/splat: **kwargs present means errors may be absent -> flagged (conservative)
@@ -284,6 +286,17 @@ def test_branch_local_function_after_later_rebind_is_not_flagged() -> None:
     assert find_violations(source) == []
 
 
+def test_tuple_alias_swap_uses_pre_assignment_snapshot() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.check_output\n"
+        "other = print\n"
+        "runner, other = other, runner\n"
+        'other(["x"], encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [5]
+
+
 @pytest.mark.parametrize(
     "source,expected",
     [
@@ -386,6 +399,20 @@ def test_branch_local_lambda_after_later_rebind_is_not_flagged() -> None:
         "wrapper()\n"
     )
     assert find_violations(source) == []
+
+
+def test_match_guard_deferred_call_before_later_rebind_is_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.check_output\n"
+        "def wrapper():\n"
+        '    runner(["x"], encoding="utf-8")\n'
+        "match value:\n"
+        "    case _ if wrapper():\n"
+        "        pass\n"
+        "runner = print\n"
+    )
+    assert find_violations(source) == [4]
 
 
 def test_from_import_run_missing_errors() -> None:
