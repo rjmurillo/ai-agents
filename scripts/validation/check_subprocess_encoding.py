@@ -398,12 +398,19 @@ def _scan_scope(
                     active_function_bindings[call.func.id].append(_copy_alias_state(state))
 
     def _bind_targets(names: list[str], value: ast.expr) -> None:
+        function_binding = (
+            active_function_bindings.get(value.id)
+            if isinstance(value, ast.Name)
+            else None
+        )
         resolved_module, resolved_callable, resolved_pipe = _resolve_assignment_aliases(
             value,
             state,
         )
         for name in names:
             _clear(name)
+            if function_binding is not None:
+                active_function_bindings[name] = function_binding
             if resolved_module:
                 state.module_aliases.add(name)
             elif resolved_callable is not None:

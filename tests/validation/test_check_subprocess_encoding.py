@@ -21,6 +21,7 @@ Coverage:
 - neg/function-local-alias: aliases created inside a function still resolve there -> flagged
 - neg/use-before-rebind: a valid alias still flags before a later reassignment shadows it
 - neg/function-use-before-rebind: function bodies still flag when a later outer rebind happens
+- neg/function-alias-use-before-rebind: aliased function calls still capture pre-rebind state
 - neg/branch-join-alias: a subprocess alias in one branch still flags after the join
 - neg/lambda-body: violating subprocess calls inside lambdas are flagged
 - neg/universal-newlines: legacy text-mode alias is treated like text=True
@@ -203,7 +204,7 @@ def test_alias_used_before_later_rebind_is_flagged() -> None:
     assert find_violations(source) == [3]
 
 
-def test_function_alias_used_before_later_rebind_is_flagged() -> None:
+def test_function_alias_call_used_before_later_rebind_is_flagged() -> None:
     source = (
         "import subprocess\n"
         "runner = subprocess.check_output\n"
@@ -223,6 +224,32 @@ def test_function_call_after_later_rebind_is_not_flagged() -> None:
         '    runner(["x"], encoding="utf-8")\n'
         "runner = print\n"
         "wrapper()\n"
+    )
+    assert find_violations(source) == []
+
+
+def test_function_alias_used_before_later_rebind_is_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.check_output\n"
+        "def wrapper():\n"
+        '    runner(["x"], encoding="utf-8")\n'
+        "alias = wrapper\n"
+        "alias()\n"
+        "runner = print\n"
+    )
+    assert find_violations(source) == [4]
+
+
+def test_function_alias_called_after_later_rebind_is_not_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.check_output\n"
+        "def wrapper():\n"
+        '    runner(["x"], encoding="utf-8")\n'
+        "alias = wrapper\n"
+        "runner = print\n"
+        "alias()\n"
     )
     assert find_violations(source) == []
 
