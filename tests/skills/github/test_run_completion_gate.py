@@ -252,6 +252,46 @@ class TestRunCompletionGate:
         result = json.loads(capsys.readouterr().out)
         assert result["all_passed"] is True
         assert all(c["passed"] for c in result["criteria"])
+        assert result["criteria"][0]["stdout_json"] == {
+            "unresolved_count": 0,
+            "fetched_pages_complete": True,
+        }
+
+    def test_writes_gate_evidence_file_before_merge_action(
+        self, repo_root, tmp_path, monkeypatch,
+    ):
+        monkeypatch.chdir(tmp_path)
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "All threads resolved",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when": "stdout-json.unresolved_count == 0",
+                    "fail_open": False,
+                },
+            ],
+        )
+        evidence_path = tmp_path / ".agents" / "pr-comments" / "PR-4377" / "gate.json"
+
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=json.dumps({"unresolved_count": 0})),
+        ):
+            rc = _dispatcher.main(
+                [
+                    "--config", str(config_path),
+                    "--pull-request", "4377",
+                    "--evidence-path", str(evidence_path),
+                ],
+            )
+
+        assert rc == 0
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        assert evidence["pull_request"] == 4377
+        assert evidence["all_passed"] is True
+        assert evidence["criteria"][0]["stdout_json"] == {"unresolved_count": 0}
 
     def test_one_fail_exits_one(self, repo_root, tmp_path, capsys):
         config_path = _write_config(

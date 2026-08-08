@@ -10,22 +10,26 @@ counts -- is individually load-bearing.
 Rules:
 - Count each pattern; exit nonzero with DID-NOT-APPLY when count != 1.
 - cmp -s check: fail if mutated bytes are identical to original (no mutation applied).
-- sleep(1.1) after every file write to defeat 1-second bytecode mtime cache.
+- Delete bytecode caches before every test run.
 - Restore byte-identically and assert after every mutant.
 - Outcomes: DEAD (tests caught it), SURVIVED (tests missed it), DID-NOT-APPLY (pattern absent).
 """
 # taste-lint: ignore file-size
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
-import time
 from pathlib import Path
 
+from scripts.testing.mutation_workspace import (
+    isolated_mutation_worktree,
+    purge_bytecode,
+)
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_TARGET = (
-    _REPO_ROOT
-    / ".claude"
+_TARGET_REL = (
+    Path(".claude")
     / "skills"
     / "context-optimizer"
     / "scripts"
@@ -37,11 +41,13 @@ _TESTS = [
 ]
 
 
-def _run_tests() -> int:
+def _run_tests(repo_root: Path) -> int:
+    purge_bytecode(repo_root)
     result = subprocess.run(
         [sys.executable, "-m", "pytest", *_TESTS, "-x", "-q"],
-        cwd=_REPO_ROOT,
+        cwd=repo_root,
         capture_output=True,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     return result.returncode
 
@@ -61,8 +67,9 @@ def _apply_mutant(original: bytes, old: bytes, new: bytes) -> tuple[bytes, str]:
     return mutated, "OK"
 
 
-def run_mutants() -> None:
-    original_bytes = _TARGET.read_bytes()
+def run_mutants(repo_root: Path) -> None:
+    target = repo_root / _TARGET_REL
+    original_bytes = target.read_bytes()
 
     mutants = [
         (
@@ -100,27 +107,25 @@ def run_mutants() -> None:
             print("  DID-NOT-APPLY: pattern not found in target file")
             continue
 
-        _TARGET.write_bytes(mutated)
-        time.sleep(1.1)
-
-        on_disk = _TARGET.read_bytes()
+        target.write_bytes(mutated)
+        on_disk = target.read_bytes()
         if on_disk == original_bytes:
-            _TARGET.write_bytes(original_bytes)
+            target.write_bytes(original_bytes)
             did_not_apply.append(name)
             print("  DID-NOT-APPLY: file byte-identical after write")
             continue
 
-        rc = _run_tests()
-        if rc == 0:
-            survived.append(name)
-            print("  SURVIVED: tests passed when they should have failed")
-        else:
-            dead.append(name)
-            print(f"  DEAD: tests caught the mutation (exit {rc})")
-
-        _TARGET.write_bytes(original_bytes)
-        time.sleep(1.1)
-        restored = _TARGET.read_bytes()
+        try:
+            rc = _run_tests(repo_root)
+            if rc == 0:
+                survived.append(name)
+                print("  SURVIVED: tests passed when they should have failed")
+            else:
+                dead.append(name)
+                print(f"  DEAD: tests caught the mutation (exit {rc})")
+        finally:
+            target.write_bytes(original_bytes)
+        restored = target.read_bytes()
         assert restored == original_bytes, f"Restore was not byte-identical for: {name}"
 
     print(f"\n{'='*60}")
@@ -146,5 +151,10 @@ def run_mutants() -> None:
     print("\nAll mutants killed. Tests are load-bearing.")
 
 
+def main() -> None:
+    with isolated_mutation_worktree(_REPO_ROOT, [_TARGET_REL]) as workspace:
+        run_mutants(workspace.root)
+
+
 if __name__ == "__main__":
-    run_mutants()
+    main()

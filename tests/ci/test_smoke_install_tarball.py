@@ -117,6 +117,7 @@ class TestRun:
         env = {"TARBALL": "/a/b.tgz", "GITHUB_OUTPUT": str(out_file)}
         ok = MagicMock(returncode=0)
         calls_seen: list[list[str]] = []
+        npm_path = "C:\\Program Files\\nodejs\\npm.cmd"
 
         def capture(cmd: list[str], **_kw: object) -> MagicMock:
             calls_seen.append(cmd)
@@ -125,7 +126,7 @@ class TestRun:
         with patch.dict(os.environ, env):
             with patch(
                 "scripts.ci.smoke_install_tarball.shutil.which",
-                return_value="/usr/bin/npm",
+                return_value=npm_path,
             ):
                 with patch("scripts.ci.smoke_install_tarball.subprocess.run", side_effect=capture):
                     with patch(
@@ -134,6 +135,7 @@ class TestRun:
                     ):
                         run()
         # first element is the resolved path, second is the npm sub-command
+        assert all(call[0] == npm_path for call in calls_seen)
         assert calls_seen[0][1] == "init"
         assert calls_seen[1][1] == "install"
         assert calls_seen[2][1] == "exec"

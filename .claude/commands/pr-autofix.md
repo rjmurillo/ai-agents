@@ -71,6 +71,51 @@ resolve_pr_scripts_dir() {
 }
 SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 
+# late-live-state-guard:start
+recheck_pr_live_state() {
+    local late_live late_rc late_action late_reason late_state late_head late_base
+    if late_live=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" \
+        --pull-request "$PR" --skip-fetch \
+        --expected-head-sha "${EXPECTED_HEAD_SHA:-}" \
+        --expected-base-ref "${EXPECTED_BASE_REF:-}" \
+        --expected-base-sha "${EXPECTED_BASE_SHA:-}" \
+        --output-format json); then
+        late_rc=0
+    else
+        late_rc=$?
+    fi
+
+    late_action=$(printf '%s' "$late_live" | jq -r '.Data.action // empty' 2>/dev/null)
+    if [ "$late_rc" -eq 0 ] && [ "$late_action" = "ACT" ]; then
+        return 0
+    fi
+
+    late_reason=$(printf '%s' "$late_live" | jq -r '.Data.reason // "live-state check failed"' 2>/dev/null)
+    late_state=$(printf '%s' "$late_live" | jq -r '.Data.state // "UNKNOWN"' 2>/dev/null)
+    late_head=$(printf '%s' "$late_live" | jq -r '.Data.head_sha // "unknown"' 2>/dev/null)
+    late_base=$(printf '%s' "$late_live" | jq -r '.Data.base_ref // "main"' 2>/dev/null)
+    echo "Skipping mutation for #$PR: $late_reason"
+    if [ "$late_state" = "MERGED" ]; then
+        echo "Merged head SHA: $late_head"
+        echo "Preserve unpushed commits or a net patch. Reapply them on a follow-up branch from current origin/$late_base."
+    elif [ "$late_state" = "CLOSED" ]; then
+        echo "Closed PR head SHA: $late_head"
+        echo "Preserve unpushed commits or a net patch before leaving the old branch."
+    fi
+    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
+        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+    return 75
+}
+
+run_pr_mutation_if_live() {
+    if recheck_pr_live_state; then
+        "$@"
+        return $?
+    fi
+    return 75
+}
+# late-live-state-guard:end
+
 # SESSION_ID must be set before the loop (e.g. from the session log or a uuid).
 # Per PR, immediately before any per-tier action:
 
@@ -101,6 +146,15 @@ if [ "$ACTION" = "SKIP" ]; then
     # via the queue's close-handling path; do NOT push or merge.
     continue
 fi
+EXPECTED_HEAD_SHA=$(echo "$LIVE" | jq -r '.Data.head_sha // empty')
+EXPECTED_BASE_REF=$(echo "$LIVE" | jq -r '.Data.base_ref // empty')
+EXPECTED_BASE_SHA=$(echo "$LIVE" | jq -r '.Data.base_sha // empty')
+if [ -z "$EXPECTED_HEAD_SHA" ] || [ -z "$EXPECTED_BASE_REF" ] || [ -z "$EXPECTED_BASE_SHA" ]; then
+    echo "Cannot bind mutation to the live PR identity for #$PR; skipping."
+    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
+        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+    continue
+fi
 # ACTION == "ACT": proceed with the tier's planned action set.
 
 # Step 3: Auto-merge disarm gate (BLOCKING, issue #3913).
@@ -121,13 +175,19 @@ if [ -z "$AUTO_MERGE" ]; then
 fi
 if [ "$AUTO_MERGE" != "null" ] && [ "$TIER" != "T1" ]; then
     echo "Auto-merge armed on non-T1 PR #$PR (method: $AUTO_MERGE); disabling before acting."
-    python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" \
-        --pull-request "$PR" --disable --output-format json || {
-        echo "Failed to disable auto-merge on #$PR; skipping to avoid unguarded merge."
-        python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-            --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+    if run_pr_mutation_if_live \
+        python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" \
+        --pull-request "$PR" --disable --output-format json; then
+        :
+    else
+        MUTATION_RC=$?
+        if [ "$MUTATION_RC" -ne 75 ]; then
+            echo "Failed to disable auto-merge on #$PR; skipping to avoid unguarded merge."
+            python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
+                --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+        fi
         continue
-    }
+    fi
 fi
 
 # Release the lease after all per-PR work (push + post-push CI wait + merge).
@@ -148,6 +208,15 @@ superseded by base) for the autofix log. An ACT verdict only proves the PR is
 still actionable; the four-condition Ready-to-Merge gate still applies before
 any merge.
 
+Every command that mutates a branch or PR MUST run through
+`run_pr_mutation_if_live`. This includes base fetches, merges, rebases, pushes,
+auto-merge changes, and direct merges. The wrapper performs a new GitHub query
+immediately before the command and compares the result with the head and base
+identity captured by the current readiness cycle. A gate from an earlier review
+or validation phase is stale. Exit 75 means the wrapper logged the live-state skip
+and released the lease. Other nonzero exits come from the mutation command and
+retain their existing error handling.
+
 ### Phase 3: Verify and gate
 
 After all queued actions, re-check the 4-condition Ready-to-Merge gate. Enable
@@ -155,6 +224,11 @@ auto-merge only when all four conditions hold. Release each PR's lease after its
 merge command (or skip) completes:
 
 ```bash
+python3 "$SCRIPTS_DIR/run_completion_gate.py" \
+    --pull-request "$PR" \
+    --json \
+    --evidence-path ".agents/pr-comments/PR-$PR/gate-evidence.json"
+
 python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
     --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
 ```
@@ -193,10 +267,18 @@ If `BEHIND`, update branch against main BEFORE other actions (see doc Branch Upd
 ## Fix Patterns
 
 - **PR description mismatch**: Remove file references not in the diff (use GitHub API to PATCH body).
-- **Branch behind main**: Worktree + `git merge origin/main --no-edit` + push (no force needed).
-- **Stale merge-state cache**: `test_pr_merge_ready.py` sets `StaleDirtySuspected=true` when GitHub reports `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"`. This is advisory, not authoritative. **Before any base merge or conflict refresh, re-run `check_pr_live_state.py` to confirm the PR is still open (issue #4349).** A PR can merge or close during the review-fix cycle; acting on a stale gate result triggers a conflict merge into a deleted branch. Verify against local git FIRST: in a worktree, `git fetch origin "$BASE"`, then `git merge-base --is-ancestor "origin/$BASE" HEAD` (exit 0 = ancestor) AND a `git merge --no-commit --no-ff "origin/$BASE"` trial merge that stays clean. Both clean means the conflict is stale. **Disable any existing auto-merge on the PR before running the base-ref refresh (issue #3913).** Call `set_pr_auto_merge.py disable --pull-request $PR` and verify `autoMergeRequest` is null before committing or pushing. A refresh push while auto-merge is armed can recompute the PR as clean and merge it without an explicit readiness decision. Run a safe base-ref refresh (`git merge origin/"$BASE" --no-edit` + push, no force) after the Force-Push Safety SHA audit and the auto-merge disable, then re-run the completion gate. A failing trial merge means the conflict is real: resolve via merge-resolver agent. Evidence required: the ancestry exit code and trial-merge result. See doc Stale merge-state cache section (issue #2368).
+- **Branch behind main**: Run each base refresh command through the late live-state wrapper:
+
+  ```bash
+  run_pr_mutation_if_live git fetch origin "$BASE"
+  run_pr_mutation_if_live git merge origin/"$BASE" --no-edit
+  run_pr_mutation_if_live git push origin "$BRANCH"
+  ```
+
+- **Stale merge-state cache**: `test_pr_merge_ready.py` sets `StaleDirtySuspected=true` when GitHub reports `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"`. This is advisory, not authoritative. A PR can merge or close during the review-fix cycle; acting on an earlier ACT result triggers a conflict merge into a deleted branch. In a worktree, use `run_pr_mutation_if_live git fetch origin "$BASE"`, then `git merge-base --is-ancestor "origin/$BASE" HEAD` (exit 0 = ancestor) and a guarded `run_pr_mutation_if_live git merge --no-commit --no-ff "origin/$BASE"` trial merge. Both clean means the conflict is stale. Disable existing auto-merge through the wrapper and verify `autoMergeRequest` is null before the final guarded merge and push (issue #3913). A failing trial merge means the conflict is real: resolve via merge-resolver agent. Evidence required: both live-state verdicts, the ancestry exit code, and the trial-merge result. See doc Stale merge-state cache section (issue #2368).
 - **Stale CI check**: Push fresh commit to re-trigger; avoid `--no-verify` if possible.
 - **Bot review threads**: Read, triage per Thread Severity, reply with disposition, resolve via `add_pr_review_thread_reply.py --resolve`.
+- **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate.
 - **Session validation failure**: Use session-log-fixer skill.
 
 ## Force-Push Safety
@@ -208,7 +290,7 @@ SHA="<known-good-sha>"
 BRANCH="<branch-name>"
 # The head.sha you already read from get_pr_context.py before starting work.
 EXPECTED_REMOTE_SHA="<observed-head-sha>"
-FORCE_PUSH_OK=1 git push origin "${SHA}:refs/heads/${BRANCH}" \
+run_pr_mutation_if_live env FORCE_PUSH_OK=1 git push origin "${SHA}:refs/heads/${BRANCH}" \
   --force-with-lease="refs/heads/${BRANCH}:${EXPECTED_REMOTE_SHA}"
 ```
 
@@ -268,10 +350,10 @@ python3 "$SCRIPTS_DIR/get_pr_checks.py" --pull-request {pr} | \
 
 # CLEAN path: try auto-merge only when there is pending branch-protection work to wait on.
 # If GitHub rejects an already-CLEAN PR with "clean status", use the printed direct-merge fallback.
-python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" --pull-request {pr} --enable --merge-method SQUASH
+run_pr_mutation_if_live python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" --pull-request {pr} --enable --merge-method SQUASH
 
 # Direct merge: already-CLEAN fallback or UNSTABLE state with documented non-required failures.
-python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request {pr} --strategy squash
+run_pr_mutation_if_live python3 "$SCRIPTS_DIR/merge_pr.py" --pull-request {pr} --strategy squash
 ```
 
 ### Merge path by `mergeStateStatus`
@@ -280,9 +362,9 @@ GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may also reject a
 
 | `mergeStateStatus` | Path | Script |
 |---|---|---|
-| `CLEAN` | Auto-merge when waiting is useful; direct merge if GitHub returns the already-clean rejection | `set_pr_auto_merge.py --enable`, then `merge_pr.py --strategy squash` fallback |
-| `UNSTABLE` with documented non-required failures | Direct merge (immediate) | `merge_pr.py --strategy squash` |
-| `BEHIND` | Update branch first, then re-classify | `git merge origin/main --no-edit` + push |
+| `CLEAN` | Auto-merge when waiting is useful; direct merge if GitHub returns the already-clean rejection | Guard `set_pr_auto_merge.py --enable`, then guard the `merge_pr.py --strategy squash` fallback |
+| `UNSTABLE` with documented non-required failures | Direct merge (immediate) | Guard `merge_pr.py --strategy squash` |
+| `BEHIND` | Update branch first, then re-classify | Guard the fetch, merge, and push separately |
 | `DIRTY`/`CONFLICTING` | See Stale merge-state cache pattern below | merge-resolver agent if real conflict |
 
 `set_pr_auto_merge.py` detects the `UNSTABLE` and already-`CLEAN` rejections from GitHub's GraphQL API and emits the direct-merge fallback command in its error output (exit 3) so the operator never has to translate the generic "GraphQL request failed" message themselves.
@@ -389,6 +471,8 @@ Per PR processed:
 - [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
 - [ ] Auto-merge disarm ran after live-state ACT on any non-T1 PR (issue #3913): `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
 - [ ] Live-state gate re-ran immediately before any base refresh or conflict resolution (issue #4349): stale gate result from the start of the session is not sufficient; the PR can merge mid-cycle.
+- [ ] Every base refresh, rebase, push, auto-merge change, and direct merge ran through `run_pr_mutation_if_live` immediately before mutation (issue #4349).
+- [ ] Late mutation checks matched the head SHA, base ref, and base SHA captured by the current readiness cycle; any mismatch stopped mutation and restarted readiness checks.
 - [ ] When `StaleDirtySuspected=true`: `set_pr_auto_merge.py disable` ran and `autoMergeRequest` confirmed null before any base-ref refresh push (issue #3913).
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
