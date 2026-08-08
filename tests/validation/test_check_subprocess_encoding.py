@@ -152,6 +152,40 @@ def test_subprocess_pipe_aliases_are_flagged(source: str, expected_line: int) ->
     assert find_violations(source) == [expected_line]
 
 
+@pytest.mark.parametrize(
+    "source,expected_line",
+    [
+        (
+            "import subprocess as sp\n"
+            "runner, pipe = sp.run, sp.PIPE\n"
+            'runner(["x"], stdout=pipe, encoding="utf-8")',
+            3,
+        ),
+        (
+            "from subprocess import PIPE, run\n"
+            "runner, pipe = run, PIPE\n"
+            'runner(["x"], stdout=pipe, encoding="utf-8")',
+            3,
+        ),
+        (
+            "import subprocess as sp\n"
+            "runner: object = sp.run\n"
+            "pipe: object = sp.PIPE\n"
+            'runner(["x"], stdout=pipe, encoding="utf-8")',
+            4,
+        ),
+        (
+            "import subprocess as sp\n"
+            "pipe = other = sp.PIPE\n"
+            'sp.run(["x"], stdout=pipe, encoding="utf-8")',
+            3,
+        ),
+    ],
+)
+def test_non_simple_subprocess_rebindings_are_flagged(source: str, expected_line: int) -> None:
+    assert find_violations(source) == [expected_line]
+
+
 def test_subprocess_check_output_missing_errors() -> None:
     # check_output always decodes; text= not required for it to decode
     source = 'import subprocess\nsubprocess.check_output(["x"], encoding="utf-8")'
@@ -423,5 +457,15 @@ def test_detector_requires_real_pipe_capture_to_flag() -> None:
         "local = Local()\n"
         "import subprocess\n"
         'subprocess.run(["x"], stdout=local.PIPE, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_tuple_rebinding_preserves_target_value_pairing() -> None:
+    """Mutation control: tuple analysis must not assign PIPE to another target."""
+    source = (
+        "import subprocess as sp\n"
+        "pipe, ordinary = sp.PIPE, object()\n"
+        'sp.run(["x"], stdout=ordinary, encoding="utf-8")\n'
     )
     assert find_violations(source) == []

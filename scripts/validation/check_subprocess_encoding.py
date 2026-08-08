@@ -144,33 +144,72 @@ def _record_import_bindings(
             pipe_aliases.add(alias.asname or alias.name)
 
 
-def _resolve_assignment_binding(
-    node: ast.AST,
+def _assignment_pairs(node: ast.AST) -> list[tuple[str, ast.expr]]:
+    """Return simple target names paired with their assigned value nodes."""
+    if isinstance(node, ast.Assign):
+        targets = node.targets
+        value = node.value
+    elif isinstance(node, ast.AnnAssign) and node.value is not None:
+        targets = [node.target]
+        value = node.value
+    else:
+        return []
+
+    def _pairs(target: ast.expr, assigned: ast.expr) -> list[tuple[str, ast.expr]]:
+        if isinstance(target, ast.Name):
+            return [(target.id, assigned)]
+        if (
+            isinstance(target, (ast.Tuple, ast.List))
+            and isinstance(assigned, (ast.Tuple, ast.List))
+            and len(target.elts) == len(assigned.elts)
+        ):
+            return [
+                pair
+                for target_item, value_item in zip(target.elts, assigned.elts, strict=True)
+                for pair in _pairs(target_item, value_item)
+            ]
+        return []
+
+    return [pair for target in targets for pair in _pairs(target, value)]
+
+
+def _resolve_value_binding(
+    value: ast.expr,
     module_aliases: set[str],
     callable_aliases: dict[str, str],
     pipe_aliases: set[str],
-) -> tuple[str, str, str] | None:
-    """Resolve one simple subprocess callable or PIPE rebinding."""
-    if not isinstance(node, ast.Assign) or len(node.targets) != 1:
-        return None
-    target = node.targets[0]
-    if not isinstance(target, ast.Name):
-        return None
-    value = node.value
+) -> tuple[str, str] | None:
+    """Resolve a value to one subprocess binding kind and canonical name."""
     if (
         isinstance(value, ast.Attribute)
         and isinstance(value.value, ast.Name)
         and value.value.id in module_aliases
     ):
         if value.attr in _ALL_SUBPROCESS_CALLS:
-            return "callable", target.id, value.attr
+            return "callable", value.attr
         if value.attr == "PIPE":
-            return "pipe", target.id, "PIPE"
+            return "pipe", "PIPE"
     if isinstance(value, ast.Name) and value.id in callable_aliases:
-        return "callable", target.id, callable_aliases[value.id]
+        return "callable", callable_aliases[value.id]
     if isinstance(value, ast.Name) and value.id in pipe_aliases:
-        return "pipe", target.id, "PIPE"
+        return "pipe", "PIPE"
     return None
+
+
+def _resolve_assignment_bindings(
+    node: ast.AST,
+    module_aliases: set[str],
+    callable_aliases: dict[str, str],
+    pipe_aliases: set[str],
+) -> list[tuple[str, str, str]]:
+    """Resolve subprocess aliases introduced by one assignment node."""
+    bindings: list[tuple[str, str, str]] = []
+    for name, value in _assignment_pairs(node):
+        resolved = _resolve_value_binding(value, module_aliases, callable_aliases, pipe_aliases)
+        if resolved is not None:
+            kind, canonical = resolved
+            bindings.append((kind, name, canonical))
+    return bindings
 
 
 def _subprocess_bindings(
@@ -189,18 +228,16 @@ def _subprocess_bindings(
     while changed:
         changed = False
         for node in nodes:
-            binding = _resolve_assignment_binding(
+            bindings = _resolve_assignment_bindings(
                 node, module_aliases, callable_aliases, pipe_aliases
             )
-            if binding is None:
-                continue
-            kind, name, resolved = binding
-            if kind == "callable" and callable_aliases.get(name) != resolved:
-                callable_aliases[name] = resolved
-                changed = True
-            elif kind == "pipe" and name not in pipe_aliases:
-                pipe_aliases.add(name)
-                changed = True
+            for kind, name, resolved in bindings:
+                if kind == "callable" and callable_aliases.get(name) != resolved:
+                    callable_aliases[name] = resolved
+                    changed = True
+                elif kind == "pipe" and name not in pipe_aliases:
+                    pipe_aliases.add(name)
+                    changed = True
     return module_aliases, callable_aliases, pipe_aliases
 
 
