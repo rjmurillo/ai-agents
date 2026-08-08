@@ -29,6 +29,7 @@
 |git stale detached clone tooling checkout hook validation: [git-stale-detached-clone-runs-stale-tooling](git/git-stale-detached-clone-runs-stale-tooling.md) (727)
 |github merge REST authoritative blocked GraphQL mergeability: [github-merge-rest-is-authoritative-blocked-is-not](github/github-merge-rest-is-authoritative-blocked-is-not.md) (1017)
 |process duplicate check open PRs half check issue search: [process-a-duplicate-check-that-omits-open-prs-is-half-a-check](process/process-a-duplicate-check-that-omits-open-prs-is-half-a-check.md) (614)
+|pr context statusCheckRollup list null CheckRun StatusContext reviewThreads totalCount pagination cursor authoritative metadata: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 
 [Scripting and Testing]
 |repo-root default script REPO_ROOT __file__ scratch clone cwd wrong repository vacuous test passes git_hook_policy: [testing/repo-root-default-measures-the-wrong-repository](testing/repo-root-default-measures-the-wrong-repository.md) (719)
