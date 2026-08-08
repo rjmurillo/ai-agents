@@ -1,0 +1,90 @@
+{
+  "id": "episode-2026-08-05-session-9999-audit-validation-tests-vacuous-mutation",
+  "session": "2026-08-05-session-9999-audit-validation-tests-vacuous-mutation",
+  "timestamp": "2026-08-05T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Audit validation and CI tests for vacuous mutation survivors",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created isolated worktree fix/vacuous-test-audit from origin/main.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-9999-audit-validation-tests-vacuous-mutation"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Probed eight validation and CI modules with semantic source mutations plus cosmetic controls.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-9999-audit-validation-tests-vacuous-mutation"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added tests for five mutation survivors in CI dependency pins, hook bypass parsing, and drift detection.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-9999-audit-validation-tests-vacuous-mutation"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved each new test fails against its mutant and passes against clean source.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-9999-audit-validation-tests-vacuous-mutation"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran targeted pytest and ruff validation.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-9999-audit-validation-tests-vacuous-mutation"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T07:34:56+00:00",
+      "type": "commit",
+      "content": "Commit: b9ccc8fdc955e0bdadce8f187b988050bfe6965f",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-05-session-9999-audit-validation-tests-vacuous-mutation"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 50,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 5
+  },
+  "lessons": []
+}
