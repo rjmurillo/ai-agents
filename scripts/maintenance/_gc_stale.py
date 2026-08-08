@@ -10,17 +10,15 @@ needs, above all whether prune would destroy work that nothing else anchors.
 from __future__ import annotations
 
 import os
-import re
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+from scripts.maintenance import _gc_anchors
+from scripts.maintenance._gc_files import regular_file
 from scripts.maintenance.worktree_report import Worktree
 
 GitRunner = Callable[[list[str]], str]
-
-_OID = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
-_NULL_OID = re.compile(r"0{40}|0{64}")
 
 
 def admin_dir_for(worktree_path: str, run_git: GitRunner, repo_dir: str) -> Path | None:
@@ -107,7 +105,7 @@ def staged_content_state(admin: Path, head: str, repo_dir: str, timeout: float) 
     stay quiet on ``CLEAN``, and disclose the gap on ``UNKNOWN``.
     """
     index = admin / "index"
-    present = _regular_file(index)
+    present = regular_file(index)
     if present is None:
         return UNKNOWN
     if not present:
@@ -132,46 +130,35 @@ def staged_content_state(admin: Path, head: str, repo_dir: str, timeout: float) 
     return UNKNOWN
 
 
-def _regular_file(path: Path) -> bool | None:
-    """Is ``path`` a regular file? ``None`` when the question could not be asked.
+def unreachable_admin_commits(admin: Path, repo_dir: str, timeout: float) -> list[str] | None:
+    """Which commits does this worktree's admin directory alone still anchor?
 
-    ``Path.is_file`` swallows every ``OSError`` and answers ``False``, so a
-    permission denial, a dead symlink chain, and a genuinely absent file all
-    look identical. The first two are unknowns. Reporting them as "the file is
-    not there, so nothing is at risk" is the same silent all-clear that let a
-    worktree holding the only copy of a commit be listed for removal.
+    Two anchors live in there and both die with the directory. The first is the
+    reflog: ``HEAD`` is per worktree and so is ``logs/HEAD``, so a worktree that
+    commits and then checks something else out leaves that commit named by the
+    reflog and by nothing under the repository's ``refs/``. The second is the
+    worktree's own refs. ``refs/worktree/``, ``refs/bisect/``, and
+    ``refs/rewritten/`` are per-worktree namespaces stored under the admin
+    directory, so ``rev-list --not --all`` in the main repository cannot see
+    them and neither can ``for-each-ref``.
 
-    ``False`` is reserved for genuine absence. Something that is present but
-    not a regular file, a directory or a socket where an index or a reflog
-    belongs, is a state this probe does not understand, so it answers unknown
-    rather than treating a corrupt admin record as an empty one.
-    """
-    try:
-        mode = path.stat().st_mode
-    except (FileNotFoundError, NotADirectoryError):
-        return False
-    except OSError:
-        return None
-    return True if mode & 0o170000 == 0o100000 else None
-
-
-def unreachable_reflog_commits(admin: Path, repo_dir: str, timeout: float) -> list[str] | None:
-    """Which commits does this worktree's reflog alone still anchor?
-
-    ``HEAD`` is per worktree, and so is its reflog. A detached worktree that
-    commits and then checks out something else leaves that commit anchored by
-    ``logs/HEAD`` and nothing under ``refs/``. Deleting the admin directory
-    deletes the reflog with it, and the commit becomes collectable. Verified
-    against real git: ``for-each-ref --contains`` reports no ref, and after the
-    entry goes the commit shows up under ``fsck --unreachable``.
+    Verified against real git 2.43.0 on both: a commit held only by
+    ``refs/worktree/`` survives ``git worktree remove`` as an unreachable object
+    and is gone after ``git gc --prune=now``, and the reflog case reports no
+    containing ref before removal and shows up under ``fsck --unreachable``
+    after it.
 
     ``None`` means the question could not be answered, which callers disclose
     rather than read as "nothing to lose". An empty list means nothing here is
     at risk.
     """
-    candidates = _reflog_oids(admin)
+    candidates = _gc_anchors.reflog_oids(admin)
     if candidates is None:
         return None
+    local_refs = _gc_anchors.worktree_ref_oids(admin)
+    if local_refs is None:
+        return None
+    candidates = list(dict.fromkeys(candidates + local_refs))
     if not candidates:
         return []
     known = _existing_objects(candidates, repo_dir, timeout)
@@ -185,41 +172,6 @@ def unreachable_reflog_commits(admin: Path, repo_dir: str, timeout: float) -> li
     if unreachable is None:
         return None
     return unreachable.split()
-
-
-def _reflog_oids(admin: Path) -> list[str] | None:
-    """Every non-null object id named in the admin reflog, oldest first.
-
-    A file that holds text but yields no recognizable object id at all was not
-    understood, so it answers "unknown" rather than "nothing at risk". Reading
-    a truncated or unexpectedly encoded reflog as empty is the same silent
-    all-clear the rest of this probe is built to avoid. Lines that parse and
-    name only the null id are understood and carry no risk, which is why the
-    test is "did any field look like an id" rather than "did any survive".
-    """
-    log = admin / "logs" / "HEAD"
-    present = _regular_file(log)
-    if present is None:
-        return None
-    if not present:
-        return []
-    try:
-        text = log.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return None
-    seen: dict[str, None] = {}
-    understood = False
-    for line in text.splitlines():
-        for field in line.split(" ")[:2]:
-            if not _OID.fullmatch(field):
-                continue
-            understood = True
-            if _NULL_OID.fullmatch(field):
-                continue
-            seen[field] = None
-    if text.strip() and not understood:
-        return None
-    return list(seen)
 
 
 def _existing_objects(oids: list[str], repo_dir: str, timeout: float) -> list[str] | None:
@@ -256,8 +208,9 @@ def _run(args: list[str], repo_dir: str, timeout: float, stdin: list[str]) -> st
         return None
     return result.stdout
 
+
 def linked_checkout_present(path: str) -> bool:
-    """Is a live linked checkout still sitting at ``path``?
+    """Is a live linked checkout for *this* entry still sitting at ``path``?
 
     Asks for the ``.git`` marker rather than the directory, because a bare
     ``exists`` verifies a pathname and not an identity. Delete a worktree and
@@ -266,11 +219,140 @@ def linked_checkout_present(path: str) -> bool:
     something that is no longer that worktree. Verified against real git: a
     linked worktree always carries a ``.git`` file holding ``gitdir:``, and a
     replacement directory does not. The main worktree, whose ``.git`` is a
-    directory, never reaches here; ``decide`` returns ``KEEP_MAIN`` above.
+    directory, never reaches here; ``decide`` returns ``KEEP_MAIN`` above. A
+    ``.git`` directory at any other path is therefore a foreign standalone
+    repository sitting where the linked checkout used to be, not this entry, so
+    it reads as stale rather than present. Reading it as present would let
+    ``git worktree remove`` delete that unrelated repository and its object
+    database.
 
-    One ``stat``, named so ``decide`` can take it as a default argument.
+    The marker existing is not enough either. Move worktree B onto worktree
+    A's deleted path and A's directory now holds a ``.git`` file, but it names
+    B's admin directory. A then reads as healthy, and every probe that follows
+    reports on A's admin record while the checkout actually there belongs to B.
+    So the marker has to point back: the admin directory it names must record
+    this same path as its worktree. A mismatch means this entry has no
+    checkout, which is the stale answer, and B is a registered entry of its own
+    that the report reaches separately.
+
+    Both links can be relative. ``worktree.useRelativePaths`` writes them that
+    way, and ``git worktree repair`` can too, so each is anchored against the
+    file that holds it rather than against the process working directory. That
+    is the same mistake ``--git-common-dir`` punishes in ``admin_dir_for``.
+
+    Two O(1) file reads, no directory scan, named so ``decide`` can take it as
+    a default argument.
     """
-    return (Path(path) / ".git").exists()
+    marker = Path(path) / ".git"
+    try:
+        recorded = marker.read_text(encoding="utf-8").strip()
+    except IsADirectoryError:
+        return False
+    except OSError:
+        return False
+    admin = _anchored(recorded.removeprefix("gitdir:").strip(), marker.parent)
+    if admin is None:
+        return False
+    try:
+        back = (admin / "gitdir").read_text(encoding="utf-8").strip()
+    except OSError:
+        return False
+    pointed = _anchored(back, admin)
+    return pointed is not None and _resolved(pointed) == _resolved(marker)
+
+
+# Every per-worktree marker git writes while an operation is mid-flight, mapped
+# to the words a reader would use for it. Each lives in the worktree's own admin
+# directory, so removing the worktree deletes the marker along with whatever it
+# anchors. Verified against real git 2.43.0: an interrupted merge whose result
+# is an empty tree leaves ``git status --porcelain`` empty while ``MERGE_HEAD``
+# holds a commit no branch, no tag, and no reflog entry reaches, so the porcelain
+# check, the HEAD comparison, and the reflog re-probe all pass and the commit is
+# orphaned by the removal. ``git worktree remove`` does not guard this either.
+# ``index.lock`` rides along because it is the same question asked of the same
+# directory: is anything working here right now. Verified against real git
+# 2.43.0 that ``git worktree remove`` deletes a worktree whose index is locked,
+# exits 0, and says nothing, so a commit being written at that moment is lost.
+# A lock left behind by a crashed git reads the same way and keeps the entry,
+# which is the safe direction and one the reason text tells the reader how to
+# clear.
+# ``HEAD.lock`` rides along for the same reason as ``index.lock``: git writes it
+# while it moves ``HEAD``, then renames it into place. A detached-HEAD update,
+# which writes ``HEAD`` directly, leaves ``HEAD.lock`` in the admin directory
+# during that window while none of the operation markers above exist. Verified
+# against real git 2.43.0 that ``git worktree remove`` deletes a worktree whose
+# ``HEAD.lock`` is held, exits 0, and says nothing, so a HEAD move in flight is
+# interrupted with no warning. A lock left by a crashed git keeps the entry,
+# again the safe direction.
+_OPERATION_MARKERS: tuple[tuple[str, str], ...] = (
+    ("MERGE_HEAD", "an unfinished merge is running"),
+    ("CHERRY_PICK_HEAD", "an unfinished cherry-pick is running"),
+    ("REVERT_HEAD", "an unfinished revert is running"),
+    ("BISECT_LOG", "an unfinished bisect is running"),
+    ("rebase-merge", "an unfinished rebase is running"),
+    ("rebase-apply", "an unfinished rebase is running"),
+    ("sequencer", "an unfinished sequencer run is waiting"),
+    ("index.lock", "another git process is holding the index lock"),
+    ("HEAD.lock", "another git process is updating HEAD"),
+)
+
+
+def admin_dir_from_marker(path: str) -> Path | None:
+    """The admin directory this checkout's ``.git`` marker names, or None.
+
+    Two O(1) file reads and no subprocess, unlike ``admin_dir_for``, which scans
+    every registered entry. That matters because this runs once per worktree on
+    the decision path, where the time budget already carries three git calls.
+    A main worktree holds a ``.git`` directory rather than a marker file, and
+    that directory is its gitdir, so it answers itself.
+    """
+    marker = Path(path) / ".git"
+    try:
+        recorded = marker.read_text(encoding="utf-8").strip()
+    except IsADirectoryError:
+        return marker
+    except OSError:
+        return None
+    return _anchored(recorded.removeprefix("gitdir:").strip(), marker.parent)
+
+
+def in_progress_operation(path: str) -> str | None:
+    """Name the git operation this worktree is in the middle of, or None.
+
+    Answers None when the admin directory cannot be resolved, because the two
+    callers that matter both treat an unresolvable entry as stale on their own
+    and a false refusal here would keep every unreadable worktree forever.
+
+    Probes each marker with ``lstat`` rather than ``exists``. ``exists`` folds a
+    missing file and an unreadable one into the same ``False``, so a permission
+    or I/O error on the admin directory would read as "no operation in progress"
+    and let the entry be removed mid-flight. ``lstat`` separates the two: a
+    ``FileNotFoundError`` is the ordinary "marker absent" and moves on, while any
+    other ``OSError`` means the question could not be answered, which is
+    disclosed as a withholding reason rather than swallowed. Checking the link
+    itself, not its target, keeps a marker that happens to be a symlink from
+    reading as absent because its target is gone.
+    """
+    admin = admin_dir_from_marker(path)
+    if admin is None:
+        return None
+    for name, description in _OPERATION_MARKERS:
+        try:
+            (admin / name).lstat()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return f"the {name} marker could not be read, so an operation may be in progress"
+        return description
+    return None
+
+
+def _anchored(recorded: str, base: Path) -> Path | None:
+    """Resolve a gitdir link against the file that holds it, not the cwd."""
+    if not recorded:
+        return None
+    link = Path(recorded)
+    return link if link.is_absolute() else base / link
 
 
 def is_stale(worktree: Worktree, checkout_present: Callable[[str], bool]) -> bool:

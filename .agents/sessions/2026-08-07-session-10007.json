@@ -3,7 +3,7 @@
   "session": {
     "number": 10007,
     "date": "2026-08-07",
-    "branch": "fix/worktree-walk-timeouts",
+    "branch": "fix/gc-worktrees-admin-anchors",
     "startingCommit": "f0d881cfa664adcf27d65084efd079ab783d2a5d",
     "objective": "Unblock a five-PR stack, and record the two measurement defects the session exposed: a push-receipt grep pattern that never matches, and a repo script that validates its own worktree when invoked by absolute path."
   },
@@ -32,12 +32,12 @@
       "branchVerified": {
         "level": "MUST",
         "complete": true,
-        "evidence": "git rev-parse --abbrev-ref HEAD reported fix/worktree-walk-timeouts in worktree ~/src/scratch/wt-walk before every commit."
+        "evidence": "git rev-parse --abbrev-ref HEAD reported fix/gc-worktrees-admin-anchors in the main clone before this commit; earlier commits ran the same check on fix/worktree-walk-timeouts in ~/src/scratch/wt-walk and on docs/memory-script-root-wrong-tree in ~/src/scratch/wt-scriptroot."
       },
       "notOnMain": {
         "level": "MUST",
         "complete": true,
-        "evidence": "All work on fix/worktree-walk-timeouts and docs/memory-script-root-wrong-tree."
+        "evidence": "All work on fix/gc-worktrees-admin-anchors, fix/gc-worktrees-stale-entries, fix/worktree-walk-timeouts, docs/memory-push-gate-lessons, and docs/memory-script-root-wrong-tree. No commit on main."
       },
       "skillScriptsListed": {
         "level": "MUST",
@@ -84,7 +84,7 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Commit 741763c22 repointed endingCommit; this commit adds the retrospective and this log."
+        "evidence": "Commit 0070e6a42 adds this log, its episode, and the retrospective; endingCommit was repointed to it in a follow-up and the episode regenerated so its commit event matches."
       },
       "validationPassed": {
         "level": "MUST",
@@ -115,7 +115,7 @@
       "entry": "Compared git rev-parse against git ls-remote for all five stack branches. Three in sync, one diverged by a documented gh pr update-branch, one genuinely unpushed. Wrote the retrospective on the measurement defect."
     }
   ],
-  "endingCommit": "741763c22d0db2de65f9f0c1dc67b775c3143a22",
+  "endingCommit": "0070e6a42d9200a0ae4e713f2291118f367d7b49",
   "nextSteps": [
     "Merge the stack bottom-up once green: #4694, #4718, #4728, then #4726 and #4732.",
     "Read the Gemini adversarial review of the new script-root memory and apply any Critical or High findings.",
