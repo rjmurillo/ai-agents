@@ -63,7 +63,7 @@
 
 [Agent Orchestration]
 |orchestration agent coordination parallel handoff dispatch consensus: [skills-orchestration-index](skills-orchestration-index.md) (441), [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) (813)
-|agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (420)
+|agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (378)
 |autonomous execution guardrails circuit breaker patch signal trust metric: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (150)
 |fleet contention stop order renice congestion collapse two copilot sessions kill treadmill scheduler semaphore: [decision-stop-orders-are-not-a-control-plane](decision-stop-orders-are-not-a-control-plane.md) (876)
 |worktree abandoned live agent fleet stale dirty harvest ownership squash ahead: [agent-workflow/fleet-worktree-live-versus-abandoned](agent-workflow/fleet-worktree-live-versus-abandoned.md) (750)
@@ -100,7 +100,7 @@
 |utility script markdown fence PathInfo security pattern: [skills-utilities-index](skills-utilities-index.md) (225)
 |edit file read search replace text operation: [patterns/edit-001-read-before-edit-pattern](patterns/edit-001-read-before-edit-pattern.md) (464), [patterns/edit-002-unique-context-for-edit-matching](patterns/edit-002-unique-context-for-edit-matching.md) (368)
 |git hook pre-commit autofix cross-language grep TOCTOU: [skills-git-hooks-index](skills-git-hooks-index.md) (368)
-|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (682)
+|git branch merge conflict checkout cleanup workflow resolution worktree: [skills-git-index](skills-git-index.md) (646)
 |git stash shared across worktrees pop takes another agent work switch abort commits to wrong branch: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (965)
 |git shallow graft depth fetch unshallow blocks push every worktree common dir pin sha: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
 |subagent sandbox worktree checkout moves head wrong commit pushed reverts unstaged edit throwaway clone push sha not head: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
