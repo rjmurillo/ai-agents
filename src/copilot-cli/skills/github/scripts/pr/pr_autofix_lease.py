@@ -284,6 +284,25 @@ def _parse_rfc3339_utc(value: str) -> datetime | None:
         return None
 
 
+def _parse_identity_fields(
+    fields: dict[str, str],
+) -> tuple[str, str, str, str] | None:
+    """Validate and return owner, target owner, base SHA, and claim ID."""
+    owner = fields["owner"]
+    if owner not in KNOWN_OWNERS:
+        return None
+    target_owner = fields.get("target_owner", "")
+    if target_owner and target_owner not in KNOWN_OWNERS - {TOMBSTONE_OWNER}:
+        return None
+    base_sha = fields["base_sha"]
+    if not _SHA40.match(base_sha):
+        return None
+    claim_id = fields.get("claim_id", "")
+    if claim_id and not _CLAIM_ID.match(claim_id):
+        return None
+    return owner, target_owner, base_sha, claim_id
+
+
 def parse_lease_block(body: str) -> Lease | None:
     """Parse a single lease comment body into a ``Lease``, or ``None``.
 
@@ -310,19 +329,10 @@ def parse_lease_block(body: str) -> Lease | None:
     if any(key not in fields for key in _REQUIRED_KEYS):
         return None
 
-    owner = fields["owner"]
-    if owner not in KNOWN_OWNERS:
+    identity = _parse_identity_fields(fields)
+    if identity is None:
         return None
-    target_owner = fields.get("target_owner", "")
-    if target_owner and target_owner not in KNOWN_OWNERS - {TOMBSTONE_OWNER}:
-        return None
-    claim_id = fields.get("claim_id", "")
-    if claim_id and not _CLAIM_ID.match(claim_id):
-        return None
-
-    base_sha = fields["base_sha"]
-    if not _SHA40.match(base_sha):
-        return None
+    owner, target_owner, base_sha, claim_id = identity
 
     acquired_at = _parse_rfc3339_utc(fields["acquired_at"])
     expires_at = _parse_rfc3339_utc(fields["expires_at"])
