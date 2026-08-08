@@ -14,6 +14,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(subprocess.check_output(
     ["git", "rev-parse", "--show-toplevel"], text=True,
@@ -55,6 +56,37 @@ SERENA_WRITES = {
     "onboarding",
 }
 
+PORTABLE_READONLY_TOOLS = {
+    "read",
+    "search",
+    "cognitionai/deepwiki/*",
+    "context7/*",
+    *(f"serena/{operation}" for operation in SERENA_READONLY),
+}
+
+CLAUDE_READONLY_TOOLS = {
+    "Read",
+    "Glob",
+    "Grep",
+    "mcp__context7__resolve_library_id",
+    "mcp__context7__get_library_docs",
+    "mcp__deepwiki__read_wiki_structure",
+    "mcp__deepwiki__read_wiki_contents",
+    *(f"mcp__serena__{operation}" for operation in SERENA_READONLY),
+}
+
+EXPECTED_TOOL_GROUPS = {
+    ALL_ANALYST_FILES[0]: {"tools": CLAUDE_READONLY_TOOLS},
+    ALL_ANALYST_FILES[1]: {"tools": CLAUDE_READONLY_TOOLS},
+    ALL_ANALYST_FILES[2]: {"tools": PORTABLE_READONLY_TOOLS},
+    ALL_ANALYST_FILES[3]: {"tools": PORTABLE_READONLY_TOOLS},
+    ALL_ANALYST_FILES[4]: {"tools": PORTABLE_READONLY_TOOLS},
+    ALL_ANALYST_FILES[5]: {
+        "tools_vscode": PORTABLE_READONLY_TOOLS,
+        "tools_copilot": PORTABLE_READONLY_TOOLS,
+    },
+}
+
 
 def _extract_frontmatter(text: str) -> str:
     """Extract YAML frontmatter from a file."""
@@ -64,21 +96,33 @@ def _extract_frontmatter(text: str) -> str:
     return ""
 
 
-def _extract_tools(frontmatter: str) -> list[str]:
-    """Extract tool lines from frontmatter."""
-    tools = []
-    in_tools = False
-    for line in frontmatter.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("tools") and ":" in stripped:
-            in_tools = True
+def _extract_tool_groups(frontmatter: str) -> dict[str, list[str]]:
+    """Parse each tool group from YAML frontmatter."""
+    data = yaml.safe_load(frontmatter) or {}
+    if not isinstance(data, dict):
+        raise ValueError("frontmatter must be a YAML mapping")
+
+    groups: dict[str, list[str]] = {}
+    for key, value in data.items():
+        if not isinstance(key, str):
             continue
-        if in_tools:
-            if stripped.startswith("- "):
-                tools.append(stripped[2:])
-            elif stripped and not stripped.startswith("#"):
-                in_tools = False
-    return tools
+        if key != "tools" and not key.startswith("tools_"):
+            continue
+        if not isinstance(value, list):
+            raise ValueError(f"{key} must be a list of tool names")
+        if not all(isinstance(tool, str) for tool in value):
+            raise ValueError(f"{key} must contain only tool names")
+        groups[key] = value
+    return groups
+
+
+def _extract_tools(frontmatter: str) -> list[str]:
+    """Flatten parsed tool groups from frontmatter."""
+    return [
+        tool
+        for tools in _extract_tool_groups(frontmatter).values()
+        for tool in tools
+    ]
 
 
 class TestAllFilesExist:
@@ -96,6 +140,24 @@ class TestNoUnsafeToolsInFrontmatter:
     def test_no_unsafe_tools(self, path: Path) -> None:
         text = path.read_text()
         frontmatter = _extract_frontmatter(text)
+        actual_groups = _extract_tool_groups(frontmatter)
+        expected_groups = EXPECTED_TOOL_GROUPS[path]
+        assert set(actual_groups) == set(expected_groups), (
+            f"{path.relative_to(REPO_ROOT)}: unexpected tool groups "
+            f"{sorted(actual_groups)}"
+        )
+        for group, allowed_tools in expected_groups.items():
+            actual_tools = actual_groups[group]
+            assert len(actual_tools) == len(set(actual_tools)), (
+                f"{path.relative_to(REPO_ROOT)}: duplicate tool in {group}"
+            )
+            assert set(actual_tools) == allowed_tools, (
+                f"{path.relative_to(REPO_ROOT)}: {group} differs from the "
+                f"read-only allowlist; extra="
+                f"{sorted(set(actual_tools) - allowed_tools)}, missing="
+                f"{sorted(allowed_tools - set(actual_tools))}"
+            )
+
         tools = _extract_tools(frontmatter)
         for tool in tools:
             for unsafe in UNSAFE_PREFIXES:
@@ -103,6 +165,16 @@ class TestNoUnsafeToolsInFrontmatter:
                     pytest.fail(
                         f"{path.relative_to(REPO_ROOT)}: unsafe tool '{tool}' in frontmatter"
                     )
+
+    def test_flow_style_tool_list_is_parsed(self) -> None:
+        frontmatter = "tools: [read, shell, editFiles, WebFetch]"
+
+        assert _extract_tools(frontmatter) == [
+            "read",
+            "shell",
+            "editFiles",
+            "WebFetch",
+        ]
 
     @pytest.mark.parametrize("path", ALL_ANALYST_FILES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
     def test_no_serena_wildcard(self, path: Path) -> None:
