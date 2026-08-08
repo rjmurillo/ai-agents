@@ -242,8 +242,6 @@ class MutationRunner:
         self,
         command: Sequence[str],
         timeout_seconds: int | float = DEFAULT_COMMAND_TIMEOUT_SECONDS,
-        *,
-        cwd: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
         env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
         sys.stderr.flush()
@@ -251,7 +249,7 @@ class MutationRunner:
             sys.stdout.flush()
             return subprocess.run(
                 command,
-                cwd=cwd or self.cwd,
+                cwd=self.cwd,
                 env=env,
                 text=True,
                 encoding="utf-8",
