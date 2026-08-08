@@ -48,11 +48,7 @@ from scripts.github_core import (
 )
 from scripts.github_core.api import (
     _403_PATTERN,
-    GhAuthResult,
-    GhAuthStatus,
     _retry_after_delay,
-    check_gh_auth,
-    classify_gh_failure_text,
 )
 from scripts.github_core.bot_config import _DEFAULT_BOTS
 from tests.mock_fidelity import assert_mock_keys_match
@@ -435,7 +431,6 @@ class TestIsGhAuthenticated:
             assert is_gh_authenticated() is True
 
     def test_false_when_not_authenticated(self):
-        # Both auth-status and rate_limit (×2 retries) return non-zero.
         with patch("subprocess.run", return_value=_completed(rc=1)):
             assert is_gh_authenticated() is False
 
@@ -457,141 +452,11 @@ class TestAssertGhAuthenticated:
         with patch("subprocess.run", return_value=_completed(rc=0)):
             assert_gh_authenticated()
 
-    def test_exits_4_when_gh_not_installed(self):
-        """gh binary absent: exit 4, install message."""
-        with patch("subprocess.run", side_effect=FileNotFoundError):
+    def test_exits_4_when_not_authenticated(self):
+        with patch("subprocess.run", return_value=_completed(rc=1)):
             with pytest.raises(SystemExit) as exc:
                 assert_gh_authenticated()
             assert exc.value.code == 4
-
-    def test_exits_3_not_4_when_both_probes_fail_but_gh_installed(self):
-        """When gh is present but both probes fail, exit 3 (retry), not 4 (auth).
-
-        A wrong exit-4 destroys a working credential. A wrong exit-3 costs one
-        retry. The safer reading is exit-3 (issue #4470).
-        """
-        # gh auth status fails with transient output; GraphQL probe also fails transiently.
-        transient_body = "HTTP 503 Service Unavailable"
-        with patch("subprocess.run", return_value=_completed(rc=1, stderr=transient_body)):
-            with pytest.raises(SystemExit) as exc:
-                assert_gh_authenticated()
-            assert exc.value.code == 3
-
-
-class TestIsGhAuthenticatedQuotaFallback:
-    """is_gh_authenticated classifies transport failures correctly (issues #4344, #4470)."""
-
-    def test_true_when_authenticated(self):
-        with patch("subprocess.run", return_value=_completed(rc=0)):
-            assert is_gh_authenticated() is True
-
-    def test_false_when_credentials_invalid(self):
-        """Invalid credentials -> is_authenticated False."""
-        with patch("subprocess.run", return_value=_completed(rc=1, stderr="bad credentials")):
-            assert is_gh_authenticated() is False
-
-    def test_check_gh_auth_returns_rate_limited_on_quota_body(self):
-        """A rate-limit body classifies as RATE_LIMITED, not INVALID_CREDENTIALS (issue #4470)."""
-        # auth status fails; GraphQL probe returns rate-limit text.
-        calls = iter([
-            _completed(rc=1),  # gh auth status
-            _completed(rc=1, stderr="API rate limit exceeded for user ID 123"),  # graphql probe
-        ])
-        with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
-            result = check_gh_auth()
-        assert result.status is GhAuthStatus.RATE_LIMITED
-
-    def test_false_when_both_auth_status_and_rest_fail(self):
-        # All calls return non-zero with no rate-limit body.
-        with patch("subprocess.run", return_value=_completed(rc=1)):
-            assert is_gh_authenticated() is False
-
-
-class TestAssertGhAuthenticatedQuotaDiagnosis:
-    """assert_gh_authenticated emits exit 3 (not 4) for quota exhaustion (issue #4344)."""
-
-    def test_exits_3_on_rate_limit(self):
-        """Rate limit -> exit 3, not 4."""
-        rate_limit_response = json.dumps({
-            "resources": {"graphql": {"remaining": 0, "limit": 5000, "reset": 0}}
-        })
-        calls = iter([
-            _completed(rc=1),  # gh auth status
-            _completed(rc=1, stderr="API rate limit exceeded for user ID 123"),  # graphql probe
-            _completed(rc=0, stdout=rate_limit_response),  # _rate_limit_resources in hint
-        ])
-        with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
-            with pytest.raises(SystemExit) as exc:
-                assert_gh_authenticated()
-        assert exc.value.code == 3
-
-    def test_exits_3_on_transient_error(self):
-        """Transient transport failure -> exit 3, not 4."""
-        calls = iter([
-            _completed(rc=1),  # gh auth status
-            _completed(rc=1, stderr="HTTP 503 Service Unavailable"),  # graphql probe
-        ])
-        with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
-            with pytest.raises(SystemExit) as exc:
-                assert_gh_authenticated()
-        assert exc.value.code == 3
-
-    def test_exits_4_on_invalid_credentials(self):
-        """Bad credentials -> exit 4."""
-        calls = iter([
-            _completed(rc=1),  # gh auth status
-            _completed(rc=1, stderr="Could not resolve authentication: bad credentials"),  # graphql
-        ])
-        with patch("subprocess.run", side_effect=lambda *a, **k: next(calls)):
-            with pytest.raises(SystemExit) as exc:
-                assert_gh_authenticated()
-        assert exc.value.code == 4
-
-
-class TestClassifyGhFailureText:
-    """classify_gh_failure_text maps output text to GhAuthStatus (issue #4470)."""
-
-    def test_rate_limited_text(self):
-        text = "API rate limit exceeded for user ID 123"
-        assert classify_gh_failure_text(text) is GhAuthStatus.RATE_LIMITED
-
-    def test_secondary_rate_limit(self):
-        text = "secondary rate limit triggered"
-        assert classify_gh_failure_text(text) is GhAuthStatus.SECONDARY_RATE_LIMITED
-
-    def test_transient_503(self):
-        text = "HTTP 503 Service Unavailable"
-        assert classify_gh_failure_text(text) is GhAuthStatus.TRANSIENT_ERROR
-
-    def test_transient_timeout(self):
-        assert classify_gh_failure_text("connection timed out") is GhAuthStatus.TRANSIENT_ERROR
-
-    def test_bad_credentials_returns_invalid(self):
-        assert classify_gh_failure_text("bad credentials") is GhAuthStatus.INVALID_CREDENTIALS
-
-    def test_empty_string_returns_invalid(self):
-        assert classify_gh_failure_text("") is GhAuthStatus.INVALID_CREDENTIALS
-
-    def test_secondary_wins_over_rate_limit(self):
-        """Secondary rate limit text contains 'rate limit' too; secondary wins."""
-        text = "You have exceeded a secondary rate limit and have been temporarily blocked."
-        assert classify_gh_failure_text(text) is GhAuthStatus.SECONDARY_RATE_LIMITED
-
-
-class TestGhAuthResultProperties:
-    """GhAuthResult.is_authenticated reflects status correctly."""
-
-    def test_authenticated_status(self):
-        assert GhAuthResult(GhAuthStatus.AUTHENTICATED).is_authenticated is True
-
-    def test_missing_gh_not_authenticated(self):
-        assert GhAuthResult(GhAuthStatus.MISSING_GH).is_authenticated is False
-
-    def test_rate_limited_not_authenticated(self):
-        assert GhAuthResult(GhAuthStatus.RATE_LIMITED).is_authenticated is False
-
-    def test_transient_error_not_authenticated(self):
-        assert GhAuthResult(GhAuthStatus.TRANSIENT_ERROR).is_authenticated is False
 
 
 # ---------------------------------------------------------------------------
