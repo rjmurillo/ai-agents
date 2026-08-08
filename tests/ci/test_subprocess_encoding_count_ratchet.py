@@ -6,16 +6,14 @@ import subprocess
 from pathlib import Path
 
 from scripts.ci import subprocess_encoding_count_ratchet as ratchet
+from tests.ci.ratchet_test_helpers import make_baseline_writer
 
 
 def _git(repo_root: Path, *args: str) -> None:
     subprocess.run(["git", "-C", str(repo_root), *args], check=True)
 
 
-def _write_baseline(tmp_path: Path, value: str) -> Path:
-    path = tmp_path / "subprocess_encoding_count_baseline.txt"
-    path.write_text(value, encoding="utf-8")
-    return path
+_write_baseline = make_baseline_writer("subprocess_encoding_count_baseline.txt")
 
 
 def test_count_equal_to_baseline_passes(tmp_path, monkeypatch):
