@@ -95,6 +95,16 @@ def _is_utf8_literal(node: ast.expr | None) -> bool:
     return isinstance(node, ast.Constant) and node.value in _UTF8_ALIASES
 
 
+def _is_subprocess_pipe(node: ast.expr | None) -> bool:
+    """Return whether *node* names ``subprocess.PIPE``."""
+    return (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "subprocess"
+        and node.attr == "PIPE"
+    )
+
+
 def _subprocess_call_name(node: ast.Call) -> str | None:
     """Return the bare function name for a ``subprocess.*`` call, or None."""
     func = node.func
@@ -129,8 +139,11 @@ def _is_flagged(call: ast.Call) -> bool:
 
     # Verify text mode is enabled (or the call decodes unconditionally).
     unconditional = name in _UNCONDITIONAL_DECODE_CALLS
-    text_enabled = _is_true_literal(_keyword_value(call, "text")) or _is_true_literal(
-        _keyword_value(call, "capture_output")
+    text_enabled = (
+        _is_true_literal(_keyword_value(call, "text"))
+        or _is_true_literal(_keyword_value(call, "capture_output"))
+        or _is_subprocess_pipe(_keyword_value(call, "stdout"))
+        or _is_subprocess_pipe(_keyword_value(call, "stderr"))
     )
     if not unconditional and not text_enabled:
         # Binary mode with an explicit encoding is unusual but not our concern.

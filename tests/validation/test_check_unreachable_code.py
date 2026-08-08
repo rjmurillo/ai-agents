@@ -85,6 +85,16 @@ def test_ambient_git_repository_pointers_do_not_reduce_corpus(
     assert findings == [(bad, "bad", 3)]
 
 
+def test_untracked_python_files_are_outside_corpus(tmp_path: Path) -> None:
+    _write(tmp_path, "tracked.py", "def tracked():\n    return 1\n")
+    (tmp_path / "scratch.py").write_text(
+        "def scratch():\n    return 1\n    x = 2\n",
+        encoding="utf-8",
+    )
+
+    assert find_unreachable_statements(tmp_path) == []
+
+
 def test_statement_after_return_flagged(tmp_path: Path) -> None:
     _write(
         tmp_path,
@@ -300,7 +310,7 @@ def test_cli_exits_two_on_empty_python_scope(
     result = main([str(tmp_path)])
 
     assert result == 2
-    assert "zero tracked or untracked Python files" in capsys.readouterr().err
+    assert "zero tracked Python files" in capsys.readouterr().err
 
 
 def test_cli_exits_two_on_invalid_root(

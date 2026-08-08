@@ -52,8 +52,6 @@ def _tracked_python_files(repo_root: Path) -> list[Path]:
                 "ls-files",
                 "-z",
                 "--cached",
-                "--others",
-                "--exclude-standard",
                 "*.py",
             ],
             cwd=repo_root,
@@ -72,7 +70,7 @@ def _tracked_python_files(repo_root: Path) -> list[Path]:
 
     files = [repo_root / entry for entry in result.stdout.split("\0") if entry]
     if not files:
-        raise ScanError("git reported zero tracked or untracked Python files")
+        raise ScanError("git reported zero tracked Python files")
     return files
 
 

@@ -119,6 +119,15 @@ def test_subprocess_run_missing_errors_capture_output() -> None:
     assert find_violations(source) == [2]
 
 
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+def test_subprocess_run_missing_errors_explicit_pipe(stream: str) -> None:
+    source = (
+        "import subprocess\n"
+        f'subprocess.run(["x"], {stream}=subprocess.PIPE, encoding="utf-8")'
+    )
+    assert find_violations(source) == [2]
+
+
 def test_subprocess_check_output_missing_errors() -> None:
     # check_output always decodes; text= not required for it to decode
     source = 'import subprocess\nsubprocess.check_output(["x"], encoding="utf-8")'
