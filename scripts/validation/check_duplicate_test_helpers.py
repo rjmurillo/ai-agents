@@ -34,6 +34,10 @@ _SKIP_DIRS = frozenset(
 )
 
 
+class ScanError(RuntimeError):
+    """Raised when the gate cannot inspect its declared test corpus."""
+
+
 def _is_git_root(repo_root: Path) -> bool:
     try:
         result = subprocess.run(
@@ -53,6 +57,8 @@ def _is_git_root(repo_root: Path) -> bool:
 def _tracked_test_files(repo_root: Path) -> list[Path]:
     """Return tracked and untracked ``tests/**/*.py`` files when possible."""
     if not _is_git_root(repo_root):
+        if (repo_root / ".git").exists():
+            raise ScanError(f"git could not inspect repository root: {repo_root}")
         return _walk_test_files(repo_root)
 
     try:
@@ -62,6 +68,7 @@ def _tracked_test_files(repo_root: Path) -> list[Path]:
                 "-C",
                 str(repo_root),
                 "ls-files",
+                "-z",
                 "--cached",
                 "--others",
                 "--exclude-standard",
@@ -75,12 +82,12 @@ def _tracked_test_files(repo_root: Path) -> list[Path]:
             check=True,
             timeout=15,
         )
-    except (OSError, subprocess.SubprocessError):
-        return _walk_test_files(repo_root)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ScanError(f"git could not list test files: {exc}") from exc
 
     paths = []
-    for line in result.stdout.splitlines():
-        path = repo_root / line
+    for entry in result.stdout.split("\0"):
+        path = repo_root / entry
         if path.suffix == ".py" and path.is_file():
             paths.append(path)
     return paths
@@ -110,8 +117,8 @@ def find_duplicate_module_level_helpers(repo_root: Path) -> list[tuple[Path, str
     for path in _tracked_test_files(repo_root):
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (OSError, UnicodeError, SyntaxError):
-            continue
+        except (OSError, UnicodeError, SyntaxError) as exc:
+            raise ScanError(f"could not analyze test source {path}: {exc}") from exc
 
         seen: dict[str, int] = {}
         for node in tree.body:
@@ -149,7 +156,11 @@ def main(argv: list[str] | None = None) -> int:
     if not repo_root.is_dir():
         print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)
         return 2
-    return 0 if validate_duplicate_test_helpers(repo_root) else 1
+    try:
+        return 0 if validate_duplicate_test_helpers(repo_root) else 1
+    except ScanError as exc:
+        print(f"[FAIL] Duplicate-helper scan did not run: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

@@ -105,6 +105,36 @@ class TestDuplicateTestHelpers:
 
         assert checker.find_duplicate_module_level_helpers(repo_workspace) == []
 
+    def test_syntax_error_fails_closed(self, repo_workspace: Path) -> None:
+        _write(repo_workspace, "tests/test_bad.py", "def broken(\n")
+
+        with pytest.raises(checker.ScanError, match="could not analyze test source"):
+            checker.find_duplicate_module_level_helpers(repo_workspace)
+
+    def test_invalid_utf8_fails_closed(self, repo_workspace: Path) -> None:
+        path = repo_workspace / "tests/test_bad.py"
+        path.write_bytes(b"\xff\xfe")
+
+        with pytest.raises(checker.ScanError, match="could not analyze test source"):
+            checker.find_duplicate_module_level_helpers(repo_workspace)
+
+    def test_git_scope_excludes_ignored_test_artifacts(
+        self, repo_workspace: Path
+    ) -> None:
+        subprocess.run(["git", "init", "-q"], cwd=repo_workspace, check=True)
+        _write(repo_workspace, ".gitignore", "tests/tmp/\n")
+        _write(repo_workspace, "tests/test_clean.py", "def clean():\n    pass\n")
+        ignored = repo_workspace / "tests/tmp/bin.py"
+        ignored.parent.mkdir()
+        ignored.write_bytes(b"\xff\xfe")
+        subprocess.run(
+            ["git", "add", ".gitignore", "tests/test_clean.py"],
+            cwd=repo_workspace,
+            check=True,
+        )
+
+        assert checker.find_duplicate_module_level_helpers(repo_workspace) == []
+
     def test_cli_exit_codes(self, repo_workspace: Path) -> None:
         script = REPO_ROOT / "scripts/validation/check_duplicate_test_helpers.py"
         clean_repo = repo_workspace / "clean"
@@ -150,6 +180,28 @@ class TestDuplicateTestHelpers:
         assert config.returncode == 2
         assert "duplicate _same()" in dirty.stderr
         assert "Invalid repository root" in config.stderr
+
+    def test_cli_returns_two_for_invalid_tracked_source(
+        self, repo_workspace: Path
+    ) -> None:
+        script = REPO_ROOT / "scripts/validation/check_duplicate_test_helpers.py"
+        bad_repo = repo_workspace / "bad"
+        (bad_repo / "tests").mkdir(parents=True)
+        subprocess.run(["git", "init", "-q"], cwd=bad_repo, check=True)
+        (bad_repo / "tests/test_bad.py").write_bytes(b"\xff\xfe")
+        subprocess.run(["git", "add", "tests/test_bad.py"], cwd=bad_repo, check=True)
+
+        result = subprocess.run(
+            [sys.executable, str(script), str(bad_repo)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+        assert result.returncode == 2
+        assert "Duplicate-helper scan did not run" in result.stderr
 
     def test_pre_pr_sequence_runs_duplicate_helper_detection_after_nested_tests(self) -> None:
         recorded: list[str] = []
