@@ -115,6 +115,21 @@ def resolve_root(repo_root: Path | None, start: Path, require_repo_marker: bool)
     return base
 
 
+def resolve_path_within_root(root_resolved: Path, candidate: Path) -> Path | None:
+    """Return ``candidate.resolve()`` when it stays inside ``root_resolved``.
+
+    Scan roots, discovered children, and git-tracked targets all need the same
+    containment answer. A path that resolves outside the repository is not safe
+    to traverse, read, or count as covered, even when its lexical spelling sits
+    under the repo root.
+    """
+    try:
+        resolved = candidate.resolve()
+    except OSError:
+        return None
+    return resolved if resolved.is_relative_to(root_resolved) else None
+
+
 def refuse_symlinked_scan_root(root: Path, scan_dir: Path) -> bool:
     """Return True and print to stderr when scan_dir resolves outside root.
 
@@ -129,23 +144,24 @@ def refuse_symlinked_scan_root(root: Path, scan_dir: Path) -> bool:
     inside the repository is allowed because it cannot expand scan scope.
     """
     root_real = root.resolve()
+    dir_real = resolve_path_within_root(root_real, scan_dir)
+    if dir_real is not None:
+        return False
     try:
-        dir_real = scan_dir.resolve()
+        resolved = scan_dir.resolve()
     except OSError:
         print(
             f"Refusing scan root {scan_dir}: could not resolve its real path.",
             file=sys.stderr,
         )
         return True
-    if not dir_real.is_relative_to(root_real):
-        print(
-            f"Refusing scan root {scan_dir}: resolved path {dir_real} is outside "
-            f"the repository root {root_real}. Symlinks that point outside the "
-            "repository are a path-traversal risk (CWE-22).",
-            file=sys.stderr,
-        )
-        return True
-    return False
+    print(
+        f"Refusing scan root {scan_dir}: resolved path {resolved} is outside "
+        f"the repository root {root_real}. Symlinks that point outside the "
+        "repository are a path-traversal risk (CWE-22).",
+        file=sys.stderr,
+    )
+    return True
 
 
 def resolve_baseline_path(
@@ -304,13 +320,18 @@ def tracked_coverage_by_root(
     if pending is None:
         return None
     unreal = set(pending)
+    root_resolved = repo_root.resolve()
     coverage: dict[str, tuple[int, int]] = {}
     for name in names:
         tracked = _git_lines(repo_root, ["ls-files", "-z", "--", name])
         if tracked is None:
             return None
         real = [rel for rel in tracked if rel not in unreal]
-        missing = sum(1 for rel in real if not (repo_root / rel).is_file())
+        missing = 0
+        for rel in real:
+            resolved = resolve_path_within_root(root_resolved, repo_root / rel)
+            if resolved is None or not resolved.is_file():
+                missing += 1
         coverage[name] = (len(real), missing)
     return coverage
 
