@@ -213,6 +213,7 @@ def main() -> int:
     return 0
 
 
+@pytest.mark.timeout(300)
 def test_mutation_harness() -> None:
     assert main() == 0
 

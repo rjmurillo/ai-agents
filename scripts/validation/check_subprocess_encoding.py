@@ -106,6 +106,7 @@ class _DeferredCallable:
     node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
     call_states: list[_AliasState]
     analyze_on_final_state: bool = True
+    receiver_bindings: dict[str, list[_DeferredCallable]] | None = None
 
 
 @dataclass
@@ -538,7 +539,7 @@ def _scan_scope(
                 current_state.function_bindings[name] = [
                     _register_deferred(
                         value,
-                        analyze_on_final_state=not attribute_context,
+                        analyze_on_final_state=False,
                     )
                 ]
             if resolved_module:
@@ -609,7 +610,7 @@ def _scan_scope(
                 current_state.function_bindings[stmt.name] = [
                     _register_deferred(
                         stmt,
-                        analyze_on_final_state=not attribute_context,
+                        analyze_on_final_state=False,
                     )
                 ]
                 continue
@@ -633,10 +634,14 @@ def _scan_scope(
                 )
                 _scan_block(stmt.body, class_state, attribute_context=True)
                 if class_state.function_bindings:
-                    current_state.receiver_method_bindings[stmt.name] = {
+                    class_receiver_bindings = {
                         method_name: list(method_bindings)
                         for method_name, method_bindings in class_state.function_bindings.items()
                     }
+                    for method_bindings in class_receiver_bindings.values():
+                        for deferred in method_bindings:
+                            deferred.receiver_bindings = class_receiver_bindings
+                    current_state.receiver_method_bindings[stmt.name] = class_receiver_bindings
                 continue
 
             if isinstance(stmt, ast.Assign):
@@ -783,87 +788,160 @@ def _scan_scope(
 
     _scan_block(statements, state)
 
-    for deferred in deferred_callables:
-        analyze_final_state = deferred.analyze_on_final_state or not deferred.call_states
+    def _state_signature(analysis_state: _AliasState) -> tuple[object, ...]:
+        return (
+            tuple(sorted(analysis_state.module_aliases)),
+            tuple(sorted(analysis_state.callable_aliases.items())),
+            tuple(sorted(analysis_state.pipe_aliases)),
+            tuple(
+                (name, tuple(sorted(id(binding) for binding in bindings)))
+                for name, bindings in sorted(analysis_state.function_bindings.items())
+            ),
+            tuple(
+                (
+                    name,
+                    tuple(
+                        (
+                            method_name,
+                            tuple(sorted(id(binding) for binding in bindings)),
+                        )
+                        for method_name, bindings in sorted(methods.items())
+                    ),
+                )
+                for name, methods in sorted(analysis_state.receiver_method_bindings.items())
+            ),
+        )
+
+    def _receiver_param_name(deferred: _DeferredCallable) -> str | None:
+        if deferred.receiver_bindings is None:
+            return None
         if isinstance(deferred.node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if analyze_final_state:
-                fn_state = _copy_alias_state(state)
+            for decorator in deferred.node.decorator_list:
+                if isinstance(decorator, ast.Name) and decorator.id == "staticmethod":
+                    return None
+                if isinstance(decorator, ast.Attribute) and decorator.attr == "staticmethod":
+                    return None
+        positional = [*deferred.node.args.posonlyargs, *deferred.node.args.args]
+        if not positional:
+            return None
+        return positional[0].arg
+
+    def _analyze_deferred_state(
+        deferred: _DeferredCallable,
+        analysis_state: _AliasState,
+    ) -> None:
+        receiver_param = _receiver_param_name(deferred)
+        receiver_bindings = deferred.receiver_bindings
+        if isinstance(deferred.node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            fn_state = _copy_alias_state(analysis_state)
+            _clear_alias_binding(
+                deferred.node.name,
+                fn_state.module_aliases,
+                fn_state.callable_aliases,
+                fn_state.pipe_aliases,
+                fn_state.function_bindings,
+                fn_state.receiver_method_bindings,
+            )
+            for name in _parameter_names(deferred.node.args):
                 _clear_alias_binding(
-                    deferred.node.name,
+                    name,
                     fn_state.module_aliases,
                     fn_state.callable_aliases,
                     fn_state.pipe_aliases,
                     fn_state.function_bindings,
                     fn_state.receiver_method_bindings,
                 )
-                for name in _parameter_names(deferred.node.args):
-                    _clear_alias_binding(
-                        name,
-                        fn_state.module_aliases,
-                        fn_state.callable_aliases,
-                        fn_state.pipe_aliases,
-                        fn_state.function_bindings,
-                        fn_state.receiver_method_bindings,
-                    )
-                violations.extend(_scan_scope(deferred.node.body, fn_state, source_lines))
-            for call_state in deferred.call_states:
-                direct_call_state = _copy_alias_state(call_state)
-                _clear_alias_binding(
-                    deferred.node.name,
-                    direct_call_state.module_aliases,
-                    direct_call_state.callable_aliases,
-                    direct_call_state.pipe_aliases,
-                    direct_call_state.function_bindings,
-                    direct_call_state.receiver_method_bindings,
-                )
-                for name in _parameter_names(deferred.node.args):
-                    _clear_alias_binding(
-                        name,
-                        direct_call_state.module_aliases,
-                        direct_call_state.callable_aliases,
-                        direct_call_state.pipe_aliases,
-                        direct_call_state.function_bindings,
-                        direct_call_state.receiver_method_bindings,
-                    )
-                violations.extend(
-                    _scan_scope(deferred.node.body, direct_call_state, source_lines)
-                )
-            continue
+            if receiver_param is not None and receiver_bindings is not None:
+                fn_state.receiver_method_bindings[receiver_param] = {
+                    method_name: list(method_bindings)
+                    for method_name, method_bindings in receiver_bindings.items()
+                }
+            violations.extend(_scan_scope(deferred.node.body, fn_state, source_lines))
+            return
 
-        if analyze_final_state:
-            lambda_state = _copy_alias_state(state)
-            for name in _parameter_names(deferred.node.args):
-                _clear_alias_binding(
-                    name,
-                    lambda_state.module_aliases,
-                    lambda_state.callable_aliases,
-                    lambda_state.pipe_aliases,
-                    lambda_state.function_bindings,
-                    lambda_state.receiver_method_bindings,
-                )
-            _record_call_violations(
-                deferred.node.body,
-                lambda_state,
-                source_lines,
-                violations,
+        lambda_state = _copy_alias_state(analysis_state)
+        for name in _parameter_names(deferred.node.args):
+            _clear_alias_binding(
+                name,
+                lambda_state.module_aliases,
+                lambda_state.callable_aliases,
+                lambda_state.pipe_aliases,
+                lambda_state.function_bindings,
+                lambda_state.receiver_method_bindings,
             )
-        for call_state in deferred.call_states:
-            direct_call_state = _copy_alias_state(call_state)
-            for name in _parameter_names(deferred.node.args):
-                _clear_alias_binding(
-                    name,
-                    direct_call_state.module_aliases,
-                    direct_call_state.callable_aliases,
-                    direct_call_state.pipe_aliases,
-                    direct_call_state.function_bindings,
-                    direct_call_state.receiver_method_bindings,
+        if receiver_param is not None and receiver_bindings is not None:
+            lambda_state.receiver_method_bindings[receiver_param] = {
+                method_name: list(method_bindings)
+                for method_name, method_bindings in receiver_bindings.items()
+            }
+        _record_call_violations(
+            deferred.node.body,
+            lambda_state,
+            source_lines,
+            violations,
+        )
+        for call in _iter_immediate_calls(deferred.node.body):
+            if isinstance(call.func, ast.Name):
+                for binding in lambda_state.function_bindings.get(call.func.id, []):
+                    binding.call_states.append(_copy_alias_state(lambda_state))
+                continue
+            if not isinstance(call.func, ast.Attribute):
+                continue
+            receiver_bindings = None
+            if isinstance(call.func.value, ast.Name):
+                receiver_bindings = lambda_state.receiver_method_bindings.get(call.func.value.id)
+            elif isinstance(call.func.value, ast.Call) and isinstance(
+                call.func.value.func,
+                ast.Name,
+            ):
+                receiver_bindings = lambda_state.receiver_method_bindings.get(
+                    call.func.value.func.id
                 )
-            _record_call_violations(
-                deferred.node.body,
-                direct_call_state,
-                source_lines,
-                violations,
-            )
+            if receiver_bindings is None:
+                continue
+            for binding in receiver_bindings.get(call.func.attr, []):
+                binding.call_states.append(_copy_alias_state(lambda_state))
+
+    processed_states: dict[int, set[tuple[object, ...]]] = {
+        id(deferred): set()
+        for deferred in deferred_callables
+    }
+    queued_call_state_counts: dict[int, int] = {
+        id(deferred): 0
+        for deferred in deferred_callables
+    }
+    pending: list[tuple[_DeferredCallable, _AliasState]] = [
+        (deferred, _copy_alias_state(state))
+        for deferred in deferred_callables
+        if deferred.analyze_on_final_state
+    ]
+
+    def _enqueue_new_call_states() -> None:
+        for deferred in deferred_callables:
+            start = queued_call_state_counts[id(deferred)]
+            for call_state in deferred.call_states[start:]:
+                pending.append((deferred, call_state))
+            queued_call_state_counts[id(deferred)] = len(deferred.call_states)
+
+    def _drain_pending() -> None:
+        _enqueue_new_call_states()
+        while pending:
+            deferred, analysis_state = pending.pop()
+            signature = _state_signature(analysis_state)
+            if signature in processed_states[id(deferred)]:
+                continue
+            processed_states[id(deferred)].add(signature)
+            _analyze_deferred_state(deferred, analysis_state)
+            _enqueue_new_call_states()
+
+    _drain_pending()
+
+    pending.extend(
+        (deferred, _copy_alias_state(state))
+        for deferred in deferred_callables
+        if not deferred.analyze_on_final_state and not deferred.call_states
+    )
+    _drain_pending()
 
     return violations
 

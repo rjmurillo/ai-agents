@@ -30,6 +30,7 @@ Coverage:
 - neg/lambda-use-before-rebind: assigned lambdas honor call-time rebind order
 - neg/branch-local-lambda-order: branch-defined lambdas honor outer call-time order
 - neg/class-method-order: class methods honor outer late-bind and rebind order
+- neg/transitive-deferred-order: nested deferred calls preserve the outer call snapshot
 - neg/match-guard-order: match guards capture deferred call order before later rebinds
 - neg/universal-newlines: legacy text-mode alias is treated like text=True
 - neg/from-import: ``from subprocess import run; run(...)`` -> flagged
@@ -464,6 +465,144 @@ def test_class_method_after_later_rebind_is_not_flagged() -> None:
         "runner = print\n"
     )
     assert find_violations(source) == []
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        (
+            "import subprocess\n"
+            "runner = subprocess.check_output\n"
+            "def inner():\n"
+            '    runner(["x"], encoding="utf-8")\n'
+            "def outer():\n"
+            "    inner()\n"
+            "outer()\n"
+            "runner = print\n",
+            [4],
+        ),
+        (
+            "import subprocess\n"
+            "runner = print\n"
+            "def inner():\n"
+            '    runner(["x"], encoding="utf-8")\n'
+            "def outer():\n"
+            "    inner()\n"
+            "outer()\n"
+            "runner = subprocess.check_output\n",
+            [],
+        ),
+        (
+            "import subprocess\n"
+            "runner = subprocess.check_output\n"
+            'inner = lambda: runner(["x"], encoding="utf-8")\n'
+            "def outer():\n"
+            "    inner()\n"
+            "outer()\n"
+            "runner = print\n",
+            [3],
+        ),
+        (
+            "import subprocess\n"
+            "runner = print\n"
+            'inner = lambda: runner(["x"], encoding="utf-8")\n'
+            "def outer():\n"
+            "    inner()\n"
+            "outer()\n"
+            "runner = subprocess.check_output\n",
+            [],
+        ),
+        (
+            "import subprocess\n"
+            "runner = subprocess.check_output\n"
+            "def inner():\n"
+            '    runner(["x"], encoding="utf-8")\n'
+            "outer = lambda: inner()\n"
+            "outer()\n"
+            "runner = print\n",
+            [4],
+        ),
+        (
+            "import subprocess\n"
+            "runner = print\n"
+            "def inner():\n"
+            '    runner(["x"], encoding="utf-8")\n'
+            "outer = lambda: inner()\n"
+            "outer()\n"
+            "runner = subprocess.check_output\n",
+            [],
+        ),
+    ],
+)
+def test_transitive_deferred_calls_honor_call_order(
+    source: str,
+    expected: list[int],
+) -> None:
+    assert find_violations(source) == expected
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        (
+            "import subprocess\n"
+            "runner = subprocess.check_output\n"
+            "class C:\n"
+            "    def inner(self):\n"
+            '        runner(["x"], encoding="utf-8")\n'
+            "    def outer(self):\n"
+            "        self.inner()\n"
+            "C().outer()\n"
+            "runner = print\n",
+            [5],
+        ),
+        (
+            "import subprocess\n"
+            "runner = print\n"
+            "class C:\n"
+            "    def inner(self):\n"
+            '        runner(["x"], encoding="utf-8")\n'
+            "    def outer(self):\n"
+            "        self.inner()\n"
+            "C().outer()\n"
+            "runner = subprocess.check_output\n",
+            [],
+        ),
+        (
+            "import subprocess\n"
+            "runner = subprocess.check_output\n"
+            "class C:\n"
+            "    @classmethod\n"
+            "    def inner(cls):\n"
+            '        runner(["x"], encoding="utf-8")\n'
+            "    @classmethod\n"
+            "    def outer(cls):\n"
+            "        cls.inner()\n"
+            "C.outer()\n"
+            "runner = print\n",
+            [6],
+        ),
+        (
+            "import subprocess\n"
+            "runner = print\n"
+            "class C:\n"
+            "    @classmethod\n"
+            "    def inner(cls):\n"
+            '        runner(["x"], encoding="utf-8")\n'
+            "    @classmethod\n"
+            "    def outer(cls):\n"
+            "        cls.inner()\n"
+            "C.outer()\n"
+            "runner = subprocess.check_output\n",
+            [],
+        ),
+    ],
+)
+def test_transitive_class_method_calls_honor_call_order(
+    source: str,
+    expected: list[int],
+) -> None:
+    assert find_violations(source) == expected
 
 
 def test_from_import_run_missing_errors() -> None:
