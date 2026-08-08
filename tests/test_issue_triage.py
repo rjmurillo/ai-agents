@@ -7,7 +7,9 @@ stale detection, missing priority label, and missing area label.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import sys
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -51,11 +53,78 @@ from scripts.issue_triage import (
     write_ai_github_outputs,
 )
 
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_ISSUE_TRIAGE = _REPO_ROOT / "scripts" / "issue_triage.py"
+
 
 @pytest.fixture
 def now() -> datetime:
     """Anchor 'now' so tests are deterministic."""
     return datetime(2026, 4, 27, 12, 0, 0, tzinfo=UTC)
+
+
+def _run_issue_triage_cli(
+    invocation: str, *args: str
+) -> subprocess.CompletedProcess[str]:
+    if invocation == "direct":
+        command = [sys.executable, "-I", "-S", str(_ISSUE_TRIAGE), *args]
+    else:
+        command = [
+            sys.executable,
+            "-S",
+            "-m",
+            "scripts.issue_triage",
+            *args,
+        ]
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    return subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+        cwd=_REPO_ROOT,
+        env=env,
+        timeout=30,
+    )
+
+
+@pytest.mark.parametrize("invocation", ["direct", "module"])
+def test_cli_help_succeeds_without_the_editable_install(invocation: str) -> None:
+    result = _run_issue_triage_cli(invocation, "--help")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Phase 1 mechanical issue triage scanner" in result.stdout
+
+
+@pytest.mark.parametrize("invocation", ["direct", "module"])
+def test_cli_invalid_stale_days_returns_config_exit(invocation: str) -> None:
+    result = _run_issue_triage_cli(invocation, "--stale-days", "-1")
+
+    assert result.returncode == 2
+    assert result.stderr.strip() == "--stale-days must be >= 0"
+    assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("invocation", ["direct", "module"])
+def test_cli_empty_input_returns_empty_report(
+    invocation: str, tmp_path: Path
+) -> None:
+    input_path = tmp_path / "issues.json"
+    input_path.write_text("[]", encoding="utf-8")
+
+    result = _run_issue_triage_cli(
+        invocation,
+        "--input",
+        str(input_path),
+        "--format",
+        "json",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout)["issues_scanned"] == 0
+    assert result.stderr == ""
 
 
 def make_issue(
