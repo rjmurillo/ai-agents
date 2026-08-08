@@ -109,6 +109,28 @@ def get_merge_head_commit() -> str | None:
     return get_ref_commit("MERGE_HEAD")
 
 
+def is_ancestor_or_equal(ancestor_ref: str, descendant_ref: str) -> bool:
+    """Return True when ancestor_ref is an ancestor of descendant_ref."""
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor_ref, descendant_ref],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        check=False,
+    )
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    raise ScopeDetectionError(
+        "git merge-base --is-ancestor "
+        f"{ancestor_ref} {descendant_ref} failed (rc={result.returncode}): "
+        f"{result.stderr.strip()}"
+    )
+
+
 def resolve_base_ref(base_branch: str) -> str | None:
     """Resolve the most accurate base ref for diff comparison.
 
@@ -238,12 +260,18 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         raise ScopeDetectionError(f"could not determine merge base with {base_branch}")
 
     if merge_head:
-        # During an in-progress merge, the staged index already contains every
-        # file from the upstream branch being merged. Counting that against the
-        # base ref would surface upstream files as if they were PR changes
-        # (Issue #4544). Count committed branch-authored files against the
-        # merge base instead; the merge result is not the contributor's scope.
-        files = sorted(set(get_head_files_against_ref(merge_base)))
+        if is_ancestor_or_equal(merge_head, base_ref):
+            # When MERGE_HEAD is the base branch being merged, diff the final
+            # staged tree against that exact base-side commit. This keeps the
+            # upstream merge files out of scope while still counting any new
+            # branch-local files staged after `git merge --no-commit`.
+            files = sorted(set(get_index_files_against_ref(merge_head)))
+        else:
+            # A sibling merge can leave MERGE_HEAD off the base lineage.
+            # Counting the staged index against that sibling inflates scope by
+            # upstream files, so fall back to committed branch-authored files
+            # against the true merge base.
+            files = sorted(set(get_head_files_against_ref(merge_base)))
         return ScopeResult(
             file_count=len(files),
             merge_base=merge_base[:12],
