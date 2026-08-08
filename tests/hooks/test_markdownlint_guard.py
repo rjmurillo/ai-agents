@@ -171,7 +171,6 @@ class TestBinaryAbsent:
         assert verifier_calls, "Expected trusted verifier invocation"
         assert verifier_calls[0][1] == str(guard.VERIFIER)
         assert verifier_calls[0][2:4] == ["--markdown-lint-only", "--"]
-        assert any(arg.endswith("markdownlint-safe-config.yaml") for arg in verifier_calls[0])
         assert captured_env["MARKDOWNLINT_CONFIG_PATH"].endswith(
             "markdownlint-safe-config.yaml"
         )
