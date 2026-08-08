@@ -12,6 +12,8 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
+  merge_group:
+    branches: [main]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -38,7 +40,9 @@ permissions:
 # Note: Matrix strategy with fail-fast: false allows independent validation
 
 concurrency:
-  group: session-protocol-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: >-
+    session-protocol-${{ github.event.pull_request.number
+    || inputs.pr_number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -48,6 +52,7 @@ jobs:
   # Check if any session-related files changed
   check-changes:
     name: Check for Session Changes
+    if: github.event_name != 'merge_group'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 3
     outputs:
@@ -181,7 +186,7 @@ jobs:
     needs: [check-changes, detect-changes, validate]
     # Always run to produce SUCCESS (not SKIPPED) for rulesets.
     # Step-level conditions gate the actual work.
-    if: always() && !cancelled()
+    if: github.event_name != 'merge_group' && always() && !cancelled()
 
     outputs:
       final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
