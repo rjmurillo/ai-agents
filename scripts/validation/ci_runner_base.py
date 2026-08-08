@@ -98,29 +98,36 @@ def fetch_base_ref(base_ref: str) -> int:
 
     The probe is three-valued, and the two checks below deliberately treat the
     unanswerable case differently. Only a confirmed `True` justifies
-    `--depth=200`, because an unanswerable probe taking that branch would graft
-    a clone that may well be complete, which is the exact defect this function
-    exists to remove and would be reachable through nothing worse than a
-    `rev-parse` timeout. The post-check goes the other way and treats anything
-    but a confirmed `False` as still shallow, because there the safe answer is
-    to refuse rather than to measure.
+    `--unshallow`, because a complete clone rejects that option. The post-check
+    treats anything but a confirmed `False` as still shallow, because there the
+    safe answer is to refuse rather than to measure.
 
     Returns:
         0  the base ref is fetched and the clone has complete history
-        2  the clone is still shallow, so no range measured from here is valid
+        2  the fetch failed or the clone is still shallow
     """
     if _is_shallow_repository() is not True:
-        run(["git", "fetch", "--no-tags", "origin", base_ref], check=False, timeout=120)
+        code, stdout, stderr = run(
+            ["git", "fetch", "--no-tags", "origin", base_ref],
+            check=False,
+            timeout=120,
+        )
+        if code != 0:
+            _print_fetch_error(base_ref, stdout, stderr)
+            return 2
         return 0
 
     # `--unshallow` fetches the ref AND completes the history, so the old
     # `--depth=200` fetch that preceded it was a second network round trip and
     # a second timeout window that preserved no invariant.
-    run(
+    code, stdout, stderr = run(
         ["git", "fetch", "--no-tags", "--unshallow", "origin", base_ref],
         check=False,
         timeout=180,
     )
+    if code != 0:
+        _print_fetch_error(base_ref, stdout, stderr)
+        return 2
     if _is_shallow_repository() is not False:
         print(
             "error: repository is still shallow after --unshallow, so any "
@@ -130,6 +137,15 @@ def fetch_base_ref(base_ref: str) -> int:
         )
         return 2
     return 0
+
+
+def _print_fetch_error(base_ref: str, stdout: str, stderr: str) -> None:
+    """Report a failed fetch using the runner's configuration contract."""
+    print(f"error: git fetch failed for origin/{base_ref}", file=sys.stderr)
+    if stdout:
+        sys.stderr.write(stdout)
+    if stderr:
+        sys.stderr.write(stderr)
 
 
 def _is_shallow_repository() -> bool | None:

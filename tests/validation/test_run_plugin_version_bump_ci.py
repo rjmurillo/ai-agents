@@ -84,6 +84,13 @@ def test_main_returns_2_when_base_unresolvable(
     assert "could not resolve a diff base" in capsys.readouterr().err
 
 
+def test_main_propagates_fetch_config_error(monkeypatch) -> None:
+    monkeypatch.setenv("PR_BASE_REF", "main")
+    monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: 2)
+
+    assert runner.main() == 2
+
+
 # --- main: missing validator ---------------------------------------------
 
 

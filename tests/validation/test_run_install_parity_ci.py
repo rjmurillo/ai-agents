@@ -277,6 +277,29 @@ def test_fetch_base_ref_still_repairs_a_genuinely_shallow_clone(
     assert len(fetches) == 1, calls
 
 
+@pytest.mark.parametrize("shallow", ["false", "true"])
+def test_fetch_base_ref_reports_config_error_when_fetch_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    shallow: str,
+) -> None:
+    """A failed base fetch must stop CI before it uses stale history."""
+
+    def fake_run(argv, **kwargs):
+        if argv[:2] == ["git", "rev-parse"]:
+            return 0, shallow, ""
+        if argv[:2] == ["git", "fetch"]:
+            return 1, "", "network unavailable\n"
+        raise AssertionError(f"unexpected command: {argv}")
+
+    monkeypatch.setattr(base, "run", fake_run)
+
+    assert base.fetch_base_ref("main") == 2
+    err = capsys.readouterr().err
+    assert "git fetch failed for origin/main" in err
+    assert "network unavailable" in err
+
+
 def test_fetch_base_ref_reports_config_error_when_the_repair_did_not_take(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -299,7 +322,7 @@ def test_fetch_base_ref_reports_config_error_when_the_repair_did_not_take(
     assert "still shallow" in capsys.readouterr().err
 
 
-def test_both_runners_propagate_the_shallow_config_error(
+def test_install_parity_runner_propagates_fetch_config_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Prove the wiring, not only the guard.
@@ -310,7 +333,6 @@ def test_both_runners_propagate_the_shallow_config_error(
     and asserting on the integer it returns is what closes that.
     """
     monkeypatch.setenv("PR_BASE_REF", "main")
-    monkeypatch.setattr(base, "fetch_base_ref", lambda _ref: 2)
     monkeypatch.setattr(runner, "fetch_base_ref", lambda _ref: 2)
 
     assert runner.main() == 2
