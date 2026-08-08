@@ -193,6 +193,22 @@ class TestValidateMemoryTier:
         result = validate_memory_tier(tmp_path)
         assert any("not referenced in memory-index" in w for w in result.warnings)
 
+    def test_nested_index_named_atomic_remains_orphan(
+        self, tmp_path: Path
+    ) -> None:
+        """Only a top-level *-index.md file is a domain index."""
+        nested = tmp_path / "quality"
+        nested.mkdir()
+        (nested / "retry-index.md").write_text("content", encoding="utf-8")
+        (tmp_path / "memory-index.md").write_text(
+            "| Keywords | Memories |\n|----------|----------|\n",
+            encoding="utf-8",
+        )
+
+        result = validate_memory_tier(tmp_path)
+
+        assert any("quality/retry-index.md" in warning for warning in result.warnings)
+
 
 class TestMain:
     def test_nonexistent_path_fails(self) -> None:

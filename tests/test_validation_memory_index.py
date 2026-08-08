@@ -806,6 +806,18 @@ class TestFindOrphanedFiles:
 
         assert orphans == []
 
+    def test_nested_index_named_atomic_is_not_exempt(
+        self, tmp_path: Path
+    ) -> None:
+        """Only top-level domain indexes receive the index-file exemption."""
+        create_memory_structure(tmp_path, {
+            "quality/retry-index.md": "atomic memory",
+        })
+
+        orphans = find_orphaned_files([], tmp_path)
+
+        assert [orphan.file for orphan in orphans] == ["quality/retry-index"]
+
     def test_excludes_special_index_and_hidden_files(
         self, tmp_path: Path
     ) -> None:

@@ -635,7 +635,10 @@ def find_orphaned_files(
             continue
         if file_path.name in _SPECIAL_MEMORY_FILENAMES:
             continue
-        if _DOMAIN_INDEX_FILENAME_PATTERN.match(file_path.name):
+        if (
+            len(relative_path.parts) == 1
+            and _DOMAIN_INDEX_FILENAME_PATTERN.match(file_path.name)
+        ):
             continue
 
         relative_name = relative_path.as_posix()

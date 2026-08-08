@@ -163,7 +163,10 @@ def validate_orphan_atomics(
             continue
         if md_file.name in skip_names:
             continue
-        if DOMAIN_INDEX_RE.match(md_file.name):
+        if (
+            md_file.parent == memories_dir
+            and DOMAIN_INDEX_RE.match(md_file.name)
+        ):
             continue
         all_md_files.append(md_file)
 
@@ -203,7 +206,7 @@ def validate_memory_tier(memories_dir: Path) -> ValidationResult:
 
     # 4. Validate each domain index format and references
     all_indexed_refs: set[str] = set()
-    # Add memory-index references to the set
+    # Root entries are selected essential memories and valid retrieval routes.
     all_indexed_refs.update(memory_index_refs)
 
     for idx in domain_indexes:
