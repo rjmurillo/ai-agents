@@ -104,7 +104,7 @@
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "SQL recovery todos updated after independent reviews."
+        "Evidence": "Todos recover-pr4402, retro-scope-bypass-4402, and review-pr4402-merges are complete."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -121,7 +121,7 @@
   "workLog": [
     {
       "time": "2026-08-07T21:45:00Z",
-      "entry": "Collected the implementer report, published commit SHAs, closed PR state, and explicit no-bypass constraint."
+      "entry": "Collected the implementer report that SKIP_SCOPE_CHECK=1 was used twice, the output commits 99e7b9004 and 32eb818dd, closed PR state, and explicit no-bypass constraint. The raw command transcript was not retained."
     },
     {
       "time": "2026-08-07T21:50:00Z",

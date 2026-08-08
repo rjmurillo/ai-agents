@@ -11,7 +11,7 @@
       "id": "e001",
       "timestamp": "2026-08-07T21:45:00+00:00",
       "type": "milestone",
-      "content": "Collected the implementer report, published commit SHAs, closed PR state, and explicit no-bypass constraint.",
+      "content": "Collected the implementer report that SKIP_SCOPE_CHECK=1 was used twice, the output commits 99e7b9004 and 32eb818dd, closed PR state, and explicit no-bypass constraint. The raw command transcript was not retained.",
       "caused_by": [],
       "leads_to": [
         "e002"

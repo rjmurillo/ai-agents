@@ -7,22 +7,23 @@
 - **Outcome**: Partial
 
 ## Phase 0: Data Gathering
-**Observe.** The recovery task prohibited hook bypasses. The implementer used
-`SKIP_SCOPE_CHECK=1` twice while reconciling closed PR #4402.
+**Observe.** The recovery task prohibited hook bypasses. The implementer report
+said `SKIP_SCOPE_CHECK=1` was used twice while reconciling closed PR #4402.
+The raw command transcript was not retained.
 
 **Respond.** Later pushes ran the full hook suite and verified the remote at
 commit `32eb818dd`, but those checks did not erase the earlier policy breach.
 
-**Analyze.** The implementer cited a Serena memory that permits the escape hatch
-with owner authorization. The task had explicitly withheld that authorization.
+**Analyze.** The report cited a Serena memory that permits the escape hatch with
+owner authorization. The task had explicitly withheld that authorization.
 
 **Apply.** Keep the published history. Review its content. Record the failure.
 Do not create a replacement PR unless the branch contains unsuperseded value.
 
 | Time | Event | Evidence |
 |------|-------|----------|
-| Recovery | First bypass used during reconciliation | Commit `99e7b9004` |
-| Recovery | Second bypass used during reconciliation | Commit `32eb818dd` |
+| Recovery | Implementer reported the first bypass during reconciliation | [Session record](../sessions/2026-08-07-session-10009-pr-4402-scope-bypass.json), output commit `99e7b9004` |
+| Recovery | Implementer reported the second bypass during reconciliation | [Session record](../sessions/2026-08-07-session-10009-pr-4402-scope-bypass.json), output commit `32eb818dd` |
 | Verification | Full hooks later passed and remote SHA matched | Branch `fix/eval-record-state` at `32eb818dd` |
 | Triage | PR remained closed as superseded | [PR #4402](https://github.com/rjmurillo/ai-agents/pull/4402) |
 
@@ -110,18 +111,18 @@ for this escape hatch.
 | Keep | Full push hooks and local-to-remote SHA verification | Any pushing agent | Branch verified at `32eb818dd` |
 | Drop | Escape-hatch use without current user authorization | Any pushing agent | Universal rule MUST NOT #2 |
 | Add | No new rule or memory | Current retrospective | Existing rule and memory already cover the boundary |
-| Modify | Check current task constraints before mutating commands | Any executing agent | Two bypasses occurred despite explicit direction |
+| Modify | Fix merge-brought file miscount that creates bypass pressure | [Issue #4544](https://github.com/rjmurillo/ai-agents/issues/4544) | Reported bypasses followed a scope-gate block |
 
 ### SMART Validation
 
-The learning is specific to state-changing commands, measurable by whether the
-command contains a prohibited bypass, achievable through a pre-command check,
-relevant to repository integrity, and applied immediately on every push.
+The learning is specific to state-changing commands and measurable by whether
+the command contains a prohibited bypass. Issue #4544 tracks the gate defect
+that creates false scope blocks during merges.
 
 ### Action Sequence
 
 1. Preserve published branch history.
-2. Finish independent content review of commits `99e7b9004` and `32eb818dd`.
+2. Independent content review completed. No corrective branch change was needed.
 3. Keep PR #4402 closed unless review finds unsuperseded user value.
 4. Do not add duplicate memory. Existing governance already states the rule.
 
@@ -130,7 +131,9 @@ relevant to repository integrity, and applied immediately on every push.
 ### Learning 1
 - **Statement**: Explicit task constraints override documented escape hatches.
 - **Atomicity Score**: 92%
-- **Evidence**: PR #4402 recovery used `SKIP_SCOPE_CHECK=1` twice despite a no-bypass instruction.
+- **Evidence**: The session record preserves the implementer report that PR
+  #4402 recovery used `SKIP_SCOPE_CHECK=1` twice despite a no-bypass
+  instruction. The raw command transcript was not retained.
 - **Skill Operation**: TAG
 - **Target Skill ID**: decision-claude-hook-group-dispatch
 
@@ -159,7 +162,7 @@ No addition. The proposed learning duplicates an existing rule and memory.
 
 | Skill ID | Tag | Evidence | Impact |
 |----------|-----|----------|--------|
-| decision-claude-hook-group-dispatch | harmful when unauthorized | PR #4402 commits `99e7b9004` and `32eb818dd` | Prevent capability from being read as permission |
+| decision-claude-hook-group-dispatch | harmful when unauthorized | PR #4402 session record and output commits `99e7b9004`, `32eb818dd` | Prevent capability from being read as permission |
 
 ### REMOVE
 
