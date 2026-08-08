@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
 if TESTS_SKILLS_DIR not in sys.path:
@@ -34,6 +36,7 @@ _extract_quantitative_claims = mod._extract_quantitative_claims
 _extract_python_symbols = mod._extract_python_symbols
 _extract_csharp_symbols = mod._extract_csharp_symbols
 _count_code_blocks = mod._count_code_blocks
+_get_changed_files = mod._get_changed_files
 
 
 class TestShouldExclude:
@@ -182,6 +185,70 @@ class TestRunAssessment:
         assert result["documentation_files"] == []
         assert result["source_symbols"] == []
         assert result["coverage_summary"]["coverage_pct"] == 100.0
+
+    def test_diff_base_scopes_docs_to_changed_files(self, tmp_path: Path) -> None:
+        (tmp_path / "changed.md").write_text("# Changed\n`PublicThing`\n")
+        (tmp_path / "unchanged.md").write_text("# Unchanged\n")
+        (tmp_path / "code.py").write_text("def PublicThing():\n    pass\n")
+
+        with patch.object(mod, "_get_changed_files", return_value={"changed.md"}):
+            result = run_assessment(
+                tmp_path,
+                doc_globs=["*.md"],
+                diff_base="origin/main",
+            )
+
+        doc_paths = {doc["path"] for doc in result["documentation_files"]}
+        source_names = {symbol["name"] for symbol in result["source_symbols"]}
+        assert doc_paths == {"changed.md"}
+        assert result["changed_files"] == ["changed.md"]
+        assert "PublicThing" in source_names
+
+    def test_diff_base_empty_change_set_yields_no_docs(self, tmp_path: Path) -> None:
+        (tmp_path / "unchanged.md").write_text("# Unchanged\n")
+
+        with patch.object(mod, "_get_changed_files", return_value=set()):
+            result = run_assessment(
+                tmp_path,
+                doc_globs=["*.md"],
+                diff_base="origin/main",
+            )
+
+        assert result["documentation_files"] == []
+        assert result["changed_files"] == []
+
+
+class TestGetChangedFiles:
+    def test_uses_diff_base_as_commit_reference(self, tmp_path: Path) -> None:
+        git_result = MagicMock()
+        git_result.stdout = "README.md\ndocs/usage.md\n"
+
+        with patch.object(subprocess, "run", return_value=git_result) as run:
+            result = _get_changed_files("origin/main", tmp_path)
+
+        assert result == {"README.md", "docs/usage.md"}
+        assert run.call_args.args[0] == [
+            "git", "diff", "--name-only", "origin/main", "--",
+        ]
+
+    def test_returns_empty_set_when_git_rejects_base(self, tmp_path: Path) -> None:
+        with patch.object(
+            subprocess,
+            "run",
+            side_effect=subprocess.CalledProcessError(128, "git"),
+        ):
+            result = _get_changed_files("missing-base", tmp_path)
+
+        assert result == set()
+
+    def test_ignores_blank_diff_lines(self, tmp_path: Path) -> None:
+        git_result = MagicMock()
+        git_result.stdout = "doc.md\n\nscript.py\n"
+
+        with patch.object(subprocess, "run", return_value=git_result):
+            result = _get_changed_files("main", tmp_path)
+
+        assert result == {"doc.md", "script.py"}
 
 
 class TestRunClaimExtraction:

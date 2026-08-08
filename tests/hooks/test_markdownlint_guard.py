@@ -283,7 +283,7 @@ class TestHooksJsonRegistration:
         for hook in block["hooks"]:
             command = hook.get("command", "") or ""
             if "invoke_dispatch_claude.py" in command:
-                group_id = command.rsplit("--group", 1)[1].strip()
+                group_id = command.rsplit("--group", 1)[1].strip().split(";")[0].strip()
                 commands.extend(shim["file"] for shim in groups[group_id]["shims"])
             else:
                 commands.append(command)

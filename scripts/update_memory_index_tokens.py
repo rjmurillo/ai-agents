@@ -107,6 +107,30 @@ def update_memory_index(index_path: Path, memories_dir: Path) -> bool:
     return False
 
 
+def check_memory_index(index_path: Path, memories_dir: Path) -> list[str]:
+    """Return drifted token count descriptions without modifying the index."""
+    if not index_path.exists():
+        print(f"Error: {index_path} not found", file=sys.stderr)
+        sys.exit(1)
+
+    drifted: list[str] = []
+    for line in index_path.read_text(encoding="utf-8").splitlines():
+        if "[" not in line or "](" not in line or ".md)" not in line:
+            continue
+        for match in LINK_WITH_COUNT.finditer(line):
+            link_target = match.group(2)
+            recorded = int(match.group(3))
+            file_path = memories_dir / link_target
+            if not file_path.exists():
+                continue
+            actual = get_memory_token_count(file_path)
+            if actual != recorded:
+                drifted.append(
+                    f"  {link_target}: recorded {recorded}, actual {actual}"
+                )
+    return drifted
+
+
 def run(index_path: Path, memories_dir: Path, *, check: bool) -> int:
     """Repair or verify one memory index."""
     if not memories_dir.exists():

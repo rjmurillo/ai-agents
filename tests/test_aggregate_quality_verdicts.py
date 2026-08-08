@@ -8,9 +8,6 @@ from pathlib import Path
 
 import pytest
 
-# ---------------------------------------------------------------------------
-# Import the consumer script via importlib (not a package)
-# ---------------------------------------------------------------------------
 _SCRIPTS_DIR = Path(__file__).resolve().parents[1] / ".github" / "scripts"
 
 
@@ -28,10 +25,6 @@ _mod = _import_script("aggregate_quality_verdicts")
 main = _mod.main
 build_parser = _mod.build_parser
 get_category = _mod.get_category
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 _AGENTS = _mod._AGENTS
 
@@ -64,11 +57,6 @@ def _read_outputs(output_file: Path) -> dict[str, str]:
     return result
 
 
-# ---------------------------------------------------------------------------
-# Tests: get_category
-# ---------------------------------------------------------------------------
-
-
 class TestGetCategory:
     def test_fail_verdict_with_infra_flag(self):
         assert get_category("CRITICAL_FAIL", True) == "INFRASTRUCTURE"
@@ -85,15 +73,13 @@ class TestGetCategory:
     def test_warn_verdict_returns_na(self):
         assert get_category("WARN", False) == "N/A"
 
-    @pytest.mark.parametrize("verdict", ["REJECTED", "FAIL", "NEEDS_REVIEW"])
+    @pytest.mark.parametrize(
+        "verdict",
+        ["REJECTED", "FAIL", "NEEDS_REVIEW", "UNKNOWN", "DID_NOT_RUN"],
+    )
     def test_all_fail_verdicts_classified(self, verdict):
         assert get_category(verdict, False) == "CODE_QUALITY"
         assert get_category(verdict, True) == "INFRASTRUCTURE"
-
-
-# ---------------------------------------------------------------------------
-# Tests: build_parser
-# ---------------------------------------------------------------------------
 
 
 class TestBuildParser:
@@ -113,11 +99,6 @@ class TestBuildParser:
             monkeypatch.delenv(f"{_mod.agent_env_name(agent)}_INFRA", raising=False)
         args = build_parser().parse_args([])
         assert args.security_verdict == ""
-
-
-# ---------------------------------------------------------------------------
-# Tests: main
-# ---------------------------------------------------------------------------
 
 
 class TestMain:
@@ -159,7 +140,7 @@ class TestMain:
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "WARN"
 
-    def test_security_infra_failure_is_not_ignorable_warn(self, tmp_path, monkeypatch):
+    def test_security_infra_failure_downgrades_to_warn_with_notice(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
         verdicts = {a: "PASS" for a in _AGENTS}
         verdicts["security"] = "CRITICAL_FAIL"
@@ -168,8 +149,55 @@ class TestMain:
         rc = main(_make_argv(verdicts, infra))
         assert rc == 0
         outputs = _read_outputs(output_file)
-        assert outputs["final_verdict"] == "DID_NOT_RUN"
-        assert outputs["final_verdict"] != "WARN"
+        assert outputs["final_verdict"] == "WARN"
+        assert outputs["security_review_ran"] == "false"
+
+    def test_did_not_run_infra_failures_downgrade_to_warn(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "DID_NOT_RUN" for a in _AGENTS}
+        verdicts["qa"] = "PASS"
+        infra = {a: "true" for a in _AGENTS}
+        infra["qa"] = "false"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "WARN"
+        assert outputs["security_category"] == "INFRASTRUCTURE"
+        assert outputs["security_review_ran"] == "false"
+
+    def test_unknown_infra_failure_stays_blocking(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["qa"] = "UNKNOWN"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+        infra["qa"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "UNKNOWN"
+        assert outputs["security_review_ran"] == "false"
+
+    def test_unrecognized_verdict_token_stays_blocking(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["analyst"] = "FOOBAR"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+        infra["analyst"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "UNKNOWN"
+        assert outputs["security_review_ran"] == "false"
 
     def test_outputs_per_agent_verdicts_and_categories(self, tmp_path, monkeypatch):
         output_file = _capture_outputs(tmp_path, monkeypatch)
@@ -239,10 +267,58 @@ class TestMain:
         # Real WARN outranks UNKNOWN per merge_verdicts severity order.
         assert outputs["final_verdict"] == "WARN"
 
+    def test_infra_flagged_unrecognized_token_not_masked_by_warn(
+        self, tmp_path, monkeypatch
+    ):
+        # Copilot review comment 3738192125 on PR #4760: merge_verdicts()
+        # checks WARN before it checks DID_NOT_RUN/UNKNOWN/unrecognized
+        # tokens (scripts/ai_review_common/verdict.py priority list, steps 2
+        # and 3), so a real WARN from one agent used to silently mask a raw
+        # or unrecognized token (e.g. FOOBAR) from a different, infra-flagged
+        # agent. security is an expected infra sentinel (DID_NOT_RUN);
+        # analyst's FOOBAR is not a recognized infra-failure token even
+        # though it is infra-flagged, so the aggregate must stay UNKNOWN
+        # rather than read as a normal, non-blocking WARN.
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["analyst"] = "FOOBAR"
+        verdicts["qa"] = "WARN"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+        infra["analyst"] = "true"
 
-# ---------------------------------------------------------------------------
-# Tests: security_review_ran output (issue #2821 option c)
-# ---------------------------------------------------------------------------
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "UNKNOWN", (
+            "A real WARN must not mask an infra-flagged agent's raw or "
+            "unrecognized verdict token; the gate must stay blocking."
+        )
+
+    def test_warn_stays_warn_with_only_known_infra_verdicts(
+        self, tmp_path, monkeypatch
+    ):
+        # Companion guard for
+        # test_infra_flagged_unrecognized_token_not_masked_by_warn: a real
+        # WARN combined with ONLY recognized infra-failure tokens
+        # (DID_NOT_RUN, here) must still resolve to WARN. The new masking
+        # guard must not fire just because an infra-flagged agent exists; it
+        # must fire only when that agent's verdict is outside the recognized
+        # infra-failure vocabulary (DOWNGRADEABLE_INFRA_VERDICTS).
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["security"] = "DID_NOT_RUN"
+        verdicts["qa"] = "WARN"
+        infra = {a: "false" for a in _AGENTS}
+        infra["security"] = "true"
+
+        rc = main(_make_argv(verdicts, infra))
+
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "WARN"
 
 
 class TestSecurityReviewRan:
@@ -263,7 +339,7 @@ class TestSecurityReviewRan:
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["security_review_ran"] == "false"
-        assert outputs["final_verdict"] == "DID_NOT_RUN"
+        assert outputs["final_verdict"] == "WARN"
         captured = capsys.readouterr()
         assert "::warning title=Security review did not run::" in captured.out
 

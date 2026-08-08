@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 4672,
+    "date": "2026-08-07",
+    "branch": "fix/4672-plugin-install-fail-open",
+    "startingCommit": "a4129aa44",
+    "objective": "Fix issue 4672 customer plugin denial, add an always-on cross-platform installed-plugin hook guard, and validate the dispatcher path before executing it"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena activated at session start; memories read and written through serena tools this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions returned the Serena manual; symbolic tools used for memory reads and writes"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md and .agents/governance/GOTCHAS.md before touching hooks, workflows, and generators"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/session-init/scripts/new_session_log_json.py to create this log rather than hand-writing it"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read the AGENTS.md Skill-First section and .claude/rules/testing.md; used the github skill and session-init scripts rather than raw gh or hand-written logs"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md, ADR-006, ADR-042, and ADR-092 before editing workflows and manifests"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read and wrote nine memories this session, including ci/queued-runs-with-zero-in-progress-means-check-the-status-page and git/ask-git-for-local-env-vars-instead-of-hardcoding"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4672-plugin-install-fail-open"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/4672-plugin-install-fail-open"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a4129aa44"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Guard workflow verified green on real runners: all twelve jobs including both vanilla rows and the aggregate"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified, per ADR-014"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote git/ask-git-for-local-env-vars-instead-of-hardcoding and git/lefthook-job-name-is-not-the-subcommand-and-bare-runs-pass"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on the changed markdown; zero issues"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits 5c7a38a59 through 4b4ab7f86 on fix/4672-plugin-install-fail-open"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py passed; mypy reports zero errors on changed files; all three ratchets pass; 1975 tests pass across tests/ci and the plugin e2e module"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-06T23:30:00Z",
+      "action": "Validated the dispatcher path before executing it, closing a Semgrep CWE-78 finding",
+      "files": [
+        "scripts/ci/test_installed_plugin_hooks.py",
+        "tests/ci/test_installed_plugin_dispatcher_containment.py"
+      ],
+      "outcome": "Command injection was not reachable, since the interpreter is invoked as an argument list with no shell. The boundary was still worth making explicit for a different and real invariant: only the install root is caller supplied, and a symlink under hooks could point the interpreter at a script outside the install tree. Containment now refuses that. Negative control verified in both directions: removing the check makes the escaping-symlink test fail with DID NOT RAISE. No suppression was used, and annotating the loader return as ModuleType avoided a type-ignore the ratchet would have blocked."
+    }
+  ],
+  "endingCommit": "4b4ab7f86",
+  "nextSteps": []
+}

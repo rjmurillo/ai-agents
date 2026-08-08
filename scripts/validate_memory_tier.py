@@ -22,8 +22,11 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Regex for markdown links: [text](path.md) or [text](dir/path.md)
-MARKDOWN_LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+\.md)\)")
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.utils.markdown_parser import extract_lookup_references  # noqa: E402
 
 # Regex for domain index table rows: | keywords | [file](path.md) |
 INDEX_TABLE_ROW_RE = re.compile(
@@ -55,8 +58,8 @@ class ValidationResult:
 
 
 def extract_file_references(content: str) -> list[str]:
-    """Extract all .md file references from markdown links."""
-    return [match.group(2) for match in MARKDOWN_LINK_RE.finditer(content)]
+    """Extract .md references from visible lookup rows."""
+    return extract_lookup_references(content)
 
 
 def validate_references_exist(
@@ -163,7 +166,10 @@ def validate_orphan_atomics(
             continue
         if md_file.name in skip_names:
             continue
-        if DOMAIN_INDEX_RE.match(md_file.name):
+        if (
+            md_file.parent == memories_dir
+            and DOMAIN_INDEX_RE.match(md_file.name)
+        ):
             continue
         all_md_files.append(md_file)
 
@@ -182,6 +188,20 @@ def validate_orphan_atomics(
                 result.warnings.append(
                     f"{rel_str}: atomic file not referenced by any domain index"
                 )
+
+
+def canonicalize_references(
+    memories_dir: Path,
+    references: list[str],
+) -> set[str]:
+    """Return repository-relative paths for references inside the memory root."""
+    resolved_root = memories_dir.resolve()
+    canonical: set[str] = set()
+    for reference in references:
+        resolved = (memories_dir / reference).resolve()
+        if resolved.is_relative_to(resolved_root):
+            canonical.add(resolved.relative_to(resolved_root).as_posix())
+    return canonical
 
 
 def validate_memory_tier(memories_dir: Path) -> ValidationResult:
@@ -203,13 +223,15 @@ def validate_memory_tier(memories_dir: Path) -> ValidationResult:
 
     # 4. Validate each domain index format and references
     all_indexed_refs: set[str] = set()
-    # Add memory-index references to the set
-    all_indexed_refs.update(memory_index_refs)
+    # Root entries are selected essential memories and valid retrieval routes.
+    all_indexed_refs.update(
+        canonicalize_references(memories_dir, memory_index_refs)
+    )
 
     for idx in domain_indexes:
         validate_domain_index_format(idx, result)
         refs = validate_domain_index_references(idx, memories_dir, result)
-        all_indexed_refs.update(refs)
+        all_indexed_refs.update(canonicalize_references(memories_dir, refs))
 
     # 5. Check for orphaned atomic files
     validate_orphan_atomics(memories_dir, all_indexed_refs, result)
