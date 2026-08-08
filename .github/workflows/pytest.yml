@@ -4,7 +4,7 @@
 # Uses dorny/paths-filter to determine if tests should run or be skipped.
 #
 # IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
-# but skips actual test execution when no Python files are changed.
+# but skips actual test execution when no Python test inputs are changed.
 #
 # Testable paths are defined in the check-paths job filters block.
 #
@@ -56,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Check for Python file changes
+      - name: Check for Python test input changes
         uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
         if: github.event_name != 'workflow_dispatch'
@@ -73,6 +73,12 @@ jobs:
               - '**/*.ps1'
               - '**/*.psm1'
               - '**/*.pyw'
+              # Canonical rules and both generated instruction trees are direct
+              # inputs to Python contract tests. Keep these roots explicit so
+              # unrelated Markdown, such as session logs, still skips pytest.
+              - '.claude/rules/**'
+              - '.github/instructions/**'
+              - 'src/copilot-cli/instructions/**'
               - 'scripts/ci/ruff_count_baseline.txt'
               - 'pyproject.toml'
               - 'uv.lock'
@@ -99,7 +105,7 @@ jobs:
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "Manual trigger - running all tests"
           else
-            echo "Python files changed: $PYTHON_CHANGED"
+            echo "Python test inputs changed: $PYTHON_CHANGED"
           fi
 
   test:
@@ -119,7 +125,7 @@ jobs:
         run: |
           if [ "$PYTHON_CHANGED" != "true" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "No Python files changed - skipping tests"
+            echo "No Python test inputs changed - skipping tests"
           fi
 
       - name: Harden Runner
@@ -203,7 +209,18 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1. The checkout above already used fetch-depth: 0, so a
+          # depth-limited fetch saves nothing and writes .git/shallow, grafting
+          # the fetched tip parentless. This ratchet does need a merge base:
+          # count_ratchet.changed_files diffs `base_ref...HEAD` (three-dot) to
+          # sort branch-touched files first. That leg fails open, so a graft
+          # degrades the diagnostic instead of failing the step, which is the
+          # buried-violation problem the ordering exists to prevent, not a red
+          # check. The graft is written by whichever fetch runs first and a
+          # plain undepthed fetch does not clear it, only --unshallow does.
+          # In pr-validation.yml the same graft hits merge_tree_ratchet_check,
+          # which fails closed, and that is what cost a red required check.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Run ruff count ratchet (whole tree, non-PR)
@@ -211,7 +228,8 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the pull_request leg above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Check security suppressions in diff (pull request, issue 4061)
@@ -219,7 +237,8 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the pull_request leg above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
       - name: Check security suppressions in diff (non-PR, issue 4061)
@@ -227,7 +246,8 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the pull_request leg above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
       - name: Run pytest
@@ -349,7 +369,7 @@ jobs:
           path: bandit.sarif
           retention-days: 7
 
-  # Pass-through job: satisfies required "Run Python Tests" check when no Python files changed.
+  # Pass-through job: satisfies required "Run Python Tests" check when no Python test inputs changed.
   # GitHub branch protection requires SUCCESS (not SKIPPED) for required checks.
   # See: Issue #1168
   skip-tests:
@@ -366,9 +386,9 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Skip tests (no Python files changed)
+      - name: Skip tests (no Python test inputs changed)
         run: |
-          echo "No Python files changed - skipping tests"
+          echo "No Python test inputs changed - skipping tests"
           echo ""
           echo "See the 'python' filter in check-paths job for paths that trigger tests."
           echo "Reference: .github/workflows/pytest.yml"

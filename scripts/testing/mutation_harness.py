@@ -34,13 +34,23 @@ import argparse
 import json
 import os
 import shlex
-import shutil
 import subprocess
 import sys
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.testing.mutation_workspace import (  # noqa: E402
+    MutationWorkspaceError,
+    isolated_mutation_worktree,
+    purge_bytecode,
+    tracked_repository_path,
+)
 
 EXIT_OK = 0
 EXIT_MUTATION_MISSED = 1
@@ -204,17 +214,34 @@ class MutationRunner:
         return results
 
     def run_entry(self, entry: MutationEntry) -> MutationResult:
+        tracked_path = tracked_repository_path(entry.path)
+        if tracked_path is None:
+            return self._run_entry_in_place(entry)
+
+        repo_root, relative_path = tracked_path
+        cwd = self.cwd.resolve()
+        if not cwd.is_relative_to(repo_root):
+            raise BatteryConfigError(
+                f"runner cwd {cwd} is outside mutation target repository {repo_root}"
+            )
+        with isolated_mutation_worktree(repo_root, [relative_path]) as workspace:
+            isolated_entry = replace(entry, path=workspace.root / relative_path)
+            isolated_cwd = workspace.root / cwd.relative_to(repo_root)
+            result = MutationRunner(cwd=isolated_cwd)._run_entry_in_place(isolated_entry)
+        return MutationResult(entry=entry, returncode=result.returncode)
+
+    def _run_entry_in_place(self, entry: MutationEntry) -> MutationResult:
         original = entry.path.read_text(encoding="utf-8")
         mutated = original.replace(entry.old, entry.new, 1)
 
         try:
-            _purge_pycache(entry.path.parent)
+            purge_bytecode(entry.path.parent)
             entry.path.write_text(mutated, encoding="utf-8")
             completed = self._run_command(entry.command, entry.timeout_seconds)
             return MutationResult(entry=entry, returncode=completed.returncode)
         finally:
             entry.path.write_text(original, encoding="utf-8")
-            _purge_pycache(entry.path.parent)
+            purge_bytecode(entry.path.parent)
 
     def _run_command(
         self,
@@ -244,12 +271,6 @@ def format_validation_problems(problems: Sequence[ValidationProblem]) -> str:
     for problem in problems:
         lines.append(f"{problem.entry.name}: {problem.entry.path}: {problem.message}")
     return "\n".join(lines)
-
-
-def _purge_pycache(root: Path) -> None:
-    for pycache in sorted(root.rglob("__pycache__"), reverse=True):
-        if pycache.is_dir():
-            shutil.rmtree(pycache)
 
 
 def _find_containment_root() -> Path:
@@ -337,7 +358,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except BatteryConfigError as exc:
         print(str(exc), file=sys.stderr, flush=True)
         return EXIT_CONFIG_ERROR
-    except MutationTimeoutError as exc:
+    except (MutationTimeoutError, MutationWorkspaceError) as exc:
         print(f"EXTERNAL_ERROR {exc}", file=sys.stderr, flush=True)
         return EXIT_EXTERNAL_ERROR
     except KeyboardInterrupt:
