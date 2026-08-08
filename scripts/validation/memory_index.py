@@ -37,6 +37,7 @@ import sys
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
@@ -185,6 +186,18 @@ _TABLE_ROW_PATTERN: re.Pattern[str] = re.compile(
 _MARKDOWN_LINK_PATTERN: re.Pattern[str] = re.compile(
     r"\[([^\]]+)\]\(([^)]+)\)"
 )
+_DOMAIN_INDEX_FILENAME_PATTERN: re.Pattern[str] = re.compile(
+    r"^[a-z][\w-]*-index\.md$"
+)
+_SKILLS_DOMAIN_INDEX_FILENAME_PATTERN: re.Pattern[str] = re.compile(
+    r"^skills-.+-index\.md$"
+)
+_SPECIAL_MEMORY_FILENAMES = frozenset({
+    "CLAUDE.md",
+    "README.md",
+    "memory-index.md",
+})
+OrphanPolicy = Literal["strict", "ratchet"]
 _URL_PERCENT_ESCAPE_PATTERN = re.compile(r"%[0-9A-Fa-f]{2}")
 _HTML_TAG_PATTERN = re.compile(
     r"^<\s*(?P<closing>/)?\s*(?P<name>[A-Za-z][A-Za-z0-9:-]*)"
@@ -543,14 +556,15 @@ def _load_base_reference_counts(
 
 
 def find_domain_indices(memory_path: Path) -> list[DomainIndex]:
-    """Find all domain index files (skills-*-index.md pattern)."""
+    """Find all domain index files."""
     if not memory_path.exists():
         return []
 
     indices: list[DomainIndex] = []
-    for f in sorted(memory_path.glob("skills-*-index.md")):
+    for f in sorted(memory_path.glob("*-index.md")):
+        if f.name == "memory-index.md":
+            continue
         name = f.stem
-        # Extract domain: skills-{domain}-index -> {domain}
         domain = re.sub(r"^skills-", "", name)
         domain = re.sub(r"-index$", "", domain)
         indices.append(DomainIndex(path=f, name=name, domain=domain))
@@ -941,40 +955,85 @@ def check_memory_index_references(
     return result
 
 
+def _memory_domain(relative_path: Path) -> str:
+    """Return the retrieval domain for a memory path."""
+    if len(relative_path.parts) > 1:
+        return relative_path.parts[0]
+    return relative_path.stem.split("-", 1)[0]
+
+
+def _validate_orphan_policy(orphan_policy: str) -> OrphanPolicy:
+    """Return a supported orphan policy or reject a caller error."""
+    if orphan_policy not in {"strict", "ratchet"}:
+        raise ValueError(f"Unsupported orphan policy: {orphan_policy}")
+    return "strict" if orphan_policy == "strict" else "ratchet"
+
+
+def _memory_index_blocks(result: MemoryIndexRefResult) -> bool:
+    """Return whether memory-index findings should fail this consumer."""
+    return not result.passed
+
+
 def find_orphaned_files(
     all_indices: list[DomainIndex], memory_path: Path
 ) -> list[Orphan]:
-    """Find atomic skill files not referenced by any domain index.
-
-    Detects:
-    1. Files matching domain prefix pattern not in any index
-    2. Files with deprecated 'skill-' prefix (ADR-017 Gap 4)
-    """
-    orphans: list[Orphan] = []
+    """Find atomic memories not referenced by the root or a domain index."""
     referenced_files: set[str] = set()
+    owner_counts: dict[str, dict[str, int]] = {}
 
-    # Collect all referenced files from all indices
-    for index in all_indices:
-        entries = parse_index_entries(index.path)
-        for entry in entries:
-            referenced_files.add(entry.file_name)
+    index_paths = [
+        path
+        for path in memory_path.glob("*-index.md")
+        if path.name != "memory-index.md"
+    ]
+    root_index = memory_path / "memory-index.md"
+    if root_index.exists():
+        index_paths.append(root_index)
 
-    # Check for orphaned files
-    for f in sorted(memory_path.glob("*.md")):
-        base_name = f.stem
+    resolved_root = memory_path.resolve()
+    for index_path in index_paths:
+        content = index_path.read_text(encoding="utf-8")
+        index_references: set[str] = set()
+        reference_names, _, _ = _extract_memory_reference_names(content)
+        for reference in reference_names:
+            resolved = (memory_path / f"{reference}.md").resolve()
+            if resolved.is_relative_to(resolved_root):
+                canonical = resolved.relative_to(resolved_root).as_posix()
+                referenced_files.add(canonical)
+                index_references.add(canonical)
 
-        # Skip index files and memory-index
-        if base_name.endswith("-index") or base_name == "memory-index":
+        if index_path == root_index:
+            continue
+        for reference in index_references:
+            reference_path = Path(reference)
+            domain = _memory_domain(reference_path)
+            domain_counts = owner_counts.setdefault(domain, {})
+            domain_counts[index_path.name] = (
+                domain_counts.get(index_path.name, 0) + 1
+            )
+
+    orphans: list[Orphan] = []
+    for file_path in sorted(memory_path.rglob("*.md")):
+        relative_path = file_path.relative_to(memory_path)
+        if any(part.startswith(".") for part in relative_path.parts):
+            continue
+        if file_path.name in _SPECIAL_MEMORY_FILENAMES:
+            continue
+        if (
+            len(relative_path.parts) == 1
+            and _DOMAIN_INDEX_FILENAME_PATTERN.match(file_path.name)
+        ):
             continue
 
-        # ADR-017 Gap 4: deprecated skill- prefix
-        if (
-            base_name.startswith("skill-")
-            and base_name not in referenced_files
-        ):
+        relative_name = relative_path.as_posix()
+        if relative_name in referenced_files:
+            continue
+
+        file_name = relative_path.with_suffix("").as_posix()
+        if file_path.stem.startswith("skill-"):
             orphans.append(
                 Orphan(
-                    file=base_name,
+                    file=file_name,
                     domain="INVALID",
                     expected_index=(
                         "Rename to {domain}-{description} "
@@ -984,14 +1043,10 @@ def find_orphaned_files(
             )
             continue
 
-        # Invalid skills-* files (not proper index files)
-        if (
-            base_name.startswith("skills-")
-            and not base_name.endswith("-index")
-        ):
+        if file_path.stem.startswith("skills-"):
             orphans.append(
                 Orphan(
-                    file=base_name,
+                    file=file_name,
                     domain="INVALID",
                     expected_index=(
                         "Rename to {domain}-{description}-index format "
@@ -1001,19 +1056,23 @@ def find_orphaned_files(
             )
             continue
 
-        # Check if file follows atomic naming pattern (domain prefix)
-        for index in all_indices:
-            if (
-                base_name.startswith(f"{index.domain}-")
-                and base_name not in referenced_files
-            ):
-                orphans.append(
-                    Orphan(
-                        file=base_name,
-                        domain=index.domain,
-                        expected_index=f"skills-{index.domain}-index",
-                    )
-                )
+        domain = _memory_domain(relative_path)
+        domain_counts = owner_counts.get(domain, {})
+        expected_index = (
+            min(
+                domain_counts,
+                key=lambda name: (-domain_counts[name], name),
+            )
+            if domain_counts
+            else "a domain index referenced by memory-index.md"
+        )
+        orphans.append(
+            Orphan(
+                file=file_name,
+                domain=domain,
+                expected_index=expected_index,
+            )
+        )
 
     return orphans
 
@@ -1068,10 +1127,13 @@ def run_validation(
     memory_path: Path,
     output_format: str,
     base_reference_counts: Counter[str],
+    *,
+    orphan_policy: OrphanPolicy = "strict",
 ) -> ValidationReport:
     """Run full memory index validation."""
     from datetime import UTC, datetime
 
+    orphan_policy = _validate_orphan_policy(orphan_policy)
     report = ValidationReport(
         timestamp=datetime.now(UTC).isoformat(),
         memory_path=str(memory_path),
@@ -1097,16 +1159,35 @@ def run_validation(
         report.summary.total_files += len(entries)
         report.summary.missing_files += len(file_result.missing_files)
 
-        keyword_result = check_keyword_density(entries)
+        is_skills_index = bool(
+            _SKILLS_DOMAIN_INDEX_FILENAME_PATTERN.match(index.path.name)
+        )
+        keyword_result = (
+            check_keyword_density(entries)
+            if is_skills_index
+            else KeywordDensityResult()
+        )
         if not keyword_result.passed:
             report.summary.keyword_issues += len(keyword_result.issues)
 
         format_result = check_index_format(index.path)
-        duplicate_result = check_duplicate_entries(entries)
+        duplicate_result = (
+            check_duplicate_entries(entries)
+            if is_skills_index
+            else DuplicateResult()
+        )
 
         # P2 validations
-        min_kw_result = check_minimum_keywords(entries, min_keywords=5)
-        prefix_result = check_domain_prefix_naming(entries, index.domain)
+        min_kw_result = (
+            check_minimum_keywords(entries, min_keywords=5)
+            if is_skills_index
+            else ValidationIssues()
+        )
+        prefix_result = (
+            check_domain_prefix_naming(entries, index.domain)
+            if is_skills_index
+            else ValidationIssues()
+        )
 
         # P0 determines domain pass/fail
         p0_passed = (
@@ -1169,7 +1250,7 @@ def run_validation(
     )
     report.memory_index_result = memory_index_result
 
-    if not memory_index_result.passed:
+    if _memory_index_blocks(memory_index_result):
         report.passed = False
         if output_format == "console":
             print("\n[P1] Memory-index validation FAILED:")
@@ -1182,16 +1263,24 @@ def run_validation(
 
     # Orphan detection
     orphans = find_orphaned_files(domain_indices, memory_path)
+    orphans.extend(
+        Orphan(
+            file=index_name,
+            domain="INDEX",
+            expected_index="memory-index.md",
+        )
+        for index_name in memory_index_result.unreferenced_indices
+    )
     report.orphans = orphans
 
-    if orphans:
+    if orphans and orphan_policy == "strict":
         report.passed = False
-        if output_format == "console":
-            print("\n[P1] Orphaned files detected (not indexed):")
-            for orphan in orphans:
-                print(
-                    f"  - {orphan.file} (should be in {orphan.expected_index})"
-                )
+    if orphans and output_format == "console":
+        print("\n[P1] Orphaned files detected (not indexed):")
+        for orphan in orphans:
+            print(
+                f"  - {orphan.file} (should be in {orphan.expected_index})"
+            )
 
     # P1: Naming convention enforcement (kebab-case)
     naming_result = check_naming_convention(memory_path)
@@ -1329,6 +1418,15 @@ def build_parser() -> argparse.ArgumentParser:
             "(env: BASE_REF, default: origin/main)"
         ),
     )
+    parser.add_argument(
+        "--orphan-policy",
+        choices=["strict", "ratchet"],
+        default="strict",
+        help=(
+            "Orphan handling: strict fails on any orphan; ratchet reports "
+            "orphans while the separate count ratchet blocks growth"
+        ),
+    )
     return parser
 
 
@@ -1367,6 +1465,7 @@ def main(argv: list[str] | None = None) -> int:
         target,
         args.output_format,
         base_reference_counts,
+        orphan_policy=args.orphan_policy,
     )
 
     # Output results

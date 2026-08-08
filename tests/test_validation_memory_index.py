@@ -47,7 +47,9 @@ def create_memory_structure(
     """Create test memory files from a dictionary."""
     base.mkdir(parents=True, exist_ok=True)
     for name, content in files.items():
-        (base / name).write_text(content, encoding="utf-8")
+        path = base / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
