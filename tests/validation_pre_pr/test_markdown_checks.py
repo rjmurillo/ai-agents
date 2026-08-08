@@ -6,6 +6,13 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _markdownlint_config(tmp_path: Path) -> None:
+    (tmp_path / ".markdownlint-cli2.yaml").write_text("config: {}\n", encoding="utf-8")
+
 
 class TestValidateMarkdownLint:
     """Markdown linting checks branch changes without masking unknown scope."""
@@ -36,7 +43,16 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is True
 
         mock_run.assert_called_once_with(
-            ["npx", "markdownlint-cli2@0.23.1", "--fix", "--", "README.md", "docs/guide.md"],
+            [
+                "npx",
+                "markdownlint-cli2@0.23.1",
+                "--config",
+                str(tmp_path / ".markdownlint-cli2.yaml"),
+                "--fix",
+                "--",
+                "README.md",
+                "docs/guide.md",
+            ],
             cwd=tmp_path,
         )
 
@@ -59,7 +75,14 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is True
 
         mock_run.assert_called_once_with(
-            ["npx", "markdownlint-cli2@0.23.1", "--", "README.md"],
+            [
+                "npx",
+                "markdownlint-cli2@0.23.1",
+                "--config",
+                str(tmp_path / ".markdownlint-cli2.yaml"),
+                "--",
+                "README.md",
+            ],
             cwd=tmp_path,
         )
 
@@ -78,7 +101,45 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is False
 
         mock_run.assert_called_once_with(
-            ["npx", "markdownlint-cli2@0.23.1", "--fix", "--", "**/*.md"],
+            [
+                "npx",
+                "markdownlint-cli2@0.23.1",
+                "--config",
+                str(tmp_path / ".markdownlint-cli2.yaml"),
+                "--fix",
+                "--",
+                "**/*.md",
+            ],
+            cwd=tmp_path,
+        )
+
+    def test_safe_config_env_override_is_used(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        from scripts.validation.pre_pr import validate_markdown_lint
+
+        safe_config = tmp_path / "safe.yaml"
+        safe_config.write_text("config: {}\n", encoding="utf-8")
+        monkeypatch.setenv("MARKDOWNLINT_CONFIG_PATH", str(safe_config))
+        with patch("checks_tooling.shutil.which", return_value="npx"):
+            with patch(
+                "checks_tooling._markdown_lint_targets",
+                return_value=["README.md"],
+            ):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (0, "", "")
+                    assert validate_markdown_lint(tmp_path) is True
+
+        mock_run.assert_called_once_with(
+            [
+                "npx",
+                "markdownlint-cli2@0.23.1",
+                "--config",
+                str(safe_config),
+                "--fix",
+                "--",
+                "README.md",
+            ],
             cwd=tmp_path,
         )
 
