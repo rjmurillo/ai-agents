@@ -119,16 +119,42 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-08-session-10019-complete-issue-4346-mutation-harness"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-08T11:20:06+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main at ec9f6cb30 without rewriting history in c4d87f3ed. The post-merge entrypoint and mutation regression suite passed 151 tests in 267.62 seconds, and pre_pr.py exited 0.",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-08-session-10019-complete-issue-4346-mutation-harness"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-08T11:12:02+00:00",
+      "type": "commit",
+      "content": "Commit: c4d87f3ed",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-08-session-10019-complete-issue-4346-mutation-harness"
     }
   ],
   "metrics": {
-    "duration_minutes": 264,
+    "duration_minutes": 291,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 29
   },
   "lessons": []
