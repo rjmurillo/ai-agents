@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10003,
+    "date": "2026-08-06",
+    "branch": "docs/record-strict-policy-and-merge-queue-availability",
+    "startingCommit": "b22b19b63c",
+    "objective": "Record strict policy as intentional and merge queue as unavailable"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned the Serena Instructions Manual (50.1 KB). This MCP server exposes no activate_project tool, so the project is active by configuration."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions and read the returned manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md lines 1 to 45. Confirmed the read-only notice per ADR-014 and left the file untouched."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills/*/scripts/*.py returned 100 scripts across the skill tree."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md lines 1 to 40, the skill-first incident log."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md lines 1 to 40, including the retrieval-led reasoning and language constraint sections."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/decision-every-merge-invalidates-every-open-pr.md and .serena/memories/usage-mandatory.md."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/record-strict-policy-and-merge-queue-availability"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/record-strict-policy-and-merge-queue-availability"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short confirmed a clean tree before branching from origin/main at b22b19b63c."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "b22b19b63c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Every MUST item in this log carries evidence from a command run in this session."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md was read but never modified. git status shows no entry for it."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Updated .serena/memories/decision-every-merge-invalidates-every-open-pr.md with the strict policy correction, the merge queue availability finding, and the merge-tree ratchet scope limit."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 .github/AGENTS.md reported Summary: 0 issues in 0 files."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits 136881d345 and ded2bf5d8d on docs/record-strict-policy-and-merge-queue-availability cover the strict-policy correction, worktree rule, generated mirrors, memory index, and this session log."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python scripts/validate_session_json.py on this file reported PASS."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [],
+  "endingCommit": "ded2bf5d8d",
+  "nextSteps": []
+}

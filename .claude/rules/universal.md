@@ -67,6 +67,16 @@ These rules apply to every change in this repository.
    this pattern repeatedly (three corrections as of 2025-12-17). If a script
    grows a helper that emits such headers, delete the helper instead of
    calling it.
+7. MUST NOT create a git worktree inside the repository checkout. Put them in a
+   sibling directory outside the repository root. Gitignoring a path hides it
+   from git, not from the filesystem, and much of this repository's tooling
+   walks the filesystem, so nested checkouts get scanned as if they were the
+   project. Measured 2026-08-05: 59 worktrees under `.claude/worktrees/` made
+   `tests/test_no_verify_prohibition.py` take 422 seconds and fail on prose
+   inside a scratch copy; it passes in 0.49 seconds once they are moved out. CI
+   never sees this, so the signature is a green `main` with a red local push.
+   Relocate with `git worktree move`, which preserves uncommitted work. Details
+   in `.serena/memories/git/git-never-place-worktrees-inside-the-checkout.md`.
 
 ## References
 
