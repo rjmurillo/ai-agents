@@ -14,9 +14,11 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
+from typing import Any, cast
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -31,11 +33,15 @@ else:
 if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
     sys.exit(2)  # Config error per ADR-035
+_script_dir = os.path.dirname(__file__)
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from github_core.api import (
     assert_gh_authenticated,
+    gh_graphql,
     resolve_repo_params,
 )
 from github_core.output import (
@@ -43,6 +49,11 @@ from github_core.output import (
     get_output_format,
     write_skill_error,
     write_skill_output,
+)
+from review_thread_lookup import (
+    REVIEW_THREADS_QUERY,
+    review_threads_page,
+    thread_with_root_comment,
 )
 
 REACTION_EMOJI: dict[str, str] = {
@@ -61,6 +72,7 @@ VALID_REACTIONS = list(REACTION_EMOJI.keys())
 
 # Upper bound (seconds) for each gh network call.
 GH_TIMEOUT_SECONDS = 30
+_MAX_THREAD_PAGES = 50
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -88,83 +100,302 @@ def build_parser() -> argparse.ArgumentParser:
         choices=VALID_REACTIONS,
         help="Reaction type",
     )
+    parser.add_argument(
+        "--pull-request",
+        "--expected-pull-request",
+        dest="pull_request",
+        type=int,
+        help="Expected PR number. Review comments from another PR are skipped.",
+    )
     add_output_format_arg(parser)
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    fmt = get_output_format(args.output_format)
+def _query_review_comment(
+    owner: str,
+    repo: str,
+    comment_id: int,
+) -> dict[str, Any] | None:
+    endpoint = f"repos/{owner}/{repo}/pulls/comments/{comment_id}"
+    result = subprocess.run(
+        ["gh", "api", endpoint],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=GH_TIMEOUT_SECONDS,
+        check=False,
+    )
+    if result.returncode != 0:
+        error = result.stderr.strip() or result.stdout.strip()
+        if "HTTP 404" in error or "Not Found" in error:
+            return None
+        raise RuntimeError(error or f"Failed to query review comment {comment_id}")
+    try:
+        comment = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Invalid JSON while querying review comment {comment_id}"
+        ) from exc
+    if not isinstance(comment, dict):
+        raise RuntimeError(f"Unexpected review comment payload for {comment_id}")
+    return comment
 
-    assert_gh_authenticated()
-    resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved.owner, resolved.repo
 
-    emoji = REACTION_EMOJI.get(args.reaction, args.reaction)
-    succeeded = 0
-    failed = 0
-    timeout_failures = 0
-    results: list[dict[str, object]] = []
+def _pull_request_number(comment: dict[str, Any]) -> int:
+    pull_request_url = comment.get("pull_request_url")
+    if not isinstance(pull_request_url, str):
+        raise RuntimeError("Review comment response omitted pull_request_url")
+    try:
+        return int(pull_request_url.rstrip("/").rsplit("/", 1)[1])
+    except (IndexError, ValueError) as exc:
+        raise RuntimeError(
+            f"Invalid pull_request_url for review comment: {pull_request_url}"
+        ) from exc
 
-    for cid in args.comment_id:
-        if args.comment_type == "review":
-            endpoint = f"repos/{owner}/{repo}/pulls/comments/{cid}/reactions"
-        else:
-            endpoint = f"repos/{owner}/{repo}/issues/comments/{cid}/reactions"
 
-        try:
-            result = subprocess.run(
-                ["gh", "api", endpoint, "-X", "POST", "-f", f"content={args.reaction}"],
-                capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
-                check=False,
+def _find_review_thread(
+    owner: str,
+    repo: str,
+    pull_request: int,
+    root_comment_id: int,
+) -> dict[str, Any] | None:
+    cursor: str | None = None
+    for _page in range(_MAX_THREAD_PAGES):
+        variables: dict[str, object] = {
+            "owner": owner,
+            "repo": repo,
+            "prNumber": pull_request,
+        }
+        if cursor is not None:
+            variables["cursor"] = cursor
+        data = gh_graphql(REVIEW_THREADS_QUERY, variables)
+        review_threads = review_threads_page(data, pull_request)
+        nodes = review_threads["nodes"]
+        thread = thread_with_root_comment(nodes, root_comment_id)
+        if thread is not None:
+            return thread
+        page_info = review_threads.get("pageInfo")
+        if not isinstance(page_info, dict) or not page_info.get("hasNextPage"):
+            return None
+        cursor_value = page_info.get("endCursor")
+        if not isinstance(cursor_value, str) or not cursor_value:
+            raise RuntimeError(
+                f"Review thread pagination cursor missing for PR #{pull_request}"
             )
-        except subprocess.TimeoutExpired:
-            # One hung reaction must not stall the whole loop.
-            failed += 1
-            timeout_failures += 1
-            results.append({
-                "success": False,
-                "comment_id": cid,
-                "error": f"gh api timed out after {GH_TIMEOUT_SECONDS}s",
-            })
-            continue
+        cursor = cursor_value
+    raise RuntimeError(
+        f"Review thread pagination exceeded {_MAX_THREAD_PAGES} pages"
+    )
 
-        # Duplicate reactions are OK (idempotent)
-        success = result.returncode == 0 or "already reacted" in (result.stderr + result.stdout)
 
-        if success:
-            succeeded += 1
-            results.append({
-                "success": True,
-                "comment_id": cid,
-                "comment_type": args.comment_type,
-                "reaction": args.reaction,
-                "emoji": emoji,
-                "error": None,
-            })
-        else:
-            failed += 1
-            error_str = result.stderr.strip() or result.stdout.strip()
-            results.append({
-                "success": False,
-                "comment_id": cid,
-                "comment_type": args.comment_type,
-                "reaction": args.reaction,
-                "emoji": emoji,
-                "error": error_str,
-            })
+def query_review_comment_thread_state(
+    owner: str,
+    repo: str,
+    comment_id: int,
+    expected_pull_request: int | None = None,
+) -> dict[str, Any] | None:
+    comment = _query_review_comment(owner, repo, comment_id)
+    if comment is None:
+        return None
+    pull_request = _pull_request_number(comment)
+    if (
+        expected_pull_request is not None
+        and pull_request != expected_pull_request
+    ):
+        return {
+            "pull_request": pull_request,
+            "thread_id": None,
+            "is_resolved": None,
+        }
+    in_reply_to_id = comment.get("in_reply_to_id")
+    root_comment_id = (
+        in_reply_to_id
+        if isinstance(in_reply_to_id, int)
+        else comment_id
+    )
+    thread = _find_review_thread(
+        owner,
+        repo,
+        pull_request,
+        root_comment_id,
+    )
+    return {
+        "pull_request": pull_request,
+        "thread_id": thread.get("id") if thread is not None else None,
+        "is_resolved": thread.get("isResolved") if thread is not None else None,
+    }
 
+
+def _review_comment_decision(
+    owner: str,
+    repo: str,
+    comment_id: int,
+    expected_pull_request: int | None,
+) -> tuple[str, str, dict[str, Any] | None]:
+    state = query_review_comment_thread_state(
+        owner,
+        repo,
+        comment_id,
+        expected_pull_request,
+    )
+    if state is None:
+        return "SKIP", "comment_not_found", None
+    if (
+        expected_pull_request is not None
+        and state.get("pull_request") != expected_pull_request
+    ):
+        return "SKIP", "wrong_pull_request", state
+    if state.get("thread_id") is None:
+        return "SKIP", "thread_not_found", state
+    if state.get("is_resolved"):
+        return "SKIP", "thread_resolved", state
+    return "ACT", "thread_unresolved", state
+
+
+def _skipped_review_reaction(
+    owner: str,
+    repo: str,
+    comment_id: int,
+    pull_request: int | None,
+    reaction: str,
+    emoji: str,
+) -> dict[str, object] | None:
+    try:
+        action, reason, state = _review_comment_decision(
+            owner,
+            repo,
+            comment_id,
+            pull_request,
+        )
+    except (RuntimeError, subprocess.TimeoutExpired) as exc:
+        return {
+            "action": "SKIP",
+            "reason": "thread_state_query_failed",
+            "success": False,
+            "comment_id": comment_id,
+            "error": str(exc),
+        }
+    if action == "ACT":
+        return None
+    return {
+        "action": action,
+        "reason": reason,
+        "success": True,
+        "comment_id": comment_id,
+        "comment_type": "review",
+        "thread_id": state.get("thread_id") if state else None,
+        "pull_request": state.get("pull_request") if state else None,
+        "reaction": reaction,
+        "emoji": emoji,
+        "error": None,
+    }
+
+
+def _add_reaction(
+    endpoint: str,
+    comment_id: int,
+    comment_type: str,
+    reaction: str,
+    emoji: str,
+) -> dict[str, object]:
+    try:
+        result = subprocess.run(
+            ["gh", "api", endpoint, "-X", "POST", "-f", f"content={reaction}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "action": "ACT",
+            "reason": "reaction_timeout",
+            "success": False,
+            "comment_id": comment_id,
+            "error": f"gh api timed out after {GH_TIMEOUT_SECONDS}s",
+        }
+    output = result.stderr + result.stdout
+    success = result.returncode == 0 or "already reacted" in output
+    return {
+        "action": "ACT",
+        "reason": "reaction_added" if success else "reaction_failed",
+        "success": success,
+        "comment_id": comment_id,
+        "comment_type": comment_type,
+        "reaction": reaction,
+        "emoji": emoji,
+        "error": None if success else result.stderr.strip() or result.stdout.strip(),
+    }
+
+
+def _process_comment(
+    owner: str,
+    repo: str,
+    comment_id: int,
+    comment_type: str,
+    pull_request: int | None,
+    reaction: str,
+    emoji: str,
+) -> dict[str, object]:
+    if comment_type == "review":
+        skipped = _skipped_review_reaction(
+            owner,
+            repo,
+            comment_id,
+            pull_request,
+            reaction,
+            emoji,
+        )
+        if skipped is not None:
+            return skipped
+        endpoint = f"repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions"
+    else:
+        endpoint = f"repos/{owner}/{repo}/issues/comments/{comment_id}/reactions"
+    return _add_reaction(endpoint, comment_id, comment_type, reaction, emoji)
+
+
+def _reaction_summary(
+    args: argparse.Namespace,
+    emoji: str,
+    results: list[dict[str, object]],
+) -> tuple[dict[str, object], int, int]:
+    succeeded = sum(result["reason"] == "reaction_added" for result in results)
+    skipped = sum(
+        result["action"] == "SKIP" and bool(result["success"])
+        for result in results
+    )
+    failed = sum(not bool(result["success"]) for result in results)
+    attempted = sum(result["action"] == "ACT" for result in results)
     summary = {
+        "action": "ACT" if attempted > 0 else "SKIP",
+        "reason": "batch_complete" if failed == 0 else "batch_failed",
         "total_count": len(args.comment_id),
         "succeeded": succeeded,
+        "skipped": skipped,
         "failed": failed,
         "reaction": args.reaction,
         "emoji": emoji,
         "comment_type": args.comment_type,
         "results": results,
     }
+    return summary, succeeded, skipped
 
+
+def _write_reaction_result(
+    args: argparse.Namespace,
+    fmt: str,
+    summary: dict[str, object],
+    succeeded: int,
+    skipped: int,
+) -> int:
+    failed = cast(int, summary["failed"])
     if failed > 0:
+        results = cast(list[dict[str, object]], summary["results"])
+        timeout_failures = sum(
+            result["reason"] == "reaction_timeout"
+            for result in results
+        )
         write_skill_error(
             (
                 f"Applied '{args.reaction}' to {succeeded}/{len(args.comment_id)} "
@@ -177,17 +408,57 @@ def main(argv: list[str] | None = None) -> int:
             extra=summary,
         )
         return 3
-
     write_skill_output(
         summary,
         output_format=fmt,
         human_summary=(
-            f"Applied '{args.reaction}' to {succeeded}/{len(args.comment_id)} "
-            f"comment(s) ({failed} failed)"
+            f"Applied '{args.reaction}' to {succeeded} comment(s); "
+            f"skipped {skipped}; {failed} failed"
         ),
         script_name="add_comment_reaction.py",
     )
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
+    if args.pull_request is not None and args.pull_request <= 0:
+        write_skill_error(
+            "Pull request number must be positive.",
+            2,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="add_comment_reaction.py",
+            extra={"action": "SKIP", "reason": "invalid_pull_request"},
+        )
+        return 2
+
+    assert_gh_authenticated()
+    resolved = resolve_repo_params(args.owner, args.repo)
+    owner, repo = resolved.owner, resolved.repo
+
+    emoji = REACTION_EMOJI.get(args.reaction, args.reaction)
+    results = [
+        _process_comment(
+            owner,
+            repo,
+            comment_id,
+            args.comment_type,
+            args.pull_request,
+            args.reaction,
+            emoji,
+        )
+        for comment_id in args.comment_id
+    ]
+    summary, succeeded, skipped = _reaction_summary(args, emoji, results)
+    return _write_reaction_result(
+        args,
+        fmt,
+        summary,
+        succeeded,
+        skipped,
+    )
 
 
 if __name__ == "__main__":
