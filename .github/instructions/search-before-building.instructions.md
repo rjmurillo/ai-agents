@@ -15,6 +15,7 @@ Trigger this rule when any of the following is true:
 - The task uses a runtime feature, library, framework, or platform you have not touched in this codebase before.
 - The task asks for a pattern (retry, idempotency key, circuit breaker, queue topology, schema migration) that has a known canonical shape.
 - The task is in a domain you do not have a memory or ADR for.
+- You are diagnosing a failure rather than building: a red check, a blocked push, a rejected API call. This repo has 321 indexed memories and they cover CI, git, and PR-gate quirks densely, so the cause is often already written down. Re-deriving it is the expensive miss, and no gate catches it.
 - You catch yourself starting from a blank file with no reference open.
 
 **When to skip the search.** Skip when the edit only modifies code already open in the conversation context AND introduces no new APIs, libraries, or patterns. If either condition fails, run at least Layer 1. Search has a cost; do not search for the sake of searching, but do not skip because you "feel familiar" either. Familiarity without a recent read of the file is a hallucination signal.
