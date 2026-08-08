@@ -306,14 +306,14 @@ class TestMain:
     )
     @patch("subprocess.run")
     @patch("shutil.which")
-    def test_success_output_prompts_push_verification(
+    def test_success_output_requires_remote_sha_to_match_head(
         self,
         mock_which: Any,
         mock_run: Any,
         _mock_sequence: Any,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Issue #4506: success output must prompt the user to verify the push landed."""
+        """Issue #4506: verification must reject an existing but stale remote ref."""
         mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
@@ -321,7 +321,9 @@ class TestMain:
         assert result == 0
         out = capsys.readouterr().out
         assert "Verify the push landed" in out
+        assert "git rev-parse HEAD" in out
         assert "git ls-remote origin <branch>" in out
+        assert "same SHA" in out
 
     @patch(
         "pre_pr_sequence._SEQUENCE",
