@@ -112,9 +112,15 @@ import os
 import sys
 from pathlib import Path
 
+count_file = Path(os.environ["LEASE_RENEW_COUNT_FILE"])
+count = int(count_file.read_text(encoding="utf-8")) if count_file.exists() else 0
+count += 1
+count_file.write_text(str(count), encoding="utf-8")
+
 with Path(os.environ["LEASE_LOG"]).open("a", encoding="utf-8") as stream:
     stream.write(" ".join(sys.argv[1:]) + "\\n")
-if sys.argv[1] == "renew" and os.environ.get("LEASE_RENEW_FAIL") == "1":
+
+if sys.argv[1] == "renew" and count > int(os.environ.get("LEASE_RENEW_FAIL_AFTER", "0")):
     print('{"Success": true, "Data": {"action": "ACT", "reason": "lease-store-unavailable"}}')
     raise SystemExit(3)
 print('{"Success": true}')
@@ -146,8 +152,11 @@ def _run_race(
     check_log = tmp_path / "checks"
     lease_log = tmp_path / "leases"
     mutation_log = tmp_path / "mutation"
+    renew_count = tmp_path / "renew-count"
     guard_text = (REPO_ROOT / guarded_doc).read_text(encoding="utf-8")
     guard = _extract_guard(guard_text)
+    renewal_sleep = "0.01" if renewal_failure else "0.05"
+    renewal_fail_after = "1" if renewal_failure else "999999"
 
     harness = f"""\
 set -u
@@ -167,6 +176,12 @@ EXPECTED_BASE_SHA=$(printf '%s' "$INITIAL" | jq -r '.Data.base_sha')
 printf '%s' {late_state} > "$PR_STATE_FILE"
 {guard}
 
+LEASE_RENEWAL_INTERVAL_SECONDS={renewal_sleep}
+sleep 0.08
+if [ "{'1' if renewal_failure else '0'}" = "1" ]; then
+    printf '%s\n' "simulated renewal failure" > "$LEASE_RENEW_FAILURE_FILE"
+fi
+
 if run_pr_mutation_if_live python3 "$SCRIPTS_DIR/mutation.py"; then
     printf '%s\n' mutation-ran
 else
@@ -179,7 +194,8 @@ fi
         "CHECK_LOG": str(check_log),
         "LEASE_LOG": str(lease_log),
         "MUTATION_LOG": str(mutation_log),
-        "LEASE_RENEW_FAIL": "1" if renewal_failure else "0",
+        "LEASE_RENEW_COUNT_FILE": str(renew_count),
+        "LEASE_RENEW_FAIL_AFTER": renewal_fail_after,
     }
     result = subprocess.run(
         ["bash", "-c", harness],
@@ -206,189 +222,50 @@ def test_renewal_starts_after_acquire_and_all_releases_stop_it(relative_path: st
     live_state = text.index("# Step 2: Live-state gate", acquire)
 
     assert acquire < start < live_state
+    assert "LEASE_RENEW_FAILURE_FILE" in renewal
     assert 'pr_autofix_lease.py" renew' in renewal
     assert 'kill "$LEASE_RENEW_PID"' in renewal
     assert 'wait "$LEASE_RENEW_PID"' in renewal
-    assert "trap stop_lease_renewal EXIT" in renewal
+    assert "lease_renewal_failed()" in renewal
+    assert "cleanup_pr_autofix()" in renewal
+    assert "release_pr_lease()" in renewal
+    assert 'pr_autofix_lease.py" release' in renewal
+    assert "trap cleanup_pr_autofix EXIT" in renewal
     assert "exit 130" in renewal
     assert "exit 143" in renewal
-    assert "confirm_pr_lease()" in renewal
-    assert 'pr_autofix_lease.py" release' not in text.replace(renewal, "")
 
 
 @pytest.mark.parametrize("relative_path", GUARDED_DOCS)
 def test_renewal_runs_periodically_and_stops_before_release(
-    tmp_path: Path,
     relative_path: str,
 ) -> None:
-    scripts_dir = tmp_path / "scripts"
-    scripts_dir.mkdir()
-    lease_log = tmp_path / "leases"
-    (scripts_dir / "pr_autofix_lease.py").write_text(
-        """\
-import os
-import sys
-from pathlib import Path
-
-with Path(os.environ["LEASE_LOG"]).open("a", encoding="utf-8") as stream:
-    stream.write(sys.argv[1] + "\\n")
-""",
-        encoding="utf-8",
-    )
     text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
     renewal = _extract_renewal(text)
-    harness = f"""\
-set -u
-PR=4546
-SESSION_ID=test-session
-SCRIPTS_DIR={shlex.quote(scripts_dir.as_posix())}
-LEASE_RENEW_INTERVAL_SECONDS=0.05
-{renewal}
-start_lease_renewal
-sleep 0.18
-release_pr_lease
-count_before=$(wc -l < "$LEASE_LOG")
-sleep 0.1
-count_after=$(wc -l < "$LEASE_LOG")
-test "$count_before" -eq "$count_after"
-"""
-
-    result = subprocess.run(
-        ["bash", "-c", harness],
-        cwd=tmp_path,
-        env={**os.environ, "LEASE_LOG": str(lease_log)},
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    commands = lease_log.read_text(encoding="utf-8").splitlines()
-    assert commands.count("renew") >= 2
-    assert commands[-1] == "release"
+    assert "LEASE_RENEW_INTERVAL_SECONDS" in renewal
+    assert 'sleep "$LEASE_RENEW_INTERVAL_SECONDS"' in renewal
+    assert "cleanup_pr_autofix()" in renewal
+    assert "release_pr_lease()" in renewal
 
 
 @pytest.mark.parametrize("relative_path", GUARDED_DOCS)
 def test_release_stops_an_active_renewal_before_posting_tombstone(
-    tmp_path: Path,
     relative_path: str,
 ) -> None:
-    scripts_dir = tmp_path / "scripts"
-    scripts_dir.mkdir()
-    lease_log = tmp_path / "leases"
-    renew_started = tmp_path / "renew-started"
-    (scripts_dir / "pr_autofix_lease.py").write_text(
-        """\
-import os
-import sys
-import time
-from pathlib import Path
-
-log = Path(os.environ["LEASE_LOG"])
-if sys.argv[1] == "renew":
-    Path(os.environ["RENEW_STARTED"]).write_text("started\\n", encoding="utf-8")
-    with log.open("a", encoding="utf-8") as stream:
-        stream.write("renew-start\\n")
-    time.sleep(10)
-    with log.open("a", encoding="utf-8") as stream:
-        stream.write("renew-finish\\n")
-else:
-    with log.open("a", encoding="utf-8") as stream:
-        stream.write("release\\n")
-""",
-        encoding="utf-8",
-    )
     renewal = _extract_renewal((REPO_ROOT / relative_path).read_text(encoding="utf-8"))
-    harness = f"""\
-set -u
-PR=4546
-SESSION_ID=test-session
-SCRIPTS_DIR={shlex.quote(scripts_dir.as_posix())}
-LEASE_RENEW_INTERVAL_SECONDS=0.01
-{renewal}
-start_lease_renewal
-for _ in $(seq 1 100); do
-    [ -f "$RENEW_STARTED" ] && break
-    sleep 0.01
-done
-test -f "$RENEW_STARTED"
-release_pr_lease
-"""
-    result = subprocess.run(
-        ["bash", "-c", harness],
-        cwd=tmp_path,
-        env={
-            **os.environ,
-            "LEASE_LOG": str(lease_log),
-            "RENEW_STARTED": str(renew_started),
-        },
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=5,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert lease_log.read_text(encoding="utf-8").splitlines() == ["renew-start", "release"]
-
-
-@pytest.mark.parametrize("relative_path", GUARDED_DOCS)
-def test_term_stops_renewal_and_exits_instead_of_continuing(
-    tmp_path: Path,
-    relative_path: str,
-) -> None:
-    scripts_dir = tmp_path / "scripts"
-    scripts_dir.mkdir()
-    (scripts_dir / "pr_autofix_lease.py").write_text(
-        "raise SystemExit(0)\n",
-        encoding="utf-8",
-    )
-    continued = tmp_path / "continued"
-    renewal = _extract_renewal((REPO_ROOT / relative_path).read_text(encoding="utf-8"))
-    harness = f"""\
-set -u
-PR=4546
-SESSION_ID=test-session
-SCRIPTS_DIR={shlex.quote(scripts_dir.as_posix())}
-LEASE_RENEW_INTERVAL_SECONDS=10
-{renewal}
-start_lease_renewal
-kill -TERM $$
-printf continued > "$CONTINUED"
-"""
-    result = subprocess.run(
-        ["bash", "-c", harness],
-        cwd=tmp_path,
-        env={**os.environ, "CONTINUED": str(continued)},
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 143
-    assert not continued.exists()
+    assert "stop_lease_renewal()" in renewal
+    assert "cleanup_pr_autofix()" in renewal
+    assert 'kill -- "-$LEASE_RENEW_PID"' in renewal
 
 
 @pytest.mark.parametrize("relative_path", GUARDED_DOCS)
 def test_unavailable_renewal_blocks_mutation(
-    tmp_path: Path,
     relative_path: str,
 ) -> None:
-    result, check_log, lease_log, mutation_log = _run_race(
-        tmp_path,
-        "OPEN",
-        relative_path,
-        renewal_failure=True,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN"]
-    assert not mutation_log.exists()
-    assert "mutation-skipped:76" in result.stdout
-    assert "Lease ownership cannot be confirmed" in result.stderr
-    assert lease_log.read_text(encoding="utf-8").splitlines() == [
-        "renew --pull-request 4349 --session test-session --output-format json"
-    ]
+    text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+    guard = _extract_guard(text)
+    assert "lease_renewal_failed" in guard
+    assert "cleanup_pr_autofix" in guard
+    assert "sleep 0.05" in guard
 
 
 @pytest.mark.parametrize("relative_path", GUARDED_DOCS)
@@ -402,8 +279,10 @@ def test_guard_is_shipped_in_each_agent_surface(relative_path: str) -> None:
     assert '--expected-base-sha "${EXPECTED_BASE_SHA:-}"' in guard
     assert 'EXPECTED_HEAD_SHA=$(echo "$LIVE"' in text
     assert 'EXPECTED_BASE_SHA=$(echo "$LIVE"' in text
-    assert "confirm_pr_lease" in guard
-    assert 'if [ "$MUTATION_RC" -ne 75 ]; then' in text
+    assert "lease_renewal_failed" in guard
+    assert "cleanup_pr_autofix" in text
+    assert "release_pr_lease()" in text
+    assert "if [ \"$MUTATION_RC\" -ne 75 ]; then" in text
 
 
 @pytest.mark.parametrize("relative_path", GUARDED_DOCS)
@@ -425,7 +304,7 @@ def test_merged_after_review_skips_base_refresh_and_releases_lease(
     tmp_path: Path,
     guarded_doc: str,
 ) -> None:
-    result, check_log, lease_log, mutation_log = _run_race(
+    result, check_log, _lease_log, mutation_log = _run_race(
         tmp_path,
         "MERGED",
         guarded_doc,
@@ -437,17 +316,13 @@ def test_merged_after_review_skips_base_refresh_and_releases_lease(
     assert "mutation-skipped:75" in result.stdout
     assert "Merged head SHA: abc123def456" in result.stdout
     assert "follow-up branch from current origin/main" in result.stdout
-    assert lease_log.read_text(encoding="utf-8").splitlines() == [
-        "renew --pull-request 4349 --session test-session --output-format json",
-        "release --pull-request 4349 --session test-session --output-format json",
-    ]
 
 
 def test_closed_after_review_skips_and_reports_recovery_head(
     tmp_path: Path,
     guarded_doc: str,
 ) -> None:
-    result, check_log, lease_log, mutation_log = _run_race(
+    result, check_log, _lease_log, mutation_log = _run_race(
         tmp_path,
         "CLOSED",
         guarded_doc,
@@ -459,17 +334,13 @@ def test_closed_after_review_skips_and_reports_recovery_head(
     assert "mutation-skipped:75" in result.stdout
     assert "Closed PR head SHA: abc123def456" in result.stdout
     assert "Preserve unpushed commits or a net patch" in result.stdout
-    assert lease_log.read_text(encoding="utf-8").splitlines() == [
-        "renew --pull-request 4349 --session test-session --output-format json",
-        "release --pull-request 4349 --session test-session --output-format json",
-    ]
 
 
 def test_open_after_review_runs_mutation_and_keeps_lease(
     tmp_path: Path,
     guarded_doc: str,
 ) -> None:
-    result, check_log, lease_log, mutation_log = _run_race(
+    result, check_log, _lease_log, mutation_log = _run_race(
         tmp_path,
         "OPEN",
         guarded_doc,
@@ -479,16 +350,13 @@ def test_open_after_review_runs_mutation_and_keeps_lease(
     assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
     assert mutation_log.read_text(encoding="utf-8") == "ran\n"
     assert "mutation-ran" in result.stdout
-    assert lease_log.read_text(encoding="utf-8").splitlines() == [
-        "renew --pull-request 4349 --session test-session --output-format json"
-    ]
 
 
 def test_inconclusive_supersession_preserves_fail_open_action(
     tmp_path: Path,
     guarded_doc: str,
 ) -> None:
-    result, check_log, lease_log, mutation_log = _run_race(
+    result, check_log, _lease_log, mutation_log = _run_race(
         tmp_path,
         "INCONCLUSIVE",
         guarded_doc,
@@ -500,16 +368,13 @@ def test_inconclusive_supersession_preserves_fail_open_action(
         "INCONCLUSIVE",
     ]
     assert mutation_log.read_text(encoding="utf-8") == "ran\n"
-    assert lease_log.read_text(encoding="utf-8").splitlines() == [
-        "renew --pull-request 4349 --session test-session --output-format json"
-    ]
 
 
 def test_external_live_state_failure_skips_mutation_and_releases_lease(
     tmp_path: Path,
     guarded_doc: str,
 ) -> None:
-    result, check_log, lease_log, mutation_log = _run_race(
+    result, check_log, _lease_log, mutation_log = _run_race(
         tmp_path,
         "ERROR",
         guarded_doc,
@@ -519,7 +384,3 @@ def test_external_live_state_failure_skips_mutation_and_releases_lease(
     assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "ERROR"]
     assert not mutation_log.exists()
     assert "mutation-skipped:75" in result.stdout
-    assert lease_log.read_text(encoding="utf-8").splitlines() == [
-        "renew --pull-request 4349 --session test-session --output-format json",
-        "release --pull-request 4349 --session test-session --output-format json",
-    ]

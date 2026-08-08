@@ -1282,6 +1282,39 @@ class TestMainExitCodes:
                 main(["acquire", "--pull-request", "1", "--output-format", "json"])
         assert exc.value.code == 2
 
+    def test_invalid_repo_params_exit_two_before_auth_fail_open(self):
+        auth = patch.object(_mod, "assert_gh_authenticated", side_effect=AssertionError("auth"))
+        with auth, pytest.raises(SystemExit) as exc:
+            main(
+                [
+                    "acquire",
+                    "--owner",
+                    "bad owner",
+                    "--repo",
+                    "repo",
+                    "--pull-request",
+                    "1",
+                    "--session",
+                    _SESSION,
+                    "--output-format",
+                    "json",
+                ]
+            )
+        assert exc.value.code == 2
+
+    def test_auth_failure_fails_open_after_repo_validation(self, capsys):
+        with (
+            patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(4)),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+        ):
+            rc = main(
+                ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        payload = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
     def test_release_exits_zero(self):
         with (
             patch.object(_mod, "assert_gh_authenticated", return_value=None),
@@ -1350,19 +1383,25 @@ class TestAuthFailOpenFix:
         assert payload["Data"]["action"] == "ACT"
         assert payload["Data"]["reason"] == "lease-store-unavailable"
 
-    def test_repo_resolution_failure_exits_zero_act(self, capsys):
-        # resolve_repo_params raises SystemExit(3) when repo can't resolve.
+    def test_repo_resolution_failure_propagates(self):
+        # resolve_repo_params failures stay outside the auth fail-open path.
         with (
             patch.object(_mod, "assert_gh_authenticated", return_value=None),
             patch.object(_mod, "resolve_repo_params", side_effect=SystemExit(3)),
         ):
-            rc = main(
-                ["acquire", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
-            )
-        assert rc == 0
-        payload = json.loads(capsys.readouterr().out)
-        assert payload["Data"]["action"] == "ACT"
-        assert payload["Data"]["reason"] == "lease-store-unavailable"
+            with pytest.raises(SystemExit) as exc:
+                main(
+                    [
+                        "acquire",
+                        "--pull-request",
+                        "1",
+                        "--session",
+                        _SESSION,
+                        "--output-format",
+                        "json",
+                    ]
+                )
+        assert exc.value.code == 3
 
     def test_invalid_repo_argument_preserves_exit_two(self):
         with (

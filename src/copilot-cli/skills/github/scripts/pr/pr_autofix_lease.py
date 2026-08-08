@@ -1006,20 +1006,21 @@ def _run_command(args: argparse.Namespace, owner: str, repo: str) -> LeaseResult
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     output_format = args.output_format
-    # ADR-076 part 3 step 6: API/auth store failures must fail open to ACT
-    # with reason=lease-store-unavailable, never exit 3 or 4 before lease logic.
+    # ADR-076 part 3 step 6: repo-parameter validation must run before any
+    # auth fail-open so malformed owner/repo still exits 2. Valid auth
+    # failures still fail open to ACT with reason=lease-store-unavailable.
     # assert_gh_authenticated() raises SystemExit(4) on auth failure, which
     # converts an advisory coordination mechanism into a workflow outage
-    # (issue #4375). Repo discovery can fail externally with exit 3 too.
-    # Invalid explicit repo arguments remain configuration errors at exit 2.
+    # (issue #4375).
+    resolved = resolve_repo_params(args.owner, args.repo)
+    owner, repo = resolved.owner, resolved.repo
     try:
         assert_gh_authenticated()
-        resolved = resolve_repo_params(args.owner, args.repo)
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else 3
         if code not in (3, 4):
             raise
-        # Auth / external repo resolution failure. Fail open per ADR-076 part 3
+        # Auth failure. Fail open per ADR-076 part 3
         # step 6: emit an ACT/lease-store-unavailable result on the same
         # output channel so the caller sees a structured verdict, then exit
         # 0 (ACT). The SHA gate is the backstop. We emit a best-effort
@@ -1055,7 +1056,6 @@ def main(argv: list[str] | None = None) -> int:
             script_name=_SCRIPT_NAME,
         )
         return 3 if args.command == "renew" else 0
-    owner, repo = resolved.owner, resolved.repo
 
     result = _run_command(args, owner, repo)
 

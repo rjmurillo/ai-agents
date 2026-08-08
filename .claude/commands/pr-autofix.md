@@ -76,62 +76,70 @@ SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 # late-live-state-guard:start
 # lease-renewal:start
 LEASE_RENEW_PID=""
-LEASE_RENEW_INTERVAL_SECONDS="${LEASE_RENEW_INTERVAL_SECONDS:-300}"
+LEASE_RENEW_FAILURE_FILE=""
+LEASE_RENEW_INTERVAL_SECONDS="${LEASE_RENEWAL_INTERVAL_SECONDS:-300}"
+LEASE_CLEANUP_DONE=0
+
+renew_lease_once() {
+    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" renew \
+        --pull-request "$PR" --session "$SESSION_ID" --output-format json >/dev/null
+}
 
 stop_lease_renewal() {
     if [ -z "$LEASE_RENEW_PID" ]; then
         return 0
     fi
+    kill -- "-$LEASE_RENEW_PID" 2>/dev/null || true
     kill "$LEASE_RENEW_PID" 2>/dev/null || true
     wait "$LEASE_RENEW_PID" 2>/dev/null || true
     LEASE_RENEW_PID=""
 }
 
+lease_renewal_failed() {
+    [ -n "$LEASE_RENEW_FAILURE_FILE" ] && [ -s "$LEASE_RENEW_FAILURE_FILE" ]
+}
+
 start_lease_renewal() {
     stop_lease_renewal
-    trap stop_lease_renewal EXIT
-    trap 'stop_lease_renewal; exit 130' INT
-    trap 'stop_lease_renewal; exit 143' TERM
+    LEASE_RENEW_FAILURE_FILE="$(mktemp)"
     (
-        LEASE_RENEW_CHILD_PID=""
-        stop_active_renewal() {
-            if [ -n "$LEASE_RENEW_CHILD_PID" ]; then
-                kill "$LEASE_RENEW_CHILD_PID" 2>/dev/null || true
-                wait "$LEASE_RENEW_CHILD_PID" 2>/dev/null || true
+        current_child=""
+        stop_current_child() {
+            if [ -n "$current_child" ]; then
+                kill "$current_child" 2>/dev/null || true
+                wait "$current_child" 2>/dev/null || true
             fi
-            exit 0
         }
-        trap stop_active_renewal INT TERM
-        while sleep "$LEASE_RENEW_INTERVAL_SECONDS"; do
-            python3 "$SCRIPTS_DIR/pr_autofix_lease.py" renew \
-                --pull-request "$PR" --session "$SESSION_ID" --output-format json \
-                >/dev/null &
-            LEASE_RENEW_CHILD_PID=$!
-            if ! wait "$LEASE_RENEW_CHILD_PID"; then
-                echo "Lease renewal stopped for #$PR; rely on the live-state and SHA gates." >&2
+        trap stop_current_child EXIT INT TERM
+        while true; do
+            renew_lease_once >/dev/null &
+            current_child=$!
+            if ! wait "$current_child"; then
+                printf '%s\n' "renewal failed while holding the lease" > "$LEASE_RENEW_FAILURE_FILE"
                 break
             fi
-            LEASE_RENEW_CHILD_PID=""
+            current_child=""
+            sleep "$LEASE_RENEW_INTERVAL_SECONDS" || break
         done
     ) &
     LEASE_RENEW_PID=$!
+    trap cleanup_pr_autofix EXIT
+    trap 'cleanup_pr_autofix; exit 130' INT
+    trap 'cleanup_pr_autofix; exit 143' TERM
 }
 
-confirm_pr_lease() {
-    if python3 "$SCRIPTS_DIR/pr_autofix_lease.py" renew \
-        --pull-request "$PR" --session "$SESSION_ID" --output-format json \
-        >/dev/null; then
+cleanup_pr_autofix() {
+    if [ "$LEASE_CLEANUP_DONE" -eq 1 ]; then
         return 0
     fi
-    stop_lease_renewal
-    echo "Lease ownership cannot be confirmed for #$PR; skipping mutation." >&2
-    return 76
-}
-
-release_pr_lease() {
+    LEASE_CLEANUP_DONE=1
     stop_lease_renewal
     python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
         --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+}
+
+release_pr_lease() {
+    cleanup_pr_autofix
 }
 # lease-renewal:end
 
@@ -165,15 +173,28 @@ recheck_pr_live_state() {
         echo "Closed PR head SHA: $late_head"
         echo "Preserve unpushed commits or a net patch before leaving the old branch."
     fi
-    release_pr_lease
+    cleanup_pr_autofix
     return 75
 }
 
 run_pr_mutation_if_live() {
-    if ! confirm_pr_lease; then
-        return 76
+    if lease_renewal_failed; then
+        echo "Skipping mutation for #$PR: lease renewal failed"
+        cleanup_pr_autofix
+        return 75
     fi
     if recheck_pr_live_state; then
+        if lease_renewal_failed; then
+            echo "Skipping mutation for #$PR: lease renewal failed"
+            cleanup_pr_autofix
+            return 75
+        fi
+        sleep 0.05
+        if lease_renewal_failed; then
+            echo "Skipping mutation for #$PR: lease renewal failed"
+            cleanup_pr_autofix
+            return 75
+        fi
         "$@"
         return $?
     fi
@@ -206,7 +227,7 @@ ACTION=$(echo "$LIVE" | jq -r '.Data.action')
 if [ "$ACTION" = "SKIP" ]; then
     REASON=$(echo "$LIVE" | jq -r '.Data.reason')
     echo "Skipping #$PR: $REASON"
-    release_pr_lease
+    cleanup_pr_autofix
     # If Data.superseded_by_base.fully_superseded == true, recommend close
     # via the queue's close-handling path; do NOT push or merge.
     continue
@@ -216,7 +237,7 @@ EXPECTED_BASE_REF=$(echo "$LIVE" | jq -r '.Data.base_ref // empty')
 EXPECTED_BASE_SHA=$(echo "$LIVE" | jq -r '.Data.base_sha // empty')
 if [ -z "$EXPECTED_HEAD_SHA" ] || [ -z "$EXPECTED_BASE_REF" ] || [ -z "$EXPECTED_BASE_SHA" ]; then
     echo "Cannot bind mutation to the live PR identity for #$PR; skipping."
-    release_pr_lease
+    cleanup_pr_autofix
     continue
 fi
 # ACTION == "ACT": proceed with the tier's planned action set.
@@ -233,7 +254,7 @@ AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/d
 # that as "armed" would fire the disarm path on no evidence, so skip instead.
 if [ -z "$AUTO_MERGE" ]; then
     echo "Cannot read auto-merge state for #$PR (context fetch or parse failed); skipping."
-    release_pr_lease
+    cleanup_pr_autofix
     continue
 fi
 if [ "$AUTO_MERGE" != "null" ] && [ "$TIER" != "T1" ]; then
@@ -246,8 +267,8 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER" != "T1" ]; then
         MUTATION_RC=$?
         if [ "$MUTATION_RC" -ne 75 ]; then
             echo "Failed to disable auto-merge on #$PR; skipping to avoid unguarded merge."
-            release_pr_lease
         fi
+        cleanup_pr_autofix
         continue
     fi
 fi
@@ -255,7 +276,7 @@ fi
 # Release the lease after all per-PR work (push + post-push CI wait + merge).
 # Pattern:
 #   ... (tier actions) ...
-#   release_pr_lease
+#   cleanup_pr_autofix
 ```
 
 Lease SKIP verdicts: when exit code is 1 the lease is held by another autofix
@@ -290,7 +311,7 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
     --json \
     --evidence-path ".agents/pr-comments/PR-$PR/gate-evidence.json"
 
-release_pr_lease
+cleanup_pr_autofix
 ```
 
 ## Workflow
