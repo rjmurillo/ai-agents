@@ -31,8 +31,16 @@ import dataclasses
 import json
 import os
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.utils.markdown_parser import extract_lookup_references  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -101,6 +109,7 @@ class MemoryIndexRefResult(ValidationIssues):
 
     unreferenced_indices: list[str] = field(default_factory=list)
     broken_references: list[str] = field(default_factory=list)
+    duplicate_references: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -170,17 +179,30 @@ _TABLE_ROW_PATTERN: re.Pattern[str] = re.compile(
 _MARKDOWN_LINK_PATTERN: re.Pattern[str] = re.compile(
     r"\[([^\]]+)\]\(([^)]+)\)"
 )
+_DOMAIN_INDEX_FILENAME_PATTERN: re.Pattern[str] = re.compile(
+    r"^[a-z][\w-]*-index\.md$"
+)
+_SKILLS_DOMAIN_INDEX_FILENAME_PATTERN: re.Pattern[str] = re.compile(
+    r"^skills-.+-index\.md$"
+)
+_SPECIAL_MEMORY_FILENAMES = frozenset({
+    "CLAUDE.md",
+    "README.md",
+    "memory-index.md",
+})
+OrphanPolicy = Literal["strict", "ratchet"]
 
 
 def find_domain_indices(memory_path: Path) -> list[DomainIndex]:
-    """Find all domain index files (skills-*-index.md pattern)."""
+    """Find all domain index files."""
     if not memory_path.exists():
         return []
 
     indices: list[DomainIndex] = []
-    for f in sorted(memory_path.glob("skills-*-index.md")):
+    for f in sorted(memory_path.glob("*-index.md")):
+        if f.name == "memory-index.md":
+            continue
         name = f.stem
-        # Extract domain: skills-{domain}-index -> {domain}
         domain = re.sub(r"^skills-", "", name)
         domain = re.sub(r"-index$", "", domain)
         indices.append(DomainIndex(path=f, name=name, domain=domain))
@@ -332,8 +354,6 @@ def check_index_format(index_path: Path) -> FormatResult:
         return result
 
     lines = index_path.read_text(encoding="utf-8").split("\n")
-    table_header_found = False
-
     for line_number, line in enumerate(lines, start=1):
         trimmed = line.strip()
 
@@ -374,17 +394,14 @@ def check_index_format(index_path: Path) -> FormatResult:
 
         # Valid table row
         if re.match(r"^\|.*\|$", trimmed):
-            table_header_found = True
             continue
 
-        # Non-table content after table header
-        if table_header_found and not re.match(r"^\|.*\|$", trimmed):
-            result.passed = False
-            result.violation_lines.append(line_number)
-            result.issues.append(
-                f"Line {line_number}: Non-table content detected - "
-                f"'{trimmed}' (prohibited per ADR-017)"
-            )
+        result.passed = False
+        result.violation_lines.append(line_number)
+        result.issues.append(
+            f"Line {line_number}: Non-table content detected - "
+            f"'{trimmed}' (prohibited per ADR-017)"
+        )
 
     return result
 
@@ -491,62 +508,70 @@ def check_memory_index_references(
     content = memory_index_path.read_text(encoding="utf-8")
     resolved_memory = memory_path.resolve()
 
-    # P1: Check completeness
-    for index in domain_indices:
-        if index.name not in content:
-            result.passed = False
-            result.unreferenced_indices.append(index.name)
-            result.issues.append(
-                f"P1 COMPLETENESS: Domain index not referenced "
-                f"in memory-index: {index.name}"
-            )
-
     # P1: Check validity of references
     # Collect file references from both table rows and pipe-delimited lines
-    file_refs: list[str] = []
-    for line in content.splitlines():
-        # Try table row format first: | keywords | files |
-        match = _TABLE_ROW_PATTERN.match(line)
-        if match:
-            file_entry = match.group(2).strip()
-            skip_values = {
-                "File", "Essential Memories", "Memory", "Memory Index"
-            }
-            if file_entry in skip_values or re.match(r"^-+$", file_entry):
-                continue
-            file_refs.extend(
-                f.strip() for f in file_entry.split(",") if f.strip()
-            )
-            continue
+    file_refs = extract_lookup_references(content)
 
-        # Try pipe-delimited format: |keywords: [name](file.md), ...
-        stripped = line.strip()
-        if stripped.startswith("|") and not stripped.startswith("|---"):
-            # Extract all markdown links from the line
-            for link_match in _MARKDOWN_LINK_PATTERN.finditer(stripped):
-                file_refs.append(link_match.group(0))
-
-    file_refs = list({ref.strip() for ref in file_refs})
-    for file_name in file_refs:
-        # Parse markdown link syntax
+    normalized_refs: list[tuple[str, Path]] = []
+    for raw_ref in file_refs:
+        file_name = raw_ref.strip()
         parsed_link = _MARKDOWN_LINK_PATTERN.search(file_name)
         if parsed_link:
-            link_target = parsed_link.group(2)
-            file_name = re.sub(r"\.md$", "", link_target)
+            file_name = parsed_link.group(2)
+        if not file_name.endswith(".md"):
+            file_name = f"{file_name}.md"
 
-        ref_path = memory_path / f"{file_name}.md"
-
-        # Security: Prevent path traversal (CWE-22).
-        resolved_ref = ref_path.resolve()
+        resolved_ref = (memory_path / file_name).resolve()
         if not resolved_ref.is_relative_to(resolved_memory):
             result.passed = False
-            result.broken_references.append(file_name)
+            result.broken_references.append(file_name.removesuffix(".md"))
             result.issues.append(
                 f"P1 VALIDITY: Path traversal detected "
-                f"in memory-index: {file_name}.md"
+                f"in memory-index: {file_name}"
             )
             continue
 
+        canonical_ref = resolved_ref.relative_to(resolved_memory).as_posix()
+        normalized_refs.append(
+            (canonical_ref.removesuffix(".md"), resolved_ref)
+        )
+
+    # P1: Check completeness across both legacy skills-* and general
+    # {domain}-index shapes. Compare exact normalized targets, not labels,
+    # keywords, prose, or comments.
+    referenced_names = {
+        file_name
+        for file_name, _ in normalized_refs
+    }
+    domain_index_names = {index.name for index in domain_indices}
+    domain_index_names.update(
+        path.stem
+        for path in memory_path.glob("*-index.md")
+        if path.name != "memory-index.md"
+    )
+    for index_name in sorted(domain_index_names - referenced_names):
+        result.passed = False
+        result.unreferenced_indices.append(index_name)
+        result.issues.append(
+            f"P1 COMPLETENESS: Domain index not referenced "
+            f"in memory-index: {index_name}"
+        )
+
+    seen_refs: set[str] = set()
+    unique_refs: list[tuple[str, Path]] = []
+    for file_name, resolved_ref in normalized_refs:
+        if file_name in seen_refs:
+            result.passed = False
+            if file_name not in result.duplicate_references:
+                result.duplicate_references.append(file_name)
+                result.issues.append(
+                    f"P1 VALIDITY: Duplicate memory-index target: {file_name}.md"
+                )
+            continue
+        seen_refs.add(file_name)
+        unique_refs.append((file_name, resolved_ref))
+
+    for file_name, resolved_ref in unique_refs:
         if not resolved_ref.exists():
             result.passed = False
             result.broken_references.append(file_name)
@@ -561,37 +586,62 @@ def check_memory_index_references(
 def find_orphaned_files(
     all_indices: list[DomainIndex], memory_path: Path
 ) -> list[Orphan]:
-    """Find atomic skill files not referenced by any domain index.
-
-    Detects:
-    1. Files matching domain prefix pattern not in any index
-    2. Files with deprecated 'skill-' prefix (ADR-017 Gap 4)
-    """
-    orphans: list[Orphan] = []
+    """Find atomic memories not referenced by the root or a domain index."""
     referenced_files: set[str] = set()
+    owner_counts: dict[str, dict[str, int]] = {}
 
-    # Collect all referenced files from all indices
-    for index in all_indices:
-        entries = parse_index_entries(index.path)
-        for entry in entries:
-            referenced_files.add(entry.file_name)
+    index_paths = [
+        path
+        for path in memory_path.glob("*-index.md")
+        if path.name != "memory-index.md"
+    ]
+    root_index = memory_path / "memory-index.md"
+    if root_index.exists():
+        index_paths.append(root_index)
 
-    # Check for orphaned files
-    for f in sorted(memory_path.glob("*.md")):
-        base_name = f.stem
+    resolved_root = memory_path.resolve()
+    for index_path in index_paths:
+        content = index_path.read_text(encoding="utf-8")
+        index_references: set[str] = set()
+        for reference in extract_lookup_references(content):
+            resolved = (memory_path / reference).resolve()
+            if resolved.is_relative_to(resolved_root):
+                canonical = resolved.relative_to(resolved_root).as_posix()
+                referenced_files.add(canonical)
+                index_references.add(canonical)
 
-        # Skip index files and memory-index
-        if base_name.endswith("-index") or base_name == "memory-index":
+        if index_path == root_index:
+            continue
+        for reference in index_references:
+            reference_path = Path(reference)
+            domain = _memory_domain(reference_path)
+            domain_counts = owner_counts.setdefault(domain, {})
+            domain_counts[index_path.name] = (
+                domain_counts.get(index_path.name, 0) + 1
+            )
+
+    orphans: list[Orphan] = []
+    for file_path in sorted(memory_path.rglob("*.md")):
+        relative_path = file_path.relative_to(memory_path)
+        if any(part.startswith(".") for part in relative_path.parts):
+            continue
+        if file_path.name in _SPECIAL_MEMORY_FILENAMES:
+            continue
+        if (
+            len(relative_path.parts) == 1
+            and _DOMAIN_INDEX_FILENAME_PATTERN.match(file_path.name)
+        ):
             continue
 
-        # ADR-017 Gap 4: deprecated skill- prefix
-        if (
-            base_name.startswith("skill-")
-            and base_name not in referenced_files
-        ):
+        relative_name = relative_path.as_posix()
+        if relative_name in referenced_files:
+            continue
+
+        file_name = relative_path.with_suffix("").as_posix()
+        if file_path.stem.startswith("skill-"):
             orphans.append(
                 Orphan(
-                    file=base_name,
+                    file=file_name,
                     domain="INVALID",
                     expected_index=(
                         "Rename to {domain}-{description} "
@@ -601,14 +651,10 @@ def find_orphaned_files(
             )
             continue
 
-        # Invalid skills-* files (not proper index files)
-        if (
-            base_name.startswith("skills-")
-            and not base_name.endswith("-index")
-        ):
+        if file_path.stem.startswith("skills-"):
             orphans.append(
                 Orphan(
-                    file=base_name,
+                    file=file_name,
                     domain="INVALID",
                     expected_index=(
                         "Rename to {domain}-{description}-index format "
@@ -618,21 +664,44 @@ def find_orphaned_files(
             )
             continue
 
-        # Check if file follows atomic naming pattern (domain prefix)
-        for index in all_indices:
-            if (
-                base_name.startswith(f"{index.domain}-")
-                and base_name not in referenced_files
-            ):
-                orphans.append(
-                    Orphan(
-                        file=base_name,
-                        domain=index.domain,
-                        expected_index=f"skills-{index.domain}-index",
-                    )
-                )
+        domain = _memory_domain(relative_path)
+        domain_counts = owner_counts.get(domain, {})
+        expected_index = (
+            min(
+                domain_counts,
+                key=lambda name: (-domain_counts[name], name),
+            )
+            if domain_counts
+            else "a domain index referenced by memory-index.md"
+        )
+        orphans.append(
+            Orphan(
+                file=file_name,
+                domain=domain,
+                expected_index=expected_index,
+            )
+        )
 
     return orphans
+
+
+def _memory_domain(relative_path: Path) -> str:
+    """Return the retrieval domain for a memory path."""
+    if len(relative_path.parts) > 1:
+        return relative_path.parts[0]
+    return relative_path.stem.split("-", 1)[0]
+
+
+def _validate_orphan_policy(orphan_policy: str) -> OrphanPolicy:
+    """Return a supported orphan policy or reject a caller error."""
+    if orphan_policy not in {"strict", "ratchet"}:
+        raise ValueError(f"Unsupported orphan policy: {orphan_policy}")
+    return "strict" if orphan_policy == "strict" else "ratchet"
+
+
+def _memory_index_blocks(result: MemoryIndexRefResult) -> bool:
+    """Return whether memory-index findings should fail this consumer."""
+    return not result.passed
 
 
 # ---------------------------------------------------------------------------
@@ -681,10 +750,16 @@ def check_domain_prefix_naming(
 # ---------------------------------------------------------------------------
 
 
-def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
+def run_validation(
+    memory_path: Path,
+    output_format: str,
+    *,
+    orphan_policy: OrphanPolicy = "strict",
+) -> ValidationReport:
     """Run full memory index validation."""
     from datetime import UTC, datetime
 
+    orphan_policy = _validate_orphan_policy(orphan_policy)
     report = ValidationReport(
         timestamp=datetime.now(UTC).isoformat(),
         memory_path=str(memory_path),
@@ -710,16 +785,35 @@ def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
         report.summary.total_files += len(entries)
         report.summary.missing_files += len(file_result.missing_files)
 
-        keyword_result = check_keyword_density(entries)
+        is_skills_index = bool(
+            _SKILLS_DOMAIN_INDEX_FILENAME_PATTERN.match(index.path.name)
+        )
+        keyword_result = (
+            check_keyword_density(entries)
+            if is_skills_index
+            else KeywordDensityResult()
+        )
         if not keyword_result.passed:
             report.summary.keyword_issues += len(keyword_result.issues)
 
         format_result = check_index_format(index.path)
-        duplicate_result = check_duplicate_entries(entries)
+        duplicate_result = (
+            check_duplicate_entries(entries)
+            if is_skills_index
+            else DuplicateResult()
+        )
 
         # P2 validations
-        min_kw_result = check_minimum_keywords(entries, min_keywords=5)
-        prefix_result = check_domain_prefix_naming(entries, index.domain)
+        min_kw_result = (
+            check_minimum_keywords(entries, min_keywords=5)
+            if is_skills_index
+            else ValidationIssues()
+        )
+        prefix_result = (
+            check_domain_prefix_naming(entries, index.domain)
+            if is_skills_index
+            else ValidationIssues()
+        )
 
         # P0 determines domain pass/fail
         p0_passed = (
@@ -780,7 +874,7 @@ def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
     )
     report.memory_index_result = memory_index_result
 
-    if not memory_index_result.passed:
+    if _memory_index_blocks(memory_index_result):
         report.passed = False
         if output_format == "console":
             print("\n[P1] Memory-index validation FAILED:")
@@ -793,16 +887,24 @@ def run_validation(memory_path: Path, output_format: str) -> ValidationReport:
 
     # Orphan detection
     orphans = find_orphaned_files(domain_indices, memory_path)
+    orphans.extend(
+        Orphan(
+            file=index_name,
+            domain="INDEX",
+            expected_index="memory-index.md",
+        )
+        for index_name in memory_index_result.unreferenced_indices
+    )
     report.orphans = orphans
 
-    if orphans:
+    if orphans and orphan_policy == "strict":
         report.passed = False
-        if output_format == "console":
-            print("\n[P1] Orphaned files detected (not indexed):")
-            for orphan in orphans:
-                print(
-                    f"  - {orphan.file} (should be in {orphan.expected_index})"
-                )
+    if orphans and output_format == "console":
+        print("\n[P1] Orphaned files detected (not indexed):")
+        for orphan in orphans:
+            print(
+                f"  - {orphan.file} (should be in {orphan.expected_index})"
+            )
 
     # P1: Naming convention enforcement (kebab-case)
     naming_result = check_naming_convention(memory_path)
@@ -932,6 +1034,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Report orphaned atomic files that should be indexed",
     )
+    parser.add_argument(
+        "--orphan-policy",
+        choices=["strict", "ratchet"],
+        default="strict",
+        help=(
+            "Orphan handling: strict fails on any orphan; ratchet reports "
+            "orphans while the separate count ratchet blocks growth"
+        ),
+    )
     return parser
 
 
@@ -957,7 +1068,11 @@ def main(argv: list[str] | None = None) -> int:
             return 2  # ADR-035: config error (path not found)
         return 0
 
-    report = run_validation(target, args.output_format)
+    report = run_validation(
+        target,
+        args.output_format,
+        orphan_policy=args.orphan_policy,
+    )
 
     # Output results
     if args.output_format == "console":
