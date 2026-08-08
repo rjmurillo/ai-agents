@@ -352,6 +352,23 @@ class TestMergePrSkipPreflightWhenExplicit:
             # Must NOT raise -- quota exhaustion on explicit strategy is tolerated.
             _merge_mod.main(["--pull-request", "42", "--strategy", "squash"])
 
+    def test_non_quota_rest_error_on_explicit_strategy_is_fatal(self):
+        pr_data = self._pr_state()
+
+        with (
+            patch(f"{_merge_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_merge_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{_merge_mod.__name__}._fetch_pr_state", return_value=pr_data),
+            patch(
+                f"{_merge_mod.__name__}.get_allowed_merge_methods",
+                side_effect=RuntimeError("HTTP 500 repository settings unavailable"),
+            ),
+            patch(f"{_merge_mod.__name__}.write_skill_error"),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                _merge_mod.main(["--pull-request", "42", "--strategy", "squash"])
+        assert exc_info.value.code == 3
+
     def test_get_allowed_merge_methods_called_when_no_strategy(self):
         pr_data = self._pr_state()
         merge_result = _completed()
@@ -514,6 +531,59 @@ class TestDiagnose:
         ):
             result = _why_mod.diagnose("o", "r", 100)
         assert result["LikelyMergeable"] is True
+
+    def test_duplicate_success_overrides_stale_failure(self):
+        data = self._pr_graphql(contexts=[
+            self._ck("CI / test", "FAILURE"),
+            self._ck("CI / test", "SUCCESS"),
+        ])
+        with (
+            patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
+            patch(f"{_why_mod.__name__}._fetch_ruleset_contexts",
+                  return_value=["CI / test"]),
+        ):
+            result = _why_mod.diagnose("o", "r", 100)
+        assert result["LikelyMergeable"] is True
+        assert result["FailingRequiredChecks"] == []
+
+    def test_paginated_contexts_are_checked_for_missing(self):
+        first_page = self._pr_graphql(contexts=[self._ck("CI / build")])
+        commit = first_page["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+        commit["oid"] = "abc123"
+        commit["statusCheckRollup"]["contexts"]["pageInfo"] = {
+            "hasNextPage": True,
+            "endCursor": "cursor-1",
+        }
+
+        with (
+            patch(f"{_why_mod.__name__}.gh_graphql", return_value=first_page),
+            patch(f"{_why_mod.__name__}._fetch_context_page",
+                  return_value=([self._ck("CI / test")],
+                                {"hasNextPage": False, "endCursor": None})),
+            patch(f"{_why_mod.__name__}._fetch_ruleset_contexts",
+                  return_value=["CI / build", "CI / test"]),
+        ):
+            result = _why_mod.diagnose("o", "r", 100)
+        assert result["MissingRequiredChecks"] == []
+
+    def test_paginated_review_threads_are_counted(self):
+        data = self._pr_graphql(
+            contexts=[self._ck("CI / build")],
+            thread_nodes=[{"isResolved": True}],
+        )
+        review_threads = data["repository"]["pullRequest"]["reviewThreads"]
+        review_threads["pageInfo"] = {"hasNextPage": True, "endCursor": "cursor-1"}
+
+        with (
+            patch(f"{_why_mod.__name__}.gh_graphql", return_value=data),
+            patch(f"{_why_mod.__name__}._fetch_ruleset_contexts",
+                  return_value=["CI / build"]),
+            patch(f"{_why_mod.__name__}._fetch_review_thread_page",
+                  return_value=([{"isResolved": False}],
+                                {"hasNextPage": False, "endCursor": None})),
+        ):
+            result = _why_mod.diagnose("o", "r", 100)
+        assert result["UnresolvedThreads"] == 1
 
     def test_not_found_returns_error(self):
         with patch(
@@ -689,6 +759,23 @@ class TestExtractClaims:
         # All three keyword-number pairs are extracted; they are all marked active
         assert len(claims) >= 1
 
+    def test_extracts_fenced_claim_as_non_closing(self):
+        claims = _audit_mod.extract_claims(10, "```\nFixes #99\n```", "main", {}, "o", "r")
+        assert claims[0]["context_class"] == "fenced_code"
+        assert claims[0]["github_will_close"] is False
+
+    def test_extracts_html_comment_claim_as_non_closing(self):
+        claims = _audit_mod.extract_claims(
+            10, "<!-- Fixes #77 hidden -->", "main", {}, "o", "r"
+        )
+        assert claims[0]["context_class"] == "html_comment"
+        assert claims[0]["github_will_close"] is False
+
+    def test_extracts_escaped_hash_claim_as_non_closing(self):
+        claims = _audit_mod.extract_claims(10, r"Fixes \#123", "main", {}, "o", "r")
+        assert claims[0]["context_class"] == "escaped_hash"
+        assert claims[0]["github_will_close"] is False
+
 
 class TestBodyHashAndValidate:
     """Tests for edit_pr_body.py helpers."""
@@ -715,6 +802,10 @@ class TestBodyHashAndValidate:
         warnings = _edit_mod.validate_body("Fixes #1 #2 #3")
         assert any("one" in w.lower() or "line" in w.lower() or "first" in w.lower()
                    for w in warnings)
+
+    def test_validate_body_multiple_keywords_on_one_line_flagged(self):
+        warnings = _edit_mod.validate_body("Fixes #1, closes #2")
+        assert any("closing-keyword line" in w for w in warnings)
 
     def test_validate_body_single_issue_per_line_clean(self):
         body = "Fixes #1\nFixes #2\nFixes #3"

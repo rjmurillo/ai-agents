@@ -81,16 +81,17 @@ query($owner: String!, $repo: String!, $number: Int!) {
             commits(last: 1) {
                 nodes {
                     commit {
+                        oid
                         statusCheckRollup {
                             contexts(first: 100) {
                                 pageInfo { hasNextPage endCursor }
                                 nodes {
                                     ... on CheckRun {
-                                        __typename name status conclusion
+                                        __typename name status conclusion detailsUrl
                                         isRequired(pullRequestNumber: $number)
                                     }
                                     ... on StatusContext {
-                                        __typename context state
+                                        __typename context state targetUrl
                                         isRequired(pullRequestNumber: $number)
                                     }
                                 }
@@ -100,6 +101,44 @@ query($owner: String!, $repo: String!, $number: Int!) {
                 }
             }
             reviewThreads(first: 100) {
+                pageInfo { hasNextPage endCursor }
+                nodes { isResolved }
+            }
+        }
+    }
+}"""
+
+_CONTEXTS_PAGE_QUERY = """\
+query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $cursor: String!) {
+    repository(owner: $owner, name: $repo) {
+        object(oid: $oid) {
+            ... on Commit {
+                statusCheckRollup {
+                    contexts(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes {
+                            ... on CheckRun {
+                                __typename name status conclusion detailsUrl
+                                isRequired(pullRequestNumber: $number)
+                            }
+                            ... on StatusContext {
+                                __typename context state targetUrl
+                                isRequired(pullRequestNumber: $number)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}"""
+
+_REVIEW_THREADS_PAGE_QUERY = """\
+query($owner: String!, $repo: String!, $number: Int!, $cursor: String!) {
+    repository(owner: $owner, name: $repo) {
+        pullRequest(number: $number) {
+            reviewThreads(first: 100, after: $cursor) {
+                pageInfo { hasNextPage endCursor }
                 nodes { isResolved }
             }
         }
@@ -157,6 +196,10 @@ def _normalize_check(node: dict[str, Any]) -> dict[str, Any] | None:
         is_failing = conclusion in _FAILING_CONCLUSIONS
         return {
             "Name": node.get("name", ""),
+            "Type": "CheckRun",
+            "State": status,
+            "Conclusion": conclusion,
+            "DetailsUrl": node.get("detailsUrl", ""),
             "IsRequired": bool(node.get("isRequired", False)),
             "IsPending": is_pending,
             "IsPassing": is_passing,
@@ -166,12 +209,75 @@ def _normalize_check(node: dict[str, Any]) -> dict[str, Any] | None:
         state = node.get("state", "")
         return {
             "Name": node.get("context", ""),
+            "Type": "StatusContext",
+            "State": state,
+            "Conclusion": state,
+            "DetailsUrl": node.get("targetUrl", ""),
             "IsRequired": bool(node.get("isRequired", False)),
             "IsPending": state in ("PENDING", "EXPECTED"),
             "IsPassing": state == "SUCCESS",
             "IsFailing": state in ("FAILURE", "ERROR"),
         }
     return None
+
+
+def _check_rank(check: dict[str, Any]) -> int:
+    if check.get("IsPassing"):
+        return 0
+    if check.get("IsFailing"):
+        return 1
+    if check.get("IsPending"):
+        return 2
+    return 3
+
+
+def _dedupe_checks(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse duplicate check rows before grouping by name."""
+    rows_by_name: dict[str, list[dict[str, Any]]] = {}
+    required_by_name: dict[str, bool] = {}
+    order: list[str] = []
+
+    for check in checks:
+        name_value = check.get("Name")
+        name = "" if name_value is None else str(name_value)
+        required_by_name[name] = required_by_name.get(name, False) or bool(
+            check.get("IsRequired")
+        )
+        if name not in rows_by_name:
+            rows_by_name[name] = []
+            order.append(name)
+        rows_by_name[name].append(check)
+
+    deduped = []
+    for name in order:
+        winner = sorted(rows_by_name[name], key=_check_rank)[0]
+        deduped.append({**winner, "IsRequired": required_by_name[name]})
+    return deduped
+
+
+def _fetch_context_page(
+    owner: str, repo: str, pr_number: int, oid: str, cursor: str
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    data = gh_graphql(
+        _CONTEXTS_PAGE_QUERY,
+        {"owner": owner, "repo": repo, "oid": oid, "number": pr_number, "cursor": cursor},
+    )
+    commit_obj = (data.get("repository") or {}).get("object") or {}
+    rollup = commit_obj.get("statusCheckRollup") or {}
+    contexts_obj = rollup.get("contexts") or {}
+    return list(contexts_obj.get("nodes") or []), contexts_obj.get("pageInfo") or {}
+
+
+def _fetch_review_thread_page(
+    owner: str, repo: str, pr_number: int, cursor: str
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    data = gh_graphql(
+        _REVIEW_THREADS_PAGE_QUERY,
+        {"owner": owner, "repo": repo, "number": pr_number, "cursor": cursor},
+    )
+    pr = (data.get("repository") or {}).get("pullRequest") or {}
+    review_threads = pr.get("reviewThreads") or {}
+    return list(review_threads.get("nodes") or []), review_threads.get("pageInfo") or {}
 
 
 def diagnose(
@@ -204,8 +310,19 @@ def diagnose(
         if rollup:
             contexts_obj = rollup.get("contexts") or {}
             raw_nodes = list(contexts_obj.get("nodes") or [])
+            page_info = contexts_obj.get("pageInfo") or {}
+            cursor = page_info.get("endCursor")
+            oid = commit_obj.get("oid") or ""
+            while page_info.get("hasNextPage") and cursor and oid:
+                page_nodes, page_info = _fetch_context_page(
+                    owner, repo, pr_number, oid, cursor
+                )
+                raw_nodes.extend(page_nodes)
+                cursor = page_info.get("endCursor")
 
-    checks = [n for node in raw_nodes if (n := _normalize_check(node)) is not None]
+    checks = _dedupe_checks([
+        n for node in raw_nodes if (n := _normalize_check(node)) is not None
+    ])
 
     # Group by name and OR the isRequired flag (same semantics as sibling
     # scripts).
@@ -240,7 +357,14 @@ def diagnose(
     )
 
     # Unresolved review threads.
-    thread_nodes = (pr.get("reviewThreads") or {}).get("nodes") or []
+    review_threads = pr.get("reviewThreads") or {}
+    thread_nodes = list(review_threads.get("nodes") or [])
+    page_info = review_threads.get("pageInfo") or {}
+    cursor = page_info.get("endCursor")
+    while page_info.get("hasNextPage") and cursor:
+        page_nodes, page_info = _fetch_review_thread_page(owner, repo, pr_number, cursor)
+        thread_nodes.extend(page_nodes)
+        cursor = page_info.get("endCursor")
     unresolved_threads = count_unresolved_threads(thread_nodes)
 
     causes: list[str] = []
