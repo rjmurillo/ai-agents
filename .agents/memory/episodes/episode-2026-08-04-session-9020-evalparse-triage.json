@@ -9,56 +9,66 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-08-04T00:00:00+00:00",
+      "timestamp": "2026-08-04T06:00:00+00:00",
       "type": "milestone",
       "content": "Merged origin/main (4607f6ce8) into fix/eval-payload-evidence to start from current state.",
-      "caused_by": [],
-      "leads_to": [
+      "caused_by": [
         "e006"
+      ],
+      "leads_to": [
+        "e002"
       ],
       "_source_session": "2026-08-04-session-9020-evalparse-triage"
     },
     {
       "id": "e002",
-      "timestamp": "2026-08-04T00:00:00+00:00",
+      "timestamp": "2026-08-04T06:10:00+00:00",
       "type": "milestone",
       "content": "Verified #4210: backlog-triage.yml line 64 uses uv run --frozen python. Three remaining bare python3 scripts have no scripts.* imports and pass bare invocation. Closed issue with evidence. Command: /usr/bin/python3 scripts/backlog_triage_result.py --help exits 0.",
-      "caused_by": [],
+      "caused_by": [
+        "e001"
+      ],
       "leads_to": [
-        "e006"
+        "e003"
       ],
       "_source_session": "2026-08-04-session-9020-evalparse-triage"
     },
     {
       "id": "e003",
-      "timestamp": "2026-08-04T00:00:00+00:00",
+      "timestamp": "2026-08-04T06:20:00+00:00",
       "type": "milestone",
       "content": "Verified #3975: no text[:200] truncation in eval-rule-activation.py on origin/main. raw_judge_response stored with no cap at lines 870-879. model_id only at top level (line 2343), not per sample. PR #4533 (OPEN) adds judge_model per sample. Closed citing PR #4533.",
-      "caused_by": [],
+      "caused_by": [
+        "e002"
+      ],
       "leads_to": [
-        "e006"
+        "e004"
       ],
       "_source_session": "2026-08-04-session-9020-evalparse-triage"
     },
     {
       "id": "e004",
-      "timestamp": "2026-08-04T00:00:00+00:00",
+      "timestamp": "2026-08-04T06:25:00+00:00",
       "type": "milestone",
       "content": "Verified #4068: artifact_create_issues.py line 146 returns 0 on gh failure; spec_extract_refs.py line 108 returns empty string and line 152 returns 0 on subprocess failure. Both still broken on origin/main. cli_exit_contract_ratchet shows 33 violations vs baseline 14. PR #4533 (OPEN) fixes both scripts. Closed citing PR #4533.",
-      "caused_by": [],
+      "caused_by": [
+        "e003"
+      ],
       "leads_to": [
-        "e006"
+        "e005"
       ],
       "_source_session": "2026-08-04-session-9020-evalparse-triage"
     },
     {
       "id": "e005",
-      "timestamp": "2026-08-04T00:00:00+00:00",
+      "timestamp": "2026-08-04T06:30:00+00:00",
       "type": "milestone",
       "content": "Verified #4123: normalize_fingerprint in _eval_api_adapter_constants.py returns sentinel '<malformed:TYPENAME>' for non-string non-null values on origin/main. Issue acceptance requires raise. PR #4402 (OPEN, body: Fixes #4123) raises RuntimeError. Closed citing PR #4402.",
-      "caused_by": [],
+      "caused_by": [
+        "e004"
+      ],
       "leads_to": [
-        "e006"
+        "e007"
       ],
       "_source_session": "2026-08-04-session-9020-evalparse-triage"
     },
@@ -67,15 +77,9 @@
       "timestamp": "2026-08-04T03:55:48+00:00",
       "type": "commit",
       "content": "Commit: 4607f6ce8",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
-        "e007"
+        "e001"
       ],
       "_source_session": "2026-08-04-session-9020-evalparse-triage"
     },
@@ -85,7 +89,7 @@
       "type": "commit",
       "content": "Commit: e7308b7f5be3a7202c7230207fbfc375ea8a2f64",
       "caused_by": [
-        "e006"
+        "e005"
       ],
       "leads_to": [
         "e008"
@@ -105,12 +109,12 @@
     }
   ],
   "metrics": {
-    "duration_minutes": 0,
+    "duration_minutes": 30,
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
     "commits": 3,
-    "files_changed": 2
+    "files_changed": 10
   },
   "lessons": []
 }

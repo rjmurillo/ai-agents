@@ -20,12 +20,18 @@ _original_sys_path = sys.path.copy()
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
     from copilot_hook_probe import (
+        _head_tail_excerpt,
         copilot_auth_absent,
         copilot_auth_failed,
         copilot_auth_failure_headline,
         copilot_auth_rejected,
+        copilot_block_reason,
+        copilot_rate_limited,
+        copilot_run_blocked,
+        copilot_run_blocked_headline,
         copilot_transient_failure,
         copilot_transient_failure_headline,
+        copilot_transport_failure,
     )
 finally:
     sys.path[:] = _original_sys_path
@@ -48,10 +54,11 @@ def test_auth_absent_detects_missing_token_on_stderr() -> None:
     assert copilot_auth_absent(result) is True
 
 
-def test_auth_absent_detects_token_hint_alone() -> None:
-    """The token-env hint alone is enough, even without the first-line phrase."""
+def test_auth_absent_ignores_generic_token_hint_alone() -> None:
+    """The generic footer appears after transport and rate-limit failures too."""
     result = _completed(stderr="please Set the COPILOT_GITHUB_TOKEN variable", returncode=1)
-    assert copilot_auth_absent(result) is True
+    assert copilot_auth_absent(result) is False
+    assert copilot_block_reason(result) is None
 
 
 def test_auth_absent_is_case_insensitive_and_matches_stdout() -> None:
@@ -113,9 +120,14 @@ def test_auth_rejected_detects_bad_credentials() -> None:
 
 
 def test_auth_rejected_matches_the_pat_lookup_failure_alone() -> None:
-    """Either rejection marker suffices; neither depends on the other."""
+    """``failed to fetch pat user login`` alone is NOT enough: it fires on network errors too.
+
+    Only ``github returned: bad credentials`` identifies a definite credential
+    rejection. A PAT-fetch failure without the bad-credentials line may be a
+    rate limit, a 5xx, or a network error (issue #4504).
+    """
     result = _completed(stderr="failed to fetch pat user login (401)", returncode=1)
-    assert copilot_auth_rejected(result) is True
+    assert copilot_auth_rejected(result) is False
 
 
 def test_auth_rejected_matches_stdout_and_is_case_insensitive() -> None:
@@ -199,6 +211,278 @@ def test_auth_rejected_ignores_a_bare_bad_credentials_mention() -> None:
     assert copilot_auth_failed(noisy) is False
 
 
+# ---------------------------------------------------------------------------
+# Rate-limit detection (issue #4504)
+# ---------------------------------------------------------------------------
+
+_RATE_LIMIT_STDERR = (
+    "API rate limit exceeded for user ID 6811113. If you reach out to GitHub Support for help, "
+    "please include the request ID 8DA0:35BFF7:1D6A8A3:2456E21:6A70F1A2 and timestamp "
+    "2026-08-03 20:31:01 UTC. For more on scraping GitHub, see https://docs.github.com/en/site-policy/"
+    "github-terms/github-acceptable-use-policies\n"
+    "\nYour token may still be valid. Check your network connection and try again.\n"
+    "\nTo authenticate, you can use any of the following methods:\n"
+    "  * Start 'copilot' and run the '/login' command\n"
+)
+
+_SECONDARY_RATE_LIMIT_STDERR = (
+    "secondary rate limit triggered for this request\n"
+    "Your token may still be valid. Check your network connection and try again.\n"
+)
+
+
+def test_rate_limited_detects_api_rate_limit_exceeded() -> None:
+    """The primary rate-limit phrase is recognized (issue #4504)."""
+    result = _completed(stderr=_RATE_LIMIT_STDERR, returncode=1)
+    assert copilot_rate_limited(result) is True
+
+
+def test_rate_limited_detects_secondary_rate_limit() -> None:
+    result = _completed(stderr=_SECONDARY_RATE_LIMIT_STDERR, returncode=1)
+    assert copilot_rate_limited(result) is True
+
+
+def test_transport_failure_detects_vendor_hedge_sentence() -> None:
+    """The vendor hedge proves transport uncertainty, not a specific rate limit."""
+    result = _completed(
+        stderr="Your token may still be valid. Check your network connection and try again.",
+        returncode=1,
+    )
+    assert copilot_transport_failure(result) is True
+    assert copilot_rate_limited(result) is False
+
+
+def test_rate_limited_false_on_healthy_run() -> None:
+    result = _completed(stdout="ok", returncode=0)
+    assert copilot_rate_limited(result) is False
+
+
+def test_rate_limited_false_for_absent_token() -> None:
+    result = _completed(stderr="No authentication information found.", returncode=1)
+    assert copilot_rate_limited(result) is False
+
+
+def test_rate_limited_takes_precedence_over_auth_rejected() -> None:
+    """A rate-limit response must not be reported as a rejected credential."""
+    result = _completed(stderr=_RATE_LIMIT_STDERR, returncode=1)
+    assert copilot_rate_limited(result) is True
+    assert copilot_auth_rejected(result) is False
+    assert copilot_auth_absent(result) is False
+    assert copilot_auth_failed(result) is False
+
+
+def test_rate_limited_takes_precedence_over_auth_absent_when_list_appears() -> None:
+    """The CLI prints the auth-method list after a rate limit too.
+
+    Without the rate-limit check, the COPILOT_GITHUB_TOKEN mention in the list
+    would match COPILOT_AUTH_ABSENT_MARKERS (issue #4504).
+    """
+    result = _completed(
+        stderr=(
+            "API rate limit exceeded for user ID 123.\n"
+            "To authenticate, you can use any of the following methods:\n"
+            "  Set the COPILOT_GITHUB_TOKEN environment variable\n"
+        ),
+        returncode=1,
+    )
+    assert copilot_rate_limited(result) is True
+    assert copilot_auth_absent(result) is False
+    assert copilot_run_blocked(result) is True
+
+
+def test_run_blocked_covers_rate_limit_absent_and_rejected() -> None:
+    assert copilot_run_blocked(_completed(stderr=_RATE_LIMIT_STDERR, returncode=1)) is True
+    assert (
+        copilot_run_blocked(_completed(stderr="No authentication information found.", returncode=1))
+        is True
+    )
+    assert copilot_run_blocked(_completed(stderr=_REJECTED_STDERR, returncode=1)) is True
+    assert copilot_run_blocked(_completed(stdout="ok", returncode=0)) is False
+
+
+def test_run_blocked_false_for_unrelated_failure() -> None:
+    result = _completed(stderr="segmentation fault", returncode=1)
+    assert copilot_run_blocked(result) is False
+
+
+def test_block_reason_classifies_each_operator_action() -> None:
+    primary_limit = _completed(
+        stderr=(
+            "API rate limit exceeded for user ID 12345.\n"
+            "Set the COPILOT_GITHUB_TOKEN environment variable."
+        ),
+        returncode=1,
+    )
+    secondary_limit = _completed(
+        stderr=(
+            "You have exceeded a secondary rate limit. Please wait a few minutes.\n"
+            "Failed to fetch PAT user login."
+        ),
+        returncode=1,
+    )
+    empty_token = _completed(
+        stderr="No authentication information found. Set COPILOT_GITHUB_TOKEN.",
+        returncode=1,
+    )
+    rejected_token = _completed(
+        stderr="Failed to fetch PAT user login (401): GitHub returned: Bad credentials",
+        returncode=1,
+    )
+    transport_failure = _completed(
+        stderr=(
+            "Failed to fetch PAT user login: connection reset by peer.\n"
+            "Set the COPILOT_GITHUB_TOKEN environment variable."
+        ),
+        returncode=1,
+    )
+
+    assert copilot_block_reason(primary_limit) == "rate_limit"
+    assert copilot_block_reason(secondary_limit) == "rate_limit"
+    assert copilot_block_reason(empty_token) == "auth_absent"
+    assert copilot_block_reason(rejected_token) == "auth_rejected"
+    assert copilot_block_reason(transport_failure) == "transport"
+
+
+def test_transport_failure_is_transient_not_auth() -> None:
+    result = _completed(
+        stderr=(
+            "Failed to fetch PAT user login: connection reset by peer.\n"
+            "To authenticate, set the COPILOT_GITHUB_TOKEN environment variable."
+        ),
+        returncode=1,
+    )
+
+    assert copilot_transport_failure(result) is True
+    assert copilot_transient_failure(result) is True
+    assert copilot_auth_absent(result) is False
+    assert copilot_auth_rejected(result) is False
+    assert copilot_auth_failed(result) is False
+    assert copilot_run_blocked(result) is True
+
+
+def test_connection_timeout_with_auth_footer_is_transport_not_empty_token() -> None:
+    result = _completed(
+        stderr=(
+            "connection timed out while calling api.github.com.\n"
+            "To authenticate, set the COPILOT_GITHUB_TOKEN environment variable."
+        ),
+        returncode=1,
+    )
+
+    assert copilot_block_reason(result) == "transport"
+    assert copilot_auth_absent(result) is False
+    assert "empty" not in copilot_run_blocked_headline(result).lower()
+
+
+def test_block_reason_ignores_success_and_unclassified_failure() -> None:
+    successful_noise = _completed(
+        stderr="API rate limit exceeded. Failed to fetch PAT user login.",
+        returncode=0,
+    )
+    unrelated_failure = _completed(stderr="plugin manifest is malformed", returncode=1)
+
+    assert copilot_block_reason(successful_noise) is None
+    assert copilot_block_reason(unrelated_failure) is None
+
+
+def test_blocked_headline_separates_rate_limit_transport_and_auth_advice() -> None:
+    rate_limit = copilot_run_blocked_headline(
+        _completed(stderr="API rate limit exceeded for user ID 12345.", returncode=1)
+    ).lower()
+    transport = copilot_run_blocked_headline(
+        _completed(
+            stderr="Failed to fetch PAT user login: connection reset by peer.",
+            returncode=1,
+        )
+    ).lower()
+    empty = copilot_run_blocked_headline(
+        _completed(stderr="No authentication information found.", returncode=1)
+    ).lower()
+    rejected = copilot_run_blocked_headline(
+        _completed(stderr="GitHub returned: Bad credentials", returncode=1)
+    ).lower()
+
+    assert "rate limit" in rate_limit
+    assert "wait" in rate_limit
+    assert "provision" not in rate_limit
+    assert "rotate" not in rate_limit
+    assert "transport" in transport
+    assert "network" in transport
+    assert "provision" not in transport
+    assert "rotate" not in transport
+    assert "empty" in empty
+    assert "provision" in empty
+    assert "rejected" in rejected
+    assert "rotate" in rejected
+
+
+def test_blocked_headline_redacts_secrets_from_diagnostics() -> None:
+    secret = "ghp_" + "A" * 36
+    result = _completed(
+        stderr=f"Failed to fetch PAT user login: connection reset. token={secret}",
+        returncode=1,
+    )
+
+    headline = copilot_run_blocked_headline(result)
+
+    assert secret not in headline
+    assert "[redacted: github-token]" in headline
+
+
+# ---------------------------------------------------------------------------
+# Head+tail excerpt (issue #4504)
+# ---------------------------------------------------------------------------
+
+
+def test_head_tail_excerpt_short_string_returns_repr() -> None:
+    """Strings shorter than head+tail are returned as repr without drop message."""
+    s = "hello world"
+    result = _head_tail_excerpt(s, head=300, tail=300)
+    assert result == repr(s)
+    assert "dropped" not in result
+
+
+def test_head_tail_excerpt_long_string_shows_drop_count() -> None:
+    """Long strings show how many chars were dropped in the middle."""
+    s = "X" * 100 + "Y" * 100 + "Z" * 100
+    result = _head_tail_excerpt(s, head=50, tail=50)
+    assert "dropped" in result
+    assert "200 chars dropped" in result
+    assert repr("X" * 50) in result
+    assert repr("Z" * 50) in result
+
+
+def test_head_tail_excerpt_none_is_empty_repr() -> None:
+    assert _head_tail_excerpt(None) == repr("")
+
+
+def test_headline_excerpt_uses_head_tail_not_tail_only() -> None:
+    """Headline includes the leading diagnostic sentence, not just the boilerplate tail.
+
+    This is the regression for issue #4504: the old tail-only slice kept the
+    GitHub request-ID boilerplate and cut the 'API rate limit exceeded' sentence.
+    """
+    # Even when copilot_auth_absent fires (no rate-limit marker here in simplified form),
+    # the headline must include the beginning of stderr.
+    absent_result = _completed(
+        stderr="No authentication information found. " + "X" * 1000,
+        returncode=1,
+    )
+    headline = copilot_auth_failure_headline(absent_result)
+    assert "No authentication information found" in headline
+
+
+def test_headline_preserves_leading_cause_sentence() -> None:
+    """The first 300 chars of stderr appear in the headline (issue #4504)."""
+    leading = "API rate limit exceeded for user ID 999. "
+    filler = "X" * 1000
+    rejected_result = _completed(
+        stderr="GitHub returned: Bad credentials\n" + leading + filler,
+        returncode=1,
+    )
+    headline = copilot_auth_failure_headline(rejected_result)
+    assert "GitHub returned: Bad credentials" in headline
+
 # Excerpt of the stderr from a rate-limited run, captured 2026-08-04 from a
 # pre-push `plugin-load-e2e` failure. It starts mid-request-id and its first line
 # ends in an ellipsis, so treat this as a captured excerpt, not the full GitHub
@@ -216,9 +500,11 @@ _RATE_LIMITED_STDERR = (
 )
 
 
-def test_transient_failure_detects_the_measured_rate_limited_run() -> None:
-    """The captured rate-limit stderr is classified as transient (issue #4504)."""
+def test_transient_failure_detects_the_measured_transport_uncertainty() -> None:
+    """The captured excerpt lacks a rate marker, so transport is the honest class."""
     assert copilot_transient_failure(_completed(stderr=_RATE_LIMITED_STDERR, returncode=1))
+    assert copilot_transport_failure(_completed(stderr=_RATE_LIMITED_STDERR, returncode=1))
+    assert not copilot_rate_limited(_completed(stderr=_RATE_LIMITED_STDERR, returncode=1))
 
 
 def test_rate_limited_run_is_not_an_auth_failure() -> None:
@@ -274,27 +560,18 @@ def test_transient_failure_false_for_a_genuinely_rejected_token() -> None:
     assert copilot_auth_failed(result)
 
 
-def test_transient_failure_false_for_a_bare_5xx_or_socket_error() -> None:
-    """Pins the docstring: only the CLI's disclaimer fires, not 5xx text itself.
-
-    The predicate matches the CLI's own "token may still be valid" sentence. A
-    status code or a raw socket message that never reaches that sentence is out
-    of scope, and the docstring says so. Without this test the docstring could
-    silently regrow the claim that it covers 5xx in general.
-    """
-    undetected = (
+def test_transient_failure_detects_socket_error_not_unanchored_5xx() -> None:
+    """Concrete socket signals classify as transport; generic status text does not."""
+    unanchored_status = (
         "HTTP 502 Bad Gateway from api.github.com",
         "Server Error: 503 Service Unavailable",
-        "dial tcp 140.82.113.6:443: connect: connection refused",
     )
-    for stderr in undetected:
+    for stderr in unanchored_status:
         assert not copilot_transient_failure(_completed(stderr=stderr, returncode=1))
 
-    # Positive control: the same call shape DOES fire on the disclaimer, so the
-    # assertions above are meaningful silence rather than a dead predicate.
     assert copilot_transient_failure(
         _completed(
-            stderr="Your token may still be valid. Check your network connection and try again.",
+            stderr="dial tcp 192.0.2.1:443: connect: connection refused",
             returncode=1,
         )
     )
@@ -313,8 +590,8 @@ def test_transient_headline_names_the_cause_and_denies_an_auth_fault() -> None:
         _completed(stderr=_RATE_LIMITED_STDERR, returncode=1)
     )
     lowered = text.lower()
-    assert "transient" in lowered
-    assert "not an auth" in lowered
+    assert "transport" in lowered
+    assert "credential status is unknown" in lowered
     assert "rc=1" in lowered
     assert "provision" not in lowered
     assert "rotate" not in lowered

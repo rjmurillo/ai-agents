@@ -52,7 +52,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Test Working Tree Writes',
     'Push Lock Path Agreement',
     'Session End Validation',
-    'Pester Unit Tests',
+    'Mypy Changed Files (ratchet)',
     'Markdown Linting',
     'Workflow YAML Validation',
     'Copilot CLI Version Pin',
@@ -162,21 +162,16 @@ class TestQuickFlag:
 
 
 class TestSkipTestsFlag:
-    """Pester bypasses ``run_validation`` and must keep doing so."""
+    """--skip-tests is a no-op now that Pester is removed (issue #4661)."""
 
-    def test_skip_tests_drops_pester_from_the_record_list(self) -> None:
+    def test_skip_tests_does_not_alter_the_gate_list(self) -> None:
         recorded, _state, _out = _record(skip_tests=True)
         names = [name for name, _ in recorded]
-        assert "Pester Unit Tests" not in names
-        assert names == [n for n in EXPECTED_ORDER if n != "Pester Unit Tests"]
+        assert tuple(names) == EXPECTED_ORDER
 
-    def test_skip_tests_still_counts_pester_against_the_totals(self) -> None:
+    def test_skip_tests_bumps_no_totals(self) -> None:
         _recorded, state, _out = _record(skip_tests=True)
-        assert (state.total, state.skipped) == (1, 1)
-
-    def test_skip_tests_prints_its_own_notice(self) -> None:
-        _recorded, _state, out = _record(skip_tests=True)
-        assert out == "[SKIP] Pester Unit Tests (skipped via --skip-tests)\n"
+        assert (state.total, state.skipped) == (0, 0)
 
     def test_default_run_leaves_the_totals_to_the_runner(self) -> None:
         _recorded, state, out = _record()
