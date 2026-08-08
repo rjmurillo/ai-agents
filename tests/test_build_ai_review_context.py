@@ -104,12 +104,70 @@ def test_retry_budget_fits_ai_review_job_deadline():
     ]
     assert len(job_timeouts) == 10
 
-    attempts = len(_mod.GH_REFUSAL_BACKOFF_SECONDS) + 1
-    worst_case_seconds = (
-        sum(_mod.GH_REFUSAL_BACKOFF_SECONDS) + attempts * _mod.GH_TIMEOUT_SECONDS
-    )
+    shortest_job_seconds = min(job_timeouts) * 60
 
-    assert worst_case_seconds < min(job_timeouts) * 60
+    assert _mod.GH_CONTEXT_RETRY_BUDGET_SECONDS <= shortest_job_seconds - 120
+
+
+def test_shared_retry_budget_bounds_sequential_metadata_and_diff_ladders(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Metadata fallbacks cannot consume a fresh retry budget before diff fetch."""
+    now = [0.0]
+    sleeps: list[float] = []
+    calls: list[list[str]] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        if command[1:3] == ["pr", "view"] and len(calls) == 6:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                0,
+                _pulls_payload(7, "Recovered metadata", ""),
+                "",
+            )
+        return _mod.subprocess.CompletedProcess(
+            command,
+            1,
+            "",
+            "HTTP 403: API rate limit exceeded",
+        )
+
+    def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        now[0] += seconds
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(_mod.time, "sleep", fake_sleep)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert context.infrastructure_failure is True
+    assert "retry budget exhausted" in context.text
+    assert sleeps == [60.0, 120.0, 60.0, 120.0]
+    assert sum(sleeps) < _mod.GH_CONTEXT_RETRY_BUDGET_SECONDS
+    assert len([call for call in calls if call[1:3] == ["pr", "diff"]]) == 1
+
+
+def test_run_gh_retries_timeout_as_infrastructure_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A hung gh process becomes a bounded refusal instead of escaping the gate."""
+    sleeps: list[float] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        raise _mod.subprocess.TimeoutExpired(command, kwargs["timeout"])
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "sleep", sleeps.append)
+
+    result = _mod.run_gh(["pr", "diff", "7"])
+
+    assert result.returncode == 124
+    assert "timed out" in result.stderr
+    assert sleeps == list(_mod.GH_REFUSAL_BACKOFF_SECONDS)
 
 
 def test_pr_diff_context_exhausted_rate_limit_records_infra_gap(
