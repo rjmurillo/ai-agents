@@ -87,6 +87,42 @@ class TestSearchSerena:
         assert results[0]["Name"] == "git-hooks-patterns"
         assert results[0]["Source"] == "Serena"
 
+    def test_search_finds_nested_memories(self, tmp_path: Path) -> None:
+        """Nested memories must be searchable.
+
+        Regression: search used a non-recursive glob, so it saw only the
+        123 top-level memories and none of the 845 under a subdirectory.
+        Two memories were duplicated because the search that would have
+        found them could not reach them.
+        """
+        (tmp_path / "ci").mkdir()
+        (tmp_path / "ci" / "github-rate-limit-payload.md").write_text("# Rate limit")
+
+        results = search_serena("rate limit payload", tmp_path, 10)
+
+        assert [r["Name"] for r in results] == ["ci/github-rate-limit-payload"]
+
+    def test_nested_name_is_addressable(self, tmp_path: Path) -> None:
+        """Name carries the directory, so read_memory can resolve it.
+
+        Returning the bare stem would send a caller to a path that does
+        not exist, which is worse than not finding the memory at all.
+        """
+        (tmp_path / "process").mkdir()
+        (tmp_path / "process" / "gh-graphql-budgets.md").write_text("# Budgets")
+
+        results = search_serena("graphql budgets", tmp_path, 10)
+
+        assert (tmp_path / f"{results[0]['Name']}.md").is_file()
+
+    def test_top_level_name_has_no_directory_prefix(self, tmp_path: Path) -> None:
+        """Recursion must not rename the top-level memories it already found."""
+        (tmp_path / "git-hooks-patterns.md").write_text("# Git Hooks")
+
+        results = search_serena("git hooks", tmp_path, 10)
+
+        assert results[0]["Name"] == "git-hooks-patterns"
+
     def test_search_empty_directory(self, tmp_path: Path) -> None:
         results = search_serena("anything", tmp_path, 10)
         assert results == []

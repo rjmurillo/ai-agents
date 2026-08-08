@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10011,
+    "date": "2026-08-07",
+    "branch": "hotfix-portability-symlinks",
+    "startingCommit": "a75687064",
+    "objective": "Land PR #4762 after merge-forward from main"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tooling initialized in this session; activate_project is not exposed in this harness."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Called serena-initial_instructions at session start."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Viewed .agents/HANDOFF.md."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts and used the GitHub PR helper scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read mem:usage-mandatory."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Viewed AGENTS.md, .agents/SESSION-PROTOCOL.md, and .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read mem:memory-index, mem:pr-autofix/pr-4323-late-base-refresh, mem:decision-every-merge-invalidates-every-open-pr, mem:git/git-rebase-after-push-costs-two-cycles, mem:github/github-merge-rest-is-authoritative-blocked-is-not, mem:github/github-dismissed-reviews-block-automerge, and mem:ci/ci-mergeability-is-not-computed-until-you-ask."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "hotfix-portability-symlinks"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On hotfix-portability-symlinks"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified the dedicated PR worktree was clean before merge-forward, then re-checked after restoring the session log."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a75687064"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Lease, live-state, auto-merge, worktree SHA, merge-forward, blocker-fix, targeted test, changed-file gate, and independent security checks completed before push."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote mem:pr-autofix/bare-root-requires-pr-worktree-for-sha-audit."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No Markdown files changed in this session."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed in the current session-log commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run --frozen pytest tests/validation/test_portability_common.py tests/validation/test_portability_scan_coverage_refusal.py tests/validation/test_check_skill_md_portability.py tests/validation/test_check_skill_md_exec_portability.py -x (364 passed); uv run --frozen ruff check scripts/validation/check_skill_md_exec_portability.py scripts/validation/check_skill_md_portability.py tests/validation/test_check_skill_md_exec_portability.py tests/validation/test_check_skill_md_portability.py; uv run --frozen python -c 'from pathlib import Path; from scripts.validation.checks_mypy import validate_mypy_changed_files; import sys; sys.exit(0 if validate_mypy_changed_files(Path(\".\")) else 1)'."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Acquired the PR lease and ran live-state, auto-merge, thread, and required-check gates.",
+      "result": "PR #4762 was open and actionable, auto-merge was off, unresolved review threads were 0, required checks were 17 total with 16 SUCCESS and 1 SKIPPED, and GitHub computed mergeStateStatus=BEHIND."
+    },
+    {
+      "action": "Verified the dedicated PR worktree matched the live branch head and merged current main.",
+      "result": "Local HEAD and origin/hotfix-portability-symlinks both matched a75687064082d26c2a06f7b13defd169ecf7dc46, fetched origin/main at a42cf47b61e94c29686a08e4ac06d8e09b07d69e, and merged main cleanly to 5dbe19542a8f32f3995e17f723bce809cc1865fd."
+    },
+    {
+      "action": "Re-ran the targeted portability regression set and the changed-file gates on the refreshed head.",
+      "result": "Pytest passed 360 tests in 15.16s, ruff passed on the four changed Python files, and the changed-file mypy gate reported no issues."
+    },
+    {
+      "action": "Ran an independent security review on the refreshed branch diff.",
+      "result": "Security review verdict PASS. No Critical or High findings in the diff versus origin/main."
+    },
+    {
+      "action": "Addressed the two post-push Copilot review threads about dangling descendant symlink escapes.",
+      "result": "Moved descendant containment checks ahead of suffix and is_file filters in both portability scanners, added four targeted escape regressions, reran the portability suite to 364 passing tests, and got a second PASS security review with no Critical or High findings."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Commit the session log, push the refreshed branch, wait for required CI, rerun readiness and completion gates, and merge only if all Ready-to-Merge conditions hold."
+  ]
+}

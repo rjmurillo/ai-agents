@@ -23,9 +23,14 @@ import re
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from scripts.github_core.api import gh_api_paginated
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.github_core.api import gh_api_paginated  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

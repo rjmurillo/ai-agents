@@ -106,7 +106,6 @@ from checks_tooling import (
     validate_copilot_version_pin,
     validate_markdown_lint,
     validate_path_normalization,
-    validate_pester_tests,
     validate_planning_artifacts,
     validate_session_end,
     validate_workflow_yaml,
@@ -329,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
     print("RESULT: All validations passed")
     print()
     print("Pre-PR checks passed. Verify the push landed before opening a PR:")
-    print("  git ls-remote origin $(git rev-parse --abbrev-ref HEAD)")
+    print("  git ls-remote origin <branch>")
     print()
     return 0
 

@@ -13,7 +13,8 @@ ENV:
 
 EXIT CODES (ADR-035):
   0 - completed (some issues may have been skipped as duplicates)
-  1 - FINDINGS_JSON is missing or malformed
+  2 - FINDINGS_JSON is missing or malformed
+  3 - GitHub issue lookup or creation failed
 """
 
 from __future__ import annotations
@@ -22,6 +23,10 @@ import json
 import os
 import subprocess
 import sys
+
+EXIT_OK = 0
+EXIT_CONFIG = 2
+EXIT_EXTERNAL = 3
 
 
 def write_github_output(key: str, value: str) -> None:
@@ -34,8 +39,8 @@ def write_github_output(key: str, value: str) -> None:
         print(f"{key}={value}")
 
 
-def _is_duplicate(title: str) -> bool:
-    """Return True if an open issue with a similar title already exists."""
+def _is_duplicate(title: str) -> bool | None:
+    """Return duplicate status, or None when the lookup fails."""
     try:
         raw = subprocess.run(
             [
@@ -56,7 +61,11 @@ def _is_duplicate(title: str) -> bool:
             check=False,
         )
         if raw.returncode != 0:
-            return False
+            print(
+                f"::error::gh issue list failed for '{title}': {raw.stderr.strip()}",
+                file=sys.stderr,
+            )
+            return None
         existing: list[dict[str, object]] = json.loads(raw.stdout or "[]")
         title_lower = title.lower()
         for issue in existing:
@@ -68,8 +77,9 @@ def _is_duplicate(title: str) -> bool:
             ):
                 print(f"::notice::Skipping duplicate: '{title}' (matches #{issue.get('number')})")
                 return True
-    except (json.JSONDecodeError, OSError):
-        pass
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"::error::failed to inspect duplicate issues: {exc}", file=sys.stderr)
+        return None
     return False
 
 
@@ -87,13 +97,13 @@ def run(_argv: list[str] | None = None) -> int:
     findings_json = os.environ.get("FINDINGS_JSON", "")
     if not findings_json:
         print("::error::FINDINGS_JSON env var is required")
-        return 1
+        return EXIT_CONFIG
 
     try:
         findings: list[dict[str, object]] = json.loads(findings_json)
     except json.JSONDecodeError as exc:
         print(f"::error::Failed to parse FINDINGS_JSON: {exc}")
-        return 1
+        return EXIT_CONFIG
 
     server_url = os.environ.get("SERVER_URL", "")
     repository = os.environ.get("GITHUB_REPOSITORY", "")
@@ -101,6 +111,7 @@ def run(_argv: list[str] | None = None) -> int:
 
     created_count = 0
     skipped_count = 0
+    failed_count = 0
 
     for finding in findings:
         title = str(finding.get("title", ""))
@@ -111,39 +122,49 @@ def run(_argv: list[str] | None = None) -> int:
         )
         source = str(finding.get("source", ""))
 
-        if _is_duplicate(title):
+        duplicate = _is_duplicate(title)
+        if duplicate is None:
+            return EXIT_EXTERNAL
+        if duplicate:
             skipped_count += 1
             continue
 
         footer = _build_footer(server_url, repository, run_id, source)
         full_body = body + footer
 
-        sys.stdout.flush()
-        result = subprocess.run(
-            [
-                "gh",
-                "issue",
-                "create",
-                "--title",
-                title,
-                "--body",
-                full_body,
-                "--label",
-                ",".join(labels),
-            ],
-            check=False,
-        )
+        try:
+            sys.stdout.flush()
+            result = subprocess.run(
+                [
+                    "gh",
+                    "issue",
+                    "create",
+                    "--title",
+                    title,
+                    "--body",
+                    full_body,
+                    "--label",
+                    ",".join(labels),
+                ],
+                check=False,
+            )
+        except OSError as exc:
+            print(f"::error::Failed to launch gh for issue '{title}': {exc}", file=sys.stderr)
+            failed_count += 1
+            continue
 
         if result.returncode == 0:
             created_count += 1
         else:
-            print(f"::warning::Failed to create issue: {title}")
+            print(f"::error::Failed to create issue: {title}", file=sys.stderr)
+            failed_count += 1
 
     print()
     print("=== SUMMARY ===")
     print(f"Issues created: {created_count}")
     print(f"Duplicates skipped: {skipped_count}")
-    return 0
+    print(f"Issues failed: {failed_count}")
+    return EXIT_EXTERNAL if failed_count else EXIT_OK
 
 
 def main() -> int:

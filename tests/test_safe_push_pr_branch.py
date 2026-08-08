@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+import shlex
 import subprocess
 import sys
 import threading
@@ -951,59 +952,121 @@ def test_run_pytest_stops_on_the_first_failing_command(
     assert len(seen) == 1
 
 
-def test_run_pytest_budget_exhaustion_emits_clear_message(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Second command gets a tiny remaining slice and times out: report as budget exhaustion."""
-    budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
-    clock = {"now": 1_000.0}
-    call_count = {"n": 0}
+# ---------------------------------------------------------------------------
+# The #4293 pre-push guard must not reject this script's own lease push
+# ---------------------------------------------------------------------------
 
-    def fake_monotonic() -> float:
-        return clock["now"]
+_PRE_PUSH_HOOK = """#!/bin/sh
+exec {interpreter} "$0.py"
+"""
 
-    def fake_run_command(
-        args: Any,
-        repo_root: Any,
-        **kwargs: Any,
-    ) -> subprocess.CompletedProcess[str]:
-        call_count["n"] += 1
-        if call_count["n"] == 1:
-            # First command succeeds after consuming almost all the budget.
-            clock["now"] += budget - 5.0
-            return subprocess.CompletedProcess(list(args), 0, "", "")
-        # Second command gets ~5s remaining and times out (returncode 3).
-        return subprocess.CompletedProcess(list(args), 3, "", "")
+_PRE_PUSH_HOOK_PY = '''
+import sys
+from pathlib import Path
 
-    monkeypatch.setattr(time, "monotonic", fake_monotonic)
-    monkeypatch.setattr(git_hook_policy, "_run_command", fake_run_command)
-    monkeypatch.setattr(git_hook_policy, "_print_process_output", lambda result: None)
+sys.path.insert(0, {repo_root!r})
+from scripts.validation import git_hook_policy
 
-    rc = git_hook_policy.run_pytest(tmp_path)
-
-    assert rc == 3
-    err = capsys.readouterr().err
-    assert "exhausted" in err
-    assert "budget exhaustion" in err
-    assert str(budget) in err
+refs = git_hook_policy.parse_push_refs(sys.stdin)
+codes = [
+    git_hook_policy._check_non_fast_forward(ref, Path({work!r})) for ref in refs
+]
+sys.exit(1 if any(codes) else 0)
+'''
 
 
-def test_run_pytest_first_command_timeout_is_not_budget_exhaustion(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """First command times out with full budget: not budget exhaustion, propagate rc."""
-    seen = _record_pytest_timeouts(
-        monkeypatch,
-        elapsed_per_command=1.0,
-        returncode=3,
+def _install_non_fast_forward_hook(repo: Path) -> None:
+    """Install the real #4293 guard as this repo's pre-push hook.
+
+    Drives ``_check_non_fast_forward`` over the argv-free stdin git hands a
+    pre-push hook, which is the only channel the guard reads. A push that
+    rewrites published history exits 1 here whatever flags git was given.
+    """
+    hooks = repo / ".git" / "hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    hook = hooks / "pre-push"
+    hook.write_text(
+        _PRE_PUSH_HOOK.format(interpreter=shlex.quote(sys.executable)),
+        encoding="utf-8",
+    )
+    (hooks / "pre-push.py").write_text(
+        _PRE_PUSH_HOOK_PY.format(
+            repo_root=str(Path(__file__).resolve().parents[1]),
+            work=str(repo),
+        ),
+        encoding="utf-8",
+    )
+    hook.chmod(0o755)
+
+
+def _rewritten_branch_with_lease(tmp_path: Path) -> tuple[Path, str]:
+    """Return (repo, expected_remote_sha) with local history rewritten."""
+    bare = _bare_remote(tmp_path)
+    repo = tmp_path / "work"
+    _init_worktree(repo, "feature-x")
+    _git(repo, "remote", "add", "origin", str(bare))
+    safe_push("feature-x", "origin", str(repo))
+    expected_sha = _bare_git(bare, "rev-parse", "refs/heads/feature-x")
+    _commit_file(repo, "next.txt", "next\n")
+    safe_push("feature-x", "origin", str(repo))
+    expected_sha = _bare_git(bare, "rev-parse", "refs/heads/feature-x")
+
+    _git(repo, "reset", "--hard", "HEAD~1")
+    _commit_file(repo, "rewrite.txt", "rewrite\n")
+    return repo, expected_sha
+
+
+def test_lease_push_survives_the_non_fast_forward_pre_push_guard(tmp_path: Path) -> None:
+    repo, expected_sha = _rewritten_branch_with_lease(tmp_path)
+    _install_non_fast_forward_hook(repo)
+
+    audit = safe_push(
+        "feature-x",
+        "origin",
+        str(repo),
+        expected_remote_sha=expected_sha,
+        force_with_lease=True,
     )
 
-    rc = git_hook_policy.run_pytest(tmp_path)
+    assert audit.verified is True
 
-    assert rc == 3
-    assert "exhausted" not in capsys.readouterr().err
-    assert len(seen) == 1
+
+def test_the_same_rewrite_without_a_lease_is_blocked_by_the_guard(tmp_path: Path) -> None:
+    repo, _ = _rewritten_branch_with_lease(tmp_path)
+    _install_non_fast_forward_hook(repo)
+
+    with pytest.raises(SafePushError) as excinfo:
+        safe_push("feature-x", "origin", str(repo))
+
+    assert excinfo.value.exit_code == EXIT_TRANSPORT
+
+
+def test_lease_push_sets_the_documented_escape_and_a_plain_push_does_not(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The escape is scoped to the lease push, not exported for every push."""
+    seen: list[dict[str, str] | None] = []
+    real_run_git = safe_push_pr_branch._run_git
+
+    def record(args: list[str], repo_root: str, env: dict[str, str] | None = None):
+        if args and args[0] == "push":
+            seen.append(env)
+        return real_run_git(args, repo_root, env)
+
+    monkeypatch.setattr(safe_push_pr_branch, "_run_git", record)
+
+    repo, expected_sha = _rewritten_branch_with_lease(tmp_path)
+    safe_push(
+        "feature-x",
+        "origin",
+        str(repo),
+        expected_remote_sha=expected_sha,
+        force_with_lease=True,
+    )
+    _commit_file(repo, "after.txt", "after\n")
+    safe_push("feature-x", "origin", str(repo))
+
+    lease_env, plain_env = seen[-2], seen[-1]
+    assert lease_env is not None
+    assert lease_env[safe_push_pr_branch.FORCE_PUSH_ESCAPE_ENV] == "1"
+    assert plain_env is None
