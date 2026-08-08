@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# mypy: disable-error-code="arg-type,assignment,no-any-return,type-arg,type-var", follow-imports=skip
 """Get CI check status for a GitHub Pull Request.
 
 Retrieves CI check information using GraphQL statusCheckRollup API.

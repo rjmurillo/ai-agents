@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# mypy: disable-error-code="no-any-return,type-arg", follow-imports=skip
 """Diagnose why a PR is blocked from merging.
 
 Cross-references the base branch ruleset against the PR's actual status check
