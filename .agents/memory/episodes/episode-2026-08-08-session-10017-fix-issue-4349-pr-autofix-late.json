@@ -1,0 +1,299 @@
+{
+  "id": "episode-2026-08-08-session-10017-fix-issue-4349-pr-autofix-late",
+  "session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late",
+  "timestamp": "2026-08-08T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue 4349 pr-autofix late live-state race end to end",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged issue #4349 and linked discussions",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Claimed issue and checked duplicate pull requests",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced current main behavior",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented guarded mutation protocol",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added terminal recovery identity",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added positive, negative, edge, and race tests",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran independent review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-08T06:09:03+00:00",
+      "type": "commit",
+      "content": "Commit: b6d60e922",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e009",
+        "e010",
+        "e011",
+        "e012",
+        "e014",
+        "e015",
+        "e017",
+        "e018",
+        "e019",
+        "e020"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed PR review race findings",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Expanded shipped-surface behavior tests",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran follow-up independent review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran full pre-PR validation",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-08T07:12:12+00:00",
+      "type": "commit",
+      "content": "Commit: 43908b2d0",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed identity-drift review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-ran race and pr-autofix validation",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-08T08:12:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8c634453d",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bound late mutations to readiness identity",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Made lease release causal",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed independent review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran final validation",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-08T09:30:41+00:00",
+      "type": "commit",
+      "content": "Commit: d97f1141d",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-08T09:31:05+00:00",
+      "type": "commit",
+      "content": "Commit: c9dbfe1a7",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-08T09:32:38+00:00",
+      "type": "commit",
+      "content": "Commit: 5bbda22c0",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 11
+  },
+  "lessons": []
+}

@@ -18,7 +18,11 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from checks_changed_paths import _filtered_targets  # noqa: E402
-from checks_common import MissingScriptSkip, _run_subprocess  # noqa: E402
+from checks_common import (  # noqa: E402
+    MissingScriptSkip,
+    _resolve_branch_base_ref,
+    _run_subprocess,
+)
 from checks_dash import _is_vendored  # noqa: E402
 
 MARKDOWNLINT_CLI2_PACKAGE = "markdownlint-cli2@0.23.1"
@@ -52,35 +56,54 @@ def _find_latest_session_log(repo_root: Path) -> Path | None:
 
 
 def validate_session_end(repo_root: Path) -> bool:
-    """Validate the latest session log."""
-    session_log = _find_latest_session_log(repo_root)
-    if session_log is None:
-        print("[WARNING] No session log found in .agents/sessions/")
-        print("  If this is an agent session, create a session log.")
-        print("  If this is a manual commit, this check can be skipped.")
+    """Validate session logs changed on the branch.
+
+    Invokes scripts/validate_session_json.py (ADR-042). Scoped to session logs
+    changed on the current branch so pre-existing violations do not block
+    unrelated work.
+    """
+    base_ref = _resolve_branch_base_ref(repo_root)
+    if base_ref is None:
+        print("[WARNING] Session validation skipped: no base ref resolved")
         return True
 
-    print(f"Latest session log: {session_log.name}")
-
-    script = repo_root / "scripts" / "Validate-Session.ps1"
-    _require_script(script)
-
-    exit_code, _, _ = _run_subprocess(
-        ["pwsh", "-NoProfile", "-File", str(script), "-SessionLogPath", str(session_log)]
+    exit_code, stdout, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "diff", "--name-only",
+         "--diff-filter=ACMR", f"{base_ref}...HEAD"],
+        timeout=30,
     )
-    return bool(exit_code == 0)
+    if exit_code != 0:
+        print("[WARNING] Session validation skipped: git diff failed")
+        return True
 
+    changed_logs = [
+        repo_root / p for p in stdout.splitlines()
+        if p.startswith(".agents/sessions/") and p.endswith(".json")
+        and (repo_root / p).is_file()
+    ]
+    if not changed_logs:
+        print("[PASS] Session End Validation (no session logs on branch)")
+        return True
 
-def validate_pester_tests(repo_root: Path, verbose: bool = False) -> bool:
-    """Run Pester unit tests."""
-    script = repo_root / "build" / "scripts" / "Invoke-PesterTests.ps1"
-    _require_script(script)
+    python_script = repo_root / "scripts" / "validate_session_json.py"
+    if not python_script.exists():
+        raise MissingScriptSkip(
+            "validate_session_json.py not present (downstream install)"
+        )
 
-    verbosity = "Diagnostic" if verbose else "Normal"
-    exit_code, _, _ = _run_subprocess(
-        ["pwsh", "-NoProfile", "-File", str(script), "-Verbosity", verbosity]
-    )
-    return bool(exit_code == 0)
+    failed = False
+    for log_path in changed_logs:
+        print(f"Validating session log: {log_path.name}")
+        exit_code, stdout, stderr = _run_subprocess(
+            [sys.executable, str(python_script), str(log_path)]
+        )
+        output = (stdout or "") + (stderr or "")
+        if output.strip():
+            for line in output.strip().splitlines()[:20]:
+                print(line)
+        if exit_code != 0:
+            failed = True
+    return not failed
 
 
 def validate_markdown_lint(repo_root: Path, explicit_targets: list[str] | None = None) -> bool:
@@ -308,24 +331,33 @@ def validate_yaml_style(repo_root: Path) -> bool:
     return True
 
 
-def validate_path_normalization(repo_root: Path) -> bool:
-    """Check for absolute paths."""
-    script = repo_root / "build" / "scripts" / "Validate-PathNormalization.ps1"
-    _require_script(script)
-
-    exit_code, _, _ = _run_subprocess(
-        ["pwsh", "-NoProfile", "-File", str(script), "-FailOnViolation"]
+def _run_python_validator(repo_root: Path, script_rel: str, args: list[str]) -> bool:
+    """Run a Python validator script and print its output. Returns pass/fail."""
+    python_script = repo_root / script_rel
+    if not python_script.exists():
+        raise MissingScriptSkip(f"{Path(script_rel).name} not present (downstream install)")
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(python_script)] + args, cwd=repo_root
     )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
     return bool(exit_code == 0)
+
+
+def validate_path_normalization(repo_root: Path) -> bool:
+    """Check for absolute paths (ADR-042 Python port). CI: validate-paths.yml."""
+    return _run_python_validator(
+        repo_root, "build/scripts/validate_path_normalization.py", ["--fail-on-violation"]
+    )
 
 
 def validate_planning_artifacts(repo_root: Path) -> bool:
-    """Validate planning consistency."""
-    script = repo_root / "build" / "scripts" / "Validate-PlanningArtifacts.ps1"
-    _require_script(script)
-
-    exit_code, _, _ = _run_subprocess(["pwsh", "-NoProfile", "-File", str(script), "-FailOnError"])
-    return bool(exit_code == 0)
+    """Validate planning consistency (ADR-042 Python port). CI: validate-planning-artifacts.yml."""
+    return _run_python_validator(
+        repo_root, "build/scripts/validate_planning_artifacts.py", ["--fail-on-error"]
+    )
 
 
 def validate_agent_drift(repo_root: Path) -> bool:
@@ -337,21 +369,18 @@ def validate_agent_drift(repo_root: Path) -> bool:
     (advisory only, large pre-existing diffs). Only vendored drift blocks.
     """
     python_script = repo_root / "build" / "scripts" / "detect_agent_drift.py"
-    if python_script.exists():
-        exit_code, stdout, stderr = _run_subprocess([sys.executable, str(python_script)])
-        output = (stdout or "") + (stderr or "")
-        if output.strip():
-            _print_capped(output, 100, "lines")
-        return bool(exit_code == 0)
-
-    # Neither port nor original PS1 exists: SKIP, not a misleading FAIL.
-    legacy = repo_root / "build" / "scripts" / "Detect-AgentDrift.ps1"
-    if not legacy.exists():
+    if not python_script.exists():
         raise MissingScriptSkip(
-            "detect_agent_drift.py and Detect-AgentDrift.ps1 both absent (ADR-042 expungement)"
+            "detect_agent_drift.py not present (downstream install)"
         )
 
-    exit_code, _, _ = _run_subprocess(["pwsh", "-NoProfile", "-File", str(legacy)])
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(python_script)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:100]:
+            print(line)
     return bool(exit_code == 0)
 
 

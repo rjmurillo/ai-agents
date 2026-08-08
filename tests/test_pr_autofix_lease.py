@@ -91,6 +91,7 @@ main = _mod.main
 
 _NOW = datetime(2026, 6, 19, 12, 0, 0, tzinfo=UTC)
 _SHA = "a" * 40
+_CLAIM_ID = "1" * 32
 _OWNER = "local:pr-autofix"
 _SESSION = "session-2587"
 _AUTHOR = "octocat"  # verified GitHub comment author (user.login)
@@ -106,11 +107,13 @@ def _body(
     acquired: datetime | None = None,
     expires: datetime | None = None,
     base_sha: str = _SHA,
+    claim_id: str = _CLAIM_ID,
     marker: bool = True,
 ) -> str:
     acquired = acquired or _NOW
     expires = expires or (_NOW + TTL)
     head = f"{LEASE_MARKER}\n" if marker else ""
+    claim_line = f"claim_id: {claim_id}\n" if claim_id else ""
     return (
         f"{head}"
         f"owner: {owner}\n"
@@ -118,6 +121,7 @@ def _body(
         f"acquired_at: {_rfc(acquired)}\n"
         f"expires_at: {_rfc(expires)}\n"
         f"base_sha: {base_sha}\n"
+        f"{claim_line}"
     )
 
 
@@ -198,6 +202,13 @@ class TestParseNegative:
 
     def test_unknown_owner_returns_none(self):
         assert parse_lease_block(_body(owner="attacker:evil")) is None
+
+    def test_unknown_tombstone_target_owner_returns_none(self):
+        body = render_lease_comment(build_tombstone(_OWNER, _SESSION, _NOW))
+        assert parse_lease_block(f"{body}target_owner: attacker:evil\n") is None
+
+    def test_invalid_claim_id_returns_none(self):
+        assert parse_lease_block(_body(claim_id="not-a-claim-id")) is None
 
     def test_non_hex_base_sha_returns_none(self):
         assert parse_lease_block(_body(base_sha="not-a-sha")) is None
@@ -322,12 +333,59 @@ class TestSelect:
     def test_latest_tombstone_wins_over_earlier_live(self):
         live = _comment(_body(), "2026-06-19T11:00:00Z")
         tomb = _comment(
-            render_lease_comment(build_tombstone(_OWNER, _SESSION, _NOW)),
+            render_lease_comment(
+                build_tombstone(_OWNER, _SESSION, _NOW, _SHA, _CLAIM_ID)
+            ),
             "2026-06-19T11:30:00Z",
         )
         chosen = select_authoritative_lease([live, tomb])
         assert chosen is not None
         assert not chosen.is_live(_NOW)
+
+    def test_stale_tombstone_does_not_clear_newer_session(self):
+        first = _comment(_body(session="session-a"), "2026-06-19T11:00:00Z")
+        second = _comment(_body(session="session-b"), "2026-06-19T11:30:00Z")
+        stale_tombstone = _comment(
+            render_lease_comment(build_tombstone(_OWNER, "session-a", _NOW)),
+            "2026-06-19T11:45:00Z",
+        )
+        chosen = select_authoritative_lease([first, second, stale_tombstone])
+        assert chosen is not None
+        assert chosen.session == "session-b"
+        assert chosen.owner == _OWNER
+
+    def test_tombstone_does_not_clear_foreign_claim_with_same_session(self):
+        created = "2026-06-19T11:00:00Z"
+        first = _comment(_body(session="shared"), created, author=_AUTHOR)
+        foreign = _comment(
+            _body(owner="remote:coderabbit-autofix", session="shared"),
+            created,
+            author="coderabbit[bot]",
+        )
+        stale_tombstone = _comment(
+            render_lease_comment(
+                build_tombstone(_OWNER, "shared", _NOW, _SHA, _CLAIM_ID)
+            ),
+            created,
+            author=_AUTHOR,
+        )
+        chosen = select_authoritative_lease([first, foreign, stale_tombstone])
+        assert chosen is not None
+        assert chosen.owner == "remote:coderabbit-autofix"
+        assert chosen.author == "coderabbit[bot]"
+
+    def test_tombstone_does_not_clear_new_claim_with_same_identity(self):
+        first = _comment(_body(claim_id="1" * 32), "2026-06-19T11:00:00Z")
+        renewed = _comment(_body(claim_id="2" * 32), "2026-06-19T11:30:00Z")
+        stale_tombstone = _comment(
+            render_lease_comment(
+                build_tombstone(_OWNER, _SESSION, _NOW, _SHA, "1" * 32)
+            ),
+            "2026-06-19T11:45:00Z",
+        )
+        chosen = select_authoritative_lease([first, renewed, stale_tombstone])
+        assert chosen is not None
+        assert chosen.claim_id == "2" * 32
 
     # --- must_fix #7: verified author is stamped from user.login -----------
 
@@ -544,6 +602,16 @@ class TestAcquire:
         assert result.reason == "self-renew"
         post.assert_called_once()
 
+    def test_self_renew_rotates_claim_id(self):
+        mine = _comment(_body(), "2026-06-19T11:59:00Z", author=_AUTHOR)
+        post, bodies = _captured_post()
+        with _patch_list([mine]), post, _patch_head(), _patch_login(_AUTHOR):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        renewed = parse_lease_block(bodies[0])
+        assert result.reason == "self-renew"
+        assert renewed is not None
+        assert renewed.claim_id != _CLAIM_ID
+
     def test_forged_body_by_foreign_author_returns_skip(self):
         # must_fix #7 end-to-end: a comment whose BODY claims our owner/session
         # but was posted by a different login is a foreign lease -> SKIP.
@@ -754,8 +822,13 @@ class TestRelease:
         def _capture(owner, repo, pr, body):
             captured["body"] = body
 
-        with patch.object(_mod, "post_lease_comment", side_effect=_capture):
-            result = release(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        held = _comment(_body(), "2026-06-19T11:59:00Z")
+        with _patch_list([held]), patch.object(
+            _mod, "post_lease_comment", side_effect=_capture
+        ):
+            result = release(
+                _OWNER, _SESSION, "o", "r", 1, now=_NOW, acting_author=_AUTHOR
+            )
         assert result.action == "ACT"
         assert result.reason == "released"
         parsed = parse_lease_block(captured["body"])
@@ -763,15 +836,138 @@ class TestRelease:
         assert parsed.owner == TOMBSTONE_OWNER
 
     def test_release_is_idempotent_on_already_free_lock(self):
-        with _patch_post():
-            first = release(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
-            second = release(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
-        assert first.action == "ACT"
-        assert second.action == "ACT"
+        with _patch_list([]), _patch_post() as post:
+            result = release(
+                _OWNER, _SESSION, "o", "r", 1, now=_NOW, acting_author=_AUTHOR
+            )
+        assert result.action == "ACT"
+        assert result.reason == "already-free"
+        post.assert_not_called()
 
-    def test_release_store_error_fails_open_to_act(self):
-        with patch.object(_mod, "post_lease_comment", side_effect=LeaseStoreError("boom")):
-            result = release(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+    def test_expired_then_reacquired_lease_is_not_cleared_by_stale_session(self):
+        expired = _comment(
+            _body(
+                session="session-a",
+                acquired=_NOW - timedelta(minutes=30),
+                expires=_NOW - timedelta(minutes=15),
+            ),
+            "2026-06-19T11:30:00Z",
+        )
+        reacquired = _comment(
+            _body(session="session-b"),
+            "2026-06-19T11:59:00Z",
+        )
+        with _patch_list([expired, reacquired]), _patch_post() as post:
+            result = release(
+                _OWNER, "session-a", "o", "r", 1, now=_NOW, acting_author=_AUTHOR
+            )
+        assert result.action == "ACT"
+        assert result.reason == "not-owner"
+        post.assert_not_called()
+
+    def test_release_tombstone_cannot_clear_interleaved_reacquisition(self):
+        first = _comment(_body(session="session-a"), "2026-06-19T11:59:00Z")
+        posted: list[str] = []
+
+        def _capture(owner, repo, pr, body):
+            posted.append(body)
+
+        with _patch_list([first]), patch.object(
+            _mod, "post_lease_comment", side_effect=_capture
+        ):
+            result = release(
+                _OWNER, "session-a", "o", "r", 1, now=_NOW, acting_author=_AUTHOR
+            )
+
+        second = _comment(
+            _body(session="session-a", claim_id="2" * 32),
+            "2026-06-19T12:00:01Z",
+        )
+        stale_tombstone = _comment(posted[0], "2026-06-19T12:00:02Z")
+        chosen = select_authoritative_lease([first, second, stale_tombstone])
+        assert result.reason == "released"
+        assert chosen is not None
+        assert chosen.claim_id == "2" * 32
+        assert chosen.owner == _OWNER
+
+    @pytest.mark.parametrize(
+        ("owner", "session"),
+        [
+            ("remote:coderabbit-autofix", _SESSION),
+            (_OWNER, "foreign-session"),
+        ],
+    )
+    def test_release_does_not_clear_foreign_live_lease(self, owner, session):
+        held = _comment(
+            _body(owner=owner, session=session),
+            "2026-06-19T11:59:00Z",
+        )
+        with _patch_list([held]), _patch_post() as post:
+            result = release(
+                _OWNER, _SESSION, "o", "r", 1, now=_NOW, acting_author=_AUTHOR
+            )
+        assert result.action == "ACT"
+        assert result.reason == "not-owner"
+        post.assert_not_called()
+
+    def test_release_does_not_clear_same_body_identity_from_foreign_author(self):
+        held = _comment(
+            _body(),
+            "2026-06-19T11:59:00Z",
+            author="foreign-login",
+        )
+        with _patch_list([held]), _patch_post() as post:
+            result = release(
+                _OWNER, _SESSION, "o", "r", 1, now=_NOW, acting_author=_AUTHOR
+            )
+        assert result.action == "ACT"
+        assert result.reason == "not-owner"
+        post.assert_not_called()
+
+    def test_release_does_not_post_for_legacy_claim_without_claim_id(self):
+        held = _comment(_body(claim_id=""), "2026-06-19T11:59:00Z")
+        with _patch_list([held]), _patch_post() as post:
+            result = release(
+                _OWNER, _SESSION, "o", "r", 1, now=_NOW, acting_author=_AUTHOR
+            )
+        assert result.action == "ACT"
+        assert result.reason == "not-owner"
+        post.assert_not_called()
+
+    def test_release_does_not_post_for_expired_own_lease(self):
+        expired = _comment(
+            _body(
+                acquired=_NOW - timedelta(minutes=30),
+                expires=_NOW - timedelta(minutes=15),
+            ),
+            "2026-06-19T11:30:00Z",
+        )
+        with _patch_list([expired]), _patch_post() as post:
+            result = release(
+                _OWNER, _SESSION, "o", "r", 1, now=_NOW, acting_author=_AUTHOR
+            )
+        assert result.action == "ACT"
+        assert result.reason == "already-free"
+        post.assert_not_called()
+
+    def test_release_read_error_fails_open_to_act(self):
+        with patch.object(
+            _mod, "list_lease_comments", side_effect=LeaseStoreError("boom")
+        ):
+            result = release(
+                _OWNER, _SESSION, "o", "r", 1, now=_NOW, acting_author=_AUTHOR
+            )
+        assert result.action == "ACT"
+        assert result.reason == "lease-store-unavailable"
+
+    def test_release_write_error_fails_open_to_act(self):
+        held = _comment(_body(), "2026-06-19T11:59:00Z")
+        with _patch_list([held]), patch.object(
+            _mod, "post_lease_comment", side_effect=LeaseStoreError("boom")
+        ):
+            result = release(
+                _OWNER, _SESSION, "o", "r", 1, now=_NOW, acting_author=_AUTHOR
+            )
         assert result.action == "ACT"
         assert result.reason == "lease-store-unavailable"
 

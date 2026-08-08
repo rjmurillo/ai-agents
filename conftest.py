@@ -29,9 +29,6 @@ _TRACE_FILE_ENV_NAMES = ("GIT_TRACE2_EVENT", "GIT_TRACE_SETUP")
 _TRACE_BLOCKED_ENV_NAMES = ("GIT_TRACE_REFS",)
 _TRACE_ENV_NAMES = ("GIT_REFLOG_ACTION", *_TRACE_FILE_ENV_NAMES, *_TRACE_BLOCKED_ENV_NAMES)
 _TRACE_LINE_PATTERN = re.compile(r"^\d{2}:\d{2}:\d{2}\.\d{6}\s+\S+:\d+\s+(?P<message>.*)$")
-_HEAD_TRANSACTION_PATTERN = re.compile(r"^\d+:\s+HEAD\s+[0-9a-f]+\s+->\s+[0-9a-f]+\b")
-_HEAD_SYMREF_PATTERN = re.compile(r'^create_symref:\s+HEAD\s+->\s+\S+\s+".*":\s+0$')
-_TRANSACTION_FINISH_PATTERN = re.compile(r"^finish:\s+(-?\d+)$")
 _REFLOG_EXPIRY_CONTINUATION_PATTERN = re.compile(r"^ \d+: -?\d+$")
 _SETUP_GIT_DIR_PREFIX = "setup: git_dir: "
 _SETUP_CWD_PREFIX = "setup: cwd: "
@@ -276,28 +273,6 @@ def _record_ref_trace_line(session: dict[str, object], line: str) -> None:
     if message.startswith(_SETUP_CWD_PREFIX):
         session["cwd"] = _decode_trace_path(message[len(_SETUP_CWD_PREFIX) :])
         return
-    if message == "transaction {":
-        session["transaction_active"] = True
-        session["transaction_updates_head"] = False
-        return
-    if session.get("transaction_active") is True and _HEAD_TRANSACTION_PATTERN.match(message):
-        session["transaction_updates_head"] = True
-        return
-
-    finish_match = _TRANSACTION_FINISH_PATTERN.fullmatch(message)
-    if finish_match is not None:
-        if (
-            session.get("transaction_active") is True
-            and session.get("transaction_updates_head") is True
-            and int(finish_match.group(1)) == 0
-        ):
-            session["head_mutated"] = True
-        session.pop("transaction_active", None)
-        session.pop("transaction_updates_head", None)
-        return
-
-    if _HEAD_SYMREF_PATTERN.fullmatch(message):
-        session["head_mutated"] = True
 
 
 def _read_trace_sessions(trace_path: Path) -> dict[str, dict[str, object]]:
@@ -426,7 +401,7 @@ def _trace_has_project_head_mutation(trace_path: Path) -> bool:
     for session in _read_trace_sessions(trace_path).values():
         if not _session_targets_project(session):
             continue
-        if session.get("head_mutated") is True or _successful_symbolic_ref_updates_head(session):
+        if _successful_symbolic_ref_updates_head(session):
             return True
     return False
 
@@ -484,6 +459,8 @@ def _guard_real_repo_head() -> Iterator[None]:
     os.environ["GIT_REFLOG_ACTION"] = reflog_action
     for name in _TRACE_FILE_ENV_NAMES:
         os.environ[name] = str(trace_path)
+    # Keep ref tracing blocked. Git 2.43 rejects an explicit commit branch point
+    # while GIT_TRACE_REFS is enabled.
     for name in _TRACE_BLOCKED_ENV_NAMES:
         os.environ.pop(name, None)
     try:

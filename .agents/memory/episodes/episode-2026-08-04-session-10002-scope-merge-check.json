@@ -1,0 +1,103 @@
+{
+  "id": "episode-2026-08-04-session-10002-scope-merge-check",
+  "session": "2026-08-04-session-10002-scope-merge-check",
+  "timestamp": "2026-08-04T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix #4602 detached HEAD false pass and #4544 merge-brought file counting in detect_scope_explosion",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reopened #4544 and new #4602 were re-triaged against current code with cached issue discourse and the supplied attached versus detached reproduction.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-10002-scope-merge-check"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Changed scope detection to fail loudly when branch or base scope cannot be determined and to count committed branch files during in-progress merges.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-10002-scope-merge-check"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added real git regression coverage for attached merge scope, detached merge false pass, and helper command shape.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-10002-scope-merge-check"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation-proved both fixes and the inverted cosmetic control after formatting.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-10002-scope-merge-check"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran final targeted validation and measured the fixed attached and detached merge behavior.",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-04-session-10002-scope-merge-check"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-05T06:38:08+00:00",
+      "type": "commit",
+      "content": "Commit: 83e1a45cb6fbfb3d0498bcf2d01e7b69be334944",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-10002-scope-merge-check"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-05T16:11:48+00:00",
+      "type": "commit",
+      "content": "Commit: d50772cfd865b1bd06f06982abe7f8448ec3ee5e",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-04-session-10002-scope-merge-check"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 81,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 4
+  },
+  "lessons": []
+}

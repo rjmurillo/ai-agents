@@ -73,27 +73,24 @@ finally:
 # Fired-hook probe: ONE source of truth shared with test_cli_hook_e2e.py (#3148).
 from copilot_hook_probe import (  # noqa: E402
     PROBE_EVENT,
-    copilot_auth_failed,
-    copilot_auth_failure_headline,
     copilot_command,
-    copilot_transient_failure,
-    copilot_transient_failure_headline,
+    copilot_run_blocked,
+    copilot_run_blocked_headline,
     run_copilot_plugin_dir,
     write_marker_probe_plugin,
 )
 
 
-def _skip_on_auth_failure(result: subprocess.CompletedProcess[str]) -> None:
-    """Skip the test (not fail) when Copilot auth is absent or rejected.
+def _skip_on_copilot_block(result: subprocess.CompletedProcess[str]) -> None:
+    """Skip when an external or credential condition blocks Copilot.
 
-    In the pre-push context no valid Copilot token is expected, so an auth gate
-    is an infrastructure condition, not a branch defect. Skipping lets the push
-    proceed. The nightly workflow provisions a real token and uses
+    A rate limit, transport failure, or auth gate is not a branch defect.
+    Skipping lets the pre-push proceed. The nightly workflow uses
     assert_smoke_ran.py to detect skipped smokes, so the nightly still fails red
-    when the secret is missing or revoked (issues #4483, #3275).
+    when the real CLI cannot run (issues #4504, #4483, #3275).
     """
-    if copilot_auth_failed(result):
-        pytest.skip(copilot_auth_failure_headline(result))
+    if copilot_run_blocked(result):
+        pytest.skip(copilot_run_blocked_headline(result))
 
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
@@ -273,10 +270,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
         pytest.skip(
             f"copilot --plugin-dir probe exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
         )
-    if copilot_transient_failure(fired):
-        pytest.skip(copilot_transient_failure_headline(fired))
-    if copilot_auth_failed(fired):
-        _skip_on_auth_failure(fired)
+    _skip_on_copilot_block(fired)
     assert fired.returncode == 0, (
         f"copilot --plugin-dir probe run failed (rc={fired.returncode}). "
         f"stdout={fired.stdout[-600:]!r} stderr={fired.stderr[-600:]!r}"
@@ -304,10 +298,7 @@ def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
     except subprocess.TimeoutExpired:
         pytest.skip(f"copilot skill list exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
 
-    if copilot_transient_failure(run):
-        pytest.skip(copilot_transient_failure_headline(run))
-    if copilot_auth_failed(run):
-        _skip_on_auth_failure(run)
+    _skip_on_copilot_block(run)
     assert run.returncode == 0, (
         f"copilot skill list failed (rc={run.returncode}). "
         f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
@@ -384,6 +375,7 @@ def test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path: Path) -> No
         pytest.skip(
             f"copilot --plugin-dir empty exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
         )
+    _skip_on_copilot_block(run)
     assert not marker.is_file(), (
         "negative control failed: copilot fired the probe hook while pointed at an EMPTY "
         "--plugin-dir, so a fired marker cannot distinguish load from no-load and the smoke's "
@@ -680,50 +672,61 @@ def test_run_cli_uses_cwd_and_decodes_utf8(tmp_path: Path) -> None:
     assert lines == [str(tmp_path), chr(0x2713)]
 
 
-# Unit tests for _skip_on_auth_failure (issues #4483, #3275).
-# These run without RUN_CLI_E2E and without the real CLI, so they cover the
-# skip-vs-fail decision in bare CI. Mutation coverage: breaking copilot_auth_failed
-# to always return False causes the absent/rejected tests to fail. Breaking
-# _skip_on_auth_failure to call pytest.fail instead of pytest.skip causes
-# test_skip_on_auth_failure_raises_skip_for_* to fail.
-def _make_auth_result(rc: int, stderr: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(["copilot"], rc, stdout="", stderr=stderr)
+@pytest.mark.parametrize("blocked_phase", ["probe", "skill-list"])
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "API rate limit exceeded for user ID 12345.",
+        "Failed to fetch PAT user login: connection reset by peer.",
+    ],
+)
+def test_copilot_plugin_smoke_skips_classified_block(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    blocked_phase: str,
+    stderr: str,
+) -> None:
+    """Both real Copilot calls skip before plugin assertions on external blocks."""
+    success = subprocess.CompletedProcess(["copilot"], 0, stdout="[]", stderr="")
+    blocked = subprocess.CompletedProcess(["copilot"], 1, stdout="", stderr=stderr)
 
+    def fake_run_cli(argv: tuple[str, ...], **_: object) -> subprocess.CompletedProcess[str]:
+        if "--version" in argv:
+            return success
+        return blocked if blocked_phase == "skill-list" else success
 
-def test_skip_on_auth_failure_raises_skip_for_absent_token() -> None:
-    """_skip_on_auth_failure raises Skipped (not Failed) for a missing token."""
-    result = _make_auth_result(
-        1,
-        "No authentication information found. You can use any of the following methods:\n"
-        "  - Set the COPILOT_GITHUB_TOKEN environment variable",
+    def fake_run_plugin(
+        plugin_dir: Path, **_: object
+    ) -> subprocess.CompletedProcess[str]:
+        if blocked_phase == "probe":
+            return blocked
+        (plugin_dir.parent / "probe_marker.txt").write_text("MARKER", encoding="utf-8")
+        return success
+
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke.copilot_command", lambda *a: a)
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", fake_run_cli)
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
+        fake_run_plugin,
     )
+
     with pytest.raises(pytest.skip.Exception):
-        _skip_on_auth_failure(result)
+        test_copilot_plugin_loads_expected_skills(tmp_path)
 
 
-def test_skip_on_auth_failure_raises_skip_for_rejected_token() -> None:
-    """_skip_on_auth_failure raises Skipped (not Failed) for a rejected/revoked token."""
-    result = _make_auth_result(
+def test_empty_plugin_negative_control_skips_classified_block(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    blocked = subprocess.CompletedProcess(
+        ["copilot"],
         1,
-        "Failed to fetch PAT user login (401): GitHub returned: Bad credentials",
+        stdout="",
+        stderr="API rate limit exceeded for user ID 12345.",
     )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
+        lambda *args, **kwargs: blocked,
+    )
+
     with pytest.raises(pytest.skip.Exception):
-        _skip_on_auth_failure(result)
-
-
-def test_skip_on_auth_failure_is_noop_on_success() -> None:
-    """_skip_on_auth_failure does not raise for a successful CLI run (cosmetic survivor)."""
-    result = _make_auth_result(0, "")
-    _skip_on_auth_failure(result)  # must not raise
-
-
-def test_skip_on_auth_failure_skip_message_is_non_empty() -> None:
-    """The skip reason names the cause so skipped runs are diagnosable."""
-    result = _make_auth_result(
-        1,
-        "No authentication information found. You can use any of the following methods:\n"
-        "  - Set the COPILOT_GITHUB_TOKEN environment variable",
-    )
-    with pytest.raises(pytest.skip.Exception) as exc_info:
-        _skip_on_auth_failure(result)
-    assert str(exc_info.value)  # skip message must not be blank
+        test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path)
