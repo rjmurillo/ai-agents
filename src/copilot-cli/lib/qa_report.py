@@ -17,6 +17,7 @@ _QA_FIELD_PATTERN = re.compile(
     r"^(qaVerdict|qaSessionLog|qaCommit):[ \t]*(.*?)$"
 )
 _REQUIRED_FIELDS = frozenset({"qaVerdict", "qaSessionLog", "qaCommit"})
+_SESSION_LOG_ROOT = PurePosixPath(".agents/sessions")
 QA_EVIDENCE_PREFIXES = (
     ".agents/memory/episodes/",
     ".agents/qa/",
@@ -39,6 +40,55 @@ class QaReport:
     verdict: str
     session_log: str
     commit: str
+
+
+def _session_log_relative(session_log: str) -> PurePosixPath:
+    session_path = PurePosixPath(session_log)
+    try:
+        relative = session_path.relative_to(_SESSION_LOG_ROOT)
+    except ValueError as exc:
+        raise ValueError(
+            "QA report session log must be a canonical .agents/sessions/*.json path"
+        ) from exc
+    if (
+        session_path.is_absolute()
+        or session_path.as_posix() != session_log
+        or not relative.parts
+        or ".." in relative.parts
+        or session_path.suffix != ".json"
+    ):
+        raise ValueError(
+            "QA report session log must be a canonical .agents/sessions/*.json path"
+        )
+    return relative
+
+
+def session_log_identity(path: Path, *, sessions_root: Path) -> str:
+    """Map a physical session file to its canonical logical identity."""
+    try:
+        relative = path.resolve().relative_to(sessions_root.resolve())
+    except ValueError as exc:
+        raise ValueError(
+            f"Session log is outside the configured sessions root: {path}"
+        ) from exc
+    identity = (_SESSION_LOG_ROOT / PurePosixPath(relative.as_posix())).as_posix()
+    _session_log_relative(identity)
+    return identity
+
+
+def resolve_session_log_path(
+    session_log: str,
+    *,
+    sessions_root: Path,
+) -> Path:
+    """Resolve a canonical logical session identity under a physical root."""
+    relative = _session_log_relative(session_log)
+    path = (sessions_root.resolve() / Path(*relative.parts)).resolve()
+    try:
+        path.relative_to(sessions_root.resolve())
+    except ValueError as exc:
+        raise ValueError("QA report session log escapes the sessions root") from exc
+    return path
 
 
 def _qa_fields(text: str) -> dict[str, str]:
@@ -80,17 +130,7 @@ def load_qa_report(path: Path) -> QaReport:
         raise ValueError(f"QA report verdict must be PASS, got {verdict!r}")
 
     session_log = fields["qaSessionLog"]
-    session_path = PurePosixPath(session_log)
-    if (
-        session_path.is_absolute()
-        or session_path.as_posix() != session_log
-        or session_path.parts[:2] != (".agents", "sessions")
-        or ".." in session_path.parts
-        or session_path.suffix != ".json"
-    ):
-        raise ValueError(
-            "QA report session log must be a canonical .agents/sessions/*.json path"
-        )
+    _session_log_relative(session_log)
 
     commit = fields["qaCommit"]
     if _FULL_COMMIT_PATTERN.fullmatch(commit) is None:

@@ -37,6 +37,8 @@ from scripts.validate_session_json import (
     SESSION_END_REQUIRED_ITEMS,
     SESSION_START_REQUIRED_ITEMS,
     ValidationResult,
+    _session_identity,
+    _validate_session_path,
     build_summary,
     count_must_failures,
     filename_session_number,
@@ -61,6 +63,8 @@ QaBinding = _qa_report.QaBinding
 load_qa_report = _qa_report.load_qa_report
 non_evidence_paths = _qa_report.non_evidence_paths
 post_qa_code_changes = _qa_report.post_qa_code_changes
+resolve_session_log_path = _qa_report.resolve_session_log_path
+session_log_identity = _qa_report.session_log_identity
 session_qa_binding = _qa_report.session_qa_binding
 validate_qa_report = _qa_report.validate_qa_report
 
@@ -294,6 +298,85 @@ def test_filters_session_evidence_from_post_qa_changes() -> None:
             "scripts/changed.py",
         ]
     ) == ["scripts/changed.py"]
+
+
+def test_maps_external_session_file_to_canonical_identity(
+    tmp_path: Path,
+) -> None:
+    sessions_root = tmp_path / "artifacts" / "sessions"
+    session_path = sessions_root / "nested" / "session.json"
+    session_path.parent.mkdir(parents=True)
+    session_path.write_text("{}", encoding="utf-8")
+
+    identity = session_log_identity(
+        session_path,
+        sessions_root=sessions_root,
+    )
+
+    assert identity == ".agents/sessions/nested/session.json"
+    assert resolve_session_log_path(
+        identity,
+        sessions_root=sessions_root,
+    ) == session_path
+
+
+def test_rejects_session_file_outside_configured_root(tmp_path: Path) -> None:
+    sessions_root = tmp_path / "artifacts" / "sessions"
+    sessions_root.mkdir(parents=True)
+    session_path = tmp_path / "session.json"
+
+    with pytest.raises(ValueError, match="outside the configured sessions root"):
+        session_log_identity(
+            session_path,
+            sessions_root=sessions_root,
+        )
+
+
+def test_rejects_non_json_session_identity(tmp_path: Path) -> None:
+    sessions_root = tmp_path / "sessions"
+    session_path = sessions_root / "session.md"
+    session_path.parent.mkdir()
+
+    with pytest.raises(ValueError, match="canonical .agents/sessions"):
+        session_log_identity(
+            session_path,
+            sessions_root=sessions_root,
+        )
+
+
+def test_rejects_session_identity_that_resolves_outside_root(
+    tmp_path: Path,
+) -> None:
+    sessions_root = tmp_path / "sessions"
+    outside = tmp_path / "outside"
+    sessions_root.mkdir()
+    outside.mkdir()
+    try:
+        (sessions_root / "linked").symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="escapes the sessions root"):
+        resolve_session_log_path(
+            ".agents/sessions/linked/session.json",
+            sessions_root=sessions_root,
+        )
+
+
+def test_validator_accepts_configured_external_session_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = tmp_path / "artifacts"
+    session_path = artifact_root / "sessions" / "session.json"
+    session_path.parent.mkdir(parents=True)
+    session_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(artifact_root))
+
+    validated = _validate_session_path(session_path)
+
+    assert validated == session_path
+    assert _session_identity(validated) == ".agents/sessions/session.json"
 
 
 def test_detects_code_touched_then_reverted_after_qa(tmp_path: Path) -> None:

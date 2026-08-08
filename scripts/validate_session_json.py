@@ -52,6 +52,7 @@ sys.path.insert(0, str(_CLAUDE_LIB_DIR))
 from paths import artifact_dir  # noqa: E402
 from qa_report import (  # noqa: E402
     post_qa_code_changes,
+    session_log_identity,
     session_qa_binding,
     validate_qa_report,
 )
@@ -1475,6 +1476,36 @@ def _repo_relative(path: Path) -> str:
         return resolved.as_posix()
 
 
+def _session_roots() -> tuple[Path, ...]:
+    """Return configured and repository-default physical session roots."""
+    configured = artifact_dir("sessions", base=_PROJECT_ROOT).resolve()
+    default = (_PROJECT_ROOT / ".agents" / "sessions").resolve()
+    return tuple(dict.fromkeys((configured, default)))
+
+
+def _validate_session_path(path: str | Path) -> Path:
+    """Accept a session file under the repository or configured artifact root."""
+    roots = tuple(dict.fromkeys((_PROJECT_ROOT, *_session_roots())))
+    for root in roots:
+        try:
+            return validate_safe_path(path, root)
+        except (ValueError, FileNotFoundError):
+            continue
+    raise ValueError(
+        f"Path {path} is outside the repository and configured sessions root"
+    )
+
+
+def _session_identity(path: Path) -> str:
+    """Return the canonical logical identity for a physical session file."""
+    for sessions_root in _session_roots():
+        try:
+            return session_log_identity(path, sessions_root=sessions_root)
+        except ValueError:
+            continue
+    raise ValueError(f"Session log is outside every supported sessions root: {path}")
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments.
 
@@ -1578,7 +1609,7 @@ def main() -> int:
 
         # Validate the user-provided path against the project root
         try:
-            validated_path = validate_safe_path(args.session_path, _PROJECT_ROOT)
+            validated_path = _validate_session_path(args.session_path)
         except (ValueError, FileNotFoundError) as e:
             print(f"ERROR: Invalid path provided: {e}", file=sys.stderr)
             return 1
@@ -1604,11 +1635,15 @@ def main() -> int:
         validation_head = args.validation_head
         if not existing_log and not args.creation_mode and validation_head is None:
             validation_head = _resolve_full_commit("HEAD")
+        try:
+            session_log = _session_identity(validated_path)
+        except ValueError:
+            session_log = _repo_relative(validated_path)
         result = validate_session_log(
             data,
             existing_log=existing_log,
             creation_mode=args.creation_mode,
-            session_log=_repo_relative(validated_path),
+            session_log=session_log,
             validation_head=validation_head,
         )
         validate_filename_number(validated_path, data, result)

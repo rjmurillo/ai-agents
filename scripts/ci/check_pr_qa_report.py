@@ -18,6 +18,7 @@ from paths import artifact_dir  # noqa: E402
 from qa_report import (  # noqa: E402
     load_qa_report,
     post_qa_code_changes,
+    resolve_session_log_path,
     session_qa_binding,
     validate_qa_report,
 )
@@ -102,12 +103,23 @@ def _resolve_commit(commit: str) -> str | None:
 
 
 def _load_session_log(session_log: str) -> tuple[Path, dict[str, Any]]:
-    sessions_root = artifact_dir("sessions", base=Path.cwd()).resolve()
-    path = (Path.cwd() / session_log).resolve()
-    try:
-        path.relative_to(sessions_root)
-    except ValueError as exc:
-        raise ValueError("QA report session log escapes the sessions root") from exc
+    configured_root = artifact_dir("sessions", base=Path.cwd()).resolve()
+    default_root = (Path.cwd() / ".agents" / "sessions").resolve()
+    roots = dict.fromkeys((configured_root, default_root))
+    path = next(
+        (
+            candidate
+            for root in roots
+            if (candidate := resolve_session_log_path(
+                session_log,
+                sessions_root=root,
+            )).is_file()
+        ),
+        resolve_session_log_path(
+            session_log,
+            sessions_root=configured_root,
+        ),
+    )
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:

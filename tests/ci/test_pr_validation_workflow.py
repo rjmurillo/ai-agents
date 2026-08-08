@@ -73,6 +73,28 @@ def _write_qa_artifacts(
     return report
 
 
+def test_load_session_log_uses_configured_artifact_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = tmp_path / "artifacts"
+    session_path = artifact_root / "sessions" / "session.json"
+    session_path.parent.mkdir(parents=True)
+    session_path.write_text(
+        json.dumps({"endingCommit": "a" * 40}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(artifact_root))
+    monkeypatch.chdir(tmp_path)
+
+    path, data = qa_mod._load_session_log(
+        ".agents/sessions/session.json"
+    )
+
+    assert path == session_path
+    assert data["endingCommit"] == "a" * 40
+
+
 @pytest.mark.parametrize(
     ("exit_code", "expected"),
     [(0, "PASS"), (1, "FAIL"), (2, "ERROR"), (99, "ERROR")],
