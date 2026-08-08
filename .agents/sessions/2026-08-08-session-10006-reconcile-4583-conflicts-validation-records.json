@@ -167,6 +167,14 @@
         ".agents/sessions/2026-08-08-session-10006-reconcile-4583-conflicts-validation-records.json"
       ],
       "result": "First review found only the incomplete active session record. Record completed for recursive review."
+    },
+    {
+      "timestamp": "2026-08-08T17:25:00Z",
+      "action": "Regenerated this session episode with --force after independent review found stale preserved commit data.",
+      "files": [
+        ".agents/memory/episodes/episode-2026-08-08-session-10006-reconcile-4583-conflicts-validation-records.json"
+      ],
+      "result": "Fresh extraction removed the duplicated commit event. Episode validation passed."
     }
   ],
   "endingCommit": "4c44530cd23f4a5d3caf696dd92bc8a0a055ab17",

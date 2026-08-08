@@ -79,21 +79,19 @@
         "e005"
       ],
       "leads_to": [
-        "e007"
+        "e008"
       ],
       "_source_session": "2026-08-08-session-10006-reconcile-4583-conflicts-validation-records"
     },
     {
       "id": "e007",
-      "timestamp": "2026-08-08T16:59:23+00:00",
-      "type": "commit",
-      "content": "Commit: 075cbf1c0d",
+      "timestamp": "2026-08-08T17:25:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated this session episode with --force after independent review found stale preserved commit data.",
       "caused_by": [
-        "e006"
+        "e009"
       ],
-      "leads_to": [
-        "e008"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-08-session-10006-reconcile-4583-conflicts-validation-records"
     },
     {
@@ -102,7 +100,7 @@
       "type": "commit",
       "content": "Commit: 075cbf1c0dbc0857045b86783921de378ad6985a",
       "caused_by": [
-        "e007"
+        "e006"
       ],
       "leads_to": [
         "e009"
@@ -117,16 +115,18 @@
       "caused_by": [
         "e008"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-08-session-10006-reconcile-4583-conflicts-validation-records"
     }
   ],
   "metrics": {
-    "duration_minutes": 25,
+    "duration_minutes": 65,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 2,
     "files_changed": 2
   },
   "lessons": []
