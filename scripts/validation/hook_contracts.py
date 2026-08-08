@@ -50,7 +50,9 @@ MIN_TIMEOUT = 1
 MAX_TIMEOUT = 300
 
 # Pattern to extract script path from command string
-_SCRIPT_PATH_PATTERN = re.compile(r"python3?\s+(?:-\w+\s+)*\"?(.+?\.py)\"?(?:\s|$)")
+_SCRIPT_PATH_PATTERN = re.compile(
+    r"(?:python3?|\"?\$(?:_interp|_i)\"?)\s+(?:-\w+\s+)*\"?([^;>|&\s]+\.py)\"?(?:\s|;|$)"
+)
 
 # Plugin registrations address their scripts through the harness-provided
 # plugin root. Inside the checkout that publishes the plugin, that root is a
@@ -65,7 +67,9 @@ COPILOT_ROOT = "src/copilot-cli"
 # brace. The shipped copilot-cli registrations use exactly that form; a pattern
 # that allowed { in the default matched only the inner expansion and left a
 # stray } in the extracted path, which reads as a missing script.
-_PLUGIN_ROOT_PATTERN = re.compile(r"\$\{(?:CLAUDE|COPILOT)_PLUGIN_ROOT(?::-[^{}]*)?\}")
+_PLUGIN_ROOT_PATTERN = re.compile(
+    r"\$\{(?:CLAUDE|COPILOT)_PLUGIN_ROOT(?::-[^{}]*)?\}|\$_ptr"
+)
 
 # A nested default needs more than one pass: the inner expansion resolves
 # first, which turns the outer one into the simple form the pattern matches.
