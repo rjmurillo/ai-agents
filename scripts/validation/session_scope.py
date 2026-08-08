@@ -16,6 +16,7 @@ would drag in PyYAML and fail.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -188,10 +189,24 @@ def added_session_paths_in_index(paths: Iterable[str], repo_root: Path) -> set[s
     )
 
 
-def _head_parents(repo_root: Path) -> list[str] | None:
-    """Return HEAD's parent SHAs, or ``None`` when git cannot answer."""
+def _commit_object_parents(repo_root: Path, head: str) -> list[str] | None:
     try:
-        result = _git(["rev-list", "--parents", "-n", "1", "HEAD"], repo_root)
+        result = _git(["cat-file", "-p", head], repo_root)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return [
+        line.removeprefix("parent ")
+        for line in result.stdout.splitlines()
+        if line.startswith("parent ")
+    ]
+
+
+def _head_parents(repo_root: Path, head: str = "HEAD") -> list[str] | None:
+    """Return a commit's parent SHAs, or ``None`` when git cannot answer."""
+    try:
+        result = _git(["rev-list", "--parents", "-n", "1", head], repo_root)
     except (OSError, subprocess.SubprocessError):
         return None
     if result.returncode != 0:
@@ -203,29 +218,61 @@ def _head_parents(repo_root: Path) -> list[str] | None:
     parts = result.stdout.split()
     if not parts:
         return None
-    return parts[1:]
+    return parts[1:] or _commit_object_parents(repo_root, head)
+
+
+def _pull_request_head_sha() -> str:
+    event_path = os.environ.get("GITHUB_EVENT_PATH", "")
+    if not event_path:
+        return ""
+    try:
+        payload = json.loads(Path(event_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    if not isinstance(payload, dict):
+        return ""
+    pull_request = payload.get("pull_request")
+    if not isinstance(pull_request, dict):
+        return ""
+    head_data = pull_request.get("head")
+    if not isinstance(head_data, dict):
+        return ""
+    head = head_data.get("sha", "")
+    return head if isinstance(head, str) and _COMMIT_SHA.fullmatch(head) else ""
+
+
+def _validation_head(repo_root: Path, parents: list[str]) -> tuple[str, list[str] | None]:
+    """Select the PR head behind GitHub's synthetic merge commit."""
+    pull_request_head = _pull_request_head_sha()
+    if len(parents) != 2 or pull_request_head != parents[1]:
+        return "HEAD", parents
+
+    return pull_request_head, _head_parents(repo_root, pull_request_head)
 
 
 def added_session_paths_in_head(paths: Iterable[str], repo_root: Path) -> set[str] | None:
-    """Return session-log paths added by ``HEAD``, or ``None`` on git failure."""
+    """Return paths added by the validation head, or ``None`` on git failure."""
     wanted = list(paths)
     if not wanted:
         return set()
     parents = _head_parents(repo_root)
     if parents is None:
         return None
+    head, parents = _validation_head(repo_root, parents)
+    if parents is None:
+        return None
     if not parents:
         return _added_session_paths(
             wanted,
             repo_root,
-            ["diff-tree", "--root", "--name-status", "-M", "--diff-filter=A", "-r", "HEAD"],
+            ["diff-tree", "--root", "--name-status", "-M", "--diff-filter=A", "-r", head],
         )
     added_against_all: set[str] | None = None
     for parent in parents:
         added = _added_session_paths(
             wanted,
             repo_root,
-            ["diff-tree", "--name-status", "-M", "--diff-filter=A", "-r", parent, "HEAD"],
+            ["diff-tree", "--name-status", "-M", "--diff-filter=A", "-r", parent, head],
         )
         if added is None:
             return None
@@ -243,7 +290,7 @@ def committed_session_validation_modes(
 ) -> dict[str, str] | None:
     """Classify committed session logs as creation, full, or existing.
 
-    ``creation`` applies only to paths that the current ``HEAD`` commit adds.
+    ``creation`` applies only to paths that the validated branch-head commit adds.
     ``existing`` is reserved for paths proven to predate the branch, meaning
     they are absent from the branch-added set relative to the merge base.
     Everything else stays on the full validation path with no mode flag.

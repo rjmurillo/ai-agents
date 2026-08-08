@@ -1006,7 +1006,8 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1027,7 +1028,8 @@ class TestScriptIntegration:
         result = subprocess.run(
             [sys.executable, str(script_path), str(session_files[0])],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -2044,6 +2046,9 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
                 if parents:
                     line += f" {' '.join(parents)}"
                 return subprocess.CompletedProcess([], 0, f"{line}\n", "")
+            if args == ["cat-file", "-p", "HEAD"]:
+                body = "".join(f"parent {parent}\n" for parent in parents)
+                return subprocess.CompletedProcess([], 0, body, "")
             if args == [
                 "diff-tree",
                 "--root",
@@ -2112,6 +2117,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             if line.startswith(("import ", "from ")) and "__future__" not in line
         ]
         assert imports == [
+            "import json",
             "import os",
             "import re",
             "import subprocess",
@@ -2250,6 +2256,104 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         )
         with mock.patch.object(session_scope, "_git", stub):
             assert session_scope.added_session_paths_in_head(["a.json"], Path.cwd()) == set()
+
+    @pytest.mark.parametrize(
+        ("event_head", "update_after_add", "shallow_head", "expected"),
+        [
+            ("feature", False, False, {"session.json"}),
+            ("", False, False, set()),
+            ("feature", True, False, set()),
+            ("feature", True, True, set()),
+            ("main-parent", False, False, set()),
+        ],
+    )
+    def test_synthetic_pull_request_merge_classifies_only_pr_head_additions(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        event_head: str,
+        update_after_add: bool,
+        shallow_head: bool,
+        expected: set[str],
+    ) -> None:
+        from scripts.validation import session_scope
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+
+        def git(*args: str) -> str:
+            return subprocess.run(
+                ["git", *args],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            ).stdout.strip()
+
+        git("init", "-b", "main")
+        git("config", "user.name", "Test User")
+        git("config", "user.email", "test@example.com")
+        (repo / "README.md").write_text("base\n", encoding="utf-8")
+        git("add", "README.md")
+        git("commit", "-m", "test: base")
+
+        git("switch", "-c", "feature")
+        session_file = repo / "session.json"
+        session_file.write_text("{}\n", encoding="utf-8")
+        git("add", "session.json")
+        git("commit", "-m", "test: add session")
+        if update_after_add:
+            session_file.write_text('{"updated": true}\n', encoding="utf-8")
+            git("add", "session.json")
+            git("commit", "-m", "test: update session")
+        feature_head = git("rev-parse", "HEAD")
+        feature_parent = git("rev-parse", "HEAD^")
+
+        git("switch", "main")
+        main_parent = git("rev-parse", "HEAD")
+        git("merge", "--no-ff", "feature", "-m", "test: synthetic pull request merge")
+        if shallow_head:
+            (repo / ".git" / "shallow").write_text(f"{feature_head}\n", encoding="utf-8")
+        event_path = repo / "event.json"
+        head_sha = {
+            "feature": feature_head,
+            "main-parent": main_parent,
+        }.get(event_head, feature_parent)
+        if event_head:
+            event_path.write_text(
+                json.dumps({"pull_request": {"head": {"sha": head_sha}}}),
+                encoding="utf-8",
+            )
+            monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+        else:
+            monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+
+        assert session_scope.added_session_paths_in_head(["session.json"], repo) == expected
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            [],
+            None,
+            {"pull_request": None},
+            {"pull_request": {"head": None}},
+        ],
+    )
+    def test_malformed_event_shapes_do_not_select_a_synthetic_pr_head(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        payload: object,
+    ) -> None:
+        from scripts.validation import session_scope
+
+        event_path = tmp_path / "event.json"
+        event_path.write_text(json.dumps(payload), encoding="utf-8")
+        monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+
+        assert session_scope._pull_request_head_sha() == ""
 
     def test_the_index_add_probe_uses_the_active_alternate_index(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -2715,8 +2819,12 @@ class TestEndingCommitReachability:
 
         def git(*args: str) -> str:
             return subprocess.run(
-                ["git", *args], cwd=repo, capture_output=True, text=True,
-                encoding="utf-8", check=True
+                ["git", *args],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=True,
             ).stdout.strip()
 
         git("init", "-q", "-b", "main")
@@ -2762,7 +2870,8 @@ class TestEndingCommitReachability:
         subprocess.run(
             ["git", "clone", "-q", "--depth", "1", repo.as_uri(), str(shallow)],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             check=True,
         )
         assert (
@@ -2770,7 +2879,8 @@ class TestEndingCommitReachability:
                 ["git", "rev-parse", "--is-shallow-repository"],
                 cwd=shallow,
                 capture_output=True,
-                text=True, encoding="utf-8",
+                text=True,
+                encoding="utf-8",
                 check=True,
             ).stdout.strip()
             == "true"
