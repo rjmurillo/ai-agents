@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -9,6 +10,22 @@ from pathlib import Path
 GIT_COMMAND_TIMEOUT_SECONDS = 30
 MARKER_DIRECTORY_NAME = "mutation-active"
 SCRATCH_DIRECTORY = Path(".pytest_cache") / "mutation-worktrees"
+_GIT_ENVIRONMENT_KEYS = {
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_DIR",
+    "GIT_EXEC_PATH",
+    "GIT_INDEX_FILE",
+    "GIT_NAMESPACE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_PREFIX",
+    "GIT_SHALLOW_FILE",
+    "GIT_WORK_TREE",
+}
+_GIT_ENVIRONMENT_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
 
 
 class MutationWorkspaceError(RuntimeError):
@@ -17,6 +34,12 @@ class MutationWorkspaceError(RuntimeError):
 
 def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     command = ["git", *args]
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in _GIT_ENVIRONMENT_KEYS
+        and not key.startswith(_GIT_ENVIRONMENT_PREFIXES)
+    }
     try:
         return subprocess.run(
             command,
@@ -26,6 +49,7 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            env=environment,
             timeout=GIT_COMMAND_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as exc:

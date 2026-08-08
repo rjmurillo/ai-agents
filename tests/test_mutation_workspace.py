@@ -226,6 +226,39 @@ def test_git_failure_does_not_fall_back_to_active_target(
         mutation_workspace.tracked_repository_path(REPO_ROOT / TARGET)
 
 
+def test_git_pointer_environment_cannot_redirect_tracking_or_markers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    baseline_marker_directory = marker_directory(REPO_ROOT)
+    common_dir_result = subprocess.run(
+        ["git", "rev-parse", "--git-common-dir"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    common_dir = Path(common_dir_result.stdout.strip())
+    if not common_dir.is_absolute():
+        common_dir = REPO_ROOT / common_dir
+    hostile_environment = {
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "core.worktree",
+        "GIT_CONFIG_VALUE_0": "/",
+        "GIT_DIR": str(common_dir.resolve()),
+        "GIT_INDEX_FILE": str(REPO_ROOT / "invalid-index"),
+        "GIT_WORK_TREE": "/",
+    }
+    for key, value in hostile_environment.items():
+        monkeypatch.setenv(key, value)
+
+    assert mutation_workspace.tracked_repository_path(REPO_ROOT / TARGET) == (
+        REPO_ROOT,
+        TARGET,
+    )
+    assert marker_directory(REPO_ROOT) == baseline_marker_directory
+
+
 def test_interruption_during_worktree_add_cleans_partial_directory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -243,6 +276,29 @@ def test_interruption_during_worktree_add_cleans_partial_directory(
     with pytest.raises(MutationInterrupted):
         with isolated_mutation_worktree(repo, [target]):
             pytest.fail("interrupted setup yielded a workspace")
+
+    assert not observed["scratch"].exists()
+    assert not list(marker_directory(repo).iterdir())
+
+
+def test_signal_after_worktree_add_still_runs_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    observed: dict[str, Path] = {}
+    add_worktree = mutation_workspace._add_worktree
+
+    def add_then_signal(repo_root: Path, scratch_root: Path) -> None:
+        add_worktree(repo_root, scratch_root)
+        observed["scratch"] = scratch_root
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    monkeypatch.setattr(mutation_workspace, "_add_worktree", add_then_signal)
+
+    with pytest.raises(MutationInterrupted):
+        with isolated_mutation_worktree(repo, [target]):
+            pytest.fail("signal after add yielded a workspace")
 
     assert not observed["scratch"].exists()
     assert not list(marker_directory(repo).iterdir())
@@ -276,7 +332,6 @@ def test_remove_worktree_clears_fresh_registration_when_directory_missing(
 
 def test_cleanup_removes_scratch_and_preserves_body_error_after_active_drift(
     tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
 ) -> None:
     repo, target = _create_repository(tmp_path / "repo")
     original = target.read_text(encoding="utf-8")
@@ -290,7 +345,7 @@ def test_cleanup_removes_scratch_and_preserves_body_error_after_active_drift(
 
     assert not scratch.exists()
     assert marker.exists()
-    assert "cleanup incomplete" in capsys.readouterr().err
+    assert json.loads(marker.read_text(encoding="utf-8"))["pid"] is None
 
     target.write_text(original, encoding="utf-8")
     assert recover_marker(repo, marker) == EXIT_OK

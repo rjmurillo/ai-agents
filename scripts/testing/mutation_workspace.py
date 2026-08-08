@@ -202,6 +202,7 @@ def _install_signal_handlers(state: _SignalState) -> dict[int, Any]:
         if state.cleaning_up:
             state.pending_signal = signum
             return
+        state.cleaning_up = True
         raise MutationInterrupted(128 + signum)
 
     previous: dict[int, Any] = {}
@@ -245,39 +246,11 @@ def isolated_mutation_worktree(
 
     signal_state = _SignalState()
     previous_handlers = _install_signal_handlers(signal_state)
+    body_error: BaseException | None = None
     try:
-        _write_marker(marker_path, payload)
         try:
+            _write_marker(marker_path, payload)
             _add_worktree(root, scratch_root)
-        except BaseException:
-            signal_state.cleaning_up = True
-            setup_errors: list[str] = []
-            try:
-                _remove_worktree(root, scratch_root)
-            except (MutationWorkspaceError, OSError) as exc:
-                setup_errors.append(str(exc))
-            if setup_errors:
-                try:
-                    _mark_run_finished(marker_path, payload)
-                except OSError as exc:
-                    setup_errors.append(f"cannot mark mutation run finished: {exc}")
-                print(
-                    f"ERROR: mutation workspace setup cleanup incomplete: "
-                    f"{'; '.join(setup_errors)}",
-                    file=sys.stderr,
-                )
-            else:
-                try:
-                    marker_path.unlink(missing_ok=True)
-                except OSError as exc:
-                    print(
-                        f"ERROR: cannot remove mutation marker after setup failure: {exc}",
-                        file=sys.stderr,
-                    )
-            raise
-
-        body_error: BaseException | None = None
-        try:
             yield workspace
         except BaseException as exc:
             body_error = exc
@@ -309,11 +282,6 @@ def isolated_mutation_worktree(
                     if signal_state.pending_signal is not None:
                         raise MutationInterrupted(128 + signal_state.pending_signal)
                     raise MutationWorkspaceError("; ".join(cleanup_errors))
-                print(
-                    f"ERROR: mutation workspace cleanup incomplete: "
-                    f"{'; '.join(cleanup_errors)}",
-                    file=sys.stderr,
-                )
             if body_error is None and signal_state.pending_signal is not None:
                 raise MutationInterrupted(128 + signal_state.pending_signal)
     finally:
