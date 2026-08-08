@@ -12,6 +12,7 @@ import re
 import shutil
 import sys
 from pathlib import Path
+from typing import cast
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
@@ -209,8 +210,11 @@ def _print_capped(output: str, limit: int, unit: str) -> None:
 
 def _markdown_lint_targets(repo_root: Path) -> list[str] | None:
     """Return changed markdown files, [] for none, or None for full-repo fallback."""
-    return _filtered_targets(
-        repo_root, "Markdown lint", lambda p: p.endswith(".md") and not _is_vendored(p)
+    return cast(
+        list[str] | None,
+        _filtered_targets(
+            repo_root, "Markdown lint", lambda p: p.endswith(".md") and not _is_vendored(p)
+        ),
     )
 
 
@@ -220,7 +224,10 @@ def _yaml_style_targets(repo_root: Path) -> list[str] | None:
     No vendored filter: yamllint applies ``.yamllint.yml``'s ``ignore:`` per
     path already (verified 1.38.0: no-op, exit 0), unlike markdown.
     """
-    return _filtered_targets(repo_root, "YAML style", lambda p: p.endswith((".yml", ".yaml")))
+    return cast(
+        list[str] | None,
+        _filtered_targets(repo_root, "YAML style", lambda p: p.endswith((".yml", ".yaml"))),
+    )
 
 
 def validate_workflow_yaml(repo_root: Path) -> bool:
