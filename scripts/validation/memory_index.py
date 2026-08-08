@@ -499,29 +499,18 @@ def check_memory_index_references(
         return result
 
     content = memory_index_path.read_text(encoding="utf-8")
-    resolved_memory = memory_path.resolve()
-
-    # P1: Check completeness across both legacy skills-* and general
-    # {domain}-index shapes.
-    domain_index_names = {index.name for index in domain_indices}
-    domain_index_names.update(
-        path.stem
-        for path in memory_path.glob("*-index.md")
-        if path.name != "memory-index.md"
+    lookup_content = re.sub(
+        r"<!--.*?-->",
+        "",
+        content,
+        flags=re.DOTALL,
     )
-    for index_name in sorted(domain_index_names):
-        if index_name not in content:
-            result.passed = False
-            result.unreferenced_indices.append(index_name)
-            result.issues.append(
-                f"P1 COMPLETENESS: Domain index not referenced "
-                f"in memory-index: {index_name}"
-            )
+    resolved_memory = memory_path.resolve()
 
     # P1: Check validity of references
     # Collect file references from both table rows and pipe-delimited lines
     file_refs: list[str] = []
-    for line in content.splitlines():
+    for line in lookup_content.splitlines():
         # Try table row format first: | keywords | files |
         match = _TABLE_ROW_PATTERN.match(line)
         if match:
@@ -565,6 +554,27 @@ def check_memory_index_references(
         canonical_ref = resolved_ref.relative_to(resolved_memory).as_posix()
         normalized_refs.append(
             (canonical_ref.removesuffix(".md"), resolved_ref)
+        )
+
+    # P1: Check completeness across both legacy skills-* and general
+    # {domain}-index shapes. Compare exact normalized targets, not labels,
+    # keywords, prose, or comments.
+    referenced_names = {
+        file_name
+        for file_name, _ in normalized_refs
+    }
+    domain_index_names = {index.name for index in domain_indices}
+    domain_index_names.update(
+        path.stem
+        for path in memory_path.glob("*-index.md")
+        if path.name != "memory-index.md"
+    )
+    for index_name in sorted(domain_index_names - referenced_names):
+        result.passed = False
+        result.unreferenced_indices.append(index_name)
+        result.issues.append(
+            f"P1 COMPLETENESS: Domain index not referenced "
+            f"in memory-index: {index_name}"
         )
 
     seen_refs: set[str] = set()
@@ -682,19 +692,9 @@ def _validate_orphan_policy(orphan_policy: str) -> OrphanPolicy:
     return "strict" if orphan_policy == "strict" else "ratchet"
 
 
-def _memory_index_blocks(
-    result: MemoryIndexRefResult,
-    orphan_policy: OrphanPolicy,
-) -> bool:
+def _memory_index_blocks(result: MemoryIndexRefResult) -> bool:
     """Return whether memory-index findings should fail this consumer."""
-    non_orphan_issues = [
-        issue
-        for issue in result.issues
-        if not issue.startswith("P1 COMPLETENESS:")
-    ]
-    return bool(non_orphan_issues) or (
-        orphan_policy == "strict" and bool(result.unreferenced_indices)
-    )
+    return not result.passed
 
 
 # ---------------------------------------------------------------------------
@@ -848,7 +848,7 @@ def run_validation(
     )
     report.memory_index_result = memory_index_result
 
-    if _memory_index_blocks(memory_index_result, orphan_policy):
+    if _memory_index_blocks(memory_index_result):
         report.passed = False
         if output_format == "console":
             print("\n[P1] Memory-index validation FAILED:")

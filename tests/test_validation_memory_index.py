@@ -506,6 +506,24 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is False
         assert result.unreferenced_indices == ["quality-index"]
 
+    def test_comment_and_link_label_do_not_satisfy_completeness(
+        self, tmp_path: Path
+    ) -> None:
+        """Only an exact lookup target makes a domain index retrievable."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| hidden: <!-- [quality](quality-index.md) -->\n"
+                "| label: [quality-index](other.md)\n"
+            ),
+            "quality-index.md": "| Keywords | File |\n|----------|------|\n",
+            "other.md": "other",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert result.unreferenced_indices == ["quality-index"]
+
     def test_broken_reference(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (
@@ -1219,7 +1237,6 @@ class TestOrphanEnforcesFailure:
             ),
             "quality-indexed-memory.md": "indexed",
             "decision-unindexed-memory.md": "legacy orphan",
-            "legacy-index.md": "| Keywords | File |\n|----------|------|\n",
         })
 
         report = run_validation(
@@ -1231,5 +1248,22 @@ class TestOrphanEnforcesFailure:
         assert report.passed is True
         assert [orphan.file for orphan in report.orphans] == [
             "decision-unindexed-memory",
-            "legacy-index",
         ]
+
+    def test_ratchet_policy_still_fails_unreferenced_domain_index(
+        self, tmp_path: Path
+    ) -> None:
+        """A new retrieval dead end cannot trade against atomic cleanup."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": "| Keywords | File |\n|----------|------|\n",
+            "legacy-index.md": "| Keywords | File |\n|----------|------|\n",
+        })
+
+        report = run_validation(
+            tmp_path,
+            "json",
+            orphan_policy="ratchet",
+        )
+
+        assert report.passed is False
+        assert [orphan.file for orphan in report.orphans] == ["legacy-index"]
