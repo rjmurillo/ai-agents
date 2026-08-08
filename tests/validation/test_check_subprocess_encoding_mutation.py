@@ -128,6 +128,7 @@ def main() -> int:
             "mutation-1-disable-text-check",
             'text_enabled = (\n'
             '        _is_true_literal(_keyword_value(call, "text"))\n'
+            '        or _is_true_literal(_keyword_value(call, "universal_newlines"))\n'
             '        or _is_true_literal(_keyword_value(call, "capture_output"))\n'
             '        or pipe_capture\n'
             '    )',

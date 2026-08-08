@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, alias regressions stay co-located for issue #4261.
 """Tests for scripts/validation/check_subprocess_encoding.py (issue #4261).
 
 Guards the gate that catches subprocess calls pinning UTF-8 without
@@ -22,6 +23,7 @@ Coverage:
 - neg/function-use-before-rebind: function bodies still flag when a later outer rebind happens
 - neg/branch-join-alias: a subprocess alias in one branch still flags after the join
 - neg/lambda-body: violating subprocess calls inside lambdas are flagged
+- neg/universal-newlines: legacy text-mode alias is treated like text=True
 - neg/from-import: ``from subprocess import run; run(...)`` -> flagged
 - neg/splat: **kwargs present means errors may be absent -> flagged (conservative)
 - pos/pipe-capture-binary: PIPE capture without encoding/text semantics -> not flagged
@@ -213,6 +215,18 @@ def test_function_alias_used_before_later_rebind_is_flagged() -> None:
     assert find_violations(source) == [4]
 
 
+def test_function_call_after_later_rebind_is_not_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.check_output\n"
+        "def wrapper():\n"
+        '    runner(["x"], encoding="utf-8")\n'
+        "runner = print\n"
+        "wrapper()\n"
+    )
+    assert find_violations(source) == []
+
+
 def test_branch_join_alias_is_flagged() -> None:
     source = (
         "import subprocess\n"
@@ -301,6 +315,11 @@ def test_splat_kwargs_flagged_conservatively() -> None:
     ],
 )
 def test_splat_kwargs_text_semantics_are_flagged(source: str) -> None:
+    assert find_violations(source) == [2]
+
+
+def test_universal_newlines_missing_errors_is_flagged() -> None:
+    source = 'import subprocess\nsubprocess.run(["x"], universal_newlines=True, encoding="utf-8")'
     assert find_violations(source) == [2]
 
 

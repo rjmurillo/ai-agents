@@ -294,6 +294,7 @@ def _is_flagged(
     )
     text_enabled = (
         _is_true_literal(_keyword_value(call, "text"))
+        or _is_true_literal(_keyword_value(call, "universal_newlines"))
         or _is_true_literal(_keyword_value(call, "capture_output"))
         or pipe_capture
     )
@@ -372,7 +373,8 @@ def _scan_scope(
 ) -> list[int]:
     """Return violations discovered by executing *statements* in order."""
     violations: list[int] = []
-    deferred_functions: list[tuple[ast.FunctionDef | ast.AsyncFunctionDef, _AliasState]] = []
+    deferred_functions: list[tuple[ast.FunctionDef | ast.AsyncFunctionDef, list[_AliasState]]] = []
+    active_function_bindings: dict[str, list[_AliasState]] = {}
 
     def _clear(name: str) -> None:
         _clear_alias_binding(
@@ -381,6 +383,7 @@ def _scan_scope(
             state.callable_aliases,
             state.pipe_aliases,
         )
+        active_function_bindings.pop(name, None)
 
     def _set_state(next_state: _AliasState) -> None:
         state.module_aliases = set(next_state.module_aliases)
@@ -390,6 +393,9 @@ def _scan_scope(
     def _record_expr(node: ast.AST | None) -> None:
         if node is not None:
             _record_call_violations(node, state, source_lines, violations)
+            for call in _iter_immediate_calls(node):
+                if isinstance(call.func, ast.Name) and call.func.id in active_function_bindings:
+                    active_function_bindings[call.func.id].append(_copy_alias_state(state))
 
     def _bind_targets(names: list[str], value: ast.expr) -> None:
         resolved_module, resolved_callable, resolved_pipe = _resolve_assignment_aliases(
@@ -434,14 +440,15 @@ def _scan_scope(
             continue
 
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            definition_state = _copy_alias_state(state)
+            call_states: list[_AliasState] = []
             for decorator in stmt.decorator_list:
                 _record_expr(decorator)
             for default in [*stmt.args.defaults, *stmt.args.kw_defaults]:
                 _record_expr(default)
             _record_expr(stmt.returns)
             _clear(stmt.name)
-            deferred_functions.append((stmt, definition_state))
+            deferred_functions.append((stmt, call_states))
+            active_function_bindings[stmt.name] = call_states
             continue
 
         if isinstance(stmt, ast.ClassDef):
@@ -604,8 +611,8 @@ def _scan_scope(
             _record_expr(stmt.value)
             continue
 
-    for fn, definition_state in deferred_functions:
-        fn_state = _merge_alias_states([definition_state, state])
+    for fn, call_states in deferred_functions:
+        fn_state = _copy_alias_state(state)
         _clear_alias_binding(
             fn.name,
             fn_state.module_aliases,
@@ -620,6 +627,22 @@ def _scan_scope(
                 fn_state.pipe_aliases,
             )
         violations.extend(_scan_scope(fn.body, fn_state, source_lines))
+        for call_state in call_states:
+                direct_call_state = _copy_alias_state(call_state)
+                _clear_alias_binding(
+                    fn.name,
+                    direct_call_state.module_aliases,
+                    direct_call_state.callable_aliases,
+                    direct_call_state.pipe_aliases,
+                )
+                for name in _parameter_names(fn.args):
+                    _clear_alias_binding(
+                        name,
+                        direct_call_state.module_aliases,
+                        direct_call_state.callable_aliases,
+                        direct_call_state.pipe_aliases,
+                    )
+                violations.extend(_scan_scope(fn.body, direct_call_state, source_lines))
 
     return violations
 
