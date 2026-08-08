@@ -374,14 +374,25 @@ def _load_base_reference_counts(
     memory_path: Path,
     base_ref: str,
 ) -> tuple[Counter[str] | None, str | None]:
-    """Read canonical memory-index counts from the merge base."""
+    """Read canonical memory-index counts from the current base ref."""
     if not base_ref or base_ref.startswith("-"):
         return None, f"invalid base ref: {base_ref!r}"
+
+    git_env = os.environ.copy()
+    for variable in (
+        "GIT_COMMON_DIR",
+        "GIT_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_PREFIX",
+        "GIT_WORK_TREE",
+    ):
+        git_env.pop(variable, None)
 
     try:
         repo_root_result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
             cwd=memory_path,
+            env=git_env,
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -395,24 +406,32 @@ def _load_base_reference_counts(
             memory_path.resolve() / "memory-index.md"
         ).relative_to(repo_root).as_posix()
 
-        merge_base_result = subprocess.run(
-            ["git", "merge-base", "--", base_ref, "HEAD"],
+        base_commit_result = subprocess.run(
+            [
+                "git",
+                "rev-parse",
+                "--verify",
+                "--end-of-options",
+                f"{base_ref}^{{commit}}",
+            ],
             cwd=repo_root,
+            env=git_env,
             text=True,
             encoding="utf-8",
             errors="replace",
             capture_output=True,
             check=False,
         )
-        if merge_base_result.returncode != 0:
-            return None, f"could not resolve merge base for {base_ref}"
-        merge_base = merge_base_result.stdout.strip()
-        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", merge_base):
-            return None, f"merge base for {base_ref} was not one commit ID"
+        if base_commit_result.returncode != 0:
+            return None, f"could not resolve base ref {base_ref}"
+        base_commit = base_commit_result.stdout.strip()
+        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", base_commit):
+            return None, f"base ref {base_ref} was not one commit ID"
 
         show_result = subprocess.run(
-            ["git", "show", f"{merge_base}:{relative_index}"],
+            ["git", "show", f"{base_commit}:{relative_index}"],
             cwd=repo_root,
+            env=git_env,
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -421,7 +440,7 @@ def _load_base_reference_counts(
         )
         if show_result.returncode != 0:
             return None, (
-                f"could not read {relative_index} at merge base {merge_base}"
+                f"could not read {relative_index} at base ref {base_commit}"
             )
 
         relative_memory = posixpath.dirname(relative_index)
@@ -431,11 +450,12 @@ def _load_base_reference_counts(
                 "ls-tree",
                 "-r",
                 "-z",
-                merge_base,
+                base_commit,
                 "--",
                 relative_memory,
             ],
             cwd=repo_root,
+            env=git_env,
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -444,8 +464,8 @@ def _load_base_reference_counts(
         )
         if tree_result.returncode != 0:
             return None, (
-                f"could not inspect {relative_memory} at merge base "
-                f"{merge_base}"
+                f"could not inspect {relative_memory} at base ref "
+                f"{base_commit}"
             )
     except (OSError, ValueError) as exc:
         return None, f"could not read base memory index: {exc}"
@@ -455,7 +475,7 @@ def _load_base_reference_counts(
         if not entry:
             continue
         if "\t" not in entry:
-            return None, "could not parse merge-base tree output"
+            return None, "could not parse base-ref tree output"
         metadata, path = entry.split("\t", 1)
         mode = metadata.split(" ", 1)[0]
         if mode == "120000":
@@ -784,7 +804,7 @@ def check_naming_convention(memory_path: Path) -> NamingConventionResult:
 def check_memory_index_references(
     memory_path: Path,
     domain_indices: list[DomainIndex],
-    base_reference_counts: Counter[str],
+    base_reference_counts: Counter[str] | None = None,
 ) -> MemoryIndexRefResult:
     """Validate that memory-index references existing domain indices.
 
@@ -793,6 +813,7 @@ def check_memory_index_references(
     2. All references in memory-index MUST point to existing files (validity)
     """
     result = MemoryIndexRefResult()
+    base_reference_counts = base_reference_counts or Counter()
     memory_index_path = memory_path / "memory-index.md"
 
     if not memory_index_path.exists():
@@ -866,8 +887,8 @@ def check_memory_index_references(
             result.passed = False
             result.duplicate_references.append(file_name)
             result.issues.append(
-                f"P0 DUPLICATE: memory-index references "
-                f"{file_name}.md {observed_count} times, "
+                f"P0 DUPLICATE: Duplicate memory-index target: "
+                f"{file_name}.md referenced {observed_count} times, "
                 f"allowed {allowed_count}"
             )
 

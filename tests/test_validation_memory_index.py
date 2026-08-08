@@ -508,9 +508,18 @@ class TestCheckMemoryIndexReferences:
             ),
         ]
 
-        with patch(
-            "scripts.validation.memory_index.subprocess.run",
-            side_effect=completed,
+        with (
+            patch.dict(
+                "scripts.validation.memory_index.os.environ",
+                {
+                    "GIT_DIR": "/repo/.git/worktrees/branch",
+                    "GIT_INDEX_FILE": "/repo/.git/worktrees/branch/index",
+                },
+            ),
+            patch(
+                "scripts.validation.memory_index.subprocess.run",
+                side_effect=completed,
+            ) as run_mock,
         ):
             counts, error = _load_base_reference_counts(
                 memory_path,
@@ -519,20 +528,29 @@ class TestCheckMemoryIndexReferences:
 
         assert counts == Counter({"skills-copilot-index": 2})
         assert error is None
+        assert run_mock.call_args_list[1].args[0] == [
+            "git",
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            "origin/main^{commit}",
+        ]
+        assert "GIT_DIR" not in run_mock.call_args_list[0].kwargs["env"]
+        assert "GIT_INDEX_FILE" not in run_mock.call_args_list[0].kwargs["env"]
 
     @pytest.mark.parametrize(
         ("failure_index", "expected_error"),
         [
             (0, "could not resolve repository root"),
-            (1, "could not resolve merge base for origin/main"),
+            (1, "could not resolve base ref origin/main"),
             (
                 2,
                 "could not read .serena/memories/memory-index.md "
-                f"at merge base {'a' * 40}",
+                f"at base ref {'a' * 40}",
             ),
             (
                 3,
-                "could not inspect .serena/memories at merge base "
+                "could not inspect .serena/memories at base ref "
                 f"{'a' * 40}",
             ),
         ],
@@ -594,7 +612,7 @@ class TestCheckMemoryIndexReferences:
             )
 
         assert counts is None
-        assert error == "could not parse merge-base tree output"
+        assert error == "could not parse base-ref tree output"
 
     def test_symbolic_link_in_base_tree_fails_closed(
         self, tmp_path: Path
@@ -1377,6 +1395,39 @@ class TestCheckMemoryIndexReferences:
         result = check_memory_index_references(tmp_path, [], Counter())
         assert result.passed is True
         assert not result.broken_references
+
+    def test_duplicate_link_targets_fail(self, tmp_path: Path) -> None:
+        """Issue #4705: memory-index must not point at one target twice."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "[Section]\n"
+                "|alpha beta: [one](shared.md)\n"
+                "|gamma delta: [also one](shared.md)\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert "shared" in result.duplicate_references
+        assert any("Duplicate memory-index target" in issue for issue in result.issues)
+
+    def test_duplicate_alias_link_targets_fail(self, tmp_path: Path) -> None:
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "[Section]\n"
+                "|alpha beta: [one](shared.md)\n"
+                "|gamma delta: [also one](./shared.md)\n"
+            ),
+            "shared.md": "content",
+        })
+
+        result = check_memory_index_references(tmp_path, [])
+
+        assert result.passed is False
+        assert "shared" in result.duplicate_references
+        assert any("Duplicate memory-index target" in issue for issue in result.issues)
 
     def test_path_traversal_detected(self, tmp_path: Path) -> None:
         memory_path = tmp_path / "memories"
