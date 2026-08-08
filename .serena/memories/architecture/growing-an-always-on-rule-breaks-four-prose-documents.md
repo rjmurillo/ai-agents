@@ -63,9 +63,11 @@ Run `uv run --frozen python build/scripts/build_all.py` and they follow.
 
 ## What moves and what does not
 
-Every total moves by exactly the byte delta of your edit. In the 2026-08-06
-case that was 1,545 bytes: source basis 71,168 to 72,713, mirror always-on
-71,033 to 72,578, a Python edit 96,784 to 98,329.
+Every total moved by exactly the byte delta of the recorded 2026-08-06
+`voice.md` edit. That edit was 1,545 bytes: source basis 71,168 to 72,713,
+mirror always-on 71,033 to 72,578, a Python edit 96,784 to 98,329. A smaller
+edit can leave rounded multipliers unchanged, and an edit outside `voice.md`
+does not change the quoted `voice.md` size in the guarded prose.
 
 The **135-byte gap between the source tree and the mirror tree survives a body
 edit but is not a repository constant.** `generate_rules.py` rewrites
@@ -92,9 +94,9 @@ number alone catches one and skips the other.
 ## Recipe
 
 1. Make the rule edit and regenerate: `uv run --frozen python build/scripts/generate_rules.py`.
-2. Run the two test files directly rather than waiting for pre-push. They take
-   about one second, against roughly eleven minutes for the suite that contains
-   them.
+2. For an edit like the recorded 1,545-byte `voice.md` change, run the two
+   test files directly rather than waiting for pre-push. They take about one
+   second, against roughly eleven minutes for the suite that contains them.
 3. Read the assertion messages. Each one states the claimed value and the
    measured value, so the substitution list writes itself.
 4. Apply the substitutions to the four documents. The figures carry thousands
