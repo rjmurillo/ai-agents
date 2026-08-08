@@ -531,6 +531,16 @@ def test_real_repo_python_baseline_is_under_ceiling_and_nonzero() -> None:
     assert py.total_bytes <= py.ceiling_bytes
 
 
+def test_committed_lsp_first_scope_matches_code_not_markdown() -> None:
+    rule = REPO_ROOT / ib.INSTRUCTIONS_SUBDIR / "lsp-first.instructions.md"
+    patterns = ib.parse_applyto(rule.read_text(encoding="utf-8"))
+
+    assert any(ib._glob_to_regex(pattern).fullmatch("src/app.py") for pattern in patterns)
+    assert not any(
+        ib._glob_to_regex(pattern).fullmatch("docs/guide.md") for pattern in patterns
+    )
+
+
 # --------------------------------------------------------------------------
 # reserve band (issue #4345)
 #

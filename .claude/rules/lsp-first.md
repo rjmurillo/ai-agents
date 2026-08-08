@@ -18,7 +18,6 @@ paths:
   - "**/*.psd1"
   - "**/*.sh"
   - "**/*.sql"
-priority: critical
 ---
 
 # LSP-First Navigation
@@ -37,10 +36,10 @@ Copilot. No per-turn navigation hook remains.
 
 ## Scope
 
-`paths:` lists code extensions, not `**`. That matches the rule body: the tiers
-below apply to code files, and "When grep is correct" hands markdown, logs, and
-plain text back to grep. A `**` scope loaded this rule while editing prose, where
-it has no advice to give. Do not widen it back.
+Frontmatter lists code extensions, not `**`. Claude uses `paths`; Copilot
+mirrors use `applyTo`. The rule applies to code files. "When grep is correct"
+hands markdown, logs, and plain text back to grep. A universal scope loaded this
+for prose, where it has no advice. Do not widen it back.
 
 ## The three tiers
 
