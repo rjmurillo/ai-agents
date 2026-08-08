@@ -27,7 +27,7 @@
         "e001"
       ],
       "leads_to": [
-        "e006"
+        "e003"
       ],
       "_source_session": "2026-08-07-session-10007"
     },
@@ -37,7 +37,7 @@
       "type": "milestone",
       "content": "Wrote git-a-script-run-by-absolute-path-validates-its-own-worktree.md, indexed it, and caught an angle-bracket placeholder in my own shell fence, the same defect a prior memory warns about.",
       "caused_by": [
-        "e006"
+        "e002"
       ],
       "leads_to": [
         "e004"
@@ -65,20 +65,20 @@
       "caused_by": [
         "e004"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-07-session-10007"
     },
     {
       "id": "e006",
-      "timestamp": "2026-08-07T03:45:57+00:00",
+      "timestamp": "2026-08-07T04:11:06+00:00",
       "type": "commit",
-      "content": "Commit: 741763c22d0db2de65f9f0c1dc67b775c3143a22",
+      "content": "Commit: 0070e6a42d9200a0ae4e713f2291118f367d7b49",
       "caused_by": [
-        "e002"
+        "e005"
       ],
-      "leads_to": [
-        "e003"
-      ],
+      "leads_to": [],
       "_source_session": "2026-08-07-session-10007"
     }
   ],
@@ -88,7 +88,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 3
+    "files_changed": 4
   },
   "lessons": []
 }
