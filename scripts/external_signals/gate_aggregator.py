@@ -131,7 +131,7 @@ def aggregate(signals: Iterable[Signal]) -> tuple[str, str]:
     inconclusive_sigs = [s for s in sigs if s.verdict in {"UNKNOWN", "DID_NOT_RUN"}]
     if inconclusive_sigs:
         who = ",".join(f"{s.kind}:{s.name}" for s in inconclusive_sigs)
-        return "NEEDS_REVIEW", f"unknown-verdict-from:{who}"
+        return "NEEDS_REVIEW", f"needs-review-from:{who}"
 
     if any(s.verdict in _WARNING for s in sigs):
         return "WARN", "warnings-present"

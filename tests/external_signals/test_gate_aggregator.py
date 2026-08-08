@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from scripts.ai_review_common.verdict import _KNOWN_VERDICT_TOKENS
 from scripts.external_signals import gate_aggregator as ga
 
 
@@ -177,9 +178,7 @@ def test_known_set_contains_every_verdict_token_from_verdict_py():
     tokens that gate_aggregator explicitly owns.
     """
     gate_known = ga._KNOWN
-    # Tokens that gate_aggregator must handle directly (union of _KNOWN sets).
-    expected = {"PASS", "WARN", "FAIL", "CRITICAL_FAIL", "REJECTED", "NEEDS_REVIEW",
-                "UNKNOWN", "DID_NOT_RUN"}
+    unsupported_gate_tokens = {"COMPLIANT", "NON_COMPLIANT", "PARTIAL"}
+    expected = set(_KNOWN_VERDICT_TOKENS) - unsupported_gate_tokens
     for token in expected:
         assert token in gate_known, f"{token!r} missing from gate_aggregator._KNOWN"
-
