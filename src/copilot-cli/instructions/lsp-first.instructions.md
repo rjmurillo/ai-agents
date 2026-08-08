@@ -1,5 +1,5 @@
 ---
-applyTo: '**'
+applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.psd1,**/*.sh,**/*.sql'
 ---
 
 # LSP-First Navigation
@@ -13,8 +13,15 @@ This rule is the cross-harness source of truth. It states a preference; nothing
 blocks a raw search at runtime. ADR-062 originally paired this rule with
 PreToolUse guards that hard-blocked Read, Grep, and Glob until an LSP was tried.
 The 2026-07-17 amendment (issue #3214) retired that runtime enforcement layer
-and kept the steering. This always-loaded rule now carries the direction on
-both Claude and Copilot. No per-turn navigation hook remains.
+and kept the steering. This rule now carries the direction on both Claude and
+Copilot. No per-turn navigation hook remains.
+
+## Scope
+
+Frontmatter lists code extensions, not `**`. Claude uses `paths`; Copilot
+mirrors use `applyTo`. The rule applies to code files. "When grep is correct"
+hands markdown, logs, and plain text back to grep. A universal scope loaded this
+for prose, where it has no advice. Do not widen it back.
 
 ## The three tiers
 
