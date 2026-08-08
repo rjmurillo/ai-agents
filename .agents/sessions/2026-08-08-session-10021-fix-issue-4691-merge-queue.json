@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All implementation and memory changes committed at HEAD 6efdd58210; this session log is the final artifact"
+        "Evidence": "All implementation, memory, and prior session changes committed at rebased HEAD c8689edfb6"
       },
       "validationPassed": {
         "level": "MUST",
@@ -104,7 +104,7 @@
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "SQL todo fix-4691 remains in_progress until the PR merges and issue closes"
+        "Evidence": "SQL todo fix-4691 is blocked because the required workflow-local-run gate failed again before push"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -138,8 +138,12 @@
     {
       "action": "review",
       "detail": "DevOps review passed after two fixes. Adversarial Sol findings were rejected against issue acceptance criteria: PR-shaped success is deliberate, and three Aggregate Results producers are the existing live ruleset contract."
+    },
+    {
+      "action": "retry",
+      "detail": "Rebased onto origin/main and ran the unchanged workflow-local-run pre-push gate once. Actionlint and gh act dry-run passed. The full gh act run failed in test-codeql-integration.yml before CodeQL installed. The workflow forces a fresh download and exposes no existing-cache path. No branch was pushed."
     }
   ],
-  "endingCommit": "6efdd58210",
+  "endingCommit": "c8689edfb6",
   "nextSteps": []
 }
