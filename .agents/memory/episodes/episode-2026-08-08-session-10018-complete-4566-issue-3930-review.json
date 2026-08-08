@@ -106,7 +106,8 @@
         "e007"
       ],
       "leads_to": [
-        "e009"
+        "e009",
+        "e013"
       ],
       "_source_session": "2026-08-08-session-10018-complete-4566-issue-3930-review"
     },
@@ -134,7 +135,8 @@
         "e007"
       ],
       "leads_to": [
-        "e009"
+        "e009",
+        "e013"
       ],
       "_source_session": "2026-08-08-session-10018-complete-4566-issue-3930-review"
     },
@@ -144,9 +146,12 @@
       "type": "milestone",
       "content": "Merged latest origin/main in 08dfca0597 without rewriting history. Post-merge focused tests passed 137 tests, generated parity passed, and pre_pr.py passed every gate.",
       "caused_by": [
-        "e009"
+        "e009",
+        "e013"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e014"
+      ],
       "_source_session": "2026-08-08-session-10018-complete-4566-issue-3930-review"
     },
     {
@@ -155,19 +160,75 @@
       "type": "commit",
       "content": "Commit: 08dfca0597",
       "caused_by": [
-        "e009"
+        "e009",
+        "e013"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-08-session-10018-complete-4566-issue-3930-review"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-08T01:30:00+00:00",
+      "type": "milestone",
+      "content": "Independent QA reran 72 in-scope tests and reported PASS. Its full-suite run exposed five utility failures. Direct reproduction showed the branch introduced stale review-reaction mocks and collection-order-dependent module patching.",
+      "caused_by": [
+        "e008",
+        "e010"
+      ],
+      "leads_to": [
+        "e011",
+        "e012"
+      ],
+      "_source_session": "2026-08-08-session-10018-complete-4566-issue-3930-review"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-08T02:33:50+00:00",
+      "type": "milestone",
+      "content": "Repaired full-suite reaction coverage in 589dcf7cf4, e870b1b933, and 6a29760574. Generic utility tests use issue comments, review tests mock live state, helper imports are deterministic, and module patching no longer depends on collection order.",
+      "caused_by": [
+        "e011",
+        "e012"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-08-session-10018-complete-4566-issue-3930-review"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-08T02:51:59+00:00",
+      "type": "milestone",
+      "content": "Full suite collected 24278 tests and exited 0. Merged current origin/main in 179d501c51 without rewriting history. Post-merge focused tests passed 241 tests. Generated parity, CWE-78 scan over four mutation scripts, and pre_pr.py passed.",
+      "caused_by": [
+        "e016"
       ],
       "leads_to": [],
+      "_source_session": "2026-08-08-session-10018-complete-4566-issue-3930-review"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-08T02:49:30+00:00",
+      "type": "commit",
+      "content": "Commit: 179d501c51",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e015"
+      ],
       "_source_session": "2026-08-08-session-10018-complete-4566-issue-3930-review"
     }
   ],
   "metrics": {
-    "duration_minutes": 34,
+    "duration_minutes": 108,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 37
+    "commits": 3,
+    "files_changed": 39
   },
   "lessons": []
 }
