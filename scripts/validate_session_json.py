@@ -50,6 +50,11 @@ _CLAUDE_LIB_DIR = _PROJECT_ROOT / ".claude" / "lib"
 sys.path.insert(0, str(_CLAUDE_LIB_DIR))
 
 from paths import artifact_dir  # noqa: E402
+from qa_report import (  # noqa: E402
+    non_evidence_paths,
+    session_qa_binding,
+    validate_qa_report,
+)
 
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 from scripts.validation.models import ValidationResult  # noqa: E402
@@ -896,11 +901,44 @@ def validate_session_end(session_end: dict[str, Any], result: ValidationResult) 
             result.errors.append(f"{_MUST_NOT_VIOLATED_PREFIX}HANDOFF.md was modified (read-only)")
 
 
+def _resolve_full_commit(commit: str) -> str | None:
+    completed = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{commit}^{{commit}}"],
+        cwd=_PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return None
+    resolved = completed.stdout.strip()
+    return resolved or None
+
+
+def _post_qa_code_changes(commit: str, validation_head: str) -> list[str] | None:
+    completed = subprocess.run(
+        ["git", "diff", "--name-only", "-z", f"{commit}..{validation_head}"],
+        cwd=_PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return None
+    return non_evidence_paths(completed.stdout.split("\0"))
+
+
 def validate_qa_report_evidence(
+    data: dict[str, Any],
     session_end: dict[str, Any],
     result: ValidationResult,
+    *,
+    session_log: str | None,
+    validation_head: str | None = None,
 ) -> None:
-    """Require completed QA evidence to name an existing owned report."""
+    """Require passing QA evidence bound to this session and validation commit."""
     qa_validation = get_case_insensitive(session_end, "qaValidation")
     if not isinstance(qa_validation, dict):
         return
@@ -923,6 +961,31 @@ def validate_qa_report_evidence(
         return
     if not resolved_report.is_file():
         result.errors.append(f"QA report not found: {resolved_report}")
+        return
+
+    try:
+        if session_log is None:
+            raise ValueError("Session log path is required for QA report binding")
+        binding = session_qa_binding(
+            data,
+            session_log=session_log,
+            resolve_commit=_resolve_full_commit,
+        )
+        report = validate_qa_report(resolved_report, binding)
+    except ValueError as exc:
+        result.errors.append(str(exc))
+        return
+
+    if validation_head is None:
+        return
+    changed_after_qa = _post_qa_code_changes(report.commit, validation_head)
+    if changed_after_qa is None:
+        result.errors.append("Could not compare QA commit with validation head")
+    elif changed_after_qa:
+        result.errors.append(
+            "QA report is stale; code changed after its commit: "
+            + ", ".join(changed_after_qa)
+        )
 
 
 def validate_protocol_compliance(
@@ -1043,7 +1106,12 @@ def validate_against_schema(
 
 
 def validate_session_log(
-    data: object, *, existing_log: bool = False, creation_mode: bool = False
+    data: object,
+    *,
+    existing_log: bool = False,
+    creation_mode: bool = False,
+    session_log: str | None = None,
+    validation_head: str | None = None,
 ) -> ValidationResult:
     """Validate a session log against the committed schema and protocol rules.
 
@@ -1114,7 +1182,13 @@ def validate_session_log(
         else None
     )
     if not creation_mode and isinstance(session_end, dict):
-        validate_qa_report_evidence(session_end, result)
+        validate_qa_report_evidence(
+            data,
+            session_end,
+            result,
+            session_log=session_log,
+            validation_head=None if existing_log else validation_head,
+        )
 
     return result
 
@@ -1532,8 +1606,15 @@ def main() -> int:
                 _PROJECT_ROOT,
             )
 
+        validation_head = args.validation_head
+        if not existing_log and not args.creation_mode and validation_head is None:
+            validation_head = _resolve_full_commit("HEAD")
         result = validate_session_log(
-            data, existing_log=existing_log, creation_mode=args.creation_mode
+            data,
+            existing_log=existing_log,
+            creation_mode=args.creation_mode,
+            session_log=_repo_relative(validated_path),
+            validation_head=validation_head,
         )
         validate_filename_number(validated_path, data, result)
         validate_qa_skip_scope(

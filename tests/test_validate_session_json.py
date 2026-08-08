@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -80,7 +81,7 @@ def _make_complete_end_section(**overrides: dict) -> dict:
     }
     section["qaValidation"] = {
         "complete": True,
-        "evidence": ".agents/qa/2026-08-07-pr-4735-closing-review.md",
+        "evidence": "SKIPPED: investigation-only",
         "level": "MUST",
     }
     section.update(overrides)
@@ -108,11 +109,19 @@ def scratch() -> Iterator[Path]:
         yield Path(name)
 
 
-def _run_cli(path: Path) -> subprocess.CompletedProcess[str]:
+def _run_cli(
+    path: Path,
+    *,
+    env_overrides: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     """Drive the validator as the hooks and the workflow drive it."""
+    env = os.environ.copy()
+    if env_overrides:
+        env.update(env_overrides)
     return subprocess.run(
         [sys.executable, "scripts/validate_session_json.py", str(path)],
         cwd=_REPO_ROOT,
+        env=env,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -775,6 +784,9 @@ class TestValidateProtocolCompliance:
 class TestValidateQaReportEvidence:
     """Tests for owned QA report evidence."""
 
+    COMMIT = "a" * 40
+    SESSION_LOG = ".agents/sessions/current.json"
+
     @staticmethod
     def _session_end(evidence: str) -> dict[str, Any]:
         return {
@@ -785,13 +797,40 @@ class TestValidateQaReportEvidence:
             }
         }
 
+    @classmethod
+    def _data(cls, *, commit: str | None = None) -> dict[str, Any]:
+        return {
+            "episodeMetrics": {
+                "comparison": {"head": commit if commit is not None else cls.COMMIT}
+            },
+        }
+
+    @classmethod
+    def _write_report(
+        cls,
+        path: Path,
+        *,
+        verdict: str = "PASS",
+        session_log: str | None = None,
+        commit: str | None = None,
+    ) -> None:
+        path.write_text(
+            "---\n"
+            f"qaVerdict: {verdict}\n"
+            f"qaSessionLog: {session_log or cls.SESSION_LOG}\n"
+            f"qaCommit: {commit if commit is not None else cls.COMMIT}\n"
+            "---\n"
+            "# QA\n",
+            encoding="utf-8",
+        )
+
     def test_existing_report_under_qa_root_passes(
         self, tmp_path: Path
     ) -> None:
         qa_root = tmp_path / "qa"
         qa_root.mkdir()
         report = qa_root / "report.md"
-        report.write_text("# QA\n", encoding="utf-8")
+        self._write_report(report)
         result = ValidationResult()
 
         with mock.patch(
@@ -799,8 +838,10 @@ class TestValidateQaReportEvidence:
             return_value=qa_root,
         ):
             validate_qa_report_evidence(
+                self._data(),
                 self._session_end(str(report)),
                 result,
+                session_log=self.SESSION_LOG,
             )
 
         assert result.errors == []
@@ -815,8 +856,10 @@ class TestValidateQaReportEvidence:
             return_value=qa_root,
         ):
             validate_qa_report_evidence(
+                self._data(),
                 self._session_end(str(qa_root / "missing.md")),
                 result,
+                session_log=self.SESSION_LOG,
             )
 
         assert result.errors == [
@@ -837,8 +880,10 @@ class TestValidateQaReportEvidence:
             return_value=qa_root,
         ):
             validate_qa_report_evidence(
+                self._data(),
                 self._session_end(str(outside)),
                 result,
+                session_log=self.SESSION_LOG,
             )
 
         assert result.errors == [
@@ -855,12 +900,173 @@ class TestValidateQaReportEvidence:
             "scripts.validate_session_json.artifact_dir"
         ) as artifact_dir_mock:
             validate_qa_report_evidence(
+                self._data(),
                 self._session_end("SKIPPED: investigation-only"),
                 result,
+                session_log=self.SESSION_LOG,
             )
 
         assert result.errors == []
         artifact_dir_mock.assert_not_called()
+
+    @pytest.mark.parametrize("verdict", ["DEFERRED", "FAIL"])
+    def test_non_passing_report_fails_closed(
+        self,
+        tmp_path: Path,
+        verdict: str,
+    ) -> None:
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report, verdict=verdict)
+        result = ValidationResult()
+
+        with mock.patch(
+            "scripts.validate_session_json.artifact_dir",
+            return_value=qa_root,
+        ):
+            validate_qa_report_evidence(
+                self._data(),
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+            )
+
+        assert result.errors == [
+            f"QA report verdict must be PASS, got {verdict!r}"
+        ]
+
+    def test_unrelated_session_report_fails_closed(self, tmp_path: Path) -> None:
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(
+            report,
+            session_log=".agents/sessions/unrelated.json",
+        )
+        result = ValidationResult()
+
+        with mock.patch(
+            "scripts.validate_session_json.artifact_dir",
+            return_value=qa_root,
+        ):
+            validate_qa_report_evidence(
+                self._data(),
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+            )
+
+        assert result.errors == [
+            "QA report session log does not match current session: "
+            ".agents/sessions/unrelated.json != .agents/sessions/current.json"
+        ]
+
+    def test_stale_commit_report_fails_closed(self, tmp_path: Path) -> None:
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report, commit="b" * 40)
+        result = ValidationResult()
+
+        with mock.patch(
+            "scripts.validate_session_json.artifact_dir",
+            return_value=qa_root,
+        ):
+            validate_qa_report_evidence(
+                self._data(),
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+            )
+
+        assert result.errors == [
+            "QA report commit does not match current session commit: "
+            f"{'b' * 40} != {self.COMMIT}"
+        ]
+
+    def test_code_changed_after_qa_fails_closed(self, tmp_path: Path) -> None:
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report)
+        result = ValidationResult()
+
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch(
+                "scripts.validate_session_json._post_qa_code_changes",
+                return_value=["scripts/new_code.py"],
+            ),
+        ):
+            validate_qa_report_evidence(
+                self._data(),
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+                validation_head="b" * 40,
+            )
+
+        assert result.errors == [
+            "QA report is stale; code changed after its commit: scripts/new_code.py"
+        ]
+
+    def test_evidence_only_changes_after_qa_pass(self, tmp_path: Path) -> None:
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report)
+        result = ValidationResult()
+
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch(
+                "scripts.validate_session_json._post_qa_code_changes",
+                return_value=[],
+            ),
+        ):
+            validate_qa_report_evidence(
+                self._data(),
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+                validation_head="b" * 40,
+            )
+
+        assert result.errors == []
+
+    def test_unverifiable_validation_head_fails_closed(self, tmp_path: Path) -> None:
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report)
+        result = ValidationResult()
+
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch(
+                "scripts.validate_session_json._post_qa_code_changes",
+                return_value=None,
+            ),
+        ):
+            validate_qa_report_evidence(
+                self._data(),
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+                validation_head="b" * 40,
+            )
+
+        assert result.errors == ["Could not compare QA commit with validation head"]
 
     def test_existing_log_still_validates_qa_report(
         self, tmp_path: Path
@@ -869,6 +1075,7 @@ class TestValidateQaReportEvidence:
         qa_root.mkdir()
         missing_report = qa_root / "missing.md"
         data = {
+            **self._data(),
             "protocolCompliance": {
                 "sessionEnd": self._session_end(str(missing_report))
             }
@@ -889,6 +1096,7 @@ class TestValidateQaReportEvidence:
         qa_root.mkdir()
         missing_report = qa_root / "missing.md"
         data = {
+            **self._data(),
             "protocolCompliance": {
                 "sessionEnd": self._session_end(str(missing_report))
             }
@@ -1126,7 +1334,15 @@ class TestMainFunction:
         """Create a valid session log file."""
         qa_report = tmp_path / ".agents" / "qa" / "report.md"
         qa_report.parent.mkdir(parents=True)
-        qa_report.write_text("# QA\n", encoding="utf-8")
+        qa_report.write_text(
+            "---\n"
+            "qaVerdict: PASS\n"
+            "qaSessionLog: .agents/sessions/valid-session.json\n"
+            f"qaCommit: {'a' * 40}\n"
+            "---\n"
+            "# QA\n",
+            encoding="utf-8",
+        )
         data = {
             "schemaVersion": "1.0",
             "session": {
@@ -1147,10 +1363,11 @@ class TestMainFunction:
                 ),
             },
             "workLog": [],
-            "endingCommit": "",
+            "endingCommit": "a" * 40,
             "nextSteps": [],
         }
-        session_file = tmp_path / "valid-session.json"
+        session_file = tmp_path / ".agents" / "sessions" / "valid-session.json"
+        session_file.parent.mkdir(parents=True)
         session_file.write_text(json.dumps(data))
         return session_file
 
@@ -1175,7 +1392,11 @@ class TestMainFunction:
         from scripts import validate_session_json
 
         # Allow temp directory paths for testing
-        monkeypatch.setattr(validate_session_json, "_PROJECT_ROOT", valid_session_file.parent)
+        monkeypatch.setattr(
+            validate_session_json,
+            "_PROJECT_ROOT",
+            valid_session_file.parents[2],
+        )
         monkeypatch.setattr(
             "sys.argv",
             ["validate_session_json.py", str(valid_session_file)],
@@ -1714,9 +1935,39 @@ class TestMainNarrowsOnThePayload:
         assert "Schema:" in (proc.stdout + proc.stderr)
 
     def test_valid_file_exits_zero(self, scratch: Path) -> None:
-        log = scratch / "log.json"
-        log.write_text(json.dumps(_make_valid_log()), encoding="utf-8")
-        proc = _run_cli(log)
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=_REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        artifact_root = scratch / ".agents"
+        report = artifact_root / "qa" / "report.md"
+        report.parent.mkdir(parents=True)
+        sessions_root = _REPO_ROOT / ".agents" / "sessions"
+        with tempfile.TemporaryDirectory(dir=sessions_root) as session_dir:
+            log = Path(session_dir) / "log.json"
+            session_log = log.relative_to(_REPO_ROOT).as_posix()
+            report.write_text(
+                "---\n"
+                "qaVerdict: PASS\n"
+                f"qaSessionLog: {session_log}\n"
+                f"qaCommit: {commit}\n"
+                "---\n"
+                "# QA\n",
+                encoding="utf-8",
+            )
+            data = _make_valid_log()
+            data["endingCommit"] = commit
+            data["protocolCompliance"]["sessionEnd"]["qaValidation"]["evidence"] = str(
+                report
+            )
+            log.write_text(json.dumps(data), encoding="utf-8")
+            proc = _run_cli(
+                log,
+                env_overrides={"AI_AGENTS_ARTIFACT_ROOT": str(artifact_root)},
+            )
         assert proc.returncode == 0, proc.stdout + proc.stderr
 
 

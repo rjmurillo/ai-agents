@@ -3,13 +3,28 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_LIB_DIR = _REPO_ROOT / ".claude" / "lib"
+sys.path.insert(0, str(_LIB_DIR))
+
+from paths import artifact_dir  # noqa: E402
+from qa_report import (  # noqa: E402
+    load_qa_report,
+    non_evidence_paths,
+    session_qa_binding,
+    validate_qa_report,
+)
 
 CONFIG_ERROR = 2
 EXTERNAL_ERROR = 3
+LOGIC_ERROR = 1
 CODE_EXTENSIONS = {".ps1", ".cs", ".ts", ".js", ".py", ".yml", ".yaml", ".json"}
 
 
@@ -64,8 +79,102 @@ def _has_code_changes(changed_files: list[str]) -> bool:
 
 
 def _find_qa_report(pr_number: str) -> Path | None:
-    reports = sorted(Path(".agents/qa").glob(f"*pr-{pr_number}*.md"))
+    reports = sorted(
+        artifact_dir("qa", base=Path.cwd()).glob(f"*pr-{pr_number}*.md")
+    )
     return reports[0] if reports else None
+
+
+def _resolve_commit(commit: str) -> str | None:
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{commit}^{{commit}}"],
+        cwd=_REPO_ROOT,
+        check=False,
+        stdout=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        return None
+    resolved = result.stdout.strip()
+    return resolved or None
+
+
+def _load_session_log(session_log: str) -> tuple[Path, dict[str, Any]]:
+    sessions_root = artifact_dir("sessions", base=Path.cwd()).resolve()
+    path = (Path.cwd() / session_log).resolve()
+    try:
+        path.relative_to(sessions_root)
+    except ValueError as exc:
+        raise ValueError("QA report session log escapes the sessions root") from exc
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"QA report session log not found: {session_log}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"QA report session log is invalid JSON: {session_log}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"QA report session log is not a JSON object: {session_log}")
+    return path, data
+
+
+def _pr_head_sha(repository: str, pr_number: str) -> str:
+    result = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{repository}/pulls/{pr_number}",
+            "--jq",
+            ".head.sha",
+        ],
+        check=False,
+        stdout=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        raise ValueError("Could not resolve PR head SHA for QA validation")
+    head = result.stdout.strip()
+    if len(head) != 40:
+        raise ValueError(f"PR head SHA is not a full commit: {head!r}")
+    return head
+
+
+def _post_qa_code_changes(commit: str, head: str) -> list[str]:
+    result = subprocess.run(
+        ["git", "diff", "--name-only", "-z", f"{commit}..{head}"],
+        cwd=_REPO_ROOT,
+        check=False,
+        stdout=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        raise ValueError("Could not compare QA commit with PR head")
+    return non_evidence_paths(result.stdout.split("\0"))
+
+
+def _validate_report(repository: str, pr_number: str, report: Path) -> None:
+    metadata = load_qa_report(report)
+    _session_path, session_data = _load_session_log(metadata.session_log)
+    binding = session_qa_binding(
+        session_data,
+        session_log=metadata.session_log,
+        resolve_commit=_resolve_commit,
+    )
+    validate_qa_report(report, binding)
+    changed_after_qa = _post_qa_code_changes(
+        metadata.commit,
+        _pr_head_sha(repository, pr_number),
+    )
+    if changed_after_qa:
+        raise ValueError(
+            "QA report is stale; code changed after its commit: "
+            + ", ".join(changed_after_qa)
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -93,16 +202,26 @@ def main(argv: list[str] | None = None) -> int:
         return output_result
     qa_report = _find_qa_report(pr_number)
     if qa_report:
-        output_result = _append_output("qa_report_exists", "true")
-        if output_result != 0:
+        try:
+            _validate_report(repository, pr_number, qa_report)
+        except ValueError as exc:
+            output_result = _append_output("qa_report_exists", "false")
+            if output_result == 0:
+                print(f"::error::Invalid QA report: {exc}")
+                return LOGIC_ERROR
             return output_result
-        output_result = _append_output("qa_report", qa_report.name)
-        if output_result == 0:
-            print(f"✓ QA report found: {qa_report.name}")
-        return output_result
+        else:
+            output_result = _append_output("qa_report_exists", "true")
+            if output_result != 0:
+                return output_result
+            output_result = _append_output("qa_report", qa_report.name)
+            if output_result == 0:
+                print(f"✓ QA report found: {qa_report.name}")
+            return output_result
     output_result = _append_output("qa_report_exists", "false")
     if output_result == 0:
-        print("::warning::No QA report found for code changes")
+        print("::error::No QA report found for code changes")
+        return LOGIC_ERROR
     return output_result
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -32,6 +33,44 @@ enforce_mod = _load_module("enforce_pr_validation")
 
 def _set_output(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
     monkeypatch.setenv("GITHUB_OUTPUT", str(path))
+
+
+def _write_qa_artifacts(
+    root: Path,
+    *,
+    verdict: str = "PASS",
+    session_log: str = ".agents/sessions/session.json",
+    report_commit: str = "a" * 40,
+    session_commit: str | None = None,
+) -> Path:
+    report_dir = root / ".agents" / "qa"
+    report_dir.mkdir(parents=True)
+    report = report_dir / "qa-pr-42.md"
+    report.write_text(
+        "---\n"
+        f"qaVerdict: {verdict}\n"
+        f"qaSessionLog: {session_log}\n"
+        f"qaCommit: {report_commit}\n"
+        "---\n"
+        "# QA\n",
+        encoding="utf-8",
+    )
+    session_path = root / ".agents" / "sessions" / "session.json"
+    session_path.parent.mkdir(parents=True)
+    session_path.write_text(
+        json.dumps(
+            {
+                "session": {"number": 99},
+                "episodeMetrics": {
+                    "comparison": {
+                        "head": session_commit or report_commit,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return report
 
 
 @pytest.mark.parametrize(
@@ -90,29 +129,42 @@ def test_qa_report_detects_code_changes_and_existing_report(
     capsys: pytest.CaptureFixture[str],
 ):
     output = tmp_path / "github-output.txt"
-    report_dir = tmp_path / ".agents" / "qa"
-    report_dir.mkdir(parents=True)
-    (report_dir / "qa-pr-42.md").write_text("ok\n", encoding="utf-8")
+    _write_qa_artifacts(tmp_path)
+    (tmp_path / ".agents" / "sessions" / "duplicate-number.json").write_text(
+        json.dumps(
+            {
+                "session": {"number": 99},
+                "episodeMetrics": {"comparison": {"head": "c" * 40}},
+            }
+        ),
+        encoding="utf-8",
+    )
     _set_output(monkeypatch, output)
     monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
     monkeypatch.setenv("PR_NUMBER", "42")
     monkeypatch.chdir(tmp_path)
 
-    def fake_run(
-        args: list[str],
-        *,
-        check: bool,
-        stdout: int,
-        text: bool,
-        encoding: str,
-        errors: str,
-    ) -> subprocess.CompletedProcess[str]:
-        assert check is False
-        assert stdout is subprocess.PIPE
-        assert text is True
-        assert encoding == "utf-8"
-        assert errors == "replace"
-        return subprocess.CompletedProcess(args, 0, "src/app.py\n.agents/note.md\n")
+    def fake_run(args: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
+        assert kwargs["check"] is False
+        assert kwargs["stdout"] is subprocess.PIPE
+        assert kwargs["text"] is True
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
+        if args[:2] == ["gh", "api"] and args[2].endswith("/files"):
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                "src/app.py\n.agents/note.md\n",
+            )
+        if args[:2] == ["gh", "api"] and args[-1] == ".head.sha":
+            return subprocess.CompletedProcess(args, 0, "b" * 40 + "\n")
+        if args[:3] == ["git", "diff", "--name-only"]:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                ".agents/sessions/session.json\0.agents/qa/qa-pr-42.md\0",
+            )
+        raise AssertionError(f"Unexpected subprocess call: {args}")
 
     monkeypatch.setattr(qa_mod.subprocess, "run", fake_run)
 
@@ -123,6 +175,86 @@ def test_qa_report_detects_code_changes_and_existing_report(
         "qa_report=qa-pr-42.md\n"
     )
     assert "✓ QA report found: qa-pr-42.md" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("verdict", "session_log", "report_commit", "session_commit"),
+    [
+        ("DEFERRED", ".agents/sessions/session.json", "a" * 40, None),
+        ("FAIL", ".agents/sessions/session.json", "a" * 40, None),
+        ("PASS", ".agents/sessions/unrelated.json", "a" * 40, None),
+        ("PASS", ".agents/sessions/session.json", "b" * 40, "a" * 40),
+        ("PASS", ".agents/sessions/session.json", "abcdef1234", None),
+    ],
+)
+def test_qa_report_rejects_non_passing_or_unbound_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    verdict: str,
+    session_log: str,
+    report_commit: str,
+    session_commit: str | None,
+):
+    output = tmp_path / "github-output.txt"
+    _write_qa_artifacts(
+        tmp_path,
+        verdict=verdict,
+        session_log=session_log,
+        report_commit=report_commit,
+        session_commit=session_commit,
+    )
+    _set_output(monkeypatch, output)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        qa_mod.subprocess,
+        "run",
+        lambda args, **kwargs: subprocess.CompletedProcess(
+            args,
+            0,
+            "src/app.py\n",
+        ),
+    )
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
+    assert "::error::Invalid QA report:" in capsys.readouterr().out
+
+
+def test_qa_report_rejects_code_changed_after_qa(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    output = tmp_path / "github-output.txt"
+    _write_qa_artifacts(tmp_path)
+    _set_output(monkeypatch, output)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.chdir(tmp_path)
+
+    def fake_run(args: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["gh", "api"] and args[2].endswith("/files"):
+            return subprocess.CompletedProcess(args, 0, "src/app.py\n")
+        if args[:2] == ["gh", "api"] and args[-1] == ".head.sha":
+            return subprocess.CompletedProcess(args, 0, "b" * 40 + "\n")
+        if args[:3] == ["git", "diff", "--name-only"]:
+            return subprocess.CompletedProcess(args, 0, "scripts/new_code.py\0")
+        raise AssertionError(f"Unexpected subprocess call: {args}")
+
+    monkeypatch.setattr(qa_mod.subprocess, "run", fake_run)
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
+    assert "QA report is stale" in capsys.readouterr().out
 
 
 def test_qa_report_skips_when_only_agents_files_changed(
@@ -147,7 +279,7 @@ def test_qa_report_skips_when_only_agents_files_changed(
     )
 
 
-def test_qa_report_warns_when_code_changes_lack_report(
+def test_qa_report_blocks_when_code_changes_lack_report(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -163,12 +295,12 @@ def test_qa_report_warns_when_code_changes_lack_report(
         lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, "workflow.yml\n"),
     )
 
-    assert qa_mod.main() == 0
+    assert qa_mod.main() == 1
     assert output.read_text(encoding="utf-8") == (
         "has_code_changes=True\n"
         "qa_report_exists=false\n"
     )
-    assert "::warning::No QA report found for code changes" in capsys.readouterr().out
+    assert "::error::No QA report found for code changes" in capsys.readouterr().out
 
 
 def test_report_builds_fail_status_and_outputs_status(
