@@ -20,7 +20,7 @@ import json
 import os
 import subprocess
 import sys
-from typing import Any
+from typing import Any, cast
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -325,7 +325,7 @@ def _batch_summary(
     )
     failed = external_failures + mutation_failures
     action = "ACT" if resolved > 0 else "SKIP"
-    summary = {
+    summary: dict[str, object] = {
         "action": action,
         "reason": "batch_complete" if failed == 0 else "batch_failed",
         "resolved": resolved,
@@ -338,10 +338,10 @@ def _batch_summary(
 
 
 def _write_batch_result(summary: dict[str, object], code: int, fmt: str) -> int:
-    total = int(summary["total_unresolved"])
-    resolved = int(summary["resolved"])
-    skipped = int(summary["skipped"])
-    failed = int(summary["failed"])
+    total = cast(int, summary["total_unresolved"])
+    resolved = cast(int, summary["resolved"])
+    skipped = cast(int, summary["skipped"])
+    failed = cast(int, summary["failed"])
     if code == 0:
         write_skill_output(
             summary,

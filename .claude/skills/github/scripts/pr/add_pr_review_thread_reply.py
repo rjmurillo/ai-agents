@@ -166,6 +166,7 @@ def _guard_auto_merge_before_resolution(thread_id: str) -> dict[str, Any]:
             f"thread left unresolved: {exc}",
             3,
         )
+        raise AssertionError("error_and_exit returned") from exc
 
 
 def _resolve_thread_after_reply(thread_id: str) -> bool:
@@ -173,7 +174,7 @@ def _resolve_thread_after_reply(thread_id: str) -> bool:
         _RESOLVE_MUTATION,
         {"threadId": thread_id},
     )
-    return (
+    return bool(
         resolve_data
         .get("resolveReviewThread", {})
         .get("thread", {})

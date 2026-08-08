@@ -18,7 +18,7 @@ import json
 import os
 import subprocess
 import sys
-from typing import Any
+from typing import Any, cast
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -359,10 +359,10 @@ def _reaction_summary(
 ) -> tuple[dict[str, object], int, int]:
     succeeded = sum(result["reason"] == "reaction_added" for result in results)
     skipped = sum(
-        result["action"] == "SKIP" and result["success"]
+        result["action"] == "SKIP" and bool(result["success"])
         for result in results
     )
-    failed = sum(not result["success"] for result in results)
+    failed = sum(not bool(result["success"]) for result in results)
     attempted = sum(result["action"] == "ACT" for result in results)
     summary = {
         "action": "ACT" if attempted > 0 else "SKIP",
@@ -386,11 +386,12 @@ def _write_reaction_result(
     succeeded: int,
     skipped: int,
 ) -> int:
-    failed = int(summary["failed"])
+    failed = cast(int, summary["failed"])
     if failed > 0:
+        results = cast(list[dict[str, object]], summary["results"])
         timeout_failures = sum(
             result["reason"] == "reaction_timeout"
-            for result in summary["results"]
+            for result in results
         )
         write_skill_error(
             (
