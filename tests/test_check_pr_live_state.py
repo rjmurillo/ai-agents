@@ -487,6 +487,183 @@ class TestMain:
         assert payload["head_sha"] == "abc123def456"
         assert payload["superseded_by_base"]["fully_superseded"] is False
 
+    def test_merge_during_supersession_probe_skips_stale_act(self, capsys):
+        open_pr = {
+            "number": 2409,
+            "state": "OPEN",
+            "merged": False,
+            "isDraft": False,
+            "closed": False,
+            "headRefName": "fix/foo",
+            "headRefOid": "abc123def456",
+            "baseRefName": "main",
+        }
+        merged_pr = {
+            **open_pr,
+            "state": "MERGED",
+            "merged": True,
+            "closed": True,
+        }
+        with patch("check_pr_live_state.assert_gh_authenticated"), \
+             patch(
+                "check_pr_live_state.resolve_repo_params",
+                return_value=_mod.RepoInfo(owner="o", repo="r"),
+             ), \
+             patch(
+                "check_pr_live_state.gh_graphql",
+                side_effect=[
+                    {"repository": {"pullRequest": open_pr}},
+                    {"repository": {"pullRequest": merged_pr}},
+                ],
+             ) as query, \
+             patch(
+                "check_pr_live_state.is_superseded_by_base",
+                return_value={
+                    "pr_commits": 1,
+                    "superseded_commits": 0,
+                    "fully_superseded": False,
+                    "git_cherry_failed": False,
+                    "probe_inconclusive": False,
+                },
+             ):
+            rc = main(["--pull-request", "2409", "--skip-fetch"])
+
+        assert rc == 1
+        assert query.call_count == 2
+        envelope = json.loads(capsys.readouterr().out)
+        payload = envelope["Data"]
+        assert payload["action"] == "SKIP"
+        assert payload["state"] == "MERGED"
+        assert payload["head_sha"] == "abc123def456"
+
+    def test_head_change_during_probe_preserves_fail_open_action(self, capsys):
+        initial_pr = {
+            "number": 2409,
+            "state": "OPEN",
+            "merged": False,
+            "isDraft": False,
+            "closed": False,
+            "headRefName": "fix/foo",
+            "headRefOid": "abc123def456",
+            "baseRefName": "main",
+        }
+        updated_pr = {**initial_pr, "headRefOid": "def456abc123"}
+        with patch("check_pr_live_state.assert_gh_authenticated"), \
+             patch(
+                "check_pr_live_state.resolve_repo_params",
+                return_value=_mod.RepoInfo(owner="o", repo="r"),
+             ), \
+             patch(
+                "check_pr_live_state.gh_graphql",
+                side_effect=[
+                    {"repository": {"pullRequest": initial_pr}},
+                    {"repository": {"pullRequest": updated_pr}},
+                ],
+             ), \
+             patch(
+                "check_pr_live_state.is_superseded_by_base",
+                return_value={
+                    "pr_commits": 1,
+                    "superseded_commits": 1,
+                    "fully_superseded": True,
+                    "git_cherry_failed": False,
+                    "probe_inconclusive": False,
+                },
+             ):
+            rc = main(["--pull-request", "2409", "--skip-fetch"])
+
+        assert rc == 0
+        envelope = json.loads(capsys.readouterr().out)
+        payload = envelope["Data"]
+        assert payload["action"] == "ACT"
+        assert payload["head_sha"] == "def456abc123"
+        assert payload["superseded_by_base"]["probe_inconclusive"] is True
+        assert payload["superseded_by_base"]["git_cherry_failed"] is False
+        assert "changed during the supersession probe" in payload["reason"]
+
+    def test_base_tip_change_during_probe_preserves_fail_open_action(self, capsys):
+        initial_pr = {
+            "number": 2409,
+            "state": "OPEN",
+            "merged": False,
+            "isDraft": False,
+            "closed": False,
+            "headRefName": "fix/foo",
+            "headRefOid": "abc123def456",
+            "baseRefName": "main",
+            "baseRefOid": "base111",
+        }
+        updated_pr = {**initial_pr, "baseRefOid": "base222"}
+        with patch("check_pr_live_state.assert_gh_authenticated"), \
+             patch(
+                "check_pr_live_state.resolve_repo_params",
+                return_value=_mod.RepoInfo(owner="o", repo="r"),
+             ), \
+             patch(
+                "check_pr_live_state.gh_graphql",
+                side_effect=[
+                    {"repository": {"pullRequest": initial_pr}},
+                    {"repository": {"pullRequest": updated_pr}},
+                ],
+             ), \
+             patch(
+                "check_pr_live_state.is_superseded_by_base",
+                return_value={
+                    "pr_commits": 1,
+                    "superseded_commits": 1,
+                    "fully_superseded": True,
+                    "git_cherry_failed": False,
+                    "probe_inconclusive": False,
+                },
+             ):
+            rc = main(["--pull-request", "2409", "--skip-fetch"])
+
+        assert rc == 0
+        envelope = json.loads(capsys.readouterr().out)
+        payload = envelope["Data"]
+        assert payload["action"] == "ACT"
+        assert payload["superseded_by_base"]["probe_inconclusive"] is True
+        assert payload["superseded_by_base"]["git_cherry_failed"] is False
+        assert "changed during the supersession probe" in payload["reason"]
+
+    def test_final_live_state_query_failure_exits_3(self):
+        open_pr = {
+            "number": 2409,
+            "state": "OPEN",
+            "merged": False,
+            "isDraft": False,
+            "closed": False,
+            "headRefName": "fix/foo",
+            "headRefOid": "abc123def456",
+            "baseRefName": "main",
+        }
+        with patch("check_pr_live_state.assert_gh_authenticated"), \
+             patch(
+                "check_pr_live_state.resolve_repo_params",
+                return_value=_mod.RepoInfo(owner="o", repo="r"),
+             ), \
+             patch(
+                "check_pr_live_state.gh_graphql",
+                side_effect=[
+                    {"repository": {"pullRequest": open_pr}},
+                    RuntimeError("network timeout"),
+                ],
+             ), \
+             patch(
+                "check_pr_live_state.is_superseded_by_base",
+                return_value={
+                    "pr_commits": 1,
+                    "superseded_commits": 0,
+                    "fully_superseded": False,
+                    "git_cherry_failed": False,
+                    "probe_inconclusive": False,
+                },
+             ), \
+             pytest.raises(SystemExit) as exc:
+            main(["--pull-request", "2409", "--skip-fetch"])
+
+        assert exc.value.code == 3
+
     def test_merged_pr_exits_1(self, capsys):
         pr = {
             "number": 2412,
@@ -506,9 +683,10 @@ class TestMain:
              patch(
                 "check_pr_live_state.gh_graphql",
                 return_value={"repository": {"pullRequest": pr}},
-             ):
+             ) as query:
             rc = main(["--pull-request", "2412", "--skip-fetch"])
         assert rc == 1
+        assert query.call_count == 1
         out = capsys.readouterr().out
         envelope = json.loads(out)
         assert envelope["Success"] is True

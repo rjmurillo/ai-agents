@@ -98,6 +98,7 @@ Path(os.environ["MUTATION_LOG"]).write_text("ran\\n", encoding="utf-8")
 def _run_race(
     tmp_path: Path,
     late_state: str,
+    guarded_doc: str,
 ) -> tuple[subprocess.CompletedProcess[str], Path, Path, Path]:
     scripts_dir = tmp_path / "scripts"
     scripts_dir.mkdir()
@@ -107,8 +108,8 @@ def _run_race(
     check_log = tmp_path / "checks"
     lease_log = tmp_path / "leases"
     mutation_log = tmp_path / "mutation"
-    canonical = (REPO_ROOT / GUARDED_DOCS[0]).read_text(encoding="utf-8")
-    guard = _extract_guard(canonical)
+    guard_text = (REPO_ROOT / guarded_doc).read_text(encoding="utf-8")
+    guard = _extract_guard(guard_text)
 
     harness = f"""\
 set -u
@@ -149,6 +150,11 @@ fi
     return result, check_log, lease_log, mutation_log
 
 
+@pytest.fixture(params=GUARDED_DOCS)
+def guarded_doc(request: pytest.FixtureRequest) -> str:
+    return str(request.param)
+
+
 @pytest.mark.parametrize("relative_path", GUARDED_DOCS)
 def test_guard_is_shipped_in_each_agent_surface(relative_path: str) -> None:
     text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
@@ -177,8 +183,13 @@ def test_mutation_examples_use_the_late_guard(relative_path: str) -> None:
 
 def test_merged_after_review_skips_base_refresh_and_releases_lease(
     tmp_path: Path,
+    guarded_doc: str,
 ) -> None:
-    result, check_log, lease_log, mutation_log = _run_race(tmp_path, "MERGED")
+    result, check_log, lease_log, mutation_log = _run_race(
+        tmp_path,
+        "MERGED",
+        guarded_doc,
+    )
 
     assert result.returncode == 0, result.stderr
     assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "MERGED"]
@@ -193,8 +204,13 @@ def test_merged_after_review_skips_base_refresh_and_releases_lease(
 
 def test_closed_after_review_skips_and_reports_recovery_head(
     tmp_path: Path,
+    guarded_doc: str,
 ) -> None:
-    result, check_log, lease_log, mutation_log = _run_race(tmp_path, "CLOSED")
+    result, check_log, lease_log, mutation_log = _run_race(
+        tmp_path,
+        "CLOSED",
+        guarded_doc,
+    )
 
     assert result.returncode == 0, result.stderr
     assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "CLOSED"]
@@ -207,8 +223,15 @@ def test_closed_after_review_skips_and_reports_recovery_head(
     ]
 
 
-def test_open_after_review_runs_mutation_and_keeps_lease(tmp_path: Path) -> None:
-    result, check_log, lease_log, mutation_log = _run_race(tmp_path, "OPEN")
+def test_open_after_review_runs_mutation_and_keeps_lease(
+    tmp_path: Path,
+    guarded_doc: str,
+) -> None:
+    result, check_log, lease_log, mutation_log = _run_race(
+        tmp_path,
+        "OPEN",
+        guarded_doc,
+    )
 
     assert result.returncode == 0, result.stderr
     assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
@@ -219,10 +242,12 @@ def test_open_after_review_runs_mutation_and_keeps_lease(tmp_path: Path) -> None
 
 def test_inconclusive_supersession_preserves_fail_open_action(
     tmp_path: Path,
+    guarded_doc: str,
 ) -> None:
     result, check_log, lease_log, mutation_log = _run_race(
         tmp_path,
         "INCONCLUSIVE",
+        guarded_doc,
     )
 
     assert result.returncode == 0, result.stderr
@@ -236,8 +261,13 @@ def test_inconclusive_supersession_preserves_fail_open_action(
 
 def test_external_live_state_failure_skips_mutation_and_releases_lease(
     tmp_path: Path,
+    guarded_doc: str,
 ) -> None:
-    result, check_log, lease_log, mutation_log = _run_race(tmp_path, "ERROR")
+    result, check_log, lease_log, mutation_log = _run_race(
+        tmp_path,
+        "ERROR",
+        guarded_doc,
+    )
 
     assert result.returncode == 0, result.stderr
     assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "ERROR"]
