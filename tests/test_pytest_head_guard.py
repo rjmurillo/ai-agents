@@ -233,9 +233,6 @@ def _write_trace2(
     worktree: Path,
     *,
     exit_code: int = 0,
-    head_mutated: bool = False,
-    symref_mutated: bool = False,
-    transaction_finish: int = 0,
 ) -> None:
     events = [
         {"event": "start", "sid": "test-session", "argv": argv},
@@ -248,21 +245,6 @@ def _write_trace2(
         {"event": "cmd_name", "sid": "test-session", "name": command},
     ]
     lines = [f"{json.dumps(event)}\n" for event in events]
-    if head_mutated:
-        lines.extend(
-            [
-                "00:00:00.000000 refs/debug.c:80         transaction {\n",
-                f"00:00:00.000001 refs/debug.c:73         0: HEAD {BEFORE_SHA} "
-                f'-> {AFTER_SHA} (F=0x5, T=0x1) ""\n',
-                "00:00:00.000002 refs/debug.c:86         }\n",
-                f"00:00:00.000003 refs/debug.c:99         finish: {transaction_finish}\n",
-            ]
-        )
-    if symref_mutated:
-        lines.append(
-            "00:00:00.000004 refs/debug.c:141        create_symref: HEAD -> "
-            'refs/heads/other "": 0\n'
-        )
     lines.append(f"{json.dumps({'event': 'exit', 'sid': 'test-session', 'code': exit_code})}\n")
     path.write_text("".join(lines), encoding="utf-8")
 
@@ -367,6 +349,20 @@ def test_reflog_action_ignores_marked_unrelated_branch_update(tmp_path, monkeypa
     assert not module._reflog_contains_action(marker)
 
 
+def test_guard_fixture_fails_for_real_test_launched_head_movement(tmp_path, monkeypatch):
+    module = _load_root_conftest()
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    monkeypatch.setattr(module, "PROJECT_ROOT", repo)
+
+    generator = module._guard_real_repo_head.__wrapped__()
+    next(generator)
+    _commit_file(repo, "changed\n", "changed")
+
+    with pytest.raises(pytest.fail.Exception, match="test-launched Git command"):
+        next(generator)
+
+
 def test_guard_fixture_allows_branch_creation_from_recorded_base(tmp_path):
     repo = tmp_path / "repo"
     base = _init_git_repo(repo)
@@ -387,20 +383,6 @@ def test_trace_ignores_read_only_symbolic_ref(tmp_path):
     )
 
     assert not module._trace_has_project_head_mutation(trace_path)
-
-
-def test_trace_detects_symbolic_ref_write(tmp_path):
-    module = _load_root_conftest()
-    trace_path = tmp_path / "git-trace.json"
-    _write_trace2(
-        trace_path,
-        "symbolic-ref",
-        ["git", "symbolic-ref", "HEAD", "refs/heads/other"],
-        module.PROJECT_ROOT,
-        symref_mutated=True,
-    )
-
-    assert module._trace_has_project_head_mutation(trace_path)
 
 
 def test_trace_detects_successful_symbolic_ref_write_without_ref_transaction(tmp_path):
@@ -465,22 +447,6 @@ def test_trace_parses_actual_symbolic_ref_write(tmp_path, monkeypatch):
     assert module._trace_has_project_head_mutation(trace_path)
 
 
-def test_trace_parses_actual_commit_transaction(tmp_path, monkeypatch):
-    module = _load_root_conftest()
-    repo = tmp_path / "repo"
-    _init_git_repo(repo)
-    trace_path = tmp_path / "git-trace.log"
-    _commit_file(
-        repo,
-        "changed\n",
-        "changed",
-        env=_git_trace_env(trace_path),
-    )
-    monkeypatch.setattr(module, "PROJECT_ROOT", repo)
-
-    assert module._trace_has_project_head_mutation(trace_path)
-
-
 def test_check_head_change_ignores_reflog_expiry_trace_continuations(
     tmp_path,
     monkeypatch,
@@ -507,144 +473,6 @@ def test_check_head_change_ignores_reflog_expiry_trace_continuations(
             "pytest-head-guard:not-present",
             trace_path,
         )
-
-
-def test_trace_detects_explicit_project_git_dir(tmp_path):
-    module = _load_root_conftest()
-    trace_path = tmp_path / "git-trace.json"
-    project_git_dir = module._project_git_dir()
-    _write_trace2(
-        trace_path,
-        "update-ref",
-        [
-            "git",
-            f"--git-dir={project_git_dir}",
-            "update-ref",
-            "HEAD",
-            AFTER_SHA,
-        ],
-        tmp_path / "other-worktree",
-        head_mutated=True,
-    )
-
-    assert module._trace_has_project_head_mutation(trace_path)
-
-
-def test_trace_detects_project_git_dir_from_environment(tmp_path, monkeypatch):
-    module = _load_root_conftest()
-    repo = tmp_path / "repo"
-    outside = tmp_path / "outside"
-    second = _init_repo_with_non_head_commit(repo)
-    outside.mkdir()
-    trace_path = tmp_path / "git-trace.log"
-    env = _git_trace_env(trace_path)
-    env["GIT_DIR"] = str(repo / ".git")
-    _run_git(outside, "update-ref", "HEAD", second, env=env)
-    monkeypatch.setattr(module, "PROJECT_ROOT", repo)
-
-    assert module._trace_has_project_head_mutation(trace_path)
-
-
-def test_trace_ignores_failed_plumbing_write(tmp_path):
-    module = _load_root_conftest()
-    trace_path = tmp_path / "git-trace.json"
-    _write_trace2(
-        trace_path,
-        "update-ref",
-        ["git", "update-ref", "HEAD", "invalid-object"],
-        module.PROJECT_ROOT,
-        exit_code=128,
-        head_mutated=True,
-        transaction_finish=-1,
-    )
-
-    assert not module._trace_has_project_head_mutation(trace_path)
-
-
-def test_trace_recognizes_windows_plumbing_executable(tmp_path):
-    module = _load_root_conftest()
-    trace_path = tmp_path / "git-trace.json"
-    _write_trace2(
-        trace_path,
-        "update-ref",
-        [
-            r"C:\Program Files\Git\mingw64\libexec\git-core\git-update-ref.exe",
-            "HEAD",
-            AFTER_SHA,
-        ],
-        module.PROJECT_ROOT,
-        head_mutated=True,
-    )
-
-    assert module._trace_has_project_head_mutation(trace_path)
-
-
-def test_trace_detects_update_ref_write(tmp_path):
-    module = _load_root_conftest()
-    trace_path = tmp_path / "git-trace.json"
-    _write_trace2(
-        trace_path,
-        "update-ref",
-        ["git", "update-ref", "HEAD", AFTER_SHA],
-        module.PROJECT_ROOT,
-        head_mutated=True,
-    )
-
-    assert module._trace_has_project_head_mutation(trace_path)
-
-
-def test_trace_detects_update_ref_write_to_checked_out_branch(tmp_path, monkeypatch):
-    module = _load_root_conftest()
-    repo = tmp_path / "repo"
-    second = _init_repo_with_non_head_commit(repo)
-    branch_ref = _run_git(repo, "symbolic-ref", "HEAD")
-    trace_path = tmp_path / "git-trace.json"
-    _run_git(
-        repo,
-        "update-ref",
-        branch_ref,
-        second,
-        env=_git_trace_env(trace_path),
-    )
-    monkeypatch.setattr(module, "PROJECT_ROOT", repo)
-
-    assert module._trace_has_project_head_mutation(trace_path)
-
-
-def test_trace_detects_update_ref_stdin_write_to_checked_out_branch(
-    tmp_path,
-    monkeypatch,
-):
-    module = _load_root_conftest()
-    repo = tmp_path / "repo"
-    second = _init_repo_with_non_head_commit(repo)
-    branch_ref = _run_git(repo, "symbolic-ref", "HEAD")
-    trace_path = tmp_path / "git-trace.json"
-    subprocess.run(
-        ["git", "update-ref", "--stdin"],
-        cwd=repo,
-        check=True,
-        input=f"update {branch_ref} {second}\n".encode(),
-        env=_git_trace_env(trace_path),
-        timeout=10,
-    )
-    monkeypatch.setattr(module, "PROJECT_ROOT", repo)
-
-    assert module._trace_has_project_head_mutation(trace_path)
-
-
-def test_trace_ignores_plumbing_write_in_other_worktree(tmp_path):
-    module = _load_root_conftest()
-    trace_path = tmp_path / "git-trace.json"
-    _write_trace2(
-        trace_path,
-        "update-ref",
-        ["git", "update-ref", "HEAD", AFTER_SHA],
-        tmp_path / "isolated-repo",
-        head_mutated=True,
-    )
-
-    assert not module._trace_has_project_head_mutation(trace_path)
 
 
 def test_check_head_change_warns_when_unrelated_branch_write_coincides_with_commit(

@@ -285,7 +285,7 @@ pre-commit:
 
           - name: memory-index
             timeout: 5m
-            run: uv run --frozen python scripts/validation/memory_index.py --path .serena/memories --ci
+            run: uv run --frozen python scripts/validation/memory_index.py --path .serena/memories --ci --orphan-policy ratchet
             glob: ".serena/memories/**/*.md"
 
           - name: memory-token-counts
@@ -358,6 +358,10 @@ pre-push:
     - name: repair-packed-refs
       timeout: 1m
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
+
+    - name: mutation-safety
+      timeout: 30s
+      run: uv run --frozen python -m scripts.testing.mutation_workspace check
 
     - name: push-ref-staleness
       timeout: 30s
@@ -447,6 +451,10 @@ pre-push:
             timeout: 5m
             run: uv run --frozen python scripts/ci/memory_index_token_ratchet.py
             glob: [".serena/memories/**/*.md"]
+          - name: cli-exit-contract-ratchet
+            timeout: 5m
+            run: uv run --frozen python scripts/ci/cli_exit_contract_ratchet.py --base-ref origin/main
+            glob: ["**/*.py", "scripts/ci/cli_exit_contract_baseline.txt"]
 
 
           - name: python-unreachable-statements
@@ -464,9 +472,14 @@ pre-push:
               - "**/*.json"
               - "**/*.ps1"
               - "**/*.psm1"
+              - "**/*.sh"
+              - "**/*.bash"
+              - ".serena/memories/**/*.md"
               - "scripts/ci/ruff_count_baseline.txt"
               - "scripts/ci/taste_count_baseline.txt"
               - "scripts/ci/type_ignore_count_baseline.txt"
+              - "scripts/ci/memory_index_count_baseline.txt"
+              - "scripts/ci/cli_exit_contract_baseline.txt"
           - name: python-type-check
             timeout: 15m
             run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}

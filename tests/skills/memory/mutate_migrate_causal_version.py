@@ -16,15 +16,20 @@ import subprocess
 import sys
 from pathlib import Path
 
-_SCRIPT = (
-    Path(__file__).resolve().parents[3]
-    / ".claude"
+from scripts.testing.mutation_workspace import (
+    isolated_mutation_worktree,
+    purge_bytecode,
+)
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_SCRIPT_REL = (
+    Path(".claude")
     / "skills"
     / "memory"
     / "scripts"
     / "migrate_causal_version.py"
 )
-_TEST = Path(__file__).resolve().parent / "test_migrate_causal_version.py"
+_TEST_REL = Path("tests/skills/memory/test_migrate_causal_version.py")
 
 _MUTATIONS: list[tuple[str, str, str, int]] = [
     # (name, find, replace, occurrence)
@@ -61,14 +66,15 @@ _MUTATIONS: list[tuple[str, str, str, int]] = [
 ]
 
 
-def run_tests() -> bool:
+def run_tests(repo_root: Path) -> bool:
     """Return True when all tests pass."""
+    purge_bytecode(repo_root)
     result = subprocess.run(
         [
             sys.executable,
             "-m",
             "pytest",
-            str(_TEST),
+            str(_TEST_REL),
             "-q",
             "--tb=no",
             "--no-header",
@@ -76,6 +82,7 @@ def run_tests() -> bool:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        cwd=repo_root,
     )
     return result.returncode == 0
 
@@ -96,14 +103,15 @@ def apply(original: str, find: str, replace: str, occurrence: int) -> tuple[str,
     return original[:start] + replace + original[start + len(find) :], True
 
 
-def main() -> int:
-    backup = _SCRIPT.read_text(encoding="utf-8")
+def _run_mutations(repo_root: Path) -> int:
+    script = repo_root / _SCRIPT_REL
+    backup = script.read_text(encoding="utf-8")
 
     results: list[tuple[str, str]] = []
     did_not_apply: list[str] = []
 
     for name, find, replace, occurrence in _MUTATIONS:
-        original = _SCRIPT.read_text(encoding="utf-8")
+        original = script.read_text(encoding="utf-8")
         mutated, applied = apply(original, find, replace, occurrence)
 
         if not applied:
@@ -112,11 +120,11 @@ def main() -> int:
             did_not_apply.append(name)
             continue
 
-        _SCRIPT.write_text(mutated, encoding="utf-8")
+        script.write_text(mutated, encoding="utf-8")
         try:
-            passed = run_tests()
+            passed = run_tests(repo_root)
         finally:
-            _SCRIPT.write_text(backup, encoding="utf-8")
+            script.write_text(backup, encoding="utf-8")
 
         outcome = "SURVIVED" if passed else "DEAD"
         results.append((name, outcome))
@@ -143,6 +151,11 @@ def main() -> int:
     if survived or dna:
         return 1
     return 0
+
+
+def main() -> int:
+    with isolated_mutation_worktree(_REPO_ROOT, [_SCRIPT_REL]) as workspace:
+        return _run_mutations(workspace.root)
 
 
 if __name__ == "__main__":
