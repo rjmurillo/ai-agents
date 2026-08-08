@@ -372,7 +372,7 @@ def _scan_scope(
 ) -> list[int]:
     """Return violations discovered by executing *statements* in order."""
     violations: list[int] = []
-    deferred_functions: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
+    deferred_functions: list[tuple[ast.FunctionDef | ast.AsyncFunctionDef, _AliasState]] = []
 
     def _clear(name: str) -> None:
         _clear_alias_binding(
@@ -434,13 +434,14 @@ def _scan_scope(
             continue
 
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            definition_state = _copy_alias_state(state)
             for decorator in stmt.decorator_list:
                 _record_expr(decorator)
             for default in [*stmt.args.defaults, *stmt.args.kw_defaults]:
                 _record_expr(default)
             _record_expr(stmt.returns)
             _clear(stmt.name)
-            deferred_functions.append(stmt)
+            deferred_functions.append((stmt, definition_state))
             continue
 
         if isinstance(stmt, ast.ClassDef):
@@ -603,8 +604,8 @@ def _scan_scope(
             _record_expr(stmt.value)
             continue
 
-    for fn in deferred_functions:
-        fn_state = _copy_alias_state(state)
+    for fn, definition_state in deferred_functions:
+        fn_state = _merge_alias_states([definition_state, state])
         _clear_alias_binding(
             fn.name,
             fn_state.module_aliases,

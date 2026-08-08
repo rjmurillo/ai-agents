@@ -19,6 +19,7 @@ Coverage:
 - neg/assigned-module-alias: `sp = subprocess` and derived aliases still resolve -> flagged
 - neg/function-local-alias: aliases created inside a function still resolve there -> flagged
 - neg/use-before-rebind: a valid alias still flags before a later reassignment shadows it
+- neg/function-use-before-rebind: function bodies still flag when a later outer rebind happens
 - neg/branch-join-alias: a subprocess alias in one branch still flags after the join
 - neg/lambda-body: violating subprocess calls inside lambdas are flagged
 - neg/from-import: ``from subprocess import run; run(...)`` -> flagged
@@ -198,6 +199,18 @@ def test_alias_used_before_later_rebind_is_flagged() -> None:
         "runner = print\n"
     )
     assert find_violations(source) == [3]
+
+
+def test_function_alias_used_before_later_rebind_is_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.check_output\n"
+        "def wrapper():\n"
+        '    runner(["x"], encoding="utf-8")\n'
+        "wrapper()\n"
+        "runner = print\n"
+    )
+    assert find_violations(source) == [4]
 
 
 def test_branch_join_alias_is_flagged() -> None:
