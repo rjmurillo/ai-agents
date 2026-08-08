@@ -20,6 +20,7 @@ import pytest
 
 from scripts.maintenance.worktree_report import KEEP_STALE, KEEP_STALE_UNREACHABLE
 from tests.gc_stale_unit import (
+    MAIN,
     MODULE,
     SHA,
     decide_stale,
@@ -116,7 +117,7 @@ class TestAdminAnchorWarning:
         sha = "a" * 40
         reason = self._reason([sha])
         assert "WARNING" in reason
-        assert f"git branch gc-rescue-{sha} {sha}" in reason
+        assert f"git -C {MAIN} branch gc-rescue-{sha} {sha}" in reason
 
     def test_no_orphans_means_no_warning(self):
         assert self._reason([]) == KEEP_STALE
@@ -128,7 +129,7 @@ class TestAdminAnchorWarning:
 
     def test_only_three_rescue_commands_are_printed_and_the_rest_are_counted(self):
         reason = self._reason([f"{i:040x}" for i in range(7)])
-        assert reason.count("git branch gc-rescue-") == 3
+        assert reason.count(f"git -C {MAIN} branch gc-rescue-") == 3
         assert "and 4 more" in reason
 
     def test_both_warnings_appear_when_index_and_admin_dir_are_both_at_risk(self):

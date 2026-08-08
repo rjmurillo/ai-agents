@@ -78,7 +78,8 @@ def test_a_clean_merged_worktree_is_kept_when_its_reflog_is_a_commits_only_ancho
     decision = decision_for(report, worktree)
     assert decision["remove"] is False, decision["reason"]
     reason = reason_of(report, worktree)
-    assert f"git branch gc-rescue-{orphan} {orphan}" in reason, reason
+    assert "git -C " in reason, reason
+    assert f"branch gc-rescue-{orphan} {orphan}" in reason, reason
 
 
 def test_a_clean_merged_worktree_with_nothing_at_risk_is_still_removed(
@@ -120,8 +121,8 @@ def test_the_printed_rescue_command_runs_verbatim_for_several_commits(
     first, second = _abandon_commits(git_sandbox, worktree, 2)
 
     reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
-    command = command_of(reason, "git branch gc-rescue-")
-    assert command.count("git branch") == 2, command
+    command = command_of(reason, "git -C ")
+    assert command.count("branch gc-rescue-") == 2, command
 
     result = subprocess.run(
         # A reader pastes this into a shell, so the test has to run it as one.
@@ -304,8 +305,8 @@ def test_a_failing_rescue_stops_the_chain_and_shows_in_the_exit_code(
     first, second = _abandon_commits(git_sandbox, worktree, 2)
 
     reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
-    command = command_of(reason, "git branch gc-rescue-")
-    blocked = command[len("git branch ") :].split()[0]
+    command = command_of(reason, "git -C ")
+    blocked = command.split(" branch ", 1)[1].split()[0]
     survivor = second if blocked.endswith(first) else first
     git(git_sandbox.main, "branch", blocked, head)
 

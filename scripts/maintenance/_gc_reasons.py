@@ -70,14 +70,14 @@ def stale_keep_reason(worktree: Worktree, main_path: str, run_git: Callable[...,
     """
     admin = _gc_stale.admin_dir_for(worktree.path, partial(run_git, cwd=main_path), main_path)
     if admin is None:
-        head = _head_warning(worktree.head, run_git)
+        head = _head_warning(worktree.head, main_path, run_git)
         lead = f"{head} | " if head else ""
         return (
             f"{lead}could not locate its admin entry, so nothing else about it "
             f"was checked; {KEEP_STALE}"
         )
     warnings = [
-        _head_warning(worktree.head, run_git),
+        _head_warning(worktree.head, main_path, run_git),
         _staged_warning(admin, worktree.head, main_path),
         _admin_warning(admin, main_path),
     ]
@@ -106,15 +106,23 @@ def reflog_only_work(worktree_path: str, main_path: str, run_git: Callable[..., 
     return _admin_warning(admin, main_path)
 
 
-def _head_warning(head: str | None, run_git: Callable[..., str]) -> str:
-    """Whether clearing the entry abandons its detached HEAD."""
+def _head_warning(head: str | None, main_path: str, run_git: Callable[..., str]) -> str:
+    """Whether clearing the entry abandons its detached HEAD.
+
+    The rescue command runs in the main worktree. The stale entry's own
+    directory is gone, so a bare ``git branch`` emitted here would run wherever
+    the reader happens to stand, and outside any repository it fails with
+    ``not a git repository`` while reading as the printed rescue. ``git -C``
+    pins it to the repository whose object database still holds the commit.
+    """
     if not head:
         return "its recorded HEAD is missing, so nothing about it could be rescued"
     reachable = stale_head_is_reachable(head, run_git)
     if reachable:
         return ""
     finding = KEEP_STALE_UNREACHABLE if reachable is False else KEEP_STALE_HEAD_UNKNOWN
-    return f"WARNING: {finding}. Rescue first: git branch gc-rescue-{head} {head}"
+    repo = shlex.quote(main_path)
+    return f"WARNING: {finding}. Rescue first: git -C {repo} branch gc-rescue-{head} {head}"
 
 
 def _staged_warning(admin: Path, head: str | None, main_path: str) -> str:
@@ -140,7 +148,7 @@ def _staged_warning(admin: Path, head: str | None, main_path: str) -> str:
         "recorded commit. It also creates RECOVERY_DIR only when it writes at least "
         "one file, so the mkdir is what lets the copy land in the very cases the copy "
         "exists for. Read the copy with "
-        "GIT_INDEX_FILE=RECOVERY_DIR/index git ls-files -s -u"
+        f"GIT_INDEX_FILE=RECOVERY_DIR/index git -C {repo} ls-files -s -u"
     )
 
 
@@ -154,7 +162,11 @@ def _admin_warning(admin: Path, main_path: str) -> str:
     # Joined with && so a failed rescue stops the chain and shows in the exit code.
     # With ; or a bare space the later branches run anyway and the command as a whole
     # reports the last one's status, which reads as success while a commit stayed lost.
-    rescues = " && ".join(f"git branch gc-rescue-{sha} {sha}" for sha in orphans[:3])
+    # ``git -C`` pins every branch to the main worktree: the stale entry's own directory
+    # is gone, so a bare ``git branch`` would run wherever the reader stands and fail
+    # outside any repository while reading as the printed rescue.
+    repo = shlex.quote(main_path)
+    rescues = " && ".join(f"git -C {repo} branch gc-rescue-{sha} {sha}" for sha in orphans[:3])
     more = (
         ""
         if len(orphans) <= 3

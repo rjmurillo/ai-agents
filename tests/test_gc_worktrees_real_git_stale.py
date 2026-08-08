@@ -25,7 +25,15 @@ from pathlib import Path
 import pytest
 
 from scripts.maintenance import _gc_apply, gc_worktrees, worktree_report
-from tests.gc_real_git import GitSandbox, decision_for, git, run_gc_json, write_and_commit
+from tests.gc_real_git import (
+    GitSandbox,
+    command_of,
+    decision_for,
+    git,
+    reason_of,
+    run_gc_json,
+    write_and_commit,
+)
 
 
 def _add_worktree_branch(sandbox: GitSandbox, branch: str) -> Path:
@@ -311,7 +319,8 @@ def test_the_report_warns_when_a_reflog_only_commit_would_be_orphaned(
     reason = decision["reason"]
     assert isinstance(reason, str)
     assert "WARNING" in reason, reason
-    assert f"git branch gc-rescue-{orphan} {orphan}" in reason, reason
+    assert "git -C " in reason, reason
+    assert f"branch gc-rescue-{orphan} {orphan}" in reason, reason
 
 
 def test_the_report_stays_quiet_when_the_reflog_holds_nothing_unreachable(
@@ -369,10 +378,107 @@ def test_all_three_loss_channels_are_reported_together(
     reason = decision_for(report, worktree)["reason"]
     assert isinstance(reason, str)
 
-    assert f"git branch gc-rescue-{head} {head}" in reason, reason
-    assert f"git branch gc-rescue-{abandoned} {abandoned}" in reason, reason
+    assert f"branch gc-rescue-{head} {head}" in reason, reason
+    assert f"branch gc-rescue-{abandoned} {abandoned}" in reason, reason
     assert "checkout-index" in reason, reason
     assert f"{head}." not in reason, "a trailing period turns the sha into a bad object"
+
+
+def _cwd_outside_any_repository(candidate: Path) -> Path:
+    """A directory that is not inside any git repository, for -C regression tests.
+
+    The sandbox lives under ``.pytest_tmp`` inside this project's own checkout,
+    so a path there is inside a repository and a bare ``git branch`` would run
+    against the wrong one rather than fail. ``tmp_path`` sits under the system
+    temp directory instead; this confirms git sees no repository there before
+    handing it back, so a regression to a bare command fails loudly.
+    """
+    assert git(candidate, "rev-parse", "--is-inside-work-tree", check=False).returncode != 0, (
+        "the chosen cwd is inside a repository, so it cannot prove what -C buys"
+    )
+    return candidate
+
+
+def test_the_reflog_rescue_command_runs_from_outside_any_repository(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """The admin rescue names the repo with ``-C``, so it works from any cwd.
+
+    A reader pastes the printed command wherever they happen to stand, and that
+    is often not inside a repository. A bare ``git branch`` fails there with
+    ``not a git repository`` while reading as the printed rescue, so the commit
+    it claimed to save stays lost. Running it from a non-repo cwd is what proves
+    the ``-C`` prefix is load-bearing rather than decorative.
+    """
+    head = git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
+    worktree = git_sandbox.root / "reflog-outside-cwd"
+    git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), head)
+    write_and_commit(worktree, "orphan.txt", "only in the reflog\n", "abandoned")
+    orphan = git(worktree, "rev-parse", "HEAD").stdout.strip()
+    git(worktree, "checkout", "--detach", head)
+    shutil.rmtree(worktree)
+
+    assert git(git_sandbox.main, "for-each-ref", "--contains", orphan).stdout == ""
+
+    reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    command = command_of(reason, "git -C ")
+    outside = _cwd_outside_any_repository(tmp_path)
+    result = subprocess.run(
+        # A reader pastes this into a shell, so the test has to run it as one.
+        # Spelled as argv so the interpreter is named here rather than inherited
+        # from whatever the caller's environment happens to point sh at.
+        ["bash", "-c", command],
+        cwd=outside,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode == 0, result.stderr
+    assert git(git_sandbox.main, "rev-parse", f"gc-rescue-{orphan}").stdout.strip() == orphan
+
+
+def test_the_head_rescue_command_runs_from_outside_any_repository(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """The detached-HEAD rescue is ``-C`` pinned too, not only the admin one.
+
+    ``_head_warning`` builds its own rescue command, so the ``-C`` fix has to
+    reach it independently. A stale entry whose HEAD no ref contains prints that
+    command first; running it from a directory outside any repository proves it
+    creates the branch in the repository that still holds the commit.
+    """
+    base = git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
+    worktree = git_sandbox.root / "unreachable-head-outside-cwd"
+    git(git_sandbox.main, "worktree", "add", "--detach", str(worktree), base)
+    write_and_commit(worktree, "gone.txt", "walked away from\n", "unreachable head")
+    head = git(worktree, "rev-parse", "HEAD").stdout.strip()
+    shutil.rmtree(worktree)
+
+    assert git(git_sandbox.main, "for-each-ref", "--contains", head).stdout == ""
+
+    reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    assert worktree_report.KEEP_STALE_UNREACHABLE in reason, reason
+    command = command_of(reason, "git -C ")
+    assert f"branch gc-rescue-{head} {head}" in command, command
+    outside = _cwd_outside_any_repository(tmp_path)
+    result = subprocess.run(
+        # A reader pastes this into a shell, so the test has to run it as one.
+        # Spelled as argv so the interpreter is named here rather than inherited
+        # from whatever the caller's environment happens to point sh at.
+        ["bash", "-c", command],
+        cwd=outside,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode == 0, result.stderr
+    assert git(git_sandbox.main, "rev-parse", f"gc-rescue-{head}").stdout.strip() == head
 
 
 def test_a_locked_stale_entry_still_reports_its_staged_work(

@@ -76,7 +76,9 @@ def test_a_worktree_local_ref_is_an_anchor_the_reflog_cannot_see(
 
     decision = decision_for(report, worktree)
     assert decision["remove"] is False, decision["reason"]
-    assert f"git branch gc-rescue-{oid} {oid}" in reason_of(report, worktree)
+    reason = reason_of(report, worktree)
+    assert "git -C " in reason, reason
+    assert f"branch gc-rescue-{oid} {oid}" in reason, reason
 
 
 def test_a_worktree_local_ref_on_a_reachable_commit_does_not_block_removal(
@@ -119,7 +121,7 @@ def test_the_printed_rescue_saves_a_commit_only_a_worktree_local_ref_held(
     oid = _worktree_local_ref(git_sandbox, worktree, "mywork")
 
     reason = reason_of(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
-    command = command_of(reason, "git branch gc-rescue-")
+    command = command_of(reason, "git -C ")
     result = subprocess.run(
         # A reader pastes this into a shell, so the test has to run it as one.
         # Spelled as argv so the interpreter is named here rather than inherited
@@ -175,7 +177,9 @@ def test_a_reflog_of_a_worktree_local_ref_is_an_anchor_too(
 
     decision = decision_for(report, worktree)
     assert decision["remove"] is False, decision["reason"]
-    assert f"git branch gc-rescue-{lost} {lost}" in reason_of(report, worktree)
+    reason = reason_of(report, worktree)
+    assert "git -C " in reason, reason
+    assert f"branch gc-rescue-{lost} {lost}" in reason, reason
 
 
 def test_that_reflog_really_is_what_keeps_the_commit_alive(
