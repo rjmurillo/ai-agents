@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from checks_tooling import _workflow_yaml_targets
+from scripts.validation.checks_tooling import _workflow_yaml_targets
 
 
 def _write_workflow(root: Path, name: str, content: str) -> None:
