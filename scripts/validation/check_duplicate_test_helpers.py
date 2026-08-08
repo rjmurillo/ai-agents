@@ -16,6 +16,7 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import ast
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -38,6 +39,11 @@ class ScanError(RuntimeError):
     """Raised when the gate cannot inspect its declared test corpus."""
 
 
+def _clean_git_env() -> dict[str, str]:
+    """Return the environment without ambient Git repository pointers."""
+    return {key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")}
+
+
 def _is_git_root(repo_root: Path) -> bool:
     try:
         result = subprocess.run(
@@ -48,6 +54,7 @@ def _is_git_root(repo_root: Path) -> bool:
             errors="replace",
             check=True,
             timeout=15,
+            env=_clean_git_env(),
         )
     except (OSError, subprocess.SubprocessError):
         return False
@@ -81,6 +88,7 @@ def _tracked_test_files(repo_root: Path) -> list[Path]:
             errors="replace",
             check=True,
             timeout=15,
+            env=_clean_git_env(),
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise ScanError(f"git could not list test files: {exc}") from exc
@@ -90,6 +98,8 @@ def _tracked_test_files(repo_root: Path) -> list[Path]:
         path = repo_root / entry
         if path.suffix == ".py" and path.is_file():
             paths.append(path)
+    if not paths:
+        raise ScanError("git reported zero Python files under tests/")
     return paths
 
 

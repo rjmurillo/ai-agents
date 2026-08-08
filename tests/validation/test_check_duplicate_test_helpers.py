@@ -43,10 +43,7 @@ class TestDuplicateTestHelpers:
         _write(
             repo_workspace,
             "tests/test_ok.py",
-            "def _first():\n"
-            "    return 1\n\n"
-            "def _second():\n"
-            "    return 2\n",
+            "def _first():\n    return 1\n\ndef _second():\n    return 2\n",
         )
 
         assert checker.find_duplicate_module_level_helpers(repo_workspace) == []
@@ -58,10 +55,7 @@ class TestDuplicateTestHelpers:
         _write(
             repo_workspace,
             "tests/test_duplicate.py",
-            "def _helper():\n"
-            "    return 1\n\n"
-            "def _helper(value):\n"
-            "    return value\n",
+            "def _helper():\n    return 1\n\ndef _helper(value):\n    return value\n",
         )
 
         findings = checker.find_duplicate_module_level_helpers(repo_workspace)
@@ -76,10 +70,7 @@ class TestDuplicateTestHelpers:
         _write(
             repo_workspace,
             "tests/test_async_duplicate.py",
-            "async def _load():\n"
-            "    return 1\n\n"
-            "async def _load(value):\n"
-            "    return value\n",
+            "async def _load():\n    return 1\n\nasync def _load(value):\n    return value\n",
         )
 
         assert checker.find_duplicate_module_level_helpers(repo_workspace) == [
@@ -118,9 +109,7 @@ class TestDuplicateTestHelpers:
         with pytest.raises(checker.ScanError, match="could not analyze test source"):
             checker.find_duplicate_module_level_helpers(repo_workspace)
 
-    def test_git_scope_excludes_ignored_test_artifacts(
-        self, repo_workspace: Path
-    ) -> None:
+    def test_git_scope_excludes_ignored_test_artifacts(self, repo_workspace: Path) -> None:
         subprocess.run(["git", "init", "-q"], cwd=repo_workspace, check=True)
         _write(repo_workspace, ".gitignore", "tests/tmp/\n")
         _write(repo_workspace, "tests/test_clean.py", "def clean():\n    pass\n")
@@ -134,6 +123,37 @@ class TestDuplicateTestHelpers:
         )
 
         assert checker.find_duplicate_module_level_helpers(repo_workspace) == []
+
+    def test_ambient_git_pointers_do_not_redirect_test_inventory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        target = tmp_path / "target"
+        foreign = tmp_path / "foreign"
+        for repo in (target, foreign):
+            (repo / "tests").mkdir(parents=True)
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        _write(
+            target,
+            "tests/test_duplicate.py",
+            "def helper():\n    pass\n\ndef helper():\n    pass\n",
+        )
+        _write(foreign, "tests/test_clean.py", "def clean():\n    pass\n")
+        subprocess.run(["git", "add", "tests"], cwd=target, check=True)
+        subprocess.run(["git", "add", "tests"], cwd=foreign, check=True)
+        monkeypatch.setenv("GIT_DIR", str(foreign / ".git"))
+        monkeypatch.setenv("GIT_WORK_TREE", str(foreign))
+
+        findings = checker.find_duplicate_module_level_helpers(target)
+
+        assert findings == [(target / "tests/test_duplicate.py", "helper", 1, 4)]
+
+    def test_git_inventory_with_zero_test_sources_fails_closed(self, repo_workspace: Path) -> None:
+        subprocess.run(["git", "init", "-q"], cwd=repo_workspace, check=True)
+        _write(repo_workspace, "README.md", "No test sources.\n")
+        subprocess.run(["git", "add", "README.md"], cwd=repo_workspace, check=True)
+
+        with pytest.raises(checker.ScanError, match="zero Python files"):
+            checker.find_duplicate_module_level_helpers(repo_workspace)
 
     def test_cli_exit_codes(self, repo_workspace: Path) -> None:
         script = REPO_ROOT / "scripts/validation/check_duplicate_test_helpers.py"
@@ -181,9 +201,7 @@ class TestDuplicateTestHelpers:
         assert "duplicate _same()" in dirty.stderr
         assert "Invalid repository root" in config.stderr
 
-    def test_cli_returns_two_for_invalid_tracked_source(
-        self, repo_workspace: Path
-    ) -> None:
+    def test_cli_returns_two_for_invalid_tracked_source(self, repo_workspace: Path) -> None:
         script = REPO_ROOT / "scripts/validation/check_duplicate_test_helpers.py"
         bad_repo = repo_workspace / "bad"
         (bad_repo / "tests").mkdir(parents=True)
