@@ -41,7 +41,7 @@ def _fail(returncode: int, stdout: str = "", stderr: str = "") -> subprocess.Com
 
 @pytest.fixture
 def push_command(monkeypatch):
-    monkeypatch.setattr("sys.stdin", io.StringIO(_stdin("git push origin HEAD")))
+    monkeypatch.setattr("sys.stdin", io.StringIO(_stdin("git push")))
 
 
 def _make_dispatcher(diff_out, lint_handler):
