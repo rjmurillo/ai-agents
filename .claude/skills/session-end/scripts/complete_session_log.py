@@ -52,7 +52,11 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 from paths import artifact_dir, resolve_artifact_root  # noqa: E402
-from qa_report import QaBinding, validate_qa_report  # noqa: E402
+from qa_report import (  # noqa: E402
+    QaBinding,
+    session_log_identity,
+    validate_qa_report,
+)
 
 # Sibling-module loader for rework_warning (REQ-010).
 # Loaded lazily inside main() to keep import-time failures from breaking
@@ -515,6 +519,14 @@ def _qa_report_evidence(
         return str(resolved_report)
 
 
+def _qa_session_log_identity(session_path: str, repo_root: str) -> str:
+    """Return a stable session identity across artifact-root overrides."""
+    return session_log_identity(
+        Path(session_path),
+        sessions_root=artifact_dir("sessions", base=Path(repo_root)),
+    )
+
+
 def _investigation_skip_evidence(repo_root: Path, starting_commit: object) -> str:
     """Validate investigation-only scope and return its evidence value."""
     if not isinstance(starting_commit, str) or not starting_commit:
@@ -839,12 +851,7 @@ def main(argv: list[str] | None = None) -> int:
     qa_owned_path = ""
     if args.qa_report:
         try:
-            session_log = (
-                Path(session_path)
-                .resolve()
-                .relative_to(Path(repo_root).resolve())
-                .as_posix()
-            )
+            session_log = _qa_session_log_identity(session_path, repo_root)
             binding = QaBinding(
                 session_log=session_log,
                 commit=ending_commit,

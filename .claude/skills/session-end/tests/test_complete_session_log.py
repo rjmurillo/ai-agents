@@ -242,6 +242,28 @@ class TestCompleteSessionLog:
 
         assert args.qa_report == "qa/report.md"
 
+    def test_qa_session_identity_supports_external_artifact_root(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        mod = _load_module()
+        artifact_root = tmp_path / "artifacts"
+        session_path = artifact_root / "sessions" / "session.json"
+        session_path.parent.mkdir(parents=True)
+        session_path.write_text("{}", encoding="utf-8")
+        monkeypatch.setenv(
+            "AI_AGENTS_ARTIFACT_ROOT",
+            str(artifact_root),
+        )
+
+        identity = mod._qa_session_log_identity(
+            str(session_path),
+            str(tmp_path),
+        )
+
+        assert identity == ".agents/sessions/session.json"
+
     def test_qa_report_evidence_accepts_report_under_qa_root(self, tmp_path):
         mod = _load_module()
         session_log = _session_log(mod)
