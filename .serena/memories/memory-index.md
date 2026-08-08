@@ -25,6 +25,7 @@
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
 |pr checks read rollup truncation cancelled superseded severity required rerun get_pr_checks: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1935)
 |blocked pr mergeStateStatus ruleset required contexts thread resolution commit limit bypass diagnose: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (908)
+|pr context statusCheckRollup list null CheckRun StatusContext reviewThreads totalCount pagination cursor authoritative metadata: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 
 [Scripting and Testing]
 |repo-root default script REPO_ROOT __file__ scratch clone cwd wrong repository vacuous test passes git_hook_policy: [testing/repo-root-default-measures-the-wrong-repository](testing/repo-root-default-measures-the-wrong-repository.md) (719)
