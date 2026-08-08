@@ -60,6 +60,7 @@ _qa_report = sys.modules["qa_report"]
 QaBinding = _qa_report.QaBinding
 load_qa_report = _qa_report.load_qa_report
 non_evidence_paths = _qa_report.non_evidence_paths
+post_qa_code_changes = _qa_report.post_qa_code_changes
 session_qa_binding = _qa_report.session_qa_binding
 validate_qa_report = _qa_report.validate_qa_report
 
@@ -293,6 +294,135 @@ def test_filters_session_evidence_from_post_qa_changes() -> None:
             "scripts/changed.py",
         ]
     ) == ["scripts/changed.py"]
+
+
+def test_detects_code_touched_then_reverted_after_qa(tmp_path: Path) -> None:
+    completed = [
+        subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess(
+            [],
+            0,
+            (
+                "scripts/changed.py\0"
+                ".agents/qa/report.md\0"
+                "scripts/changed.py\0"
+            ),
+            "",
+        ),
+    ]
+
+    with mock.patch.object(
+        _qa_report.subprocess,
+        "run",
+        side_effect=completed,
+    ) as run:
+        changed = post_qa_code_changes(
+            "a" * 40,
+            "b" * 40,
+            repo_root=tmp_path,
+        )
+
+    assert changed == ["scripts/changed.py"]
+    assert [call.args[0] for call in run.call_args_list] == [
+        ["git", "merge-base", "--is-ancestor", "a" * 40, "b" * 40],
+        [
+            "git",
+            "log",
+            "--format=",
+            "--name-only",
+            "-m",
+            "-z",
+            f"{'a' * 40}..{'b' * 40}",
+        ],
+    ]
+
+
+def test_accepts_evidence_only_commits_after_qa(tmp_path: Path) -> None:
+    completed = [
+        subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess(
+            [],
+            0,
+            (
+                ".agents/sessions/session.json\0"
+                ".agents/qa/report.md\0"
+                ".agents/memory/episodes/episode.json\0"
+            ),
+            "",
+        ),
+    ]
+
+    with mock.patch.object(
+        _qa_report.subprocess,
+        "run",
+        side_effect=completed,
+    ):
+        changed = post_qa_code_changes(
+            "a" * 40,
+            "b" * 40,
+            repo_root=tmp_path,
+        )
+
+    assert changed == []
+
+
+def test_rejects_qa_commit_outside_validation_history(tmp_path: Path) -> None:
+    completed = subprocess.CompletedProcess([], 1, "", "")
+
+    with (
+        mock.patch.object(
+            _qa_report.subprocess,
+            "run",
+            return_value=completed,
+        ) as run,
+        pytest.raises(ValueError, match="not an ancestor"),
+    ):
+        post_qa_code_changes(
+            "a" * 40,
+            "b" * 40,
+            repo_root=tmp_path,
+        )
+
+    run.assert_called_once()
+
+
+def test_fails_closed_when_qa_ancestry_cannot_be_checked(tmp_path: Path) -> None:
+    completed = subprocess.CompletedProcess([], 2, "", "")
+
+    with (
+        mock.patch.object(
+            _qa_report.subprocess,
+            "run",
+            return_value=completed,
+        ),
+        pytest.raises(ValueError, match="Could not verify QA commit ancestry"),
+    ):
+        post_qa_code_changes(
+            "a" * 40,
+            "b" * 40,
+            repo_root=tmp_path,
+        )
+
+
+def test_fails_closed_when_post_qa_commits_cannot_be_read(tmp_path: Path) -> None:
+    completed = [
+        subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess([], 1, "", ""),
+    ]
+
+    with (
+        mock.patch.object(
+            _qa_report.subprocess,
+            "run",
+            side_effect=completed,
+        ),
+        pytest.raises(ValueError, match="Could not inspect commits after QA"),
+    ):
+        post_qa_code_changes(
+            "a" * 40,
+            "b" * 40,
+            repo_root=tmp_path,
+        )
 
 
 def _make_complete_start_section(**overrides: dict) -> dict:
@@ -1236,7 +1366,7 @@ class TestValidateQaReportEvidence:
                 return_value=qa_root,
             ),
             mock.patch(
-                "scripts.validate_session_json._post_qa_code_changes",
+                "scripts.validate_session_json.post_qa_code_changes",
                 return_value=["scripts/new_code.py"],
             ),
         ):
@@ -1265,7 +1395,7 @@ class TestValidateQaReportEvidence:
                 return_value=qa_root,
             ),
             mock.patch(
-                "scripts.validate_session_json._post_qa_code_changes",
+                "scripts.validate_session_json.post_qa_code_changes",
                 return_value=[],
             ),
         ):
@@ -1292,8 +1422,8 @@ class TestValidateQaReportEvidence:
                 return_value=qa_root,
             ),
             mock.patch(
-                "scripts.validate_session_json._post_qa_code_changes",
-                return_value=None,
+                "scripts.validate_session_json.post_qa_code_changes",
+                side_effect=ValueError("Could not inspect commits after QA"),
             ),
         ):
             validate_qa_report_evidence(
@@ -1304,7 +1434,7 @@ class TestValidateQaReportEvidence:
                 validation_head="b" * 40,
             )
 
-        assert result.errors == ["Could not compare QA commit with validation head"]
+        assert result.errors == ["Could not inspect commits after QA"]
 
     def test_existing_log_still_validates_qa_report(
         self, tmp_path: Path
@@ -1326,6 +1456,43 @@ class TestValidateQaReportEvidence:
             result = validate_session_log(data, existing_log=True)
 
         assert f"QA report not found: {missing_report.resolve()}" in result.errors
+
+    def test_existing_log_honors_explicit_validation_head(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report)
+        data = {
+            **self._data(),
+            "protocolCompliance": {
+                "sessionEnd": self._session_end(str(report))
+            },
+        }
+
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch(
+                "scripts.validate_session_json.post_qa_code_changes",
+                return_value=["scripts/new_code.py"],
+            ),
+        ):
+            result = validate_session_log(
+                data,
+                existing_log=True,
+                session_log=self.SESSION_LOG,
+                validation_head="b" * 40,
+            )
+
+        assert (
+            "QA report is stale; code changed after its commit: "
+            "scripts/new_code.py"
+        ) in result.errors
 
     def test_creation_mode_defers_qa_report_validation(
         self, tmp_path: Path

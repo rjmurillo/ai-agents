@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -164,3 +165,47 @@ def non_evidence_paths(paths: list[str]) -> list[str]:
         for path in paths
         if path and not path.startswith(QA_EVIDENCE_PREFIXES)
     ]
+
+
+def post_qa_code_changes(
+    commit: str,
+    head: str,
+    *,
+    repo_root: Path,
+) -> list[str]:
+    """Return non-evidence paths touched by any commit after QA."""
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", commit, head],
+        cwd=repo_root,
+        check=False,
+        stdout=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if ancestor.returncode == 1:
+        raise ValueError("QA commit is not an ancestor of validation head")
+    if ancestor.returncode != 0:
+        raise ValueError("Could not verify QA commit ancestry")
+
+    changes = subprocess.run(
+        [
+            "git",
+            "log",
+            "--format=",
+            "--name-only",
+            "-m",
+            "-z",
+            f"{commit}..{head}",
+        ],
+        cwd=repo_root,
+        check=False,
+        stdout=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if changes.returncode != 0:
+        raise ValueError("Could not inspect commits after QA")
+    changed_paths = non_evidence_paths(changes.stdout.split("\0"))
+    return list(dict.fromkeys(changed_paths))

@@ -51,7 +51,7 @@ sys.path.insert(0, str(_CLAUDE_LIB_DIR))
 
 from paths import artifact_dir  # noqa: E402
 from qa_report import (  # noqa: E402
-    non_evidence_paths,
+    post_qa_code_changes,
     session_qa_binding,
     validate_qa_report,
 )
@@ -918,22 +918,6 @@ def _resolve_full_commit(commit: str) -> str | None:
     return resolved or None
 
 
-def _post_qa_code_changes(commit: str, validation_head: str) -> list[str] | None:
-    completed = subprocess.run(
-        ["git", "diff", "--name-only", "-z", f"{commit}..{validation_head}"],
-        cwd=_PROJECT_ROOT,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
-    if completed.returncode != 0:
-        return None
-    return non_evidence_paths(completed.stdout.split("\0"))
-
-
 def validate_qa_report_evidence(
     data: dict[str, Any],
     session_end: dict[str, Any],
@@ -982,10 +966,17 @@ def validate_qa_report_evidence(
 
     if validation_head is None:
         return
-    changed_after_qa = _post_qa_code_changes(report.commit, validation_head)
-    if changed_after_qa is None:
-        result.errors.append("Could not compare QA commit with validation head")
-    elif changed_after_qa:
+    try:
+        changed_after_qa = post_qa_code_changes(
+            report.commit,
+            validation_head,
+            repo_root=_PROJECT_ROOT,
+        )
+    except ValueError as exc:
+        result.errors.append(str(exc))
+    else:
+        if not changed_after_qa:
+            return
         result.errors.append(
             "QA report is stale; code changed after its commit: "
             + ", ".join(changed_after_qa)
@@ -1191,7 +1182,7 @@ def validate_session_log(
             session_end,
             result,
             session_log=session_log,
-            validation_head=None if existing_log else validation_head,
+            validation_head=validation_head,
         )
 
     return result

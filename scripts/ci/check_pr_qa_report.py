@@ -17,7 +17,7 @@ sys.path.insert(0, str(_LIB_DIR))
 from paths import artifact_dir  # noqa: E402
 from qa_report import (  # noqa: E402
     load_qa_report,
-    non_evidence_paths,
+    post_qa_code_changes,
     session_qa_binding,
     validate_qa_report,
 )
@@ -142,21 +142,6 @@ def _pr_head_sha(repository: str, pr_number: str) -> str:
     return head
 
 
-def _post_qa_code_changes(commit: str, head: str) -> list[str]:
-    result = subprocess.run(
-        ["git", "diff", "--name-only", "-z", f"{commit}..{head}"],
-        cwd=_REPO_ROOT,
-        check=False,
-        stdout=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    if result.returncode != 0:
-        raise ValueError("Could not compare QA commit with PR head")
-    return non_evidence_paths(result.stdout.split("\0"))
-
-
 def _validate_report(repository: str, pr_number: str, report: Path) -> None:
     metadata = load_qa_report(report)
     _session_path, session_data = _load_session_log(metadata.session_log)
@@ -166,9 +151,10 @@ def _validate_report(repository: str, pr_number: str, report: Path) -> None:
         resolve_commit=_resolve_commit,
     )
     validate_qa_report(report, binding)
-    changed_after_qa = _post_qa_code_changes(
+    changed_after_qa = post_qa_code_changes(
         metadata.commit,
         _pr_head_sha(repository, pr_number),
+        repo_root=_REPO_ROOT,
     )
     if changed_after_qa:
         raise ValueError(

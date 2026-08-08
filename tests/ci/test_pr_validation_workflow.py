@@ -158,7 +158,9 @@ def test_qa_report_detects_code_changes_and_existing_report(
             )
         if args[:2] == ["gh", "api"] and args[-1] == ".head.sha":
             return subprocess.CompletedProcess(args, 0, "b" * 40 + "\n")
-        if args[:3] == ["git", "diff", "--name-only"]:
+        if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return subprocess.CompletedProcess(args, 0, "")
+        if args[:3] == ["git", "log", "--format="]:
             return subprocess.CompletedProcess(
                 args,
                 0,
@@ -243,7 +245,9 @@ def test_qa_report_rejects_code_changed_after_qa(
             return subprocess.CompletedProcess(args, 0, "src/app.py\n")
         if args[:2] == ["gh", "api"] and args[-1] == ".head.sha":
             return subprocess.CompletedProcess(args, 0, "b" * 40 + "\n")
-        if args[:3] == ["git", "diff", "--name-only"]:
+        if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return subprocess.CompletedProcess(args, 0, "")
+        if args[:3] == ["git", "log", "--format="]:
             return subprocess.CompletedProcess(args, 0, "scripts/new_code.py\0")
         raise AssertionError(f"Unexpected subprocess call: {args}")
 
