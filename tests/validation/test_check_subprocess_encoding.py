@@ -117,11 +117,39 @@ def test_subprocess_run_missing_errors_capture_output() -> None:
 
 @pytest.mark.parametrize("stream", ["stdout", "stderr"])
 def test_subprocess_run_missing_errors_explicit_pipe(stream: str) -> None:
-    source = (
-        "import subprocess\n"
-        f'subprocess.run(["x"], {stream}=subprocess.PIPE, encoding="utf-8")'
-    )
+    source = f'import subprocess\nsubprocess.run(["x"], {stream}=subprocess.PIPE, encoding="utf-8")'
     assert find_violations(source) == [2]
+
+
+@pytest.mark.parametrize("stream", ["stdout", "stderr"])
+def test_subprocess_run_missing_errors_module_aliased_pipe(stream: str) -> None:
+    source = f'import subprocess as sp\nsp.run(["x"], {stream}=sp.PIPE, encoding="utf-8")'
+    assert find_violations(source) == [2]
+
+
+@pytest.mark.parametrize(
+    "source,expected_line",
+    [
+        (
+            'from subprocess import PIPE, run\nrun(["x"], stdout=PIPE, encoding="utf-8")',
+            2,
+        ),
+        (
+            "from subprocess import PIPE as pipe, run as runner\n"
+            'runner(["x"], stderr=pipe, encoding="utf-8")',
+            2,
+        ),
+        (
+            "import subprocess as sp\n"
+            "pipe = sp.PIPE\n"
+            "runner = sp.run\n"
+            'runner(["x"], stdout=pipe, encoding="utf-8")',
+            4,
+        ),
+    ],
+)
+def test_subprocess_pipe_aliases_are_flagged(source: str, expected_line: int) -> None:
+    assert find_violations(source) == [expected_line]
 
 
 def test_subprocess_check_output_missing_errors() -> None:
@@ -137,8 +165,7 @@ def test_from_import_run_missing_errors() -> None:
 
 def test_strict_errors_remains_a_violation() -> None:
     source = (
-        "import subprocess\n"
-        'subprocess.run(["x"], text=True, encoding="utf-8", errors="strict")'
+        'import subprocess\nsubprocess.run(["x"], text=True, encoding="utf-8", errors="strict")'
     )
     assert find_violations(source) == [2]
 
@@ -147,13 +174,11 @@ def test_strict_errors_remains_a_violation() -> None:
     "source,expected_line",
     [
         (
-            "import subprocess as sp\n"
-            'sp.run(["x"], text=True, encoding="utf-8")',
+            'import subprocess as sp\nsp.run(["x"], text=True, encoding="utf-8")',
             2,
         ),
         (
-            "from subprocess import run as runner\n"
-            'runner(["x"], text=True, encoding="utf-8")',
+            'from subprocess import run as runner\nrunner(["x"], text=True, encoding="utf-8")',
             2,
         ),
         (
@@ -220,8 +245,7 @@ def test_ambient_git_repository_pointers_do_not_reduce_corpus(
         {
             "scripts/clean.py": "x = 1\n",
             "scripts/bad.py": (
-                "import subprocess\n"
-                'subprocess.run(["x"], text=True, encoding="utf-8")\n'
+                'import subprocess\nsubprocess.run(["x"], text=True, encoding="utf-8")\n'
             ),
         },
     )
@@ -389,3 +413,15 @@ def test_detector_requires_subprocess_to_flag() -> None:
     """Non-subprocess encoding= arguments must not be flagged."""
     file_open = 'open("f", "r", encoding="utf-8")'
     assert find_violations(file_open) == []
+
+
+def test_detector_requires_real_pipe_capture_to_flag() -> None:
+    """Mutation control: an unrelated PIPE-like value does not enable decoding."""
+    source = (
+        "class Local:\n"
+        "    PIPE = object()\n"
+        "local = Local()\n"
+        "import subprocess\n"
+        'subprocess.run(["x"], stdout=local.PIPE, encoding="utf-8")\n'
+    )
+    assert find_violations(source) == []

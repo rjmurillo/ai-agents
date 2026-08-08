@@ -31,7 +31,7 @@ What this scanner checks:
     3. The call enables text mode: ``text=True`` or ``capture_output=True``
        are present as literal ``True``-valued keywords, or the entry point
        decodes unconditionally (``check_output``).
-    4. No ``errors=`` keyword is present.
+    4. It does not set literal ``errors="replace"``.
 
 Deliberate over-approximation:
     When a call site uses ``**kwargs``, we cannot know whether ``errors`` was
@@ -86,14 +86,20 @@ def _is_utf8_literal(node: ast.expr | None) -> bool:
     return isinstance(node, ast.Constant) and node.value in _UTF8_ALIASES
 
 
-def _is_subprocess_pipe(node: ast.expr | None) -> bool:
-    """Return whether *node* names ``subprocess.PIPE``."""
-    return (
+def _is_subprocess_pipe(
+    node: ast.expr | None,
+    module_aliases: set[str],
+    pipe_aliases: set[str],
+) -> bool:
+    """Return whether *node* resolves to ``subprocess.PIPE``."""
+    module_pipe = (
         isinstance(node, ast.Attribute)
         and isinstance(node.value, ast.Name)
-        and node.value.id == "subprocess"
+        and node.value.id in module_aliases
         and node.attr == "PIPE"
     )
+    imported_pipe = isinstance(node, ast.Name) and node.id in pipe_aliases
+    return module_pipe or imported_pipe
 
 
 def _subprocess_call_name(
@@ -121,6 +127,7 @@ def _record_import_bindings(
     node: ast.AST,
     module_aliases: set[str],
     callable_aliases: dict[str, str],
+    pipe_aliases: set[str],
 ) -> None:
     """Add subprocess bindings declared by one import node."""
     if isinstance(node, ast.Import):
@@ -133,14 +140,17 @@ def _record_import_bindings(
     for alias in node.names:
         if alias.name in _ALL_SUBPROCESS_CALLS:
             callable_aliases[alias.asname or alias.name] = alias.name
+        elif alias.name == "PIPE":
+            pipe_aliases.add(alias.asname or alias.name)
 
 
 def _resolve_assignment_binding(
     node: ast.AST,
     module_aliases: set[str],
     callable_aliases: dict[str, str],
-) -> tuple[str, str] | None:
-    """Resolve one simple callable rebinding, if present."""
+    pipe_aliases: set[str],
+) -> tuple[str, str, str] | None:
+    """Resolve one simple subprocess callable or PIPE rebinding."""
     if not isinstance(node, ast.Assign) or len(node.targets) != 1:
         return None
     target = node.targets[0]
@@ -151,43 +161,54 @@ def _resolve_assignment_binding(
         isinstance(value, ast.Attribute)
         and isinstance(value.value, ast.Name)
         and value.value.id in module_aliases
-        and value.attr in _ALL_SUBPROCESS_CALLS
     ):
-        return target.id, value.attr
+        if value.attr in _ALL_SUBPROCESS_CALLS:
+            return "callable", target.id, value.attr
+        if value.attr == "PIPE":
+            return "pipe", target.id, "PIPE"
     if isinstance(value, ast.Name) and value.id in callable_aliases:
-        return target.id, callable_aliases[value.id]
+        return "callable", target.id, callable_aliases[value.id]
+    if isinstance(value, ast.Name) and value.id in pipe_aliases:
+        return "pipe", target.id, "PIPE"
     return None
 
 
-def _subprocess_bindings(tree: ast.AST) -> tuple[set[str], dict[str, str]]:
-    """Return module and callable aliases that resolve to subprocess entry points."""
+def _subprocess_bindings(
+    tree: ast.AST,
+) -> tuple[set[str], dict[str, str], set[str]]:
+    """Return aliases resolving to subprocess modules, callables, and PIPE."""
     module_aliases = {"subprocess"}
     callable_aliases = {name: name for name in _ALL_SUBPROCESS_CALLS}
+    pipe_aliases = {"PIPE"}
     nodes = list(ast.walk(tree))
 
     for node in nodes:
-        _record_import_bindings(node, module_aliases, callable_aliases)
+        _record_import_bindings(node, module_aliases, callable_aliases, pipe_aliases)
 
     changed = True
     while changed:
         changed = False
         for node in nodes:
             binding = _resolve_assignment_binding(
-                node, module_aliases, callable_aliases
+                node, module_aliases, callable_aliases, pipe_aliases
             )
             if binding is None:
                 continue
-            name, resolved = binding
-            if callable_aliases.get(name) != resolved:
+            kind, name, resolved = binding
+            if kind == "callable" and callable_aliases.get(name) != resolved:
                 callable_aliases[name] = resolved
                 changed = True
-    return module_aliases, callable_aliases
+            elif kind == "pipe" and name not in pipe_aliases:
+                pipe_aliases.add(name)
+                changed = True
+    return module_aliases, callable_aliases, pipe_aliases
 
 
 def _is_flagged(
     call: ast.Call,
     module_aliases: set[str],
     callable_aliases: dict[str, str],
+    pipe_aliases: set[str],
 ) -> bool:
     """Return True when this call violates the errors="replace" convention.
 
@@ -208,8 +229,8 @@ def _is_flagged(
     text_enabled = (
         _is_true_literal(_keyword_value(call, "text"))
         or _is_true_literal(_keyword_value(call, "capture_output"))
-        or _is_subprocess_pipe(_keyword_value(call, "stdout"))
-        or _is_subprocess_pipe(_keyword_value(call, "stderr"))
+        or _is_subprocess_pipe(_keyword_value(call, "stdout"), module_aliases, pipe_aliases)
+        or _is_subprocess_pipe(_keyword_value(call, "stderr"), module_aliases, pipe_aliases)
     )
     if not unconditional and not text_enabled:
         # Binary mode with an explicit encoding is unusual but not our concern.
@@ -218,10 +239,7 @@ def _is_flagged(
     # Only replacement decoding satisfies the convention. Strict decoding must
     # use the line-scoped suppression marker when failure is intentional.
     errors_node = _keyword_value(call, "errors")
-    if (
-        isinstance(errors_node, ast.Constant)
-        and errors_node.value == "replace"
-    ):
+    if isinstance(errors_node, ast.Constant) and errors_node.value == "replace":
         return False
 
     # A **kwargs splat may carry errors= but we cannot verify; flag conservatively.
@@ -238,11 +256,7 @@ class ScanError(RuntimeError):
 
 def _clean_git_env() -> dict[str, str]:
     """Return the process environment without ambient Git repository pointers."""
-    return {
-        key: value
-        for key, value in os.environ.items()
-        if not key.upper().startswith("GIT_")
-    }
+    return {key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")}
 
 
 def find_violations(source: str, filename: str = "<string>") -> list[int]:
@@ -255,7 +269,7 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
     replacement characters).
     """
     tree = ast.parse(source, filename=filename)
-    module_aliases, callable_aliases = _subprocess_bindings(tree)
+    module_aliases, callable_aliases, pipe_aliases = _subprocess_bindings(tree)
 
     source_lines = source.splitlines()
 
@@ -268,7 +282,7 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
         node.lineno
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
-        and _is_flagged(node, module_aliases, callable_aliases)
+        and _is_flagged(node, module_aliases, callable_aliases, pipe_aliases)
         and not _suppressed(node.lineno)
     )
 
