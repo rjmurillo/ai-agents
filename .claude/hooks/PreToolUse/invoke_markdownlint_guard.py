@@ -36,14 +36,15 @@ def _resolve_invocation() -> list[str] | None:
     """Pick the markdownlint invocation per ADR-043 / SESSION-PROTOCOL.
 
     Direct binary on PATH wins (works on dev machines with global install).
-    Falls back to ``npx markdownlint-cli2`` (the documented invocation for
-    fresh checkouts where only Node and the project's package.json are
-    available). Returns None if neither tool is on PATH.
+    Falls back to ``npx --no-install markdownlint-cli2``, which refuses to
+    download registry code and only succeeds when a pinned local install is
+    already available. Returns None if neither tool is on PATH; the caller
+    fail-opens in that case.
     """
     if shutil.which(BINARY) is not None:
         return [BINARY]
     if shutil.which("npx") is not None:
-        return ["npx", BINARY]
+        return ["npx", "--no-install", BINARY]
     return None
 
 

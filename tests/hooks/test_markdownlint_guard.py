@@ -151,7 +151,7 @@ class TestBinaryAbsent:
         assert "blocking push" in err
 
     def test_binary_missing_falls_back_to_npx(self, push_command, tmp_path, capsys):
-        """When markdownlint-cli2 is not on PATH but npx is, use npx as documented."""
+        """When markdownlint-cli2 is not on PATH but npx is, use npx without installs."""
         captured_args: list[list[str]] = []
 
         def lint(args):
@@ -172,14 +172,11 @@ class TestBinaryAbsent:
             rc = guard.main()
 
         assert rc == 0
-        # Confirm npx was used in the lint invocation (not --version, not git diff)
-        lint_calls = [
-            a for a in captured_args
-            if "--version" not in a and a and a[0] != "git"
-        ]
-        assert lint_calls, "Expected lint invocation"
-        assert lint_calls[0][0] == "npx"
-        assert lint_calls[0][1] == guard.BINARY
+        npx_calls = [a for a in captured_args if a and a[0] == "npx"]
+        assert npx_calls, "Expected npx invocation"
+        assert all(a[:3] == ["npx", "--no-install", guard.BINARY] for a in npx_calls)
+        assert any("--version" in a for a in npx_calls)
+        assert any("--no-globs" in a for a in npx_calls)
 
 
 class TestTimeout:
