@@ -1095,6 +1095,7 @@ class TestGitHeadShaAgainstRealGit:
             env=env,
             capture_output=True,
             encoding="utf-8",
+            errors="replace",
             check=True,
         )
         return result.stdout.strip()
