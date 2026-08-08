@@ -6,7 +6,6 @@ tools:
   - shell
   - read
   - edit
-  - shell
   - search
   - web
   - github/search_code
