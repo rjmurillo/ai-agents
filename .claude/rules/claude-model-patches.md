@@ -1,4 +1,5 @@
 ---
+# Issue 4408 path-filter validation probe.
 applyTo: "**"
 priority: critical
 ---
