@@ -47,6 +47,11 @@ from github_core.output import (
     write_skill_error,
     write_skill_output,
 )
+from review_thread_lookup import (
+    REVIEW_THREADS_QUERY,
+    review_threads_page,
+    thread_with_root_comment,
+)
 
 REACTION_EMOJI: dict[str, str] = {
     "+1": "\U0001f44d",
@@ -65,29 +70,6 @@ VALID_REACTIONS = list(REACTION_EMOJI.keys())
 # Upper bound (seconds) for each gh network call.
 GH_TIMEOUT_SECONDS = 30
 _MAX_THREAD_PAGES = 50
-
-_REVIEW_THREADS_QUERY = """\
-query($owner: String!, $repo: String!, $prNumber: Int!, $cursor: String) {
-    repository(owner: $owner, name: $repo) {
-        pullRequest(number: $prNumber) {
-            reviewThreads(first: 100, after: $cursor) {
-                pageInfo {
-                    hasNextPage
-                    endCursor
-                }
-                nodes {
-                    id
-                    isResolved
-                    comments(first: 1) {
-                        nodes {
-                            databaseId
-                        }
-                    }
-                }
-            }
-        }
-    }
-}"""
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -183,10 +165,10 @@ def _find_review_thread(
         }
         if cursor is not None:
             variables["cursor"] = cursor
-        data = gh_graphql(_REVIEW_THREADS_QUERY, variables)
-        review_threads = _review_threads_page(data, pull_request)
+        data = gh_graphql(REVIEW_THREADS_QUERY, variables)
+        review_threads = review_threads_page(data, pull_request)
         nodes = review_threads["nodes"]
-        thread = _thread_with_root_comment(nodes, root_comment_id)
+        thread = thread_with_root_comment(nodes, root_comment_id)
         if thread is not None:
             return thread
         page_info = review_threads.get("pageInfo")
@@ -201,56 +183,6 @@ def _find_review_thread(
     raise RuntimeError(
         f"Review thread pagination exceeded {_MAX_THREAD_PAGES} pages"
     )
-
-
-def _review_threads_page(
-    data: dict[str, Any],
-    pull_request: int,
-) -> dict[str, Any]:
-    repository = data.get("repository")
-    pull_request_data = (
-        repository.get("pullRequest")
-        if isinstance(repository, dict)
-        else None
-    )
-    review_threads = (
-        pull_request_data.get("reviewThreads")
-        if isinstance(pull_request_data, dict)
-        else None
-    )
-    if not isinstance(review_threads, dict):
-        raise RuntimeError(f"Review threads unavailable for PR #{pull_request}")
-    if not isinstance(review_threads.get("nodes"), list):
-        raise RuntimeError(
-            f"Review thread nodes unavailable for PR #{pull_request}"
-        )
-    return review_threads
-
-
-def _thread_with_root_comment(
-    nodes: list[object],
-    root_comment_id: int,
-) -> dict[str, Any] | None:
-    for thread in nodes:
-        if not isinstance(thread, dict):
-            continue
-        comments = thread.get("comments")
-        comment_nodes = (
-            comments.get("nodes")
-            if isinstance(comments, dict)
-            else None
-        )
-        first_comment = (
-            comment_nodes[0]
-            if isinstance(comment_nodes, list) and comment_nodes
-            else None
-        )
-        if (
-            isinstance(first_comment, dict)
-            and first_comment.get("databaseId") == root_comment_id
-        ):
-            return thread
-    return None
 
 
 def query_review_comment_thread_state(
