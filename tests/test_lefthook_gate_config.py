@@ -158,3 +158,22 @@ class TestMemoryTierGateEnforcement:
             "${{ github.base_ref || github.event.repository.default_branch }}"
         )
         assert '--base-ref "origin/$BASE_BRANCH"' in ratchet["run"]
+
+    def test_memory_workflow_uses_locked_markdown_parser_environment(
+        self,
+    ) -> None:
+        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-memories"]["steps"]
+        validator_commands = [
+            step["run"]
+            for step in steps
+            if isinstance(step, dict)
+            and isinstance(step.get("run"), str)
+            and step.get("id") in {"tier-validation", "index-validation"}
+        ]
+
+        assert len(validator_commands) == 2
+        assert all(
+            command.startswith("uv run --frozen python ")
+            for command in validator_commands
+        )
