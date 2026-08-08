@@ -1,49 +1,14 @@
 #!/usr/bin/env python3
-"""Gate: subprocess calls with text-mode UTF-8 must pair errors="replace".
+"""Require ``errors="replace"`` for UTF-8 subprocess text capture.
 
-A ``subprocess.run`` (or any ``subprocess.*`` call) that sets both
-``encoding="utf-8"`` (case-insensitive, common aliases accepted) and
-text-capturing mode (``text=True`` or ``capture_output=True``) must also
-pass ``errors="replace"``.
+The scanner tracks subprocess imports and aliases through lexical scopes.
+It flags literal UTF-8 calls that decode through text mode, capture flags,
+PIPE streams, or unconditional decode entry points without replacement
+error handling. Unknown ``**kwargs`` remain fail-closed. See issue #4261.
 
-Without ``errors="replace"``, a child process that emits bytes invalid for
-UTF-8 raises ``UnicodeDecodeError`` on the calling side. On Windows CI
-runners, ``git`` and ``gh`` can emit such bytes in branch names, commit
-messages, or file-system paths. The decode fails before the caller can
-report the real assertion, hiding the underlying failure. See issue #4261.
-
-Canonical house pattern (in ``scripts/ci/verify_code_env.py``):
-
-    subprocess.run(
-        argv,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-
-What this scanner checks:
-    A call is flagged when ALL of these hold:
-    1. It reaches a subprocess text-capturing entry point (``subprocess.run``,
-       ``subprocess.check_output``, ``subprocess.Popen``,
-       ``subprocess.check_call``).
-    2. It has a literal ``encoding=`` keyword whose value is a UTF-8 alias
-       (``"utf-8"``, ``"utf8"``, ``"UTF-8"``, ``"UTF8"``, ``"utf_8"``).
-    3. The call enables text mode: ``text=True`` or ``capture_output=True``
-       are present as literal ``True``-valued keywords, or the entry point
-       decodes unconditionally (``check_output``).
-    4. It does not set literal ``errors="replace"``.
-
-Deliberate over-approximation:
-    When a call site uses ``**kwargs``, we cannot know whether ``errors`` was
-    supplied by the caller. Rather than silently wave it through, we flag the
-    site. The author must either add ``errors="replace"`` or restructure to
-    avoid the splat. One extra keyword in the rare-but-valid call is worth
-    never missing a decode on the common violating call.
-
-Exits (ADR-035):
-    0 - No violations found.
-    1 - One or more violations detected.
-    2 - Configuration error (invalid repository root).
+Canonical pattern:
+``subprocess.run(argv, text=True, encoding="utf-8", errors="replace")``.
+Exits follow ADR-035: 0 clean, 1 violations, 2 configuration error.
 """
 
 from __future__ import annotations
@@ -317,13 +282,47 @@ class _SubprocessCallVisitor(ast.NodeVisitor):
         return names
 
     def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
-        defaults = [
-            *node.args.defaults,
-            *(value for value in node.args.kw_defaults if value is not None),
+        positional = node.args.posonlyargs + node.args.args
+        default_pairs = [
+            *zip(
+                positional[len(positional) - len(node.args.defaults) :],
+                node.args.defaults,
+                strict=True,
+            ),
+            *(
+                (argument, value)
+                for argument, value in zip(
+                    node.args.kwonlyargs,
+                    node.args.kw_defaults,
+                    strict=True,
+                )
+                if value is not None
+            ),
         ]
+        defaults = [value for _, value in default_pairs]
         for expression in [*node.decorator_list, *defaults]:
             self.visit(expression)
-        self._visit_scope(node.body, self._argument_names(node.args))
+        default_bindings = {
+            argument.arg: _resolve_value_binding(
+                value,
+                self.module_aliases,
+                self.callable_aliases,
+                self.pipe_aliases,
+            )
+            for argument, value in default_pairs
+        }
+        saved = (
+            self.module_aliases.copy(),
+            self.callable_aliases.copy(),
+            self.pipe_aliases.copy(),
+        )
+        for name in self._argument_names(node.args):
+            self._clear(name)
+        for name, binding in default_bindings.items():
+            self._bind(name, binding)
+        for statement in node.body:
+            self.visit(statement)
+        self.module_aliases, self.callable_aliases, self.pipe_aliases = saved
         self._clear(node.name)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:

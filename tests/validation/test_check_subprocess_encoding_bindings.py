@@ -58,3 +58,22 @@ def test_outer_subprocess_alias_remains_visible_in_nested_scope() -> None:
         'import subprocess as sp\ndef invoke():\n    sp.run(["x"], text=True, encoding="utf-8")\n'
     )
     assert find_violations(source) == [3]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        (
+            "import subprocess as sp\n"
+            "def invoke(runner=sp.run):\n"
+            '    runner(["x"], text=True, encoding="utf-8")\n'
+        ),
+        (
+            "import subprocess as sp\n"
+            "def invoke(*, pipe=sp.PIPE):\n"
+            '    sp.run(["x"], stdout=pipe, encoding="utf-8")\n'
+        ),
+    ],
+)
+def test_subprocess_parameter_defaults_are_flagged(source: str) -> None:
+    assert find_violations(source) == [3]
