@@ -21,21 +21,29 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.testing.mutation_workspace import (
+    isolated_mutation_worktree,
+    purge_bytecode,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
 
-GHP = ROOT / "scripts" / "validation" / "git_hook_policy.py"
-WLT = ROOT / "scripts" / "validation" / "run_workflow_local_test.py"
-
-GHP_TESTS = ROOT / "tests" / "validation" / "test_run_command_proc_group.py"
-WLT_TESTS = ROOT / "tests" / "validation" / "test_run_workflow_local_test.py"
+GHP_REL = Path("scripts") / "validation" / "git_hook_policy.py"
+WLT_REL = Path("scripts") / "validation" / "run_workflow_local_test.py"
+GHP_TESTS_REL = Path("tests") / "validation" / "test_run_command_proc_group.py"
+WLT_TESTS_REL = Path("tests") / "validation" / "test_run_workflow_local_test.py"
+TARGETS = (GHP_REL, WLT_REL)
 
 PYTEST = ["uv", "run", "--frozen", "python", "-m", "pytest"]
 
 
-def run_tests(test_file: Path, label: str) -> subprocess.CompletedProcess[str]:
+def run_tests(
+    repo_root: Path, test_file: Path, label: str
+) -> subprocess.CompletedProcess[str]:
+    purge_bytecode(repo_root)
     return subprocess.run(
         [*PYTEST, str(test_file), "-q", "--tb=no"],
-        cwd=ROOT,
+        cwd=repo_root,
         capture_output=True,
         encoding="utf-8",
         errors="backslashreplace",
@@ -79,60 +87,51 @@ def restore(path: Path, original: bytes) -> None:
     path.write_bytes(original)
 
 
-mutations: list[tuple[Path, Path, str, str, str]] = [
-    # (source_file, test_file, old_text, new_text, name)
-
-    # M1: Remove start_new_session in _run_command (git_hook_policy)
-    (
-        GHP,
-        GHP_TESTS,
-        "start_new_session=_SUPPORTS_PGROUP,",
-        "start_new_session=False,",
-        "M1-start_new_session-False-ghp",
-    ),
-
-    # M2: Replace _killpg_safe call in _run_command with proc.kill()
-    (
-        GHP,
-        GHP_TESTS,
-        "_killpg_safe(proc.pid)",
-        "proc.kill()  # MUTANT: no group kill",
-        "M2-killpg_safe-replaced-with-proc.kill",
-    ),
-
-    # M3: Remove start_new_session in _run (run_workflow_local_test)
-    (
-        WLT,
-        WLT_TESTS,
-        "start_new_session=_supports_pgroup,",
-        "start_new_session=False,",
-        "M3-start_new_session-False-wlt",
-    ),
-
-    # M4: Replace _killpg_safe call in _run with proc.kill()
-    (
-        WLT,
-        WLT_TESTS,
-        "_killpg_safe(proc.pid)",
-        "proc.kill()  # MUTANT: no group kill",
-        "M4-killpg_safe-replaced-with-proc.kill-wlt",
-    ),
-]
-
-# Inverted control: the CORRECT code must stay green
-inverted_controls: list[tuple[Path, str]] = [
-    (GHP_TESTS, "inverted-control: GHP tests green with correct code"),
-    (WLT_TESTS, "inverted-control: WLT tests green with correct code"),
-]
-
-
-def main() -> None:
+def _run_mutations(repo_root: Path) -> None:
+    ghp = repo_root / GHP_REL
+    wlt = repo_root / WLT_REL
+    ghp_tests = repo_root / GHP_TESTS_REL
+    wlt_tests = repo_root / WLT_TESTS_REL
+    mutations: list[tuple[Path, Path, str, str, str]] = [
+        (
+            ghp,
+            ghp_tests,
+            "start_new_session=_SUPPORTS_PGROUP,",
+            "start_new_session=False,",
+            "M1-start_new_session-False-ghp",
+        ),
+        (
+            ghp,
+            ghp_tests,
+            "_killpg_safe(proc.pid)",
+            "proc.kill()  # MUTANT: no group kill",
+            "M2-killpg_safe-replaced-with-proc.kill",
+        ),
+        (
+            wlt,
+            wlt_tests,
+            "start_new_session=_supports_pgroup,",
+            "start_new_session=False,",
+            "M3-start_new_session-False-wlt",
+        ),
+        (
+            wlt,
+            wlt_tests,
+            "_killpg_safe(proc.pid)",
+            "proc.kill()  # MUTANT: no group kill",
+            "M4-killpg_safe-replaced-with-proc.kill-wlt",
+        ),
+    ]
+    inverted_controls: list[tuple[Path, str]] = [
+        (ghp_tests, "inverted-control: GHP tests green with correct code"),
+        (wlt_tests, "inverted-control: WLT tests green with correct code"),
+    ]
     print("=== Mutation harness: process-group timeout fix ===\n")
 
     # Baseline green check
     print("[Baseline] Checking tests are green before mutations...")
     for test_file, label in inverted_controls:
-        r = run_tests(test_file, label)
+        r = run_tests(repo_root, test_file, label)
         assert_green(r, label)
     print()
 
@@ -140,7 +139,7 @@ def main() -> None:
         print(f"[Mutation] {name}")
         original = mutate(source_file, old_text, new_text, name)
         try:
-            r = run_tests(test_file, name)
+            r = run_tests(repo_root, test_file, name)
             assert_red(r, name)
         finally:
             restore(source_file, original)
@@ -149,18 +148,23 @@ def main() -> None:
     # Inverted control (correct code) must stay green
     print("[Inverted controls] Verifying correct code stays green...")
     for test_file, label in inverted_controls:
-        r = run_tests(test_file, label)
+        r = run_tests(repo_root, test_file, label)
         assert_green(r, label)
     print()
 
     # Final baseline restore verification
     print("[Baseline] Final green check after all mutations restored...")
     for test_file, label in inverted_controls:
-        r = run_tests(test_file, label)
+        r = run_tests(repo_root, test_file, label)
         assert_green(r, label)
     print()
 
     print("=== All mutations killed. Harness passed. ===")
+
+
+def main() -> None:
+    with isolated_mutation_worktree(ROOT, TARGETS) as workspace:
+        _run_mutations(workspace.root)
 
 
 if __name__ == "__main__":
