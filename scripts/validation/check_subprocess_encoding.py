@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- issue #4261 keeps scope-walk and ratchet policy together.
 """Gate: subprocess calls with text-mode UTF-8 must pair errors="replace".
 
 A ``subprocess.run`` (or any ``subprocess.*`` call) that sets both
@@ -53,6 +54,7 @@ from __future__ import annotations
 import ast
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 _UTF8_ALIASES: frozenset[str] = frozenset({"utf-8", "utf8", "utf_8", "UTF-8", "UTF8", "UTF_8"})
@@ -99,131 +101,65 @@ def _is_utf8_literal(node: ast.expr | None) -> bool:
     return isinstance(node, ast.Constant) and node.value in _UTF8_ALIASES
 
 
-def _subprocess_alias_sets(
-    tree: ast.AST,
+@dataclass
+class _AliasState:
+    module_aliases: set[str]
+    callable_aliases: dict[str, str]
+    pipe_aliases: set[str]
+
+
+def _copy_alias_state(state: _AliasState) -> _AliasState:
+    return _AliasState(
+        set(state.module_aliases),
+        dict(state.callable_aliases),
+        set(state.pipe_aliases),
+    )
+
+
+def _snapshot_alias_state(
+    state: _AliasState,
 ) -> tuple[frozenset[str], dict[str, str], frozenset[str]]:
-    """Return ordered top-level aliases that resolve to subprocess."""
-    module_aliases = {"subprocess"}
-    callable_aliases: dict[str, str] = {}
-    pipe_aliases: set[str] = set()
-
-    if not isinstance(tree, ast.Module):
-        return frozenset(module_aliases), callable_aliases, frozenset(pipe_aliases)
-
-    for node in tree.body:
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                bound_name = alias.asname or alias.name
-                _clear_alias_binding(
-                    bound_name,
-                    module_aliases,
-                    callable_aliases,
-                    pipe_aliases,
-                )
-                if alias.name == "subprocess":
-                    module_aliases.add(bound_name)
-        elif isinstance(node, ast.ImportFrom):
-            for alias in node.names:
-                if alias.name == "*":
-                    if node.module == "subprocess":
-                        callable_aliases.update({name: name for name in _ALL_SUBPROCESS_CALLS})
-                        pipe_aliases.add("PIPE")
-                    continue
-                bound_name = alias.asname or alias.name
-                _clear_alias_binding(
-                    bound_name,
-                    module_aliases,
-                    callable_aliases,
-                    pipe_aliases,
-                )
-                if node.module != "subprocess":
-                    continue
-                if alias.name in _ALL_SUBPROCESS_CALLS:
-                    callable_aliases[bound_name] = alias.name
-                elif alias.name == "PIPE":
-                    pipe_aliases.add(bound_name)
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            _clear_alias_binding(node.name, module_aliases, callable_aliases, pipe_aliases)
-        elif isinstance(node, ast.Assign):
-            resolved_module = _is_subprocess_module_alias(
-                node.value,
-                frozenset(module_aliases),
-            )
-            resolved_callable = _subprocess_callable_name(
-                node.value,
-                frozenset(module_aliases),
-                dict(callable_aliases),
-            )
-            resolved_pipe = _is_pipe_capture_target(
-                node.value,
-                frozenset(module_aliases),
-                frozenset(pipe_aliases),
-            )
-            for target in node.targets:
-                if not isinstance(target, ast.Name):
-                    continue
-                _clear_alias_binding(
-                    target.id,
-                    module_aliases,
-                    callable_aliases,
-                    pipe_aliases,
-                )
-                if resolved_module:
-                    module_aliases.add(target.id)
-                elif resolved_callable is not None:
-                    callable_aliases[target.id] = resolved_callable
-                elif resolved_pipe:
-                    pipe_aliases.add(target.id)
-        elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            if not isinstance(node.target, ast.Name):
-                continue
-            resolved_module = _is_subprocess_module_alias(
-                node.value,
-                frozenset(module_aliases),
-            )
-            resolved_callable = _subprocess_callable_name(
-                node.value,
-                frozenset(module_aliases),
-                dict(callable_aliases),
-            )
-            resolved_pipe = _is_pipe_capture_target(
-                node.value,
-                frozenset(module_aliases),
-                frozenset(pipe_aliases),
-            )
-            _clear_alias_binding(
-                node.target.id,
-                module_aliases,
-                callable_aliases,
-                pipe_aliases,
-            )
-            if resolved_module:
-                module_aliases.add(node.target.id)
-            elif resolved_callable is not None:
-                callable_aliases[node.target.id] = resolved_callable
-            elif resolved_pipe:
-                pipe_aliases.add(node.target.id)
-        elif isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name):
-            _clear_alias_binding(
-                node.target.id,
-                module_aliases,
-                callable_aliases,
-                pipe_aliases,
-            )
-        elif isinstance(node, ast.Delete):
-            for target in node.targets:
-                if isinstance(target, ast.Name):
-                    _clear_alias_binding(
-                        target.id,
-                        module_aliases,
-                        callable_aliases,
-                        pipe_aliases,
-                    )
-
     return (
-        frozenset(module_aliases),
-        callable_aliases,
-        frozenset(pipe_aliases),
+        frozenset(state.module_aliases),
+        dict(state.callable_aliases),
+        frozenset(state.pipe_aliases),
+    )
+
+
+def _parameter_names(args: ast.arguments) -> set[str]:
+    names = {
+        arg.arg
+        for arg in [*args.posonlyargs, *args.args, *args.kwonlyargs]
+    }
+    if args.vararg is not None:
+        names.add(args.vararg.arg)
+    if args.kwarg is not None:
+        names.add(args.kwarg.arg)
+    return names
+
+
+def _bound_names(node: ast.AST) -> list[str]:
+    if isinstance(node, ast.Name):
+        return [node.id]
+    if isinstance(node, ast.Starred):
+        return _bound_names(node.value)
+    if isinstance(node, (ast.List, ast.Tuple)):
+        names: list[str] = []
+        for element in node.elts:
+            names.extend(_bound_names(element))
+        return names
+    return []
+
+
+def _resolve_assignment_aliases(
+    node: ast.expr,
+    state: _AliasState,
+) -> tuple[bool, str | None, bool]:
+    module_aliases, callable_aliases, pipe_aliases = _snapshot_alias_state(state)
+    return (
+        _is_subprocess_module_alias(node, module_aliases),
+        _subprocess_callable_name(node, module_aliases, callable_aliases),
+        _is_pipe_capture_target(node, module_aliases, pipe_aliases),
     )
 
 
@@ -343,7 +279,245 @@ def _is_flagged(
     return True
 
 
+def _iter_immediate_calls(node: ast.AST) -> list[ast.Call]:
+    """Return calls that execute when *node* itself executes."""
+    calls: list[ast.Call] = []
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, ast.Call):
+            calls.append(current)
+        if isinstance(
+            current,
+            (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda),
+        ):
+            continue
+        stack.extend(reversed(list(ast.iter_child_nodes(current))))
+    return calls
+
+
 _SUPPRESSION_COMMENT = "# subprocess-encoding: strict-ok"
+
+
+def _record_call_violations(
+    node: ast.AST,
+    state: _AliasState,
+    source_lines: list[str],
+    violations: list[int],
+) -> None:
+    module_aliases, callable_aliases, pipe_aliases = _snapshot_alias_state(state)
+    for call in _iter_immediate_calls(node):
+        lineno = call.lineno
+        if lineno < 1 or lineno > len(source_lines):
+            continue
+        if _SUPPRESSION_COMMENT in source_lines[lineno - 1]:
+            continue
+        if _is_flagged(call, module_aliases, callable_aliases, pipe_aliases):
+            violations.append(lineno)
+
+
+def _scan_scope(
+    statements: list[ast.stmt],
+    state: _AliasState,
+    source_lines: list[str],
+) -> list[int]:
+    """Return violations discovered by executing *statements* in order."""
+    violations: list[int] = []
+    deferred_functions: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
+
+    def _clear(name: str) -> None:
+        _clear_alias_binding(
+            name,
+            state.module_aliases,
+            state.callable_aliases,
+            state.pipe_aliases,
+        )
+
+    def _record_expr(node: ast.AST | None) -> None:
+        if node is not None:
+            _record_call_violations(node, state, source_lines, violations)
+
+    def _bind_targets(names: list[str], value: ast.expr) -> None:
+        resolved_module, resolved_callable, resolved_pipe = _resolve_assignment_aliases(
+            value,
+            state,
+        )
+        for name in names:
+            _clear(name)
+            if resolved_module:
+                state.module_aliases.add(name)
+            elif resolved_callable is not None:
+                state.callable_aliases[name] = resolved_callable
+            elif resolved_pipe:
+                state.pipe_aliases.add(name)
+
+    for stmt in statements:
+        if isinstance(stmt, ast.Import):
+            for alias in stmt.names:
+                bound_name = alias.asname or alias.name
+                _clear(bound_name)
+                if alias.name == "subprocess":
+                    state.module_aliases.add(bound_name)
+            continue
+
+        if isinstance(stmt, ast.ImportFrom):
+            for alias in stmt.names:
+                if alias.name == "*":
+                    if stmt.module == "subprocess":
+                        state.callable_aliases.update(
+                            {name: name for name in _ALL_SUBPROCESS_CALLS}
+                        )
+                        state.pipe_aliases.add("PIPE")
+                    continue
+                bound_name = alias.asname or alias.name
+                _clear(bound_name)
+                if stmt.module != "subprocess":
+                    continue
+                if alias.name in _ALL_SUBPROCESS_CALLS:
+                    state.callable_aliases[bound_name] = alias.name
+                elif alias.name == "PIPE":
+                    state.pipe_aliases.add(bound_name)
+            continue
+
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for decorator in stmt.decorator_list:
+                _record_expr(decorator)
+            for default in [*stmt.args.defaults, *stmt.args.kw_defaults]:
+                _record_expr(default)
+            _record_expr(stmt.returns)
+            _clear(stmt.name)
+            deferred_functions.append(stmt)
+            continue
+
+        if isinstance(stmt, ast.ClassDef):
+            for decorator in stmt.decorator_list:
+                _record_expr(decorator)
+            for base in stmt.bases:
+                _record_expr(base)
+            for keyword in stmt.keywords:
+                _record_expr(keyword.value)
+            _clear(stmt.name)
+            class_state = _copy_alias_state(state)
+            _clear_alias_binding(
+                stmt.name,
+                class_state.module_aliases,
+                class_state.callable_aliases,
+                class_state.pipe_aliases,
+            )
+            violations.extend(_scan_scope(stmt.body, class_state, source_lines))
+            continue
+
+        if isinstance(stmt, ast.Assign):
+            _record_expr(stmt.value)
+            for target in stmt.targets:
+                names = _bound_names(target)
+                if names:
+                    _bind_targets(names, stmt.value)
+            continue
+
+        if isinstance(stmt, ast.AnnAssign):
+            _record_expr(stmt.value)
+            if stmt.value is not None:
+                names = _bound_names(stmt.target)
+                if names:
+                    _bind_targets(names, stmt.value)
+            continue
+
+        if isinstance(stmt, ast.AugAssign):
+            _record_expr(stmt.value)
+            for name in _bound_names(stmt.target):
+                _clear(name)
+            continue
+
+        if isinstance(stmt, ast.Delete):
+            for target in stmt.targets:
+                for name in _bound_names(target):
+                    _clear(name)
+            continue
+
+        if isinstance(stmt, (ast.For, ast.AsyncFor)):
+            _record_expr(stmt.iter)
+            for name in _bound_names(stmt.target):
+                _clear(name)
+            violations.extend(_scan_scope(stmt.body, state, source_lines))
+            violations.extend(_scan_scope(stmt.orelse, state, source_lines))
+            continue
+
+        if isinstance(stmt, ast.While):
+            _record_expr(stmt.test)
+            violations.extend(_scan_scope(stmt.body, state, source_lines))
+            violations.extend(_scan_scope(stmt.orelse, state, source_lines))
+            continue
+
+        if isinstance(stmt, ast.If):
+            _record_expr(stmt.test)
+            violations.extend(_scan_scope(stmt.body, state, source_lines))
+            violations.extend(_scan_scope(stmt.orelse, state, source_lines))
+            continue
+
+        if isinstance(stmt, (ast.With, ast.AsyncWith)):
+            for item in stmt.items:
+                _record_expr(item.context_expr)
+                if item.optional_vars is not None:
+                    for name in _bound_names(item.optional_vars):
+                        _clear(name)
+            violations.extend(_scan_scope(stmt.body, state, source_lines))
+            continue
+
+        if isinstance(stmt, ast.Try):
+            violations.extend(_scan_scope(stmt.body, state, source_lines))
+            for handler in stmt.handlers:
+                _record_expr(handler.type)
+                if handler.name is not None:
+                    _clear(handler.name)
+                violations.extend(_scan_scope(handler.body, state, source_lines))
+            violations.extend(_scan_scope(stmt.orelse, state, source_lines))
+            violations.extend(_scan_scope(stmt.finalbody, state, source_lines))
+            continue
+
+        if isinstance(stmt, ast.Match):
+            _record_expr(stmt.subject)
+            for case in stmt.cases:
+                _record_expr(case.guard)
+                violations.extend(_scan_scope(case.body, state, source_lines))
+            continue
+
+        if isinstance(stmt, ast.Assert):
+            _record_expr(stmt.test)
+            _record_expr(stmt.msg)
+            continue
+
+        if isinstance(stmt, ast.Raise):
+            _record_expr(stmt.exc)
+            _record_expr(stmt.cause)
+            continue
+
+        if isinstance(stmt, ast.Return):
+            _record_expr(stmt.value)
+            continue
+
+        if isinstance(stmt, ast.Expr):
+            _record_expr(stmt.value)
+            continue
+
+    for fn in deferred_functions:
+        fn_state = _copy_alias_state(state)
+        _clear_alias_binding(
+            fn.name,
+            fn_state.module_aliases,
+            fn_state.callable_aliases,
+            fn_state.pipe_aliases,
+        )
+        for name in _parameter_names(fn.args):
+            _clear_alias_binding(
+                name,
+                fn_state.module_aliases,
+                fn_state.callable_aliases,
+                fn_state.pipe_aliases,
+            )
+        violations.extend(_scan_scope(fn.body, fn_state, source_lines))
+
+    return violations
 
 
 def find_violations(source: str, filename: str = "<string>") -> list[int]:
@@ -361,19 +535,17 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
         return []
 
     source_lines = source.splitlines()
-    module_aliases, callable_aliases, pipe_aliases = _subprocess_alias_sets(tree)
-
-    def _suppressed(lineno: int) -> bool:
-        if lineno < 1 or lineno > len(source_lines):
-            return False
-        return _SUPPRESSION_COMMENT in source_lines[lineno - 1]
+    if not isinstance(tree, ast.Module):
+        return []
 
     return sorted(
-        node.lineno
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and _is_flagged(node, module_aliases, callable_aliases, pipe_aliases)
-        and not _suppressed(node.lineno)
+        set(
+            _scan_scope(
+                tree.body,
+                _AliasState({"subprocess"}, {}, set()),
+                source_lines,
+            )
+        )
     )
 
 

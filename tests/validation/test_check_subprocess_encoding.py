@@ -17,6 +17,8 @@ Coverage:
 - neg/missing-errors-stderr-pipe: stderr=subprocess.PIPE with encoding -> flagged
 - neg/alias-pipe-capture: subprocess call and PIPE aliases still resolve -> flagged
 - neg/assigned-module-alias: `sp = subprocess` and derived aliases still resolve -> flagged
+- neg/function-local-alias: aliases created inside a function still resolve there -> flagged
+- neg/use-before-rebind: a valid alias still flags before a later reassignment shadows it
 - neg/from-import: ``from subprocess import run; run(...)`` -> flagged
 - neg/splat: **kwargs present means errors may be absent -> flagged (conservative)
 - pos/pipe-capture-binary: PIPE capture without encoding/text semantics -> not flagged
@@ -174,6 +176,26 @@ def test_local_callable_aliases_are_flagged(source: str, expected: list[int]) ->
 )
 def test_assigned_module_aliases_are_flagged(source: str, expected: list[int]) -> None:
     assert find_violations(source) == expected
+
+
+def test_function_local_aliases_are_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "def wrapper():\n"
+        "    runner = subprocess.check_output\n"
+        '    runner(["x"], encoding="utf-8")\n'
+    )
+    assert find_violations(source) == [4]
+
+
+def test_alias_used_before_later_rebind_is_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.check_output\n"
+        'runner(["x"], encoding="utf-8")\n'
+        "runner = print\n"
+    )
+    assert find_violations(source) == [3]
 
 
 def test_from_import_run_missing_errors() -> None:
