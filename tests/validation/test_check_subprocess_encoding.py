@@ -22,8 +22,10 @@ Coverage:
 - neg/use-before-rebind: a valid alias still flags before a later reassignment shadows it
 - neg/function-use-before-rebind: function bodies still flag when a later outer rebind happens
 - neg/function-alias-use-before-rebind: aliased function calls still capture pre-rebind state
+- neg/tuple-unpack-alias: tuple/list unpacking preserves alias bindings
 - neg/branch-join-alias: a subprocess alias in one branch still flags after the join
 - neg/lambda-body: violating subprocess calls inside lambdas are flagged
+- neg/lambda-use-before-rebind: assigned lambdas honor call-time rebind order
 - neg/universal-newlines: legacy text-mode alias is treated like text=True
 - neg/from-import: ``from subprocess import run; run(...)`` -> flagged
 - neg/splat: **kwargs present means errors may be absent -> flagged (conservative)
@@ -254,6 +256,43 @@ def test_function_alias_called_after_later_rebind_is_not_flagged() -> None:
     assert find_violations(source) == []
 
 
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        (
+            "import subprocess\n"
+            "runner, _ = subprocess.check_output, print\n"
+            'runner(["x"], encoding="utf-8")\n',
+            [3],
+        ),
+        (
+            "import subprocess\n"
+            "sp, _ = subprocess, print\n"
+            'sp.run(["x"], text=True, encoding="utf-8")\n',
+            [3],
+        ),
+        (
+            "import subprocess\n"
+            "pipe, _ = subprocess.PIPE, print\n"
+            'subprocess.run(["x"], stdout=pipe, encoding="utf-8")\n',
+            [3],
+        ),
+        (
+            "import subprocess\n"
+            "runner = subprocess.check_output\n"
+            "def wrapper():\n"
+            '    runner(["x"], encoding="utf-8")\n'
+            "alias, _ = wrapper, print\n"
+            "alias()\n"
+            "runner = print\n",
+            [4],
+        ),
+    ],
+)
+def test_tuple_unpacked_aliases_are_flagged(source: str, expected: list[int]) -> None:
+    assert find_violations(source) == expected
+
+
 def test_branch_join_alias_is_flagged() -> None:
     source = (
         "import subprocess\n"
@@ -272,6 +311,28 @@ def test_lambda_body_is_flagged() -> None:
         'runner = lambda: subprocess.run(["x"], text=True, encoding="utf-8")\n'
     )
     assert find_violations(source) == [2]
+
+
+def test_lambda_alias_used_before_later_rebind_is_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.check_output\n"
+        'wrapper = lambda: runner(["x"], encoding="utf-8")\n'
+        "wrapper()\n"
+        "runner = print\n"
+    )
+    assert find_violations(source) == [3]
+
+
+def test_lambda_alias_called_after_later_rebind_is_not_flagged() -> None:
+    source = (
+        "import subprocess\n"
+        "runner = subprocess.check_output\n"
+        'wrapper = lambda: runner(["x"], encoding="utf-8")\n'
+        "runner = print\n"
+        "wrapper()\n"
+    )
+    assert find_violations(source) == []
 
 
 def test_from_import_run_missing_errors() -> None:

@@ -354,16 +354,6 @@ def _record_call_violations(
             continue
         if _is_flagged(call, module_aliases, callable_aliases, pipe_aliases):
             violations.append(lineno)
-    for lambda_node in _iter_nested_lambdas(node):
-        lambda_state = _copy_alias_state(state)
-        for name in _parameter_names(lambda_node.args):
-            _clear_alias_binding(
-                name,
-                lambda_state.module_aliases,
-                lambda_state.callable_aliases,
-                lambda_state.pipe_aliases,
-            )
-        _record_call_violations(lambda_node.body, lambda_state, source_lines, violations)
 
 
 def _scan_scope(
@@ -374,6 +364,7 @@ def _scan_scope(
     """Return violations discovered by executing *statements* in order."""
     violations: list[int] = []
     deferred_functions: list[tuple[ast.FunctionDef | ast.AsyncFunctionDef, list[_AliasState]]] = []
+    deferred_lambdas: list[tuple[ast.Lambda, list[_AliasState]]] = []
     active_function_bindings: dict[str, list[_AliasState]] = {}
 
     def _clear(name: str) -> None:
@@ -397,7 +388,7 @@ def _scan_scope(
                 if isinstance(call.func, ast.Name) and call.func.id in active_function_bindings:
                     active_function_bindings[call.func.id].append(_copy_alias_state(state))
 
-    def _bind_targets(names: list[str], value: ast.expr) -> None:
+    def _bind_name(name: str, value: ast.expr) -> None:
         function_binding = (
             active_function_bindings.get(value.id)
             if isinstance(value, ast.Name)
@@ -407,16 +398,33 @@ def _scan_scope(
             value,
             state,
         )
-        for name in names:
-            _clear(name)
-            if function_binding is not None:
-                active_function_bindings[name] = function_binding
-            if resolved_module:
-                state.module_aliases.add(name)
-            elif resolved_callable is not None:
-                state.callable_aliases[name] = resolved_callable
-            elif resolved_pipe:
-                state.pipe_aliases.add(name)
+        _clear(name)
+        if function_binding is not None:
+            active_function_bindings[name] = function_binding
+        elif isinstance(value, ast.Lambda):
+            call_states: list[_AliasState] = []
+            deferred_lambdas.append((value, call_states))
+            active_function_bindings[name] = call_states
+        if resolved_module:
+            state.module_aliases.add(name)
+        elif resolved_callable is not None:
+            state.callable_aliases[name] = resolved_callable
+        elif resolved_pipe:
+            state.pipe_aliases.add(name)
+
+    def _bind_target(target: ast.AST, value: ast.expr) -> None:
+        if isinstance(target, ast.Name):
+            _bind_name(target.id, value)
+            return
+        if isinstance(target, (ast.Tuple, ast.List)) and isinstance(value, (ast.Tuple, ast.List)):
+            for target_item, value_item in zip(target.elts, value.elts, strict=False):
+                _bind_target(target_item, value_item)
+            for target_item in target.elts[len(value.elts) :]:
+                for name in _bound_names(target_item):
+                    _clear(name)
+            return
+        for name in _bound_names(target):
+            _bind_name(name, value)
 
     for stmt in statements:
         if isinstance(stmt, ast.Import):
@@ -479,17 +487,13 @@ def _scan_scope(
         if isinstance(stmt, ast.Assign):
             _record_expr(stmt.value)
             for target in stmt.targets:
-                names = _bound_names(target)
-                if names:
-                    _bind_targets(names, stmt.value)
+                _bind_target(target, stmt.value)
             continue
 
         if isinstance(stmt, ast.AnnAssign):
             _record_expr(stmt.value)
             if stmt.value is not None:
-                names = _bound_names(stmt.target)
-                if names:
-                    _bind_targets(names, stmt.value)
+                _bind_target(stmt.target, stmt.value)
             continue
 
         if isinstance(stmt, ast.AugAssign):
@@ -650,6 +654,32 @@ def _scan_scope(
                         direct_call_state.pipe_aliases,
                     )
                 violations.extend(_scan_scope(fn.body, direct_call_state, source_lines))
+
+    for lambda_node, call_states in deferred_lambdas:
+        lambda_state = _copy_alias_state(state)
+        for name in _parameter_names(lambda_node.args):
+                _clear_alias_binding(
+                    name,
+                    lambda_state.module_aliases,
+                    lambda_state.callable_aliases,
+                    lambda_state.pipe_aliases,
+                )
+        _record_call_violations(lambda_node.body, lambda_state, source_lines, violations)
+        for call_state in call_states:
+                direct_call_state = _copy_alias_state(call_state)
+                for name in _parameter_names(lambda_node.args):
+                    _clear_alias_binding(
+                        name,
+                        direct_call_state.module_aliases,
+                        direct_call_state.callable_aliases,
+                        direct_call_state.pipe_aliases,
+                    )
+                _record_call_violations(
+                    lambda_node.body,
+                    direct_call_state,
+                    source_lines,
+                    violations,
+                )
 
     return violations
 
