@@ -140,7 +140,7 @@
 |portability symlink TOCTOU scan_all refuse_symlinked_scan_root: [decision-portability-ratchet-symlink-toctou](decision-portability-ratchet-symlink-toctou.md) (314)
 |instruction budget always-on ceiling applyTo scope headroom rule authoring: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1856)
 |memory index validator one direction unindexed orphan check non-recursive opt-in warn only passes clean: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (784)
-|memory index token count churn recount every row merge conflict stale union resolve lefthook skip merge: [memory-index-token-counts-churn-across-branches](memory-index-token-counts-churn-across-branches.md) (926)
+|memory index token count churn recount every row merge conflict stale union resolve lefthook skip merge gh pr update-branch server side base merge ratchet: [memory-index-token-counts-churn-across-branches](memory-index-token-counts-churn-across-branches.md) (1345)
 
 [Root Cause Patterns (PR #908)]
 |governance enforcement ADR limits commits files programmatic gate: [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (603)
