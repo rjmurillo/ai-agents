@@ -147,10 +147,11 @@ class TestMain:
             ),
         ):
             rc = main(["--thread-id", "PRRT_abc"])
-        assert rc == 0
-        out = capsys.readouterr().out
-        output = json.loads(out)
-        assert output["action"] == "SKIP"
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+        assert output["Data"]["action"] == "ACT"
+        assert output["Data"]["reason"] == "resolve_failed"
 
     def test_all_threads_already_resolved(self, capsys):
         with (
@@ -164,12 +165,9 @@ class TestMain:
         ):
             rc = main(["--pull-request", "10"])
         assert rc == 0
-        # Output contains both plain text and JSON; extract last JSON block
-        stdout = capsys.readouterr().out
-        # Find JSON by looking for opening brace
-        json_start = stdout.rfind("{")
-        output = json.loads(stdout[json_start:])
-        assert output["TotalUnresolved"] == 0
+        output = json.loads(capsys.readouterr().out)["Data"]
+        assert output["total_unresolved"] == 0
+        assert output["action"] == "SKIP"
 
     def test_all_threads_api_error(self):
         with (
@@ -214,18 +212,24 @@ class TestMain:
                 return_value=threads,
             ),
             patch(
+                "resolve_pr_review_thread.query_thread_state",
+                side_effect=lambda thread_id: {
+                    "id": thread_id,
+                    "isResolved": False,
+                    "pullRequest": {"number": 10},
+                },
+            ),
+            patch(
                 "resolve_pr_review_thread.resolve_review_thread",
                 return_value=True,
             ),
         ):
             rc = main(["--pull-request", "10"])
         assert rc == 0
-        stdout = capsys.readouterr().out
-        json_start = stdout.rfind("{")
-        output = json.loads(stdout[json_start:])
-        assert output["Resolved"] == 2
-        assert output["Failed"] == 0
+        output = json.loads(capsys.readouterr().out)
         assert output["Success"] is True
+        assert output["Data"]["resolved"] == 2
+        assert output["Data"]["failed"] == 0
 
     def test_partial_resolution_returns_1(self, capsys):
         threads = [
@@ -253,18 +257,24 @@ class TestMain:
                 return_value=threads,
             ),
             patch(
+                "resolve_pr_review_thread.query_thread_state",
+                side_effect=lambda thread_id: {
+                    "id": thread_id,
+                    "isResolved": False,
+                    "pullRequest": {"number": 10},
+                },
+            ),
+            patch(
                 "resolve_pr_review_thread.resolve_review_thread",
                 side_effect=[True, False],
             ),
         ):
             rc = main(["--pull-request", "10"])
         assert rc == 1
-        stdout = capsys.readouterr().out
-        json_start = stdout.rfind("{")
-        output = json.loads(stdout[json_start:])
-        assert output["Resolved"] == 1
-        assert output["Failed"] == 1
+        output = json.loads(capsys.readouterr().out)
         assert output["Success"] is False
+        assert output["Data"]["resolved"] == 1
+        assert output["Data"]["failed"] == 1
 
     def test_thread_with_empty_comments(self, capsys):
         threads = [
@@ -281,6 +291,14 @@ class TestMain:
             patch(
                 "resolve_pr_review_thread.get_unresolved_threads",
                 return_value=threads,
+            ),
+            patch(
+                "resolve_pr_review_thread.query_thread_state",
+                return_value={
+                    "id": "PRRT_1",
+                    "isResolved": False,
+                    "pullRequest": {"number": 10},
+                },
             ),
             patch(
                 "resolve_pr_review_thread.resolve_review_thread",
@@ -434,7 +452,7 @@ class TestThreadStatePrecheck:
             rc = main(["--thread-id", "PRRT_abc"])
         assert rc == 0
         mock_resolve.assert_not_called()
-        out = json.loads(capsys.readouterr().out)
+        out = json.loads(capsys.readouterr().out)["Data"]
         assert out["action"] == "SKIP"
         assert out["reason"] == "not_found"
 
@@ -455,7 +473,7 @@ class TestThreadStatePrecheck:
             rc = main(["--thread-id", "PRRT_abc"])
         assert rc == 0
         mock_resolve.assert_not_called()
-        out = json.loads(capsys.readouterr().out)
+        out = json.loads(capsys.readouterr().out)["Data"]
         assert out["action"] == "SKIP"
         assert out["reason"] == "already_resolved"
 
@@ -477,11 +495,11 @@ class TestThreadStatePrecheck:
             rc = main(["--thread-id", "PRRT_abc"])
         assert rc == 0
         mock_resolve.assert_called_once_with("PRRT_abc")
-        out = json.loads(capsys.readouterr().out)
+        out = json.loads(capsys.readouterr().out)["Data"]
         assert out["action"] == "ACT"
         assert out["success"] is True
 
-    def test_precheck_api_error_returns_skip_exit_0(self, capsys):
+    def test_precheck_api_error_returns_exit_3(self, capsys):
         with (
             patch(
                 "resolve_pr_review_thread.assert_gh_authenticated",
@@ -492,6 +510,73 @@ class TestThreadStatePrecheck:
             ),
         ):
             rc = main(["--thread-id", "PRRT_abc"])
-        assert rc == 0
-        out = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        out = json.loads(capsys.readouterr().out)["Data"]
         assert out["action"] == "SKIP"
+        assert out["reason"] == "thread_state_query_failed"
+
+    def test_wrong_pr_returns_skip_without_resolve(self, capsys):
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.query_thread_state",
+                return_value={
+                    "id": "PRRT_abc",
+                    "isResolved": False,
+                    "pullRequest": {"number": 42},
+                },
+            ),
+            patch(
+                "resolve_pr_review_thread.resolve_review_thread",
+            ) as mock_resolve,
+        ):
+            rc = main(
+                [
+                    "--thread-id",
+                    "PRRT_abc",
+                    "--expected-pull-request",
+                    "99",
+                ]
+            )
+        assert rc == 0
+        mock_resolve.assert_not_called()
+        out = json.loads(capsys.readouterr().out)["Data"]
+        assert out["action"] == "SKIP"
+        assert out["reason"] == "wrong_pull_request"
+
+    def test_external_resolution_after_triage_skips_bulk_mutation(self, capsys):
+        cached_thread = {
+            "id": "PRRT_abc",
+            "isResolved": False,
+            "comments": {"nodes": []},
+        }
+        live_state = {
+            "id": "PRRT_abc",
+            "isResolved": True,
+            "pullRequest": {"number": 10},
+        }
+        with (
+            patch(
+                "resolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "resolve_pr_review_thread.get_unresolved_threads",
+                return_value=[cached_thread],
+            ),
+            patch(
+                "resolve_pr_review_thread.query_thread_state",
+                return_value=live_state,
+            ),
+            patch(
+                "resolve_pr_review_thread.resolve_review_thread",
+            ) as mock_resolve,
+        ):
+            rc = main(["--pull-request", "10"])
+        assert rc == 0
+        mock_resolve.assert_not_called()
+        out = json.loads(capsys.readouterr().out)["Data"]
+        assert out["action"] == "SKIP"
+        assert out["skipped"] == 1
+        assert out["results"][0]["reason"] == "already_resolved"

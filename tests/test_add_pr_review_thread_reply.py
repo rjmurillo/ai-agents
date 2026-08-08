@@ -33,7 +33,11 @@ main = _mod.main
 build_parser = _mod.build_parser
 query_thread_state = _mod.query_thread_state
 
-_UNRESOLVED_STATE: dict = {"id": "PRRT_abc", "isResolved": False}
+_UNRESOLVED_STATE: dict = {
+    "id": "PRRT_abc",
+    "isResolved": False,
+    "pullRequest": {"number": 42},
+}
 _AUTO_MERGE_GUARD_NOOP: dict = {
     "action": "NOOP",
     "reason": "auto_merge_not_armed",
@@ -131,7 +135,7 @@ class TestMain:
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed."])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]
         assert output["action"] == "ACT"
         assert output["success"] is True
         assert output["comment_id"] == 456
@@ -174,7 +178,7 @@ class TestMain:
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "Fixed.", "--resolve"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]
         assert output["thread_resolved"] is True
         assert output["auto_merge_guard"] == _AUTO_MERGE_GUARD_NOOP
 
@@ -232,9 +236,59 @@ class TestMain:
 
         assert rc == 0
         assert calls == ["reply", "guard", "resolve"]
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]
         assert output["thread_resolved"] is True
         assert output["auto_merge_guard"]["action"] == "DISABLED"
+
+    def test_external_resolution_after_reply_skips_resolve(self, capsys):
+        reply_data = {
+            "addPullRequestReviewThreadReply": {
+                "comment": {
+                    "id": "node123",
+                    "databaseId": 456,
+                    "url": "https://example.com",
+                    "createdAt": "2025-01-01T00:00:00Z",
+                    "author": {"login": "user1"},
+                },
+            },
+        }
+        resolved_state = {
+            "id": "PRRT_abc",
+            "isResolved": True,
+            "pullRequest": {"number": 42},
+        }
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                side_effect=[_UNRESOLVED_STATE, resolved_state],
+            ),
+            patch(
+                "add_pr_review_thread_reply.guard_auto_merge_before_final_thread_resolution",
+            ) as guard,
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+                return_value=reply_data,
+            ) as graphql,
+        ):
+            rc = main([
+                "--thread-id",
+                "PRRT_abc",
+                "--pull-request",
+                "42",
+                "--body",
+                "Fixed.",
+                "--resolve",
+            ])
+        assert rc == 0
+        assert graphql.call_count == 1
+        guard.assert_not_called()
+        output = json.loads(capsys.readouterr().out)["Data"]
+        assert output["resolve_action"] == "SKIP"
+        assert output["resolve_reason"] == "thread_resolved"
+        assert output["thread_resolved"] is True
 
     def test_guard_failure_leaves_thread_unresolved(self):
         reply_data = {
@@ -294,11 +348,11 @@ class TestMain:
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
         assert rc == 0
-        out = json.loads(capsys.readouterr().out)
+        out = json.loads(capsys.readouterr().out)["Data"]
         assert out["action"] == "SKIP"
         assert out["reason"] == "not_found"
 
-    def test_api_error_exits_0_skip(self, capsys):
+    def test_api_error_exits_3(self, capsys):
         with (
             patch(
                 "add_pr_review_thread_reply.assert_gh_authenticated",
@@ -309,9 +363,10 @@ class TestMain:
             ),
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
-        assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        output = json.loads(capsys.readouterr().out)["Data"]
         assert output["action"] == "SKIP"
+        assert output["reason"] == "thread_state_query_failed"
 
     def test_body_from_file(self, tmp_path, capsys):
         body_file = tmp_path / "reply.md"
@@ -438,7 +493,7 @@ class TestThreadStatePrecheck:
             rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
         assert rc == 0
         mock_gql.assert_not_called()
-        out = json.loads(capsys.readouterr().out)
+        out = json.loads(capsys.readouterr().out)["Data"]
         assert out["action"] == "SKIP"
         assert out["reason"] == "thread_resolved"
 
@@ -458,7 +513,7 @@ class TestThreadStatePrecheck:
             rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
         assert rc == 0
         mock_gql.assert_not_called()
-        out = json.loads(capsys.readouterr().out)
+        out = json.loads(capsys.readouterr().out)["Data"]
         assert out["action"] == "SKIP"
         assert out["reason"] == "not_found"
 
@@ -489,11 +544,11 @@ class TestThreadStatePrecheck:
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "LGTM"])
         assert rc == 0
-        out = json.loads(capsys.readouterr().out)
+        out = json.loads(capsys.readouterr().out)["Data"]
         assert out["action"] == "ACT"
         assert out["success"] is True
 
-    def test_precheck_api_error_returns_skip_exit_0(self, capsys):
+    def test_precheck_api_error_returns_exit_3(self, capsys):
         with (
             patch(
                 "add_pr_review_thread_reply.assert_gh_authenticated",
@@ -504,6 +559,36 @@ class TestThreadStatePrecheck:
             ),
         ):
             rc = main(["--thread-id", "PRRT_abc", "--body", "test"])
-        assert rc == 0
-        out = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        out = json.loads(capsys.readouterr().out)["Data"]
         assert out["action"] == "SKIP"
+        assert out["reason"] == "thread_state_query_failed"
+
+    def test_wrong_pr_returns_skip_without_reply(self, capsys):
+        with (
+            patch(
+                "add_pr_review_thread_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "add_pr_review_thread_reply.query_thread_state",
+                return_value=_UNRESOLVED_STATE,
+            ),
+            patch(
+                "add_pr_review_thread_reply.gh_graphql",
+            ) as mock_gql,
+        ):
+            rc = main(
+                [
+                    "--thread-id",
+                    "PRRT_abc",
+                    "--pull-request",
+                    "99",
+                    "--body",
+                    "test",
+                ]
+            )
+        assert rc == 0
+        mock_gql.assert_not_called()
+        out = json.loads(capsys.readouterr().out)["Data"]
+        assert out["action"] == "SKIP"
+        assert out["reason"] == "wrong_pull_request"
