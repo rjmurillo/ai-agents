@@ -20,6 +20,7 @@ Exit codes (ADR-035):
 from __future__ import annotations
 
 import ast
+import os
 import stat
 import subprocess
 import sys
@@ -31,6 +32,15 @@ _TERMINATORS = (ast.Return, ast.Raise, ast.Continue, ast.Break)
 
 class ScanError(RuntimeError):
     """Raised when the gate cannot inspect its declared source corpus."""
+
+
+def _clean_git_env() -> dict[str, str]:
+    """Return the process environment without ambient Git repository pointers."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.upper().startswith("GIT_")
+    }
 
 
 def _tracked_python_files(repo_root: Path) -> list[Path]:
@@ -52,6 +62,7 @@ def _tracked_python_files(repo_root: Path) -> list[Path]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            env=_clean_git_env(),
         )
     except OSError as exc:
         raise ScanError(f"git could not list Python files: {exc}") from exc

@@ -67,6 +67,24 @@ def test_clean_function_not_flagged(tmp_path: Path) -> None:
     assert find_unreachable_statements(tmp_path) == []
 
 
+def test_ambient_git_repository_pointers_do_not_reduce_corpus(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "target"
+    foreign = tmp_path / "foreign"
+    target.mkdir()
+    foreign.mkdir()
+    _write(target, "clean.py", "def clean():\n    return 1\n")
+    bad = _write(target, "bad.py", "def bad():\n    return 1\n    x = 2\n")
+    _write(foreign, "clean.py", "def clean():\n    return 1\n")
+    monkeypatch.setenv("GIT_DIR", str(foreign / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(foreign))
+
+    findings = find_unreachable_statements(target)
+
+    assert findings == [(bad, "bad", 3)]
+
+
 def test_statement_after_return_flagged(tmp_path: Path) -> None:
     _write(
         tmp_path,

@@ -49,6 +49,7 @@ Exits (ADR-035):
 from __future__ import annotations
 
 import ast
+import os
 import stat
 import subprocess
 import sys
@@ -151,6 +152,15 @@ class ScanError(RuntimeError):
     """Raised when the gate cannot inspect its declared source corpus."""
 
 
+def _clean_git_env() -> dict[str, str]:
+    """Return the process environment without ambient Git repository pointers."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.upper().startswith("GIT_")
+    }
+
+
 def find_violations(source: str, filename: str = "<string>") -> list[int]:
     """Return line numbers of flagged calls in *source*.
 
@@ -194,6 +204,7 @@ def _collect_sources(repo_root: Path) -> list[Path]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            env=_clean_git_env(),
             timeout=15,
         )
     except (OSError, subprocess.SubprocessError) as exc:

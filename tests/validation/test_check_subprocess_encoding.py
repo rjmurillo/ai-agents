@@ -174,6 +174,31 @@ def test_syntax_error_fails_closed() -> None:
         find_violations(source)
 
 
+def test_ambient_git_repository_pointers_do_not_reduce_corpus(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = make_repo(
+        tmp_path / "target",
+        {
+            "scripts/clean.py": "x = 1\n",
+            "scripts/bad.py": (
+                "import subprocess\n"
+                'subprocess.run(["x"], text=True, encoding="utf-8")\n'
+            ),
+        },
+    )
+    foreign = make_repo(
+        tmp_path / "foreign",
+        {"scripts/clean.py": "x = 1\n"},
+    )
+    monkeypatch.setenv("GIT_DIR", str(foreign / ".git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(foreign))
+
+    findings = find_all_violations(target)
+
+    assert findings == [(target / "scripts/bad.py", 2)]
+
+
 def test_multiline_call_flagged() -> None:
     source = (
         'import subprocess\nsubprocess.run(\n    ["x"],\n    text=True,\n    encoding="utf-8",\n)\n'
