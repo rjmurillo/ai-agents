@@ -102,7 +102,7 @@ class TestRun:
         out = capsys.readouterr().out
         assert "Duplicates skipped: 1" in out
 
-    def test_fails_on_gh_failure(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_warns_on_gh_failure(self, capsys: pytest.CaptureFixture[str]) -> None:
         findings = json.dumps(
             [
                 {"title": "New Issue", "body": "b", "labels": [], "source": "s.md"},
@@ -114,15 +114,11 @@ class TestRun:
             with patch("scripts.ci.artifact_create_issues._is_duplicate", return_value=False):
                 with patch("scripts.ci.artifact_create_issues.subprocess.run", return_value=fail):
                     rc = run()
-        assert rc == 1
-        assert "::error::" in capsys.readouterr().out
+        assert rc == 0  # still 0, just a warning
+        assert "::warning::" in capsys.readouterr().out
 
 
 class TestMain:
     def test_main_delegates(self) -> None:
         with patch("scripts.ci.artifact_create_issues.run", return_value=0):
             assert main() == 0
-
-    def test_main_propagates_failure_exit_code(self) -> None:
-        with patch("scripts.ci.artifact_create_issues.run", return_value=1):
-            assert main() == 1

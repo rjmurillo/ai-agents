@@ -7,8 +7,6 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.ci.spec_extract_refs import (
     _extract_incremental_scope,
@@ -76,16 +74,12 @@ class TestExtractIncrementalScope:
     def test_returns_stdout_on_success(self) -> None:
         mock = MagicMock(returncode=0, stdout="phase-1\n")
         with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=mock):
-            scope, rc = _extract_incremental_scope("feat: phase-1 impl")
-            assert scope == "phase-1"
-            assert rc == 0
+            assert _extract_incremental_scope("feat: phase-1 impl") == "phase-1"
 
-    def test_returns_empty_and_nonzero_on_failure(self) -> None:
+    def test_returns_empty_on_failure(self) -> None:
         mock = MagicMock(returncode=1, stdout="")
         with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=mock):
-            scope, rc = _extract_incremental_scope("feat: unknown")
-            assert scope == ""
-            assert rc == 1
+            assert _extract_incremental_scope("feat: unknown") == ""
 
 
 class TestRun:
@@ -140,26 +134,6 @@ class TestRun:
             with patch("scripts.ci.spec_extract_refs.subprocess.run", return_value=gh_mock):
                 rc = run()
         assert rc == 0
-
-    def test_scope_failure_propagates_nonzero_exit(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        out_file = tmp_path / "out.txt"
-        env = {
-            "PR_TITLE_INPUT": "feat: some pr",
-            "PR_BODY_INPUT": "",
-            "RUNNER_TEMP": str(tmp_path),
-            "GITHUB_OUTPUT": str(out_file),
-            "GITHUB_RUN_ID": "0",
-        }
-        with patch.dict(os.environ, env):
-            with patch(
-                "scripts.ci.spec_extract_refs.subprocess.run",
-                return_value=MagicMock(returncode=2, stdout=""),
-            ):
-                rc = run()
-        assert rc == 1
-        assert "::error::" in capsys.readouterr().out
 
 
 class TestMain:

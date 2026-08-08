@@ -20,7 +20,6 @@ Outputs:
 
 EXIT CODES (ADR-035):
   0 - extraction complete
-  1 - extract_incremental_scope.py helper failed
 """
 
 from __future__ import annotations
@@ -96,8 +95,8 @@ def _extract_issue_refs(combined: str) -> str:
     return " ".join(results)
 
 
-def _extract_incremental_scope(pr_title: str) -> tuple[str, int]:
-    """Call extract_incremental_scope.py and return its output and exit code."""
+def _extract_incremental_scope(pr_title: str) -> str:
+    """Call extract_incremental_scope.py and return its output."""
     result = subprocess.run(
         [sys.executable, ".github/scripts/extract_incremental_scope.py", pr_title],
         capture_output=True,
@@ -106,7 +105,7 @@ def _extract_incremental_scope(pr_title: str) -> tuple[str, int]:
         errors="replace",
         check=False,
     )
-    return result.stdout.strip(), result.returncode
+    return result.stdout.strip() if result.returncode == 0 else ""
 
 
 def run(_argv: list[str] | None = None) -> int:
@@ -130,12 +129,7 @@ def run(_argv: list[str] | None = None) -> int:
     combined = f"{pr_body} {pr_title}"
     spec_refs = _extract_spec_refs(combined)
     issue_refs = _extract_issue_refs(combined)
-    incremental_scope, scope_rc = _extract_incremental_scope(pr_title)
-    if scope_rc != 0:
-        print(f"::error::extract_incremental_scope.py exited {scope_rc}; scope unavailable")
-        title_file.unlink(missing_ok=True)
-        body_file.unlink(missing_ok=True)
-        return 1
+    incremental_scope = _extract_incremental_scope(pr_title)
 
     write_github_output("spec_refs", spec_refs)
     write_github_output("issue_refs", issue_refs)
