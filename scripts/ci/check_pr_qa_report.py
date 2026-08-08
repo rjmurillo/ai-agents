@@ -40,7 +40,7 @@ def _append_output(name: str, value: str) -> int:
 
 
 def _changed_files(repository: str, pr_number: str) -> list[str] | None:
-    """PR filenames from the GitHub API, or None when the call failed.
+    """Current and previous PR filenames, or None when the API call failed.
 
     Issue #4068: this ran with ``check=False`` and never read the return code,
     so a `gh` failure produced empty stdout, ``_has_code_changes([])`` was
@@ -49,6 +49,9 @@ def _changed_files(repository: str, pr_number: str) -> list[str] | None:
     None rather than an empty list keeps "the API broke" distinguishable from
     "the PR genuinely touches nothing", which is the distinction the caller
     needs to fail loudly.
+
+    Renames include both paths so moving code under ``.agents/`` cannot hide it
+    from the QA requirement.
     """
     result = subprocess.run(
         [
@@ -57,7 +60,7 @@ def _changed_files(repository: str, pr_number: str) -> list[str] | None:
             f"repos/{repository}/pulls/{pr_number}/files",
             "--paginate",
             "--jq",
-            ".[].filename",
+            ".[] | .filename, (.previous_filename // empty)",
         ],
         check=False,
         stdout=subprocess.PIPE,

@@ -305,6 +305,43 @@ def test_qa_report_skips_when_only_agents_files_changed(
     )
 
 
+@pytest.mark.parametrize(
+    "destination",
+    [
+        ".agents/qa/tool.py",
+        ".agents/sessions/tool.py",
+        ".agents/memory/episodes/tool.py",
+    ],
+)
+def test_qa_report_requires_qa_when_code_is_renamed_into_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    destination: str,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    _set_output(monkeypatch, output)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.chdir(tmp_path)
+
+    def fake_run(args: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        assert args[-2] == "--jq"
+        assert "previous_filename" in args[-1]
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            f"{destination}\nscripts/tool.py\n",
+        )
+
+    monkeypatch.setattr(qa_mod.subprocess, "run", fake_run)
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
+
+
 def test_qa_report_blocks_when_code_changes_lack_report(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
