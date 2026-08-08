@@ -14,35 +14,38 @@ Rules:
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+from scripts.testing.mutation_workspace import (
+    isolated_mutation_worktree,
+    purge_bytecode,
+)
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
-_API_TARGET = _REPO_ROOT / "scripts" / "github_core" / "api.py"
-_RATE_TARGET = _REPO_ROOT / "scripts" / "github_core" / "rate_limit.py"
-_NEW_PR_TARGET = _REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr" / "new_pr.py"
-
-_BUILD_AI_TARGET = _REPO_ROOT / "scripts" / "ci" / "build_ai_review_context.py"
+_API_TARGET_REL = Path("scripts") / "github_core" / "api.py"
+_NEW_PR_TARGET_REL = (
+    Path(".claude") / "skills" / "github" / "scripts" / "pr" / "new_pr.py"
+)
+_BUILD_AI_TARGET_REL = Path("scripts") / "ci" / "build_ai_review_context.py"
+_TARGETS = (_API_TARGET_REL, _NEW_PR_TARGET_REL, _BUILD_AI_TARGET_REL)
 _BUILD_AI_TESTS = ["tests/test_build_ai_review_context.py"]
 
-_API_TESTS = ["tests/test_github_core.py"]
+_API_TESTS = [
+    "tests/test_github_core.py",
+    "tests/test_github_auth_classification.py",
+]
 _RATE_TESTS = ["tests/test_test_rate_limit.py"]
 _NEW_PR_TESTS = ["tests/test_new_pr.py"]
 
 
-def _clear_pycache() -> None:
-    for path in _REPO_ROOT.rglob("__pycache__"):
-        if path.is_dir() and not path.is_symlink():
-            shutil.rmtree(path)
-
-
-def _run_tests(test_paths: list[str]) -> int:
+def _run_tests(repo_root: Path, test_paths: list[str]) -> int:
+    purge_bytecode(repo_root)
     result = subprocess.run(
         [sys.executable, "-m", "pytest", *test_paths, "-x", "-q"],
-        cwd=_REPO_ROOT,
+        cwd=repo_root,
         capture_output=True,
     )
     return result.returncode
@@ -61,7 +64,8 @@ def _apply_mutant(original: bytes, old: bytes, new: bytes) -> tuple[bytes, str]:
 
 
 def run_mutant(
-    target: Path,
+    repo_root: Path,
+    target_relative: Path,
     test_paths: list[str],
     label: str,
     old: bytes,
@@ -69,6 +73,7 @@ def run_mutant(
     *,
     must_die: bool = True,
 ) -> None:
+    target = repo_root / target_relative
     original = target.read_bytes()
     mutated, status = _apply_mutant(original, old, new)
     if status != "OK":
@@ -77,13 +82,11 @@ def run_mutant(
             raise SystemExit(f"DID-NOT-APPLY: {label}")
         return
 
-    target.write_bytes(mutated)
-    _clear_pycache()
-
-    rc = _run_tests(test_paths)
-
-    target.write_bytes(original)
-    _clear_pycache()
+    try:
+        target.write_bytes(mutated)
+        rc = _run_tests(repo_root, test_paths)
+    finally:
+        target.write_bytes(original)
 
     assert target.read_bytes() == original, f"Restore failed for {label}"
 
@@ -101,30 +104,33 @@ def run_mutant(
             raise SystemExit(f"  [{label}] INVERTED CONTROL DIED (rc={rc}), baseline may be broken")
 
 
-def main() -> None:
+def _run_mutants(repo_root: Path) -> None:
     print("=== Mutation harness: #4324 _resolve_validation_base ===")
 
     # Mutant 1: remove the remote-ref check (fallback to bare base always)
     run_mutant(
-        _NEW_PR_TARGET,
+        repo_root,
+        _NEW_PR_TARGET_REL,
         _NEW_PR_TESTS,
         "#4324: remove origin/ prefix from candidate",
-        b'    candidate = f"origin/{base}"',
-        b'    candidate = base',
+        b'    remote_ref = f"origin/{pr_base}"',
+        b'    remote_ref = pr_base',
     )
 
     # Mutant 2: remove the returncode check (always use bare base)
     run_mutant(
-        _NEW_PR_TARGET,
+        repo_root,
+        _NEW_PR_TARGET_REL,
         _NEW_PR_TESTS,
         "#4324: return base always instead of checking returncode",
-        b"    if result.returncode == 0:\n        return candidate\n    return base",
-        b"    return base",
+        b"    if result.returncode == 0:\n        return remote_ref\n    return pr_base",
+        b"    return pr_base",
     )
 
     # Inverted control: removing an unrelated comment must NOT kill the suite
     run_mutant(
-        _NEW_PR_TARGET,
+        repo_root,
+        _NEW_PR_TARGET_REL,
         _NEW_PR_TESTS,
         "#4324: inverted control (remove a comment, must survive)",
         b"    # Get current branch if head not specified\n",
@@ -135,26 +141,24 @@ def main() -> None:
     print()
     print("=== Mutation harness: #4326 _TRANSIENT_403_PATTERN ===")
 
-    # Mutant 3: remove 403 from pattern (reverts to pre-fix behavior)
+    # Mutant 3: disable rate-limit wording detection (reverts to pre-fix behavior)
     run_mutant(
-        _API_TARGET,
+        repo_root,
+        _API_TARGET_REL,
         _API_TESTS,
-        "#4326: remove 403 match arm from pattern",
-        b"    r\"(?:\"\n"
-        b"    r\"\\(?\\bHTTP\\s+403\\b.*?(?:rate.limit|API rate)\"\n"
-        b"    r\"|\"\n"
-        b"    r\"(?:rate.limit|API rate).*?\\(?\\bHTTP\\s+403\\b\"\n"
-        b"    r\")\",",
-        b"    r\"\\bNEVER_MATCH_XYZ_PLACEHOLDER\\b\",",
+        "#4326: disable rate-limit wording signature",
+        b'_RATE_LIMIT_SIGNATURE = re.compile(r"rate limit (?:already )?exceeded", re.IGNORECASE)',
+        b'_RATE_LIMIT_SIGNATURE = re.compile(r"NEVER_MATCH_XYZ", re.IGNORECASE)',
     )
 
-    # Mutant 4: remove the 403 check from _is_transient_graphql_error
+    # Mutant 4: remove classified rate-limit refusals from transient handling
     run_mutant(
-        _API_TARGET,
+        repo_root,
+        _API_TARGET_REL,
         _API_TESTS,
-        "#4326: remove 403 check from _is_transient_graphql_error",
-        b"        or _TRANSIENT_403_PATTERN.search(error_msg) is not None\n",
-        b"",
+        "#4326: ignore classified retryable refusals",
+        b"    return classify_gh_failure_text(error_msg) in _RETRYABLE_REFUSAL_STATUSES\n",
+        b"    return False  # mutant: ignore classified retryable refusals\n",
     )
 
     print()
@@ -162,24 +166,31 @@ def main() -> None:
 
     # Mutant 5: change REST path to wrong endpoint (should fail extraction)
     run_mutant(
-        _BUILD_AI_TARGET,
+        repo_root,
+        _BUILD_AI_TARGET_REL,
         _BUILD_AI_TESTS,
         "#4333: change REST endpoint path to wrong value",
-        b'    result = run_gh(["api", f"repos/{repository}/pulls/{pr_number}"])',
-        b'    result = run_gh(["api", f"repos/{repository}/issues/{pr_number}"])',
+        b'    rest = run_gh(["api", f"repos/{repository}/pulls/{pr_number}"])',
+        b'    rest = run_gh(["api", f"repos/{repository}/issues/{pr_number}"])',
     )
 
     # Mutant 6: return wrong field for title
     run_mutant(
-        _BUILD_AI_TARGET,
+        repo_root,
+        _BUILD_AI_TARGET_REL,
         _BUILD_AI_TESTS,
         "#4333: return body field as title",
-        b'    title = sanitize_title(str(data.get("title") or ""))',
-        b'    title = sanitize_title(str(data.get("body") or ""))',
+        b'        title=sanitize_title(str(parsed.get("title") or "")),',
+        b'        title=sanitize_title(str(parsed.get("body") or "")),',
     )
 
     print()
     print("All mutants accounted for.")
+
+
+def main() -> None:
+    with isolated_mutation_worktree(_REPO_ROOT, _TARGETS) as workspace:
+        _run_mutants(workspace.root)
 
 
 if __name__ == "__main__":
