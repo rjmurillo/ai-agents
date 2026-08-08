@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import subprocess
 import sys
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
@@ -18,6 +16,7 @@ from scripts.validation.portability_baseline import (
     refuse_undiffable_baseline,
     write_baseline_json,
 )
+from scripts.validation.portability_git import git_timeout_problem, run_git
 
 RegressionMessageFactory = Callable[[str, int, int], str]
 
@@ -116,19 +115,54 @@ def resolve_root(repo_root: Path | None, start: Path, require_repo_marker: bool)
     return base
 
 
+def refuse_symlinked_scan_root(root: Path, scan_dir: Path) -> bool:
+    """Return True and print to stderr when scan_dir resolves outside root.
+
+    ``Path.is_dir()`` returns True through a symlink and ``os.walk`` follows it
+    into the target, so a scan root symlinked outside the repository reads
+    external files and counts them as repository content. That breaks the
+    coverage guard added in PR #4206: a symlinked root could satisfy the
+    per-root non-zero rule with files git does not track, while the real
+    tracked files stay unscanned.
+
+    Resolve both paths and assert containment. A symlink whose target remains
+    inside the repository is allowed because it cannot expand scan scope.
+    """
+    root_real = root.resolve()
+    try:
+        dir_real = scan_dir.resolve()
+    except OSError:
+        print(
+            f"Refusing scan root {scan_dir}: could not resolve its real path.",
+            file=sys.stderr,
+        )
+        return True
+    if not dir_real.is_relative_to(root_real):
+        print(
+            f"Refusing scan root {scan_dir}: resolved path {dir_real} is outside "
+            f"the repository root {root_real}. Symlinks that point outside the "
+            "repository are a path-traversal risk (CWE-22).",
+            file=sys.stderr,
+        )
+        return True
+    return False
+
+
 def resolve_baseline_path(
     root: Path,
     baseline: Path | None,
     default_baseline_name: str,
 ) -> Path | None:
-    """Resolve the baseline path, refusing escapes from the repository root.
+    """Resolve the baseline path, rejecting candidates that escape the repo root.
 
-    The single home for this reasoning. Every checker that accepts `--baseline`
-    and delegates here avoids the defect the copies drifted into independently:
-    both resolved the path before handing it on, which erased the symlink the
-    guard downstream exists to refuse. Returns None when the candidate escapes
-    the root. check_vendor_portability.py defines its own baseline_path() and
-    does not call this function.
+    The portability ratchets that delegate here
+    (`check_skill_portability.py`, `check_skill_md_exec_portability.py`, and
+    `check_skill_md_portability.py`) avoid the defect the copies drifted into
+    independently: both resolved the path before handing it on, which erased
+    the symlink the guard downstream exists to refuse. Returns None when the
+    candidate escapes the root. Other validation scripts, including
+    `check_vendor_portability.py`, keep their own baseline helpers and do not
+    call this function.
     """
     if baseline is None:
         return root / "scripts" / "validation" / default_baseline_name
@@ -227,45 +261,21 @@ def write_baseline(
     return 0
 
 
-_GIT_ENV_OVERRIDES = (
-    "GIT_INDEX_FILE",
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_COMMON_DIR",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_CEILING_DIRECTORIES",
-)
-
-
 def _git_lines(repo_root: Path, args: list[str]) -> list[str] | None:
     """Run a git plumbing command, None when git cannot answer.
 
-    The ambient environment is stripped of repository-discovery variables.
-    Inheriting GIT_INDEX_FILE lets a caller point the coverage probe at an
-    index that agrees with a truncated disk, which is the one input that makes
-    the probe confirm what it is supposed to test.
+    The shared runner strips every Git override, disables replacement objects,
+    and bounds the subprocess. Keeping those controls in one implementation
+    prevents the coverage probe from drifting behind the baseline reader.
     """
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if key.upper() not in _GIT_ENV_OVERRIDES
-    }
-    try:
-        proc = subprocess.run(
-            ["git", "-C", str(repo_root), *args],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=env,
-            check=False,
-        )
-    except OSError:
+    proc = run_git(repo_root, *args)
+    if problem := git_timeout_problem(proc, f"running {' '.join(args)}"):
+        print(problem, file=sys.stderr)
         return None
-    if proc.returncode != 0:
+    if proc is None or proc.returncode != 0:
         return None
-    return [line for line in proc.stdout.split("\0") if line]
+    stdout = proc.stdout.decode(errors="replace")
+    return [line for line in stdout.split("\0") if line]
 
 
 def tracked_coverage_by_root(
@@ -309,6 +319,14 @@ def _refuse_partial_worktree(root: Path, scanned_by_root: Mapping[str, int]) -> 
     """Refuse a baseline write whose completeness git cannot confirm."""
     names = list(scanned_by_root)
     unmerged = _git_lines(root, ["ls-files", "-u", "-z", "--", *names])
+    if unmerged is None:
+        print(
+            "Refusing to write a baseline because git cannot vouch for the worktree: "
+            "git could not inspect unresolved conflicts under the scanned roots. A "
+            "failed conflict probe cannot prove the worktree is safe to record.",
+            file=sys.stderr,
+        )
+        return True
     if unmerged:
         print(
             "Refusing to write a baseline from a tree with unresolved conflicts under "

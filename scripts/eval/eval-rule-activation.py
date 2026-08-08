@@ -67,7 +67,12 @@ from _anthropic_api import call_api as _call_api
 from _anthropic_api import (
     load_api_key_for_selected_provider as _load_api_key,
 )
-from _eval_common import EST_TOKENS_PER_CALL, cost_basis
+from _eval_common import (
+    EST_TOKENS_PER_CALL,
+    MalformedProviderMetadataError,
+    cost_basis,
+    require_str_or_none,
+)
 
 # ---------------------------------------------------------------------------
 # Config
@@ -510,8 +515,10 @@ Respond in JSON only, no other text:
         "judge_model": model,
         "raw_judge_response": raw,
     }
-    fingerprint = metadata.get("system_fingerprint")
-    if isinstance(fingerprint, str):
+    fingerprint = require_str_or_none(
+        metadata.get("system_fingerprint"), "system_fingerprint"
+    )
+    if fingerprint is not None:
         result["judge_system_fingerprint"] = fingerprint
     return result
 
@@ -959,6 +966,41 @@ def _declined_cell(system: str) -> dict[str, Any]:
     }
 
 
+def _add_mechanism_metadata(
+    mechanism_result: dict[str, Any],
+    routing: dict[str, Any] | None,
+    fingerprint: str | None,
+) -> None:
+    """Add optional routing and already-validated provider provenance."""
+    if routing is not None:
+        mechanism_result["routing"] = routing
+    if fingerprint is not None:
+        mechanism_result["system_fingerprint"] = fingerprint
+
+
+def _score_judge_sample(
+    api_key: str,
+    scenario: dict[str, Any],
+    response: str,
+    model: str,
+    judge_seed: int | None,
+    sample_index: int,
+) -> dict[str, Any]:
+    """Score one judge sample while preserving provenance contract failures."""
+    try:
+        sample = score_response(api_key, scenario, response, model=model, seed=judge_seed)
+    except MalformedProviderMetadataError:
+        raise
+    except RuntimeError as error:
+        return {
+            "judge_failed": True,
+            "reasoning": f"judge API failure: {error}",
+            "sample_index": sample_index,
+        }
+    sample["sample_index"] = sample_index
+    return sample
+
+
 def eval_one_scenario(
     api_key: str,
     rule: dict[str, str],
@@ -1063,6 +1105,11 @@ def eval_one_scenario(
                 seed=seed,
                 metadata=metadata,
             )
+            fingerprint = require_str_or_none(
+                metadata.get("system_fingerprint"), "system_fingerprint"
+            )
+        except MalformedProviderMetadataError:
+            raise
         except RuntimeError as e:
             result["mechanisms"][mechanism] = {
                 "error": str(e),
@@ -1074,16 +1121,14 @@ def eval_one_scenario(
         score_samples: list[dict[str, Any]] = []
         for sample_index in range(judge_repeats):
             judge_seed = None if seed is None else seed + sample_index + 1
-            try:
-                sample = score_response(api_key, scenario, response, model=model, seed=judge_seed)
-            except RuntimeError as e:
-                sample = {
-                    "judge_failed": True,
-                    "reasoning": f"judge API failure: {e}",
-                    "sample_index": sample_index,
-                }
-            else:
-                sample["sample_index"] = sample_index
+            sample = _score_judge_sample(
+                api_key,
+                scenario,
+                response,
+                model,
+                judge_seed,
+                sample_index,
+            )
             score_samples.append(sample)
             time.sleep(RATE_LIMIT_SLEEP_SEC)
         scores = _reduce_score_samples(score_samples, judge_reducer)
@@ -1095,11 +1140,7 @@ def eval_one_scenario(
             "score_reducer": judge_reducer,
             "system_prompt_chars": len(system),
         }
-        if routing is not None:
-            mechanism_result["routing"] = routing
-        fingerprint = metadata.get("system_fingerprint")
-        if isinstance(fingerprint, str):
-            mechanism_result["system_fingerprint"] = fingerprint
+        _add_mechanism_metadata(mechanism_result, routing, fingerprint)
         result["mechanisms"][mechanism] = mechanism_result
     return result
 

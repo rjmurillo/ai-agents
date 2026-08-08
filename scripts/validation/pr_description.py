@@ -67,6 +67,8 @@ _EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
 # the greedy body group (`tsconfig.spec.json` -> `tsconfig.spec.json`).
 _EXT_BOUNDARY = r"(?![A-Za-z0-9_/\\]|\.[A-Za-z0-9_])"
 
+_LINE_SUFFIX = r"(?::\d+(?::\d+)?)?"
+
 # Default label name that bypasses CRITICAL description-validation failures.
 # Mirrors the existing 'commit-limit-bypass' pattern in pr-validation.yml.
 DEFAULT_BYPASS_LABEL = "description-validation-bypass"
@@ -155,15 +157,16 @@ _REFERENCE_SECTION_PREFIXES: tuple[str, ...] = (
 # Every pattern appends `_EXT_BOUNDARY` after the captured extension so the
 # match cannot terminate inside a longer real extension (issue #1874).
 FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(rf"`([^`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}`"),  # inline code
-    re.compile(rf"\*\*([^*]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\*\*"),  # bold
+    re.compile(rf"`([^`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}{_LINE_SUFFIX}`"),  # inline code
+    re.compile(rf"\*\*([^*]+\.({_EXT_GROUP})){_EXT_BOUNDARY}{_LINE_SUFFIX}\*\*"),  # bold
     re.compile(
         rf"^\s*[-*+]\s+`?([^\s`]+\.({_EXT_GROUP})){_EXT_BOUNDARY}`?",
         re.MULTILINE,
     ),  # list items (optionally backtick-wrapped)
-    re.compile(rf"\[([^\]]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\]"),  # markdown links
+    re.compile(rf"\[([^\]]+\.({_EXT_GROUP})){_EXT_BOUNDARY}{_LINE_SUFFIX}\]"),  # markdown links
     re.compile(
-        rf"\]\(((?!(?:https?:|ftp:|//|www\.))[^)]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\)",
+        rf"\]\(((?!(?:https?:|ftp:|//|www\.))[^)]+\.({_EXT_GROUP}))"
+        rf"{_EXT_BOUNDARY}{_LINE_SUFFIX}\)",
         re.IGNORECASE,
     ),  # markdown link targets [label](path.ext) (issue #2113)
 ]
@@ -630,10 +633,24 @@ _AUTO_CLOSE_KW: re.Pattern[str] = re.compile(
     re.IGNORECASE,
 )
 
-# Single-backtick inline code span, non-greedy, does not cross newlines.
-# Matches: `...closing keyword #N...`
-# Excludes triple-backtick fences by the negative lookahead/behind.
-_INLINE_CODE_SPAN: re.Pattern[str] = re.compile(r"(?<!`)`(?!`)(?P<content>[^`\n]+?)(?<!`)`(?!`)")
+# GFM inline code span: one or more backticks as the opening fence, closed by
+# the same-length backtick run. Does not cross newlines. Handles single (`),
+# double (``), triple (```) etc. The previous pattern only matched single
+# backticks, missing ``...`` spans entirely (issue #3827).
+# CommonMark allows a line ending inside a code span; only a blank line ends
+# it. Restricting the body to [^\n] left a span written across two lines
+# unstripped, so a closing link inside an example was read as a real one and
+# the gate passed on a pull request that closes nothing. Refs #3827.
+# A run of three or more backticks at the start of a line opens a fenced block,
+# which _FENCED_CODE_BLOCK owns. Letting the multiline alternative claim those
+# too would relabel a fence as an inline span and change the reported reason.
+# So newlines are allowed only for runs of one or two backticks, which is where
+# the real gap was; longer runs stay single line and fences handle the rest.
+_INLINE_CODE_SPAN: re.Pattern[str] = re.compile(
+    r"(?<!`)(`{1,2})(?!`)(?:[^\n]|\n(?!\s*\n))+?(?<!`)\1(?!`)"
+    r"|"
+    r"(?<!`)(`{3,})(?!`)[^\n]+?(?<!`)\2(?!`)"
+)
 
 # Fenced code block: backtick or tilde fence with optional language tag.
 _FENCED_CODE_BLOCK: re.Pattern[str] = re.compile(

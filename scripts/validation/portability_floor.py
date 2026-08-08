@@ -21,19 +21,21 @@ from typing import Any
 
 from scripts.validation.portability_git import (
     committed_blob,
+    git_timeout_problem,
     run_git,
     was_recorded,
 )
 
 Sections = dict[str, dict[str, int]]
 
-COUNTED_SECTIONS = ("files", "marker_files")
+COUNTED_SECTIONS = ("files", "marker_files", "drift_files")
 """Every baseline section that records a count somebody can regress.
 
 `files` counts violations, where lower is better. `marker_files` counts
-suppressed references, where the value must stay exact. Both are debt records,
-so both need the same protection; guarding only the first leaves a writable
-hole in the same artifact.
+suppressed references, where the value must stay exact. `drift_files` counts
+marker path-drift findings per file (issue #4116), where a higher count than
+baseline is a regression. All are debt records, so all need the same protection;
+guarding only some leaves a writable hole in the same artifact.
 """
 
 
@@ -136,6 +138,8 @@ def _committed_sections(repo_root: Path, path: Path) -> tuple[Sections | None, s
         return None, None
 
     proc = run_git(repo_root, "cat-file", "blob", blob)
+    if problem := git_timeout_problem(proc, "reading the committed baseline object"):
+        return None, problem
     if proc is None or proc.returncode != 0:
         return None, "the committed baseline object could not be read"
 
@@ -200,7 +204,9 @@ def read_previous_sections(
     try:
         raw = path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        recorded = was_recorded(repo_root, path)
+        recorded, recorded_problem = was_recorded(repo_root, path)
+        if recorded_problem:
+            return None, recorded_problem
         if recorded is None:
             return None, "git could not determine whether branch history recorded the baseline"
         if recorded:

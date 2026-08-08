@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 from types import ModuleType
 
@@ -151,7 +152,16 @@ def _find_current_session_log(sessions_dir: str) -> str | None:
     for name in os.listdir(sessions_dir):
         if name.endswith(".json") and re.match(r"\d{4}-\d{2}-\d{2}-session-\d+", name):
             full = os.path.join(sessions_dir, name)
-            candidates.append((os.path.getmtime(full), full, name))
+            try:
+                mtime = os.path.getmtime(full)
+            except OSError:
+                warnings.warn(
+                    f"Skipping unreadable session log: {name}",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                continue
+            candidates.append((mtime, full, name))
 
     if not candidates:
         return None
@@ -273,7 +283,16 @@ def _run_markdown_lint() -> tuple[bool, str]:
     return False, "\n".join(errors)
 
 
-def _test_uncommitted_changes() -> bool:
+def _test_uncommitted_changes(exclude_path: str | None = None) -> bool:
+    """Return True when uncommitted changes exist, excluding ``exclude_path``.
+
+    ``exclude_path`` should be the repo-relative path of the session log being
+    completed. The log is itself staged or modified while this check runs, so
+    it would always appear in ``git status`` output and make ``changesCommitted``
+    impossible to satisfy without a workaround (issue #4425). Excluding it
+    means ``changesCommitted`` reflects whether all *other* work is committed,
+    which is what the field is trying to express.
+    """
     result = subprocess.run(
         ["git", "status", "--porcelain"],
         capture_output=True,
@@ -283,7 +302,12 @@ def _test_uncommitted_changes() -> bool:
     )
     if result.returncode != 0:
         return True
-    return bool(result.stdout.strip())
+    lines = result.stdout.splitlines()
+    if exclude_path:
+        # porcelain v1 format: "XY path" or "XY old -> new"; match the path
+        # portion at the end of each line after the two-character status prefix.
+        lines = [ln for ln in lines if not ln[3:].rstrip().endswith(exclude_path)]
+    return bool(lines)
 
 
 def _validate_path_containment(session_path: str, sessions_dir: str) -> str | None:
@@ -535,7 +559,14 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # 5. changesCommitted
-    has_uncommitted = _test_uncommitted_changes()
+    # Exclude the session log itself: it is staged or modified while this
+    # check runs and would always appear in porcelain output, making
+    # changesCommitted impossible to satisfy (issue #4425).
+    try:
+        session_rel = os.path.relpath(session_path, repo_root)
+    except ValueError:
+        session_rel = None
+    has_uncommitted = _test_uncommitted_changes(exclude_path=session_rel)
     if "changesCommitted" in session_end:
         check = session_end["changesCommitted"]
         if not has_uncommitted:

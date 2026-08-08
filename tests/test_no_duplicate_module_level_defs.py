@@ -5,10 +5,15 @@ ruff's `dummy-variable-rgx` treats them as intentional discards. A duplicate
 module-level helper named `_foo` silently shadows the earlier `_foo`, so the
 wrong fixture is used in every test that follows the shadowing definition.
 
-This gate walks every `.py` file under `tests/` at the module level and fails
-if any two `FunctionDef` or `AsyncFunctionDef` nodes share a name. It does NOT
+This gate walks every `.py` file under the repository root and fails if any
+two `FunctionDef` or `AsyncFunctionDef` nodes share a name. It does NOT
 descend into classes (where test method names are scoped and intentionally
-repeated across test classes).
+repeated across test classes), nor into `_SKIP` directories. `worktrees` is
+skipped because a registered worktree holds a full second copy of the tree;
+walking those turned this gate into a 120s timeout (issue #4160 is the same
+bug in `_python_sources`). The skip is matched against the path relative to
+the walk root, so a repository that itself lives under a directory named
+`worktrees` is still scanned rather than silently skipped whole.
 
 Issue: #4060. Confirmed zero duplicates in the repository when this gate was
 added, so it is purely a regression guard.
@@ -26,8 +31,8 @@ from pathlib import Path
 
 import pytest
 
-_TESTS_ROOT = Path(__file__).resolve().parents[1]
-_SKIP = frozenset((".venv", "node_modules", ".git", "site-packages"))
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SKIP = frozenset((".venv", "node_modules", ".git", "site-packages", "worktrees"))
 
 
 def _module_level_function_names(path: Path) -> dict[str, list[int]]:
@@ -49,7 +54,7 @@ def collect_duplicates(root: Path) -> list[tuple[Path, str, list[int]]]:
     """Return (path, name, [lineno1, lineno2, ...]) for every duplicate."""
     results: list[tuple[Path, str, list[int]]] = []
     for py in sorted(root.rglob("*.py")):
-        if any(part in _SKIP for part in py.parts):
+        if any(part in _SKIP for part in py.relative_to(root).parts):
             continue
         for name, linenos in _module_level_function_names(py).items():
             if len(linenos) > 1:
@@ -62,7 +67,7 @@ class TestNoDuplicateModuleLevelTestFunctions:
 
     def test_no_duplicate_names(self) -> None:
         """Fail if any test file defines the same module-level function twice."""
-        duplicates = collect_duplicates(_TESTS_ROOT)
+        duplicates = collect_duplicates(_REPO_ROOT)
         if not duplicates:
             return
 
@@ -72,7 +77,7 @@ class TestNoDuplicateModuleLevelTestFunctions:
             "",
         ]
         for path, name, linenos in sorted(duplicates):
-            rel = path.relative_to(_TESTS_ROOT.parent)
+            rel = path.relative_to(_REPO_ROOT.parent)
             lno_str = ", ".join(str(n) for n in linenos)
             lines.append(f"  {rel}: `{name}` defined at lines {lno_str}")
         pytest.fail("\n".join(lines))

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10004,
+    "date": "2026-08-06",
+    "branch": "fix/git-session-integrity",
+    "startingCommit": "9c1f9aff0",
+    "objective": "Process 6 unresolved review threads on PR #4704"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "level": "MUST", "Complete": true, "Evidence": "Serena MCP unavailable in this Copilot harness; used committed memories" },
+      "serenaInstructions": { "level": "MUST", "Complete": true, "Evidence": "Followed AGENTS.md fallback" },
+      "handoffRead": { "level": "MUST", "Complete": true, "Evidence": ".agents/HANDOFF.md read (read-only)" },
+      "sessionLogCreated": { "level": "MUST", "Complete": true, "Evidence": "This file" },
+      "skillScriptsListed": { "level": "MUST", "Complete": true, "Evidence": "Fleet invocation-state.json used as skill input" },
+      "usageMandatoryRead": { "level": "MUST", "Complete": true, "Evidence": "Ratchet memory and validation docs read" },
+      "constraintsRead": { "level": "MUST", "Complete": true, "Evidence": "PR safety protocol followed: worktree, merge main, live-state gate" },
+      "memoriesLoaded": { "level": "MUST", "Complete": true, "Evidence": "validation-ratchet-command-paths.md read" },
+      "branchVerified": { "level": "MUST", "Complete": true, "Evidence": "fix/git-session-integrity" },
+      "notOnMain": { "level": "MUST", "Complete": true, "Evidence": "On fix/git-session-integrity" }
+    },
+    "sessionEnd": {
+      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "All MUST items verified" },
+      "handoffPreserved": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified" },
+      "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "No durable non-obvious learnings to persist" },
+      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "No markdown files changed" },
+      "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "Commit aaa657f3c on fix/git-session-integrity" },
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "17/17 tests pass, all ratchets pass, pre_pr passes" }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-07T01:12:00+00:00",
+      "task": "Analyze 6 unresolved copilot-reviewer threads on PR #4704",
+      "outcome": "All 6 valid: T1 docstring hermeticity, T2 subprocess encoding, T3 bare return, T4/T5 headroom math, T6 destination_branch None"
+    },
+    {
+      "time": "2026-08-07T01:28:00+00:00",
+      "task": "Fix all 6 threads",
+      "outcome": "Docstring corrected, encoding+errors added, pytest.skip replaces return, headroom corrected to 10x, None guard added, section dividers compressed, unicode dashes removed"
+    },
+    {
+      "time": "2026-08-07T01:35:00+00:00",
+      "task": "Validate fixes",
+      "outcome": "17/17 tests pass, taste ratchet OK (583 == baseline), ruff ratchet OK, unicode dash check pass, pre_pr pass"
+    }
+  ],
+  "episodeMetrics": {
+    "filesChanged": 4,
+    "comparison": {
+      "kind": "gitCommitRange",
+      "base": "9c1f9aff0",
+      "head": "aaa657f3c"
+    }
+  },
+  "endingCommit": "aaa657f3c00946ec323496ca65e85f27aa61dd33",
+  "nextSteps": [
+    "Push fix/git-session-integrity",
+    "Reply to and resolve all 6 threads on GitHub"
+  ]
+}
