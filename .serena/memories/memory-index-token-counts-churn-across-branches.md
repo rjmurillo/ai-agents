@@ -90,7 +90,7 @@ values, because each branch merged a different main.
 So treat `gh pr update-branch` as a step that has a mandatory follow-up:
 
 ```bash
-gh pr update-branch <n>
+gh pr update-branch
 git fetch origin && git reset --hard origin/<branch>   # take the server's merge
 uv run --frozen python scripts/update_memory_index_tokens.py
 uv run --frozen python3 scripts/ci/memory_index_token_ratchet.py   # exit 0 before pushing
