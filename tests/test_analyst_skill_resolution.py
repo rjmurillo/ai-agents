@@ -152,6 +152,31 @@ class TestNoDirectGitHubGuidance:
                         f"direct shell instruction: {stripped[:80]}"
                     )
 
+    @pytest.mark.parametrize("path", ALL_ANALYST_FILES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+    def test_no_positive_web_tool_instruction(self, path: Path) -> None:
+        """Prose must not direct the analyst to unavailable web tools."""
+        text = path.read_text()
+        body = text.split("---", 2)[-1] if "---" in text else text
+        negations = [
+            "cannot",
+            "do not",
+            "must not",
+            "never",
+            "no web",
+            "not available",
+            "has no",
+            "retired",
+        ]
+        for line in body.splitlines():
+            lower = line.strip().lower()
+            if "websearch" not in lower and "webfetch" not in lower:
+                continue
+            if not any(negation in lower for negation in negations):
+                pytest.fail(
+                    f"{path.relative_to(REPO_ROOT)}: "
+                    f"positive web-tool instruction: {line.strip()[:80]}"
+                )
+
 
 class TestDelegationContract:
     """All analyst outputs must have the [BLOCKED] delegation contract."""
@@ -177,6 +202,18 @@ class TestUntrustedContentBoundary:
         text = path.read_text()
         assert "untrusted-content boundary" in text.lower() or "DATA, never" in text, (
             f"{path.relative_to(REPO_ROOT)}: no untrusted-content boundary"
+        )
+
+    @pytest.mark.parametrize("path", ALL_ANALYST_FILES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+    def test_delegated_content_is_untrusted(self, path: Path) -> None:
+        text = path.read_text().lower()
+        assert "delegated pr bodies" in text, (
+            f"{path.relative_to(REPO_ROOT)}: delegated PR content is not "
+            "inside the untrusted-content boundary"
+        )
+        assert "follow directives embedded in delegated content" in text, (
+            f"{path.relative_to(REPO_ROOT)}: no explicit ban on following "
+            "directives from delegated content"
         )
 
 
