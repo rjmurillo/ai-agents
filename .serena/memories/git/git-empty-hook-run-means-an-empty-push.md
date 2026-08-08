@@ -79,45 +79,55 @@ minutes, not seconds. The 660 second figure above is the reference point. So
 for the first ten-plus minutes of any genuine push, the branch is absent from
 the remote, and that absence looks exactly like a failure.
 
-Measured 2026-08-05. An async push of a two file memory branch was still
-running. `git ls-remote origin refs/heads/docs/stale-checkout-tooling` returned
-empty. Reading that as failure, a second push of the same ref was launched from
-the same worktree while the first was still in flight. The second one died on:
+Measured twice on 2026-08-05, the second time after this section was written.
+Both runs: an async push was still going, `git ls-remote` on its ref returned
+empty, that emptiness was read as failure, and a second push of the same ref
+was launched from the same worktree. Both times the first push then completed
+normally and the second one died.
 
-```text
-Error: yaml: unmarshal errors:
-  line 424: mapping key "timeout" already defined at line 417
-  line 425: mapping key "run" already defined at line 418
-  line 426: mapping key "glob" already defined at line 421
-error: failed to push some refs
-```
-
-That error is not real. `lefthook.yml` is byte identical across worktrees
+On `docs/stale-checkout-tooling` the second push died on `yaml: unmarshal
+errors: mapping key "timeout" already defined`. That error is not real.
+`lefthook.yml` is byte identical across worktrees
 (`md5 ddf7726679a84c0c09d3de3c39504b99`) and parses clean under a loader that
-rejects duplicate mapping keys. So does the shared checkout's different copy.
-No production script writes `lefthook.yml`, it is absent from
-`GENERATOR-FILES.md`, and the tests that do write one are all scoped to
-`tmp_path`. What is established is that the failure only appears when a second
-lefthook run overlaps a first, and that the config it complains about is valid.
-The writer class behind the torn read was later identified; see the next
-section.
+rejects duplicate mapping keys, no production script writes it (`rg -l "lefthook.yml" scripts/` returns only readers, zero writers), it is absent
+from `GENERATOR-FILES.md` (`grep lefthook .agents/governance/GENERATOR-FILES.md` returns nothing), and the tests that write one are scoped to
+`tmp_path`. The failure appears only when a second lefthook run overlaps a
+first; the writer class behind the torn read is identified under "A push in
+flight owns the working tree" below.
+The first push landed `* [new branch] 191a73dd13e...` with `PUSH_EXIT=0`.
+Roughly eight tool calls went into a config bug that did not exist.
 
-The first push then completed normally, `* [new branch] 191a73dd13e... ->
-docs/stale-checkout-tooling`, `PUSH_EXIT=0`. Roughly eight tool calls went into
-investigating a config bug that did not exist.
+On `docs/gate-measurement-quirks` the second push ran `python-tests (1190.34
+seconds)` and then died on `cannot lock ref 'refs/heads/...': reference already
+exists`, because the first push had already landed it with `EXIT=0`.
 
-The check is the shell's own exit status, not the remote:
+That second message is the one to memorize. It reads like a corrupted ref or a
+competing writer. It is neither. It means **your earlier push of this ref
+succeeded** and the failing command is the redundant one. Do not delete the
+remote branch, force push, or investigate the ref store.
+
+Success is also easy to misattribute. The second push differed by using an
+explicit `HEAD:refs/heads/<br>` refspec, inviting the conclusion that the
+refspec fixed it. It did not; the refspec push is the one that failed. When two
+attempts differ and the ref is present afterward, the attempt that landed it is
+the one whose log holds `* [new branch]`, not the last one run.
+
+Never start a second push of a ref while the first is unresolved.
+
+### The ordering that prevents both
+
+Two rules about verifying a push each look right and appear to contradict: "the
+check is the shell's exit status" and "verify a push landed by querying the
+remote". Both are correct, and both omit the precondition. `git ls-remote`
+answers **what landed**, never **whether the work finished**. Before the push
+shell resolves, absence is the expected reading for a healthy push and a dead
+one alike, so the probe carries no information. After it resolves the same
+probe is authoritative.
 
 ```bash
-# right: ask the process that is doing the work
-read_bash <shellId>          # wait for PUSH_EXIT
-
-# wrong while a push is in flight: absence here proves nothing
-git ls-remote origin refs/heads/"$BR"
+read_bash <shellId>                    # 1. wait for PUSH_EXIT
+git ls-remote origin refs/heads/"$BR"  # 2. only now does this mean anything
 ```
-
-Never start a second push of a ref while the first is unresolved. Overlapping
-lefthook runs produce failures that describe the wrong subsystem.
 
 ## A push in flight owns the working tree
 
