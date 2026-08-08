@@ -96,17 +96,23 @@ def fetch_base_ref(base_ref: str) -> int:
     would leave `main()` with no handler, so Python would exit 1 with a
     traceback instead of the 2 the exit-code contract calls for.
 
-    The probe is three-valued, and the two checks below deliberately treat the
-    unanswerable case differently. Only a confirmed `True` justifies
-    `--unshallow`, because a complete clone rejects that option. The post-check
-    treats anything but a confirmed `False` as still shallow, because there the
-    safe answer is to refuse rather than to measure.
+    The probe is three-valued. Only a confirmed `True` justifies `--unshallow`,
+    because a complete clone rejects that option. A failed probe cannot prove
+    complete history, so it returns the configuration error before fetching.
 
     Returns:
         0  the base ref is fetched and the clone has complete history
         2  the fetch failed or the clone is still shallow
     """
-    if _is_shallow_repository() is not True:
+    shallow = _is_shallow_repository()
+    if shallow is None:
+        print(
+            "error: could not determine whether the repository is shallow; "
+            "refusing to measure a potentially incomplete range.",
+            file=sys.stderr,
+        )
+        return 2
+    if shallow is False:
         code, stdout, stderr = run(
             ["git", "fetch", "--no-tags", "origin", base_ref],
             check=False,

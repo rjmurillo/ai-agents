@@ -338,16 +338,11 @@ def test_install_parity_runner_propagates_fetch_config_error(
     assert runner.main() == 2
 
 
-def test_fetch_base_ref_does_not_graft_when_the_probe_cannot_answer(
+def test_fetch_base_ref_fails_when_the_probe_cannot_answer(
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """An unanswerable probe must not take the branch that writes the graft.
-
-    `_is_shallow_repository` returns None when git could not answer, which a
-    30 second `rev-parse` timeout is enough to cause. Branching on `is False`
-    sent that case into `--depth=200`, grafting a clone that may well be
-    complete, which is the exact defect this function exists to remove.
-    """
+    """An unanswerable probe cannot prove that range history is complete."""
     calls: list[list[str]] = []
 
     def fake_run(argv, **kwargs):
@@ -358,7 +353,9 @@ def test_fetch_base_ref_does_not_graft_when_the_probe_cannot_answer(
 
     monkeypatch.setattr(base, "run", fake_run)
 
-    assert base.fetch_base_ref("main") == 0
+    assert base.fetch_base_ref("main") == 2
     fetches = [c for c in calls if c[:2] == ["git", "fetch"]]
-    assert len(fetches) == 1, calls
-    assert not any("--depth" in token for token in fetches[0]), fetches[0]
+    assert fetches == []
+    assert "could not determine whether the repository is shallow" in (
+        capsys.readouterr().err
+    )
