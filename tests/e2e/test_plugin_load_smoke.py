@@ -375,6 +375,7 @@ def test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path: Path) -> No
         pytest.skip(
             f"copilot --plugin-dir empty exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)"
         )
+    _skip_on_copilot_block(run)
     assert not marker.is_file(), (
         "negative control failed: copilot fired the probe hook while pointed at an EMPTY "
         "--plugin-dir, so a fired marker cannot distinguish load from no-load and the smoke's "
@@ -671,53 +672,61 @@ def test_run_cli_uses_cwd_and_decodes_utf8(tmp_path: Path) -> None:
     assert lines == [str(tmp_path), chr(0x2713)]
 
 
-# Unit tests for _skip_on_copilot_block (issues #4504, #4483, #3275).
-# These run without RUN_CLI_E2E and without the real CLI, so they cover the
-# skip-vs-fail decision in bare CI.
-def _make_copilot_result(rc: int, stderr: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(["copilot"], rc, stdout="", stderr=stderr)
+@pytest.mark.parametrize("blocked_phase", ["probe", "skill-list"])
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "API rate limit exceeded for user ID 12345.",
+        "Failed to fetch PAT user login: connection reset by peer.",
+    ],
+)
+def test_copilot_plugin_smoke_skips_classified_block(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    blocked_phase: str,
+    stderr: str,
+) -> None:
+    """Both real Copilot calls skip before plugin assertions on external blocks."""
+    success = subprocess.CompletedProcess(["copilot"], 0, stdout="[]", stderr="")
+    blocked = subprocess.CompletedProcess(["copilot"], 1, stdout="", stderr=stderr)
+
+    def fake_run_cli(argv: tuple[str, ...], **_: object) -> subprocess.CompletedProcess[str]:
+        if "--version" in argv:
+            return success
+        return blocked if blocked_phase == "skill-list" else success
+
+    def fake_run_plugin(
+        plugin_dir: Path, **_: object
+    ) -> subprocess.CompletedProcess[str]:
+        if blocked_phase == "probe":
+            return blocked
+        (plugin_dir.parent / "probe_marker.txt").write_text("MARKER", encoding="utf-8")
+        return success
+
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke.copilot_command", lambda *a: a)
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", fake_run_cli)
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
+        fake_run_plugin,
+    )
+
+    with pytest.raises(pytest.skip.Exception):
+        test_copilot_plugin_loads_expected_skills(tmp_path)
 
 
-def test_skip_on_copilot_block_raises_skip_for_absent_token() -> None:
-    result = _make_copilot_result(
+def test_empty_plugin_negative_control_skips_classified_block(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    blocked = subprocess.CompletedProcess(
+        ["copilot"],
         1,
-        "No authentication information found. You can use any of the following methods:\n"
-        "  - Set the COPILOT_GITHUB_TOKEN environment variable",
+        stdout="",
+        stderr="API rate limit exceeded for user ID 12345.",
     )
-    with pytest.raises(pytest.skip.Exception):
-        _skip_on_copilot_block(result)
-
-
-def test_skip_on_copilot_block_raises_skip_for_rejected_token() -> None:
-    result = _make_copilot_result(
-        1,
-        "Failed to fetch PAT user login (401): GitHub returned: Bad credentials",
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.run_copilot_plugin_dir",
+        lambda *args, **kwargs: blocked,
     )
+
     with pytest.raises(pytest.skip.Exception):
-        _skip_on_copilot_block(result)
-
-
-def test_skip_on_copilot_block_raises_skip_for_rate_limit() -> None:
-    result = _make_copilot_result(1, "API rate limit exceeded for user ID 12345.")
-    with pytest.raises(pytest.skip.Exception):
-        _skip_on_copilot_block(result)
-
-
-def test_skip_on_copilot_block_raises_skip_for_transport_failure() -> None:
-    result = _make_copilot_result(
-        1, "Failed to fetch PAT user login: connection reset by peer."
-    )
-    with pytest.raises(pytest.skip.Exception):
-        _skip_on_copilot_block(result)
-
-
-def test_skip_on_copilot_block_is_noop_on_success() -> None:
-    result = _make_copilot_result(0, "")
-    _skip_on_copilot_block(result)
-
-
-def test_skip_on_copilot_block_message_names_the_reason() -> None:
-    result = _make_copilot_result(1, "API rate limit exceeded for user ID 12345.")
-    with pytest.raises(pytest.skip.Exception) as exc_info:
-        _skip_on_copilot_block(result)
-    assert "rate limit" in str(exc_info.value).lower()
+        test_copilot_empty_plugin_dir_does_not_fire_probe_hook(tmp_path)

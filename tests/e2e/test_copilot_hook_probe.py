@@ -54,10 +54,11 @@ def test_auth_absent_detects_missing_token_on_stderr() -> None:
     assert copilot_auth_absent(result) is True
 
 
-def test_auth_absent_detects_token_hint_alone() -> None:
-    """The token-env hint alone is enough, even without the first-line phrase."""
+def test_auth_absent_ignores_generic_token_hint_alone() -> None:
+    """The generic footer appears after transport and rate-limit failures too."""
     result = _completed(stderr="please Set the COPILOT_GITHUB_TOKEN variable", returncode=1)
-    assert copilot_auth_absent(result) is True
+    assert copilot_auth_absent(result) is False
+    assert copilot_block_reason(result) is None
 
 
 def test_auth_absent_is_case_insensitive_and_matches_stdout() -> None:
@@ -359,6 +360,20 @@ def test_transport_failure_is_transient_not_auth() -> None:
     assert copilot_run_blocked(result) is True
 
 
+def test_connection_timeout_with_auth_footer_is_transport_not_empty_token() -> None:
+    result = _completed(
+        stderr=(
+            "connection timed out while calling api.github.com.\n"
+            "To authenticate, set the COPILOT_GITHUB_TOKEN environment variable."
+        ),
+        returncode=1,
+    )
+
+    assert copilot_block_reason(result) == "transport"
+    assert copilot_auth_absent(result) is False
+    assert "empty" not in copilot_run_blocked_headline(result).lower()
+
+
 def test_block_reason_ignores_success_and_unclassified_failure() -> None:
     successful_noise = _completed(
         stderr="API rate limit exceeded. Failed to fetch PAT user login.",
@@ -545,27 +560,18 @@ def test_transient_failure_false_for_a_genuinely_rejected_token() -> None:
     assert copilot_auth_failed(result)
 
 
-def test_transient_failure_false_for_a_bare_5xx_or_socket_error() -> None:
-    """Pins the docstring: only the CLI's disclaimer fires, not 5xx text itself.
-
-    The predicate matches the CLI's own "token may still be valid" sentence. A
-    status code or a raw socket message that never reaches that sentence is out
-    of scope, and the docstring says so. Without this test the docstring could
-    silently regrow the claim that it covers 5xx in general.
-    """
-    undetected = (
+def test_transient_failure_detects_socket_error_not_unanchored_5xx() -> None:
+    """Concrete socket signals classify as transport; generic status text does not."""
+    unanchored_status = (
         "HTTP 502 Bad Gateway from api.github.com",
         "Server Error: 503 Service Unavailable",
-        "dial tcp 140.82.113.6:443: connect: connection refused",
     )
-    for stderr in undetected:
+    for stderr in unanchored_status:
         assert not copilot_transient_failure(_completed(stderr=stderr, returncode=1))
 
-    # Positive control: the same call shape DOES fire on the disclaimer, so the
-    # assertions above are meaningful silence rather than a dead predicate.
     assert copilot_transient_failure(
         _completed(
-            stderr="Your token may still be valid. Check your network connection and try again.",
+            stderr="dial tcp 192.0.2.1:443: connect: connection refused",
             returncode=1,
         )
     )

@@ -443,53 +443,32 @@ def test_probe_script_writes_marker_when_run(tmp_path: Path) -> None:
     assert f"COPILOT_PLUGIN_ROOT={tmp_path}" in text
 
 
-# Unit tests for _skip_on_copilot_block (issues #4504, #4483, #3275).
-# These run without RUN_CLI_E2E and without the real CLI, so they cover the
-# skip-vs-fail decision in bare CI.
-def _make_copilot_result(rc: int, stderr: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(["copilot"], rc, stdout="", stderr=stderr)
+@pytest.mark.parametrize("blocked_phase", ["install", "run"])
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "API rate limit exceeded for user ID 12345.",
+        "Failed to fetch PAT user login: connection reset by peer.",
+    ],
+)
+def test_copilot_vendor_consumer_skips_classified_block(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    blocked_phase: str,
+    stderr: str,
+) -> None:
+    """The install and prompt calls both stop before hook assertions."""
+    success = subprocess.CompletedProcess(["copilot"], 0, stdout="", stderr="")
+    blocked = subprocess.CompletedProcess(["copilot"], 1, stdout="", stderr=stderr)
 
+    def fake_run(argv: tuple[str, ...], **_: object) -> subprocess.CompletedProcess[str]:
+        is_install = "plugin" in argv and "install" in argv
+        if blocked_phase == "install":
+            return blocked if is_install else success
+        return success if is_install else blocked
 
-def test_skip_on_copilot_block_raises_skip_for_absent_token() -> None:
-    result = _make_copilot_result(
-        1,
-        "No authentication information found. You can use any of the following methods:\n"
-        "  - Set the COPILOT_GITHUB_TOKEN environment variable",
-    )
+    monkeypatch.setattr("tests.e2e.test_cli_hook_e2e._copilot_command", lambda *a: a)
+    monkeypatch.setattr("tests.e2e.test_cli_hook_e2e.subprocess.run", fake_run)
+
     with pytest.raises(pytest.skip.Exception):
-        _skip_on_copilot_block(result)
-
-
-def test_skip_on_copilot_block_raises_skip_for_rejected_token() -> None:
-    result = _make_copilot_result(
-        1,
-        "Failed to fetch PAT user login (401): GitHub returned: Bad credentials",
-    )
-    with pytest.raises(pytest.skip.Exception):
-        _skip_on_copilot_block(result)
-
-
-def test_skip_on_copilot_block_raises_skip_for_rate_limit() -> None:
-    result = _make_copilot_result(1, "API rate limit exceeded for user ID 12345.")
-    with pytest.raises(pytest.skip.Exception):
-        _skip_on_copilot_block(result)
-
-
-def test_skip_on_copilot_block_raises_skip_for_transport_failure() -> None:
-    result = _make_copilot_result(
-        1, "Failed to fetch PAT user login: connection reset by peer."
-    )
-    with pytest.raises(pytest.skip.Exception):
-        _skip_on_copilot_block(result)
-
-
-def test_skip_on_copilot_block_is_noop_on_success() -> None:
-    result = _make_copilot_result(0, "")
-    _skip_on_copilot_block(result)
-
-
-def test_skip_on_copilot_block_message_names_the_reason() -> None:
-    result = _make_copilot_result(1, "API rate limit exceeded for user ID 12345.")
-    with pytest.raises(pytest.skip.Exception) as exc_info:
-        _skip_on_copilot_block(result)
-    assert "rate limit" in str(exc_info.value).lower()
+        test_copilot_vendor_install_hook_resolves(tmp_path)

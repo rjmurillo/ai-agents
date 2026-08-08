@@ -127,7 +127,6 @@ def write_marker_probe_plugin(plugin_dir: Path, marker: Path) -> str:
 # accurate headline instead. Kept pytest-free so they unit-test as plain
 # functions and impose no test-framework dependency on this probe primitive.
 COPILOT_AUTH_ABSENT_MARKERS = ("no authentication information found",)
-COPILOT_AUTH_HINT_MARKERS = ("set the copilot_github_token",)
 
 # Auth-rejected detection. A populated but expired or revoked token reaches the
 # CLI's auth gate and is turned away by GitHub, and the CLI still prints its
@@ -151,6 +150,12 @@ COPILOT_TRANSPORT_FAILURE_MARKERS = (
     "failed to fetch pat user login",
     "your token may still be valid",
     "check your network connection and try again",
+    "connection timed out",
+    "connection reset by peer",
+    "connection refused",
+    "could not resolve host",
+    "temporary failure in name resolution",
+    "tls handshake timeout",
 )
 
 CopilotBlockReason = Literal["rate_limit", "transport", "auth_rejected", "auth_absent"]
@@ -192,8 +197,6 @@ def copilot_block_reason(
         return "auth_absent"
     if any(marker in haystack for marker in COPILOT_TRANSPORT_FAILURE_MARKERS):
         return "transport"
-    if any(marker in haystack for marker in COPILOT_AUTH_HINT_MARKERS):
-        return "auth_absent"
     return None
 
 
