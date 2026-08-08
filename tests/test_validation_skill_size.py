@@ -23,6 +23,7 @@ from scripts.validation.skill_size import (
     StagedBlobError,
     StagedDiscoveryError,
     check_skill_size,
+    get_skill_files,
     get_staged_skill_files,
     has_exception_rationale,
     has_size_exception,
@@ -1265,3 +1266,53 @@ class TestDefaultScanCorpus:
         outside = tmp_path / "outside" / "SKILL.md"
 
         assert _skill_size_mod._relative_display(outside) == str(outside)
+
+
+class TestGetSkillFilesWindowsPathNormalization:
+    """get_skill_files normalizes Windows backslash paths before regex matching."""
+
+    def test_forward_slash_path_matches(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A forward-slash path (Linux/macOS) is accepted."""
+        skill_dir = tmp_path / ".claude" / "skills" / "myskill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        result = get_skill_files(str(tmp_path), changed_files=[".claude/skills/myskill/SKILL.md"])
+        assert any(p.name == "SKILL.md" for p in result)
+
+    def test_backslash_path_normalizes_and_matches(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A Windows backslash path is normalized to forward slashes and matched."""
+        skill_dir = tmp_path / ".claude" / "skills" / "myskill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# test\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        # Simulate Windows str(Path(...)) output
+        result = get_skill_files(str(tmp_path), changed_files=[r".claude\skills\myskill\SKILL.md"])
+        assert any(p.name == "SKILL.md" for p in result)
+
+    def test_non_skill_path_excluded(self, tmp_path: Path) -> None:
+        """A path that is not a SKILL.md is excluded even with backslashes."""
+        result = get_skill_files(str(tmp_path), changed_files=[r"src\some\other\file.py"])
+        assert result == []
+
+    def test_mixed_paths_only_skill_md_returned(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Only SKILL.md entries in the list are returned regardless of slash style."""
+        skill_dir = tmp_path / ".claude" / "skills" / "alpha"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("# alpha\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        paths = [
+            r".claude\skills\alpha\SKILL.md",
+            r"scripts\some\script.py",
+            ".claude/skills/alpha/SKILL.md",  # same file, forward-slash variant
+        ]
+        result = get_skill_files(str(tmp_path), changed_files=paths)
+        assert all(p.name == "SKILL.md" for p in result)
+        assert len(result) == 1  # both slash variants normalize to the same file
+
