@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -13,12 +14,13 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scripts.testing import mutation_workspace
+from scripts.testing import mutation_workspace, mutation_workspace_git
 from scripts.testing.mutation_harness import MutationEntry, MutationRunner
 from scripts.testing.mutation_workspace import (
     EXIT_BLOCKED,
     EXIT_OK,
     SCRATCH_DIRECTORY,
+    MutationInterrupted,
     MutationWorkspaceError,
     check_markers,
     isolated_mutation_worktree,
@@ -72,6 +74,36 @@ with isolated_mutation_worktree(repo_root, [target]) as workspace:
         "scratch": str(workspace.root),
     }), flush=True)
     time.sleep(300)
+"""
+    return subprocess.Popen(
+        [sys.executable, "-c", code, str(REPO_ROOT), str(TARGET)],
+        cwd=REPO_ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+
+
+def _cleanup_signal_child_process() -> subprocess.Popen[str]:
+    code = """
+import os
+import signal
+import sys
+from pathlib import Path
+from scripts.testing import mutation_workspace
+
+repo_root = Path(sys.argv[1])
+target = Path(sys.argv[2])
+remove_worktree = mutation_workspace._remove_worktree
+
+def signal_during_cleanup(root, scratch):
+    os.kill(os.getpid(), signal.SIGTERM)
+    remove_worktree(root, scratch)
+
+mutation_workspace._remove_worktree = signal_during_cleanup
+with mutation_workspace.isolated_mutation_worktree(repo_root, [target]) as workspace:
+    print(f"{workspace.marker_path}|{workspace.root}", flush=True)
 """
     return subprocess.Popen(
         [sys.executable, "-c", code, str(REPO_ROOT), str(TARGET)],
@@ -150,6 +182,35 @@ def test_dirty_target_is_rejected(tmp_path: Path) -> None:
             pytest.fail("dirty target entered mutation workspace")
 
 
+def test_staged_target_is_rejected(tmp_path: Path) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    target.write_text("VALUE = 2\n", encoding="utf-8")
+    subprocess.run(["git", "add", "target.py"], cwd=repo, check=True)
+    target.write_text("VALUE = 1\n", encoding="utf-8")
+
+    with pytest.raises(MutationWorkspaceError, match="uncommitted changes"):
+        with isolated_mutation_worktree(repo, [target]):
+            pytest.fail("staged target entered mutation workspace")
+
+
+def test_untracked_hard_link_to_tracked_target_is_rejected(tmp_path: Path) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    alias = repo / "alias.py"
+    os.link(target, alias)
+    entry = MutationEntry(
+        name="hard-link-alias",
+        path=alias,
+        old="VALUE = 1",
+        new="VALUE = 2",
+        command=(sys.executable, "-c", "raise SystemExit(1)"),
+    )
+
+    with pytest.raises(MutationWorkspaceError, match="aliases tracked path"):
+        MutationRunner(cwd=repo).run_entry(entry)
+
+    assert target.read_text(encoding="utf-8") == "VALUE = 1\n"
+
+
 def test_git_failure_does_not_fall_back_to_active_target(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -159,10 +220,58 @@ def test_git_failure_does_not_fall_back_to_active_target(
         stdout="",
         stderr="injected git failure",
     )
-    monkeypatch.setattr(mutation_workspace, "_run_git", lambda *_args: failure)
+    monkeypatch.setattr(mutation_workspace_git, "run_git", lambda *_args: failure)
 
     with pytest.raises(MutationWorkspaceError, match="injected git failure"):
         mutation_workspace.tracked_repository_path(REPO_ROOT / TARGET)
+
+
+def test_interruption_during_worktree_add_cleans_partial_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, target = _create_repository(tmp_path / "repo")
+    observed: dict[str, Path] = {}
+
+    def interrupt_add(_repo_root: Path, scratch_root: Path) -> None:
+        observed["scratch"] = scratch_root
+        scratch_root.mkdir(parents=True)
+        raise MutationInterrupted(128 + signal.SIGTERM)
+
+    monkeypatch.setattr(mutation_workspace, "_add_worktree", interrupt_add)
+
+    with pytest.raises(MutationInterrupted):
+        with isolated_mutation_worktree(repo, [target]):
+            pytest.fail("interrupted setup yielded a workspace")
+
+    assert not observed["scratch"].exists()
+    assert not list(marker_directory(repo).iterdir())
+
+
+def test_finished_marker_rewrite_does_not_follow_hard_link(tmp_path: Path) -> None:
+    marker = tmp_path / "marker.json"
+    external = tmp_path / "external.json"
+    external.write_text('{"protected": true}\n', encoding="utf-8")
+    os.link(external, marker)
+    payload = {"schema_version": 1, "pid": os.getpid()}
+
+    mutation_workspace._mark_run_finished(marker, payload)
+
+    assert json.loads(marker.read_text(encoding="utf-8"))["pid"] is None
+    assert external.read_text(encoding="utf-8") == '{"protected": true}\n'
+
+
+def test_remove_worktree_clears_fresh_registration_when_directory_missing(
+    tmp_path: Path,
+) -> None:
+    repo, _target = _create_repository(tmp_path / "repo")
+    scratch = repo / SCRATCH_DIRECTORY / "missing-worktree"
+    mutation_workspace_git.add_worktree(repo, scratch)
+    shutil.rmtree(scratch)
+
+    mutation_workspace_git.remove_worktree(repo, scratch)
+
+    assert scratch not in mutation_workspace_git.registered_worktrees(repo)
 
 
 def test_cleanup_removes_scratch_and_preserves_body_error_after_active_drift(
@@ -225,6 +334,18 @@ def test_catchable_signal_removes_marker_and_scratch(
     assert returncode == 128 + signum
     assert not Path(workspace["marker"]).exists()
     assert not Path(workspace["scratch"]).exists()
+
+
+def test_signal_during_cleanup_is_deferred_until_cleanup_completes() -> None:
+    process = _cleanup_signal_child_process()
+    assert process.stdout is not None
+    ready = process.stdout.readline().strip()
+    assert ready
+    marker, scratch = (Path(value) for value in ready.split("|", maxsplit=1))
+
+    assert process.wait(timeout=30) == 128 + signal.SIGTERM
+    assert not marker.exists()
+    assert not scratch.exists()
 
 
 @pytest.mark.skipif(not hasattr(signal, "SIGKILL"), reason="SIGKILL unavailable")

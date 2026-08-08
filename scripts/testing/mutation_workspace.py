@@ -15,7 +15,6 @@ import json
 import os
 import shutil
 import signal
-import subprocess
 import sys
 import uuid
 from collections.abc import Iterator, Sequence
@@ -25,17 +24,37 @@ from pathlib import Path
 from types import FrameType
 from typing import Any, TextIO
 
+from scripts.testing.mutation_workspace_git import (
+    SCRATCH_DIRECTORY,
+    MutationWorkspaceError,
+    marker_directory,
+)
+from scripts.testing.mutation_workspace_git import (
+    add_worktree as _add_worktree,
+)
+from scripts.testing.mutation_workspace_git import (
+    git_root as _git_root,
+)
+from scripts.testing.mutation_workspace_git import (
+    relative_target as _relative_target,
+)
+from scripts.testing.mutation_workspace_git import (
+    remove_worktree as _remove_worktree,
+)
+from scripts.testing.mutation_workspace_git import (
+    require_git_stdout as _require_git_stdout,
+)
+from scripts.testing.mutation_workspace_git import (
+    run_git as _run_git,
+)
+from scripts.testing.mutation_workspace_git import (
+    tracked_repository_path as tracked_repository_path,
+)
+
 EXIT_OK = 0
 EXIT_BLOCKED = 1
 EXIT_EXTERNAL_ERROR = 3
-GIT_COMMAND_TIMEOUT_SECONDS = 30
 MARKER_SCHEMA_VERSION = 1
-MARKER_DIRECTORY_NAME = "mutation-active"
-SCRATCH_DIRECTORY = Path(".pytest_cache") / "mutation-worktrees"
-
-
-class MutationWorkspaceError(RuntimeError):
-    """Raised when mutation isolation or cleanup cannot be proven."""
 
 
 class MutationInterrupted(SystemExit):
@@ -59,114 +78,10 @@ class MutationWorkspace:
     targets: tuple[TargetSnapshot, ...]
 
 
-def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    command = ["git", *args]
-    try:
-        return subprocess.run(
-            command,
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=GIT_COMMAND_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise MutationWorkspaceError(
-            f"git command timed out after {GIT_COMMAND_TIMEOUT_SECONDS}s: {' '.join(command)}"
-        ) from exc
-    except OSError as exc:
-        raise MutationWorkspaceError(f"cannot run git command: {exc}") from exc
-
-
-def _require_git_stdout(cwd: Path, *args: str, error: str) -> str:
-    """Run git and return stripped stdout, or raise ``error`` with git's stderr."""
-    result = _run_git(cwd, *args)
-    if result.returncode != 0 or not result.stdout.strip():
-        raise MutationWorkspaceError(f"{error}: {result.stderr.strip()}")
-    return result.stdout.strip()
-
-
-def _git_root(path: Path) -> Path:
-    stdout = _require_git_stdout(
-        path, "rev-parse", "--show-toplevel", error=f"cannot find git worktree root from {path}"
-    )
-    return Path(stdout).resolve()
-
-
-def marker_directory(repo_root: Path) -> Path:
-    """Return the worktree-specific mutation marker directory."""
-    root = _git_root(repo_root)
-    stdout = _require_git_stdout(
-        root,
-        "rev-parse",
-        "--git-path",
-        MARKER_DIRECTORY_NAME,
-        error="cannot locate git marker directory",
-    )
-    path = Path(stdout)
-    if not path.is_absolute():
-        path = root / path
-    return path.resolve()
-
-
-def tracked_repository_path(path: Path) -> tuple[Path, Path] | None:
-    """Return ``(repo_root, relative_path)`` when ``path`` is tracked by git."""
-    resolved = path.resolve()
-    result = _run_git(resolved.parent, "rev-parse", "--show-toplevel")
-    if result.returncode != 0 or not result.stdout.strip():
-        if any((parent / ".git").exists() for parent in (resolved.parent, *resolved.parents)):
-            raise MutationWorkspaceError(
-                f"cannot resolve repository for tracked path {resolved}: "
-                f"{result.stderr.strip()}"
-            )
-        return None
-    repo_root = Path(result.stdout.strip()).resolve()
-    if not resolved.is_relative_to(repo_root):
-        return None
-    relative = resolved.relative_to(repo_root)
-    tracked = _run_git(
-        repo_root,
-        "ls-files",
-        "--error-unmatch",
-        "--",
-        relative.as_posix(),
-    )
-    if tracked.returncode == 1:
-        return None
-    if tracked.returncode != 0:
-        raise MutationWorkspaceError(
-            f"cannot determine whether path is tracked {relative}: "
-            f"{tracked.stderr.strip()}"
-        )
-    return repo_root, relative
-
-
-def _relative_target(repo_root: Path, target: Path | str) -> Path:
-    candidate = Path(target)
-    if not candidate.is_absolute():
-        candidate = repo_root / candidate
-    resolved = candidate.resolve()
-    if not resolved.is_relative_to(repo_root):
-        raise MutationWorkspaceError(f"mutation target escapes repository: {target}")
-    if not resolved.is_file():
-        raise MutationWorkspaceError(f"mutation target is not a file: {resolved}")
-    relative = resolved.relative_to(repo_root)
-    tracked = _run_git(
-        repo_root,
-        "ls-files",
-        "--error-unmatch",
-        "--",
-        relative.as_posix(),
-    )
-    if tracked.returncode == 1:
-        raise MutationWorkspaceError(f"mutation target is not tracked by git: {relative}")
-    if tracked.returncode != 0:
-        raise MutationWorkspaceError(
-            f"cannot verify mutation target {relative}: {tracked.stderr.strip()}"
-        )
-    return relative
+@dataclass(slots=True)
+class _SignalState:
+    cleaning_up: bool = False
+    pending_signal: int | None = None
 
 
 def _sha256(path: Path) -> str:
@@ -196,6 +111,24 @@ def _require_targets_match_head(
     repo_root: Path, targets: Sequence[TargetSnapshot]
 ) -> None:
     for target in targets:
+        status = _run_git(
+            repo_root,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=no",
+            "--",
+            target.path,
+        )
+        if status.returncode != 0:
+            raise MutationWorkspaceError(
+                f"cannot inspect mutation target state {target.path}: "
+                f"{status.stderr.strip()}"
+            )
+        if status.stdout:
+            raise MutationWorkspaceError(
+                f"mutation target has uncommitted changes: {target.path}. "
+                "Commit or stash it before running the harness."
+            )
         head_object = _require_git_stdout(
             repo_root,
             "rev-parse",
@@ -205,6 +138,7 @@ def _require_targets_match_head(
         active_object = _require_git_stdout(
             repo_root,
             "hash-object",
+            "--",
             target.path,
             error=f"cannot hash active mutation target {target.path}",
         )
@@ -241,36 +175,10 @@ def _write_marker(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _mark_run_finished(path: Path, payload: dict[str, Any]) -> None:
-    payload["pid"] = None
-    with path.open("w", encoding="utf-8") as stream:
-        json.dump(payload, stream, indent=2, sort_keys=True)
-        stream.write("\n")
-        stream.flush()
-        os.fsync(stream.fileno())
-
-
-def _add_worktree(repo_root: Path, scratch_root: Path) -> None:
-    scratch_root.parent.mkdir(parents=True, exist_ok=True)
-    result = _run_git(
-        repo_root,
-        "worktree",
-        "add",
-        "--detach",
-        str(scratch_root),
-        "HEAD",
-    )
-    if result.returncode != 0:
-        raise MutationWorkspaceError(
-            f"git worktree add failed for {scratch_root}: {result.stderr.strip()}"
-        )
-
-
-def _remove_worktree(repo_root: Path, scratch_root: Path) -> None:
-    result = _run_git(repo_root, "worktree", "remove", "--force", str(scratch_root))
-    if result.returncode != 0:
-        raise MutationWorkspaceError(
-            f"git worktree remove failed for {scratch_root}: {result.stderr.strip()}"
-        )
+    finished_payload = {**payload, "pid": None}
+    replacement = path.with_name(f".{path.name}.{uuid.uuid4().hex}.finished")
+    _write_marker(replacement, finished_payload)
+    os.replace(replacement, path)
 
 
 def _validate_active_targets(
@@ -303,16 +211,18 @@ def _require_active_targets_unchanged(
         )
 
 
-def _raise_for_signal(signum: int, _frame: FrameType | None) -> None:
-    raise MutationInterrupted(128 + signum)
+def _install_signal_handlers(state: _SignalState) -> dict[int, Any]:
+    def handle_signal(signum: int, _frame: FrameType | None) -> None:
+        if state.cleaning_up:
+            state.pending_signal = signum
+            return
+        raise MutationInterrupted(128 + signum)
 
-
-def _install_signal_handlers() -> dict[int, Any]:
     previous: dict[int, Any] = {}
     for signum in (signal.SIGINT, signal.SIGTERM):
         try:
             previous[signum] = signal.getsignal(signum)
-            signal.signal(signum, _raise_for_signal)
+            signal.signal(signum, handle_signal)
         except ValueError:
             return {}
     return previous
@@ -347,46 +257,81 @@ def isolated_mutation_worktree(
     )
     payload = _marker_payload(root, scratch_root, snapshots)
 
-    _write_marker(marker_path, payload)
+    signal_state = _SignalState()
+    previous_handlers = _install_signal_handlers(signal_state)
     try:
-        _add_worktree(root, scratch_root)
-    except BaseException:
-        marker_path.unlink(missing_ok=True)
-        raise
+        _write_marker(marker_path, payload)
+        try:
+            _add_worktree(root, scratch_root)
+        except BaseException:
+            signal_state.cleaning_up = True
+            setup_errors: list[str] = []
+            try:
+                _remove_worktree(root, scratch_root)
+            except (MutationWorkspaceError, OSError) as exc:
+                setup_errors.append(str(exc))
+            if setup_errors:
+                try:
+                    _mark_run_finished(marker_path, payload)
+                except OSError as exc:
+                    setup_errors.append(f"cannot mark mutation run finished: {exc}")
+                print(
+                    f"ERROR: mutation workspace setup cleanup incomplete: "
+                    f"{'; '.join(setup_errors)}",
+                    file=sys.stderr,
+                )
+            else:
+                try:
+                    marker_path.unlink(missing_ok=True)
+                except OSError as exc:
+                    print(
+                        f"ERROR: cannot remove mutation marker after setup failure: {exc}",
+                        file=sys.stderr,
+                    )
+            raise
 
-    previous_handlers = _install_signal_handlers()
-    body_error: BaseException | None = None
-    try:
-        yield workspace
-    except BaseException as exc:
-        body_error = exc
-        raise
+        body_error: BaseException | None = None
+        try:
+            yield workspace
+        except BaseException as exc:
+            body_error = exc
+            raise
+        finally:
+            signal_state.cleaning_up = True
+            cleanup_errors: list[str] = []
+            try:
+                _remove_worktree(root, scratch_root)
+            except (MutationWorkspaceError, OSError) as exc:
+                cleanup_errors.append(str(exc))
+            try:
+                _require_active_targets_unchanged(root, snapshots)
+            except (MutationWorkspaceError, OSError) as exc:
+                cleanup_errors.append(str(exc))
+
+            if not cleanup_errors:
+                try:
+                    marker_path.unlink(missing_ok=True)
+                except OSError as exc:
+                    cleanup_errors.append(f"cannot remove mutation marker: {exc}")
+
+            if cleanup_errors:
+                try:
+                    _mark_run_finished(marker_path, payload)
+                except OSError as exc:
+                    cleanup_errors.append(f"cannot mark mutation run finished: {exc}")
+                if body_error is None:
+                    if signal_state.pending_signal is not None:
+                        raise MutationInterrupted(128 + signal_state.pending_signal)
+                    raise MutationWorkspaceError("; ".join(cleanup_errors))
+                print(
+                    f"ERROR: mutation workspace cleanup incomplete: "
+                    f"{'; '.join(cleanup_errors)}",
+                    file=sys.stderr,
+                )
+            if body_error is None and signal_state.pending_signal is not None:
+                raise MutationInterrupted(128 + signal_state.pending_signal)
     finally:
         _restore_signal_handlers(previous_handlers)
-        cleanup_errors: list[str] = []
-        try:
-            _remove_worktree(root, scratch_root)
-        except MutationWorkspaceError as exc:
-            cleanup_errors.append(str(exc))
-        try:
-            _require_active_targets_unchanged(root, snapshots)
-        except MutationWorkspaceError as exc:
-            cleanup_errors.append(str(exc))
-
-        if not cleanup_errors:
-            marker_path.unlink(missing_ok=True)
-        else:
-            try:
-                _mark_run_finished(marker_path, payload)
-            except OSError as exc:
-                cleanup_errors.append(f"cannot mark mutation run finished: {exc}")
-            if body_error is None:
-                raise MutationWorkspaceError("; ".join(cleanup_errors))
-            print(
-                f"ERROR: mutation workspace cleanup incomplete: "
-                f"{'; '.join(cleanup_errors)}",
-                file=sys.stderr,
-            )
 
 
 def _read_marker(path: Path) -> dict[str, Any]:
@@ -521,14 +466,7 @@ def recover_marker(
         targets = _read_target_snapshots(payload, resolved_marker)
         _require_active_targets_unchanged(root, targets)
         scratch = _scratch_root_from_marker(root, payload, resolved_marker)
-        if scratch.exists():
-            _remove_worktree(root, scratch)
-        else:
-            result = _run_git(root, "worktree", "prune")
-            if result.returncode != 0:
-                raise MutationWorkspaceError(
-                    f"git worktree prune failed: {result.stderr.strip()}"
-                )
+        _remove_worktree(root, scratch)
         resolved_marker.unlink(missing_ok=True)
         print(f"recovered mutation workspace: {scratch}", file=output)
     except (MutationWorkspaceError, OSError) as exc:

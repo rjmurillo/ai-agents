@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.testing.mutation_workspace import (
+    MutationWorkspaceError,
     isolated_mutation_worktree,
     purge_bytecode,
     tracked_repository_path,
@@ -353,7 +354,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except BatteryConfigError as exc:
         print(str(exc), file=sys.stderr, flush=True)
         return EXIT_CONFIG_ERROR
-    except MutationTimeoutError as exc:
+    except (MutationTimeoutError, MutationWorkspaceError) as exc:
         print(f"EXTERNAL_ERROR {exc}", file=sys.stderr, flush=True)
         return EXIT_EXTERNAL_ERROR
     except KeyboardInterrupt:
