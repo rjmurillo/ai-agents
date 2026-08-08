@@ -351,7 +351,7 @@ class TestRunProvenance:
 
 
 class TestParseJudgeResponseEvidence:
-    """Parse failures must preserve the full raw response, not a 200-char prefix."""
+    """Parse failures retain exact evidence within the bounded response limit."""
 
     def _score(self, monkeypatch, raw_text: str) -> dict:
         monkeypatch.setattr(eval_mod, "_call_api", lambda *_a, **_kw: raw_text)
@@ -460,6 +460,17 @@ class TestSampleModelIdentity:
 
 
 class TestBoundedJudgeEvidence:
+    def test_empty_parse_failure_stores_replayable_evidence(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        result = _score_response_with(monkeypatch, "")
+
+        with pytest.raises(ValueError) as replayed:
+            eval_mod._strict_json_loads(result["raw_judge_response"])
+
+        assert result["raw_judge_response"] == ""
+        assert result["judge_parse_error"] == str(replayed.value)
+
     def test_parse_failure_replays_from_stored_response(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -4588,7 +4599,7 @@ class TestUnifiedParsePath:
 
 
 class TestRawJudgeResponseNoTruncation:
-    """Full payload preserved on failure -- no 200-char truncation (#3975)."""
+    """Payloads past the old 200-char cutoff remain exact within the new limit."""
 
     def test_large_failure_payload_is_not_truncated(self, monkeypatch: pytest.MonkeyPatch) -> None:
         payload = "x" * 500

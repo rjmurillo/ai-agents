@@ -892,7 +892,7 @@ def _string_contradicts_filed_scores(text: str, filed: dict[str, Any]) -> bool:
 def _failed_judge(
     reason: str,
     *,
-    raw_judge_response: str = "",
+    raw_judge_response: str | None = None,
     judge_model: str | None = None,
     parse_error: ValueError | None = None,
 ) -> dict[str, Any]:
@@ -903,7 +903,7 @@ def _failed_judge(
         "reasoning": reason,
         "judge_failed": True,
     }
-    if raw_judge_response:
+    if raw_judge_response is not None:
         result.update(_bounded_judge_evidence(raw_judge_response))
     if judge_model is not None:
         result["judge_model"] = judge_model
