@@ -496,9 +496,46 @@ class TestDetectScope:
             assert captured_args == ["origin/main"]
             mock_get_head_files.assert_not_called()
 
+    def test_in_progress_merge_without_merge_base_still_uses_base_ref_index(self) -> None:
+        captured_args: list[str] = []
+
+        def fake_index_files(ref: str) -> list[str]:
+            captured_args.append(ref)
+            return ["feature_only.py"]
+
+        with (
+            patch(
+                "scripts.detect_scope_explosion.get_current_branch",
+                return_value="feat/test",
+            ),
+            patch("scripts.detect_scope_explosion.resolve_base_ref", return_value="origin/main"),
+            patch(
+                "scripts.detect_scope_explosion.get_merge_head_commit",
+                return_value="merge_head_sha",
+            ),
+            patch(
+                "scripts.detect_scope_explosion.get_merge_base",
+                return_value=None,
+            ),
+            patch(
+                "scripts.detect_scope_explosion.get_index_files_against_ref",
+                side_effect=fake_index_files,
+            ),
+            patch(
+                "scripts.detect_scope_explosion.get_head_files_against_ref"
+            ) as mock_get_head_files,
+        ):
+            result = detect_scope()
+            assert result is not None
+            assert result.file_count == 1
+            assert result.merge_base == "origin/main"
+            assert result.files == ("feature_only.py",)
+            assert captured_args == ["origin/main"]
+            mock_get_head_files.assert_not_called()
+
     def test_in_progress_base_lineage_merge_counts_final_index(self) -> None:
         # When MERGE_HEAD is the base branch being merged, count the final
-        # staged tree against MERGE_HEAD itself. That keeps upstream merge
+        # staged tree against the resolved base ref. That keeps upstream merge
         # files out of scope while still counting branch-local files staged
         # after `git merge --no-commit`.
         captured_args: list[str] = []
@@ -635,15 +672,10 @@ class TestDetectScope:
                 side_effect=fake_index_files,
             ),
             patch(
-                "scripts.detect_scope_explosion.get_merge_base",
-                return_value="real_merge_base_sha",
-            ) as mock_get_merge_base,
-            patch(
                 "scripts.detect_scope_explosion.get_head_files_against_ref"
             ) as mock_get_head_files,
         ):
             detect_scope()
-            mock_get_merge_base.assert_called_once()
             assert captured_index_args == ["origin/main"]
             mock_get_head_files.assert_not_called()
 
@@ -663,17 +695,12 @@ class TestDetectScope:
                 return_value=["real.py"],
             ),
             patch(
-                "scripts.detect_scope_explosion.get_merge_base",
-                return_value="real_merge_base_sha",
-            ) as mock_get_merge_base,
-            patch(
                 "scripts.detect_scope_explosion.get_head_files_against_ref"
             ) as mock_get_head_files,
         ):
             result = detect_scope()
             assert result is not None
             assert result.file_count == 1
-            mock_get_merge_base.assert_called_once()
             mock_get_head_files.assert_not_called()
 
     def test_stale_remote_base_merge_still_counts_final_index(self) -> None:
@@ -797,6 +824,36 @@ class TestMergeHeadRealGit:
         assert result is not None
         assert result.file_count == 55
         assert _run_main(repo, monkeypatch) == 1
+
+    def test_unrelated_history_merge_uses_base_ref_index_without_merge_base(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = tmp_path / "repo"
+        _init_scope_repo(repo)
+        _check_git(repo, "checkout", "--orphan", "feature")
+        _write_file(repo, "feature/orphan_only.py", "value = 1\n")
+        _commit_all(repo, "orphan feature")
+
+        _check_git(
+            repo,
+            "merge",
+            "--allow-unrelated-histories",
+            "--no-commit",
+            "--no-ff",
+            "main",
+        )
+
+        staged = _git(repo, "diff", "--cached", "--name-only", "--diff-filter=ACMR", "origin/main")
+        assert staged.returncode == 0
+        staged_paths = {line for line in staged.stdout.splitlines() if line}
+        assert staged_paths == {"feature/orphan_only.py"}
+
+        monkeypatch.chdir(repo)
+        result = detect_scope()
+        assert result is not None
+        assert result.file_count == 1
+        assert result.files == ("feature/orphan_only.py",)
+        assert _run_main(repo, monkeypatch) == 0
 
 
 class TestReport:

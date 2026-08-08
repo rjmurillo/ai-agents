@@ -233,23 +233,26 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         raise ScopeDetectionError(f"could not resolve base branch {base_branch}")
 
     merge_head = get_merge_head_commit()
-    merge_base = get_merge_base(base_branch, base_ref)
-    if not merge_base:
-        raise ScopeDetectionError(f"could not determine merge base with {base_branch}")
-
     if merge_head:
         # During an in-progress merge, measure the final staged tree against
         # the resolved PR base ref. This matches the eventual PR diff against
         # that base, so branch-local staged work, local-main-only commits, and
         # sibling-branch merges all count, while base-branch files already
-        # present on the resolved base stay out of scope.
+        # present on the resolved base stay out of scope. Do not require a
+        # merge-base here: unrelated-history merges still produce a valid
+        # staged diff against the base ref, and blocking on merge-base would
+        # turn a countable merge into a hard error.
         files = sorted(set(get_index_files_against_ref(base_ref)))
         return ScopeResult(
             file_count=len(files),
-            merge_base=merge_base[:12],
+            merge_base=base_ref[:12],
             current_branch=branch,
             files=tuple(files),
         )
+
+    merge_base = get_merge_base(base_branch, base_ref)
+    if not merge_base:
+        raise ScopeDetectionError(f"could not determine merge base with {base_branch}")
 
     # Count the final staged tree against the merge base, matching the
     # in-progress-merge path above. `git diff --cached --diff-filter=ACMR
