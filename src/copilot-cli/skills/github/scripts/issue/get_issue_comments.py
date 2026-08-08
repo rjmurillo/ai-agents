@@ -101,6 +101,20 @@ def _exit_code_for(message: str, *, not_found: bool) -> tuple[int, str]:
     return 3, "ApiError"
 
 
+def _comment_page_error_text(
+    result: subprocess.CompletedProcess[str],
+    page: int,
+) -> str:
+    message = result.stderr.strip() or result.stdout.strip()
+    if message:
+        return message
+    return (
+        "gh api exited with return code "
+        f"{result.returncode} while fetching issue comment page {page} "
+        "and no error output"
+    )
+
+
 def _run_comment_page(
     owner: str,
     repo: str,
@@ -122,7 +136,7 @@ def _run_comment_page(
         if result.returncode == 0:
             return result
 
-        error_text = result.stderr.strip() or result.stdout.strip()
+        error_text = _comment_page_error_text(result, page)
         if attempt >= len(
             ISSUE_COMMENT_REFUSAL_BACKOFF_SECONDS
         ) or not _RETRYABLE_COMMENT_FETCH_ERROR.search(error_text):
@@ -156,7 +170,7 @@ def _fetch_comments(owner: str, repo: str, issue: int, fmt: str) -> list[dict[st
     while True:
         result = _run_comment_page(owner, repo, issue, page)
         if result.returncode != 0:
-            error_str = result.stderr.strip() or result.stdout.strip()
+            error_str = _comment_page_error_text(result, page)
             not_found = "Could not resolve" in error_str or "not found" in error_str.lower()
             code, error_type = _exit_code_for(error_str, not_found=not_found)
             write_skill_error(
