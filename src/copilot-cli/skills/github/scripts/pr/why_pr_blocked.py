@@ -100,7 +100,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
 }"""
 
 # Passing conclusions per get_pr_checks.py semantics.
-_PASSING_CONCLUSIONS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
+_PASSING_CONCLUSIONS = {"SUCCESS", "NEUTRAL"}
 _PASSING_STATES = {"SUCCESS"}
 
 

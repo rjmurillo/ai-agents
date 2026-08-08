@@ -131,6 +131,32 @@ class TestDiagnose:
         assert "Validate PR" in result["FailingRequired"]
         assert result["MissingRequired"] == []
 
+    def test_required_skipped_check_is_failing(self):
+        pr_data = {
+            "MergeStateStatus": "BLOCKED",
+            "OverallState": "FAILURE",
+            "CheckNodes": [_check_run_node("Validate PR", "SKIPPED", required=True)],
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Validate PR"])
+        assert "Validate PR" in result["FailingRequired"]
+        assert result["MissingRequired"] == []
+
+    def test_failure_and_skipped_same_name_still_fails(self):
+        nodes = [
+            _check_run_node("Validate PR", "FAILURE", required=True),
+            _check_run_node("Validate PR", "SKIPPED", required=True),
+        ]
+        pr_data = {
+            "MergeStateStatus": "BLOCKED",
+            "OverallState": "FAILURE",
+            "CheckNodes": nodes,
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Validate PR"])
+        assert "Validate PR" in result["FailingRequired"]
+        assert result["MissingRequired"] == []
+
     def test_unresolved_threads_counted(self):
         pr_data = {
             "MergeStateStatus": "BLOCKED",
