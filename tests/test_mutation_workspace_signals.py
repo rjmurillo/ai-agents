@@ -142,6 +142,37 @@ def test_signal_after_worktree_add_still_runs_cleanup(
     assert not list(marker_directory(REPO_ROOT).iterdir())
 
 
+def test_signal_at_cleanup_transition_still_runs_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class InterruptingSignalState:
+        pending_signal: int | None = None
+        _cleaning_up = False
+        _interrupted = False
+
+        @property
+        def cleaning_up(self) -> bool:
+            return self._cleaning_up
+
+        @cleaning_up.setter
+        def cleaning_up(self, value: bool) -> None:
+            self._cleaning_up = value
+            if value and not self._interrupted:
+                self._interrupted = True
+                raise MutationInterrupted(128 + signal.SIGTERM)
+
+    state = InterruptingSignalState()
+    monkeypatch.setattr(mutation_workspace, "_SignalState", lambda: state)
+
+    with pytest.raises(MutationInterrupted):
+        with isolated_mutation_worktree(REPO_ROOT, [TARGET]) as workspace:
+            scratch = workspace.root
+            marker = workspace.marker_path
+
+    assert not scratch.exists()
+    assert not marker.exists()
+
+
 @pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM])
 def test_catchable_signal_removes_marker_and_scratch(
     signum: signal.Signals,

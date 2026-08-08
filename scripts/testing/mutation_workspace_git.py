@@ -25,7 +25,7 @@ _GIT_ENVIRONMENT_KEYS = {
     "GIT_SHALLOW_FILE",
     "GIT_WORK_TREE",
 }
-_GIT_ENVIRONMENT_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
+_GIT_ENVIRONMENT_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_", "GIT_TRACE")
 
 
 class MutationWorkspaceError(RuntimeError):
@@ -64,7 +64,10 @@ def require_git_stdout(cwd: Path, *args: str, error: str) -> str:
     result = run_git(cwd, *args)
     if result.returncode != 0 or not result.stdout.strip():
         raise MutationWorkspaceError(f"{error}: {result.stderr.strip()}")
-    return result.stdout.strip()
+    stdout = result.stdout.strip()
+    if "\n" in stdout or "\r" in stdout:
+        raise MutationWorkspaceError(f"{error}: unexpected multiline git output")
+    return stdout
 
 
 def git_root(path: Path) -> Path:
@@ -104,7 +107,13 @@ def tracked_repository_path(path: Path) -> tuple[Path, Path] | None:
                 f"{result.stderr.strip()}"
             )
         return None
-    repo_root = Path(result.stdout.strip()).resolve()
+    stdout = result.stdout.strip()
+    if "\n" in stdout or "\r" in stdout:
+        raise MutationWorkspaceError(
+            f"cannot resolve repository for tracked path {resolved}: "
+            "unexpected multiline git output"
+        )
+    repo_root = Path(stdout).resolve()
     if not resolved.is_relative_to(repo_root):
         return None
     relative = resolved.relative_to(repo_root)

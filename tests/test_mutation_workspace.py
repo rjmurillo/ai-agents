@@ -149,6 +149,21 @@ def test_git_failure_does_not_fall_back_to_active_target(
         mutation_workspace.tracked_repository_path(REPO_ROOT / TARGET)
 
 
+def test_multiline_git_root_does_not_fall_back_to_active_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    malformed = subprocess.CompletedProcess(
+        args=["git", "rev-parse"],
+        returncode=0,
+        stdout=f"{REPO_ROOT}\ntrace output\n",
+        stderr="",
+    )
+    monkeypatch.setattr(mutation_workspace_git, "run_git", lambda *_args: malformed)
+
+    with pytest.raises(MutationWorkspaceError, match="unexpected multiline"):
+        mutation_workspace.tracked_repository_path(REPO_ROOT / TARGET)
+
+
 def test_git_pointer_environment_cannot_redirect_tracking_or_markers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -170,6 +185,7 @@ def test_git_pointer_environment_cannot_redirect_tracking_or_markers(
         "GIT_CONFIG_VALUE_0": "/",
         "GIT_DIR": str(common_dir.resolve()),
         "GIT_INDEX_FILE": str(REPO_ROOT / "invalid-index"),
+        "GIT_TRACE": "/dev/stdout",
         "GIT_WORK_TREE": "/",
     }
     for key, value in hostile_environment.items():

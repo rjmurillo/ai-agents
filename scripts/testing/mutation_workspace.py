@@ -256,7 +256,12 @@ def isolated_mutation_worktree(
             body_error = exc
             raise
         finally:
-            signal_state.cleaning_up = True
+            transition_signal: MutationInterrupted | None = None
+            try:
+                signal_state.cleaning_up = True
+            except MutationInterrupted as exc:
+                transition_signal = exc
+                signal_state.cleaning_up = True
             cleanup_errors: list[str] = []
             try:
                 _remove_worktree(root, scratch_root)
@@ -281,9 +286,13 @@ def isolated_mutation_worktree(
                 if body_error is None:
                     if signal_state.pending_signal is not None:
                         raise MutationInterrupted(128 + signal_state.pending_signal)
+                    if transition_signal is not None:
+                        raise transition_signal
                     raise MutationWorkspaceError("; ".join(cleanup_errors))
             if body_error is None and signal_state.pending_signal is not None:
                 raise MutationInterrupted(128 + signal_state.pending_signal)
+            if body_error is None and transition_signal is not None:
+                raise transition_signal
     finally:
         _restore_signal_handlers(previous_handlers)
 
