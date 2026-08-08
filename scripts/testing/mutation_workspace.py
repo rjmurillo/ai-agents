@@ -24,7 +24,11 @@ from pathlib import Path
 from types import FrameType
 from typing import Any, TextIO
 
-from scripts.testing import mutation_workspace_git
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.testing import mutation_workspace_git  # noqa: E402
 
 SCRATCH_DIRECTORY = mutation_workspace_git.SCRATCH_DIRECTORY
 MutationWorkspaceError = mutation_workspace_git.MutationWorkspaceError

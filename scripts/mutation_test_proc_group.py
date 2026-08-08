@@ -21,12 +21,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.testing.mutation_workspace import (
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.testing.mutation_workspace import (  # noqa: E402
     isolated_mutation_worktree,
     purge_bytecode,
 )
-
-ROOT = Path(__file__).resolve().parents[1]
 
 GHP_REL = Path("scripts") / "validation" / "git_hook_policy.py"
 WLT_REL = Path("scripts") / "validation" / "run_workflow_local_test.py"

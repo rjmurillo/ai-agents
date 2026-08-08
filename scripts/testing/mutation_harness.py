@@ -41,7 +41,11 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from scripts.testing.mutation_workspace import (
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.testing.mutation_workspace import (  # noqa: E402
     MutationWorkspaceError,
     isolated_mutation_worktree,
     purge_bytecode,

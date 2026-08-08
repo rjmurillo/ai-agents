@@ -26,12 +26,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from shlex import quote
 
-from scripts.testing.mutation_workspace import (
+ACTIVE_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(ACTIVE_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(ACTIVE_REPO_ROOT))
+
+from scripts.testing.mutation_workspace import (  # noqa: E402
     isolated_mutation_worktree,
     purge_bytecode,
 )
 
-ACTIVE_REPO_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = ACTIVE_REPO_ROOT
 TARGETS = (
     Path("tests/workflows/test_workflow_job_permissions.py"),
