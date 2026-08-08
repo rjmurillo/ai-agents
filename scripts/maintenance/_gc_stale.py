@@ -219,7 +219,12 @@ def linked_checkout_present(path: str) -> bool:
     something that is no longer that worktree. Verified against real git: a
     linked worktree always carries a ``.git`` file holding ``gitdir:``, and a
     replacement directory does not. The main worktree, whose ``.git`` is a
-    directory, never reaches here; ``decide`` returns ``KEEP_MAIN`` above.
+    directory, never reaches here; ``decide`` returns ``KEEP_MAIN`` above. A
+    ``.git`` directory at any other path is therefore a foreign standalone
+    repository sitting where the linked checkout used to be, not this entry, so
+    it reads as stale rather than present. Reading it as present would let
+    ``git worktree remove`` delete that unrelated repository and its object
+    database.
 
     The marker existing is not enough either. Move worktree B onto worktree
     A's deleted path and A's directory now holds a ``.git`` file, but it names
@@ -242,7 +247,7 @@ def linked_checkout_present(path: str) -> bool:
     try:
         recorded = marker.read_text(encoding="utf-8").strip()
     except IsADirectoryError:
-        return True
+        return False
     except OSError:
         return False
     admin = _anchored(recorded.removeprefix("gitdir:").strip(), marker.parent)
@@ -271,6 +276,14 @@ def linked_checkout_present(path: str) -> bool:
 # A lock left behind by a crashed git reads the same way and keeps the entry,
 # which is the safe direction and one the reason text tells the reader how to
 # clear.
+# ``HEAD.lock`` rides along for the same reason as ``index.lock``: git writes it
+# while it moves ``HEAD``, then renames it into place. A detached-HEAD update,
+# which writes ``HEAD`` directly, leaves ``HEAD.lock`` in the admin directory
+# during that window while none of the operation markers above exist. Verified
+# against real git 2.43.0 that ``git worktree remove`` deletes a worktree whose
+# ``HEAD.lock`` is held, exits 0, and says nothing, so a HEAD move in flight is
+# interrupted with no warning. A lock left by a crashed git keeps the entry,
+# again the safe direction.
 _OPERATION_MARKERS: tuple[tuple[str, str], ...] = (
     ("MERGE_HEAD", "an unfinished merge is running"),
     ("CHERRY_PICK_HEAD", "an unfinished cherry-pick is running"),
@@ -280,6 +293,7 @@ _OPERATION_MARKERS: tuple[tuple[str, str], ...] = (
     ("rebase-apply", "an unfinished rebase is running"),
     ("sequencer", "an unfinished sequencer run is waiting"),
     ("index.lock", "another git process is holding the index lock"),
+    ("HEAD.lock", "another git process is updating HEAD"),
 )
 
 
@@ -308,16 +322,28 @@ def in_progress_operation(path: str) -> str | None:
     Answers None when the admin directory cannot be resolved, because the two
     callers that matter both treat an unresolvable entry as stale on their own
     and a false refusal here would keep every unreadable worktree forever.
+
+    Probes each marker with ``lstat`` rather than ``exists``. ``exists`` folds a
+    missing file and an unreadable one into the same ``False``, so a permission
+    or I/O error on the admin directory would read as "no operation in progress"
+    and let the entry be removed mid-flight. ``lstat`` separates the two: a
+    ``FileNotFoundError`` is the ordinary "marker absent" and moves on, while any
+    other ``OSError`` means the question could not be answered, which is
+    disclosed as a withholding reason rather than swallowed. Checking the link
+    itself, not its target, keeps a marker that happens to be a symlink from
+    reading as absent because its target is gone.
     """
     admin = admin_dir_from_marker(path)
     if admin is None:
         return None
     for name, description in _OPERATION_MARKERS:
         try:
-            if (admin / name).exists():
-                return description
-        except OSError:
+            (admin / name).lstat()
+        except FileNotFoundError:
             continue
+        except OSError:
+            return f"the {name} marker could not be read, so an operation may be in progress"
+        return description
     return None
 
 

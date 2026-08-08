@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -98,6 +99,7 @@ def test_the_commit_an_interrupted_merge_holds_is_reachable_from_nothing_else(
         ("rebase-apply", "rebase-apply", "an unfinished rebase is running"),
         ("sequencer", "sequencer", "an unfinished sequencer run is waiting"),
         ("index.lock", "index.lock", "another git process is holding the index lock"),
+        ("HEAD.lock", "HEAD.lock", "another git process is updating HEAD"),
     ],
 )
 def test_every_operation_marker_git_can_write_is_recognised(
@@ -184,6 +186,26 @@ def test_an_unresolvable_checkout_answers_none_rather_than_refusing(
     assert _gc_stale.admin_dir_from_marker(str(tmp_path)) is None
 
 
+def test_a_marker_that_cannot_be_stated_withholds_rather_than_clearing(
+    git_sandbox: GitSandbox,
+) -> None:
+    """A permission or I/O error on a marker is unknown, and unknown withholds.
+
+    ``exists`` reads a missing marker and an unreadable one as the same
+    ``False``, so a permission or I/O error on the admin directory would answer
+    "no operation running" and let the entry be removed mid-flight. ``lstat``
+    separates them: a ``FileNotFoundError`` is the ordinary "marker absent" and
+    moves on, while any other ``OSError`` is disclosed as a reason that keeps
+    the entry. Asserted with a real admin directory so the resolution the probe
+    depends on is not itself mocked away.
+    """
+    worktree = _detached_worktree(git_sandbox, "unreadable-marker")
+    with patch.object(Path, "lstat", side_effect=PermissionError(13, "denied")):
+        result = _gc_stale.in_progress_operation(str(worktree))
+    assert result is not None, "an unreadable marker must not read as no operation running"
+    assert "could not be read" in result
+
+
 def test_the_probe_costs_no_subprocess(
     git_sandbox: GitSandbox,
     monkeypatch: pytest.MonkeyPatch,
@@ -226,4 +248,33 @@ def test_a_locked_index_is_refused_because_git_would_remove_it_anyway(
 
     removal = git(git_sandbox.main, "worktree", "remove", str(worktree), check=False)
     assert removal.returncode == 0, "git still ignores the lock; drop this guard when it stops"
+    assert not worktree.exists()
+
+
+def test_a_head_lock_is_refused_because_git_would_remove_it_anyway(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """git writes HEAD.lock while it moves HEAD, and worktree remove ignores it.
+
+    A detached-HEAD update writes ``HEAD`` directly, so ``HEAD.lock`` sits in
+    the admin directory during that window while none of the operation markers
+    exist. Confirmed against real git 2.43.0: with the lock in place the removal
+    still succeeds, exits 0, and prints nothing, so a HEAD move in flight is
+    interrupted silently unless this guard keeps the entry. The removal is
+    asserted rather than described so a future git that honoured the lock would
+    make this guard redundant and say so here.
+    """
+    worktree = _detached_worktree(git_sandbox, "locked-head")
+    admin = _gc_stale.admin_dir_from_marker(str(worktree))
+    assert admin is not None
+    (admin / "HEAD.lock").write_text("", encoding="utf-8")
+
+    decision = decision_for(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    assert decision["remove"] is False, decision["reason"]
+    assert "updating HEAD" in str(decision["reason"])
+
+    removal = git(git_sandbox.main, "worktree", "remove", str(worktree), check=False)
+    assert removal.returncode == 0, "git still ignores HEAD.lock; drop this guard when it stops"
     assert not worktree.exists()

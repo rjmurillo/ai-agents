@@ -124,7 +124,7 @@ class TestDecide:
     def test_the_kept_reason_carries_the_sha_needed_to_rescue_it(self):
         """A path alone is not actionable; the rescue command needs the SHA."""
         decision = decide_stale(stale_worktree(), reachable=False)
-        assert f"git branch gc-rescue-{SHA} {SHA}" in decision.reason
+        assert f"git -C {MAIN} branch gc-rescue-{SHA} {SHA}" in decision.reason
 
     def test_a_missing_head_never_renders_as_a_literal_none(self):
         """``git branch <name> None`` is a command that cannot work and looks like one that can."""
@@ -224,13 +224,13 @@ class TestReachability:
         def boom(_):
             raise RuntimeError("boom")
 
-        unknown = _gc_reasons._head_warning(SHA, boom)
-        measured = _gc_reasons._head_warning(SHA, lambda _: "\n")
+        unknown = _gc_reasons._head_warning(SHA, MAIN, boom)
+        measured = _gc_reasons._head_warning(SHA, MAIN, lambda _: "\n")
         assert worktree_report.KEEP_STALE_HEAD_UNKNOWN in unknown, unknown
         assert worktree_report.KEEP_STALE_UNREACHABLE in measured, measured
         assert worktree_report.KEEP_STALE_UNREACHABLE not in unknown, unknown
         for warning in (unknown, measured):
-            assert f"git branch gc-rescue-{SHA} {SHA}" in warning, warning
+            assert f"git -C {MAIN} branch gc-rescue-{SHA} {SHA}" in warning, warning
 
     def test_a_missing_head_counts_as_unreachable(self):
         assert _gc_reasons.stale_head_is_reachable(None, lambda _: "") is False
@@ -319,7 +319,7 @@ class TestReflogWarning:
         sha = "a" * 40
         reason = self._reason([sha])
         assert "WARNING" in reason
-        assert f"git branch gc-rescue-{sha} {sha}" in reason
+        assert f"git -C {MAIN} branch gc-rescue-{sha} {sha}" in reason
 
     def test_no_orphans_means_no_warning(self):
         assert self._reason([]) == KEEP_STALE
@@ -331,7 +331,7 @@ class TestReflogWarning:
 
     def test_only_three_rescue_commands_are_printed_and_the_rest_are_counted(self):
         reason = self._reason([f"{i:040x}" for i in range(7)])
-        assert reason.count("git branch gc-rescue-") == 3
+        assert reason.count(f"git -C {MAIN} branch gc-rescue-") == 3
         assert "and 4 more" in reason
 
     def test_both_warnings_appear_when_index_and_reflog_are_both_at_risk(self):
@@ -403,11 +403,19 @@ class TestCheckoutPresence:
         (checkout / ".git").write_text("gitdir:\n", encoding="utf-8")
         assert _gc_stale.linked_checkout_present(str(checkout)) is False
 
-    def test_a_main_worktree_carries_a_directory_not_a_file(self, tmp_path):
-        """``.git`` is a real directory here, so there is no link to follow."""
-        main = tmp_path / "main"
-        (main / ".git").mkdir(parents=True)
-        assert _gc_stale.linked_checkout_present(str(main)) is True
+    def test_a_standalone_repo_replacing_a_linked_path_is_not_the_entry(self, tmp_path):
+        """``.git`` is a real directory here, so it is a standalone repository.
+
+        The true main worktree also holds a ``.git`` directory, but it never
+        reaches this probe: ``decide`` returns ``KEEP_MAIN`` for it above. So the
+        only checkout that arrives here with a ``.git`` directory is a foreign
+        standalone repository sitting where a linked worktree used to be, which
+        is not this entry and reads as stale. Reading it as present would let
+        ``git worktree remove`` delete that unrelated repository.
+        """
+        foreign = tmp_path / "foreign"
+        (foreign / ".git").mkdir(parents=True)
+        assert _gc_stale.linked_checkout_present(str(foreign)) is False
 
     def test_relative_links_resolve_against_the_file_that_holds_them(self, tmp_path):
         """``worktree.useRelativePaths`` writes both sides relative.
