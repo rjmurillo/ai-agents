@@ -1,7 +1,7 @@
 # QA Report: PR #4735 Closing Review
 
-**SHA**: ed0214a30d1b4d763e4ec17a149c77c8db582814
-**Date**: 2026-08-07
+**SHA**: 33829757ee3a0c82715cb6b442f652636b395e9c
+**Date**: 2026-08-08
 **Scope**: Closing-review fixes and original #4705 memory-index parser/canonicalization fix
 
 ## Verdict
@@ -14,11 +14,16 @@ All acceptance criteria verified. No blocking issues found.
 
 | Metric | Value |
 |--------|-------|
-| Focused tests executed | 2,379 |
-| Passed | 2,379 |
+| Focused tests executed at current SHA | 1,075 |
+| Passed | 1,075 |
 | Failed | 0 |
-| Files changed vs main | 27 |
-| Net lines added | 2,973 |
+| Full Python tests collected | 24,148 |
+| Full Python tests passed | 24,116 |
+| Full Python tests skipped | 32 |
+| Full Python suite exit code | 0 |
+| Files changed vs main | 46 |
+| Lines added | 4,916 |
+| Lines deleted | 361 |
 
 ## Acceptance Criteria Evidence
 
@@ -30,7 +35,7 @@ All acceptance criteria verified. No blocking issues found.
 - CommonMark token stream correctly extracts link destinations from table cells
 - Duplicate detection works: Counter identifies repeated canonical references
 - Unsafe destinations (percent escapes, backslashes, parentheses, query strings, fragments) are rejected with specific reasons
-- Command: `uv run python scripts/validation/memory_index.py --ci` passed (328 indexed, 0 missing, 0 keyword issues)
+- Command: `uv run --frozen python scripts/validation/memory_index.py --ci` passed
 - Tests: 142 passed in tests/test_validation_memory_index.py
 
 ### AC-2: Session-end --qa-report support
@@ -42,7 +47,7 @@ All acceptance criteria verified. No blocking issues found.
 - Rejects reports outside QA root with ValueError
 - Rejects nonexistent files
 - SKILL.md documents the flag with usage example
-- Tests: 32 passed in tests/skills/session/test_complete_session_log.py
+- Tests: 39 passed in tests/skills/session/test_complete_session_log.py
 
 ### AC-3: Mandatory qaValidation fail-closed behavior
 
@@ -78,7 +83,7 @@ All acceptance criteria verified. No blocking issues found.
 - `_candidate_module_files` inspects package `__init__.py` files
 - `memory_index.py` correctly detected as transitively importing `markdown_it` (a third-party package)
 - `check_python3_entrypoints.py` scan docs list expanded with 7 new retrospective agent files
-- Command: `uv run python scripts/validation/check_python3_entrypoints.py` passed
+- Command: `uv run --frozen python scripts/validation/check_python3_entrypoints.py` passed
 - Tests: 29 passed in tests/test_check_python3_entrypoints.py
 
 ### AC-7: Session-end --refresh-ending-commit
@@ -104,23 +109,53 @@ All acceptance criteria verified. No blocking issues found.
 - Git status expands wholly untracked directories to file paths
 - Unrelated modified files still fail the completion gate
 - Existing `exclude_path` callers remain supported
-- Tests: 7 passed in tests/test_session_deadlock_4425.py
+- Tests: 9 passed in tests/test_session_deadlock_4425.py
+
+### AC-10: Mandatory QA contract stays executable
+
+**Status**: [PASS]
+
+- Session initialization emits incomplete `qaValidation` as a required item
+- Session validation requires `qaValidation`
+- The owner accepts a QA report or a verified investigation-only exemption
+- Investigation checks include committed, staged, unstaged, and untracked paths
+- Rename checks inspect both old and new paths
+- `StagedFiles` remains a compatibility alias for the full `ChangedFiles` set
+- Unapproved QA skip evidence fails validation
+- Session completion recovers after a prior failed validation run
+- Dirty-state checks parse NUL-delimited rename source and destination paths
+- Live negative control rejected all 18 non-exempt paths from `b5899d7b3b`
+- Tests: 1,075 passed across parser, entrypoint, session, workflow, encoding, and owner suites
+
+### AC-11: Investigation-only scope reaches the validation endpoint
+
+**Status**: [PASS]
+
+- The validator accepts an exact `--validation-head`
+- Local pre-PR validation resolves current HEAD and passes it to each changed session log
+- CI checks out the exact pull request head and passes that SHA to the validator
+- Scope remains a fixed commit range, so working-tree changes cannot alter the verdict
+- An unresolved local HEAD fails closed through an invalid validation endpoint
+- Tests cover eligible, stale-ending, invalid-head, pre-PR, and CI paths
 
 ## Commands and Results
 
 | Command | Result |
 |---------|--------|
-| `uv run python scripts/validation/memory_index.py --ci` | PASSED: 33/33 domains, 328 files, 0 issues |
-| `uv run python scripts/validation/check_python3_entrypoints.py` | OK: no bare-python3 invocations |
-| `uv run python -m pytest tests/test_validation_memory_index.py -x -q` | 142 passed (1.56s) |
-| `uv run python -m pytest tests/test_check_python3_entrypoints.py -x -q` | 29 passed (0.92s) |
-| `uv run python -m pytest tests/skills/session/test_complete_session_log.py -x -q` | 32 passed (0.45s) |
-| `uv run python -m pytest tests/skills/test_session_scripts.py -x -q` | 48 passed (0.59s) |
-| `uv run python -m pytest tests/workflows/test_workflow_fail_open_guards.py -x -q` | 21 passed (0.60s) |
+| `uv run --frozen python scripts/validation/memory_index.py --ci` | Passed |
+| `uv run --frozen python scripts/validation/check_python3_entrypoints.py` | Passed |
+| Focused parser, session, workflow, encoding, and entrypoint suite | 1,075 passed in 45.00s |
+| `uv run --frozen pytest -qq tests/ -x` | 24,116 passed, 32 skipped, 0 failed in 696.75s |
+| `uv run --frozen python scripts/validation/pre_pr.py` | Passed, exit 0 |
 | `diff .claude/.../complete_session_log.py src/copilot-cli/.../complete_session_log.py` | Identical |
 | `diff .claude/.../test_complete_session_log.py src/copilot-cli/.../test_complete_session_log.py` | Identical |
+| `uv run --frozen python build/scripts/build_all.py --platform copilot-cli --check` | Passed |
+| Investigation eligibility negative control from `b5899d7b3b` | 20 changed, 18 violations, compatibility alias matched |
+| Ruff on changed Python | Passed |
+| GPT-5.6 Sol review of SHA 33829757ee and full diff | CLEAN: no Critical or High findings |
+| Security review of workflow head checkout and SHA propagation | CLEAN |
 
-## Pre-existing Deterministic Evidence (reported by caller)
+## Earlier Evidence for the Original Validator Fix
 
 | Check | Result |
 |-------|--------|
@@ -130,7 +165,6 @@ All acceptance criteria verified. No blocking issues found.
 | Focused session-end suite | 129 passed |
 | Ruff lint | Passed |
 | Script and Markdown portability | Passed |
-| Review tree identity vs tested 743c364 | Identical |
 | GPT-5.6 Sol review of SHA ed0214a30d and final evidence | CLEAN: no Critical or High findings |
 
 ## Coverage Assessment
@@ -140,7 +174,9 @@ All acceptance criteria verified. No blocking issues found.
 - Entrypoint checker: 29 tests cover transitive resolution, cycle detection, package initializer inspection
 - Workflow guards: 21 tests cover CI integrity failure modes
 
-The 2,379 focused tests exercise changed public functions with positive, negative, and edge-case scenarios.
+The final 1,075-test focused run exercises the parser, QA contract, generated
+entrypoints, encoding rules, and PR-head validation. The exact final code SHA
+passed 24,116 Python tests, with 32 skips and no failures.
 
 ## Findings by Severity
 
@@ -159,8 +195,8 @@ None.
 ## Reconciliation
 
 ```
-Promised: markdown-it parser, duplicate detection, --qa-report, fail-closed qaValidation, owned evidence commits, Copilot mirrors, frozen entrypoints, transitive deps, --refresh-ending-commit
-Delivered: All items verified at SHA ed0214a30d1b4d763e4ec17a149c77c8db582814
+Promised: markdown-it parser, duplicate detection, --qa-report, fail-closed qaValidation, owned evidence commits, Copilot mirrors, frozen entrypoints, transitive deps, --refresh-ending-commit, exact validation head
+Delivered: All items verified at SHA 33829757ee3a0c82715cb6b442f652636b395e9c
 Gap: None
 Result: PASS
 ```
