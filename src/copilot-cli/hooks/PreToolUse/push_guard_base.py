@@ -17,13 +17,14 @@ used in log lines and error codes. The framework owns:
   plus suffix string check; see issue 1884 pre-mortem R-E)
 - structured stdout block on violation
 - a machine-parseable ``EVENT=<json>`` line on stderr for every block
-- fail-open on infrastructure errors
+- configurable infrastructure error handling
 
 Hook Type: PreToolUse
 
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
-    0 = Allow (no matching files, validator clean, infra fallback)
-    2 = Block (validator returned violations OR bootstrap failed)
+    0 = Allow (no matching files or validator clean)
+    2 = Block (validator returned violations, strict infrastructure failure,
+        or bootstrap failure)
 
 Bootstrap failures (missing plugin lib) exit 2, NOT fail-open. A guard
 that cannot find its lib is a hard misconfiguration; allowing pushes
@@ -36,6 +37,9 @@ Naming convention:
         name="markdown-lint"  -> E_MARKDOWN_LINT
         name="manifest-count" -> E_MANIFEST_COUNT
         name="session-log"    -> E_SESSION_LOG
+
+Customer-facing verifiers pass ``project_only=False`` and
+``fail_closed=True``. Internal advisory guards can retain the defaults.
 
 When NOT to use this framework:
     - PostToolUse hooks (different hook semantics).
@@ -96,8 +100,8 @@ if _lib_dir is None or not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from hook_utilities import get_project_directory
-from hook_utilities.guards import skip_if_consumer_repo
+from hook_utilities import get_project_directory  # noqa: E402
+from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
 # Re-export for sibling guards that delegate plugin path resolution to
 # _bootstrap. They import via this module so the static path-resolution
@@ -122,6 +126,10 @@ MAX_STDIN_BYTES = 1_048_576
 # ``git push`` is too strict. ``re.match`` anchors at the start, but
 # accept optional leading whitespace too for robustness.
 _GIT_PUSH_RE = re.compile(r"\s*git\s+push(\s|$)")
+
+
+class _HookInputError(ValueError):
+    """Raised when a strict guard receives an invalid hook payload."""
 
 
 def _match_double_star(path: str, pattern: str) -> bool:
@@ -237,6 +245,7 @@ def _changed_files(
     cwd: str,
     name: str = "guard",
     include_deletions: bool = False,
+    fail_closed: bool = False,
 ) -> list[str] | None:
     """Return changed files committed but not yet pushed.
 
@@ -279,13 +288,19 @@ def _changed_files(
     if rc2 == 0:
         return [line for line in out2.splitlines() if line.strip()]
     fallback_reason = out2.splitlines()[0] if out2 else "non-zero exit"
+    outcome = "blocking push" if fail_closed else "allowing push (fail-open)"
     print(
-        f"[{name}] git diff failed on both refs; allowing push (fail-open). "
+        f"[{name}] git diff failed on both refs; {outcome}. "
         f"primary=@{{push}}..HEAD: {primary_reason}; "
         f"fallback={fallback_ref}...HEAD: {fallback_reason}",
         file=sys.stderr,
     )
-    _emit_fail_open(name, "diff_failed", f"primary: {primary_reason}; fallback: {fallback_reason}")
+    if not fail_closed:
+        _emit_fail_open(
+            name,
+            "diff_failed",
+            f"primary: {primary_reason}; fallback: {fallback_reason}",
+        )
     return None
 
 
@@ -381,7 +396,7 @@ def _detect_default_base_ref(cwd: str) -> str:
     return "origin/main"
 
 
-def _read_stdin_command(name: str) -> str | None:
+def _read_stdin_command(name: str, fail_closed: bool = False) -> str | None:
     """Parse the tool command from hook stdin, or return None.
 
     Fail-open with telemetry: every anomalous stdin shape (oversize, unparseable
@@ -394,27 +409,32 @@ def _read_stdin_command(name: str) -> str | None:
     """
     if sys.stdin.isatty():
         return None
+    def invalid(detail: str) -> None:
+        if fail_closed:
+            raise _HookInputError(detail)
+        _emit_fail_open(name, "bad_stdin", detail)
+
     raw = sys.stdin.read(MAX_STDIN_BYTES + 1)
     if len(raw) > MAX_STDIN_BYTES:
-        _emit_fail_open(name, "bad_stdin", f"stdin exceeds {MAX_STDIN_BYTES} bytes")
+        invalid(f"stdin exceeds {MAX_STDIN_BYTES} bytes")
         return None
     if not raw.strip():
         return None
     try:
         payload = json.loads(raw)
     except (json.JSONDecodeError, ValueError) as exc:
-        _emit_fail_open(name, "bad_stdin", f"unparseable JSON: {type(exc).__name__}")
+        invalid(f"unparseable JSON: {type(exc).__name__}")
         return None
     if not isinstance(payload, dict):
-        _emit_fail_open(name, "bad_stdin", "payload not a JSON object")
+        invalid("payload not a JSON object")
         return None
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
-        _emit_fail_open(name, "bad_stdin", "tool_input missing/not object")
+        invalid("tool_input missing/not object")
         return None
     command = tool_input.get("command")
     if not isinstance(command, str) or not command:
-        _emit_fail_open(name, "bad_stdin", "command missing/not non-empty string")
+        invalid("command missing/not non-empty string")
         return None
     return command
 
@@ -477,6 +497,9 @@ def run_guard(
     globs: list[str],
     name: str,
     include_deletions: bool = False,
+    *,
+    project_only: bool = True,
+    fail_closed: bool = False,
 ) -> int:
     """Execute a pre-push guard.
 
@@ -489,14 +512,16 @@ def run_guard(
             deletion-only pushes still surface to the validator. Default
             ``False`` excludes deletions to protect validators that read
             the listed paths.
+        project_only: Skip outside the ai-agents repository when ``True``.
+        fail_closed: Block when hook input, Git state, or validation fails.
 
     Returns:
         Exit code: 0 to allow, 2 to block.
     """
-    if skip_if_consumer_repo(name):
+    if project_only and skip_if_consumer_repo(name):
         return 0
     try:
-        command = _read_stdin_command(name)
+        command = _read_stdin_command(name, fail_closed=fail_closed)
         if command is None:
             return 0
         # Defense in depth: even when the harness matcher is `Bash(git push*)`,
@@ -515,9 +540,20 @@ def run_guard(
 
         project_dir = get_project_directory()
         all_changed = _changed_files(
-            project_dir, name=name, include_deletions=include_deletions
+            project_dir,
+            name=name,
+            include_deletions=include_deletions,
+            fail_closed=fail_closed,
         )
         if all_changed is None:
+            if fail_closed:
+                _emit_violations(
+                    name,
+                    ["Guard could not determine changed files."],
+                    0,
+                    0,
+                )
+                return 2
             return 0
 
         matching = _filter_by_globs(all_changed, globs)
@@ -531,7 +567,18 @@ def run_guard(
         _emit_violations(name, violations, len(matching), len(all_changed))
         return 2
 
+    except _HookInputError as exc:
+        _emit_violations(name, [f"Guard received invalid hook input: {exc}"], 0, 0)
+        return 2
     except Exception as exc:
+        if fail_closed:
+            _emit_violations(
+                name,
+                [f"Guard infrastructure failure: {type(exc).__name__}: {exc}"],
+                0,
+                0,
+            )
+            return 2
         print(
             f"{name} guard error: {type(exc).__name__}: {exc}; "
             f"check validator implementation and changed-file paths. "

@@ -456,6 +456,10 @@ pre-push:
             run: uv run --frozen python scripts/ci/cli_exit_contract_ratchet.py --base-ref origin/main
             glob: ["**/*.py", "scripts/ci/cli_exit_contract_baseline.txt"]
 
+          - name: memory-token-check
+            timeout: 5m
+            run: uv run --frozen python scripts/update_memory_index_tokens.py --check
+            glob: ".serena/memories/**/*.md"
 
           - name: python-unreachable-statements
             timeout: 2m

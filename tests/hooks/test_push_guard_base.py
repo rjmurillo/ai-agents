@@ -82,6 +82,29 @@ class TestSkipShortCircuit:
         assert called["validator"] is False
 
 
+class TestConsumerExecution:
+    """Customer-facing guards must run in repositories that install the plugin."""
+
+    def test_consumer_repo_does_not_skip_when_project_only_is_false(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        push_command: None,
+        tmp_path: Path,
+    ) -> None:
+        with patch("push_guard_base.skip_if_consumer_repo", return_value=True), patch(
+            "push_guard_base.subprocess.run",
+            return_value=_ok_diff("docs/a.md\n"),
+        ), patch("push_guard_base.get_project_directory", return_value=str(tmp_path)):
+            rc = run_guard(
+                _always_violates,
+                ["*.md"],
+                "test-guard",
+                project_only=False,
+            )
+
+        assert rc == 2
+
+
 @pytest.fixture(autouse=True)
 def _no_consumer_repo_skip():
     with patch("push_guard_base.skip_if_consumer_repo", return_value=False):
@@ -870,6 +893,69 @@ class TestFailOpen:
         assert "test-guard guard error" in err
         assert "RuntimeError" in err
         assert "validator crashed" in err
+
+
+class TestFailClosed:
+    """Strict verifiers block when infrastructure prevents the check."""
+
+    def test_diff_failure_blocks(
+        self,
+        push_command: None,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        with patch(
+            "push_guard_base.subprocess.run", return_value=_bad_diff()
+        ), patch("push_guard_base.get_project_directory", return_value=str(tmp_path)):
+            rc = run_guard(
+                _always_violates,
+                ["*.md"],
+                "test-guard",
+                fail_closed=True,
+            )
+
+        assert rc == 2
+        assert "could not determine changed files" in capsys.readouterr().out
+
+    def test_validator_exception_blocks(
+        self,
+        push_command: None,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        def boom(_m: list[str], _a: list[str]) -> list[str]:
+            raise RuntimeError("validator crashed")
+
+        with patch(
+            "push_guard_base.subprocess.run",
+            return_value=_ok_diff("docs/a.md\n"),
+        ), patch("push_guard_base.get_project_directory", return_value=str(tmp_path)):
+            rc = run_guard(
+                boom,
+                ["*.md"],
+                "test-guard",
+                fail_closed=True,
+            )
+
+        assert rc == 2
+        assert "validator crashed" in capsys.readouterr().out
+
+    def test_malformed_hook_input_blocks(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.setattr("sys.stdin", io.StringIO("{not json"))
+
+        rc = run_guard(
+            _always_violates,
+            ["*.md"],
+            "test-guard",
+            fail_closed=True,
+        )
+
+        assert rc == 2
+        assert "invalid hook input" in capsys.readouterr().out
 
 
 class TestHooksJsonContract:

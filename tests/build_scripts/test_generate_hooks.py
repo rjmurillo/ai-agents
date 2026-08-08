@@ -1156,9 +1156,8 @@ def _setup_skill_companion_fixture(
     include_owner: bool = True,
     include_loader: bool = True,
 ) -> Path:
-    # Production _COMPANIONS_BY_OWNER is empty after issue #3184 removed every
-    # real companion pairing, so exercise the copy mechanism with a synthetic,
-    # fixture-local owner/companion mapping instead of a live production entry.
+    # Exercise the copy mechanism with a synthetic, fixture-local owner and
+    # companion mapping instead of depending on a production entry.
     monkeypatch.setattr(
         generate_hooks_events,
         "_COMPANIONS_BY_OWNER",
@@ -1202,6 +1201,27 @@ def _setup_skill_companion_fixture(
         )
     _write_settings(tmp_path / "settings.json", hooks)
     return cfg
+
+
+def test_markdownlint_guard_declares_and_matches_runtime_companion() -> None:
+    """The Copilot hook must receive the framework imported by its owner."""
+    repo_root = Path(__file__).resolve().parents[2]
+    canonical = (
+        repo_root / ".claude" / "hooks" / "PreToolUse" / "push_guard_base.py"
+    )
+    generated = (
+        repo_root
+        / "src"
+        / "copilot-cli"
+        / "hooks"
+        / "PreToolUse"
+        / "push_guard_base.py"
+    )
+
+    assert generate_hooks_events._COMPANIONS_BY_OWNER[
+        "PreToolUse/invoke_markdownlint_guard.py"
+    ] == ("push_guard_base.py",)
+    assert generated.read_bytes() == canonical.read_bytes()
 
 
 def test_generator_copies_skill_loader_without_dispatching_it(

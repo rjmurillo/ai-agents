@@ -104,6 +104,13 @@ class TestMemoryTierGateEnforcement:
             f"{run!r}"
         )
 
+    def test_memory_token_repair_has_pre_push_verifier(self) -> None:
+        job = self._find_job("memory-token-check")
+        run = job.get("run", "")
+        assert "scripts/update_memory_index_tokens.py" in run
+        assert "--check" in run
+        assert job.get("glob") == ".serena/memories/**/*.md"
+
     def test_memory_workflow_uses_ratchet_orphan_policy(self) -> None:
         data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
         steps = data["jobs"]["validate-memories"]["steps"]
