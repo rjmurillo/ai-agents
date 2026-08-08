@@ -5,6 +5,11 @@
 |session validation diagnose fixer protocol compliance NON_COMPLIANT changelog: [session/changelog-session-log-fixer](session/changelog-session-log-fixer.md) (480)
 |protocol blocking gate RFC MUST verification template legacy: [skills-protocol-index](skills-protocol-index.md) (300)
 
+[Index Catalog]
+|creator skill authoring frontmatter token efficiency test separation reference extraction: [creator-best-practices-index](creator-best-practices-index.md), [skills-index](skills-index.md)
+|learning retrospective best practices session notes: [learning-index](learning-index.md), [retrospective-best-practices-index](retrospective-best-practices-index.md)
+|pr comment navigation response templates review threads: [pr-comment-index](pr-comment-index.md)
+
 [GitHub and PR Operations]
 |self-assessment ready-to-push refuted independent review negative control inert fix guard does not bite: [decision-agent-self-assessment-does-not-survive-review](decision-agent-self-assessment-does-not-survive-review.md) (1149)
 |merge invalidates open PRs stale baseline ratchet strict status checks merge queue thread non-monotonic sweep turns main red green inputs do not compose global invariant: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (1994)
