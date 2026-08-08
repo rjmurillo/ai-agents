@@ -1,0 +1,146 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10003,
+    "date": "2026-08-06",
+    "branch": "docs/verification-discipline",
+    "startingCommit": "976b43a89",
+    "objective": "Record push-time and repo-state traps measured during the 95-issue triage fleet session"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena initial_instructions called at session start; memories read and written via serena tools"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions returned the Serena manual; symbolic tools used for memory reads and writes"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only dashboard); also read GOTCHAS.md and AGENTS.md before touching governance files"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/session-init/scripts and .claude/skills/session-end/scripts; used new_session_log_json.py and complete_session_log.py rather than hand-writing the log"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read usage-mandatory memory via Serena; also read AGENTS.md Skill-First section and .claude/rules/testing.md before editing governance docs"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md; also read GOTCHAS.md in full including the session-log commit rule"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read decision-measure-against-fresh-worktree-not-stale-checkout and searched the corpus with search_memory.py before recording new traps, to avoid duplicating existing entries"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/verification-discipline"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On docs/verification-discipline"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "976b43a89"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session log workLog, nextSteps, and sessionEnd populated before staging"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified; ADR-014 keeps it read-only"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Five memories written this session: github-rate-limit-endpoint-lies-under-secondary-limit, merge-queue-requires-merge-group-triggers-first, agent-tests-confirm-belief-not-behavior, staged-file-in-shared-checkout-fakes-a-red-main, green-pytest-is-not-a-green-push"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run and reported 'Linting: 0 files' because .agents/** is excluded; recorded as zero-scope rather than treated as a pass"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GOTCHAS.md, this log, and the episode landed in commit d20aa50b9. The endingCommit SHA and episode regeneration landed in follow-up commit cc5b0fec6, not by amending, because GOTCHAS warns that amending after recording endingCommit breaks the check."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py run against this log; dash scan reports 0 em-dashes and 0 en-dashes in GOTCHAS.md"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-06-session-10003-review-thread-fixes.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-08-06T05:10:00Z",
+      "action": "Recorded four measured push-time and repository-state traps in GOTCHAS",
+      "files": [
+        ".agents/governance/GOTCHAS.md"
+      ],
+      "outcome": "Added: a green pytest run is not a green push, measured on a branch that passed 23693 tests and was rejected by five gates; a staged file in the shared checkout fakes a red main, measured as baseline 583 versus tree 587 from 68 staged additions; core.bare=true appears during push and breaks every worktree, with the worktree-level immunization that survives a shared-config flip; and when several unrelated checks fail at once, suspect the substrate."
+    },
+    {
+      "timestamp": "2026-08-06T16:20:00Z",
+      "action": "Recorded that the built-in explore and research subagent types cannot write",
+      "files": [
+        ".agents/governance/GOTCHAS.md"
+      ],
+      "outcome": "Added a fifth trap covering issue 4692. The harness task tool offers agent types named explore and research that are Copilot CLI product configuration rather than anything this repository ships, and they are read-only: no Bash, no session state writes, no raw gh, no issue or pull request API. The names collide with the repository-owned /research command and analyst agent, which do have execution tools, and that collision is the trap. Measured this session: sixteen triage agents dispatched as read-only types were told to record findings and update tracking state and none could, with nothing in the transcript reporting a permission error, so the loss read as agents being unhelpful rather than unable. Included the grep that confirms no file in this repository configures those types."
+    }
+  ],
+  "endingCommit": "d20aa50b9",
+  "nextSteps": [
+    "Find the writer that sets core.bare=true during the pre-push stage (issue #4698).",
+    "Consider a fast repository health check that fails when core.bare is true alongside a work tree."
+  ],
+  "sessionEnd": {
+    "timestamp": "2026-08-06T05:12:00Z",
+    "summary": "Recorded four repository traps measured during a 95-issue triage fleet session. Each entry states the symptom as it actually prints, the measurement that distinguishes it from a real defect, and the repair.",
+    "handoffUpdated": false,
+    "qaStatus": "not-applicable",
+    "qaJustification": "Documentation only. GOTCHAS.md is excluded from markdownlint by the .agents/ ignore pattern, confirmed by a run reporting 0 files linted, so a lint pass would be a zero-scope false pass rather than evidence."
+  }
+}
