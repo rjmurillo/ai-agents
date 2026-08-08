@@ -437,6 +437,7 @@ def select_authoritative_lease(comments: list[dict]) -> Lease | None:
 def classify_acquire(
     lease: Lease | None,
     acting_author: str,
+    session: str,
     now: datetime,
 ) -> dict:
     """Decide ACT vs SKIP for an acquire, given the authoritative lease.
@@ -448,10 +449,11 @@ def classify_acquire(
       -> SKIP, reason ``held-by:<owner>``, with ``expires_at`` so the
       caller knows when to retry. (``owner`` in the reason is the body's
       display label; the trust decision used ``author``.)
-    - A live lease whose verified author IS ``acting_author``
-      (self-renewal) -> ACT, reason ``self-renew``. The match keys on the
-      verified GitHub comment author, never on the forgeable body
-      ``owner`` / ``session`` (ADR-076 Security, CWE-345).
+    - A live lease whose verified author IS ``acting_author`` and whose
+      session matches the caller (self-renewal) -> ACT, reason
+      ``self-renew``. The verified author is the trust boundary. Session
+      identity prevents two agents sharing one login from renewing each
+      other's lease.
     - No live lease (absent, tombstoned, expired, beyond-MAX_TTL, or
       malformed/None) -> ACT, reason ``free`` (the caller claims it).
 
@@ -463,7 +465,7 @@ def classify_acquire(
     the push.
     """
     if lease is not None and lease.is_live(now):
-        if acting_author != "" and lease.author == acting_author:
+        if acting_author != "" and lease.author == acting_author and lease.session == session:
             return {"action": "ACT", "reason": "self-renew"}
         return {
             "action": "SKIP",
@@ -488,9 +490,7 @@ def render_lease_comment(lease: Lease) -> str:
 
     The output round-trips through ``parse_lease_block``.
     """
-    target_owner = (
-        f"target_owner: {lease.target_owner}\n" if lease.target_owner else ""
-    )
+    target_owner = f"target_owner: {lease.target_owner}\n" if lease.target_owner else ""
     claim_id = f"claim_id: {lease.claim_id}\n" if lease.claim_id else ""
     return (
         f"{LEASE_MARKER}\n"
@@ -822,7 +822,7 @@ def acquire(
         )
 
     current = select_authoritative_lease(comments)
-    verdict = classify_acquire(current, author, now)
+    verdict = classify_acquire(current, author, session, now)
     if verdict["action"] == "SKIP":
         return LeaseResult("SKIP", verdict["reason"], expires_at=verdict.get("expires_at"))
 
@@ -1007,22 +1007,24 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     output_format = args.output_format
     # ADR-076 part 3 step 6: API/auth store failures must fail open to ACT
-    # with reason=lease-store-unavailable, never exit 4 before lease logic.
+    # with reason=lease-store-unavailable, never exit 3 or 4 before lease logic.
     # assert_gh_authenticated() raises SystemExit(4) on auth failure, which
     # converts an advisory coordination mechanism into a workflow outage
-    # (issue #4375). The repo param resolution below is I/O that can fail
-    # too; catch both as store failures and fail open.
+    # (issue #4375). Repo discovery can fail externally with exit 3 too.
+    # Invalid explicit repo arguments remain configuration errors at exit 2.
     try:
         assert_gh_authenticated()
         resolved = resolve_repo_params(args.owner, args.repo)
     except SystemExit as exc:
-        # Auth / repo resolution failure. Fail open per ADR-076 part 3
+        code = exc.code if isinstance(exc.code, int) else 3
+        if code not in (3, 4):
+            raise
+        # Auth / external repo resolution failure. Fail open per ADR-076 part 3
         # step 6: emit an ACT/lease-store-unavailable result on the same
         # output channel so the caller sees a structured verdict, then exit
         # 0 (ACT). The SHA gate is the backstop. We emit a best-effort
         # result. Output serialization failures remain fatal because callers
         # cannot act safely without a readable lease verdict.
-        code = exc.code if isinstance(exc.code, int) else 3
         logger.warning(
             "op=lease_main_failopen exit_code=%d command=%s pr=%d",
             code,
@@ -1052,7 +1054,7 @@ def main(argv: list[str] | None = None) -> int:
             status="PASS",
             script_name=_SCRIPT_NAME,
         )
-        return 0
+        return 3 if args.command == "renew" else 0
     owner, repo = resolved.owner, resolved.repo
 
     result = _run_command(args, owner, repo)
@@ -1085,6 +1087,8 @@ def main(argv: list[str] | None = None) -> int:
         status="PASS" if result.action == "ACT" else "WARNING",
         script_name=_SCRIPT_NAME,
     )
+    if args.command == "renew" and result.reason == "lease-store-unavailable":
+        return 3
     return 0 if result.action == "ACT" else 1
 
 
