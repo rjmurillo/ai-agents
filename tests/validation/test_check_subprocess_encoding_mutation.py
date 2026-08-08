@@ -126,8 +126,10 @@ def main() -> int:
         # Mutation 1: disable the text= check (replace True with False in _uses_text_mode)
         (
             "mutation-1-disable-text-check",
-            'text_enabled = _is_true_literal(_keyword_value(call, "text")) or _is_true_literal(\n'
-            '        _keyword_value(call, "capture_output")\n'
+            'text_enabled = (\n'
+            '        _is_true_literal(_keyword_value(call, "text"))\n'
+            '        or _is_true_literal(_keyword_value(call, "capture_output"))\n'
+            '        or pipe_capture\n'
             '    )',
             "text_enabled = False",
             True,  # must_kill
@@ -153,6 +155,14 @@ def main() -> int:
             "if not unconditional and text_enabled:",
             True,
             "inverted condition: flags compliant calls instead of bad ones",
+        ),
+        # Mutation 4: drop stdout/stderr PIPE capture detection.
+        (
+            "mutation-4-disable-pipe-capture",
+            "or pipe_capture",
+            "or False",
+            True,
+            "pipe capture detection disabled but tests did not catch it",
         ),
         # Cosmetic mutation (negative control): must SURVIVE
         (

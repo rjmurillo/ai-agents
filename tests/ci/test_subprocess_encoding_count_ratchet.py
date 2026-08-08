@@ -57,6 +57,42 @@ def test_current_count_counts_checker_findings(tmp_path: Path) -> None:
     assert ratchet.current_count(tmp_path) == 1
 
 
+def test_current_count_counts_pipe_captures_and_aliases(tmp_path: Path) -> None:
+    _git(tmp_path, "init")
+    script_dir = tmp_path / "scripts"
+    script_dir.mkdir()
+    (script_dir / "bad_stdout.py").write_text(
+        "import subprocess\n"
+        "subprocess.run(['x'], stdout=subprocess.PIPE, encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    (script_dir / "bad_alias.py").write_text(
+        "from subprocess import PIPE as CAPTURE, run as srun\n"
+        "srun(['x'], stderr=CAPTURE, encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    (script_dir / "bad_module_alias.py").write_text(
+        "import subprocess as sp\n"
+        "sp.run(['x'], stderr=sp.PIPE, encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    (script_dir / "good_binary.py").write_text(
+        "import subprocess\n"
+        "subprocess.run(['x'], stdout=subprocess.PIPE)\n",
+        encoding="utf-8",
+    )
+    _git(
+        tmp_path,
+        "add",
+        "scripts/bad_stdout.py",
+        "scripts/bad_alias.py",
+        "scripts/bad_module_alias.py",
+        "scripts/good_binary.py",
+    )
+
+    assert ratchet.current_count(tmp_path) == 3
+
+
 if __name__ == "__main__":
     import pytest
 

@@ -13,8 +13,12 @@ Coverage:
 - neg/missing-errors-run: subprocess.run with encoding + text=True, no errors -> flagged
 - neg/missing-errors-check_output: subprocess.check_output (decodes unconditionally) -> flagged
 - neg/missing-errors-capture_output: capture_output=True with encoding, no errors -> flagged
+- neg/missing-errors-stdout-pipe: stdout=subprocess.PIPE with encoding -> flagged
+- neg/missing-errors-stderr-pipe: stderr=subprocess.PIPE with encoding -> flagged
+- neg/alias-pipe-capture: subprocess call and PIPE aliases still resolve -> flagged
 - neg/from-import: ``from subprocess import run; run(...)`` -> flagged
 - neg/splat: **kwargs present means errors may be absent -> flagged (conservative)
+- pos/pipe-capture-binary: PIPE capture without encoding/text semantics -> not flagged
 - edge/text-true-int: text=1 (not literal True) -> not flagged (conservative on non-literal)
 - edge/encoding-variable: encoding=enc (variable) -> not flagged (cannot prove UTF-8)
 - edge/errors-wrong-value: errors="strict" counts as present -> not flagged
@@ -104,6 +108,16 @@ def test_subprocess_run_missing_errors_capture_output() -> None:
     assert find_violations(source) == [2]
 
 
+def test_subprocess_run_missing_errors_stdout_pipe() -> None:
+    source = 'import subprocess\nsubprocess.run(["x"], stdout=subprocess.PIPE, encoding="utf-8")'
+    assert find_violations(source) == [2]
+
+
+def test_subprocess_run_missing_errors_stderr_pipe() -> None:
+    source = 'import subprocess\nsubprocess.run(["x"], stderr=subprocess.PIPE, encoding="utf-8")'
+    assert find_violations(source) == [2]
+
+
 def test_subprocess_check_output_missing_errors() -> None:
     # check_output always decodes; text= not required for it to decode
     source = 'import subprocess\nsubprocess.check_output(["x"], encoding="utf-8")'
@@ -112,6 +126,23 @@ def test_subprocess_check_output_missing_errors() -> None:
 
 def test_from_import_run_missing_errors() -> None:
     source = 'from subprocess import run\nrun(["x"], text=True, encoding="utf-8")'
+    assert find_violations(source) == [2]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        (
+            "from subprocess import PIPE as CAPTURE, run as srun\n"
+            'srun(["x"], stdout=CAPTURE, encoding="utf-8")'
+        ),
+        (
+            "import subprocess as sp\n"
+            'sp.run(["x"], stderr=sp.PIPE, encoding="utf-8")'
+        ),
+    ],
+)
+def test_pipe_capture_aliases_are_flagged(source: str) -> None:
     assert find_violations(source) == [2]
 
 
@@ -269,6 +300,17 @@ def test_detector_requires_text_mode_to_flag() -> None:
     assert find_violations(binary_with_encoding) == [], (
         "Binary-mode call should not be flagged"
     )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'import subprocess\nsubprocess.run(["x"], stdout=subprocess.PIPE)',
+        'import subprocess as sp\nsp.run(["x"], stderr=sp.PIPE)',
+    ],
+)
+def test_pipe_capture_without_text_semantics_is_not_flagged(source: str) -> None:
+    assert find_violations(source) == []
 
 
 def test_detector_requires_subprocess_to_flag() -> None:

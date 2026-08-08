@@ -3,8 +3,9 @@
 
 A ``subprocess.run`` (or any ``subprocess.*`` call) that sets both
 ``encoding="utf-8"`` (case-insensitive, common aliases accepted) and
-text-capturing mode (``text=True`` or ``capture_output=True``) must also
-pass ``errors="replace"``.
+text-capturing mode (``text=True``, ``capture_output=True``, or decoded
+``stdout=PIPE`` / ``stderr=PIPE`` captures) must also pass
+``errors="replace"``.
 
 Without ``errors="replace"``, a child process that emits bytes invalid for
 UTF-8 raises ``UnicodeDecodeError`` on the calling side. On Windows CI
@@ -29,7 +30,8 @@ What this scanner checks:
     2. It has a literal ``encoding=`` keyword whose value is a UTF-8 alias
        (``"utf-8"``, ``"utf8"``, ``"UTF-8"``, ``"UTF8"``, ``"utf_8"``).
     3. The call enables text mode: ``text=True`` or ``capture_output=True``
-       are present as literal ``True``-valued keywords, or the entry point
+       are present as literal ``True``-valued keywords, or the call captures
+       decoded ``stdout=PIPE`` / ``stderr=PIPE`` output, or the entry point
        decodes unconditionally (``check_output``).
     4. No ``errors=`` keyword is present.
 
@@ -97,30 +99,89 @@ def _is_utf8_literal(node: ast.expr | None) -> bool:
     return isinstance(node, ast.Constant) and node.value in _UTF8_ALIASES
 
 
-def _subprocess_call_name(node: ast.Call) -> str | None:
+def _subprocess_alias_sets(
+    tree: ast.AST,
+) -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
+    """Return module, callable, and PIPE aliases that resolve to subprocess."""
+    module_aliases = {"subprocess"}
+    callable_aliases = set(_ALL_SUBPROCESS_CALLS)
+    pipe_aliases: set[str] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "subprocess":
+                    module_aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom) and node.module == "subprocess":
+            for alias in node.names:
+                if alias.name == "*":
+                    callable_aliases.update(_ALL_SUBPROCESS_CALLS)
+                    pipe_aliases.add("PIPE")
+                    continue
+                bound_name = alias.asname or alias.name
+                if alias.name in _ALL_SUBPROCESS_CALLS:
+                    callable_aliases.add(bound_name)
+                elif alias.name == "PIPE":
+                    pipe_aliases.add(bound_name)
+
+    return (
+        frozenset(module_aliases),
+        frozenset(callable_aliases),
+        frozenset(pipe_aliases),
+    )
+
+
+def _is_pipe_capture_target(
+    node: ast.expr | None,
+    module_aliases: frozenset[str],
+    pipe_aliases: frozenset[str],
+) -> bool:
+    """Return True when *node* resolves to subprocess.PIPE."""
+    if node is None:
+        return False
+    if isinstance(node, ast.Name):
+        return node.id in pipe_aliases
+    return (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id in module_aliases
+        and node.attr == "PIPE"
+    )
+
+
+def _subprocess_call_name(
+    node: ast.Call,
+    module_aliases: frozenset[str],
+    callable_aliases: frozenset[str],
+) -> str | None:
     """Return the bare function name for a ``subprocess.*`` call, or None."""
     func = node.func
     # subprocess.run(...)
     if (
         isinstance(func, ast.Attribute)
         and isinstance(func.value, ast.Name)
-        and func.value.id == "subprocess"
+        and func.value.id in module_aliases
         and func.attr in _ALL_SUBPROCESS_CALLS
     ):
         return func.attr
     # from subprocess import run; run(...)
-    if isinstance(func, ast.Name) and func.id in _ALL_SUBPROCESS_CALLS:
+    if isinstance(func, ast.Name) and func.id in callable_aliases:
         return func.id
     return None
 
 
-def _is_flagged(call: ast.Call) -> bool:
+def _is_flagged(
+    call: ast.Call,
+    module_aliases: frozenset[str],
+    callable_aliases: frozenset[str],
+    pipe_aliases: frozenset[str],
+) -> bool:
     """Return True when this call violates the errors="replace" convention.
 
     A call is flagged when it reaches a subprocess text entry point, pins
-    UTF-8 as the codec, enables text mode, and omits ``errors=``.
+    UTF-8 as the codec, captures decoded text, and omits ``errors=``.
     """
-    name = _subprocess_call_name(call)
+    name = _subprocess_call_name(call, module_aliases, callable_aliases)
     if name is None:
         return False
 
@@ -131,8 +192,15 @@ def _is_flagged(call: ast.Call) -> bool:
 
     # Verify text mode is enabled (or the call decodes unconditionally).
     unconditional = name in _UNCONDITIONAL_DECODE_CALLS
-    text_enabled = _is_true_literal(_keyword_value(call, "text")) or _is_true_literal(
-        _keyword_value(call, "capture_output")
+    pipe_capture = _is_pipe_capture_target(
+        _keyword_value(call, "stdout"), module_aliases, pipe_aliases
+    ) or _is_pipe_capture_target(
+        _keyword_value(call, "stderr"), module_aliases, pipe_aliases
+    )
+    text_enabled = (
+        _is_true_literal(_keyword_value(call, "text"))
+        or _is_true_literal(_keyword_value(call, "capture_output"))
+        or pipe_capture
     )
     if not unconditional and not text_enabled:
         # Binary mode with an explicit encoding is unusual but not our concern.
@@ -165,6 +233,7 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
         return []
 
     source_lines = source.splitlines()
+    module_aliases, callable_aliases, pipe_aliases = _subprocess_alias_sets(tree)
 
     def _suppressed(lineno: int) -> bool:
         if lineno < 1 or lineno > len(source_lines):
@@ -175,7 +244,7 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
         node.lineno
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
-        and _is_flagged(node)
+        and _is_flagged(node, module_aliases, callable_aliases, pipe_aliases)
         and not _suppressed(node.lineno)
     )
 
