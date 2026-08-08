@@ -260,6 +260,12 @@ class TestStagedContentWarning:
         assert "WARNING" in decision.reason
         assert "GIT_INDEX_FILE=/repo/.git/worktrees/wt/index" in decision.reason
         assert "checkout-index" in decision.reason
+        # The recovery command and the command that reads the copy back are both
+        # ``git -C`` pinned, so a reader who pastes them from outside the
+        # repository still reaches the object database that holds the staged
+        # blobs rather than failing with "not a git repository".
+        assert f"git -C {MAIN} checkout-index" in decision.reason
+        assert f"git -C {MAIN} ls-files" in decision.reason
 
     def test_an_unreadable_index_discloses_the_gap_instead_of_claiming_either(self):
         """A git failure must not read as 'staged work' or as 'nothing there'."""

@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.maintenance import _gc_apply, gc_worktrees, worktree_report
+from scripts.maintenance import _gc_apply, _gc_stale, gc_worktrees, worktree_report
 from tests.gc_real_git import (
     GitSandbox,
     command_of,
@@ -528,6 +528,52 @@ def test_a_worktree_moved_onto_another_s_old_path_does_not_make_it_healthy(
     assert decision_for(report, victim)["remove"] is False
     assert "stale admin entry" in reason, reason
     assert "checkout-index" in reason, "the victim's staged work must still be named"
+
+
+def test_a_standalone_repository_replacing_a_linked_path_is_kept_not_removed(
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A real repository dropped onto a stale entry's path is foreign, so it is kept.
+
+    Delete a linked worktree and initialise a standalone repository at the same
+    path. A linked checkout carries a ``.git`` file holding ``gitdir:``; a
+    standalone repository carries a ``.git`` directory. Reading that directory
+    as the registered checkout would let the merged-and-clean path reach
+    ``git worktree remove``, which names the path and would delete the
+    standalone repository together with its object database. Treating a ``.git``
+    directory as foreign keeps the entry stale instead, so the commit only this
+    repository holds stays reachable. The main worktree, whose ``.git`` is also
+    a directory, never arrives here: ``decide`` returns ``KEEP_MAIN`` for it.
+    """
+    worktree = _add_worktree_branch(git_sandbox, "feat/replaced")
+    shutil.rmtree(worktree)
+
+    # A real standalone repository now sits where the linked checkout was, with
+    # a commit no other repository holds. Its identity is set locally because the
+    # sandbox configures the author only on ``main``.
+    git(git_sandbox.main, "init", str(worktree))
+    git(worktree, "config", "user.email", "foreign@example.com")
+    git(worktree, "config", "user.name", "Foreign Repo")
+    git(worktree, "config", "commit.gpgsign", "false")
+    foreign_commit = write_and_commit(worktree, "unrelated.txt", "not ours\n", "unrelated repo")
+    assert (worktree / ".git").is_dir(), "git init writes a .git directory, not a gitdir file"
+
+    # The core of the fix, read against a real standalone repository: a ``.git``
+    # directory here is foreign, not the registered checkout. This is the
+    # assertion that fails if the ``IsADirectoryError`` branch goes back to
+    # reporting the directory as present, which is what opened the deletion path.
+    assert _gc_stale.linked_checkout_present(str(worktree)) is False
+
+    decision = decision_for(run_gc_json(git_sandbox, monkeypatch, capsys), worktree)
+    assert decision["remove"] is False, decision["reason"]
+
+    # The decision leaves the standalone repository and its object database
+    # untouched: the ``.git`` directory survives and the commit only it holds is
+    # still resolvable there.
+    assert (worktree / ".git").is_dir()
+    assert git(worktree, "rev-parse", "HEAD").stdout.strip() == foreign_commit
 
 
 def test_an_admin_record_overwritten_by_a_file_is_not_an_empty_one(
