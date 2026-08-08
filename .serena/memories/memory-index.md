@@ -58,7 +58,7 @@
 |quality qa DoD definition-of-done test strategy critique: [skills-quality-index](skills-quality-index.md) (290)
 |sentinel zero None unknown unmeasured tri-state exit code fail open overload: [quality/add-missing-state-not-sentinel](quality/add-missing-state-not-sentinel.md) (599)
 |git merge union driver append-only semantic duplicate gitattributes conflict: [quality/union-merge-hides-semantic-duplicates](quality/union-merge-hides-semantic-duplicates.md) (911)
-|squash merge ancestry is-ancestor branch deleted REMOTE ABSENT verify content stranded commit: [quality/verify-squash-merge-by-content-not-ancestry](quality/verify-squash-merge-by-content-not-ancestry.md) (767)
+|squash merge ancestry is-ancestor branch deleted REMOTE ABSENT verify content stranded commit: [quality/verify-squash-merge-by-content-not-ancestry](quality/verify-squash-merge-by-content-not-ancestry.md) (968)
 |github rate limit 403 X-RateLimit-Remaining header endpoint disagrees secondary abuse limiter git protocol: [quality/github-rate-limit-endpoint-disagrees-with-enforcement](quality/github-rate-limit-endpoint-disagrees-with-enforcement.md) (865)
 |diff3 zdiff3 conflict markers base region checkout --merge conflict-marker-policy resolver: [quality/diff3-conflicts-have-four-markers](quality/diff3-conflicts-have-four-markers.md) (801)
 |code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1118)
@@ -72,7 +72,7 @@
 |agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (378)
 |autonomous execution guardrails circuit breaker patch signal trust metric: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (150)
 |fleet contention stop order renice congestion collapse two copilot sessions kill treadmill scheduler semaphore: [decision-stop-orders-are-not-a-control-plane](decision-stop-orders-are-not-a-control-plane.md) (876)
-|worktree abandoned live agent fleet stale dirty harvest ownership squash ahead: [agent-workflow/fleet-worktree-live-versus-abandoned](agent-workflow/fleet-worktree-live-versus-abandoned.md) (750)
+|worktree abandoned live agent fleet stale dirty harvest ownership squash ahead: [agent-workflow/fleet-worktree-live-versus-abandoned](agent-workflow/fleet-worktree-live-versus-abandoned.md) (1613)
 |phase3 agent skill session handoff template verification: [agent-workflow/agentworkflow-004-proactive-template-sync-verification-95](agent-workflow/agentworkflow-004-proactive-template-sync-verification-95.md) (485), [agent-workflow/agentworkflow-005-structured-handoff-formats-88](agent-workflow/agentworkflow-005-structured-handoff-formats-88.md) (474)
 
 [CI/CD and Workflows]
@@ -90,7 +90,7 @@
 |AI quality gate Aggregate Results all agents NEEDS_REVIEW identical verdicts DID_NOT_RUN UNKNOWN N/A category two infrastructure routes infrastructure-failure Copilot CLI unavailable hardcoded message Not blocking PR BLOCKING_VERDICTS WARN downgrade Chesterton fence security review did not run: [ci/ci-ai-gate-blocks-when-the-security-review-did-not-run](ci/ci-ai-gate-blocks-when-the-security-review-did-not-run.md) (2586)
 |copilot skill mirror two canonical sources generate_skills generate_commands bridged slash command push-pr collision abort: [copilot/copilot-skill-mirror-has-two-sources](copilot/copilot-skill-mirror-has-two-sources.md) (848)
 |mutation testing line swap stale bytecode __pycache__ false green coverage: [ci/ci-line-swap-mutations-reuse-stale-bytecode](ci/ci-line-swap-mutations-reuse-stale-bytecode.md) (834)
-|CI CD workflow actions runner ARM: [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (959)
+|CI CD workflow actions runner ARM: [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (1004)
 |workflow pattern composite matrix artifact verdict report: [skills-workflow-patterns-index](skills-workflow-patterns-index.md) (284)
 |dorny paths-filter checkout base ref PR changes: [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) (930)
 |lefthook group parallel serial summary sum arithmetic config authoritative derive: [decision-read-the-config-not-the-run-summary](decision-read-the-config-not-the-run-summary.md) (964)
@@ -140,7 +140,7 @@
 |portability symlink TOCTOU scan_all refuse_symlinked_scan_root: [decision-portability-ratchet-symlink-toctou](decision-portability-ratchet-symlink-toctou.md) (314)
 |instruction budget always-on ceiling applyTo scope headroom rule authoring: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1856)
 |memory index validator one direction unindexed orphan check non-recursive opt-in warn only passes clean: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (784)
-|memory index token count churn recount every row merge conflict stale union resolve lefthook skip merge: [memory-index-token-counts-churn-across-branches](memory-index-token-counts-churn-across-branches.md) (926)
+|memory index token count churn recount every row merge conflict stale union resolve lefthook skip merge gh pr update-branch server side base merge ratchet: [memory-index-token-counts-churn-across-branches](memory-index-token-counts-churn-across-branches.md) (1345)
 
 [Root Cause Patterns (PR #908)]
 |governance enforcement ADR limits commits files programmatic gate: [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (603)

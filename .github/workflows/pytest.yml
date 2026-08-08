@@ -215,7 +215,18 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1. The checkout above already used fetch-depth: 0, so a
+          # depth-limited fetch saves nothing and writes .git/shallow, grafting
+          # the fetched tip parentless. This ratchet does need a merge base:
+          # count_ratchet.changed_files diffs `base_ref...HEAD` (three-dot) to
+          # sort branch-touched files first. That leg fails open, so a graft
+          # degrades the diagnostic instead of failing the step, which is the
+          # buried-violation problem the ordering exists to prevent, not a red
+          # check. The graft is written by whichever fetch runs first and a
+          # plain undepthed fetch does not clear it, only --unshallow does.
+          # In pr-validation.yml the same graft hits merge_tree_ratchet_check,
+          # which fails closed, and that is what cost a red required check.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Run ruff count ratchet (whole tree, non-PR)
@@ -223,7 +234,8 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the pull_request leg above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
       - name: Check security suppressions in diff (pull request, issue 4061)
@@ -231,7 +243,8 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the pull_request leg above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
       - name: Check security suppressions in diff (non-PR, issue 4061)
@@ -239,7 +252,8 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
-          git fetch --depth=1 origin "$BASE_REF"
+          # No --depth=1: see the pull_request leg above.
+          git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
       - name: Run pytest
