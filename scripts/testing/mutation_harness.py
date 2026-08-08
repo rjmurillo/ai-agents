@@ -38,9 +38,14 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
+
+from scripts.testing.mutation_workspace import (
+    isolated_mutation_worktree,
+    tracked_repository_path,
+)
 
 EXIT_OK = 0
 EXIT_MUTATION_MISSED = 1
@@ -204,6 +209,23 @@ class MutationRunner:
         return results
 
     def run_entry(self, entry: MutationEntry) -> MutationResult:
+        tracked_path = tracked_repository_path(entry.path)
+        if tracked_path is None:
+            return self._run_entry_in_place(entry)
+
+        repo_root, relative_path = tracked_path
+        cwd = self.cwd.resolve()
+        if not cwd.is_relative_to(repo_root):
+            raise BatteryConfigError(
+                f"runner cwd {cwd} is outside mutation target repository {repo_root}"
+            )
+        with isolated_mutation_worktree(repo_root, [relative_path]) as workspace:
+            isolated_entry = replace(entry, path=workspace.root / relative_path)
+            isolated_cwd = workspace.root / cwd.relative_to(repo_root)
+            result = MutationRunner(cwd=isolated_cwd)._run_entry_in_place(isolated_entry)
+        return MutationResult(entry=entry, returncode=result.returncode)
+
+    def _run_entry_in_place(self, entry: MutationEntry) -> MutationResult:
         original = entry.path.read_text(encoding="utf-8")
         mutated = original.replace(entry.old, entry.new, 1)
 
@@ -220,6 +242,8 @@ class MutationRunner:
         self,
         command: Sequence[str],
         timeout_seconds: int | float = DEFAULT_COMMAND_TIMEOUT_SECONDS,
+        *,
+        cwd: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
         env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
         sys.stderr.flush()
@@ -227,7 +251,7 @@ class MutationRunner:
             sys.stdout.flush()
             return subprocess.run(
                 command,
-                cwd=self.cwd,
+                cwd=cwd or self.cwd,
                 env=env,
                 text=True,
                 encoding="utf-8",
