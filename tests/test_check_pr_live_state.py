@@ -459,6 +459,7 @@ class TestMain:
             "isDraft": False,
             "closed": False,
             "headRefName": "fix/foo",
+            "headRefOid": "abc123def456",
             "baseRefName": "main",
         }
         with patch("check_pr_live_state.assert_gh_authenticated"), \
@@ -483,6 +484,7 @@ class TestMain:
         assert payload["action"] == "ACT"
         assert payload["pull_request"] == 2409
         assert payload["state"] == "OPEN"
+        assert payload["head_sha"] == "abc123def456"
         assert payload["superseded_by_base"]["fully_superseded"] is False
 
     def test_merged_pr_exits_1(self, capsys):
@@ -493,6 +495,7 @@ class TestMain:
             "isDraft": False,
             "closed": True,
             "headRefName": "fix/bar",
+            "headRefOid": "def456abc123",
             "baseRefName": "main",
         }
         with patch("check_pr_live_state.assert_gh_authenticated"), \
@@ -512,6 +515,7 @@ class TestMain:
         payload = envelope["Data"]
         assert payload["action"] == "SKIP"
         assert payload["state"] == "MERGED"
+        assert payload["head_sha"] == "def456abc123"
 
     def test_superseded_open_pr_exits_1(self, capsys):
         pr = {

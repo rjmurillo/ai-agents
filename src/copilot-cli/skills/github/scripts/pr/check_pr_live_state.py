@@ -158,6 +158,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
             isDraft
             closed
             headRefName
+            headRefOid
             baseRefName
         }
     }
@@ -524,6 +525,7 @@ def main(argv: list[str] | None = None) -> int:
         "is_draft": pr.get("isDraft") is True,
         "closed": pr.get("closed") is True,
         "head_ref": pr.get("headRefName"),
+        "head_sha": pr.get("headRefOid"),
         "base_ref": pr.get("baseRefName"),
         "superseded_by_base": supersession or {
             "pr_commits": 0,
