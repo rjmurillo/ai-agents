@@ -862,6 +862,46 @@ class TestValidateQaReportEvidence:
         assert result.errors == []
         artifact_dir_mock.assert_not_called()
 
+    def test_existing_log_still_validates_qa_report(
+        self, tmp_path: Path
+    ) -> None:
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        missing_report = qa_root / "missing.md"
+        data = {
+            "protocolCompliance": {
+                "sessionEnd": self._session_end(str(missing_report))
+            }
+        }
+
+        with mock.patch(
+            "scripts.validate_session_json.artifact_dir",
+            return_value=qa_root,
+        ):
+            result = validate_session_log(data, existing_log=True)
+
+        assert f"QA report not found: {missing_report.resolve()}" in result.errors
+
+    def test_creation_mode_defers_qa_report_validation(
+        self, tmp_path: Path
+    ) -> None:
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        missing_report = qa_root / "missing.md"
+        data = {
+            "protocolCompliance": {
+                "sessionEnd": self._session_end(str(missing_report))
+            }
+        }
+
+        with mock.patch(
+            "scripts.validate_session_json.artifact_dir"
+        ) as artifact_dir_mock:
+            result = validate_session_log(data, creation_mode=True)
+
+        assert not any("QA report" in error for error in result.errors)
+        artifact_dir_mock.assert_not_called()
+
 
 class TestValidateSessionLog:
     """Tests for validate_session_log function."""

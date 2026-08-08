@@ -886,7 +886,6 @@ def validate_session_end(session_end: dict[str, Any], result: ValidationResult) 
         required = (required - {"handoffPreserved"}) | {_LEGACY_HANDOFF_FIELD}
 
     validate_checklist_section(session_end, required, "sessionEnd", result)
-    validate_qa_report_evidence(session_end, result)
 
     # Legacy MUST NOT check: Complete=true means HANDOFF.md was modified (violation).
     if _LEGACY_HANDOFF_FIELD in session_end and "handoffPreserved" not in session_end:
@@ -1107,6 +1106,15 @@ def validate_session_log(
 
     if not existing_log and not creation_mode:
         validate_evidence_agrees_with_session(data, result)
+
+    protocol = data.get("protocolCompliance")
+    session_end = (
+        get_case_insensitive(protocol, "sessionEnd")
+        if isinstance(protocol, dict)
+        else None
+    )
+    if not creation_mode and isinstance(session_end, dict):
+        validate_qa_report_evidence(session_end, result)
 
     return result
 
