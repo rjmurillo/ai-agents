@@ -96,7 +96,68 @@
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e009",
+        "e010",
+        "e011",
+        "e012"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed PR review race findings",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Expanded shipped-surface behavior tests",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran follow-up independent review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran full pre-PR validation",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-08T07:12:12+00:00",
+      "type": "commit",
+      "content": "Commit: 43908b2d0",
+      "caused_by": [
+        "e008"
       ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10017-fix-issue-4349-pr-autofix-late"
@@ -107,8 +168,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 6
+    "commits": 2,
+    "files_changed": 8
   },
   "lessons": []
 }

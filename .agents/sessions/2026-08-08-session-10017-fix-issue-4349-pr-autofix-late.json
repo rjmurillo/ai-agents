@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All MUST session gates completed for implementation commit b6d60e922"
+        "Evidence": "All MUST items verified and validation passed"
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -89,17 +89,17 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pre-commit markdown autofix and check passed for both changed agent surfaces"
+        "Evidence": "No markdown files changed"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation commit b6d60e922"
+        "Evidence": "Implementation commits b6d60e922 and 43908b2d0"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Focused pytest, ruff, diff check, plugin validation, and session validation passed"
+        "Evidence": "validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -146,12 +146,27 @@
     {
       "action": "Ran independent review",
       "outcome": "Reviewer found duplicate lease release and missing CLOSED coverage; sentinel exit 75 and CLOSED regression test resolved both findings"
+    },
+    {
+      "action": "Addressed PR review race findings",
+      "outcome": "A final GitHub query now runs after the slow supersession probe; merged, closed, head-change, base-ref, and base-tip races cannot return a stale verdict"
+    },
+    {
+      "action": "Expanded shipped-surface behavior tests",
+      "outcome": "All mutation guard cases now execute against both Claude and Copilot surfaces; 47 focused tests and 309 broader pr-autofix tests passed"
+    },
+    {
+      "action": "Ran follow-up independent review",
+      "outcome": "Reviewer identified the missing baseRefOid comparison; an executed regression reproduced the false SKIP, and the final query now treats base-tip drift as inconclusive ACT"
+    },
+    {
+      "action": "Ran full pre-PR validation",
+      "outcome": "All required validation gates passed, including mypy changed-files, generation parity, session validation, and plugin checks"
     }
   ],
-  "endingCommit": "b6d60e922",
+  "endingCommit": "43908b2d0",
   "nextSteps": [
-    "Run pre-PR validation",
-    "Search again for duplicate PRs",
-    "Push one PR, retain auto-merge, resolve reachable threads, and drive to merge"
+    "Push the review fix, reply to and resolve all three threads",
+    "Retain auto-merge and drive PR #4769 to merge"
   ]
 }
