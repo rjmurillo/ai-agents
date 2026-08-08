@@ -209,13 +209,17 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # Issue #4572: no --depth=1 here. This job checks out at fetch-depth 0,
-          # so a depth-limited fetch buys no bandwidth and writes .git/shallow
-          # for the rest of the job. That graft severs ancestry for every later
-          # step, and a subsequent full fetch does not remove it. The security
-          # suppression steps below need the base excluded from the range.
-          # Measured on a complete clone: `git rev-list base..head` returned 0
-          # commits before a `git fetch --depth=1`, and 2263 after it.
+          # No --depth=1. The checkout above already used fetch-depth: 0, so a
+          # depth-limited fetch saves nothing and writes .git/shallow, grafting
+          # the fetched tip parentless. This ratchet does need a merge base:
+          # count_ratchet.changed_files diffs `base_ref...HEAD` (three-dot) to
+          # sort branch-touched files first. That leg fails open, so a graft
+          # degrades the diagnostic instead of failing the step, which is the
+          # buried-violation problem the ordering exists to prevent, not a red
+          # check. The graft is written by whichever fetch runs first and a
+          # plain undepthed fetch does not clear it, only --unshallow does.
+          # In pr-validation.yml the same graft hits merge_tree_ratchet_check,
+          # which fails closed, and that is what cost a red required check.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
@@ -224,7 +228,7 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
-          # No --depth=1: see the pull-request leg above.
+          # No --depth=1: see the pull_request leg above.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
@@ -233,9 +237,7 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          # No --depth=1: see the ruff count ratchet step above. This step is
-          # the one the graft corrupts worst, because its two-dot range cannot
-          # exclude a base whose ancestry the graft has cut away.
+          # No --depth=1: see the pull_request leg above.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
@@ -244,7 +246,7 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
-          # No --depth=1: see the ruff count ratchet step above.
+          # No --depth=1: see the pull_request leg above.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
