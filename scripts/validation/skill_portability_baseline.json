@@ -80,7 +80,7 @@
     "skills/session-init/scripts/new_session_log.py": 2,
     "skills/session-init/scripts/new_session_log_json.py": 1,
     "skills/session/scripts/test_investigation_eligibility.py": 7,
-    "skills/session/tests/test_session_eligibility.py": 11,
+    "skills/session/tests/test_session_eligibility.py": 10,
     "skills/spec-generator/tests/test_reasons_section_headers.py": 1,
     "skills/steering-matcher/get_applicable_steering.py": 2,
     "skills/steering-matcher/scripts/get_applicable_steering.py": 2,
