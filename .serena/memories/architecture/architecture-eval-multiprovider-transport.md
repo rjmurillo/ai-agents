@@ -64,8 +64,11 @@ extra (`pip install -e '.[eval]'`). The default eval needs no new dependency.
 ## Wiring
 
 `--provider` is wired into `eval-agent-vs-baseline.py` and
-`eval-prompt-change.py`. Select with `EVAL_PROVIDER=github` or `--provider
-github` plus a GitHub Models model id.
+`eval-prompt-change.py`. Select with `EVAL_PROVIDER=openai` or `--provider
+copilot-cli` plus a matching model id. `EVAL_PROVIDER=github` and
+`github-models` are wired the same way but are historical only: the rows
+still exist in `_REGISTRY` and route correctly, but the endpoint they call
+returns HTTP 410 (see the retirement note above). Do not select them.
 
 ## Evidence
 
