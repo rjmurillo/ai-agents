@@ -1,3 +1,5 @@
+# taste-lint: ignore file-size
+# Shared portability coverage and escape cases stay on one fixture matrix.
 """Both portability ratchets must refuse a baseline written from a partial scan.
 
 The hazard is shared, so the tests live together rather than split across the
@@ -243,6 +245,131 @@ class TestExecCheckerCoverage:
     def test_coverage_reports_an_absent_root_as_zero(self, tmp_path: Path) -> None:
         self._roots(tmp_path, populated=(".claude/skills",))
         assert cep.scanned_files_by_root(tmp_path)["src/copilot-cli/skills"] == 0
+
+
+class TestDescendantSymlinkEscapes:
+    """Descendant escapes must fail closed before scan results are trusted."""
+
+    @staticmethod
+    def _seed_scan_roots(root: Path) -> None:
+        for name in ROOT_NAMES:
+            skill_dir = root / name / "alpha"
+            skill_dir.mkdir(parents=True, exist_ok=True)
+            (skill_dir / "SKILL.md").write_text("Clean prose.\n", encoding="utf-8")
+
+    @staticmethod
+    def _baseline(root: Path) -> tuple[Path, bytes]:
+        baseline = root / "baseline.json"
+        baseline.write_text(
+            json.dumps({"files": {"keep/SKILL.md": 4}, "marker_files": {}}),
+            encoding="utf-8",
+        )
+        return baseline, baseline.read_bytes()
+
+    @staticmethod
+    def _outside_path(root: Path, name: str) -> Path:
+        return root.parent / f"{root.name}-{name}"
+
+    @staticmethod
+    def _escape_text(module: ModuleType) -> str:
+        if module is cmp:
+            return "Writes .agents/analysis/escape.md.\n"
+        return "python3 .claude/skills/alpha/scripts/escape.py\n"
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    @pytest.mark.parametrize("module", [cmp, cep])
+    @pytest.mark.parametrize("root_name", ROOT_NAMES)
+    def test_checkers_refuse_descendant_file_symlink_escape(
+        self, tmp_path: Path, module: ModuleType, root_name: str
+    ) -> None:
+        self._seed_scan_roots(tmp_path)
+        outside = self._outside_path(tmp_path, "outside-file.md")
+        outside.write_text(self._escape_text(module), encoding="utf-8")
+        refs = tmp_path / root_name / "alpha" / "references"
+        refs.mkdir()
+        (refs / "escape.md").symlink_to(outside)
+        baseline, before = self._baseline(tmp_path)
+
+        rc = module.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+
+        assert rc == 2
+        assert baseline.read_bytes() == before
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    @pytest.mark.parametrize("module", [cmp, cep])
+    @pytest.mark.parametrize("root_name", ROOT_NAMES)
+    def test_checkers_refuse_descendant_directory_symlink_escape(
+        self, tmp_path: Path, module: ModuleType, root_name: str
+    ) -> None:
+        self._seed_scan_roots(tmp_path)
+        outside = self._outside_path(tmp_path, "outside-dir")
+        outside.mkdir()
+        (outside / "guide.md").write_text(self._escape_text(module), encoding="utf-8")
+        skill_dir = tmp_path / root_name / "alpha"
+        (skill_dir / "references").symlink_to(outside, target_is_directory=True)
+        baseline, before = self._baseline(tmp_path)
+
+        rc = module.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+
+        assert rc == 2
+        assert baseline.read_bytes() == before
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    @pytest.mark.parametrize("root_name", ROOT_NAMES)
+    def test_exec_checker_refuses_descendant_scripts_directory_symlink_escape(
+        self, tmp_path: Path, root_name: str
+    ) -> None:
+        self._seed_scan_roots(tmp_path)
+        outside = self._outside_path(tmp_path, "outside-scripts-dir")
+        skill_dir = tmp_path / root_name / "alpha"
+        (skill_dir / "scripts").symlink_to(outside, target_is_directory=True)
+        baseline, before = self._baseline(tmp_path)
+
+        rc = cep.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+
+        assert rc == 2
+        assert baseline.read_bytes() == before
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Symlinks require privileges on Windows",
+    )
+    @pytest.mark.parametrize("module", [cmp, cep])
+    @pytest.mark.parametrize("root_name", ROOT_NAMES)
+    def test_update_baseline_treats_tracked_escape_as_missing(
+        self, tmp_path: Path, module: ModuleType, root_name: str
+    ) -> None:
+        self._seed_scan_roots(tmp_path)
+        outside = self._outside_path(tmp_path, "outside-notes.txt")
+        outside.write_text("external\n", encoding="utf-8")
+        (tmp_path / root_name / "alpha" / "notes.txt").symlink_to(outside)
+        _commit_tree(tmp_path)
+        coverage = tracked_coverage_by_root(tmp_path, ROOT_NAMES)
+        assert coverage is not None
+        assert coverage[root_name][1] == 1
+        baseline, before = self._baseline(tmp_path)
+
+        rc = module.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                "baseline.json",
+                "--update-baseline",
+            ]
+        )
+
+        assert rc == 2
+        assert baseline.read_bytes() == before
 
 
 class TestWorktreeGapCoverage:

@@ -53,7 +53,6 @@ and what a vendored install loses without it>. Issue #2050. -->
 
 Both the canonical file and its `src/copilot-cli/` mirror carry the marker,
 because the checker scans both trees.
-
 ## A bare directory argument to taste-lints is a silent false pass
 
 `taste_lints.py --rules file-size <dir>` with the directory as a **positional**
@@ -80,7 +79,6 @@ found" reads identically either way.
 
 Authored file size is a **hard error at 501 lines** and a warning from 301 to
 500, so a file that silently skipped the check can block a later commit.
-
 ## A commit touching `.agents/` must carry the session log
 
 `session-policy` rejects any commit that stages a file under `.agents/` unless
@@ -90,7 +88,6 @@ the JSON session log is staged in that **same** commit. Splitting the work into
 Symptom: a commit touching `.agents/analysis/` or `.agents/architecture/` is
 rejected while the identical change under any other path commits fine. See also
 "Session log ordering" below, which governs when the log may first be staged.
-
 ## Session log ordering
 
 Create the session log **untracked in the worktree before the first commit**,
@@ -103,7 +100,6 @@ protocol literally (create and stage at start) cannot pass both gates.
 
 Symptom: a commit is rejected by one of the two policies no matter which order
 you try. Refs #3904.
-
 ## Never record `endingCommit` and then amend
 
 `endingCommit` must name a commit that is still reachable:
@@ -131,7 +127,6 @@ endingCommit '<sha>' names a commit that is not an ancestor of HEAD
 ```
 
 Refs #3618.
-
 ## The same `endingCommit` error also fires when you never amended anything
 
 The tell is that the log it validated is not yours. Do not rely on the
@@ -170,7 +165,6 @@ nor the base it used, so the natural next move is to re-validate your own log,
 which passes and sends you looking for a gate bug. And the same stale ref makes
 `git diff main..HEAD` report thousands of phantom deletions, so the two symptoms
 show up together and look like one catastrophic branch problem.
-
 ## Run validation with `uv run python`, never bare `python3`
 
 `scripts/validation/checks_spec.py` shells out to child validators with
@@ -180,7 +174,6 @@ markdown_it` because the dependency lives in the project venv.
 
 Symptom: `uv run python scripts/validation/pre_pr.py` reports failures that have
 nothing to do with your change. Refs #3938.
-
 ## Instruction-budget ceilings ratchet to measured size
 
 `scripts/validation/instruction_budget.py` enforces a ceiling that was set from
@@ -190,7 +183,6 @@ say the corpus is small.
 
 Compare against the goal, not the ceiling. The always-on corpus is roughly 95KB
 on a `.py` edit.
-
 ## Security suppression comments block commits, merges, and pushes
 
 `git_hook_policy.py` runs the same security suppression policy at pre-commit,
@@ -208,7 +200,6 @@ destination file, because the suppression becomes active at that boundary.
 
 Existing suppressions on `main` remain grandfathered unless the change makes
 them newly active. Refs #3940, #4049, #4051, and #4052.
-
 ## The push blocks at 21 commits, and the check runs at push time
 
 The pre-push `push-ref-policy` hook hard-fails at more than 20 commits ahead of
@@ -223,7 +214,6 @@ Relief is the `commit-limit-bypass` label on the PR, and nothing else. Squashing
 is often the wrong repair, because the five-file atomic-commit rule then makes
 the collapsed commit a violation of a different rule. Prefer the label when the
 branch is one coherent thread, and split into a second PR when it is not.
-
 ## Never revert a source file with `git checkout` to negative-control a fix
 
 Negative-controlling a fix means reverting the source, confirming the new tests
@@ -247,7 +237,6 @@ one behavior to regress will see several.
 Symptom: a control that should fail passes instead, because the sabotage never
 applied to the code you thought you were editing. Check `git status` before
 concluding the test is weak.
-
 ## The mypy and ruff gates are ratchets, not clean-tree checks
 
 `git_hook_policy.py mypy` tolerates the pre-existing error count in a file and
@@ -257,7 +246,6 @@ eight will fail the push with all nine printed.
 
 Symptom: a wall of errors on lines you did not touch. Count them against the
 merge base before assuming the change is yours.
-
 ## A branch behind main fails the count ratchets on a number it never touched
 
 The count ratchets (`ruff_count_ratchet.py`, `taste_count_ratchet.py`,
@@ -310,7 +298,6 @@ HEAD` accepts, so the record breaks only when history rewrites that specific
 commit. Amending `HEAD` is safe whenever the recorded commit stays reachable,
 which includes `HEAD~1` and anything older. It is unsafe only when the commit
 you are rewriting *is* the recorded one; there, add a follow-up commit instead.
-
 ## One file crossing 500 lines fails four pre-push jobs with three messages
 
 `taste_lints.py` treats a file over 500 lines as an error and a file over 300
@@ -358,6 +345,127 @@ uv run --frozen python scripts/ci/taste_count_ratchet.py
 It reads `git ls-files`, so an unstaged new file is invisible to it and the
 count looks fine right up until the push.
 
+## A green pytest run is not a green push
+
+The pre-push hook runs roughly twenty jobs and pytest is one of them. A branch
+can pass every test and still be rejected by gates pytest never executes.
+
+Measured on one branch after a clean local run of 23,693 passed, 0 failed:
+
+```
+✔️ hook-anchoring-e2e   ✔️ plugin-load-e2e   ✔️ python-tests
+🥊 type-ignore-count-ratchet   🥊 python-type-check   🥊 merge-tree-ratchet
+🥊 workflow-local-run          🥊 pre-pr-validation
+error: failed to push some refs
+```
+
+The `python-type-check` failure was four trivial mypy errors in that branch's
+own new test files, three unguarded `re.match(...).group()` calls and one
+unparameterized `CompletedProcess`. No test could have caught them, because a
+passing test does not type-check itself.
+
+The cost is asymmetric. A rejected push takes about eleven minutes and
+truncates the failing gate's output, so it tells you **less** than running that
+gate directly. `python-type-check` above failed in 1.30 seconds.
+
+Verify against the gate set. `lefthook.yml` is the source of truth for how each
+job is invoked; do not invent invocations. The two cheapest and most commonly
+missed:
+
+```
+FILES=$(git diff --name-only origin/main -- '*.py' | tr '\n' ' ')
+uv run --frozen python scripts/validation/git_hook_policy.py mypy $FILES
+uv run --frozen python scripts/validation/pre_pr.py
+```
+
+The mypy gate refuses a bare invocation with `run_mypy called with no file
+arguments; refusing (bare mypy is a false green)`. That is correct behavior,
+not a broken gate; pass the changed-file list.
+
+When delegating, "run the full suite and confirm green" is insufficient and
+will produce a rejected push. Name the gate set.
+
+## A staged file in the shared checkout fakes a red main
+
+Whole-tree ratchets measure the tracked tree, and the tracked tree includes
+staged-but-uncommitted files. A `git add` that was never committed is invisible
+to `git log`, to `git diff HEAD` without `--cached`, and to a HEAD versus
+`origin/main` comparison, yet it moves the measurement.
+
+Measured: `tests/ci/test_count_ratchet_against_real_git.py` failed on a
+checkout whose HEAD was byte-identical to `origin/main`:
+
+```
+taste_count_baseline.txt: baseline is 583 but the tree measures 587:
+4 violation(s) were added. Remove them rather than raising the baseline.
+```
+
+`git status --porcelain | grep -v '^??'` returned 68 staged additions left by
+another agent. After `git restore --staged .`, the same test returned
+`12 passed`. Main was green throughout.
+
+Check the index before believing any whole-tree ratchet failure. Untracked
+(`??`) entries are usually harmless; staged entries are not. Clear them with
+`git restore --staged .`, which preserves the files. Never `git checkout` them,
+they may be someone else's work.
+
+## `core.bare=true` appears in `.git/config` and breaks every worktree
+
+Something during `git push` writes `core.bare = true` into the shared
+`.git/config`. A bare repository cannot have work trees, so every git command
+needing one fails:
+
+```
+fatal: this operation must be run in a work tree
+```
+
+Measured twice in one session. It broke the main checkout and three of five
+linked worktrees simultaneously, and it surfaced as four unrelated-looking
+failures: two portability checks in the pre-PR gate, a lefthook integration
+test, and plain `git status` inside a worktree. Three separate wrong diagnoses
+were attempted before the shared cause was found, including one issue filed and
+retracted.
+
+A serial `pytest tests/` run does **not** reproduce it, so the trigger involves
+the parallel pre-push stage rather than the suite alone.
+
+Repair: `git config core.bare false`.
+
+Immunize, so a mid-run flip cannot break you. This repository sets
+`extensions.worktreeConfig = true`, which makes `core.bare` worktree-specific,
+and worktree config wins over shared config:
+
+```
+git config --worktree core.bare false          # in the main checkout
+git -C <each linked worktree> config --worktree core.bare false
+```
+
+Verified by setting the shared value to `true` afterwards: all six worktrees
+kept working.
+
+Consequence worth internalizing: **the pre-push hook can corrupt the repository
+it is validating**, so a rejected push is not by itself evidence that the branch
+is bad. Check `git config core.bare` before believing a push failure, and
+re-verify against a repaired repository before attributing anything to your
+change. Tracked in issue #4698.
+
+## When several unrelated checks fail at once, suspect the substrate
+
+The `core.bare` incident above produced four plausible and independent-looking
+diagnoses, each of which invited its own investigation. All four were one cause.
+
+A related trap: comparing two runs that differ in more than one variable. A
+test that passed in three full-suite runs and failed when run alone looked
+order-dependent. Those runs differed in **time**, not ordering, and the config
+was corrupted in between. The order-dependence issue was filed and had to be
+closed as invalid.
+
+Before attributing several simultaneous failures to several causes, check the
+shared substrate: `git config core.bare`, `git status --porcelain` for staged
+entries, and `git rev-list --count HEAD..origin/main` for staleness.
+
+
+
 ## Eval harness
 
 These matter only when running `scripts/eval/`. Full detail lives in
@@ -373,7 +481,6 @@ These matter only when running `scripts/eval/`. Full detail lives in
 - A single eval run cannot resolve a delta under about 1.0 on a 0-5 scale.
   Measured run-to-run spread on identical inputs was 0.94 on Opus 5 and 1.11 on
   Sol 5.6. Run four times per model and count sign consistency, not means.
-
 ## The PR description gate blocks on paths and on dashes
 
 `scripts/validation/pr_description.py --ci` runs as `PR Validation / Validate
@@ -426,7 +533,6 @@ at byte level before editing.
 
 The validator takes `--pr-number` and fetches the **live** body, so push and
 update the PR before running it locally.
-
 ## Spec coverage blocks when the PR body has no checked acceptance boxes
 
 `Validate Spec Coverage` fails with this, and the reason names a rule rather
@@ -481,29 +587,24 @@ gh run view --job "$JOB_ID" --log | sed 's/\x1b\[[0-9;]*m//g' | grep -P 'VERDICT
 ```
 
 Refs #4369 for the stale comment defect.
-
 ## Never put a literal pipe inside a Markdown table cell
 
 Escape it as `\|` or reword. A bare `|` breaks rendering and trips bot
 table-format flags.
-
 ## Reference skill scripts by plugin root, not a bare `.claude/` path
 
 Use `"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/..."`. A
 bare `.claude/skills/...` path fails under Copilot CLI and trips
 `check_skill_md_exec_portability.py`.
-
 ## `gh pr view --json reviewThreads` is not a valid field
 
 The field does not exist on that command and the error does not suggest the
 alternative. Use `gh api graphql` with a `reviewThreads` query on the pull
 request instead.
-
 ## Workspace byte-gate
 
 Moved to `.agents/governance/WORKSPACE-BUDGET.md`: per-file ceilings, the
 shared total, the silent-disable failure, and where the gate lives.
-
 ## Concurrent pushes: use a per-branch lock, not a global one
 
 The race a push lock exists to prevent is a lost ref update: two writers push
@@ -542,7 +643,6 @@ Notes:
 
 Issue #4283 documents the measured 28-waiter convoy produced by the global lock
 and the first-principles analysis of why the race is per-ref.
-
 ## A script under `scripts/ci/` needs a workflow caller, not just a lefthook job
 
 `tests/ci/test_ci_scripts_are_wired.py` parses `.github/workflows/**` and
@@ -561,7 +661,6 @@ call site.
 Add the workflow step in the same change that adds the script. A ratchet with a
 fixed floor takes no `--base-ref` and needs no `git fetch --depth=1` preamble;
 copy the neighbouring step only if your guard actually diffs against a base.
-
 ## An autofix is not a gate: pair every repair with a verifier
 
 `memory-token-update` (`lefthook.yml`) rewrites every `.serena/memories/`
@@ -581,7 +680,6 @@ Two rules follow, and both are load-bearing:
 - **"Cannot verify" must not exit zero.** The repair degrades to a warning when
   `tiktoken` is missing. The verifier exits 2 instead. A gate that goes green
   because it checked nothing is worse than no gate.
-
 ## Grep the handler, not the job name
 
 A lefthook job name, its `git_hook_policy.py` subcommand string, and the Python
@@ -594,7 +692,6 @@ diagnostic cycle on issue #4441.
 Correct probe: `git grep -n "<function_name>"` to find the handler, read the
 `(subcommand, handler)` tuple near it, then grep that subcommand string in
 `lefthook.yml`.
-
 ## "All validations passed" in a push log does not mean the branch reached the remote
 
 The repo's push wrapper runs `scripts/validation/pre_pr.py` first, and that
@@ -618,7 +715,6 @@ predictable from the outside. The wrapper runs `pre_pr.py` first and only then
 calls `git push`, so a commit created during that window can be picked up, and
 one created after the transfer starts will not be. Measured both ways. Do not
 reason about it: read the sha off the remote and compare.
-
 ## Never measure a gate from a detached HEAD
 
 `scripts/detect_scope_explosion.py` returns 0 on a detached `HEAD` for staged
@@ -636,7 +732,6 @@ is how issue #4544 came to be closed as already-fixed while still reproducing,
 and the retraction had to be retracted. When you probe any gate, attach `HEAD`
 first with `git checkout -B probe/<name> <sha>` rather than
 `git worktree add --detach`, and treat a detached PASS as no result at all.
-
 ## The CLI e2e pre-push jobs need a Copilot token, and fail fast without one
 
 `plugin-load-e2e` and `hook-anchoring-e2e` shell out to the real `copilot`
@@ -716,7 +811,6 @@ seconds. The same two tests passed in 27.92 seconds under `RUN_CLI_E2E=1` with
 `COPILOT_GITHUB_TOKEN` set, and skipped silently with the token set but
 `RUN_CLI_E2E` unset. Those four durations are author-reported from the push
 console; no log artifact is committed.
-
 ## Editing any `.claude/rules/*.md` file changes a number the doctrine asserts
 
 `model-context-doctrine.md` states the shipped plugin tree's always-on size as
@@ -753,3 +847,213 @@ the way out, so the same rule is smaller in the plugin tree than on disk. And th
 two 8KB multipliers move independently: the `.py`-edit multiplier can hold steady
 while the always-on one shifts, so re-measure both rather than assuming one
 tracks the other.
+
+## Built-in `explore` and `research` subagent types cannot write anything
+
+The harness `task` tool offers agent types named `explore` and `research`.
+These are Copilot CLI product configuration, not anything this repository
+ships. They are read-only by design: no Bash, no session-state writes, no raw
+`gh`, no GitHub issue or pull request API.
+
+Nothing in this repository configures them, which is easy to confirm and worth
+confirming, because the names collide with things this repository does own:
+
+```bash
+grep -rl '"explore"' --include=*.json --include=*.md --include=*.yaml .
+```
+
+Zero hits outside session logs. The repository-owned `/research` command and
+the `analyst` agent are separate and do have execution tools. The names match;
+the capabilities do not.
+
+The failure mode is quiet. A fleet run assigns these types work that
+structurally cannot succeed, and the agents report back plausibly about what
+they would have done. Measured this session: sixteen triage agents dispatched
+as read-only types were told to record findings and update tracking state.
+None could. The work had to be rerouted, and nothing in the transcript said
+"permission denied," so the loss looked like agents being unhelpful rather
+than agents being unable.
+
+Use these types for reading and reporting only. Anything that must write a
+file, run a command, touch session state, or call the GitHub API needs
+`general-purpose` or a repository-owned agent. If a dispatched agent's
+deliverable is a change rather than an answer, it is the wrong type.
+
+Refs #4692.
+## A count ratchet script can report OK on a tree its own test rejects
+
+The four commands above answer "did this branch add violations". They do not
+answer "does this tree pass the ratchet's tests", and the two can disagree.
+
+`scripts/ci/taste_count_ratchet.py` passes when `actual <= baseline`. The test
+the same ratchet ships,
+`tests/ci/test_count_ratchet_against_real_git.py::test_the_shipped_baseline_matches_the_tracked_tree`,
+requires `actual == baseline`. Any slack satisfies the script and fails the
+test. Measured on a pristine `origin/main` worktree:
+
+```text
+$ uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main
+taste count ratchet: OK. 594 violations <= baseline 595 (-1 slack).
+
+$ uv run --frozen python -m pytest tests/ci/test_count_ratchet_against_real_git.py -q
+AssertionError: baseline is 595 but current tree has 594 violations
+assert 594 == 595
+1 failed, 11 passed
+```
+
+Both statements are about the same tree at the same commit. The script exits 0.
+
+The exact-equality is deliberate. From the test's docstring: "A baseline above
+the real count is dead allowance: violations could be added up to the gap
+without the gate noticing." A ratchet carrying slack is not a ratchet, so the
+number has to be true, not merely not-exceeded.
+
+**Symptom.** `git push` fails on `test_the_shipped_baseline_matches_the_tracked_tree`
+after the ratchet scripts all printed OK. Nothing in your diff is implicated,
+and the failure reproduces on a detached worktree at `origin/main`.
+
+**Why it recurs.** Lowering a violation count and lowering the baseline are two
+edits that usually live in different pull requests. Each is green against its
+own base, and they meet for the first time on main. That is the merge race in
+issue #3755; neither remedy proposed there has shipped, so
+`strict_required_status_checks_policy` is still false and ruleset 11104075 has
+no `merge_queue` rule.
+
+**Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
+actually measures, in the same commit that moves the count. Lowering a baseline
+to match a genuine improvement is required. Raising one to absorb a regression
+is forbidden (`.github/instructions/ci-scripts.instructions.md`, MUST NOT 4);
+the sanctioned escape for a file you cannot shrink is a reasoned
+`# taste-lint: ignore <rule>` comment inside the first 10 lines.
+
+**Check the test, not the script**, before any push that touches file sizes:
+
+```bash
+uv run --frozen python -m pytest tests/ci/test_count_ratchet_against_real_git.py -q
+```
+
+Three seconds. Failing on your branch *and* on a pristine `origin/main` worktree
+means main is red and it is not yours to fix.
+## Merging main clears an inherited red; check that before debugging your diff
+
+A pre-push failure in tests your change never touched is usually a stale base,
+not a bug. Merge main first, then re-run just those tests. Measured on a branch
+whose diff was four files and none of them Python:
+
+```text
+before:  7 failures across test_always_on_corpus_claims.py,
+         test_pr_validation_workflow.py, test_mutation_harness_ciperms.py
+         (a full pre-push cycle, ~20 minutes, to discover them)
+
+$ git fetch origin main && git merge origin/main --no-edit
+
+after:   113 passed, 0 failed
+```
+
+The diff did not change between those two runs. All seven failures were
+stale-base artifacts: main had moved two commits ahead, and those commits
+changed the measured figures the corpus tests assert against.
+
+Do this before opening a debugger, and do it locally rather than through a
+push:
+
+```bash
+git fetch origin main && git merge origin/main --no-edit
+uv run --frozen python -m pytest <only the failing tests> -q
+```
+
+If they still fail, only then is it yours. To tell "my diff" from "main is
+red", run the same tests on a detached worktree at `origin/main`:
+
+```bash
+git worktree add --detach ../ai-agents-pristine origin/main
+```
+
+Failing there too means it is not your branch. This costs seconds; a push cycle
+costs about 20 minutes, because `git push` does not return until every job in
+the parallel pre-push group finishes.
+## A merged commit's file count says nothing about the local commit gate
+
+The repository is squash-merge only (`allow_merge_commit: false`,
+`allow_rebase_merge: false`, `allow_squash_merge: true`), and every commit on
+main is single-parent. So a commit on main is a squash of a whole pull request,
+built by GitHub server-side, and the local pre-commit hooks never ran on it.
+
+This matters when you are reasoning about
+`MAX_AUTHORED_FILES_PER_COMMIT = 5` in `scripts/validation/git_hook_policy.py`.
+`git log` on main shows commits touching 43 and 71 files, including ones
+authored after that gate landed. Those are not evidence the gate is broken,
+bypassed, or unsatisfiable. They are squashes.
+
+The gate applies to the commits you make locally, and a mirrored-library change
+does fit: split it by concern into 3-file commits, the shared library plus its
+two mirrors, then each consumer plus its mirror plus its test.
+
+Before citing repository history as evidence about any pre-commit or pre-push
+gate, check the merge strategy. Under squash-merge, main's history records what
+GitHub built, not what any hook ever inspected.
+
+## The semgrep check in CI cannot be reproduced by the semgrep CLI
+
+`semgrep-cloud-platform/scan` is the Semgrep Cloud App running a server-side
+ruleset. This repository ships no semgrep configuration file, so there is
+nothing for a local CLI run to read, and `--config=auto` pulls a different rule
+set entirely.
+
+The consequence is that a clean local run says nothing about the red check:
+
+```bash
+semgrep --config=auto <files>          # 0 findings
+# semgrep-cloud-platform/scan          # 2 blocking findings
+```
+
+Both of those findings were real. One sat beside a genuine defect, a URL parse
+that derived `github.com/owner` from a remote naming no repository.
+
+`p/security-audit` gets closer than `auto` and did reproduce one of the two,
+but it is still a guess at the server's rule set rather than the rule set
+itself:
+
+```bash
+semgrep --config=p/security-audit --config=p/python <files>
+```
+
+A pass from any `--config=` invocation is neither necessary nor sufficient. It
+is a different check, so it cannot clear the remote one and its absence does
+not condemn it.
+
+There is an exact reproduction, and it is worth knowing before you guess at
+rule packs. `semgrep ci`, when logged in, runs the rules configured on Semgrep
+App rather than a pack you name:
+
+```bash
+SEMGREP_APP_TOKEN=<token> semgrep ci
+```
+
+That is the same rule set the CI check uses, so it is the only local command
+whose clean result means anything about the red one. Without a token it cannot
+work, and no `--config` value substitutes for it.
+
+To learn what actually fired without a token, read the finding: the bot posts each one as a pull request
+review comment naming the rule id, the file, and the line. `gh api
+repos/OWNER/REPO/pulls/N/comments` returns them. The check run itself carries
+no annotations and no output text, so the API path that looks most direct is
+the one that tells you nothing.
+
+The scan is not in the branch protection required set, so it does not block a
+merge. That makes it easy to wave through, which is the trap: the two findings
+here were a taint reaching a `subprocess.CompletedProcess` constructor and a
+`compile()` call on file content, and both were worth fixing.
+
+Suppression is not the escape hatch. The `security-suppressions-staged` hook
+rejects any suppression comment in staged changes, which is a stronger stance
+than the "last resort" language elsewhere in the rules. Fix the code or record
+in the diff why the finding is not reachable.
+
+Two different incidents live in this space and the conclusions do not transfer.
+The taint and `compile()` findings above were real defects and were fixed in
+code. Separately, the `python.lang.compatibility.python36.*` rules fire on this
+repository and are false positives, because they assert a Python 3.6 floor
+against `requires-python = ">=3.14"`; that one is tracked in #4725. Do not read
+"the findings were real" as covering the compatibility rules, or #4725 as
+licence to dismiss a taint finding.

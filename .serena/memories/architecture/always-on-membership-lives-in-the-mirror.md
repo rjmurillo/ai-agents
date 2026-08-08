@@ -14,21 +14,38 @@ its **generated** `applyTo` resolves to `**`, so the answer lives in the
 generated tree. Parsing `.claude/rules/*.md` gives a wrong answer, wrong in both
 directions.
 
-There is also no single answer. The two destination trees disagree, measured at
-`0c75045d6`:
+There is also no single answer per tree by default, so always name the tree with
+the number. The two destination trees agree today, re-measured after the universal
+rule updates:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 8 rules, 72,291 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 11 rules, 79,823 bytes |
+| `.github/instructions` | Copilot in this repository | 8 rules, 72,287 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 8 rules, 72,287 bytes |
 
-`governance`, `secret-redaction`, and `session-logs` are narrowly scoped here and
-always-on in the plugin. A vendor install pays 7,532 bytes every turn that this
-repository never measures, on three rules that point at `.agents/` paths the
-installing repository does not have. Always name the tree with the number.
+Membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`,
+`knowledge-persistence`, `lsp-first`, `search-before-building`, `universal`,
+`voice`.
 
-The scope inversion behind this is tracked as issue #4317. Re-measure before
-quoting any number here if that issue closes.
+Those bytes are whole generated files, frontmatter included. The same eight
+rules measure 72,422 bytes at `.claude/rules/`, 135 more, because the generator
+drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. Name the
+tree whenever you quote a figure; a gap of about that size is a basis mismatch,
+not staleness.
+
+That agreement is recent. Until issue #4317 closed, the generator universalized
+a rule whose scope was entirely internal, which made `governance`,
+`secret-redaction`, and `session-logs` always-on in the plugin and cost a vendor
+install 7,532 bytes a turn on three rules pointing at `.agents/` paths the
+installing repository does not have. PR #4426 replaced that fallback with an
+explicit skip, so those rules are absent from the plugin tree rather than
+universalized in it. The plugin ships 23 instruction files against 27 in
+`.github/instructions`, and that gap is the fix, not drift.
+
+`tests/validation/test_always_on_corpus_claims.py` pins the two trees together
+and pins the figures on this page against a live measurement, so the convergence
+is a guarded invariant rather than a coincidence, and these numbers cannot go
+stale without turning a test red.
 
 ## Why the source cannot answer it
 
@@ -47,18 +64,21 @@ first leaves a line in the source file that a grep can find.
    ```
 
 4. The source declares a scope whose globs are **all** filtered as internal-only.
-   Lines 335-337 fall back to `**` rather than shipping an empty scope:
+   Lines 342-344 skip the rule rather than shipping it with a widened scope:
 
    ```python
    applyto_value = result.get("applyTo")
    if had_scope and isinstance(applyto_value, str) and not applyto_value.strip():
-       result["applyTo"] = _UNIVERSAL_SCOPE
+       return _SCOPE_SKIPPED
    ```
 
-   This case is **destination-dependent** and is why the two trees disagree.
+   This case is **destination-dependent**.
    `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions`
    under `keepInternalGlobsFor`, disabling the filter there, so case 4 cannot
-   fire for that tree. It fires only for `src/copilot-cli/instructions`.
+   fire for that tree. It fires only for `src/copilot-cli/instructions`, which
+   is why the plugin ships fewer instruction files. Before PR #4426 this branch
+   assigned `_UNIVERSAL_SCOPE` instead of returning, which is what made narrowly
+   scoped rules always-on for plugin consumers.
 
 Cases 2 and 3 are one branch, not two. `_has_path_scope` (line 209) reads only
 the path-scope keys, so `alwaysApply` never sets `had_scope`.
