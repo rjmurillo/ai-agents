@@ -13,7 +13,9 @@
       "type": "milestone",
       "content": "Triage issue 4408 and linked work",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-08-session-10020-b5ac6aa81-fix-issue-4408-python-test"
     },
     {
@@ -22,7 +24,9 @@
       "type": "milestone",
       "content": "Coordinate duplicate work",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-08-session-10020-b5ac6aa81-fix-issue-4408-python-test"
     },
     {
@@ -31,7 +35,9 @@
       "type": "milestone",
       "content": "Reproduce current main",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-08-session-10020-b5ac6aa81-fix-issue-4408-python-test"
     },
     {
@@ -40,7 +46,9 @@
       "type": "milestone",
       "content": "Implement scoped path-filter coverage",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-08-session-10020-b5ac6aa81-fix-issue-4408-python-test"
     },
     {
@@ -49,7 +57,9 @@
       "type": "milestone",
       "content": "Validate behavior",
       "caused_by": [],
-      "leads_to": [],
+      "leads_to": [
+        "e007"
+      ],
       "_source_session": "2026-08-08-session-10020-b5ac6aa81-fix-issue-4408-python-test"
     },
     {
@@ -58,6 +68,24 @@
       "type": "milestone",
       "content": "Run independent review",
       "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10020-b5ac6aa81-fix-issue-4408-python-test"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-08T08:26:20+00:00",
+      "type": "commit",
+      "content": "Commit: 910017f6fd24ca3ce8c70862961a1d77034168a1",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10020-b5ac6aa81-fix-issue-4408-python-test"
     }
@@ -67,7 +95,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 6
   },
   "lessons": []

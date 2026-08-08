@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, tests, QA, memory, and session record staged for one atomic commit; follow-up commit records its SHA"
+        "Evidence": "Implementation, tests, QA, memory, and session record committed as 910017f6fd24ca3ce8c70862961a1d77034168a1"
       },
       "validationPassed": {
         "level": "MUST",
@@ -139,7 +139,7 @@
       "outcome": "Independent code review and security review returned no findings. QA reran 21 focused tests and recorded PASS in .agents/qa/4408-pytest-path-filter-test-report.md."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "910017f6fd24ca3ce8c70862961a1d77034168a1",
   "nextSteps": [
     "Commit and push the focused issue 4408 branch",
     "Open one pull request with Fixes #4408 and enable auto-merge",
