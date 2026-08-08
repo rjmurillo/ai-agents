@@ -1,0 +1,94 @@
+{
+  "id": "episode-2026-08-07-session-10007",
+  "session": "2026-08-07-session-10007",
+  "timestamp": "2026-08-07T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Unblock a five-PR stack, and record the two measurement defects the session exposed: a push-receipt grep pattern that never matches, and a repo script that validates its own worktree when invoked by absolute path.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-07T03:15:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the Windows path-contract job passes on PR #4728 after 6c45185bf; gh pr checks reports zero failing checks.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-07-session-10007"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-07T03:40:00+00:00",
+      "type": "milestone",
+      "content": "Proved the wrong-worktree script-root trap with a two-direction control. Planted a stale token count, then ran the main clone's update_memory_index_tokens.py by absolute path from a worktree (reported current, exit 0) and the worktree's own copy from the same cwd (reported stale, exit 1).",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-07-session-10007"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-07T03:55:00+00:00",
+      "type": "milestone",
+      "content": "Wrote git-a-script-run-by-absolute-path-validates-its-own-worktree.md, indexed it, and caught an angle-bracket placeholder in my own shell fence, the same defect a prior memory warns about.",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-07-session-10007"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-07T04:00:00+00:00",
+      "type": "milestone",
+      "content": "Push of 741763c22 was refused by retrospective-policy. Investigating it exposed that my push-receipt grep pattern 'To github.com' matches 0 of 779 captured push logs, while the correct 'To (https://)?github.com' matches 313. Three pushes previously judged silent failures had in fact succeeded.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-07-session-10007"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-07T04:05:00+00:00",
+      "type": "milestone",
+      "content": "Compared git rev-parse against git ls-remote for all five stack branches. Three in sync, one diverged by a documented gh pr update-branch, one genuinely unpushed. Wrote the retrospective on the measurement defect.",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-07-session-10007"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-07T03:45:57+00:00",
+      "type": "commit",
+      "content": "Commit: 741763c22d0db2de65f9f0c1dc67b775c3143a22",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-07-session-10007"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 50,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

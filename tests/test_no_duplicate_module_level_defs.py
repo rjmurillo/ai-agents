@@ -5,10 +5,13 @@ ruff's `dummy-variable-rgx` treats them as intentional discards. A duplicate
 module-level helper named `_foo` silently shadows the earlier `_foo`, so the
 wrong fixture is used in every test that follows the shadowing definition.
 
-This gate walks every `.py` file under `tests/` at the module level and fails
-if any two `FunctionDef` or `AsyncFunctionDef` nodes share a name. It does NOT
-descend into classes (where test method names are scoped and intentionally
-repeated across test classes).
+This gate walks every `.py` file under the repository's `tests/` tree and
+fails if any two `FunctionDef` or `AsyncFunctionDef` nodes share a name. It
+does NOT descend into classes (where test method names are scoped and
+intentionally repeated across test classes), nor into `_SKIP` directories.
+Restricting the root prevents ignored repository-local pytest artifacts from
+entering the corpus. Read, decode, and syntax failures remain visible instead
+of reducing the scan silently.
 
 Issue: #4060. Confirmed zero duplicates in the repository when this gate was
 added, so it is purely a regression guard.
@@ -26,17 +29,15 @@ from pathlib import Path
 
 import pytest
 
-_TESTS_ROOT = Path(__file__).resolve().parents[1]
-_SKIP = frozenset((".venv", "node_modules", ".git", "site-packages"))
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_TESTS_ROOT = _REPO_ROOT / "tests"
+_SKIP = frozenset((".venv", "node_modules", ".git", "site-packages", "worktrees"))
 
 
 def _module_level_function_names(path: Path) -> dict[str, list[int]]:
     """Return {name: [lineno, ...]} for every module-level function in path."""
-    try:
-        source = path.read_text(encoding="utf-8")
-        tree = ast.parse(source, filename=str(path))
-    except (SyntaxError, OSError):
-        return {}
+    source = path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(path))
 
     by_name: dict[str, list[int]] = defaultdict(list)
     for node in ast.iter_child_nodes(tree):
@@ -49,7 +50,7 @@ def collect_duplicates(root: Path) -> list[tuple[Path, str, list[int]]]:
     """Return (path, name, [lineno1, lineno2, ...]) for every duplicate."""
     results: list[tuple[Path, str, list[int]]] = []
     for py in sorted(root.rglob("*.py")):
-        if any(part in _SKIP for part in py.parts):
+        if any(part in _SKIP for part in py.relative_to(root).parts):
             continue
         for name, linenos in _module_level_function_names(py).items():
             if len(linenos) > 1:
@@ -72,7 +73,7 @@ class TestNoDuplicateModuleLevelTestFunctions:
             "",
         ]
         for path, name, linenos in sorted(duplicates):
-            rel = path.relative_to(_TESTS_ROOT.parent)
+            rel = path.relative_to(_REPO_ROOT)
             lno_str = ", ".join(str(n) for n in linenos)
             lines.append(f"  {rel}: `{name}` defined at lines {lno_str}")
         pytest.fail("\n".join(lines))
@@ -116,11 +117,30 @@ class TestHelpers:
         result = _module_level_function_names(p)
         assert result == {}, "methods inside classes must not be collected"
 
-    def test_syntax_error_returns_empty(self, tmp_path: Path) -> None:
+    def test_syntax_error_fails_closed(self, tmp_path: Path) -> None:
         p = tmp_path / "bad.py"
         p.write_text("def f(\n", encoding="utf-8")
-        result = _module_level_function_names(p)
-        assert result == {}
+        with pytest.raises(SyntaxError):
+            _module_level_function_names(p)
+
+    def test_invalid_utf8_fails_closed(self, tmp_path: Path) -> None:
+        p = tmp_path / "bad.py"
+        p.write_bytes(b"\xff\xfe")
+        with pytest.raises(UnicodeDecodeError):
+            _module_level_function_names(p)
+
+    def test_gate_root_is_tests_directory(self) -> None:
+        assert _TESTS_ROOT == _REPO_ROOT / "tests"
+
+    def test_ignored_root_artifacts_are_outside_scan(self, tmp_path: Path) -> None:
+        tests_root = tmp_path / "tests"
+        tests_root.mkdir()
+        (tests_root / "clean.py").write_text("def clean(): pass\n", encoding="utf-8")
+        artifact = tmp_path / ".pytest_tmp"
+        artifact.mkdir()
+        (artifact / "bin.py").write_bytes(b"\xff\xfe")
+
+        assert collect_duplicates(tests_root) == []
 
     def test_collect_duplicates_finds_nothing_in_clean_dir(self, tmp_path: Path) -> None:
         (tmp_path / "a.py").write_text("def foo(): pass\n", encoding="utf-8")

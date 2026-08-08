@@ -285,6 +285,24 @@ def test_cli_exits_two_on_empty_python_scope(
     assert "zero tracked or untracked Python files" in capsys.readouterr().err
 
 
+def test_cli_exits_two_on_invalid_root(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result = main([str(tmp_path / "does_not_exist")])
+
+    assert result == 2
+    assert "repository root not found" in capsys.readouterr().err
+
+
+def test_cli_exits_two_on_too_many_arguments(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result = main([str(tmp_path), str(tmp_path)])
+
+    assert result == 2
+    assert "expected at most one repository root" in capsys.readouterr().err
+
+
 # ---------------------------------------------------------------------------
 # CLI exit code tests
 # ---------------------------------------------------------------------------
