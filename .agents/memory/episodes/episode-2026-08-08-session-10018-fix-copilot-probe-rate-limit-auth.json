@@ -96,7 +96,8 @@
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e011"
       ],
       "leads_to": [
         "e009"
@@ -124,6 +125,30 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-08-session-10018-fix-copilot-probe-rate-limit-auth"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed post-push review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10018-fix-copilot-probe-rate-limit-auth"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-08T11:38:27+00:00",
+      "type": "commit",
+      "content": "Commit: b7adbaf52",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10018-fix-copilot-probe-rate-limit-auth"
     }
@@ -133,8 +158,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 4
+    "commits": 4,
+    "files_changed": 9
   },
   "lessons": []
 }
