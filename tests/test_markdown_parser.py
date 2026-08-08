@@ -96,6 +96,32 @@ class TestExtractLookupReferences:
 
         assert extract_lookup_references(markdown) == ["quality/live.md"]
 
+    def test_reference_style_root_link_uses_document_definition(self) -> None:
+        markdown = (
+            "| live: [live][quality]\n\n"
+            "[quality]: quality/live.md\n"
+        )
+
+        assert extract_lookup_references(markdown) == ["quality/live.md"]
+
+    def test_multiline_inline_code_link_is_not_a_route(self) -> None:
+        markdown = (
+            "`code starts\n"
+            "| fake: [hidden](quality/hidden.md)\n"
+            "code ends`\n"
+            "| live: [live](quality/live.md)\n"
+        )
+
+        assert extract_lookup_references(markdown) == ["quality/live.md"]
+
+    def test_pipe_line_nested_in_list_is_not_root_route(self) -> None:
+        markdown = (
+            "- example\n"
+            "  | fake: [hidden](quality/hidden.md)\n"
+        )
+
+        assert extract_lookup_references(markdown) == []
+
 
 class TestParseTablesBasic:
     """Test basic table parsing from Markdown AST."""

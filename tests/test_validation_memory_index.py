@@ -806,6 +806,24 @@ class TestFindOrphanedFiles:
 
         assert orphans == []
 
+    def test_parent_segment_alias_is_canonicalized(
+        self, tmp_path: Path
+    ) -> None:
+        """A valid segment/../ alias resolves to the indexed atomic path."""
+        create_memory_structure(tmp_path, {
+            "quality-index.md": (
+                "| Keywords | File |\n"
+                "|----------|------|\n"
+                "| alias route canonical path keywords | "
+                "[memory](quality/../quality/indexed-memory.md) |\n"
+            ),
+            "quality/indexed-memory.md": "indexed",
+        })
+
+        orphans = find_orphaned_files([], tmp_path)
+
+        assert orphans == []
+
     @pytest.mark.parametrize(
         "hidden_markup",
         [

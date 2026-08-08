@@ -598,10 +598,15 @@ def find_orphaned_files(
     if root_index.exists():
         index_paths.append(root_index)
 
+    resolved_root = memory_path.resolve()
     for index_path in index_paths:
         content = index_path.read_text(encoding="utf-8")
         for reference in extract_lookup_references(content):
-            referenced_files.add(Path(reference).as_posix())
+            resolved = (memory_path / reference).resolve()
+            if resolved.is_relative_to(resolved_root):
+                referenced_files.add(
+                    resolved.relative_to(resolved_root).as_posix()
+                )
 
     orphans: list[Orphan] = []
     for file_path in sorted(memory_path.rglob("*.md")):

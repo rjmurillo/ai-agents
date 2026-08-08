@@ -290,21 +290,42 @@ def _ignored_block_lines(tokens: list[Token]) -> set[int]:
     return ignored
 
 
+def _mask_inline_code(markdown: str) -> list[str]:
+    """Blank closed backtick spans while preserving lines and columns."""
+    characters = list(markdown)
+    opening: re.Match[str] | None = None
+    for run in re.finditer(r"`+", markdown):
+        if opening is None:
+            preceding = markdown[:run.start()]
+            backslashes = len(preceding) - len(preceding.rstrip("\\"))
+            if backslashes % 2 == 0:
+                opening = run
+            continue
+        if len(run.group(0)) != len(opening.group(0)):
+            continue
+        for index in range(opening.start(), run.end()):
+            if characters[index] != "\n":
+                characters[index] = " "
+        opening = None
+    return "".join(characters).splitlines()
+
+
 def extract_lookup_references(markdown: str) -> list[str]:
     """Return .md targets from rendered lookup rows and table file cells."""
     md = _create_parser()
-    tokens = md.parse(markdown)
+    environment: dict[str, object] = {}
+    tokens = md.parse(markdown, environment)
     _raise_if_nesting_truncated(markdown, tokens, md)
 
     references, table_lines = _table_lookup_references(tokens)
     ignored_lines = _ignored_block_lines(tokens) | table_lines
 
-    for line_number, line in enumerate(markdown.splitlines()):
+    for line_number, line in enumerate(_mask_inline_code(markdown)):
         if line_number in ignored_lines:
             continue
-        if not re.match(r"^ {0,3}\|", line):
+        if not line.startswith("|"):
             continue
-        inline_tokens = md.parseInline(line)
+        inline_tokens = md.parseInline(line, environment)
         for token in inline_tokens:
             if token.type == "inline":
                 references.extend(_inline_markdown_links(token))
