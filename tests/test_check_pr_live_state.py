@@ -536,7 +536,7 @@ class TestMain:
         assert payload["state"] == "MERGED"
         assert payload["head_sha"] == "abc123def456"
 
-    def test_head_change_during_probe_preserves_fail_open_action(self, capsys):
+    def test_head_change_during_probe_blocks_stale_action(self, capsys):
         initial_pr = {
             "number": 2409,
             "state": "OPEN",
@@ -572,16 +572,16 @@ class TestMain:
              ):
             rc = main(["--pull-request", "2409", "--skip-fetch"])
 
-        assert rc == 0
+        assert rc == 1
         envelope = json.loads(capsys.readouterr().out)
         payload = envelope["Data"]
-        assert payload["action"] == "ACT"
+        assert payload["action"] == "SKIP"
         assert payload["head_sha"] == "def456abc123"
         assert payload["superseded_by_base"]["probe_inconclusive"] is True
         assert payload["superseded_by_base"]["git_cherry_failed"] is False
-        assert "changed during the supersession probe" in payload["reason"]
+        assert "rerun readiness gates" in payload["reason"]
 
-    def test_base_tip_change_during_probe_preserves_fail_open_action(self, capsys):
+    def test_base_tip_change_during_probe_blocks_stale_action(self, capsys):
         initial_pr = {
             "number": 2409,
             "state": "OPEN",
@@ -618,13 +618,53 @@ class TestMain:
              ):
             rc = main(["--pull-request", "2409", "--skip-fetch"])
 
+        assert rc == 1
+        envelope = json.loads(capsys.readouterr().out)
+        payload = envelope["Data"]
+        assert payload["action"] == "SKIP"
+        assert payload["superseded_by_base"]["probe_inconclusive"] is True
+        assert payload["superseded_by_base"]["git_cherry_failed"] is False
+        assert "rerun readiness gates" in payload["reason"]
+
+    def test_unchanged_inconclusive_probe_preserves_fail_open_action(self, capsys):
+        pr = {
+            "number": 2409,
+            "state": "OPEN",
+            "merged": False,
+            "isDraft": False,
+            "closed": False,
+            "headRefName": "fix/foo",
+            "headRefOid": "abc123def456",
+            "baseRefName": "main",
+            "baseRefOid": "base111",
+        }
+        with patch("check_pr_live_state.assert_gh_authenticated"), \
+             patch(
+                "check_pr_live_state.resolve_repo_params",
+                return_value=_mod.RepoInfo(owner="o", repo="r"),
+             ), \
+             patch(
+                "check_pr_live_state.gh_graphql",
+                return_value={"repository": {"pullRequest": pr}},
+             ), \
+             patch(
+                "check_pr_live_state.is_superseded_by_base",
+                return_value={
+                    "pr_commits": 0,
+                    "superseded_commits": 0,
+                    "fully_superseded": False,
+                    "git_cherry_failed": True,
+                    "probe_inconclusive": True,
+                    "head_unresolved": True,
+                },
+             ):
+            rc = main(["--pull-request", "2409", "--skip-fetch"])
+
         assert rc == 0
         envelope = json.loads(capsys.readouterr().out)
         payload = envelope["Data"]
         assert payload["action"] == "ACT"
-        assert payload["superseded_by_base"]["probe_inconclusive"] is True
-        assert payload["superseded_by_base"]["git_cherry_failed"] is False
-        assert "changed during the supersession probe" in payload["reason"]
+        assert "inconclusive" in payload["reason"]
 
     def test_final_live_state_query_failure_exits_3(self):
         open_pr = {

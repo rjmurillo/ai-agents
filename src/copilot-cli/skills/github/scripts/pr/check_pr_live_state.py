@@ -418,6 +418,8 @@ def classify_live_state(pr: dict[str, Any], supersession: dict[str, Any] | None)
       - isDraft=True: drafts are not actionable in pr-autofix (the
         triage protocol classifies them as non-mergeable; acting on
         them risks pushing to a workspace the author still owns).
+      - live_state_changed=True: the head or base moved while this check
+        ran, so earlier readiness evidence no longer covers the PR.
       - fully_superseded=True: every commit on the branch is already on
         the base via patch-id. Merging is a no-op or a conflict.
 
@@ -434,6 +436,14 @@ def classify_live_state(pr: dict[str, Any], supersession: dict[str, Any] | None)
     if pr.get("isDraft") is True:
         return {"action": "SKIP", "reason": "PR is in draft state"}
 
+    if supersession and supersession.get("live_state_changed"):
+        return {
+            "action": "SKIP",
+            "reason": (
+                "PR head or base changed during the live-state check; "
+                "rerun readiness gates before mutation"
+            ),
+        }
     if supersession and supersession.get("fully_superseded"):
         n = supersession.get("superseded_commits", 0)
         return {
@@ -454,9 +464,7 @@ def classify_live_state(pr: dict[str, Any], supersession: dict[str, Any] | None)
             ),
         }
     if supersession and supersession.get("probe_inconclusive"):
-        if supersession.get("live_state_changed"):
-            detail = "PR head or base changed during the supersession probe"
-        elif supersession.get("head_unresolved"):
+        if supersession.get("head_unresolved"):
             detail = "PR head could not be resolved for git cherry"
         else:
             detail = "git cherry failed against base ref"
