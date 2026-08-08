@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commit on docs/record-strict-policy-and-merge-queue-availability covering .github/AGENTS.md, the decision memory, .serena/memories/memory-index.md, and this session log."
+        "Evidence": "Commits 136881d345 and ded2bf5d8d on docs/record-strict-policy-and-merge-queue-availability cover the strict-policy correction, worktree rule, generated mirrors, memory index, and this session log."
       },
       "validationPassed": {
         "level": "MUST",
