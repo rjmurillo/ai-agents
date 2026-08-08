@@ -1204,24 +1204,18 @@ def _setup_skill_companion_fixture(
 
 
 def test_markdownlint_guard_declares_and_matches_runtime_companion() -> None:
-    """The Copilot hook must receive the framework imported by its owner."""
+    """The Copilot hook must receive every file required by its owner."""
     repo_root = Path(__file__).resolve().parents[2]
-    canonical = (
-        repo_root / ".claude" / "hooks" / "PreToolUse" / "push_guard_base.py"
-    )
-    generated = (
-        repo_root
-        / "src"
-        / "copilot-cli"
-        / "hooks"
-        / "PreToolUse"
-        / "push_guard_base.py"
-    )
+    canonical_dir = repo_root / ".claude" / "hooks" / "PreToolUse"
+    generated_dir = repo_root / "src" / "copilot-cli" / "hooks" / "PreToolUse"
 
     assert generate_hooks_events._COMPANIONS_BY_OWNER[
         "PreToolUse/invoke_markdownlint_guard.py"
-    ] == ("push_guard_base.py",)
-    assert generated.read_bytes() == canonical.read_bytes()
+    ] == ("markdownlint-cli2.yaml", "push_guard_base.py")
+    for companion in ("markdownlint-cli2.yaml", "push_guard_base.py"):
+        assert (generated_dir / companion).read_bytes() == (
+            canonical_dir / companion
+        ).read_bytes()
 
 
 def test_generator_copies_skill_loader_without_dispatching_it(

@@ -41,7 +41,7 @@ def _fail(returncode: int, stdout: str = "", stderr: str = "") -> subprocess.Com
 
 @pytest.fixture
 def push_command(monkeypatch):
-    monkeypatch.setattr("sys.stdin", io.StringIO(_stdin("git push origin HEAD")))
+    monkeypatch.setattr("sys.stdin", io.StringIO(_stdin("git push")))
 
 
 def _make_dispatcher(diff_out, lint_handler):
@@ -59,9 +59,21 @@ def _make_dispatcher(diff_out, lint_handler):
     return dispatch
 
 
-def _run(diff_out, lint_handler, tmp_path, which_value=guard.BINARY):
+def _run(
+    diff_out,
+    lint_handler,
+    tmp_path,
+    which_value="/usr/bin/markdownlint-cli2",
+):
+    for relative_path in diff_out.splitlines():
+        if not relative_path:
+            continue
+        target = tmp_path / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("# Test\n", encoding="utf-8")
     dispatcher = _make_dispatcher(diff_out, lint_handler)
     with patch("push_guard_base.subprocess.run", side_effect=dispatcher), \
+         patch("push_guard_base._validate_strict_push_configuration"), \
          patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
          patch.object(guard.shutil, "which", return_value=which_value), \
          patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
@@ -101,6 +113,40 @@ class TestCleanFiles:
             assert "--no-globs" in call_args, (
                 f"--no-globs missing from invocation: {call_args}"
             )
+            config_index = call_args.index("--config")
+            assert call_args[config_index + 1] == str(guard.CONFIG_PATH)
+            assert call_args[-1] == "-"
+            assert "docs/a.md" not in call_args
+
+    def test_lints_content_outside_consumer_config_scope(
+        self, push_command, tmp_path
+    ):
+        markdown = tmp_path / "docs" / "a.md"
+        markdown.parent.mkdir()
+        markdown.write_text("# Trusted input\n", encoding="utf-8")
+        lint_call: dict[str, object] = {}
+
+        def dispatch(args, **kwargs):
+            if args and args[0] == "git":
+                return _ok("docs/a.md\n")
+            if "--version" in args:
+                return _ok(stdout="0.21.0\n")
+            lint_call["args"] = args
+            lint_call["input"] = kwargs.get("input")
+            lint_call["cwd"] = kwargs.get("cwd")
+            return _ok()
+
+        with patch("push_guard_base.subprocess.run", side_effect=dispatch), \
+             patch("push_guard_base._validate_strict_push_configuration"), \
+             patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
+             patch.object(guard.shutil, "which", return_value="/usr/bin/markdownlint-cli2"), \
+             patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
+            rc = guard.main()
+
+        assert rc == 0
+        assert lint_call["input"] == "# Trusted input\n"
+        assert lint_call["cwd"] == guard.CONFIG_PATH.parent
+        assert lint_call["args"][-1] == "-"
 
 
 class TestViolations:
@@ -139,47 +185,90 @@ class TestViolations:
 
 
 class TestBinaryAbsent:
-    def test_binary_and_npx_missing_blocks(self, push_command, tmp_path, capsys):
+    def test_binary_missing_blocks(self, push_command, tmp_path, capsys):
         def lint(args):
-            raise AssertionError("subprocess should not run when neither tool present")
+            raise AssertionError("subprocess should not run when tool is absent")
 
-        # which_value=None applies to BOTH markdownlint-cli2 and npx
         rc = _run("docs/a.md\n", lint, tmp_path, which_value=None)
         assert rc == 2
         err = capsys.readouterr().err
-        assert "neither markdownlint-cli2 nor npx found" in err
+        assert "trusted markdownlint-cli2 not found outside the repository" in err
         assert "blocking push" in err
 
-    def test_binary_missing_falls_back_to_npx(self, push_command, tmp_path, capsys):
-        """When markdownlint-cli2 is not on PATH but npx is, use npx as documented."""
-        captured_args: list[list[str]] = []
+    def test_repository_local_binary_blocks(
+        self, push_command, tmp_path, capsys
+    ):
+        local_binary = tmp_path / "node_modules" / ".bin" / guard.BINARY
 
         def lint(args):
-            captured_args.append(list(args))
-            if "--version" in args:
-                return _ok(stdout="0.21.0\n")
-            return _ok()
+            raise AssertionError("repository-controlled binary must not run")
 
-        # Mock shutil.which: return None for markdownlint-cli2, a path for npx.
-        def which_side_effect(name: str) -> str | None:
-            return "/usr/bin/npx" if name == "npx" else None
+        rc = _run(
+            "docs/a.md\n",
+            lint,
+            tmp_path,
+            which_value=str(local_binary),
+        )
+
+        assert rc == 2
+        assert "trusted markdownlint-cli2 not found" in capsys.readouterr().err
+
+    def test_repository_local_symlink_blocks(
+        self, push_command, tmp_path, capsys
+    ):
+        local_binary = tmp_path / "node_modules" / ".bin" / guard.BINARY
+        local_binary.parent.mkdir(parents=True)
+        local_binary.symlink_to("/bin/true")
+
+        def lint(args):
+            raise AssertionError("repository-controlled symlink must not run")
+
+        rc = _run(
+            "docs/a.md\n",
+            lint,
+            tmp_path,
+            which_value=str(local_binary),
+        )
+
+        assert rc == 2
+        assert "trusted markdownlint-cli2 not found" in capsys.readouterr().err
+
+    def test_missing_plugin_config_blocks(
+        self, push_command, tmp_path, capsys
+    ):
+        missing_config = tmp_path / "missing-markdownlint.yaml"
+
+        def lint(args):
+            raise AssertionError("markdownlint must not run without fixed config")
 
         dispatcher = _make_dispatcher("docs/a.md\n", lint)
         with patch("push_guard_base.subprocess.run", side_effect=dispatcher), \
+             patch("push_guard_base._validate_strict_push_configuration"), \
              patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
-             patch.object(guard.shutil, "which", side_effect=which_side_effect), \
+             patch.object(guard.shutil, "which", return_value="/usr/bin/markdownlint-cli2"), \
+             patch.object(guard, "CONFIG_PATH", missing_config), \
              patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
             rc = guard.main()
 
-        assert rc == 0
-        # Confirm npx was used in the lint invocation (not --version, not git diff)
-        lint_calls = [
-            a for a in captured_args
-            if "--version" not in a and a and a[0] != "git"
-        ]
-        assert lint_calls, "Expected lint invocation"
-        assert lint_calls[0][0] == "npx"
-        assert lint_calls[0][1] == guard.BINARY
+        assert rc == 2
+        assert "plugin markdownlint config missing" in capsys.readouterr().err
+
+
+class TestStrictHookInput:
+    def test_empty_stdin_blocks_before_subprocess(
+        self,
+        monkeypatch,
+        capsys,
+    ):
+        monkeypatch.setattr("sys.stdin", io.StringIO(""))
+
+        with patch("push_guard_base.subprocess.run") as run:
+            with patch("push_guard_base._validate_strict_push_configuration"):
+                rc = guard.main()
+
+        assert rc == 2
+        assert "stdin empty" in capsys.readouterr().out
+        run.assert_not_called()
 
 
 class TestTimeout:
@@ -234,6 +323,8 @@ class TestGuardWiring:
 
         with patch(
             "push_guard_base.subprocess.run", side_effect=dispatch
+        ), patch(
+            "push_guard_base._validate_strict_push_configuration"
         ), patch(
             "push_guard_base.get_project_directory", return_value=str(tmp_path)
         ), patch(
