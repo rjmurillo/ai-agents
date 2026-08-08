@@ -109,28 +109,6 @@ def get_merge_head_commit() -> str | None:
     return get_ref_commit("MERGE_HEAD")
 
 
-def is_ancestor_or_equal(ancestor_ref: str, descendant_ref: str) -> bool:
-    """Return True when ancestor_ref is an ancestor of descendant_ref."""
-    result = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", ancestor_ref, descendant_ref],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=10,
-        check=False,
-    )
-    if result.returncode == 0:
-        return True
-    if result.returncode == 1:
-        return False
-    raise ScopeDetectionError(
-        "git merge-base --is-ancestor "
-        f"{ancestor_ref} {descendant_ref} failed (rc={result.returncode}): "
-        f"{result.stderr.strip()}"
-    )
-
-
 def resolve_base_ref(base_branch: str) -> str | None:
     """Resolve the most accurate base ref for diff comparison.
 
@@ -260,28 +238,12 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
         raise ScopeDetectionError(f"could not determine merge base with {base_branch}")
 
     if merge_head:
-        remote_base_sha = get_ref_commit(base_ref)
-        local_base_sha = get_ref_commit(base_branch)
-        merge_head_matches_remote_lineage = remote_base_sha is not None and is_ancestor_or_equal(
-            merge_head, remote_base_sha
-        )
-        merge_head_matches_local_tip = local_base_sha is not None and merge_head == local_base_sha
-
-        if merge_head_matches_remote_lineage or merge_head_matches_local_tip:
-            # When MERGE_HEAD matches the actual tip of the base ref being
-            # merged, or remains on the remote base lineage after the base has
-            # advanced, diff the final staged tree against that exact
-            # base-side commit. This keeps upstream merge files out of scope
-            # while still counting any new branch-local files staged after
-            # `git merge --no-commit`, even when local `main` has advanced past
-            # `origin/main`.
-            files = sorted(set(get_index_files_against_ref(merge_head)))
-        else:
-            # A sibling merge leaves MERGE_HEAD off the base lineage. Count
-            # the final staged tree against the true merge base so merged
-            # sibling files and any post-merge staged edits contribute to
-            # scope, without treating the sibling tip itself as the baseline.
-            files = sorted(set(get_index_files_against_ref(merge_base)))
+        # During an in-progress merge, measure the final staged tree against
+        # the resolved PR base ref. This matches the eventual PR diff against
+        # that base, so branch-local staged work, local-main-only commits, and
+        # sibling-branch merges all count, while base-branch files already
+        # present on the resolved base stay out of scope.
+        files = sorted(set(get_index_files_against_ref(base_ref)))
         return ScopeResult(
             file_count=len(files),
             merge_base=merge_base[:12],

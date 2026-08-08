@@ -30,7 +30,6 @@ from scripts.detect_scope_explosion import (
     get_merge_base,
     get_merge_head_commit,
     get_ref_commit,
-    is_ancestor_or_equal,
     main,
     report,
     resolve_base_ref,
@@ -277,38 +276,6 @@ class TestGetMergeBase:
             assert cmd[3] == "origin/main"
 
 
-class TestIsAncestorOrEqual:
-    """Tests for is_ancestor_or_equal helper."""
-
-    def test_returns_true_on_success(self) -> None:
-        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=0, stdout="", stderr=""
-            )
-            assert is_ancestor_or_equal("base_sha", "origin/main") is True
-
-    def test_returns_false_when_not_ancestor(self) -> None:
-        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[], returncode=1, stdout="", stderr=""
-            )
-            assert is_ancestor_or_equal("feature_sha", "origin/main") is False
-
-    def test_raises_on_git_error(self) -> None:
-        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
-            mock_run.return_value = subprocess.CompletedProcess(
-                args=[],
-                returncode=128,
-                stdout="",
-                stderr="fatal: bad revision",
-            )
-            with pytest.raises(
-                ScopeDetectionError,
-                match="git merge-base --is-ancestor base_sha origin/main failed",
-            ):
-                is_ancestor_or_equal("base_sha", "origin/main")
-
-
 class TestGetIndexFilesAgainstRef:
     """Tests for staged result diffing against a base ref."""
 
@@ -493,7 +460,7 @@ class TestDetectScope:
             # Counted against the merge base, not HEAD or the working tree.
             assert captured_ref == ["base987654321"]
 
-    def test_in_progress_non_base_merge_counts_final_index_against_merge_base(self) -> None:
+    def test_in_progress_non_base_merge_counts_final_index_against_base_ref(self) -> None:
         captured_args: list[str] = []
 
         def fake_index_files(ref: str) -> list[str]:
@@ -515,17 +482,6 @@ class TestDetectScope:
                 return_value="base987654321",
             ),
             patch(
-                "scripts.detect_scope_explosion.get_ref_commit",
-                side_effect=lambda ref: {
-                    "origin/main": "origin_tip_sha",
-                    "main": "local_main_sha",
-                }.get(ref),
-            ),
-            patch(
-                "scripts.detect_scope_explosion.is_ancestor_or_equal",
-                return_value=False,
-            ),
-            patch(
                 "scripts.detect_scope_explosion.get_index_files_against_ref",
                 side_effect=fake_index_files,
             ),
@@ -537,7 +493,7 @@ class TestDetectScope:
             assert result is not None
             assert result.file_count == 2
             assert result.files == ("pr.py", "tests/test_pr.py")
-            assert captured_args == ["base987654321"]
+            assert captured_args == ["origin/main"]
             mock_get_head_files.assert_not_called()
 
     def test_in_progress_base_lineage_merge_counts_final_index(self) -> None:
@@ -562,17 +518,6 @@ class TestDetectScope:
                 return_value="merge_head_sha",
             ),
             patch(
-                "scripts.detect_scope_explosion.get_ref_commit",
-                side_effect=lambda ref: {
-                    "origin/main": "merge_head_sha",
-                    "main": "merge_head_sha",
-                }.get(ref),
-            ),
-            patch(
-                "scripts.detect_scope_explosion.is_ancestor_or_equal",
-                return_value=True,
-            ),
-            patch(
                 "scripts.detect_scope_explosion.get_merge_base",
                 return_value="real_merge_base_sha",
             ),
@@ -587,10 +532,10 @@ class TestDetectScope:
             result = detect_scope()
             assert result is not None
             assert result.file_count == 13
-            assert captured_args == ["merge_head_sha"]
+            assert captured_args == ["origin/main"]
             mock_get_head_files.assert_not_called()
 
-    def test_sibling_merge_head_falls_through_to_merge_base(self) -> None:
+    def test_sibling_merge_head_counts_final_index_against_base_ref(self) -> None:
         # Regression for Issue #4418: when MERGE_HEAD is the branch's own
         # remote tip (behind main), counting staged files against MERGE_HEAD
         # inflates the count by every file main gained since that tip.
@@ -612,17 +557,6 @@ class TestDetectScope:
                 return_value="remote_tip_sha",
             ),
             patch(
-                "scripts.detect_scope_explosion.get_ref_commit",
-                side_effect=lambda ref: {
-                    "origin/main": "base_tip_sha",
-                    "main": "local_main_tip",
-                }.get(ref),
-            ),
-            patch(
-                "scripts.detect_scope_explosion.is_ancestor_or_equal",
-                return_value=False,
-            ),
-            patch(
                 "scripts.detect_scope_explosion.get_index_files_against_ref",
                 side_effect=fake_index_files,
             ),
@@ -637,12 +571,12 @@ class TestDetectScope:
             result = detect_scope()
             assert result is not None
             assert result.file_count == 17
-            assert captured_index_args == ["real_merge_base_sha"]
+            assert captured_index_args == ["origin/main"]
             mock_get_head_files.assert_not_called()
 
-    def test_equal_merge_head_counts_against_merge_head_index(self) -> None:
-        # A base-side merge where MERGE_HEAD equals the resolved base ref
-        # should count the final staged tree against that exact commit.
+    def test_equal_merge_head_counts_against_base_ref_index(self) -> None:
+        # A base-side merge should count the final staged tree against the
+        # resolved base ref.
         captured_index_args: list[str] = []
 
         def fake_index_files(ref: str) -> list[str]:
@@ -660,14 +594,6 @@ class TestDetectScope:
                 return_value="base_sha",
             ),
             patch(
-                "scripts.detect_scope_explosion.get_ref_commit",
-                side_effect=lambda ref: {"origin/main": "base_sha", "main": "base_sha"}.get(ref),
-            ),
-            patch(
-                "scripts.detect_scope_explosion.is_ancestor_or_equal",
-                return_value=True,
-            ),
-            patch(
                 "scripts.detect_scope_explosion.get_merge_base",
                 return_value="real_merge_base_sha",
             ),
@@ -682,12 +608,12 @@ class TestDetectScope:
             result = detect_scope()
             assert result is not None
             assert result.file_count == 1
-            assert captured_index_args == ["base_sha"]
+            assert captured_index_args == ["origin/main"]
             mock_get_head_files.assert_not_called()
 
-    def test_sibling_merge_head_uses_merge_base_index_not_merge_head(self) -> None:
+    def test_sibling_merge_head_uses_base_ref_index_not_merge_head(self) -> None:
         # Isolating control: the sibling path must count the final staged tree
-        # against the merge base, not against MERGE_HEAD.
+        # against the resolved base ref, not against MERGE_HEAD.
         captured_index_args: list[str] = []
 
         def fake_index_files(ref: str) -> list[str]:
@@ -705,17 +631,6 @@ class TestDetectScope:
                 return_value="remote_tip_sha",
             ),
             patch(
-                "scripts.detect_scope_explosion.get_ref_commit",
-                side_effect=lambda ref: {
-                    "origin/main": "base_tip_sha",
-                    "main": "local_main_tip",
-                }.get(ref),
-            ),
-            patch(
-                "scripts.detect_scope_explosion.is_ancestor_or_equal",
-                return_value=False,
-            ),
-            patch(
                 "scripts.detect_scope_explosion.get_index_files_against_ref",
                 side_effect=fake_index_files,
             ),
@@ -729,7 +644,7 @@ class TestDetectScope:
         ):
             detect_scope()
             mock_get_merge_base.assert_called_once()
-            assert captured_index_args == ["real_merge_base_sha"]
+            assert captured_index_args == ["origin/main"]
             mock_get_head_files.assert_not_called()
 
     def test_sibling_merged_into_local_main_does_not_trigger_index_path(self) -> None:
@@ -742,17 +657,6 @@ class TestDetectScope:
             patch(
                 "scripts.detect_scope_explosion.get_merge_head_commit",
                 return_value="sibling_commit_sha",
-            ),
-            patch(
-                "scripts.detect_scope_explosion.get_ref_commit",
-                side_effect=lambda ref: {
-                    "origin/main": "origin_tip_sha",
-                    "main": "local_main_merge_commit_sha",
-                }.get(ref),
-            ),
-            patch(
-                "scripts.detect_scope_explosion.is_ancestor_or_equal",
-                return_value=False,
             ),
             patch(
                 "scripts.detect_scope_explosion.get_index_files_against_ref",
@@ -790,19 +694,6 @@ class TestDetectScope:
                 return_value="stale_base_sha",
             ),
             patch(
-                "scripts.detect_scope_explosion.get_ref_commit",
-                side_effect=lambda ref: {
-                    "origin/main": "newer_origin_tip_sha",
-                    "main": "local_main_tip_sha",
-                }.get(ref),
-            ),
-            patch(
-                "scripts.detect_scope_explosion.is_ancestor_or_equal",
-                side_effect=lambda ancestor, descendant: (
-                    ancestor == "stale_base_sha" and descendant == "newer_origin_tip_sha"
-                ),
-            ),
-            patch(
                 "scripts.detect_scope_explosion.get_merge_base",
                 return_value="real_merge_base_sha",
             ),
@@ -817,7 +708,7 @@ class TestDetectScope:
             result = detect_scope()
             assert result is not None
             assert result.file_count == 56
-            assert captured_index_args == ["stale_base_sha"]
+            assert captured_index_args == ["origin/main"]
             mock_get_head_files.assert_not_called()
 
 
@@ -841,22 +732,24 @@ class TestMergeHeadRealGit:
         _check_git(repo, "add", *staged_feature_files)
 
         authored = _git(repo, "diff", "--name-only", "origin/main...HEAD")
-        staged = _git(repo, "diff", "--cached", "--name-only")
+        staged = _git(repo, "diff", "--cached", "--name-only", "--diff-filter=ACMR", "origin/main")
         assert authored.returncode == 0
         assert staged.returncode == 0
         authored_paths = {line for line in authored.stdout.splitlines() if line}
         staged_paths = {line for line in staged.stdout.splitlines() if line}
-        expected_paths = {f"feature/file_{index}.py" for index in range(11)} | set(
-            staged_feature_files
+        expected_paths = (
+            {f"feature/file_{index}.py" for index in range(11)}
+            | set(staged_feature_files)
+            | {"main/local_only.py"}
         )
         assert len(authored_paths) == 11
         assert staged_paths.issuperset(set(staged_feature_files))
-        assert len(staged_paths) == 143
+        assert len(staged_paths) == 57
 
         monkeypatch.chdir(repo)
         result = detect_scope()
         assert result is not None
-        assert result.file_count == 56
+        assert result.file_count == 57
         assert set(result.files) == expected_paths
         assert _run_main(repo, monkeypatch) == 1
 
@@ -894,8 +787,7 @@ class TestMergeHeadRealGit:
         _check_git(repo, "checkout", "feature")
         _check_git(repo, "merge", "--no-commit", "--no-ff", sibling_tip)
 
-        merge_base = _check_git(repo, "merge-base", "HEAD", "origin/main")
-        staged = _git(repo, "diff", "--cached", "--name-only", "--diff-filter=ACMR", merge_base)
+        staged = _git(repo, "diff", "--cached", "--name-only", "--diff-filter=ACMR", "origin/main")
         assert staged.returncode == 0
         staged_paths = {line for line in staged.stdout.splitlines() if line}
         assert len(staged_paths) == 55
