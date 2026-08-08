@@ -131,7 +131,7 @@ def update_body(owner: str, repo: str, pr: int, new_body: str) -> None:
             "gh", "api",
             f"repos/{owner}/{repo}/pulls/{pr}",
             "--method", "PATCH",
-            "--field", f"body={new_body}",
+            "--raw-field", f"body={new_body}",
             "--jq", ".number",
         ],
         capture_output=True,
