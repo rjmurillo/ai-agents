@@ -87,6 +87,14 @@ class TestAddCommentReaction:
         with (
             patch("add_comment_reaction.assert_gh_authenticated"),
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                return_value={
+                    "pull_request": 1,
+                    "thread_id": "PRRT_abc",
+                    "is_resolved": False,
+                },
+            ),
             patch("subprocess.run", return_value=proc),
         ):
             rc = mod.main(["--comment-id", "42", "--reaction", "eyes"])
@@ -118,7 +126,11 @@ class TestAddCommentReaction:
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main(["--comment-id", "1", "2", "3", "--reaction", "heart"])
+            rc = mod.main([
+                "--comment-id", "1", "2", "3",
+                "--comment-type", "issue",
+                "--reaction", "heart",
+            ])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["total_count"] == 3
@@ -133,7 +145,11 @@ class TestAddCommentReaction:
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main(["--comment-id", "5", "--reaction", "rocket"])
+            rc = mod.main([
+                "--comment-id", "5",
+                "--comment-type", "issue",
+                "--reaction", "rocket",
+            ])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["succeeded"] == 1
@@ -146,7 +162,11 @@ class TestAddCommentReaction:
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main(["--comment-id", "9", "--reaction", "eyes"])
+            rc = mod.main([
+                "--comment-id", "9",
+                "--comment-type", "issue",
+                "--reaction", "eyes",
+            ])
         assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["failed"] == 1
@@ -160,7 +180,11 @@ class TestAddCommentReaction:
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", side_effect=procs),
         ):
-            rc = mod.main(["--comment-id", "1", "2", "--reaction", "eyes"])
+            rc = mod.main([
+                "--comment-id", "1", "2",
+                "--comment-type", "issue",
+                "--reaction", "eyes",
+            ])
         assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["succeeded"] == 1
@@ -174,7 +198,11 @@ class TestAddCommentReaction:
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main(["--comment-id", "1", "--reaction", "eyes"])
+            rc = mod.main([
+                "--comment-id", "1",
+                "--comment-type", "issue",
+                "--reaction", "eyes",
+            ])
         assert rc == 3
 
     def test_main_success(self, capsys):
@@ -185,7 +213,11 @@ class TestAddCommentReaction:
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            rc = mod.main(["--comment-id", "5", "--reaction", "+1"])
+            rc = mod.main([
+                "--comment-id", "5",
+                "--comment-type", "issue",
+                "--reaction", "+1",
+            ])
         assert rc == 0
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
@@ -211,13 +243,26 @@ class TestAddCommentReaction:
                 "add_comment_reaction.resolve_repo_params",
                 return_value=RepoInfo(owner="owner", repo="repo"),
             ),
+            patch(
+                "add_comment_reaction.query_review_comment_thread_state",
+                return_value={
+                    "pull_request": 1,
+                    "thread_id": "PRRT_abc",
+                    "is_resolved": False,
+                },
+            ),
             patch("subprocess.run", side_effect=fake_run),
         ):
             mod.main(["--comment-id", "100", "--reaction", "eyes"])
 
-        # Find the gh api call
-        api_cmd = [c for c in captured_cmds if c and "pulls/comments" in str(c)]
-        assert len(api_cmd) >= 1
+        api_cmd = [
+            command
+            for command in captured_cmds
+            if "pulls/comments/100/reactions" in str(command)
+        ]
+        assert len(api_cmd) == 1
+        assert "-X" in api_cmd[0]
+        assert "POST" in api_cmd[0]
 
     def test_issue_endpoint_used_for_issue_type(self):
         mod = self._import()

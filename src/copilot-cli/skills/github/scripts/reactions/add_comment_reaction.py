@@ -33,6 +33,9 @@ else:
 if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
     sys.exit(2)  # Config error per ADR-035
+_script_dir = os.path.dirname(__file__)
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
