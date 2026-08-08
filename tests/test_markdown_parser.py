@@ -38,6 +38,17 @@ class TestExtractLookupReferences:
             "quality/bare.md",
         ]
 
+    def test_ignores_links_outside_table_file_column(self) -> None:
+        markdown = """\
+| [Keywords](quality-index.md) | File |
+|------------------------------|------|
+| [keyword](other.md) | [target](quality/target.md) |
+"""
+
+        assert extract_lookup_references(markdown) == [
+            "quality/target.md"
+        ]
+
     def test_extracts_custom_root_lookup_links(self) -> None:
         markdown = (
             "| quality routes: [one](quality/one.md), "
@@ -73,6 +84,14 @@ class TestExtractLookupReferences:
             "<!--\n"
             "```\n"
             "| live: [live](quality/live.md)\n"
+        )
+
+        assert extract_lookup_references(markdown) == ["quality/live.md"]
+
+    def test_adjacent_prose_link_is_not_a_lookup_route(self) -> None:
+        markdown = (
+            "| live: [live](quality/live.md)\n"
+            "ordinary prose [hidden](quality/hidden.md)\n"
         )
 
         assert extract_lookup_references(markdown) == ["quality/live.md"]

@@ -14,6 +14,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 from markdown_it import MarkdownIt
+from markdown_it.token import Token
 
 
 @dataclass(frozen=True)
@@ -224,26 +225,28 @@ def parse_tables(markdown: str) -> list[ParsedTable]:
     return tables
 
 
-def extract_lookup_references(markdown: str) -> list[str]:
-    """Return .md targets from rendered lookup rows and table file cells."""
-    md = _create_parser()
-    tokens = md.parse(markdown)
-    _raise_if_nesting_truncated(markdown, tokens, md)
-
+def _inline_markdown_links(token: Token) -> list[str]:
+    """Return rendered .md link targets from one inline token."""
     references: list[str] = []
-    in_table = False
+    for child in token.children or []:
+        if child.type != "link_open":
+            continue
+        href = child.attrGet("href")
+        if isinstance(href, str) and href.endswith(".md"):
+            references.append(href)
+    return references
+
+
+def _table_lookup_references(
+    tokens: list[Token],
+) -> tuple[list[str], set[int]]:
+    """Return file-column references and occupied table source lines."""
+    references: list[str] = []
+    table_lines: set[int] = set()
     in_body = False
     cell_index = -1
-    source_lines = markdown.splitlines()
 
     for token in tokens:
-        if token.type == "table_open":
-            in_table = True
-            continue
-        if token.type == "table_close":
-            in_table = False
-            in_body = False
-            continue
         if token.type == "tbody_open":
             in_body = True
             continue
@@ -252,46 +255,59 @@ def extract_lookup_references(markdown: str) -> list[str]:
             continue
         if token.type == "tr_open":
             cell_index = -1
+            if token.map:
+                table_lines.update(range(token.map[0], token.map[1]))
             continue
         if token.type in {"th_open", "td_open"}:
             cell_index += 1
             continue
-        if token.type != "inline":
+        if token.type != "inline" or not in_body or cell_index != 1:
             continue
 
-        children = token.children or []
-        link_targets: list[str] = []
-        for child in children:
-            if child.type != "link_open":
-                continue
-            href = child.attrGet("href")
-            if isinstance(href, str) and href.endswith(".md"):
-                link_targets.append(href)
-        if in_table:
-            if link_targets:
-                references.extend(link_targets)
-            elif in_body and cell_index == 1:
-                bare_target = token.content.strip()
-                if bare_target:
-                    references.append(
-                        bare_target
-                        if bare_target.endswith(".md")
-                        else f"{bare_target}.md"
-                    )
-            continue
-
-        if token.map is None:
-            continue
-        start_line, end_line = token.map
-        lookup_row_present = any(
-            re.match(r"^ {0,3}\|", source_lines[line_number])
-            for line_number in range(
-                max(start_line, 0),
-                min(end_line, len(source_lines)),
-            )
-        )
-        if lookup_row_present:
+        link_targets = _inline_markdown_links(token)
+        if link_targets:
             references.extend(link_targets)
+            continue
+        bare_target = token.content.strip()
+        if bare_target:
+            references.append(
+                bare_target
+                if bare_target.endswith(".md")
+                else f"{bare_target}.md"
+            )
+
+    return references, table_lines
+
+
+def _ignored_block_lines(tokens: list[Token]) -> set[int]:
+    """Return source lines rendered as code or HTML blocks."""
+    ignored: set[int] = set()
+    for token in tokens:
+        if token.type not in {"fence", "code_block", "html_block"}:
+            continue
+        if token.map:
+            ignored.update(range(token.map[0], token.map[1]))
+    return ignored
+
+
+def extract_lookup_references(markdown: str) -> list[str]:
+    """Return .md targets from rendered lookup rows and table file cells."""
+    md = _create_parser()
+    tokens = md.parse(markdown)
+    _raise_if_nesting_truncated(markdown, tokens, md)
+
+    references, table_lines = _table_lookup_references(tokens)
+    ignored_lines = _ignored_block_lines(tokens) | table_lines
+
+    for line_number, line in enumerate(markdown.splitlines()):
+        if line_number in ignored_lines:
+            continue
+        if not re.match(r"^ {0,3}\|", line):
+            continue
+        inline_tokens = md.parseInline(line)
+        for token in inline_tokens:
+            if token.type == "inline":
+                references.extend(_inline_markdown_links(token))
 
     return references
 
