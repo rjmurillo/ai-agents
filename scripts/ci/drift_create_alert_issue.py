@@ -70,8 +70,8 @@ def run(_argv: list[str] | None = None) -> int:
     issue_body_path.write_text(body, encoding="utf-8")
 
     title = f"Agent Drift Detected - {now.strftime('%Y-%m-%d')}"
-    sys.stdout.flush()
     try:
+        sys.stdout.flush()
         result = subprocess.run(
             [
                 "gh",

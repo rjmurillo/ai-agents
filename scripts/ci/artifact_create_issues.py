@@ -132,8 +132,8 @@ def run(_argv: list[str] | None = None) -> int:
         footer = _build_footer(server_url, repository, run_id, source)
         full_body = body + footer
 
-        sys.stdout.flush()
         try:
+            sys.stdout.flush()
             result = subprocess.run(
                 [
                     "gh",
