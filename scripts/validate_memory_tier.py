@@ -187,6 +187,20 @@ def validate_orphan_atomics(
                 )
 
 
+def canonicalize_references(
+    memories_dir: Path,
+    references: list[str],
+) -> set[str]:
+    """Return repository-relative paths for references inside the memory root."""
+    resolved_root = memories_dir.resolve()
+    canonical: set[str] = set()
+    for reference in references:
+        resolved = (memories_dir / reference).resolve()
+        if resolved.is_relative_to(resolved_root):
+            canonical.add(resolved.relative_to(resolved_root).as_posix())
+    return canonical
+
+
 def validate_memory_tier(memories_dir: Path) -> ValidationResult:
     """Run all ADR-017 memory tier validations."""
     result = ValidationResult()
@@ -207,12 +221,14 @@ def validate_memory_tier(memories_dir: Path) -> ValidationResult:
     # 4. Validate each domain index format and references
     all_indexed_refs: set[str] = set()
     # Root entries are selected essential memories and valid retrieval routes.
-    all_indexed_refs.update(memory_index_refs)
+    all_indexed_refs.update(
+        canonicalize_references(memories_dir, memory_index_refs)
+    )
 
     for idx in domain_indexes:
         validate_domain_index_format(idx, result)
         refs = validate_domain_index_references(idx, memories_dir, result)
-        all_indexed_refs.update(refs)
+        all_indexed_refs.update(canonicalize_references(memories_dir, refs))
 
     # 5. Check for orphaned atomic files
     validate_orphan_atomics(memories_dir, all_indexed_refs, result)

@@ -144,3 +144,17 @@ class TestMemoryTierGateEnforcement:
         )
 
         assert checkout.get("with", {}).get("fetch-depth") == 0
+
+    def test_memory_workflow_has_manual_dispatch_base_fallback(self) -> None:
+        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-memories"]["steps"]
+        ratchet = next(
+            step
+            for step in steps
+            if "memory_index_count_ratchet.py" in step.get("run", "")
+        )
+
+        assert ratchet["env"]["BASE_BRANCH"] == (
+            "${{ github.base_ref || github.event.repository.default_branch }}"
+        )
+        assert '--base-ref "origin/$BASE_BRANCH"' in ratchet["run"]

@@ -209,6 +209,28 @@ class TestValidateMemoryTier:
 
         assert any("quality/retry-index.md" in warning for warning in result.warnings)
 
+    def test_dot_relative_domain_reference_is_canonicalized(
+        self, tmp_path: Path
+    ) -> None:
+        """A valid ./ alias resolves to the same atomic memory path."""
+        nested = tmp_path / "quality"
+        nested.mkdir()
+        (nested / "example.md").write_text("content", encoding="utf-8")
+        (tmp_path / "quality-index.md").write_text(
+            "| Keywords | File |\n"
+            "|----------|------|\n"
+            "| example | [example](./quality/example.md) |\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "memory-index.md").write_text(
+            "| quality | [index](quality-index.md) |\n",
+            encoding="utf-8",
+        )
+
+        result = validate_memory_tier(tmp_path)
+
+        assert not any("quality/example.md" in warning for warning in result.warnings)
+
 
 class TestMain:
     def test_nonexistent_path_fails(self) -> None:

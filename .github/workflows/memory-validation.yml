@@ -91,8 +91,8 @@ jobs:
       - name: Enforce memory index count ratchet
         if: steps.should-run.outputs.skip != 'true'
         env:
-          BASE_REF: origin/${{ github.base_ref }}
-        run: uv run --frozen python3 scripts/ci/memory_index_count_ratchet.py --base-ref "$BASE_REF"
+          BASE_BRANCH: ${{ github.base_ref || github.event.repository.default_branch }}
+        run: uv run --frozen python3 scripts/ci/memory_index_count_ratchet.py --base-ref "origin/$BASE_BRANCH"
 
       - name: Verify all memories
         if: steps.should-run.outputs.skip != 'true'
