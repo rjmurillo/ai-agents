@@ -10,7 +10,6 @@ Verifies:
 
 from __future__ import annotations
 
-import re
 import subprocess
 from pathlib import Path
 
@@ -134,7 +133,11 @@ class TestNoUnsafeToolsInFrontmatter:
 class TestNoDirectGitHubGuidance:
     """Prose must not instruct direct GitHub/shell/web access."""
 
-    @pytest.mark.parametrize("path", ALL_ANALYST_FILES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+    @pytest.mark.parametrize(
+        "path",
+        ALL_ANALYST_FILES,
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    )
     def test_no_positive_shell_instruction(self, path: Path) -> None:
         text = path.read_text()
         body = text.split("---", 2)[-1] if "---" in text else text
@@ -148,7 +151,10 @@ class TestNoDirectGitHubGuidance:
             # Check for positive git/gh invocations
             if any(cmd in lower for cmd in ["gh api ", "gh pr ", "git branch", "git rev-parse"]):
                 if not any(neg in lower for neg in negations):
-                    pytest.fail(f"{path.relative_to(REPO_ROOT)}: direct shell instruction: {stripped[:80]}")
+                    pytest.fail(
+                        f"{path.relative_to(REPO_ROOT)}: "
+                        f"direct shell instruction: {stripped[:80]}"
+                    )
 
 
 class TestDelegationContract:
