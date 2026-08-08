@@ -237,6 +237,25 @@ def _query_live_pr(
     return cast(dict[str, Any], pr)
 
 
+def _identity_mismatches(
+    pr: dict[str, Any],
+    expected_head_sha: str,
+    expected_base_ref: str,
+    expected_base_sha: str,
+) -> list[str]:
+    """Return readiness identity fields that differ from current PR state."""
+    comparisons = (
+        ("head SHA", expected_head_sha, pr.get("headRefOid")),
+        ("base ref", expected_base_ref, pr.get("baseRefName")),
+        ("base SHA", expected_base_sha, pr.get("baseRefOid")),
+    )
+    return [
+        label
+        for label, expected, actual in comparisons
+        if expected and expected != actual
+    ]
+
+
 def parse_git_cherry(stdout: str) -> dict[str, Any]:
     """Parse `git cherry` output into a supersession verdict.
 
@@ -420,6 +439,8 @@ def classify_live_state(pr: dict[str, Any], supersession: dict[str, Any] | None)
         them risks pushing to a workspace the author still owns).
       - live_state_changed=True: the head or base moved while this check
         ran, so earlier readiness evidence no longer covers the PR.
+      - expected_identity_changed=True: the current head or base differs
+        from the identity captured by the caller's readiness gate.
       - fully_superseded=True: every commit on the branch is already on
         the base via patch-id. Merging is a no-op or a conflict.
 
@@ -441,6 +462,14 @@ def classify_live_state(pr: dict[str, Any], supersession: dict[str, Any] | None)
             "action": "SKIP",
             "reason": (
                 "PR head or base changed during the live-state check; "
+                "rerun readiness gates before mutation"
+            ),
+        }
+    if supersession and supersession.get("expected_identity_changed"):
+        return {
+            "action": "SKIP",
+            "reason": (
+                "PR identity changed since the readiness gate; "
                 "rerun readiness gates before mutation"
             ),
         }
@@ -505,6 +534,21 @@ def build_parser() -> argparse.ArgumentParser:
             "round-trip. Default: fetch."
         ),
     )
+    parser.add_argument(
+        "--expected-head-sha",
+        default="",
+        help="Head SHA captured by the caller's readiness gate",
+    )
+    parser.add_argument(
+        "--expected-base-ref",
+        default="",
+        help="Base ref captured by the caller's readiness gate",
+    )
+    parser.add_argument(
+        "--expected-base-sha",
+        default="",
+        help="Base SHA captured by the caller's readiness gate",
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -568,6 +612,19 @@ def main(argv: list[str] | None = None) -> int:
                 git_cherry_failed=False,
             )
 
+    identity_mismatches = _identity_mismatches(
+        pr,
+        args.expected_head_sha,
+        args.expected_base_ref,
+        args.expected_base_sha,
+    )
+    if identity_mismatches:
+        supersession = _probe_inconclusive(
+            expected_identity_changed=True,
+            git_cherry_failed=False,
+        )
+        supersession["identity_mismatches"] = identity_mismatches
+
     verdict = classify_live_state(pr, supersession)
 
     output = {
@@ -582,6 +639,7 @@ def main(argv: list[str] | None = None) -> int:
         "head_ref": pr.get("headRefName"),
         "head_sha": pr.get("headRefOid"),
         "base_ref": pr.get("baseRefName"),
+        "base_sha": pr.get("baseRefOid"),
         "superseded_by_base": supersession or {
             "pr_commits": 0,
             "superseded_commits": 0,

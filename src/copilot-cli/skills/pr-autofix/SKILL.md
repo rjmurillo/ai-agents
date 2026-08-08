@@ -77,7 +77,11 @@ SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 recheck_pr_live_state() {
     local late_live late_rc late_action late_reason late_state late_head late_base
     if late_live=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" \
-        --pull-request "$PR" --skip-fetch --output-format json); then
+        --pull-request "$PR" --skip-fetch \
+        --expected-head-sha "${EXPECTED_HEAD_SHA:-}" \
+        --expected-base-ref "${EXPECTED_BASE_REF:-}" \
+        --expected-base-sha "${EXPECTED_BASE_SHA:-}" \
+        --output-format json); then
         late_rc=0
     else
         late_rc=$?
@@ -144,6 +148,15 @@ if [ "$ACTION" = "SKIP" ]; then
     # via the queue's close-handling path; do NOT push or merge.
     continue
 fi
+EXPECTED_HEAD_SHA=$(echo "$LIVE" | jq -r '.Data.head_sha // empty')
+EXPECTED_BASE_REF=$(echo "$LIVE" | jq -r '.Data.base_ref // empty')
+EXPECTED_BASE_SHA=$(echo "$LIVE" | jq -r '.Data.base_sha // empty')
+if [ -z "$EXPECTED_HEAD_SHA" ] || [ -z "$EXPECTED_BASE_REF" ] || [ -z "$EXPECTED_BASE_SHA" ]; then
+    echo "Cannot bind mutation to the live PR identity for #$PR; skipping."
+    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
+        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
+    continue
+fi
 # ACTION == "ACT": proceed with the tier's planned action set.
 
 # Step 3: Auto-merge disarm gate (BLOCKING, issue #3913).
@@ -200,8 +213,9 @@ any merge.
 Every command that mutates a branch or PR MUST run through
 `run_pr_mutation_if_live`. This includes base fetches, merges, rebases, pushes,
 auto-merge changes, and direct merges. The wrapper performs a new GitHub query
-immediately before the command. A gate from an earlier review or validation
-phase is stale. Exit 75 means the wrapper already logged the live-state skip
+immediately before the command and compares the result with the head and base
+identity captured by the current readiness cycle. A gate from an earlier review
+or validation phase is stale. Exit 75 means the wrapper logged the live-state skip
 and released the lease. Other nonzero exits come from the mutation command and
 retain their existing error handling.
 
@@ -460,6 +474,7 @@ Per PR processed:
 - [ ] Auto-merge disarm ran after live-state ACT on any non-T1 PR (issue #3913): `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
 - [ ] Live-state gate re-ran immediately before any base refresh or conflict resolution (issue #4349): stale gate result from the start of the session is not sufficient; the PR can merge mid-cycle.
 - [ ] Every base refresh, rebase, push, auto-merge change, and direct merge ran through `run_pr_mutation_if_live` immediately before mutation (issue #4349).
+- [ ] Late mutation checks matched the head SHA, base ref, and base SHA captured by the current readiness cycle; any mismatch stopped mutation and restarted readiness checks.
 - [ ] When `StaleDirtySuspected=true`: `set_pr_auto_merge.py disable` ran and `autoMergeRequest` confirmed null before any base-ref refresh push (issue #3913).
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).

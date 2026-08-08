@@ -8,6 +8,7 @@ started a merge into a deleted branch and left reviewed commits unpushed.
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -33,19 +34,40 @@ def _extract_guard(text: str) -> str:
 def _write_fake_scripts(scripts_dir: Path) -> None:
     (scripts_dir / "check_pr_live_state.py").write_text(
         """\
+import argparse
 import json
 import os
 from pathlib import Path
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--pull-request")
+parser.add_argument("--skip-fetch", action="store_true")
+parser.add_argument("--output-format")
+parser.add_argument("--expected-head-sha", default="")
+parser.add_argument("--expected-base-ref", default="")
+parser.add_argument("--expected-base-sha", default="")
+args = parser.parse_args()
+
 state = Path(os.environ["PR_STATE_FILE"]).read_text(encoding="utf-8").strip()
-with Path(os.environ["CHECK_LOG"]).open("a", encoding="utf-8") as stream:
+check_log = Path(os.environ["CHECK_LOG"])
+is_initial = not check_log.exists()
+with check_log.open("a", encoding="utf-8") as stream:
     stream.write(state + "\\n")
 
 if state == "ERROR":
     print(json.dumps({"Success": False, "Data": None}))
     raise SystemExit(3)
 
-if state in {"MERGED", "CLOSED"}:
+expected = (
+    args.expected_head_sha,
+    args.expected_base_ref,
+    args.expected_base_sha,
+)
+if not is_initial and expected != ("abc123def456", "main", "def456abc123"):
+    action = "SKIP"
+    reason = "PR identity changed since the readiness gate"
+    exit_code = 1
+elif state in {"MERGED", "CLOSED"}:
     action = "SKIP"
     reason = f"PR is {state.lower()}"
     exit_code = 1
@@ -66,6 +88,7 @@ print(json.dumps({
         "state": "OPEN" if state == "INCONCLUSIVE" else state,
         "head_sha": "abc123def456",
         "base_ref": "main",
+        "base_sha": "def456abc123",
     },
 }))
 raise SystemExit(exit_code)
@@ -116,12 +139,15 @@ set -u
 PR=4349
 BASE=main
 SESSION_ID=test-session
-SCRIPTS_DIR={scripts_dir}
+SCRIPTS_DIR={shlex.quote(scripts_dir.as_posix())}
 
 printf '%s' OPEN > "$PR_STATE_FILE"
 INITIAL=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" \
     --pull-request "$PR" --skip-fetch --output-format json)
 test "$(printf '%s' "$INITIAL" | jq -r '.Data.action')" = "ACT"
+EXPECTED_HEAD_SHA=$(printf '%s' "$INITIAL" | jq -r '.Data.head_sha')
+EXPECTED_BASE_REF=$(printf '%s' "$INITIAL" | jq -r '.Data.base_ref')
+EXPECTED_BASE_SHA=$(printf '%s' "$INITIAL" | jq -r '.Data.base_sha')
 
 printf '%s' {late_state} > "$PR_STATE_FILE"
 {guard}
@@ -161,6 +187,11 @@ def test_guard_is_shipped_in_each_agent_surface(relative_path: str) -> None:
     guard = _extract_guard(text)
     assert "run_pr_mutation_if_live()" in guard
     assert "check_pr_live_state.py" in guard
+    assert '--expected-head-sha "${EXPECTED_HEAD_SHA:-}"' in guard
+    assert '--expected-base-ref "${EXPECTED_BASE_REF:-}"' in guard
+    assert '--expected-base-sha "${EXPECTED_BASE_SHA:-}"' in guard
+    assert 'EXPECTED_HEAD_SHA=$(echo "$LIVE"' in text
+    assert 'EXPECTED_BASE_SHA=$(echo "$LIVE"' in text
     assert 'if [ "$MUTATION_RC" -ne 75 ]; then' in text
 
 

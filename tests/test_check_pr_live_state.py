@@ -105,6 +105,23 @@ class TestBuildParser:
         assert args.owner == "rjmurillo"
         assert args.repo == "ai-agents"
 
+    def test_expected_identity_passthrough(self):
+        args = build_parser().parse_args(
+            [
+                "--pull-request",
+                "1",
+                "--expected-head-sha",
+                "head123",
+                "--expected-base-ref",
+                "main",
+                "--expected-base-sha",
+                "base123",
+            ],
+        )
+        assert args.expected_head_sha == "head123"
+        assert args.expected_base_ref == "main"
+        assert args.expected_base_sha == "base123"
+
 
 # ---------------------------------------------------------------------------
 # Tests: parse_git_cherry
@@ -461,6 +478,7 @@ class TestMain:
             "headRefName": "fix/foo",
             "headRefOid": "abc123def456",
             "baseRefName": "main",
+            "baseRefOid": "base123def456",
         }
         with patch("check_pr_live_state.assert_gh_authenticated"), \
              patch(
@@ -475,7 +493,17 @@ class TestMain:
                 "check_pr_live_state.subprocess.run",
                 return_value=_completed(stdout="+ abc1234567890\n", rc=0),
              ):
-            rc = main(["--pull-request", "2409", "--skip-fetch"])
+            rc = main([
+                "--pull-request",
+                "2409",
+                "--skip-fetch",
+                "--expected-head-sha",
+                "abc123def456",
+                "--expected-base-ref",
+                "main",
+                "--expected-base-sha",
+                "base123def456",
+            ])
         assert rc == 0
         out = capsys.readouterr().out
         envelope = json.loads(out)
@@ -486,6 +514,64 @@ class TestMain:
         assert payload["state"] == "OPEN"
         assert payload["head_sha"] == "abc123def456"
         assert payload["superseded_by_base"]["fully_superseded"] is False
+
+    @pytest.mark.parametrize(
+        ("expected_arg", "expected_value"),
+        (
+            ("--expected-head-sha", "old-head"),
+            ("--expected-base-ref", "release"),
+            ("--expected-base-sha", "old-base"),
+        ),
+    )
+    def test_expected_identity_mismatch_blocks_stable_pr(
+        self,
+        capsys,
+        expected_arg,
+        expected_value,
+    ):
+        pr = {
+            "number": 2409,
+            "state": "OPEN",
+            "merged": False,
+            "isDraft": False,
+            "closed": False,
+            "headRefName": "fix/foo",
+            "headRefOid": "current-head",
+            "baseRefName": "main",
+            "baseRefOid": "current-base",
+        }
+        with patch("check_pr_live_state.assert_gh_authenticated"), \
+             patch(
+                "check_pr_live_state.resolve_repo_params",
+                return_value=_mod.RepoInfo(owner="o", repo="r"),
+             ), \
+             patch(
+                "check_pr_live_state.gh_graphql",
+                return_value={"repository": {"pullRequest": pr}},
+             ), \
+             patch(
+                "check_pr_live_state.is_superseded_by_base",
+                return_value={
+                    "pr_commits": 1,
+                    "superseded_commits": 0,
+                    "fully_superseded": False,
+                    "git_cherry_failed": False,
+                    "probe_inconclusive": False,
+                },
+             ):
+            rc = main([
+                "--pull-request",
+                "2409",
+                "--skip-fetch",
+                expected_arg,
+                expected_value,
+            ])
+
+        assert rc == 1
+        envelope = json.loads(capsys.readouterr().out)
+        payload = envelope["Data"]
+        assert payload["action"] == "SKIP"
+        assert "changed since the readiness gate" in payload["reason"]
 
     def test_merge_during_supersession_probe_skips_stale_act(self, capsys):
         open_pr = {
