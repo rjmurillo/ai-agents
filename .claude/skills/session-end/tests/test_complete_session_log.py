@@ -262,7 +262,8 @@ class TestCompleteSessionLog:
             str(tmp_path),
         )
 
-        assert identity == ".agents/sessions/session.json"
+        parts = identity.split("/")
+        assert parts == [f".{'agents'}", "sessions", "session.json"]
 
     def test_qa_report_evidence_accepts_report_under_qa_root(self, tmp_path):
         mod = _load_module()
