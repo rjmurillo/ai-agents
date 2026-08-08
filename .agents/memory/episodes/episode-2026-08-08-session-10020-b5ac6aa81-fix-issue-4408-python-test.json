@@ -84,7 +84,44 @@
         "e003",
         "e004",
         "e005",
-        "e006"
+        "e006",
+        "e008",
+        "e009"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-08-session-10020-b5ac6aa81-fix-issue-4408-python-test"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Address pull request review",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10020-b5ac6aa81-fix-issue-4408-python-test"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "test",
+      "content": "Added the repository-standard Git availability skip guard and proved the live push path with rules-only commit 18e3a3aa5. Run 31252274700 collected 24561 tests and finished with 24525 passed and 36 skipped.",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10020-b5ac6aa81-fix-issue-4408-python-test"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-08T09:06:07+00:00",
+      "type": "commit",
+      "content": "Commit: f1b8bd80716b78a27da34385d7747e1fb1a11994",
+      "caused_by": [
+        "e007"
       ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10020-b5ac6aa81-fix-issue-4408-python-test"
@@ -95,7 +132,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 6
   },
   "lessons": []
