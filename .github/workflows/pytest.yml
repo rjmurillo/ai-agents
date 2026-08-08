@@ -428,3 +428,25 @@ jobs:
         env:
           UV_PYTHON: '3.14'
         run: uv run pytest -m windows_path -v
+
+  main-failure-alert:
+    name: Main failure alert
+    needs:
+      - check-paths
+      - test
+      - security
+      - skip-tests
+      - test-windows-pwsh
+    if: always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Notify failed Python Tests on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python scripts/ci/main_pytest_failure_alert.py
