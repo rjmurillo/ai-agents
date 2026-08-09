@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-09-session-9999-agent-machinery.md"
       }
     }
   },
@@ -135,7 +140,7 @@
       "result": "Ten behavioral mutants failed their tests. Cosmetic message mutations survived as controls."
     }
   ],
-  "endingCommit": "36cba6dea6",
+  "endingCommit": "695e236276a1417b644bac563a41708b50b4057f",
   "nextSteps": [
     "Resolve duplicate push-ref-staleness job in #4634.",
     "Repair remaining dead skill references tracked by #2796."
