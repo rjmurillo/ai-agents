@@ -73,33 +73,33 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "All session-end MUST items completed and validated"
       },
       "handoffPreserved": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
       },
       "markdownLintRun": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 checked 11 changed Markdown files with 0 issues"
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "All changes committed (HEAD: 9b437eaf4e)"
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: .claude/agents/analyst.md edited 8 times\nrework-warning: tests/test_analyst_skill_resolution.py edited 6 times"
       }
     }
   },
@@ -135,6 +140,6 @@
       "result": "Resolved all three High findings and the Medium guard weakness. Both re-reviews reported no remaining Critical or High findings."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "9b437eaf4e",
   "nextSteps": []
 }
