@@ -80,7 +80,9 @@
       "caused_by": [
         "e009"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
     },
     {
@@ -91,7 +93,9 @@
       "caused_by": [
         "e009"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e010"
+      ],
       "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
     },
     {
@@ -120,6 +124,31 @@
         "e007"
       ],
       "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-09T05:36:42+00:00",
+      "type": "commit",
+      "content": "Commit: 2a25970c811eaa150b39d5cec9d50761b39efd2d",
+      "caused_by": [
+        "e006",
+        "e007"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-09T06:08:22+00:00",
+      "type": "commit",
+      "content": "Commit: 174571bade363fef6856d7b7e181c615163fb4ac",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
     }
   ],
   "metrics": {
@@ -127,8 +156,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 30
+    "commits": 5,
+    "files_changed": 33
   },
   "lessons": []
 }

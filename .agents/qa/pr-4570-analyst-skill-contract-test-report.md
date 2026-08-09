@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-01-ci-fail-a-pr-4570.json
-qaCommit: 8ba2d8e8b35098cfbf4846e9ae4397d2c566a394
+qaCommit: 174571bade363fef6856d7b7e181c615163fb4ac
 ---
 # PR 4570 Analyst Skill Contract Test Report
 
