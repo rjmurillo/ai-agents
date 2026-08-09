@@ -55,11 +55,40 @@ def test_builds_full_pr_context(monkeypatch: pytest.MonkeyPatch):
     assert "diff --git" in context.text
 
 
+def test_pr_title_is_redacted_before_actions_log_sink(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Credential-like PR titles cannot reach the persisted Actions log."""
+    credential = "opaque-title-secret"
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[:1] == ["api"]:
+            return CommandResult(
+                _pulls_payload(7, f"DB_PASSWORD={credential}", "Body"),
+                "",
+                0,
+            )
+        if arguments[:2] == ["pr", "diff"]:
+            return CommandResult("diff --git a/file b/file\n+change\n", "", 0)
+        raise AssertionError(f"unexpected gh call: {arguments}")
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert context.infrastructure_failure is False
+    captured = capsys.readouterr().out
+    assert credential not in captured
+    assert "DB_PASSWORD=***" in captured
+
+
 @pytest.mark.parametrize(
     ("refusal", "expected_delay"),
     [
         (
-            "HTTP 403: API rate limit exceeded for user ID 6811113\nRetry-After: 7",
+            "HTTP 403: API rate limit exceeded for user ID 6811113; Retry-After: 7",
             7.0,
         ),
         (
@@ -121,6 +150,33 @@ def test_run_gh_exhausts_bounded_rate_limit_retries(
     assert sleeps == list(_mod.GH_REFUSAL_BACKOFF_SECONDS)
     assert result.returncode == 1
     assert "retry attempts exhausted" in result.stderr
+
+
+def test_run_gh_retries_transient_not_accessible_503(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Generic availability wording cannot override an explicit retryable status."""
+    calls: list[list[str]] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        if len(calls) == 1:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                1,
+                "",
+                "HTTP 503: service temporarily not accessible",
+            )
+        return _mod.subprocess.CompletedProcess(command, 0, "recovered", "")
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "sleep", lambda _seconds: None)
+
+    result = _mod.run_gh(["pr", "diff", "7"])
+
+    assert result == CommandResult("recovered", "", 0)
+    assert len(calls) == 2
 
 
 @pytest.mark.parametrize(
@@ -1340,6 +1396,55 @@ def test_write_outputs_uses_runner_temp(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert "context_built<<EOF_CONTEXT_BUILT\nhello\nworld\nEOF_CONTEXT_BUILT" in output
 
 
+def test_successful_metadata_json_is_parsed_before_sink_redaction(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Untrusted credential-like metadata cannot corrupt structured API parsing."""
+    credential = "opaque-secret-for-json"
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        if command[1:2] == ["api"]:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                0,
+                _pulls_payload(
+                    7,
+                    "Credential-like body",
+                    f"DB_PASSWORD={credential}\nbody retained",
+                ),
+                "",
+            )
+        if command[1:3] == ["pr", "diff"]:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                0,
+                "diff --git a/file b/file\n+change\n",
+                "",
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert context.infrastructure_failure is False
+    assert "body retained" in context.text
+
+    output_path = tmp_path / "github-output.txt"
+    runner_temp = tmp_path / "runner"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setenv("RUNNER_TEMP", str(runner_temp))
+    monkeypatch.setenv("PR_NUMBER", "7")
+    _mod.write_outputs(context)
+
+    context_file = runner_temp / "ai-review-context-pr7.txt"
+    persisted = output_path.read_text(encoding="utf-8") + context_file.read_text(encoding="utf-8")
+    assert credential not in persisted
+    assert "DB_PASSWORD=***" in persisted
+    assert "body retained" in persisted
+
+
 def test_write_outputs_redacts_context_before_every_sink(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1362,9 +1467,7 @@ def test_write_outputs_redacts_context_before_every_sink(
     )
 
     context_file = next(runner_temp.glob("ai-review-context-pr*.txt"))
-    persisted = output_path.read_text(encoding="utf-8") + context_file.read_text(
-        encoding="utf-8"
-    )
+    persisted = output_path.read_text(encoding="utf-8") + context_file.read_text(encoding="utf-8")
     assert environment_secret not in persisted
     assert shaped_secret not in persisted
     assert "***" in persisted

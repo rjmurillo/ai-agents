@@ -21,7 +21,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.redact_secrets import redact as redact_token_shapes  # noqa: E402
+from scripts.redact_secrets import redact_ci_sink  # noqa: E402
 
 GH_TIMEOUT_SECONDS = 60
 GH_REFUSAL_BACKOFF_SECONDS = (60.0, 120.0)
@@ -49,17 +49,17 @@ RETRYABLE_GH_FAILURE = re.compile(
 PERMANENT_AUTH_FAILURE = re.compile(
     r"\bHTTP\s+401\b|bad credentials|requires authentication|"
     r"authentication token .* could not be validated|"
-    r"resource not accessible by integration|not accessible|"
+    r"resource not accessible by integration|"
     r"must have admin rights|could not resolve to a pullrequest",
     re.IGNORECASE,
 )
 RETRY_AFTER_HEADER = re.compile(
-    r"^Retry-After:\s*(\d+(?:\.\d+)?)\s*$",
-    re.IGNORECASE | re.MULTILINE,
+    r"\bRetry-After:\s*(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
 )
 RATE_LIMIT_RESET_HEADER = re.compile(
-    r"^X-RateLimit-Reset:\s*(\d+(?:\.\d+)?)\s*$",
-    re.IGNORECASE | re.MULTILINE,
+    r"\bX-RateLimit-Reset:\s*(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
 )
 SECRET_ENVIRONMENT_VARIABLES = (
     "GH_TOKEN",
@@ -109,25 +109,10 @@ class ExternalGhError(RuntimeError):
     """GitHub or gh failed while building review context."""
 
 
-def _redact_exact_secrets(value: str | None) -> str:
-    """Remove workflow credentials before diagnostics reach logs or artifacts."""
-    redacted = value or ""
-    for variable in SECRET_ENVIRONMENT_VARIABLES:
-        secret = os.environ.get(variable, "")
-        if len(secret) >= 8:
-            redacted = redacted.replace(secret, "***")
-    redacted = re.sub(
-        r"(?i)(authorization:\s*(?:bearer|token|basic)\s+)\S+",
-        r"\1***",
-        redacted,
-    )
-    return re.sub(r"https://[^/\s:@]+:[^@\s]+@", "https://***:***@", redacted)
-
-
 def _redact_secrets(value: str | None) -> str:
     """Redact installed values, wrappers, and recognized credential shapes."""
-    redacted = _redact_exact_secrets(value)
-    return redact_token_shapes(redacted, include_hex=False).text
+    secret_values = (os.environ.get(variable, "") for variable in SECRET_ENVIRONMENT_VARIABLES)
+    return redact_ci_sink(value or "", secret_values=secret_values).text
 
 
 def _failure_text(result: CommandResult) -> str:
@@ -189,8 +174,14 @@ def _invoke_gh_once(arguments: list[str], timeout: float) -> CommandResult:
     except OSError as exc:
         raise GhLaunchError(f"Failed to run gh: {exc}") from exc
 
+    # Successful stdout may be serialized JSON. Keep it parseable in memory;
+    # write_outputs and the invocation sink redact extracted context later.
+    # Failed stdout can enter diagnostics, so redact it before returning.
+    stdout = completed.stdout
+    if completed.returncode != 0:
+        stdout = _redact_secrets(stdout)
     return CommandResult(
-        _redact_secrets(completed.stdout),
+        stdout,
         _redact_secrets(completed.stderr),
         completed.returncode,
     )
@@ -500,7 +491,7 @@ def _build_pr_diff_context(
         )
 
     title = metadata.title
-    print(f"Building context for PR #{pr_number}: {title}")
+    print(f"Building context for PR #{pr_number}: {_redact_secrets(title)}")
     print(f"Fetching diff for PR #{pr_number} from repository {repository}")
 
     try:

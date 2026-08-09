@@ -15,7 +15,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.redact_secrets import redact as redact_token_shapes  # noqa: E402
+from scripts.redact_secrets import redact_ci_sink  # noqa: E402
 
 EXIT_OK = 0
 EXIT_LOGIC = 1
@@ -32,12 +32,12 @@ PERMANENT_AUTH_PATTERN = re.compile(
     r"\bHTTP\s+401\b|bad credentials|requires authentication|"
     r"no authentication|authentication failed|"
     r"authentication token .* could not be validated|"
-    r"resource not accessible by integration",
+    r"resource not accessible by integration|must have admin rights",
     re.IGNORECASE,
 )
 RETRY_AFTER_PATTERN = re.compile(
-    r"^Retry-After:\s*(\d+(?:\.\d+)?)\s*$",
-    re.IGNORECASE | re.MULTILINE,
+    r"\bRetry-After:\s*(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
 )
 FINALIZATION_RESERVE_SECONDS = 60
 PROCESS_KILL_GRACE_SECONDS = 5
@@ -101,7 +101,24 @@ def append_line(path: Path, line: str) -> None:
         handle.write(f"{line}\n")
 
 
-def append_multiline_output(path: Path, name: str, value: str, delimiter: str) -> None:
+def choose_multiline_delimiter(name: str, value: str) -> str:
+    """Choose a GitHub output delimiter absent from every payload line."""
+    payload_lines = set(value.splitlines())
+    base = {
+        "raw_output": "EOF_RAW",
+        "stderr_output": "EOF_STDERR",
+        "full_prompt": "EOF_FULL_PROMPT",
+    }.get(name, f"EOF_{name.upper()}")
+    delimiter = base
+    suffix = 0
+    while delimiter in payload_lines:
+        suffix += 1
+        delimiter = f"{base}_{suffix}"
+    return delimiter
+
+
+def append_multiline_output(path: Path, name: str, value: str) -> None:
+    delimiter = choose_multiline_delimiter(name, value)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(f"{name}<<{delimiter}\n")
         handle.write(value)
@@ -110,25 +127,10 @@ def append_multiline_output(path: Path, name: str, value: str, delimiter: str) -
         handle.write(f"{delimiter}\n")
 
 
-def _redact_exact_secrets(value: str | None) -> str:
-    """Remove workflow credentials before diagnostics reach logs or artifacts."""
-    redacted = value or ""
-    for variable in SECRET_ENVIRONMENT_VARIABLES:
-        secret = os.environ.get(variable, "")
-        if len(secret) >= 8:
-            redacted = redacted.replace(secret, "***")
-    redacted = re.sub(
-        r"(?i)(authorization:\s*(?:bearer|token|basic)\s+)\S+",
-        r"\1***",
-        redacted,
-    )
-    return re.sub(r"https://[^/\s:@]+:[^@\s]+@", "******", redacted)
-
-
 def redact_secrets(value: str | None) -> str:
     """Redact installed values, wrappers, and recognized credential shapes."""
-    redacted = _redact_exact_secrets(value)
-    return redact_token_shapes(redacted, include_hex=False).text
+    secret_values = (os.environ.get(variable, "") for variable in SECRET_ENVIRONMENT_VARIABLES)
+    return redact_ci_sink(value or "", secret_values=secret_values).text
 
 
 def retry_delay(stderr: str, fallback: int) -> int:
@@ -199,7 +201,7 @@ def build_full_prompt(
 def is_infrastructure_failure(exit_code: int, output: str, stderr: str) -> bool:
     if exit_code == 124:
         return True
-    if exit_code != 0 and not output and not stderr:
+    if not output.strip():
         return True
     return bool(stderr and "VERDICT:" not in output and INFRASTRUCTURE_PATTERN.search(stderr))
 
@@ -379,7 +381,8 @@ def analyze_non_infra_failure(result: AttemptResult) -> int:
         print(f"::error::Copilot CLI failed (exit code {result.exit_code}) with error output.")
         print(f"::error::Stderr: {result.stderr}")
         return EXIT_LOGIC
-    return EXIT_OK
+    print("::error::Discarding Copilot output because the CLI process failed.")
+    return EXIT_LOGIC
 
 
 def write_results(config: InvokeConfig, full_prompt: str, result: AttemptResult) -> None:
@@ -394,13 +397,12 @@ def write_results(config: InvokeConfig, full_prompt: str, result: AttemptResult)
         )
 
     config.ai_review_output_file.write_text(output + "\n", encoding="utf-8")
-    append_multiline_output(config.github_output_file, "raw_output", output, "EOF_RAW")
-    append_multiline_output(config.github_output_file, "stderr_output", stderr, "EOF_STDERR")
+    append_multiline_output(config.github_output_file, "raw_output", output)
+    append_multiline_output(config.github_output_file, "stderr_output", stderr)
     append_multiline_output(
         config.github_output_file,
         "full_prompt",
         persisted_prompt,
-        "EOF_FULL_PROMPT",
     )
     append_line(config.github_output_file, f"copilot_exit_code={result.exit_code}")
     append_line(
@@ -411,6 +413,12 @@ def write_results(config: InvokeConfig, full_prompt: str, result: AttemptResult)
 
 
 def run(config: InvokeConfig) -> int:
+    try:
+        config.ai_review_output_file.unlink(missing_ok=True)
+    except OSError as exc:
+        print(f"error: cannot clear stale AI review output: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+
     full_prompt = build_full_prompt(
         context_mode=config.context_mode,
         additional_context=config.additional_context,
@@ -439,6 +447,7 @@ def run(config: InvokeConfig) -> int:
     result = invoke_with_retry(config=config, full_prompt=full_prompt)
     failure_exit = analyze_non_infra_failure(result)
     if failure_exit != EXIT_OK:
+        config.ai_review_output_file.unlink(missing_ok=True)
         return failure_exit
     write_results(config, full_prompt, result)
     return EXIT_OK
