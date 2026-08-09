@@ -71,7 +71,7 @@ _FAILING_CONCLUSIONS = {
 }
 _PENDING_STATUSES = {"QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"}
 _BLOCKING_MERGE_STATES = {"CONFLICTING", "UNKNOWN"}
-_BLOCKING_MERGE_STATE_STATUSES = {"DIRTY", "UNKNOWN"}
+_BLOCKING_MERGE_STATE_STATUSES = {"BEHIND", "DIRTY", "UNKNOWN"}
 
 _PR_QUERY = """\
 query($owner: String!, $repo: String!, $number: Int!) {
@@ -507,6 +507,8 @@ def diagnose(
     causes: list[str] = []
     if mergeable == "CONFLICTING" or merge_state_status == "DIRTY":
         causes.append("MERGE (conflicts)")
+    elif merge_state_status == "BEHIND":
+        causes.append("MERGE (base branch update required)")
     elif (
         mergeable in _BLOCKING_MERGE_STATES
         or merge_state_status in _BLOCKING_MERGE_STATE_STATUSES
@@ -594,7 +596,7 @@ def main(argv: list[str] | None = None) -> int:
         or result.get("UnresolvedThreads")
         or result.get("ReviewDecision") in {"CHANGES_REQUESTED", "REVIEW_REQUIRED"}
         or result.get("Mergeable") == "CONFLICTING"
-        or result.get("MergeStateStatus") == "DIRTY"
+        or result.get("MergeStateStatus") in {"BEHIND", "DIRTY"}
     )
     if hard_blocker:
         return 1

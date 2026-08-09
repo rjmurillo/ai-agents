@@ -491,6 +491,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     if merge_result.returncode != 0:
         head_sha = pr_data.get("headRefOid") or ""
+        sanitized_body = filter_coauthor_trailers(args.body) if args.body else ""
         _handle_merge_failure(
             merge_result,
             pr,
@@ -498,7 +499,7 @@ def main(argv: list[str] | None = None) -> int:
             args.strategy,
             head_sha,
             args.subject,
-            args.body,
+            sanitized_body,
             args.auto,
             output_format,
         )

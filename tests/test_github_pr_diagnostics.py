@@ -413,6 +413,40 @@ class TestMergePrSkipPreflightWhenExplicit:
             # Must NOT raise -- quota exhaustion on explicit strategy is tolerated.
             _merge_mod.main(["--pull-request", "42", "--strategy", "squash"])
 
+    def test_rest_fallback_receives_sanitized_body(self):
+        pr_data = {
+            **self._pr_state(),
+            "headRefOid": "a" * 40,
+        }
+        merge_result = _completed(
+            stderr="branch protection policy prohibits the merge",
+            rc=1,
+        )
+        rest_result = _completed(stdout='{"merged": true}')
+        body = "Summary\n\nCo-authored-by: Test <test@test.com>"
+
+        with (
+            patch(f"{_merge_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_merge_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{_merge_mod.__name__}._fetch_pr_state", return_value=pr_data),
+            patch(f"{_merge_mod.__name__}.get_allowed_merge_methods",
+                  return_value={"allow_squash_merge": True}),
+            patch("subprocess.run", return_value=merge_result),
+            patch(f"{_merge_mod.__name__}._rest_merge",
+                  return_value=rest_result) as mock_rest,
+            patch(f"{_merge_mod.__name__}.write_skill_output"),
+        ):
+            rc = _merge_mod.main([
+                "--pull-request", "42",
+                "--strategy", "squash",
+                "--body", body,
+            ])
+
+        assert rc == 0
+        fallback_body = mock_rest.call_args.args[5]
+        assert fallback_body.strip() == "Summary"
+        assert "Co-authored-by: Test" not in fallback_body
+
     def test_non_quota_rest_error_on_explicit_strategy_is_fatal(self):
         pr_data = self._pr_state()
 
@@ -669,6 +703,7 @@ class TestDiagnose:
         [
             ("CONFLICTING", "DIRTY"),
             ("UNKNOWN", "UNKNOWN"),
+            ("MERGEABLE", "BEHIND"),
         ],
     )
     def test_unusable_merge_ref_is_a_cause(
@@ -889,6 +924,33 @@ class TestWhyPrBlockedMain:
         ):
             rc = _why_mod.main(["--pull-request", "100"])
         assert rc == 2
+
+    def test_exit_1_when_base_branch_update_is_required(self):
+        data = {
+            "Success": True,
+            "Number": 100,
+            "LikelyMergeable": False,
+            "Causes": ["MERGE (base branch update required)"],
+            "MissingRequiredChecks": [],
+            "FailingRequiredChecks": [],
+            "PendingRequiredChecks": [],
+            "UnresolvedThreads": 0,
+            "RulesetRequiredContexts": [],
+            "BaseBranch": "main",
+            "Mergeable": "MERGEABLE",
+            "MergeStateStatus": "BEHIND",
+            "ReviewDecision": "",
+            "Owner": "o",
+            "Repo": "r",
+        }
+        with (
+            patch(f"{_why_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_why_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{_why_mod.__name__}.diagnose", return_value=data),
+            patch(f"{_why_mod.__name__}.write_skill_output"),
+        ):
+            rc = _why_mod.main(["--pull-request", "100"])
+        assert rc == 1
 
     def test_exit_2_on_not_found(self):
         with (
