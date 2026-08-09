@@ -109,7 +109,7 @@
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "No retrospective artifact required for this bounded CI repair."
+        "Evidence": "Retrospective section: full-suite and independent-review loops found three tool-contract defects before push. Generated artifacts, exact tool IDs, and platform-specific allowlists now have executable tests. Existing rules already require runtime and parity checks, so no new rule or memory was added."
       },
       "reworkWarning": {
         "level": "SHOULD",
