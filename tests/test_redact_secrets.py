@@ -177,6 +177,38 @@ class TestCiSinkWrappers:
         assert result.reasons == ("authorization-header",)
 
     @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (
+                '{"token":["first-secret-value","second-secret-value"],"timeout":30}',
+                '{"token":***,"timeout":30}',
+            ),
+            (
+                '{"token":{"primary":"first-secret-value",'
+                '"secondary":"second-secret-value"},"timeout":30}',
+                '{"token":***,"timeout":30}',
+            ),
+            (
+                '{\\"token\\":[\\"first-secret-value\\",'
+                '\\"second-secret-value\\"],\\"timeout\\":30}',
+                '{\\"token\\":***,\\"timeout\\":30}',
+            ),
+            (
+                '{\\"token\\":{\\"primary\\":\\"first-secret-value\\",'
+                '\\"secondary\\":\\"second-secret-value\\"},\\"timeout\\":30}',
+                '{\\"token\\":***,\\"timeout\\":30}',
+            ),
+        ],
+    )
+    def test_nested_credential_values_are_fully_redacted(self, value, expected):
+        result = redact_ci_sink(value)
+
+        assert result.text == expected
+        assert "first-secret-value" not in result.text
+        assert "second-secret-value" not in result.text
+        assert result.reasons == ("credential-assignment",)
+
+    @pytest.mark.parametrize(
         "secrets",
         [
             ("abcdefgh", "abcdefghXYZ"),

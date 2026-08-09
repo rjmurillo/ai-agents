@@ -214,7 +214,7 @@ def build_full_prompt(
 
 
 def is_infrastructure_failure(exit_code: int, output: str, stderr: str) -> bool:
-    if exit_code == 124:
+    if exit_code in {124, 137}:
         return True
     if not output.strip():
         return True

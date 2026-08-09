@@ -214,11 +214,54 @@ def redact_ci_sink(
             position = tail_start
         return len(out)
 
+    def _structured_value_end(start: int) -> int:
+        closing_for = {"[": "]", "{": "}", "(": ")"}
+        stack = [closing_for[out[start]]]
+        position = start + 1
+        quote = ""
+        while position < len(out):
+            if out[position] in "\r\n":
+                return position
+            if quote:
+                closing = out.find(quote, position)
+                if closing < 0:
+                    return _line_end(start)
+                preceding_backslashes = _preceding_backslash_count(closing)
+                if len(quote) == 1:
+                    if preceding_backslashes % 2:
+                        position = closing + 1
+                        continue
+                elif preceding_backslashes % 4:
+                    position = closing + 2
+                    continue
+                quote_length = len(quote)
+                quote = ""
+                position = closing + quote_length
+                continue
+            if out.startswith(('\\"', "\\'"), position):
+                quote = out[position : position + 2]
+                position += 2
+                continue
+            if out[position] in "\"'":
+                quote = out[position]
+                position += 1
+                continue
+            if out[position] in closing_for:
+                stack.append(closing_for[out[position]])
+            elif out[position] == stack[-1]:
+                stack.pop()
+                if not stack:
+                    return position + 1
+            position += 1
+        return len(out)
+
     def _value_end(start: int) -> int:
         if out.startswith("[redacted:", start):
             closing = out.find("]", start)
             if closing >= 0:
                 return closing + 1
+        if start < len(out) and out[start] in "[{(":
+            return _structured_value_end(start)
         for quote in ('\\"', "\\'", '"', "'"):
             if out.startswith(quote, start):
                 return _quoted_value_end(start, quote)

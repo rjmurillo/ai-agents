@@ -97,6 +97,29 @@ def test_invoke_fails_closed_when_finalization_window_has_started(tmp_path):
     assert "budget was exhausted" in result.output
 
 
+def test_sigkill_timeout_with_partial_output_retries(tmp_path):
+    calls = 0
+
+    def runner(_argv):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return invoke.CommandResult(137, "partial model output", "")
+        return invoke.CommandResult(0, "VERDICT: PASS", "")
+
+    result = invoke.invoke_with_retry(
+        config=make_config(tmp_path),
+        full_prompt="prompt",
+        runner=runner,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert calls == 2
+    assert result.infrastructure_failure is False
+    assert result.retry_count == 1
+    assert result.output == "VERDICT: PASS"
+
+
 def test_invoke_does_not_retry_permanent_auth_rejection(tmp_path):
     calls: list[tuple[str, ...]] = []
 
