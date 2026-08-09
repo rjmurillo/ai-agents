@@ -30,11 +30,13 @@ Based on the above changes:
    - **Include** an `## Acceptance criteria` heading with `- [ ]` or `* [ ]` bullets. The Validate Spec Coverage job reads these from the PR body, not the linked issue. Any unchecked box makes the signal report FAIL, and that FAIL does not block the merge, so check a box only once the criterion is actually met. Numbered criteria are not recognized.
 5. Create a pull request using the new_pr skill script:
 
-   <!-- vendor-portability: declared. The command resolves the helper below
-   from the installed Copilot or Claude plugin root. The `.claude` fallback is
-   only for this repository's self-hosted source checkout; `scripts/pr/` is
-   inside the shipped github skill, not the upstream-only top-level scripts/
-   tree. Issue #4764. -->
+   <!-- vendor-portability: declared. This command reads the consumer's
+   `.github/PULL_REQUEST_TEMPLATE.md` and writes the consumer's
+   `.agents/scratch/` body file. It resolves the helper from the installed
+   Copilot or Claude plugin root. The `.claude` fallback is only for this
+   repository's self-hosted source checkout; `scripts/pr/` is inside the
+   shipped github skill, not the upstream-only top-level scripts/ tree.
+   Issue #4764. -->
 
    ```bash
    python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body-file .agents/scratch/PR-123-BODY.md
