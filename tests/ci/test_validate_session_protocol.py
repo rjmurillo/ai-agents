@@ -270,6 +270,22 @@ class TestMain:
         assert mod.main(["--session-file", "sessions/gone.json"]) == 0
         assert (mod._RESULTS / "sessions-gone-verdict.txt").read_text().strip() == "SKIPPED"
 
+    @pytest.mark.parametrize("dangling", [False, True])
+    def test_symlink_session_path_is_rejected(
+        self,
+        tmp_path,
+        dangling: bool,
+    ) -> None:
+        sessions = tmp_path / "sessions"
+        sessions.mkdir()
+        target = sessions / "target.json"
+        if not dangling:
+            target.write_text("{}", encoding="utf-8")
+        (sessions / "linked.json").symlink_to(target.name)
+
+        assert mod.main(["--session-file", "sessions/linked.json"]) == 2
+        assert not mod._RESULTS.exists()
+
     def test_a_deleted_file_still_sets_the_artifact_name(
         self, tmp_path, monkeypatch: pytest.MonkeyPatch
     ) -> None:

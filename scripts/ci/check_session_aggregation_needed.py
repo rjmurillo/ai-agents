@@ -12,7 +12,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.ci.session_artifact_name import artifact_name  # noqa: E402
+from scripts.ci._session_artifact_name import artifact_name  # noqa: E402
 
 EXIT_OK = 0
 EXIT_LOGIC = 1

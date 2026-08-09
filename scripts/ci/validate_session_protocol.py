@@ -18,7 +18,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.ci.session_artifact_name import artifact_name
+from scripts.ci._session_artifact_name import artifact_name
 
 _RESULTS = Path("validation-results")
 _SUMMARY = Path("validation-summary.json")
@@ -128,10 +128,18 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    session_path = Path(session_file)
+    if session_path.is_symlink():
+        print(
+            f"::error::Refusing a symlink session path: {session_file}",
+            file=sys.stderr,
+        )
+        return 2
+
     name = artifact_name(session_file)
     _emit_output(name)
 
-    if not Path(session_file).exists():
+    if not session_path.exists():
         print(f"File {session_file} was deleted - skipping validation")
         findings = f"# Session Validation: {session_file}\n\nResult: SKIPPED (file deleted)\n"
         _RESULT_MD.write_text(findings, encoding="utf-8")
