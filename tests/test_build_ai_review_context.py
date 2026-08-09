@@ -1361,9 +1361,10 @@ def test_write_outputs_redacts_context_before_every_sink(
         )
     )
 
-    persisted = output_path.read_text(encoding="utf-8") + (
-        runner_temp / "ai-review-context-prlocal.txt"
-    ).read_text(encoding="utf-8")
+    context_file = next(runner_temp.glob("ai-review-context-pr*.txt"))
+    persisted = output_path.read_text(encoding="utf-8") + context_file.read_text(
+        encoding="utf-8"
+    )
     assert environment_secret not in persisted
     assert shaped_secret not in persisted
     assert "***" in persisted
