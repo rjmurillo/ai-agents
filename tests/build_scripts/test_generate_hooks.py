@@ -1209,10 +1209,19 @@ def test_markdownlint_guard_declares_and_matches_runtime_companion() -> None:
     canonical_dir = repo_root / ".claude" / "hooks" / "PreToolUse"
     generated_dir = repo_root / "src" / "copilot-cli" / "hooks" / "PreToolUse"
 
-    assert generate_hooks_events._COMPANIONS_BY_OWNER[
-        "PreToolUse/invoke_markdownlint_guard.py"
-    ] == ("markdownlint-cli2.yaml", "push_guard_base.py")
-    for companion in ("markdownlint-cli2.yaml", "push_guard_base.py"):
+    expected_companions = (
+        "_markdownlint_verifier.py",
+        "markdownlint-cli2.yaml",
+        "markdownlint-safe-config.yaml",
+        "push_guard_base.py",
+    )
+    assert (
+        generate_hooks_events._COMPANIONS_BY_OWNER[
+            "PreToolUse/invoke_markdownlint_guard.py"
+        ]
+        == expected_companions
+    )
+    for companion in expected_companions:
         assert (generated_dir / companion).read_bytes() == (
             canonical_dir / companion
         ).read_bytes()

@@ -59,7 +59,9 @@ from yaml_loader import ConfigError  # noqa: E402
 # Files required at runtime by one emitted hook but not dispatched themselves.
 _COMPANIONS_BY_OWNER: dict[str, tuple[str, ...]] = {
     "PreToolUse/invoke_markdownlint_guard.py": (
+        "_markdownlint_verifier.py",
         "markdownlint-cli2.yaml",
+        "markdownlint-safe-config.yaml",
         "push_guard_base.py",
     ),
 }
