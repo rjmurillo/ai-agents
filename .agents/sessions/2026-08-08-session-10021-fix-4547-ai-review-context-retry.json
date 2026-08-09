@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and recursive review fixes are committed through QA code commit 3c6f503c9965165773709e93b8746e8dca75752f."
+        "Evidence": "Implementation and recursive review fixes are committed through QA code commit acdca6bb3becc0fc65cb7f12353bacd2a870d4de."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "466 focused, redaction-matrix, deadline, plain-script import, and bundled parity tests passed at QA code commit 3c6f503c9965165773709e93b8746e8dca75752f. A full pre-push run passed 24944 tests with 34 skips and 50 deselections before the bounded-assignment refinement. The extracted helper passes its 15 tests, the CLI exit ratchet passes, and the ADR-006 ratchet reports zero violations. Mypy, Ruff, action validation, review-budget validation, merge-tree ratchets, and 50 pre-PR checks passed."
+        "Evidence": "466 focused, redaction-matrix, deadline, plain-script import, and bundled parity tests passed. The full post-merge suite passed 25079 tests with 36 skips at QA code commit acdca6bb3becc0fc65cb7f12353bacd2a870d4de. The extracted helper passes its 15 tests, the CLI exit ratchet passes, and the ADR-006 ratchet reports zero violations. Mypy, Ruff, action validation, review-budget validation, merge-tree ratchets, and 49 of 50 pre-PR checks passed before QA evidence refresh; Session End Validation was the sole expected stale-evidence failure."
       },
       "qaValidation": {
         "level": "MUST",
@@ -172,7 +172,7 @@
       "outcome": "Bounded credential assignment redaction to scalar values, preserved trailing JSON and prose fields, and covered raw and escaped JSON with one through six backslashes before inner quotes. Recursive GPT-5.6 Sol review reports no Critical or High findings."
     }
   ],
-  "endingCommit": "3c6f503c9965165773709e93b8746e8dca75752f",
+  "endingCommit": "acdca6bb3becc0fc65cb7f12353bacd2a870d4de",
   "nextSteps": [
     "Commit, push, open one focused pull request, resolve review findings, merge, close issue 4547, then reassess PR 4721."
   ]

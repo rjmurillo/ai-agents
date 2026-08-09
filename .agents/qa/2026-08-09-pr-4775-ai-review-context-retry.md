@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-fix-4547-ai-review-context-retry.json
-qaCommit: 3c6f503c9965165773709e93b8746e8dca75752f
+qaCommit: acdca6bb3becc0fc65cb7f12353bacd2a870d4de
 ---
 
 # QA Report: PR #4775 AI Review Context Retry
@@ -25,6 +25,7 @@ across context, model, and artifact sinks.
 | Plain-script import tests | [PASS], 294 tests |
 | Bundled redactor parity tests | [PASS], 6 tests |
 | Combined focused regression selection | [PASS], 466 tests |
+| Full post-merge Python suite | [PASS], 25,079 passed and 36 skipped |
 | ADR-006 run-block ratchet | [PASS], 0 violations |
 | Ruff | [PASS] |
 | Changed-file mypy | [PASS] |
