@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The branch contains the original red-main repair commits plus merge commit 35f651c57 from origin/main."
+        "Evidence": "The branch contains the red-main repair and current origin/main through merge commit 67c1ac9b2."
       },
       "validationPassed": {
         "level": "MUST",
@@ -194,6 +194,6 @@
       ]
     }
   ],
-  "endingCommit": "35f651c578b458999c8768cd06c8dd5c99410ec4",
+  "endingCommit": "67c1ac9b227af70ccfcfd0ae92ef8a2802eae6c0",
   "nextSteps": []
 }
