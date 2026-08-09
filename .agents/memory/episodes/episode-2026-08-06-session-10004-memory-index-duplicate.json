@@ -1,0 +1,185 @@
+{
+  "id": "episode-2026-08-06-session-10004-memory-index-duplicate",
+  "session": "2026-08-06-session-10004-memory-index-duplicate",
+  "timestamp": "2026-08-06T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair the duplicate memory-index target path introduced after PR 4687 and add a regression guard",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-06T14:35:54+00:00",
+      "type": "milestone",
+      "content": "Triage post-merge duplicate",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-06T14:43:00+00:00",
+      "type": "milestone",
+      "content": "Repair and guard memory index",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-06T14:44:00+00:00",
+      "type": "milestone",
+      "content": "Validate corrective change",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-08T02:15:35+00:00",
+      "type": "commit",
+      "content": "Commit: e5b25cda20",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-08T07:45:47+00:00",
+      "type": "commit",
+      "content": "Commit: 5e75b598d6",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-08T09:09:15+00:00",
+      "type": "commit",
+      "content": "Commit: 6423c91ebd",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-08T09:47:39+00:00",
+      "type": "commit",
+      "content": "Commit: 2559c8e0f4",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-09T00:44:09+00:00",
+      "type": "commit",
+      "content": "Commit: 2de7a113e8",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-09T01:45:58+00:00",
+      "type": "commit",
+      "content": "Commit: 87b2b5ad85",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-09T02:08:00+00:00",
+      "type": "milestone",
+      "content": "Record PR 4735 merge-unblock retrospective",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-09T02:18:10+00:00",
+      "type": "commit",
+      "content": "Commit: fbc0853df9",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-09T03:20:00+00:00",
+      "type": "milestone",
+      "content": "Fix PR 4735 merge-base review thread",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-09T02:53:23+00:00",
+      "type": "commit",
+      "content": "Commit: 2708f2fa1551ac843dc625bffe26d4d8518213ab",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 3644,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 8,
+    "files_changed": 4
+  },
+  "lessons": []
+}

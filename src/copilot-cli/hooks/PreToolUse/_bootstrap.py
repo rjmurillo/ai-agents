@@ -4,7 +4,7 @@ Discovers the plugin root (via CLAUDE_PLUGIN_ROOT or manifest walk-up),
 locates the hooks and lib directories, and adds them to sys.path.
 
 Usage:
-    from _bootstrap import ensure_plugin_paths
+    from _bootstrap import ensure_plugin_paths, PluginInfrastructureError
     ensure_plugin_paths()
 
     from hook_dispatch import run_dispatch  # noqa: E402
@@ -18,15 +18,30 @@ import sys
 from pathlib import Path
 
 
+class PluginInfrastructureError(Exception):
+    """Raised when the plugin install is incomplete or misconfigured.
+
+    This is NOT a policy denial. It means the dispatch machinery could not
+    load: plugin root unresolvable, hooks or lib directory missing, marker
+    absent. The dispatcher catches this and ALLOWS the tool call with a loud
+    warning, because denying every call on an infrastructure failure makes the
+    plugin unusable and forces the user to uninstall, which removes all
+    protection permanently. Fail-open on infrastructure keeps the plugin
+    installed so the next release can still protect the user (#4672).
+    """
+
+
 def _validate_plugin_root(root: Path, *, source: str) -> None:
-    """Fail closed unless ``root`` is a real plugin install root."""
+    """Raise PluginInfrastructureError unless ``root`` is a real plugin install root."""
     if not root.is_dir():
-        print(f"Invalid {source}: plugin root is not a directory: {root}", file=sys.stderr)
-        sys.exit(2)
+        raise PluginInfrastructureError(
+            f"Invalid {source}: plugin root is not a directory: {root}"
+        )
     marker = root / ".claude-plugin" / "plugin.json"
     if not marker.is_file():
-        print(f"Invalid {source}: plugin marker missing: {marker}", file=sys.stderr)
-        sys.exit(2)
+        raise PluginInfrastructureError(
+            f"Invalid {source}: plugin marker missing: {marker}"
+        )
 
 
 def _find_hooks_dir(root: Path) -> str | None:
@@ -56,13 +71,14 @@ def ensure_plugin_paths() -> None:
 
     Resolves the plugin root via CLAUDE_PLUGIN_ROOT environment variable
     or by walking up from this file to find .claude-plugin/plugin.json.
-    Exits with code 2 if directories cannot be found.
+    Raises PluginInfrastructureError if directories cannot be found.
     """
     plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if plugin_root:
         if any(ch in plugin_root for ch in ("\x00", "\n", "\r", "\t", "\v", "\f")):
-            print("Invalid CLAUDE_PLUGIN_ROOT: control characters are not allowed", file=sys.stderr)
-            sys.exit(2)
+            raise PluginInfrastructureError(
+                "Invalid CLAUDE_PLUGIN_ROOT: control characters are not allowed"
+            )
         resolved_root = Path(plugin_root).resolve()
         _validate_plugin_root(resolved_root, source="CLAUDE_PLUGIN_ROOT")
         hooks_dir = _find_hooks_dir(resolved_root)
@@ -82,19 +98,15 @@ def ensure_plugin_paths() -> None:
             cur = cur.parent
 
     if hooks_dir is None or not os.path.isdir(hooks_dir):
-        print(
+        raise PluginInfrastructureError(
             f"Plugin hooks directory not found: {hooks_dir} "
-            f"(CLAUDE_PLUGIN_ROOT={plugin_root!r})",
-            file=sys.stderr,
+            f"(CLAUDE_PLUGIN_ROOT={plugin_root!r})"
         )
-        sys.exit(2)
     if lib_dir is None or not os.path.isdir(lib_dir):
-        print(
+        raise PluginInfrastructureError(
             f"Plugin lib directory not found: {lib_dir} "
-            f"(CLAUDE_PLUGIN_ROOT={plugin_root!r})",
-            file=sys.stderr,
+            f"(CLAUDE_PLUGIN_ROOT={plugin_root!r})"
         )
-        sys.exit(2)
     if hooks_dir not in sys.path:
         sys.path.insert(0, hooks_dir)
     if lib_dir not in sys.path:
