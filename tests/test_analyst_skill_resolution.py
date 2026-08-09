@@ -157,8 +157,15 @@ def test_orchestrator_supplies_analyst_execution_context() -> None:
         text = contract.read_text(encoding="utf-8")
         assert "### Analyst evidence handoff" in text, contract
         assert "Put the exact output, repository identity, branch, and head SHA" in text, contract
-        assert "The analyst is read-only and has no shell or GitHub access." in text, contract
-        assert "retrieve the named evidence and re-delegate" in text, contract
+        assert (
+            "The analyst is read-only and has no shell, GitHub, or unrestricted web access."
+            in text
+        ), contract
+        assert "external evidence outside the analyst's declared" in text, contract
+        assert "worker whose declared manifest includes that" in text, contract
+        assert "retrieve the named" in text, contract
+        assert "evidence and re-delegate once" in text, contract
+        assert "delegate to the analyst agent" not in text, contract
 
 
 @pytest.mark.parametrize(
