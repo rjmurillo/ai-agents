@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-pr-4773-strict-policy-threads.json
-qaCommit: 5bfd9bf144d4f608f104c06ae9fd595413b14b1a
+qaCommit: 8900707003e85c3c0102d01e7968eaac65c203ba
 ---
 
 # PR 4773 strict policy review fixes QA

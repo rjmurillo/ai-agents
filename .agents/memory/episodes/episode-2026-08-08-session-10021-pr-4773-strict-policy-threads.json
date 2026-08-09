@@ -74,6 +74,32 @@
         "e004",
         "e005"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10021-pr-4773-strict-policy-threads"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-09T04:55:19+00:00",
+      "type": "commit",
+      "content": "Commit: 5bfd9bf14",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-pr-4773-strict-policy-threads"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-09T05:01:58+00:00",
+      "type": "commit",
+      "content": "Commit: 8900707003e85c3c0102d01e7968eaac65c203ba",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-pr-4773-strict-policy-threads"
     }
@@ -83,8 +109,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 6
+    "commits": 3,
+    "files_changed": 10
   },
   "lessons": []
 }

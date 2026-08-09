@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Memory fixes committed in 5bfd9bf14; governance and session log staged for this commit"
+        "Evidence": "Memory fixes committed in 5bfd9bf14; governance and session evidence committed in 890070700"
       },
       "validationPassed": {
         "level": "MUST",
@@ -140,7 +140,7 @@
       "outcome": "Ran update_memory_index_tokens.py, memory_index.py, memory_index_count_ratchet.py, and memory_index_token_ratchet.py with exit 0"
     }
   ],
-  "endingCommit": "5bfd9bf144d4f608f104c06ae9fd595413b14b1a",
+  "endingCommit": "8900707003e85c3c0102d01e7968eaac65c203ba",
   "nextSteps": [
     "Commit and push PR 4773 review fixes",
     "Reply to and resolve both review threads",
