@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 _SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts/ci/build_ai_review_context.py"
 
@@ -223,6 +224,86 @@ def test_rate_limit_reset_beyond_context_budget_fails_without_sleeping(
     assert "retry budget exhausted" in context.text
 
 
+def test_context_budget_preserves_full_model_invocation_window():
+    """Context retry cannot consume the downstream five-minute model budget."""
+    finalization_reserve_seconds = 60
+    repo_root = Path(__file__).resolve().parents[1]
+    workflow = yaml.safe_load(
+        (repo_root / ".github/workflows/ai-pr-quality-gate.yml").read_text(encoding="utf-8")
+    )
+    action = yaml.safe_load(
+        (repo_root / ".github/actions/agent-review/action.yml").read_text(encoding="utf-8")
+    )
+    review_job_seconds = min(
+        int(job["timeout-minutes"]) * 60
+        for job in workflow["jobs"].values()
+        if any(
+            step.get("uses") == "./.github/actions/agent-review" for step in job.get("steps", [])
+        )
+    )
+    invocation_seconds = next(
+        int(step["with"]["timeout-minutes"]) * 60
+        for step in action["runs"]["steps"]
+        if step.get("uses") == "./.github/actions/ai-review"
+    )
+    review_jobs = [
+        job
+        for job in workflow["jobs"].values()
+        if any(
+            step.get("uses") == "./.github/actions/agent-review" for step in job.get("steps", [])
+        )
+    ]
+
+    assert all(
+        job["steps"][0]["name"] == "Establish review job deadline"
+        and f"+ {int(job['timeout-minutes']) * 60 - 30}" in job["steps"][0]["run"]
+        for job in review_jobs
+    )
+    assert (
+        _mod.GH_CONTEXT_RETRY_BUDGET_SECONDS + invocation_seconds + finalization_reserve_seconds
+        < review_job_seconds
+    )
+
+
+def test_context_deadline_subtracts_elapsed_action_setup(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Validation and cache setup consume context time, not downstream reserves."""
+    monkeypatch.setenv(_mod.AI_REVIEW_ACTION_DEADLINE_ENV, "670")
+    monkeypatch.setattr(_mod.time, "time", lambda: 100.0)
+    monkeypatch.setattr(_mod.time, "monotonic", lambda: 20.0)
+
+    deadline = _mod._new_context_retry_deadline()
+
+    # 570 seconds remain in the action, minus 360 downstream, leaving 210.
+    assert deadline == 230.0
+
+    monkeypatch.setattr(_mod.time, "time", lambda: 160.0)
+
+    # Sixty seconds of setup elapsed, so only 150 context seconds remain.
+    assert _mod._new_context_retry_deadline() == 170.0
+
+
+def test_expired_action_budget_fails_before_local_context(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Even local context cannot invoke the model after its reserved window."""
+    monkeypatch.setenv(_mod.AI_REVIEW_ACTION_DEADLINE_ENV, "460")
+    monkeypatch.setattr(_mod.time, "time", lambda: 100.0)
+    monkeypatch.setattr(_mod.time, "monotonic", lambda: 20.0)
+    monkeypatch.setattr(
+        _mod,
+        "_build_context_from_environment",
+        lambda: pytest.fail("expired budget must fail before building context"),
+    )
+
+    context = _mod.build_context_from_environment()
+
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert "action budget exhausted" in context.text
+
+
 @pytest.mark.parametrize(
     ("context_type", "environment"),
     [
@@ -273,7 +354,8 @@ def test_all_remote_context_types_share_the_retry_budget(
     context = _mod.build_context_from_environment()
 
     assert sleeps == []
-    assert context.mode != "full"
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
 
 
 def test_malformed_metadata_responses_fail_as_infrastructure(
@@ -496,6 +578,28 @@ def test_marks_whitespace_only_diff_as_infrastructure_failure(
     assert "Failed to fetch PR diff" in context.text
 
 
+def test_marks_nonzero_diff_with_partial_stdout_as_infrastructure_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A failed PR diff cannot become full context through partial stdout."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[:1] == ["api"]:
+            return CommandResult(_pulls_payload(7, "Partial", ""), "", 0)
+        if arguments[:2] == ["pr", "diff"]:
+            return CommandResult("diff --git a/a.py b/a.py\n+partial\n", "upstream reset", 1)
+        raise AssertionError(f"unexpected gh call: {arguments}")
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert "Failed to fetch PR diff" in context.text
+
+
 def test_empty_diff_no_longer_raises_external_gh_error(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -531,7 +635,7 @@ def test_large_pr_uses_file_list_summary(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         _mod,
         "get_paginated_file_list",
-        lambda pr_number, repository: ("src/a.py\nsrc/b.py", False, False),
+        lambda pr_number, repository: ("src/a.py\nsrc/b.py", False, ""),
     )
 
     context = _mod.build_large_pr_context("7", "owner/repo")
@@ -548,7 +652,7 @@ def test_large_pr_raises_when_all_fallbacks_fail(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(
         _mod,
         "get_paginated_file_list",
-        lambda pr_number, repository: ("", False, True),
+        lambda pr_number, repository: ("", False, "API unavailable"),
     )
     monkeypatch.setattr(_mod, "get_pr_name_only", lambda pr_number, repository: "")
 
@@ -556,22 +660,42 @@ def test_large_pr_raises_when_all_fallbacks_fail(monkeypatch: pytest.MonkeyPatch
         _mod.build_large_pr_context("7", "owner/repo")
 
 
-def test_get_pr_name_only_uses_stdout_from_nonzero_diff(
+def test_get_pr_name_only_rejects_stdout_from_nonzero_diff(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """A nonzero gh name-only call still uses stdout when GitHub emitted filenames."""
+    """A failed name-only call cannot pass partial stdout to the model."""
 
-    monkeypatch.setattr(
-        _mod,
-        "run_gh",
-        lambda arguments, timeout=_mod.GH_TIMEOUT_SECONDS: CommandResult(
-            "src/a.py\nsrc/b.py\n",
-            "warning",
-            1,
-        ),
-    )
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[:2] == ["pr", "diff"]:
+            return CommandResult("src/partial.py\n", "upstream reset", 1)
+        if arguments[:1] == ["api"]:
+            if "page=1" in arguments[1]:
+                return CommandResult("src/complete.py\n", "", 0)
+            return CommandResult("", "", 0)
+        raise AssertionError(f"unexpected gh call: {arguments}")
 
-    assert _mod.get_pr_name_only("7", "owner/repo") == "src/a.py\nsrc/b.py"
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    assert _mod.get_pr_name_only("7", "owner/repo") == "src/complete.py"
+
+
+def test_get_pr_name_only_does_not_fallback_after_auth_rejection(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Permanent authentication rejection stops before REST pagination."""
+    calls: list[list[str]] = []
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        calls.append(arguments)
+        return CommandResult("", "HTTP 401: Bad credentials", 1)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    assert _mod.get_pr_name_only("7", "owner/repo") == ""
+    assert len(calls) == 1
+    assert calls[0][:2] == ["pr", "diff"]
 
 
 def test_paginated_file_list_marks_later_api_failure_as_truncated(
@@ -593,32 +717,58 @@ def test_paginated_file_list_marks_later_api_failure_as_truncated(
 
     monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
 
-    file_list, truncated, api_failed = _mod.get_paginated_file_list("7", "owner/repo")
+    file_list, truncated, api_failure = _mod.get_paginated_file_list("7", "owner/repo")
 
     assert truncated is True
-    assert api_failed is True
+    assert api_failure == "api unavailable"
     assert file_list == first_page
     assert len(calls) == 2
 
 
-def test_large_pr_warns_api_failure_without_max_page_limit(
+def test_large_pr_uses_complete_fallback_after_partial_api_pagination(
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
 ):
-    """Partial API results name the fetch failure instead of the max-page limit."""
+    """A complete alternate transport can recover from partial REST pagination."""
 
     monkeypatch.setattr(
         _mod,
         "get_paginated_file_list",
-        lambda pr_number, repository: ("src/a.py\nsrc/b.py", True, True),
+        lambda pr_number, repository: ("src/partial.py", True, "HTTP 503"),
+    )
+    monkeypatch.setattr(
+        _mod,
+        "get_pr_name_only",
+        lambda pr_number, repository: "src/complete.py",
     )
 
     context = _mod.build_large_pr_context("7", "owner/repo")
 
-    output = capsys.readouterr().out
     assert context.mode == "summary"
-    assert "GitHub API pagination failed" in output
-    assert "truncated at 500 files" not in output
+    assert "src/complete.py" in context.text
+    assert "src/partial.py" not in context.text
+
+
+def test_large_pr_does_not_fallback_after_pagination_auth_rejection(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Permanent REST authentication rejection stops alternate transports."""
+    monkeypatch.setattr(
+        _mod,
+        "get_paginated_file_list",
+        lambda pr_number, repository: (
+            "src/partial.py",
+            True,
+            "HTTP 401: Bad credentials",
+        ),
+    )
+    monkeypatch.setattr(
+        _mod,
+        "get_pr_name_only",
+        lambda _pr, _repo: pytest.fail("auth rejection must not use a fallback"),
+    )
+
+    with pytest.raises(_mod.ExternalGhError, match="Bad credentials"):
+        _mod.build_large_pr_context("7", "owner/repo")
 
 
 def test_build_issue_context_fetches_issue_details(monkeypatch: pytest.MonkeyPatch):
@@ -641,7 +791,7 @@ def test_build_issue_context_fetches_issue_details(monkeypatch: pytest.MonkeyPat
 def test_build_issue_context_without_issue_number_skips_gh(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Missing issue input returns local context without hitting GitHub."""
+    """Missing issue input fails closed without hitting GitHub."""
 
     monkeypatch.setattr(
         _mod,
@@ -653,8 +803,9 @@ def test_build_issue_context_without_issue_number_skips_gh(
 
     context = _mod.build_issue_context("", "")
 
-    assert context.mode == "partial"
-    assert context.text == "No issue number provided"
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert context.text == "INFRASTRUCTURE_FAILURE: No issue number provided"
 
 
 def test_build_issue_context_requires_repository() -> None:
@@ -677,14 +828,27 @@ def test_build_session_log_context_reads_file(tmp_path: Path):
 
 
 def test_build_session_log_context_reports_missing(tmp_path: Path):
-    """Missing session logs produce an explicit review context."""
+    """Missing session logs cannot produce a model verdict."""
 
     missing_path = tmp_path / "missing.json"
 
     context = _mod.build_session_log_context(str(missing_path))
 
-    assert context.mode == "partial"
-    assert context.text == f"Session log file not found: {missing_path}"
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert context.text == (f"INFRASTRUCTURE_FAILURE: Session log file not found: {missing_path}")
+
+
+def test_build_session_log_context_rejects_empty_file(tmp_path: Path):
+    """Empty session logs cannot claim full context."""
+    session_path = tmp_path / "empty.json"
+    session_path.write_text(" \n\t", encoding="utf-8")
+
+    context = _mod.build_session_log_context(str(session_path))
+
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert context.text == (f"INFRASTRUCTURE_FAILURE: Session log file is empty: {session_path}")
 
 
 def test_invalid_session_log_encoding_returns_config_error(
@@ -728,15 +892,36 @@ def test_build_spec_context_without_pr_uses_spec_only(
     assert "## Implementation Changes\n[No PR diff provided]" in context.text
 
 
-def test_build_spec_context_reports_missing_as_partial(tmp_path: Path):
-    """Missing spec files do not claim full review context."""
+def test_build_spec_context_reports_missing_as_infrastructure(tmp_path: Path):
+    """Missing spec files cannot produce a model verdict."""
 
     missing_path = tmp_path / "missing.md"
 
     context = _mod.build_spec_context(str(missing_path), "", "owner/repo", 100)
 
-    assert context.mode == "partial"
-    assert context.text == f"Spec file not found: {missing_path}"
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert context.text == (f"INFRASTRUCTURE_FAILURE: Spec file not found: {missing_path}")
+
+
+def test_build_spec_context_rejects_empty_spec(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Empty specification content cannot produce a model verdict."""
+    spec_path = tmp_path / "spec.md"
+    spec_path.write_text(" \n\t", encoding="utf-8")
+    monkeypatch.setattr(
+        _mod,
+        "run_gh",
+        lambda _args: pytest.fail("empty spec must fail before remote context fetch"),
+    )
+
+    context = _mod.build_spec_context(str(spec_path), "7", "owner/repo", 100)
+
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert context.text == (f"INFRASTRUCTURE_FAILURE: Specification file is empty: {spec_path}")
 
 
 def test_build_spec_context_truncates_large_diff(
@@ -815,15 +1000,16 @@ def test_build_spec_context_rejects_whitespace_only_diff(
 
     context = _mod.build_spec_context(str(spec_path), "7", "owner/repo", 100)
 
-    assert context.mode == "summary"
-    assert "[Diff unavailable]" in context.text
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert "INFRASTRUCTURE_FAILURE" in context.text
 
 
-def test_build_spec_context_uses_stdout_from_nonzero_diff(
+def test_build_spec_context_rejects_stdout_from_nonzero_diff(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ):
-    """A nonzero gh diff still uses stdout when GitHub emitted a usable diff."""
+    """A failed diff cannot turn partial stdout into full implementation context."""
 
     spec_path = tmp_path / "spec.md"
     spec_path.write_text("Spec body", encoding="utf-8")
@@ -839,13 +1025,44 @@ def test_build_spec_context_uses_stdout_from_nonzero_diff(
     monkeypatch.setattr(
         _mod,
         "get_pr_name_only",
-        lambda pr_number, repository: pytest.fail("name-only fallback should not run"),
+        lambda pr_number, repository: "",
     )
 
     context = _mod.build_spec_context(str(spec_path), "7", "owner/repo", 100)
 
-    assert context.mode == "full"
-    assert "diff --git a/spec.md b/spec.md" in context.text
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert "INFRASTRUCTURE_FAILURE" in context.text
+    assert "diff --git a/spec.md b/spec.md" not in context.text
+
+
+def test_build_spec_context_does_not_fallback_after_auth_rejection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Permanent authentication rejection cannot trigger alternate API calls."""
+    spec_path = tmp_path / "spec.md"
+    spec_path.write_text("Spec body", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        calls.append(arguments)
+        return CommandResult("", "HTTP 403: Resource not accessible by integration", 1)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+    monkeypatch.setattr(
+        _mod,
+        "get_pr_name_only",
+        lambda _pr, _repo: pytest.fail("auth rejection must not use a fallback"),
+    )
+
+    context = _mod.build_spec_context(str(spec_path), "7", "owner/repo", 100)
+
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert "Resource not accessible by integration" in context.text
+    assert len(calls) == 1
 
 
 def test_build_spec_context_reports_unavailable_when_diff_and_file_list_fail(
@@ -869,8 +1086,10 @@ def test_build_spec_context_reports_unavailable_when_diff_and_file_list_fail(
 
     context = _mod.build_spec_context(str(spec_path), "7", "owner/repo", 100)
 
-    assert context.mode == "summary"
-    assert "## Implementation Changes\n[Diff unavailable]" in context.text
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert "INFRASTRUCTURE_FAILURE" in context.text
+    assert "diff unavailable" in context.text
 
 
 def test_invalid_spec_encoding_returns_config_error(
@@ -926,8 +1145,8 @@ def test_pr_diff_context_requires_pr_number(
     assert "PR_NUMBER is required for pr-diff context" in capsys.readouterr().err
 
 
-def test_issue_context_gh_failure_is_partial(monkeypatch: pytest.MonkeyPatch):
-    """Issue lookup failures must not claim full context."""
+def test_issue_context_gh_failure_is_infrastructure(monkeypatch: pytest.MonkeyPatch):
+    """Issue lookup failures must not invoke a model without issue context."""
 
     monkeypatch.setattr(
         _mod,
@@ -937,8 +1156,26 @@ def test_issue_context_gh_failure_is_partial(monkeypatch: pytest.MonkeyPatch):
 
     context = _mod.build_issue_context("2814", "owner/repo")
 
-    assert context.mode == "partial"
-    assert context.text == "Unable to get issue"
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert context.text == ("INFRASTRUCTURE_FAILURE: Could not fetch issue #2814: fail")
+
+
+def test_issue_context_empty_output_is_infrastructure(monkeypatch: pytest.MonkeyPatch):
+    """A successful exit without issue context must not invoke the model."""
+    monkeypatch.setattr(
+        _mod,
+        "run_gh",
+        lambda _args: _mod.CommandResult(stdout=" \n", stderr="", returncode=0),
+    )
+
+    context = _mod.build_issue_context("2814", "owner/repo")
+
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert context.text == (
+        "INFRASTRUCTURE_FAILURE: Could not fetch issue #2814: GitHub API returned no issue output"
+    )
 
 
 def test_unknown_context_type_returns_config_error(

@@ -19,9 +19,12 @@ from pathlib import Path
 
 GH_TIMEOUT_SECONDS = 60
 GH_REFUSAL_BACKOFF_SECONDS = (60.0, 120.0)
-# Review jobs have a 600-second deadline. This leaves 180 seconds for
-# classification, artifact upload, and the downstream infrastructure gate.
-GH_CONTEXT_RETRY_BUDGET_SECONDS = 420.0
+# Review jobs have a 600-second deadline and model invocation may use 300
+# seconds. This leaves 30 seconds before invocation and 60 seconds afterward
+# for setup, classification, and artifact upload.
+GH_CONTEXT_RETRY_BUDGET_SECONDS = 210.0
+DOWNSTREAM_REVIEW_RESERVE_SECONDS = 360.0
+AI_REVIEW_ACTION_DEADLINE_ENV = "AI_REVIEW_ACTION_DEADLINE_EPOCH"
 _GH_RETRY_DEADLINE: ContextVar[float | None] = ContextVar(
     "gh_retry_deadline",
     default=None,
@@ -136,6 +139,20 @@ def _with_retry_exhausted(result: CommandResult, reason: str) -> CommandResult:
     detail = _failure_text(result)
     diagnostic = f"{detail}\n{reason}".strip()
     return CommandResult(result.stdout, diagnostic, result.returncode)
+
+
+def _new_context_retry_deadline() -> float:
+    """Cap context retries against the deadline established before action setup."""
+    now = time.monotonic()
+    budget = GH_CONTEXT_RETRY_BUDGET_SECONDS
+    raw_action_deadline = os.environ.get(AI_REVIEW_ACTION_DEADLINE_ENV, "")
+    if raw_action_deadline:
+        try:
+            remaining = float(raw_action_deadline) - time.time() - DOWNSTREAM_REVIEW_RESERVE_SECONDS
+        except ValueError:
+            remaining = 0.0
+        budget = min(budget, remaining)
+    return now + max(0.0, budget)
 
 
 def _invoke_gh_once(arguments: list[str], timeout: float) -> CommandResult:
@@ -297,16 +314,18 @@ def get_pr_name_only(pr_number: str, repository: str) -> str:
     backs it up.
     """
     result = run_gh(["pr", "diff", pr_number, "--repo", repository, "--name-only"])
-    if result.stdout.strip():
+    if result.returncode == 0 and result.stdout.strip():
         return result.stdout.strip()
-    file_list, _truncated, _api_failed = get_paginated_file_list(pr_number, repository)
-    return file_list
+    if PERMANENT_AUTH_FAILURE.search(_failure_text(result)):
+        return ""
+    file_list, _truncated, api_failed = get_paginated_file_list(pr_number, repository)
+    return "" if api_failed else file_list
 
 
-def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool, bool]:
+def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool, str]:
     files: list[str] = []
     truncated = False
-    api_failed = False
+    api_failure = ""
     for page in range(1, MAX_FILE_PAGES + 1):
         result = run_gh(
             [
@@ -318,7 +337,9 @@ def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool,
         )
         if result.returncode != 0:
             truncated = bool(files)
-            api_failed = True
+            api_failure = (
+                _failure_text(result) or "GitHub API pagination failed without diagnostics"
+            )
             break
 
         page_files = [line for line in result.stdout.splitlines() if line.strip()]
@@ -331,26 +352,37 @@ def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool,
     else:
         truncated = True
 
-    return "\n".join(files), truncated, api_failed
+    return "\n".join(files), truncated, api_failure
 
 
 def build_large_pr_context(pr_number: str, repository: str) -> ReviewContext:
-    file_list, truncated, api_failed = get_paginated_file_list(pr_number, repository)
+    file_list, truncated, api_failure = get_paginated_file_list(pr_number, repository)
+    if api_failure:
+        total_files = count_lines(file_list)
+        if not PERMANENT_AUTH_FAILURE.search(api_failure):
+            print(
+                "::warning::REST file pagination failed. "
+                "Attempting --name-only transport fallback..."
+            )
+            name_only = get_pr_name_only(pr_number, repository)
+            if name_only:
+                return ReviewContext(
+                    f"[Large PR - showing file list only]\n{name_only}",
+                    "summary",
+                )
+        raise ExternalGhError(
+            "GitHub API pagination failed while fetching the complete file list "
+            f"for PR #{pr_number} after {total_files} files: {api_failure}"
+        )
     if file_list:
         total_files = count_lines(file_list)
         print(f"Retrieved {total_files} changed files via API pagination")
         if truncated:
-            if api_failed:
-                print(
-                    "::warning::File list incomplete after GitHub API pagination failed. "
-                    f"Retrieved {total_files} files; PR may have more changes not shown."
-                )
-            else:
-                print(
-                    "::warning::File list truncated at "
-                    f"{MAX_FILE_PAGES * FILES_PER_PAGE} files. "
-                    "PR may have more changes not shown in review context."
-                )
+            print(
+                "::warning::File list truncated at "
+                f"{MAX_FILE_PAGES * FILES_PER_PAGE} files. "
+                "PR may have more changes not shown in review context."
+            )
         context = (
             "[Large PR - >300 files (GitHub diff limit exceeded), showing file list only]"
             "\n\nChanged files:\n"
@@ -416,6 +448,11 @@ def _build_pr_diff_body(pr_number: str, repository: str, max_diff_lines: int) ->
         warning = "::warning::PR diff unavailable via gh pr diff (>300 files)."
         print(f"{warning} Falling back to API pagination...")
         return build_large_pr_context(pr_number, repository)
+    if diff.returncode != 0:
+        detail = diff.stderr.strip() or f"gh pr diff exited {diff.returncode}"
+        raise ExternalGhError(
+            f"Failed to fetch PR diff for #{pr_number} from {repository}: {detail}"
+        )
 
     line_count = count_lines(diff.stdout)
     print(f"PR diff has {line_count} lines")
@@ -475,7 +512,7 @@ def _build_pr_diff_context(
 def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
     if _GH_RETRY_DEADLINE.get() is not None:
         return _build_pr_diff_context(pr_number, repository, max_diff_lines)
-    token = _GH_RETRY_DEADLINE.set(time.monotonic() + GH_CONTEXT_RETRY_BUDGET_SECONDS)
+    token = _GH_RETRY_DEADLINE.set(_new_context_retry_deadline())
     try:
         return _build_pr_diff_context(pr_number, repository, max_diff_lines)
     finally:
@@ -484,7 +521,11 @@ def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) 
 
 def build_issue_context(issue_number: str, repository: str) -> ReviewContext:
     if not issue_number:
-        return ReviewContext("No issue number provided", "partial")
+        return ReviewContext(
+            "INFRASTRUCTURE_FAILURE: No issue number provided",
+            "error",
+            True,
+        )
     if not repository:
         raise ConfigError("GITHUB_REPOSITORY is required for issue context")
 
@@ -505,16 +546,26 @@ def build_issue_context(issue_number: str, repository: str) -> ReviewContext:
             query,
         ]
     )
-    if result.returncode != 0:
-        return ReviewContext("Unable to get issue", "partial")
+    if result.returncode != 0 or not result.stdout.strip():
+        detail = _failure_text(result) or "GitHub API returned no issue output"
+        return ReviewContext(
+            f"INFRASTRUCTURE_FAILURE: Could not fetch issue #{issue_number}: {detail}",
+            "error",
+            True,
+        )
     return ReviewContext(result.stdout.rstrip(), "full")
 
 
 def build_session_log_context(context_path: str) -> ReviewContext:
     path = Path(context_path)
     if context_path and path.is_file():
-        return ReviewContext(read_utf8_file(path, "Session log"), "full")
-    return ReviewContext(f"Session log file not found: {context_path}", "partial")
+        session_log = read_utf8_file(path, "Session log")
+        if session_log.strip():
+            return ReviewContext(session_log, "full")
+        detail = f"Session log file is empty: {context_path}"
+    else:
+        detail = f"Session log file not found: {context_path}"
+    return ReviewContext(f"INFRASTRUCTURE_FAILURE: {detail}", "error", True)
 
 
 def build_spec_context(
@@ -525,9 +576,19 @@ def build_spec_context(
 ) -> ReviewContext:
     path = Path(context_path)
     if not context_path or not path.is_file():
-        return ReviewContext(f"Spec file not found: {context_path}", "partial")
+        return ReviewContext(
+            f"INFRASTRUCTURE_FAILURE: Spec file not found: {context_path}",
+            "error",
+            True,
+        )
 
     spec = read_utf8_file(path, "Spec")
+    if not spec.strip():
+        return ReviewContext(
+            f"INFRASTRUCTURE_FAILURE: Specification file is empty: {path}",
+            "error",
+            True,
+        )
     if not pr_number:
         return ReviewContext(
             f"## Specification\n{spec}\n\n## Implementation Changes\n[No PR diff provided]",
@@ -535,7 +596,7 @@ def build_spec_context(
         )
 
     diff = run_gh(["pr", "diff", pr_number, "--repo", repository])
-    if diff.stdout.strip():
+    if diff.returncode == 0 and diff.stdout.strip():
         line_count = count_lines(diff.stdout)
         diff_text = diff.stdout
         mode = "full"
@@ -546,13 +607,30 @@ def build_spec_context(
                 f"[Diff truncated to first {max_diff_lines} of {line_count} lines]\n{preview}"
             )
     else:
-        mode = "summary"
+        failure = _failure_text(diff)
+        if PERMANENT_AUTH_FAILURE.search(failure):
+            detail = (
+                diff.stderr.strip() or "GitHub authentication or permission request was rejected"
+            )
+            return ReviewContext(
+                f"## Specification\n{spec}\n\n"
+                "INFRASTRUCTURE_FAILURE: "
+                f"Could not fetch PR #{pr_number} implementation context: {detail}",
+                "error",
+                True,
+            )
         name_only = get_pr_name_only(pr_number, repository)
-        diff_text = (
-            f"[Diff unavailable, showing file list only]\n{name_only}"
-            if name_only
-            else "[Diff unavailable]"
-        )
+        if not name_only:
+            detail = diff.stderr.strip() or "GitHub API returned no diff output"
+            return ReviewContext(
+                f"## Specification\n{spec}\n\n"
+                "INFRASTRUCTURE_FAILURE: "
+                f"Could not fetch PR #{pr_number} implementation context: {detail}",
+                "error",
+                True,
+            )
+        mode = "summary"
+        diff_text = f"[Diff unavailable, showing file list only]\n{name_only}"
 
     return ReviewContext(
         f"## Specification\n{spec}\n\n## Implementation Changes\n{diff_text}",
@@ -561,7 +639,14 @@ def build_spec_context(
 
 
 def build_context_from_environment() -> ReviewContext:
-    token = _GH_RETRY_DEADLINE.set(time.monotonic() + GH_CONTEXT_RETRY_BUDGET_SECONDS)
+    deadline = _new_context_retry_deadline()
+    if deadline <= time.monotonic():
+        return ReviewContext(
+            "INFRASTRUCTURE_FAILURE: AI review action budget exhausted before context fetch",
+            "error",
+            True,
+        )
+    token = _GH_RETRY_DEADLINE.set(deadline)
     try:
         return _build_context_from_environment()
     finally:

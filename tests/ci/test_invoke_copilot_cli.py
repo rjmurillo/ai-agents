@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 
 from scripts.ci import invoke_copilot_cli as invoke
 
@@ -51,11 +52,126 @@ def test_invoke_with_retry_converts_repeated_infra_failure_to_verdict(tmp_path):
     )
 
     assert len(calls) == 3
-    assert calls[0][:3] == ("timeout", "120", "copilot")
+    assert calls[0][:4] == ("timeout", "--kill-after=5s", "120", "copilot")
     assert result.infrastructure_failure is True
     assert result.retry_count == 2
     assert "VERDICT: CRITICAL_FAIL" in result.output
     assert "after 3 attempts" in result.output
+
+
+def test_invoke_caps_timeout_to_preserve_finalization_reserve(tmp_path):
+    calls: list[tuple[str, ...]] = []
+
+    def runner(argv: Sequence[str]) -> invoke.CommandResult:
+        calls.append(tuple(argv))
+        return invoke.CommandResult(0, "VERDICT: PASS", "")
+
+    config = replace(make_config(tmp_path), action_deadline_epoch=200.0)
+    result = invoke.invoke_with_retry(
+        config=config,
+        full_prompt="prompt",
+        runner=runner,
+        clock=lambda: 100.0,
+    )
+
+    assert calls[0][:4] == ("timeout", "--kill-after=5s", "35", "copilot")
+    assert result.infrastructure_failure is False
+
+
+def test_invoke_fails_closed_when_finalization_window_has_started(tmp_path):
+    calls: list[tuple[str, ...]] = []
+    config = replace(make_config(tmp_path), action_deadline_epoch=160.0)
+
+    result = invoke.invoke_with_retry(
+        config=config,
+        full_prompt="prompt",
+        runner=lambda argv: calls.append(tuple(argv)) or invoke.CommandResult(0, "", ""),
+        clock=lambda: 100.0,
+    )
+
+    assert calls == []
+    assert result.exit_code == 124
+    assert result.infrastructure_failure is True
+    assert "budget was exhausted" in result.output
+
+
+def test_invoke_does_not_retry_permanent_auth_rejection(tmp_path):
+    calls: list[tuple[str, ...]] = []
+
+    def runner(argv: Sequence[str]) -> invoke.CommandResult:
+        calls.append(tuple(argv))
+        return invoke.CommandResult(1, "", "HTTP 401: Bad credentials")
+
+    result = invoke.invoke_with_retry(
+        config=make_config(tmp_path),
+        full_prompt="prompt",
+        runner=runner,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert len(calls) == 1
+    assert result.infrastructure_failure is True
+    assert result.retry_count == 0
+    assert result.output.startswith("VERDICT: DID_NOT_RUN")
+
+
+def test_invoke_honors_retry_after_for_http_429(tmp_path):
+    sleeps: list[int] = []
+    responses = iter(
+        [
+            invoke.CommandResult(
+                1,
+                "",
+                "HTTP 429: Too Many Requests\nRetry-After: 7",
+            ),
+            invoke.CommandResult(0, "VERDICT: PASS", ""),
+        ]
+    )
+
+    result = invoke.invoke_with_retry(
+        config=make_config(tmp_path),
+        full_prompt="prompt",
+        runner=lambda _argv: next(responses),
+        sleeper=sleeps.append,
+    )
+
+    assert sleeps == [7]
+    assert result.infrastructure_failure is False
+    assert result.retry_count == 1
+
+
+def test_write_results_redacts_secrets(tmp_path, monkeypatch):
+    secret = "ghp_super_secret_value"
+    monkeypatch.setenv("COPILOT_GITHUB_TOKEN", secret)
+    config = make_config(tmp_path)
+    result = invoke.AttemptResult(
+        exit_code=1,
+        output=f"token={secret}",
+        stderr=f"Authorization: Bearer {secret}",
+        infrastructure_failure=True,
+        retry_count=0,
+    )
+
+    invoke.write_results(config, f"prompt {secret}", result)
+
+    persisted = config.ai_review_output_file.read_text(
+        encoding="utf-8"
+    ) + config.github_output_file.read_text(encoding="utf-8")
+    assert secret not in persisted
+    assert "***" in persisted
+
+
+def test_run_fails_closed_for_empty_context_file(tmp_path):
+    context_file = tmp_path / "context.md"
+    context_file.write_text(" \n", encoding="utf-8")
+    config = make_config(tmp_path, context_file)
+
+    assert invoke.run(config) == invoke.EXIT_OK
+
+    assert config.ai_review_output_file.read_text(encoding="utf-8").startswith(
+        "VERDICT: DID_NOT_RUN"
+    )
+    assert "infrastructure_failure=true" in config.github_output_file.read_text(encoding="utf-8")
 
 
 def test_write_results_preserves_outputs_and_flags(tmp_path):
