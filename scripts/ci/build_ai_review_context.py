@@ -12,15 +12,51 @@ import os
 import re
 import subprocess
 import sys
+import time
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 
 GH_TIMEOUT_SECONDS = 60
+GH_REFUSAL_BACKOFF_SECONDS = (60.0, 120.0)
+# Review jobs have a 600-second deadline. This leaves 180 seconds for
+# classification, artifact upload, and the downstream infrastructure gate.
+GH_CONTEXT_RETRY_BUDGET_SECONDS = 420.0
+_GH_RETRY_DEADLINE: ContextVar[float | None] = ContextVar(
+    "gh_retry_deadline",
+    default=None,
+)
 MAX_FILE_PAGES = 5
 FILES_PER_PAGE = 100
 DIFF_TOO_LARGE = re.compile(
     r"(HTTP 406|too_large|exceeded the maximum number of files)",
     re.IGNORECASE,
+)
+RETRYABLE_GH_FAILURE = re.compile(
+    r"rate limit|secondary rate|abuse detection|timed out|"
+    r"\bHTTP\s+(429|500|502|503|504)\b",
+    re.IGNORECASE,
+)
+PERMANENT_AUTH_FAILURE = re.compile(
+    r"\bHTTP\s+401\b|bad credentials|requires authentication|"
+    r"authentication token .* could not be validated|"
+    r"resource not accessible by integration|not accessible|"
+    r"must have admin rights|could not resolve to a pullrequest",
+    re.IGNORECASE,
+)
+RETRY_AFTER_HEADER = re.compile(
+    r"^Retry-After:\s*(\d+(?:\.\d+)?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+RATE_LIMIT_RESET_HEADER = re.compile(
+    r"^X-RateLimit-Reset:\s*(\d+(?:\.\d+)?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+SECRET_ENVIRONMENT_VARIABLES = (
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "COPILOT_GITHUB_TOKEN",
+    "BOT_PAT",
 )
 
 
@@ -64,9 +100,47 @@ class ExternalGhError(RuntimeError):
     """GitHub or gh failed while building review context."""
 
 
-def run_gh(arguments: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> CommandResult:
+def _redact_secrets(value: str | None) -> str:
+    """Remove workflow credentials before diagnostics reach logs or artifacts."""
+    redacted = value or ""
+    for variable in SECRET_ENVIRONMENT_VARIABLES:
+        secret = os.environ.get(variable, "")
+        if len(secret) >= 8:
+            redacted = redacted.replace(secret, "***")
+    redacted = re.sub(
+        r"(?i)(authorization:\s*(?:bearer|token|basic)\s+)\S+",
+        r"\1***",
+        redacted,
+    )
+    return re.sub(r"https://[^/\s:@]+:[^@\s]+@", "https://***:***@", redacted)
+
+
+def _failure_text(result: CommandResult) -> str:
+    return f"{result.stderr}\n{result.stdout}".strip()
+
+
+def _retry_delay(refusal: str, fallback: float) -> tuple[float, str]:
+    retry_after = RETRY_AFTER_HEADER.search(refusal)
+    if retry_after:
+        return max(0.0, float(retry_after.group(1))), "Retry-After"
+
+    reset = RATE_LIMIT_RESET_HEADER.search(refusal)
+    if reset:
+        wait = max(0.0, float(reset.group(1)) - time.time() + 1.0)
+        return wait, "X-RateLimit-Reset"
+
+    return fallback, "exponential backoff"
+
+
+def _with_retry_exhausted(result: CommandResult, reason: str) -> CommandResult:
+    detail = _failure_text(result)
+    diagnostic = f"{detail}\n{reason}".strip()
+    return CommandResult(result.stdout, diagnostic, result.returncode)
+
+
+def _invoke_gh_once(arguments: list[str], timeout: float) -> CommandResult:
     try:
-        result = subprocess.run(
+        completed = subprocess.run(
             ["gh", *arguments],
             capture_output=True,
             check=False,
@@ -75,9 +149,64 @@ def run_gh(arguments: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> CommandRe
             errors="replace",
             timeout=timeout,
         )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        return CommandResult(
+            _redact_secrets(stdout),
+            _redact_secrets(f"{stderr}\ngh command timed out after {exc.timeout} seconds").strip(),
+            124,
+        )
     except OSError as exc:
         raise GhLaunchError(f"Failed to run gh: {exc}") from exc
-    return CommandResult(result.stdout, result.stderr, result.returncode)
+
+    return CommandResult(
+        _redact_secrets(completed.stdout),
+        _redact_secrets(completed.stderr),
+        completed.returncode,
+    )
+
+
+def run_gh(arguments: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> CommandResult:
+    attempts = len(GH_REFUSAL_BACKOFF_SECONDS) + 1
+    for attempt in range(attempts):
+        deadline = _GH_RETRY_DEADLINE.get()
+        remaining = deadline - time.monotonic() if deadline is not None else None
+        if remaining is not None and remaining <= 0:
+            return CommandResult("", "GitHub API retry budget exhausted", 124)
+
+        command_timeout = min(timeout, remaining) if remaining is not None else timeout
+        result = _invoke_gh_once(arguments, command_timeout)
+
+        if result.returncode == 0:
+            return result
+
+        refusal = _failure_text(result)
+        if PERMANENT_AUTH_FAILURE.search(refusal):
+            return result
+        if not RETRYABLE_GH_FAILURE.search(refusal):
+            return result
+        if attempt >= len(GH_REFUSAL_BACKOFF_SECONDS):
+            return _with_retry_exhausted(
+                result,
+                f"GitHub API retry attempts exhausted after {attempts} attempts",
+            )
+
+        delay, source = _retry_delay(
+            refusal,
+            GH_REFUSAL_BACKOFF_SECONDS[attempt],
+        )
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if delay + 1.0 >= remaining:
+                return _with_retry_exhausted(
+                    result,
+                    "GitHub API retry budget exhausted before the next allowed attempt",
+                )
+        print(f"::warning::GitHub API transient refusal. Retrying in {delay:.0f}s using {source}.")
+        time.sleep(delay)
+
+    raise RuntimeError("unreachable gh retry loop")
 
 
 def sanitize_title(title: str) -> str:
@@ -137,18 +266,20 @@ def fetch_pr_metadata(pr_number: str, repository: str) -> PrMetadata:
         metadata = _parse_pr_payload(rest.stdout)
         if metadata is not None:
             return metadata
-    rest_error = (rest.stderr or rest.stdout).strip() or "REST response was unusable"
+        rest_error = "REST response was unusable"
+    else:
+        rest_error = _failure_text(rest) or "REST request returned no diagnostic output"
+        if PERMANENT_AUTH_FAILURE.search(rest_error):
+            return PrMetadata("", "Unknown PR", "", error=f"REST: {rest_error}")
 
-    graphql = run_gh(
-        ["pr", "view", pr_number, "--repo", repository, "--json", "number,title,body"]
-    )
+    graphql = run_gh(["pr", "view", pr_number, "--repo", repository, "--json", "number,title,body"])
     if graphql.returncode == 0:
         metadata = _parse_pr_payload(graphql.stdout)
         if metadata is not None:
             return metadata
-    graphql_error = (
-        graphql.stderr or graphql.stdout
-    ).strip() or "gh pr view response was unusable"
+        graphql_error = "gh pr view response was unusable"
+    else:
+        graphql_error = _failure_text(graphql) or "gh pr view returned no diagnostic output"
 
     return PrMetadata(
         number="",
@@ -264,10 +395,10 @@ def _pr_fetch_failure_context(pr_number: str, detail: str) -> ReviewContext:
     unconditional hint was enough for it. The REST form does carry one, so the
     hint needs the rate-limit signature to lose as well.
     """
+    detail = _redact_secrets(detail.strip()) or "GitHub API returned no diagnostic output"
     hint = (
         " The GH_TOKEN may lack permissions for first-time contributor PRs from forks."
-        if FORK_PERMISSION_SIGNAL.search(detail)
-        and not RATE_LIMIT_SIGNAL.search(detail)
+        if FORK_PERMISSION_SIGNAL.search(detail) and not RATE_LIMIT_SIGNAL.search(detail)
         else ""
     )
     print(f"::warning::Could not fetch PR #{pr_number}: {detail}{hint}")
@@ -288,7 +419,7 @@ def _build_pr_diff_body(pr_number: str, repository: str, max_diff_lines: int) ->
 
     line_count = count_lines(diff.stdout)
     print(f"PR diff has {line_count} lines")
-    if line_count == 0:
+    if not diff.stdout.strip():
         message = f"Failed to fetch PR diff for #{pr_number} from {repository}"
         if diff.stderr:
             message = f"{message}: {diff.stderr.strip()}"
@@ -305,7 +436,11 @@ def _build_pr_diff_body(pr_number: str, repository: str, max_diff_lines: int) ->
     return ReviewContext(diff.stdout, "full")
 
 
-def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
+def _build_pr_diff_context(
+    pr_number: str,
+    repository: str,
+    max_diff_lines: int,
+) -> ReviewContext:
     metadata = fetch_pr_metadata(pr_number, repository)
     if metadata.error:
         return _pr_fetch_failure_context(pr_number, metadata.error)
@@ -330,13 +465,21 @@ def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) 
     body = metadata.body
     if body:
         text = (
-            f"## PR #{pr_number}: {title}\n\n"
-            f"## PR Description\n{body}\n\n"
-            f"## Changes\n{built.text}"
+            f"## PR #{pr_number}: {title}\n\n## PR Description\n{body}\n\n## Changes\n{built.text}"
         )
     else:
         text = f"## PR #{pr_number}: {title}\n\n## Changes\n{built.text}"
     return ReviewContext(text, built.mode, built.infrastructure_failure)
+
+
+def build_pr_diff_context(pr_number: str, repository: str, max_diff_lines: int) -> ReviewContext:
+    if _GH_RETRY_DEADLINE.get() is not None:
+        return _build_pr_diff_context(pr_number, repository, max_diff_lines)
+    token = _GH_RETRY_DEADLINE.set(time.monotonic() + GH_CONTEXT_RETRY_BUDGET_SECONDS)
+    try:
+        return _build_pr_diff_context(pr_number, repository, max_diff_lines)
+    finally:
+        _GH_RETRY_DEADLINE.reset(token)
 
 
 def build_issue_context(issue_number: str, repository: str) -> ReviewContext:
@@ -392,7 +535,7 @@ def build_spec_context(
         )
 
     diff = run_gh(["pr", "diff", pr_number, "--repo", repository])
-    if diff.stdout:
+    if diff.stdout.strip():
         line_count = count_lines(diff.stdout)
         diff_text = diff.stdout
         mode = "full"
@@ -400,8 +543,7 @@ def build_spec_context(
             mode = "partial"
             preview = "\n".join(diff.stdout.splitlines()[:max_diff_lines])
             diff_text = (
-                f"[Diff truncated to first {max_diff_lines} of "
-                f"{line_count} lines]\n{preview}"
+                f"[Diff truncated to first {max_diff_lines} of {line_count} lines]\n{preview}"
             )
     else:
         mode = "summary"
@@ -419,6 +561,14 @@ def build_spec_context(
 
 
 def build_context_from_environment() -> ReviewContext:
+    token = _GH_RETRY_DEADLINE.set(time.monotonic() + GH_CONTEXT_RETRY_BUDGET_SECONDS)
+    try:
+        return _build_context_from_environment()
+    finally:
+        _GH_RETRY_DEADLINE.reset(token)
+
+
+def _build_context_from_environment() -> ReviewContext:
     context_type = os.environ.get("CONTEXT_TYPE", "")
     pr_number = os.environ.get("PR_NUMBER", "")
     issue_number = os.environ.get("ISSUE_NUMBER", "")

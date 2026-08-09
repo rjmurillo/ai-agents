@@ -38,9 +38,7 @@ def test_builds_full_pr_context(monkeypatch: pytest.MonkeyPatch):
     def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
         del timeout
         if arguments[:1] == ["api"]:
-            return CommandResult(
-                _pulls_payload(7, 'Fix `$bad" title\\\\', "Body text"), "", 0
-            )
+            return CommandResult(_pulls_payload(7, 'Fix `$bad" title\\\\', "Body text"), "", 0)
         if arguments[:2] == ["pr", "diff"]:
             return CommandResult("diff --git a/file b/file\n+change\n", "", 0)
         raise AssertionError(f"unexpected gh call: {arguments}")
@@ -54,6 +52,344 @@ def test_builds_full_pr_context(monkeypatch: pytest.MonkeyPatch):
     assert "## PR #7: Fix bad title" in context.text
     assert "## PR Description\nBody text" in context.text
     assert "diff --git" in context.text
+
+
+@pytest.mark.parametrize(
+    ("refusal", "expected_delay"),
+    [
+        (
+            "HTTP 403: API rate limit exceeded for user ID 6811113\nRetry-After: 7",
+            7.0,
+        ),
+        (
+            "HTTP 403: You have exceeded a secondary rate limit\nX-RateLimit-Reset: 1010",
+            11.0,
+        ),
+    ],
+)
+def test_run_gh_retries_primary_and_secondary_403_until_success(
+    monkeypatch: pytest.MonkeyPatch,
+    refusal: str,
+    expected_delay: float,
+):
+    """Primary and secondary limit headers control the wait before recovery."""
+    calls: list[list[str]] = []
+    sleeps: list[float] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        if len(calls) == 1:
+            return _mod.subprocess.CompletedProcess(command, 1, "", refusal)
+        return _mod.subprocess.CompletedProcess(command, 0, "recovered", "")
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "time", lambda: 1000.0)
+    monkeypatch.setattr(_mod.time, "sleep", sleeps.append)
+
+    result = _mod.run_gh(["pr", "diff", "7"])
+
+    assert result == CommandResult("recovered", "", 0)
+    assert len(calls) == 2
+    assert sleeps == [expected_delay]
+
+
+def test_run_gh_exhausts_bounded_rate_limit_retries(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A persistent transient refusal returns failure after the fixed attempt cap."""
+    calls: list[list[str]] = []
+    sleeps: list[float] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        return _mod.subprocess.CompletedProcess(
+            command,
+            1,
+            "",
+            "GraphQL: API rate limit already exceeded for user ID 6811113",
+        )
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "sleep", sleeps.append)
+
+    result = _mod.run_gh(["pr", "diff", "7"])
+
+    assert len(calls) == len(_mod.GH_REFUSAL_BACKOFF_SECONDS) + 1
+    assert sleeps == list(_mod.GH_REFUSAL_BACKOFF_SECONDS)
+    assert result.returncode == 1
+    assert "retry attempts exhausted" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "rejection",
+    [
+        "HTTP 401: Bad credentials",
+        "HTTP 403: Resource not accessible by integration",
+        "Authentication token found but could not be validated",
+    ],
+)
+def test_run_gh_does_not_retry_permanent_authentication_rejection(
+    monkeypatch: pytest.MonkeyPatch,
+    rejection: str,
+):
+    """Credential and permission failures require operator action, not retries."""
+    calls: list[list[str]] = []
+    sleeps: list[float] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        return _mod.subprocess.CompletedProcess(command, 1, "", rejection)
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "sleep", sleeps.append)
+
+    result = _mod.run_gh(["api", "repos/owner/repo/pulls/7"])
+
+    assert result.returncode == 1
+    assert len(calls) == 1
+    assert sleeps == []
+
+
+def test_metadata_authentication_rejection_skips_transport_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A permanent REST credential rejection must not be retried through GraphQL."""
+    calls: list[list[str]] = []
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        calls.append(arguments)
+        return CommandResult("", "HTTP 401: Bad credentials", 1)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert len(calls) == 1
+    assert calls[0][0] == "api"
+    assert context.infrastructure_failure is True
+    assert "Bad credentials" in context.text
+
+
+def test_metadata_permission_rejection_skips_transport_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Permanent authorization denials must not spend a second transport call."""
+    calls: list[list[str]] = []
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        calls.append(arguments)
+        return CommandResult("", "HTTP 403: Must have admin rights to Repository", 1)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert len(calls) == 1
+    assert context.infrastructure_failure is True
+    assert "admin rights" in context.text
+
+
+def test_rate_limit_reset_beyond_context_budget_fails_without_sleeping(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A reset beyond the job budget classifies immediately instead of timing out."""
+    sleeps: list[float] = []
+    calls: list[list[str]] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        return _mod.subprocess.CompletedProcess(
+            command,
+            1,
+            "",
+            "HTTP 403: API rate limit exceeded\nRetry-After: 500",
+        )
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "monotonic", lambda: 0.0)
+    monkeypatch.setattr(_mod.time, "sleep", sleeps.append)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert len(calls) == 2  # REST plus the existing GraphQL transport fallback.
+    assert sleeps == []
+    assert context.infrastructure_failure is True
+    assert "retry budget exhausted" in context.text
+
+
+@pytest.mark.parametrize(
+    ("context_type", "environment"),
+    [
+        (
+            "issue",
+            {
+                "ISSUE_NUMBER": "7",
+                "GITHUB_REPOSITORY": "owner/repo",
+            },
+        ),
+        (
+            "spec-file",
+            {
+                "CONTEXT_PATH": "unused",
+                "PR_NUMBER": "7",
+                "GITHUB_REPOSITORY": "owner/repo",
+            },
+        ),
+    ],
+)
+def test_all_remote_context_types_share_the_retry_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    context_type: str,
+    environment: dict[str, str],
+):
+    """Issue and spec lookups cannot honor reset headers beyond the job deadline."""
+    sleeps: list[float] = []
+
+    monkeypatch.setenv("CONTEXT_TYPE", context_type)
+    for key, value in environment.items():
+        monkeypatch.setenv(key, value)
+    if context_type == "spec-file":
+        monkeypatch.setattr(_mod.Path, "is_file", lambda _path: True)
+        monkeypatch.setattr(_mod, "read_utf8_file", lambda _path, _description: "Spec")
+
+    monkeypatch.setattr(
+        _mod.subprocess,
+        "run",
+        lambda command, **kwargs: _mod.subprocess.CompletedProcess(
+            command,
+            1,
+            "",
+            "HTTP 403: API rate limit exceeded\nRetry-After: 500",
+        ),
+    )
+    monkeypatch.setattr(_mod.time, "sleep", sleeps.append)
+
+    context = _mod.build_context_from_environment()
+
+    assert sleeps == []
+    assert context.mode != "full"
+
+
+def test_malformed_metadata_responses_fail_as_infrastructure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Two malformed success responses cannot become reviewable context."""
+    responses = iter(
+        [
+            CommandResult("<html>not json</html>", "", 0),
+            CommandResult('{"title":"missing number"}', "", 0),
+        ]
+    )
+    monkeypatch.setattr(
+        _mod,
+        "run_gh",
+        lambda arguments, timeout=_mod.GH_TIMEOUT_SECONDS: next(responses),
+    )
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert context.text.startswith("INFRASTRUCTURE_FAILURE:")
+    assert "response was unusable" in context.text
+
+
+def test_empty_infrastructure_detail_stays_nonempty_and_blocking(
+    capsys: pytest.CaptureFixture[str],
+):
+    """Silent infrastructure failures emit actionable context, never a blank success."""
+    context = _mod._pr_fetch_failure_context("7", "")
+
+    assert context.mode == "error"
+    assert context.infrastructure_failure is True
+    assert context.text == (
+        "INFRASTRUCTURE_FAILURE: Could not fetch PR #7: GitHub API returned no diagnostic output"
+    )
+    assert "GitHub API returned no diagnostic output" in capsys.readouterr().out
+
+
+def test_retry_diagnostics_redact_environment_secrets(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Refusal diagnostics may classify failures but must not expose workflow tokens."""
+    secret = "ghp_this_value_must_never_escape"
+    monkeypatch.setenv("GH_TOKEN", secret)
+    monkeypatch.setattr(
+        _mod.subprocess,
+        "run",
+        lambda command, **kwargs: _mod.subprocess.CompletedProcess(
+            command,
+            1,
+            "",
+            f"HTTP 403: API rate limit exceeded; token={secret}",
+        ),
+    )
+    monkeypatch.setattr(_mod.time, "sleep", lambda _seconds: None)
+
+    result = _mod.run_gh(["pr", "diff", "7"])
+    context = _mod._pr_fetch_failure_context("7", result.stderr)
+    output = capsys.readouterr().out
+
+    assert secret not in result.stderr
+    assert secret not in context.text
+    assert secret not in output
+    assert "***" in context.text
+
+
+def test_retry_diagnostics_redact_secrets_from_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """A secret returned through stdout receives the same treatment as stderr."""
+    secret = "github_pat_stdout_must_never_escape"
+    monkeypatch.setenv("GITHUB_TOKEN", secret)
+    monkeypatch.setattr(
+        _mod.subprocess,
+        "run",
+        lambda command, **kwargs: _mod.subprocess.CompletedProcess(
+            command,
+            1,
+            f"HTTP 503: temporary failure; Authorization: Bearer {secret}",
+            "",
+        ),
+    )
+    monkeypatch.setattr(_mod.time, "sleep", lambda _seconds: None)
+
+    result = _mod.run_gh(["pr", "diff", "7"])
+
+    assert secret not in result.stdout
+    assert "***" in result.stdout
+
+
+def test_environment_secret_value_is_removed_from_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Environment-backed credentials are removed from raw standard output."""
+    credential = "github_pat_dynamic_stdout_value"
+    monkeypatch.setenv("GITHUB_TOKEN", credential)
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        return _mod.subprocess.CompletedProcess(
+            command,
+            1,
+            "HTTP 503: workflow-value=" + credential,
+            "",
+        )
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "sleep", lambda _seconds: None)
+
+    result = _mod.run_gh(["pr", "diff", "7"])
+
+    assert credential not in result.stdout
+    assert "workflow-value=***" in result.stdout
 
 
 def test_marks_pr_number_mismatch_as_infrastructure_failure(
@@ -134,6 +470,28 @@ def test_marks_empty_diff_with_no_stderr_as_infrastructure_failure(
 
     context = _mod.build_pr_diff_context("7", "owner/repo", 100)
 
+    assert context.infrastructure_failure is True
+    assert "Failed to fetch PR diff" in context.text
+
+
+def test_marks_whitespace_only_diff_as_infrastructure_failure(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Whitespace is not reviewable PR context and cannot unlock a model verdict."""
+
+    def fake_run_gh(arguments: list[str], timeout: int = _mod.GH_TIMEOUT_SECONDS):
+        del timeout
+        if arguments[:1] == ["api"]:
+            return CommandResult(_pulls_payload(7, "Whitespace", ""), "", 0)
+        if arguments[:2] == ["pr", "diff"]:
+            return CommandResult(" \t\n", "", 0)
+        raise AssertionError(f"unexpected gh call: {arguments}")
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    context = _mod.build_pr_diff_context("7", "owner/repo", 100)
+
+    assert context.mode == "error"
     assert context.infrastructure_failure is True
     assert "Failed to fetch PR diff" in context.text
 
@@ -435,6 +793,30 @@ def test_build_spec_context_falls_back_to_file_list_when_diff_unavailable(
     assert context.mode == "summary"
     assert "[Diff unavailable, showing file list only]" in context.text
     assert "scripts/ci/build_ai_review_context.py" in context.text
+
+
+def test_build_spec_context_rejects_whitespace_only_diff(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Whitespace-only output cannot claim full implementation context."""
+    spec_path = tmp_path / "spec.md"
+    spec_path.write_text("Spec body", encoding="utf-8")
+    monkeypatch.setattr(
+        _mod,
+        "run_gh",
+        lambda arguments, timeout=_mod.GH_TIMEOUT_SECONDS: CommandResult(
+            " \t\n",
+            "",
+            0,
+        ),
+    )
+    monkeypatch.setattr(_mod, "get_pr_name_only", lambda _pr, _repo: "")
+
+    context = _mod.build_spec_context(str(spec_path), "7", "owner/repo", 100)
+
+    assert context.mode == "summary"
+    assert "[Diff unavailable]" in context.text
 
 
 def test_build_spec_context_uses_stdout_from_nonzero_diff(
