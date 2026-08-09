@@ -48,7 +48,7 @@ Real output:
 HEAD baseline: 27
 ```
 
-Result: tightening direction. The PR commit `09b58c12b` reduced the baseline from 29 to 28. The current QA commit tightens it again to 27 after pre-push, the remote-head merge, and the latest main merge, and configured push target fix measured the tracked count at 27.
+Result: tightening direction. The PR commit `09b58c12b` reduced the baseline from 29 to 28. The current QA commit tightens it again to 27 after pre-push, the remote-head merge, the latest main merge, and the configured push target fix measured the tracked count at 27.
 
 ### 3. Generated Copilot hook mirrors
 
@@ -100,14 +100,14 @@ uv run --frozen pytest tests/hooks/test_push_guard_base.py -q -k 'diff_failure_b
 Real output:
 
 ```text
-collected 78 items / 60 deselected / 18 selected
+collected 81 items / 60 deselected / 21 selected
 
-tests/hooks/test_push_guard_base.py ..................                   [100%]
+tests/hooks/test_push_guard_base.py .....................                [100%]
 
-====================== 18 passed, 60 deselected in 0.19s ======================
+====================== 21 passed, 60 deselected in 0.21s ======================
 ```
 
-Named coverage: `test_diff_failure_blocks`, `test_validator_exception_blocks`, `test_malformed_hook_input_blocks`, `test_empty_stdin_blocks`, `test_ambiguous_push_scope_blocks`, `test_shell_expansion_blocks_before_subprocess`, and `test_unsafe_bare_push_configuration_blocks_before_diff` prove the guard blocks on unchecked or unsafe push machinery paths.
+Named coverage: `test_diff_failure_blocks`, `test_validator_exception_blocks`, `test_malformed_hook_input_blocks`, `test_empty_stdin_blocks`, `test_ambiguous_push_scope_blocks`, `test_shell_expansion_blocks_before_subprocess`, `test_unsafe_bare_push_configuration_blocks_before_diff`, and `test_configured_explicit_push_target_reaches_diff` prove the guard blocks on unchecked or unsafe push machinery paths.
 
 ## Uncompleted verifications
 

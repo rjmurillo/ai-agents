@@ -159,6 +159,10 @@
     {
       "time": "2026-08-09T09:40:00Z",
       "entry": "Fixed review feedback by allowing configured explicit push targets, reran the QA evidence suite, and rebound the PR 4651 QA report to c273ea733ee8c5f58ac7d8ad1ac1ab0f143967f5."
+    },
+    {
+      "time": "2026-08-09T10:05:00Z",
+      "entry": "Corrected the PR 4651 QA report fail-closed output block to the actual 21 selected tests from the c273ea733ee8c5f58ac7d8ad1ac1ab0f143967f5 verification run."
     }
   ],
   "nextSteps": [],
