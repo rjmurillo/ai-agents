@@ -444,7 +444,7 @@ class TestSelect:
 # ===========================================================================
 
 
-def _stamped(lease: Lease, author: str) -> Lease:
+def _stamped(lease, author: str):
     from dataclasses import replace
 
     return replace(lease, author=author)

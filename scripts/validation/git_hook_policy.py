@@ -834,6 +834,17 @@ def _read_head_blob(repo_root: Path, relative_path: str) -> bytes | None:
     return result.stdout
 
 
+def _read_upstream_default_blob(repo_root: Path, relative_path: str) -> bytes | None:
+    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
+    upstream = head.stdout.strip() if head.returncode == 0 else "origin/main"
+    if not upstream:
+        return None
+    result = _run_git_bytes(repo_root, ["show", f"{upstream}:{relative_path}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
 def _read_blob_bytes(repo_root: Path, revision: str) -> bytes | None:
     """Read a blob without letting text mode rewrite it.
 
@@ -1732,12 +1743,19 @@ def _paths_on_merge_head(paths: Sequence[str], repo_root: Path) -> set[str]:
 def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     if _merge_in_progress(repo_root):
         return 0
-    sessions = [
+    session_paths = [
         path
         for raw_path in paths
         if (path := _safe_relative_path(raw_path)) and SESSION_PATH_RE.fullmatch(path)
     ]
+    sessions = [
+        path
+        for path in session_paths
+        if not _is_staged_session_on_upstream_default(repo_root, path)
+    ]
     if not sessions:
+        if session_paths:
+            return 0
         print("ERROR: staged .agents changes require a JSON session log", file=sys.stderr)
         return 1
     for session in sessions:
@@ -1754,6 +1772,21 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
             _print_process_output(result)
             return result.returncode
     return 0
+
+
+def _is_staged_session_on_upstream_default(repo_root: Path, path: str) -> bool:
+    content = _read_index_blob(repo_root, path)
+    return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
+
+
+def _is_session_on_upstream_default(repo_root: Path, path: str) -> bool:
+    content = _read_head_blob(repo_root, path)
+    return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
+
+
+def _is_session_content_on_upstream_default(repo_root: Path, path: str, content: bytes) -> bool:
+    upstream_content = _read_upstream_default_blob(repo_root, path)
+    return upstream_content is not None and upstream_content == content
 
 
 def check_commit_message(message_path: Path) -> int:
@@ -6367,8 +6400,11 @@ def run_cli_e2e(
 
 def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     failed = False
-    new_logs = new_session_logs(paths, repo_root)
     for path in paths:
+        normalized = _safe_relative_path(path)
+        if normalized is not None and _is_session_on_upstream_default(repo_root, normalized):
+            continue
+        new_logs = new_session_logs(paths, repo_root)
         command = [sys.executable, "scripts/validate_session_json.py", path]
         if path not in new_logs:
             command.append("--existing-log")
