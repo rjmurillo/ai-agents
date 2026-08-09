@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10030-pr-4787-review-fixes.json
-qaCommit: 4241661ff004968e9d55db2355f8cd80b1052776
+qaCommit: b2a5c16e996eb74ca52a1996b69e5f353c6ce676
 ---
 
 # PR 4787 QA Report
@@ -28,3 +28,22 @@ code are resolved. Four additional review comments on test strength addressed.
    gate, frontmatter declaration assertions for GitHub tools.
 4. E2E smoke adapted: unused runtime probe removed, manifest declarations
    verified via always-on unit tests.
+
+## Re-validation after the base merge
+
+`origin/main` was merged into this branch to clear a BEHIND state. The merge
+was clean, no conflicts, no manual resolution, so the branch diff against the
+new base is unchanged in substance.
+
+Re-validated on the merged tree at b2a5c16e996eb74ca52a1996b69e5f353c6ce676:
+
+| Check | Result |
+|-------|--------|
+| Full pre-push suite, including `python-tests` | passed in 824s |
+| `build-all-check`, `path-normalization`, `python-type-check` | passed |
+| `taste-count-ratchet`, `merge-tree-ratchet`, `cli-exit-contract-ratchet` | passed |
+| `python-unreachable-statements`, `session-json-validation` | passed |
+
+The only remaining pre-push failure was this report's own staleness marker,
+which named files the base merge brought in rather than any change to the
+branch's work. This section and the commit pin below clear it.
