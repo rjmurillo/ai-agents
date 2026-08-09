@@ -11,7 +11,11 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.redact_secrets import redact as redact_token_shapes
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.redact_secrets import redact as redact_token_shapes  # noqa: E402
 
 EXIT_OK = 0
 EXIT_LOGIC = 1

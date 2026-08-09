@@ -24,7 +24,11 @@ import os
 import sys
 from pathlib import Path
 
-from scripts.redact_secrets import redact as redact_token_shapes
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.redact_secrets import redact as redact_token_shapes  # noqa: E402
 
 _SECRET_ENVIRONMENT_VARIABLES = (
     "GH_TOKEN",

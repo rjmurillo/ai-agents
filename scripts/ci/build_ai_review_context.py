@@ -17,7 +17,11 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.redact_secrets import redact as redact_token_shapes
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.redact_secrets import redact as redact_token_shapes  # noqa: E402
 
 GH_TIMEOUT_SECONDS = 60
 GH_REFUSAL_BACKOFF_SECONDS = (60.0, 120.0)
