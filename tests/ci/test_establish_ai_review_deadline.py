@@ -52,3 +52,10 @@ def test_main_writes_deadline_output(tmp_path, monkeypatch):
 
     assert deadline.main() == deadline.EXIT_OK
     assert output.read_text(encoding="utf-8") == "deadline_epoch=1234.000000\n"
+
+
+def test_main_returns_config_error_without_github_output(monkeypatch, capsys):
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+
+    assert deadline.main() == deadline.EXIT_CONFIG
+    assert "GITHUB_OUTPUT is required" in capsys.readouterr().err
