@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-08-05-session-9999",
-  "session": "2026-08-05-session-9999",
+  "id": "episode-2026-08-05-session-9999-pr-4609",
+  "session": "2026-08-05-session-9999-pr-4609",
   "timestamp": "2026-08-05T00:00:00+00:00",
   "causal_order_version": 2,
   "outcome": "success",
@@ -16,7 +16,7 @@
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4609"
     },
     {
       "id": "e002",
@@ -27,7 +27,7 @@
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4609"
     },
     {
       "id": "e003",
@@ -38,7 +38,7 @@
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4609"
     },
     {
       "id": "e004",
@@ -49,7 +49,7 @@
       "leads_to": [
         "e005"
       ],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4609"
     },
     {
       "id": "e005",
@@ -62,8 +62,21 @@
         "e003",
         "e004"
       ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-05-session-9999-pr-4609"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-09T19:10:05+00:00",
+      "type": "commit",
+      "content": "Commit: f963e3df0e314bc8e8f08a6558464e0e6cc29f0d",
+      "caused_by": [
+        "e005"
+      ],
       "leads_to": [],
-      "_source_session": "2026-08-05-session-9999"
+      "_source_session": "2026-08-05-session-9999-pr-4609"
     }
   ],
   "metrics": {
@@ -71,8 +84,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 2
+    "commits": 2,
+    "files_changed": 9
   },
   "lessons": []
 }

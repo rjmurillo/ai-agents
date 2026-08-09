@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "Not invoked; no retrospective requested for this fix branch."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-09-pr-4609-portability-isolation.md"
       }
     }
   },
@@ -131,7 +136,7 @@
       "outcome": "79 targeted tests passed, 88 portability tests passed, CI wiring test passed, mutation table matched expected outcomes."
     }
   ],
-  "endingCommit": "856e1d282b",
+  "endingCommit": "f963e3df0e314bc8e8f08a6558464e0e6cc29f0d",
   "nextSteps": [
     "Open PR with Fixes #4524 and Fixes #4497."
   ]
