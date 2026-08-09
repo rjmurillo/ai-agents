@@ -26,7 +26,7 @@ def _patch_node_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
 
     node = shutil.which("node")
     if node:
-        monkeypatch.setenv("_MARKDOWNLINT_TRUSTED_NODE", node)
+        monkeypatch.setattr(verifier, "_TEST_NODE_OVERRIDE", Path(node))
 
 
 class TestCleanMarkdown:
@@ -83,7 +83,7 @@ class TestFailClosed:
     """Infrastructure absence must fail closed (return 2)."""
 
     def test_missing_node(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("_MARKDOWNLINT_TRUSTED_NODE", "/nonexistent/node")
+        monkeypatch.setattr(verifier, "_TEST_NODE_OVERRIDE", Path("/nonexistent/node"))
         monkeypatch.setattr(verifier, "_SAFE_NODE_DIRS", ("/nonexistent_dir",))
         md = tmp_path / "test.md"
         md.write_text("# Title\n\nText.\n")

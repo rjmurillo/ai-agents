@@ -53,19 +53,18 @@ _SCRUB_VARS = (
     "npm_config_registry",
 )
 
+_TEST_NODE_OVERRIDE: Path | None = None
+
 
 def _resolve_system_node() -> Path | None:
     """Resolve Node.js from trusted system directories only.
 
-    Checks _MARKDOWNLINT_TRUSTED_NODE env var first (for test environments),
-    then searches known safe system directories.
+    Tests can set ``_TEST_NODE_OVERRIDE`` directly. Runtime resolution only
+    searches known safe system directories.
     """
-    # Test override (e.g., ~/.nvm node not in system dirs)
-    override = os.environ.get("_MARKDOWNLINT_TRUSTED_NODE")
-    if override:
-        p = Path(override)
-        if p.is_file() and os.access(p, os.X_OK):
-            return p
+    if _TEST_NODE_OVERRIDE is not None:
+        if _TEST_NODE_OVERRIDE.is_file() and os.access(_TEST_NODE_OVERRIDE, os.X_OK):
+            return _TEST_NODE_OVERRIDE
 
     for d in _SAFE_NODE_DIRS:
         candidate = Path(d) / "node"
