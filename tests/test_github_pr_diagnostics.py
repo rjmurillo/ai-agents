@@ -838,6 +838,31 @@ class TestWhyPrBlockedMain:
             rc = _why_mod.main(["--pull-request", "100"])
         assert rc == 0
 
+    def test_exit_1_when_blocked(self):
+        data = {
+            "Success": True,
+            "Number": 100,
+            "LikelyMergeable": False,
+            "Causes": ["MISSING (1 required check never reported)"],
+            "MissingRequiredChecks": ["Validate PR"],
+            "FailingRequiredChecks": [],
+            "PendingRequiredChecks": [],
+            "UnresolvedThreads": 0,
+            "RulesetRequiredContexts": ["Validate PR"],
+            "BaseBranch": "main",
+            "MergeStateStatus": "BLOCKED",
+            "Owner": "o",
+            "Repo": "r",
+        }
+        with (
+            patch(f"{_why_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_why_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{_why_mod.__name__}.diagnose", return_value=data),
+            patch(f"{_why_mod.__name__}.write_skill_output"),
+        ):
+            rc = _why_mod.main(["--pull-request", "100"])
+        assert rc == 1
+
     def test_exit_2_on_not_found(self):
         with (
             patch(f"{_why_mod.__name__}.assert_gh_authenticated"),

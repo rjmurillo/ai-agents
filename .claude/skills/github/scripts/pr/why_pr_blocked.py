@@ -587,7 +587,7 @@ def main(argv: list[str] | None = None) -> int:
         status=status,
         script_name=_SCRIPT_NAME,
     )
-    return 0
+    return 0 if result.get("LikelyMergeable") else 1
 
 
 if __name__ == "__main__":
