@@ -84,12 +84,12 @@
       "changesCommitted": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Changes committed through 6c5bf917f before final session log commit."
+        "evidence": "Changes committed through d1be49b399de977141711c9a3135a5fc3a5a6ea1 before refreshing QA evidence."
       },
       "validationPassed": {
         "complete": true,
         "level": "MUST",
-        "evidence": "Full pytest, mypy hook policy, merge tree ratchet, and pre_pr.py passed."
+        "evidence": "Targeted pytest command passed with 204 tests on current PR head."
       },
       "qaValidation": {
         "complete": true,
@@ -125,7 +125,7 @@
       "commit": "9b849847e"
     }
   ],
-  "endingCommit": "1178ba156c2fb692c7572f1ed6d962305cf46e6b",
+  "endingCommit": "d1be49b399de977141711c9a3135a5fc3a5a6ea1",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"
