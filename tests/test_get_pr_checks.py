@@ -45,13 +45,24 @@ from scripts.github_core.checks_rollup import (  # noqa: E402
     partition_rows_by_run,
 )
 
+
+@pytest.fixture(autouse=True)
+def _default_ruleset_contexts(monkeypatch):
+    monkeypatch.setattr(
+        _mod,
+        "fetch_ruleset_required_contexts",
+        lambda _owner, _repo, _branch: [],
+    )
+
+
 # ---------------------------------------------------------------------------
 # Test helpers
 # ---------------------------------------------------------------------------
 
 
 def _check(name: str, *, passing=False, failing=False, pending=False,
-           required=True, state="COMPLETED", conclusion="", details=""):
+           required=True, state="COMPLETED", conclusion="", details="",
+           run_id=None, run_attempt=None):
     """Build a normalized check dict for dedupe tests."""
     return {
         "Name": name,
@@ -59,6 +70,8 @@ def _check(name: str, *, passing=False, failing=False, pending=False,
         "State": state,
         "Conclusion": conclusion,
         "DetailsUrl": details,
+        "WorkflowRunId": run_id,
+        "WorkflowRunAttempt": run_attempt,
         "IsRequired": required,
         "IsPending": pending,
         "IsPassing": passing,
@@ -1931,9 +1944,10 @@ class TestMissingRequired:
         data = output["Data"]
         assert rc == 1, "exit 1 when missing required checks"
         assert set(data["MissingRequiredChecks"]) == {"Validate PR", "PR Validation"}
+        assert data["AllPassing"] is False
 
-    def test_missing_required_is_none_when_ruleset_fetch_fails(self, capsys):
-        """MissingRequiredChecks is null when the ruleset API returns None."""
+    def test_ruleset_fetch_failure_exits_3(self, capsys):
+        """Ruleset API failure cannot report passing checks."""
         rollup = self._green_rollup()
         with patch("get_pr_checks.assert_gh_authenticated"), patch(
             "get_pr_checks.resolve_repo_params",
@@ -1947,9 +1961,9 @@ class TestMissingRequired:
             rc = main(["--pull-request", "4009", "--output-format", "json"])
 
         output = json.loads(capsys.readouterr().out)
-        data = output["Data"]
-        assert rc == 0, "no exit 1 when ruleset unavailable"
-        assert data["MissingRequiredChecks"] is None
+        assert rc == 3
+        assert output["Success"] is False
+        assert output["Error"]["Type"] == "ApiError"
 
     def test_missing_required_empty_when_all_reported(self, capsys):
         """MissingRequiredChecks is [] when every ruleset check reported."""
@@ -2192,6 +2206,14 @@ class TestPartitionRowsByRun:
         groups = partition_rows_by_run([{"u": _RUN_A}, {"u": _RUN_B}], "u")
         assert [len(g) for g in groups] == [1, 1]
 
+    def test_distinct_attempts_stay_separate(self):
+        rows = [
+            {"u": _RUN_A, "run": 30827748904, "attempt": 1},
+            {"u": _RUN_A2, "run": 30827748904, "attempt": 2},
+        ]
+        groups = partition_rows_by_run(rows, "u", "run", "attempt")
+        assert [len(group) for group in groups] == [1, 1]
+
     def test_unknown_provenance_rows_are_singletons(self):
         """Rows with no run id must not be grouped with each other."""
         groups = partition_rows_by_run([{"u": ""}, {"u": ""}], "u")
@@ -2256,6 +2278,29 @@ class TestSameRunSiblingAggregation:
         assert len(result) == 1
         assert result[0]["IsFailing"] is True
         assert result[0]["Conclusion"] == "FAILURE"
+
+    def test_later_attempt_success_beats_earlier_attempt_failure(self):
+        checks = [
+            _check(
+                "Validate PR",
+                failing=True,
+                conclusion="FAILURE",
+                details=_RUN_A,
+                run_id=30827748904,
+                run_attempt=1,
+            ),
+            _check(
+                "Validate PR",
+                passing=True,
+                conclusion="SUCCESS",
+                details=_RUN_A2,
+                run_id=30827748904,
+                run_attempt=2,
+            ),
+        ]
+        result = dedupe_checks(checks)
+        assert result[0]["IsPassing"] is True
+        assert result[0]["Conclusion"] == "SUCCESS"
 
     def test_status_context_does_not_disable_check_run_recency(self):
         checks = [

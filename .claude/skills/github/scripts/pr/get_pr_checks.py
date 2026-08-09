@@ -90,6 +90,12 @@ query($owner: String!, $repo: String!, $number: Int!) {
                                         status
                                         conclusion
                                         detailsUrl
+                                        checkSuite {
+                                            workflowRun {
+                                                databaseId
+                                                runAttempt
+                                            }
+                                        }
                                         isRequired(pullRequestNumber: $number)
                                     }
                                     ... on StatusContext {
@@ -127,6 +133,12 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
                                 status
                                 conclusion
                                 detailsUrl
+                                checkSuite {
+                                    workflowRun {
+                                        databaseId
+                                        runAttempt
+                                    }
+                                }
                                 isRequired(pullRequestNumber: $number)
                             }
                             ... on StatusContext {
@@ -171,12 +183,15 @@ def normalize_check(ctx: dict) -> dict | None:
     if typename == "CheckRun":
         status = ctx.get("status", "")
         conclusion = ctx.get("conclusion", "")
+        workflow_run = ((ctx.get("checkSuite") or {}).get("workflowRun") or {})
         return {
             "Name": ctx.get("name", ""),
             "Type": "CheckRun",
             "State": status,
             "Conclusion": conclusion,
             "DetailsUrl": ctx.get("detailsUrl", ""),
+            "WorkflowRunId": workflow_run.get("databaseId"),
+            "WorkflowRunAttempt": workflow_run.get("runAttempt"),
             "IsRequired": ctx.get("isRequired", False),
             "IsPending": status in _PENDING_STATUSES,
             "IsPassing": conclusion in _PASSING_CONCLUSIONS,
@@ -249,27 +264,33 @@ def _dedupe_rank(check: dict) -> tuple[int, int]:
     return (_TYPE_RANK.get(check.get("Type"), 2), _check_rank(check))
 
 
-def _check_workflow_run_number(check: dict) -> int | None:
-    """Return a CheckRun workflow run id when the details URL exposes one."""
+def _check_workflow_key(check: dict) -> tuple[int, int] | None:
+    """Return the Actions workflow run and attempt identity."""
     if check.get("Type") != "CheckRun":
         return None
-    return extract_workflow_run_number(check.get("DetailsUrl"))
+    run_number = check.get("WorkflowRunId")
+    if run_number is None:
+        run_number = extract_workflow_run_number(check.get("DetailsUrl"))
+    if run_number is None:
+        return None
+    attempt = check.get("WorkflowRunAttempt")
+    return int(run_number), int(attempt) if attempt is not None else 1
 
 
 def _select_cross_run_winner(candidates: list[dict[Any, Any]]) -> dict[Any, Any]:
     """Pick the latest workflow run when all candidates have run provenance."""
     check_run_pairs = [
-        (check, _check_workflow_run_number(check))
+        (check, _check_workflow_key(check))
         for check in candidates
         if check.get("Type") == "CheckRun"
     ]
     if check_run_pairs and all(
-        run_number is not None for _, run_number in check_run_pairs
+        run_key is not None for _, run_key in check_run_pairs
     ):
-        latest_run = max(run_number for _, run_number in check_run_pairs)
+        latest_run = max(run_key for _, run_key in check_run_pairs)
         latest_candidates = [
-            check for check, run_number in check_run_pairs
-            if run_number == latest_run
+            check for check, run_key in check_run_pairs
+            if run_key == latest_run
         ]
         return sorted(latest_candidates, key=_dedupe_rank)[0]
     return sorted(candidates, key=_dedupe_rank)[0]
@@ -285,7 +306,12 @@ def _collapse_same_run_siblings(rows: list[dict[Any, Any]]) -> list[dict[Any, An
     Refs issue #4499.
     """
     representatives: list[dict[Any, Any]] = []
-    for group in partition_rows_by_run(rows, "DetailsUrl"):
+    for group in partition_rows_by_run(
+        rows,
+        "DetailsUrl",
+        "WorkflowRunId",
+        "WorkflowRunAttempt",
+    ):
         if len(group) == 1:
             representatives.append(group[0])
             continue
@@ -581,6 +607,7 @@ def build_output(
         missing_required = find_missing_required(ruleset_contexts, reported_names)
     else:
         missing_required = None
+    all_passing = all_passing and not missing_required
 
     return {
         "Success": True,
@@ -756,6 +783,16 @@ def main(argv: list[str] | None = None) -> int:
     ruleset_contexts: list[str] | None = None
     if base_branch:
         ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
+        if ruleset_contexts is None:
+            write_skill_error(
+                f"Failed to read required checks for base branch {base_branch!r}",
+                3,
+                error_type="ApiError",
+                output_format=fmt,
+                script_name="get_pr_checks.py",
+                extra={"Number": args.pull_request},
+            )
+            return 3
 
     start_time = time.monotonic()
     max_iterations = math.ceil(args.timeout_seconds / 10)
