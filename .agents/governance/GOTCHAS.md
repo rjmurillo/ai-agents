@@ -945,9 +945,19 @@ and the failure reproduces on a detached worktree at `origin/main`.
 **Why it recurs.** Lowering a violation count and lowering the baseline are two
 edits that usually live in different pull requests. Each is green against its
 own base, and they meet for the first time on main. That is the merge race in
-issue #3755; neither remedy proposed there has shipped, so
-`strict_required_status_checks_policy` is still false and ruleset 11104075 has
-no `merge_queue` rule.
+issue #3755, whose thesis was that
+`strict_required_status_checks_policy: false` let a green check describe a tree
+that no longer existed. That remedy shipped: the setting is now `true`
+(measured 2026-08-08), which is why #3755 closed on 2026-08-05. A branch behind
+main can no longer land at all, so the two edits can no longer meet for the
+first time on main.
+
+What remains is the case strict does not cover. Ruleset 11104075 still has no
+`merge_queue` rule and no workflow handles a `merge_group` event, so admission
+is serialized only by the refresh requirement, not by testing the combined
+result before the merge. The exact-equality assertion above is therefore the
+gate that still catches a baseline and a count arriving out of step, and it
+fires locally on a tree nobody's diff touched.
 
 **Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
 actually measures, in the same commit that moves the count. Lowering a baseline
