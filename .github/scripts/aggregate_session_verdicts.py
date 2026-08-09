@@ -23,7 +23,15 @@ sys.path.insert(0, workspace)
 from scripts.ai_review_common import write_log, write_output  # noqa: E402
 
 _VALID_VERDICTS = frozenset(
-    {"PASS", "COMPLIANT", "WARN", "CRITICAL_FAIL", "REJECTED", "NON_COMPLIANT"}
+    {
+        "PASS",
+        "COMPLIANT",
+        "SKIPPED",
+        "WARN",
+        "CRITICAL_FAIL",
+        "REJECTED",
+        "NON_COMPLIANT",
+    }
 )
 
 

@@ -150,6 +150,17 @@ class TestMain:
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "WARN"
 
+    def test_skipped_verdict_is_pass_equivalent(self, tmp_path, monkeypatch):
+        output_file = _setup_output(tmp_path, monkeypatch)
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _create_verdict_file(results_dir, "deleted-session", "SKIPPED")
+
+        assert _run(results_dir) == 0
+
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "PASS"
+
     def test_must_failures_override_to_critical_fail(self, tmp_path, monkeypatch):
         output_file = _setup_output(tmp_path, monkeypatch)
         results_dir = tmp_path / "results"
