@@ -171,7 +171,7 @@ jobs:
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
-    needs: [detect-changes, validate]
+    needs: [check-changes, detect-changes, validate]
     # Always run to produce SUCCESS (not SKIPPED) for rulesets.
     # Step-level conditions gate the actual work.
     if: always() && !cancelled()
@@ -183,12 +183,10 @@ jobs:
       - name: Check if aggregation needed
         id: should-run-protocol
         env:
+          CHECK_CHANGES_RESULT: ${{ needs.check-changes.result }}
+          DETECT_CHANGES_RESULT: ${{ needs.detect-changes.result }}
           HAS_SESSIONS: ${{ needs.detect-changes.outputs.has_sessions }}
-        run: |
-          if [ "$HAS_SESSIONS" != "true" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Skipped - no session file changes detected"
-          fi
+        run: python3 scripts/ci/check_session_aggregation_needed.py
 
       - name: Checkout repository
         if: steps.should-run-protocol.outputs.skip != 'true'
