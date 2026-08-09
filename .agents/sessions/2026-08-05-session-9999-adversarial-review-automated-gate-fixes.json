@@ -156,6 +156,6 @@
       "outcome": "The legacy filesystem scanner examined 461 ignored pytest artifact files and disagreed with pre-PR; issue #4657 now wires both phases to the same git-scoped fail-closed checker"
     }
   ],
-  "endingCommit": "5b65ea1d2802b90ca0befd4f58550359020260a8",
+  "endingCommit": "22922f00607257d8a2b90ede5a8dcef9b154919d",
   "nextSteps": []
 }
