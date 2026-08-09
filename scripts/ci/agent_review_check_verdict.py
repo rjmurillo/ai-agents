@@ -4,7 +4,7 @@
 Replaces the PowerShell 'Check verdict and fail if needed' block in
 .github/actions/agent-review/action.yml (ADR-006).
 
-Blocking verdicts: CRITICAL_FAIL, REJECTED, FAIL, NEEDS_REVIEW.
+Blocking verdicts: FAIL_VERDICTS plus UNKNOWN, DID_NOT_RUN, and malformed tokens.
 Infrastructure failures (INFRASTRUCTURE_FAILURE=true) defer the merge decision
 to the aggregate gate instead of failing the per-agent step.
 

@@ -22,6 +22,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "ci" / "agent_review_check_verdict.py"
 
 
+def _process_env(verdict: str, infra: str = "false", findings: str = "details") -> dict[str, str]:
+    env = {
+        **os.environ,
+        "AGENT": "security",
+        "EMOJI": "lock",
+        "VERDICT": verdict,
+        "FINDINGS": findings,
+        "INFRASTRUCTURE_FAILURE": infra,
+    }
+    for key in ("GITHUB_OUTPUT", "GITHUB_ENV", "GITHUB_STEP_SUMMARY"):
+        env.pop(key, None)
+    return env
+
+
 class TestConstants:
     def test_blocking_verdicts_set(self) -> None:
         assert _BLOCKING_VERDICTS == frozenset(
@@ -159,19 +173,10 @@ class TestMain:
     def test_script_bootstraps_repo_root_from_foreign_cwd(
         self, tmp_path: Path
     ) -> None:
-        env = {
-            **os.environ,
-            "AGENT": "security",
-            "EMOJI": "lock",
-            "VERDICT": "PASS",
-            "FINDINGS": "",
-            "INFRASTRUCTURE_FAILURE": "false",
-        }
-
         completed = subprocess.run(
             [sys.executable, "-I", str(SCRIPT)],
             cwd=tmp_path,
-            env=env,
+            env=_process_env("PASS", findings=""),
             check=False,
             capture_output=True,
             encoding="utf-8",
@@ -181,3 +186,19 @@ class TestMain:
         assert completed.returncode == 0
         assert "review passed with verdict: PASS" in completed.stdout
         assert "ModuleNotFoundError" not in completed.stderr
+
+    def test_malformed_verdict_exits_nonzero_as_a_process(
+        self, tmp_path: Path
+    ) -> None:
+        completed = subprocess.run(
+            [sys.executable, "-I", str(SCRIPT)],
+            cwd=tmp_path,
+            env=_process_env("FOOBAR"),
+            check=False,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        assert completed.returncode == 1
+        assert "::error::[security] FOOBAR: details" in completed.stdout

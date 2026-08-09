@@ -33,10 +33,10 @@ the agent job; the trailing summary is classification, not diagnosis.
 ## Why the per-agent job can succeed while the PR is blocked
 
 Two different decisions. Reading the first as final is the trap.
-`agent_review_check_verdict.py:44` derives an infra flag when both the verdict
-and the findings are empty. The per-agent step returns 0 and defers PR status to
-`Aggregate Results`. The verdict artifact still travels to the aggregate, which
-decides the gate.
+`agent_review_check_verdict.py:49` starts the empty-verdict fallback and lines
+52-55 derive an infra flag when both the verdict and the findings are empty.
+The per-agent step returns 0 and defers PR status to `Aggregate Results`. The
+verdict artifact still travels to the aggregate, which decides the gate.
 
 `.github/scripts/aggregate_quality_verdicts.py` preserves `DID_NOT_RUN` when
 security is `INFRASTRUCTURE` and every failure uses a recognized infrastructure
