@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from redact_secrets import main, redact, redact_ci_sink  # noqa: E402
@@ -172,6 +174,51 @@ class TestCiSinkWrappers:
         assert "DB_PASSWORD=***" in result.text
         assert "GITHUB_TOKEN=***" in result.text
         assert result.reasons.count("credential-assignment") == 10
+
+    def test_credential_assignments_preserve_trailing_structured_fields(self):
+        raw_json = '{"password":"secret","timeout":30}'
+        escaped_json = '{\\"password\\":\\"secret\\",\\"timeout\\":30}'
+        escaped_inner_quote = '{\\"password\\":\\"alpha' + ("\\" * 3) + '"beta\\",\\"timeout\\":30}'
+        prose = "token=secret, mode=review"
+
+        result = redact_ci_sink("\n".join((raw_json, escaped_json, escaped_inner_quote, prose)))
+
+        assert '{"password":"***","timeout":30}' in result.text
+        assert '{\\"password\\":\\"***\\",\\"timeout\\":30}' in result.text
+        assert "token=***, mode=review" in result.text
+        assert "alpha" not in result.text
+        assert "beta" not in result.text
+        assert "secret" not in result.text
+
+    @pytest.mark.parametrize("backslash_count", range(1, 7))
+    @pytest.mark.parametrize(
+        ("prefix", "quote"),
+        [
+            ('{"password":', '"'),
+            ('{\\"password\\":', '\\"'),
+        ],
+    )
+    def test_quoted_assignment_inner_quotes_cannot_leak_suffix(
+        self,
+        backslash_count,
+        prefix,
+        quote,
+    ):
+        value = (
+            prefix
+            + quote
+            + "SECRET_PREFIX"
+            + ("\\" * backslash_count)
+            + '"SECRET_SUFFIX'
+            + quote
+            + ',"timeout":30}'
+        )
+
+        result = redact_ci_sink(value)
+
+        assert "SECRET_PREFIX" not in result.text
+        assert "SECRET_SUFFIX" not in result.text
+        assert '"timeout":30}' in result.text
 
 
 class TestCli:
