@@ -236,3 +236,36 @@ class TestDuplicateTestHelpers:
 
         idx = recorded.index("Nested Test Detection")
         assert recorded[idx + 1] == "Duplicate Test Helper Detection"
+
+
+class TestTrackedFileMissingFromDisk:
+    """Verify ScanError when tracked Python files are absent on disk."""
+
+    def test_missing_tracked_file_raises_scan_error(self, repo_workspace: Path) -> None:
+        """_tracked_test_files must raise ScanError if a git-tracked .py file is missing."""
+        repo = repo_workspace
+        subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@test.com"],
+            cwd=repo, check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Test"],
+            cwd=repo, check=True, capture_output=True,
+        )
+
+        # Create and commit a test file
+        test_file = repo / "tests" / "test_present.py"
+        test_file.write_text("# present\n")
+        ghost_file = repo / "tests" / "test_ghost.py"
+        ghost_file.write_text("# ghost\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "init"], cwd=repo, check=True, capture_output=True,
+        )
+
+        # Remove ghost from disk but leave it in the index
+        ghost_file.unlink()
+
+        with pytest.raises(checker.ScanError, match="missing from working tree"):
+            checker._tracked_test_files(repo)

@@ -94,10 +94,22 @@ def _tracked_test_files(repo_root: Path) -> list[Path]:
         raise ScanError(f"git could not list test files: {exc}") from exc
 
     paths = []
+    missing: list[str] = []
     for entry in result.stdout.split("\0"):
+        if not entry:
+            continue
         path = repo_root / entry
-        if path.suffix == ".py" and path.is_file():
+        if path.suffix != ".py":
+            continue
+        if path.is_file():
             paths.append(path)
+        else:
+            missing.append(entry)
+    if missing:
+        raise ScanError(
+            f"{len(missing)} tracked Python file(s) missing from working tree: "
+            + ", ".join(missing[:5])
+        )
     if not paths:
         raise ScanError("git reported zero Python files under tests/")
     return paths
