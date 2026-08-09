@@ -107,6 +107,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "rework-warning: none"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-09-pr-4651-fail-closed-agent-machinery.md"
       }
     }
   },
@@ -134,8 +139,12 @@
     {
       "time": "2026-08-09T00:00:00Z",
       "entry": "Retrospective evidence recorded for PR 4651 merge-tree repair: moved the shared markdownlint config hunk out of the merge path and kept the hook regression coverage intact."
+    },
+    {
+      "time": "2026-08-09T06:55:00Z",
+      "entry": "Produced earned QA report for PR 4651 at da875c5859941bd1c24a742f10ce00286c085d40 after running targeted hook and generator tests, baseline tightening check, build_all mirror check, changed-file ruff, and fail-closed guard tests."
     }
   ],
   "nextSteps": [],
-  "endingCommit": "c6e0c05bd1"
+  "endingCommit": "da875c5859941bd1c24a742f10ce00286c085d40"
 }
