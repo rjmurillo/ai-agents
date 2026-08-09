@@ -78,6 +78,19 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-04-session-8408-gotchas-rate-limit"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-09T18:26:45+00:00",
+      "type": "commit",
+      "content": "Commit: 54a3cdcf3a39effb4c31ee3f29c7b429933fad5c",
+      "caused_by": [
+        "e006"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-8408-gotchas-rate-limit"
     }
@@ -87,8 +100,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 6
+    "commits": 5,
+    "files_changed": 13
   },
   "lessons": []
 }
