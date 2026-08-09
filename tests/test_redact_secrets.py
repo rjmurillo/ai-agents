@@ -495,9 +495,12 @@ class TestCiSinkWrappers:
         assert result.text == value
         assert elapsed < 5
 
-    @pytest.mark.parametrize("separator", ["-", "_"])
+    @pytest.mark.parametrize(
+        "separator",
+        ["-", "_", r"\u0020", r"\u002d", r"\u005f"],
+    )
     def test_credential_assignment_scanner_rejects_separator_redos(self, separator):
-        value = f"ordinary{separator * 64}prose"
+        value = f"ordinary{separator * 2048}prose"
 
         started = time.perf_counter()
         result = redact_ci_sink(value)
