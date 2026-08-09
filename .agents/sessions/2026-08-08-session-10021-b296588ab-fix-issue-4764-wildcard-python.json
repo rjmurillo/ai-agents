@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, generated surfaces, tests, and contract updates committed through eafff663db; this commit series carries the remaining ADR and session evidence"
+        "Evidence": "Implementation, generated surfaces, tests, and first ADR group committed through 5f1f139c5a; this commit carries remaining ADR and QA evidence"
       },
       "validationPassed": {
         "level": "MUST",
@@ -148,7 +148,7 @@
       "result": ".agents/qa/4764-push-pr-script-identity-guard-report.md recorded PASS after 480 tests with no Critical or High findings"
     }
   ],
-  "endingCommit": "eafff663db",
+  "endingCommit": "5f1f139c5a",
   "nextSteps": [
     "Merge current origin/main and regenerate",
     "Run final generation, parity, markdown, pre-PR, security, and session gates",
