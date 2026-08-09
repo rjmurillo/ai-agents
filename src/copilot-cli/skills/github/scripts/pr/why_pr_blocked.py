@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # mypy: disable-error-code="no-any-return,type-arg", follow-imports=skip
+# taste-lint: ignore file-size, standalone plugin script keeps one portable entry point.
+# taste-lint: ignore complexity, main maps independent gate states to exit classes.
 """Diagnose why a PR is blocked from merging.
 
 Cross-references the base branch ruleset against the PR's actual status check

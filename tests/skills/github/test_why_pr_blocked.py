@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, one suite shares CLI fixtures across all gate states.
 """Tests for why_pr_blocked.py skill script (issue #4393)."""
 
 from __future__ import annotations
