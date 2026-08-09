@@ -56,16 +56,32 @@ SERENA_WRITES = {
     "onboarding",
 }
 
+GITHUB_READ_OPERATIONS = {
+    "issue_read",
+    "pull_request_read",
+    "get_file_contents",
+    "list_commits",
+}
+
+CI_READ_OPERATIONS = {
+    "list_workflow_runs",
+    "get_workflow_run",
+}
+
 REQUIRED_GITHUB_READ_TOOLS = {
-    "github/issue_read",
-    "github/pull_request_read",
-    "github/get_file_contents",
-    "github/list_commits",
+    f"github/{operation}" for operation in GITHUB_READ_OPERATIONS
 }
 
 REQUIRED_CI_READ_TOOLS = {
-    "github/list_workflow_runs",
-    "github/get_workflow_run",
+    f"github/{operation}" for operation in CI_READ_OPERATIONS
+}
+
+CLAUDE_GITHUB_READ_TOOLS = {
+    f"mcp__github__{operation}" for operation in GITHUB_READ_OPERATIONS
+}
+
+CLAUDE_CI_READ_TOOLS = {
+    f"mcp__github__{operation}" for operation in CI_READ_OPERATIONS
 }
 
 PORTABLE_READONLY_TOOLS = {
@@ -88,8 +104,8 @@ CLAUDE_READONLY_TOOLS = {
     "mcp__context7__get_library_docs",
     "mcp__deepwiki__read_wiki_structure",
     "mcp__deepwiki__read_wiki_contents",
-    *REQUIRED_GITHUB_READ_TOOLS,
-    *REQUIRED_CI_READ_TOOLS,
+    *CLAUDE_GITHUB_READ_TOOLS,
+    *CLAUDE_CI_READ_TOOLS,
     *(f"mcp__serena__{operation}" for operation in SERENA_READONLY),
 }
 
@@ -248,8 +264,19 @@ class TestRequiredReadOnlyGitHubTools:
         text = path.read_text()
         frontmatter = _extract_frontmatter(text)
         tools = set(_extract_tools(frontmatter))
-        missing_github = REQUIRED_GITHUB_READ_TOOLS - tools
-        missing_ci = REQUIRED_CI_READ_TOOLS - tools
+        is_claude = path in ALL_ANALYST_FILES[:2]
+        required_github = (
+            CLAUDE_GITHUB_READ_TOOLS
+            if is_claude
+            else REQUIRED_GITHUB_READ_TOOLS
+        )
+        required_ci = (
+            CLAUDE_CI_READ_TOOLS
+            if is_claude
+            else REQUIRED_CI_READ_TOOLS
+        )
+        missing_github = required_github - tools
+        missing_ci = required_ci - tools
         assert not missing_github, (
             f"{path.relative_to(REPO_ROOT)}: missing GitHub read tools "
             f"{sorted(missing_github)}"

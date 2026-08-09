@@ -9,12 +9,12 @@ tools:
   - Read
   - Glob
   - Grep
-  - github/issue_read
-  - github/pull_request_read
-  - github/get_file_contents
-  - github/list_commits
-  - github/list_workflow_runs
-  - github/get_workflow_run
+  - mcp__github__issue_read
+  - mcp__github__pull_request_read
+  - mcp__github__get_file_contents
+  - mcp__github__list_commits
+  - mcp__github__list_workflow_runs
+  - mcp__github__get_workflow_run
   - mcp__serena__find_symbol
   - mcp__serena__find_referencing_symbols
   - mcp__serena__find_implementations
