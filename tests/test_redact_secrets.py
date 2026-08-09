@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import signal
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -219,6 +220,41 @@ class TestCiSinkWrappers:
         value = '{"username":"alice","timeout":30} other=1'
 
         result = redact_ci_sink(value)
+
+        assert result.text == value
+        assert not result.redacted
+
+    def test_credential_namespace_accepts_escaped_separators_before_key(self):
+        value = "\n".join(
+            (
+                '{"db\\u005fpassword":"secret","timeout":30}',
+                '{"db\\u002dpassword":"secret","timeout":30}',
+            )
+        )
+
+        result = redact_ci_sink(value)
+
+        assert result.text == "\n".join(
+            (
+                '{"db\\u005fpassword":"***","timeout":30}',
+                '{"db\\u002dpassword":"***","timeout":30}',
+            )
+        )
+        assert result.reasons == ("credential-assignment", "credential-assignment")
+
+    def test_adversarial_separator_run_does_not_backtrack(self):
+        value = "_" * 20 + "x"
+
+        def timeout_handler(_signum, _frame):
+            raise TimeoutError("credential namespace redaction timed out")
+
+        previous_handler = signal.signal(signal.SIGALRM, timeout_handler)
+        signal.setitimer(signal.ITIMER_REAL, 0.25)
+        try:
+            result = redact_ci_sink(value)
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, previous_handler)
 
         assert result.text == value
         assert not result.redacted

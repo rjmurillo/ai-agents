@@ -72,9 +72,9 @@ def _json_key_word(word: str) -> str:
     return "".join(characters)
 
 
-_CREDENTIAL_SEPARATOR_CHARACTER = rf"(?:[-_\s]|{_json_key_word('-')}|{_json_key_word('_')}|\\u0020)"
+_CREDENTIAL_SEPARATOR_CHARACTER = rf"(?:\s|{_json_key_word('-')}|{_json_key_word('_')}|\\u0020)"
 _CREDENTIAL_SEPARATOR = rf"{_CREDENTIAL_SEPARATOR_CHARACTER}?"
-_CREDENTIAL_NAMESPACE_CHARACTER = r"(?:[A-Za-z0-9]|\\u[0-9a-f]{4})"
+_CREDENTIAL_NAMESPACE_CHARACTER = r"(?:[A-Za-z0-9]|\\u(?!002d|005f|0020)[0-9a-f]{4})"
 _CREDENTIAL_NAMESPACE = rf"(?:{_CREDENTIAL_NAMESPACE_CHARACTER}|{_CREDENTIAL_SEPARATOR_CHARACTER})*"
 _CREDENTIAL_KEY_BASE = (
     "(?:"
