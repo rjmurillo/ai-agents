@@ -52,6 +52,10 @@ These paths hold threat models, benchmarks, workflows, and hooks that protect th
 4. **Pin Actions to SHA**. Workflow changes MUST pin every third-party Action to a commit SHA. Floating tags (`@v4`, `@main`) are prohibited.
 5. **Threat model updates**. Changes that introduce new attack surface MUST update the relevant benchmark under `.agents/security/benchmarks/` or cite why no update is required.
 6. **Test coverage**. Security-critical code MUST have 100% coverage per `AGENTS.md` standards.
+7. **Eureka: gate availability is gate correctness**. A required security review
+   that does not run MUST produce a blocking verdict. Infrastructure failure is
+   not a security pass. Issue #4777 records the failure where ten missing
+   reviews produced a green required check.
 
 ## SHOULD
 
@@ -72,3 +76,4 @@ These paths hold threat models, benchmarks, workflows, and hooks that protect th
 - `.agents/steering/security-practices.md`. OWASP patterns.
 - `.claude/skills/security-scan/`. Scanner skill.
 - `.claude/skills/threat-modeling/`. STRIDE workflow.
+- Issue #4777. AI quality gate passed after every reviewer failed authentication.
