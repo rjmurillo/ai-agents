@@ -84,7 +84,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
-          ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/head', inputs.pr_number) }}
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       - name: Identify Changed Session Files
         id: changed
@@ -119,7 +119,7 @@ jobs:
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/head', inputs.pr_number) }}
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       - name: Fetch origin/main for HANDOFF validation
         run: |
@@ -190,7 +190,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
-          ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/head', inputs.pr_number) }}
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       - name: Check if aggregation needed
         id: should-run-protocol

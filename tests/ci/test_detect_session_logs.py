@@ -465,7 +465,4 @@ class TestWorkflowWiring:
 
     def test_manual_dispatch_uses_a_valid_checkout_ref(self) -> None:
         checkout = _workflow()["jobs"]["detect-changes"]["steps"][0]["with"]
-        assert checkout["ref"] == (
-            "${{ github.event.pull_request.head.sha || "
-            "format('refs/pull/{0}/head', inputs.pr_number) }}"
-        )
+        assert checkout["ref"] == "${{ github.event.pull_request.head.sha || github.ref }}"
