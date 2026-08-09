@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 
 class MissingScriptSkip(Exception):  # noqa: N818 - control-flow signal, not an error condition
@@ -103,96 +104,175 @@ def _upstream_head_ref_name(repo_root: Path) -> str | None:
     return ref[len(prefix) :] or None
 
 
-def _gh_pr_base_ref_name(repo_root: Path, selector: list[str]) -> str | None:
-    """Return the open PR's ``baseRefName``, or None on any gh failure.
+_NO_PR_MARKER = "no pull requests found"
 
-    ``selector`` is the positional PR selector documented by
-    ``gh pr view --help``: ``gh pr view [<number> | <url> | <branch>] [flags]``.
-    Pass ``[]`` to let gh infer the PR from the checked-out branch, or
-    ``[branch]`` to name the head branch. There is no ``--head`` flag on this
-    subcommand; passing one makes gh exit 1 with ``unknown flag: --head``
-    before it reaches the API, which is how the first attempt at issue #4382
-    shipped a retry that could never resolve anything. The positional form is
-    the shape ``scripts/validation/check_pr_bypass_label.py`` already uses.
+
+class _PrViewProbe(NamedTuple):
+    """One ``gh pr view`` attempt's outcome.
+
+    ``no_pr_confirmed`` is True only when stderr contains the marker gh
+    2.97.0 prints for a genuine "no PR" (verified against the installed
+    binary): ``no pull requests found for branch "<name>"``, exit 1. Auth
+    and network failures also exit 1 with different stderr, so exit code
+    alone cannot distinguish them. Any other non-zero exit leaves this
+    False (transient); the caller must not cache it.
     """
-    exit_code, stdout, _ = _run_subprocess(
+
+    base_ref: str | None
+    no_pr_confirmed: bool
+    exit_code: int
+    stderr: str
+
+
+def _gh_pr_base_ref_name(repo_root: Path, selector: list[str]) -> _PrViewProbe:
+    """Probe ``gh pr view`` once for ``baseRefName``; never raises.
+
+    ``selector``: ``[]`` infers the PR from the checked-out branch,
+    ``[branch]`` names the head branch explicitly (issue #4382 retry).
+    """
+    exit_code, stdout, stderr = _run_subprocess(
         ["gh", "pr", "view", *selector, "--json", "baseRefName", "-q", ".baseRefName"],
         timeout=5,
         cwd=repo_root,
     )
-    if exit_code != 0:
+    if exit_code == 0:
+        return _PrViewProbe(stdout.strip() or None, False, exit_code, stderr)
+    return _PrViewProbe(None, _NO_PR_MARKER in stderr.lower(), exit_code, stderr)
+
+
+def _gh_base_ref_probe(repo_root: Path) -> tuple[str | None, bool, int, str]:
+    """Uncached core of the PR-base query: bare lookup, then retry with the
+    upstream head branch (issue #4382) -- but ONLY when the bare lookup
+    explicitly confirmed no PR AND the upstream is not self-tracking. A
+    transient failure (auth, network, rate limit) must not retry: it could
+    look like a false confirmed "no PR" (round 2 review, item 4).
+    Self-tracking (``git push -u origin HEAD``) would repeat the same
+    confirmed query, so :func:`_is_self_tracking_upstream` (issue #2571)
+    gates that too.
+
+    Returns ``(base_ref, cacheable, exit_code, stderr)``; ``cacheable`` is
+    True for a found PR or confirmed no-PR, False when transient -- see
+    :func:`_gh_base_ref`, which must not cache the None it returns then.
+    """
+    probe = _gh_pr_base_ref_name(repo_root, [])
+    if probe.base_ref:
+        return f"origin/{probe.base_ref}", True, probe.exit_code, probe.stderr
+    if not probe.no_pr_confirmed:
+        return None, False, probe.exit_code, probe.stderr
+
+    head = _upstream_head_ref_name(repo_root)
+    if not head or _is_self_tracking_upstream(repo_root):
+        return None, probe.no_pr_confirmed, probe.exit_code, probe.stderr
+
+    probe2 = _gh_pr_base_ref_name(repo_root, [head])
+    if probe2.base_ref:
+        print(
+            f"[base-ref] selected origin/{probe2.base_ref}: PR resolved by upstream head "
+            f"'{head}' after the local branch name matched no PR",
+            file=sys.stderr,
+        )
+        return f"origin/{probe2.base_ref}", True, probe2.exit_code, probe2.stderr
+    return None, probe2.no_pr_confirmed, probe2.exit_code, probe2.stderr
+
+
+def _branch_head_cache_key(repo_root: Path) -> tuple[str, str, str] | None:
+    """Return ``(repo_root, branch, HEAD sha)`` for the cache key, or None
+    when unavailable (detached HEAD, no git repo, no commits).
+    """
+    clean_env = _git_subprocess_env()
+    branch_rc, branch_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
+        env=clean_env,
+        timeout=10,
+    )
+    branch = branch_out.strip()
+    if branch_rc != 0 or not branch or branch == "HEAD":
         return None
-    return stdout.strip() or None
+    head_rc, head_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        env=clean_env,
+        timeout=10,
+    )
+    head_sha = head_out.strip()
+    if head_rc != 0 or not head_sha:
+        return None
+    return str(repo_root), branch, head_sha
+
+
+# Cache for the gh PR-base query only; keyed on (repo_root, branch, HEAD sha).
+_gh_pr_base_cache: dict[tuple[str, str, str], str | None] = {}
+# Keys already warned about a transient failure, so repeats don't re-log.
+_gh_pr_base_logged_failures: set[tuple[str, str, str]] = set()
+
+
+def _reset_gh_base_cache() -> None:
+    """Clear the gh PR-base cache and its logged-failure set (item 3).
+
+    The cache key, ``(repo_root, branch, HEAD sha)``, is a proxy for "did
+    the checkout change", not "did the remote PR change": two in-process
+    invocations of ``pre_pr.py`` with an unchanged branch/HEAD would
+    otherwise reuse a prior invocation's answer. ``pre_pr.main()`` calls
+    this once at the top, scoping the cache to one invocation while still
+    sharing it across every gate within that run.
+    """
+    _gh_pr_base_cache.clear()
+    _gh_pr_base_logged_failures.clear()
 
 
 def _gh_base_ref(repo_root: Path) -> str | None:
     """Return ``origin/<baseRefName>`` for the open PR, or None.
 
-    Asks the gh CLI for the PR's base branch name, then prefixes
-    ``origin/`` so callers can pass the result to ``git diff`` directly.
+    Asks gh for the PR's base branch, then prefixes ``origin/`` so callers
+    can pass the result to ``git diff`` directly. :func:`_gh_base_ref_probe`
+    is the expensive part (``gh pr view``, ~0.42-0.49s/call); this wrapper
+    caches ITS result keyed on ``(repo_root, branch, HEAD sha)`` so both
+    resolver functions share one query per branch/HEAD state. A transient
+    failure is NOT cached (retrying is correct once the condition clears);
+    only success or a confirmed "no open PR" is cached, and the first
+    non-authoritative failure per key is logged once, not once per gate.
+    Retries with the upstream head branch per :func:`_gh_base_ref_probe`
+    (issue #4382).
 
-    When the local branch name differs from the PR head (e.g. a worktree
-    checked out as ``pr-4294`` tracking ``origin/fix/gc-report-time-budget``),
-    ``gh pr view`` without ``--head`` fails to find the PR. This function
-    detects that case and retries using the configured upstream branch name
-    (``branch.<name>.merge`` via ``git config --get``).
-
-    Behavior:
-    - If gh is not on PATH, return None.
-    - If the bare lookup finds no PR, retry naming the upstream head branch
-      positionally. ``gh pr view`` infers the PR from the local branch name, so
-      a worktree checked out as ``pr-<number>`` while tracking a differently
-      named PR head resolved nothing and the caller fell back to the stale head
-      upstream (issue #4382).
-    - If gh exits non-zero (auth, network, unknown error), return None.
-
-    A same-named helper lives in
-    ``.claude/hooks/PreToolUse/push_guard_base.py`` for use inside the
-    pre-push framework, with a copy generated from it at
-    ``src/copilot-cli/hooks/PreToolUse/push_guard_base.py``. Find them via
-    ``grep -rn '^def _gh_base_ref' .claude/hooks src/copilot-cli/hooks``.
-    The two functions evolved separately and cover different runtime contexts
-    (CI vs developer machine). That helper does **not** carry this fallback:
-    it still issues the bare ``gh pr view --json baseRefName`` and returns None
-    in exactly the worktree shape issue #4382 describes, so the pre-push guard
-    falls through to the next signal in its chain. Fixing it needs a change to
-    ``.claude/hooks/``, which this branch's tooling could not write. Do not
-    read this paragraph as parity. Test coverage in this codebase locks in the
-    public contract above; the hook file has its own suite covering its own
-    contract.
+    A same-named, but NOT behaviorally identical, helper lives in
+    ``.claude/hooks/PreToolUse/push_guard_base.py``; it lacks this retry.
     """
     if not shutil.which("gh"):
         return None
-    base = _gh_pr_base_ref_name(repo_root, [])
-    if base:
-        return f"origin/{base}"
-    head = _upstream_head_ref_name(repo_root)
-    if not head:
-        return None
-    base = _gh_pr_base_ref_name(repo_root, [head])
-    if not base:
-        return None
-    print(
-        f"[base-ref] selected origin/{base}: PR resolved by upstream head "
-        f"'{head}' after the local branch name matched no PR",
-        file=sys.stderr,
-    )
-    return f"origin/{base}"
+
+    key = _branch_head_cache_key(repo_root)
+    if key is not None and key in _gh_pr_base_cache:
+        return _gh_pr_base_cache[key]
+
+    base_ref, cacheable, exit_code, stderr = _gh_base_ref_probe(repo_root)
+
+    if key is None:
+        return base_ref
+
+    if cacheable:
+        _gh_pr_base_cache[key] = base_ref
+    elif key not in _gh_pr_base_logged_failures:
+        _gh_pr_base_logged_failures.add(key)
+        print(
+            f"[WARN] base-ref: gh pr view did not give an authoritative answer "
+            f"(exit {exit_code}): {stderr.strip() or '<no output>'}; not caching, "
+            f"will retry on the next call",
+            file=sys.stderr,
+        )
+    return base_ref
 
 
 def _is_self_tracking_upstream(repo_root: Path) -> bool:
-    """Return True when ``@{u}`` resolves to the current branch's own remote ref.
+    """Return True when the branch's configured upstream tracks itself.
 
-    After ``git push -u origin HEAD`` (the default contributor workflow), the
-    branch's configured upstream is ``origin/<current_branch>`` -- i.e. the
-    branch tracks itself. Using that ref as a diff base produces an empty
-    range once the branch is pushed and HEAD == origin/<branch>, which makes
-    every "since base" gate silently no-op (Issue #2571).
-
-    This helper is intentionally pure (queries git only, no side effects) so
-    callers can decide whether to fall back to a trunk-pointing ref.
-    Non-self upstreams (a derivative branch tracking a parent feature branch)
-    return False; those should still be honoured.
+    After ``git push -u origin HEAD``, the branch's upstream is
+    ``<remote>/<current_branch>`` -- it tracks itself, emptying a diff
+    against it once pushed and silently no-opping "since base" gates
+    (Issue #2571). Compares ``branch.<branch>.merge``
+    (:func:`_upstream_head_ref_name`) to the branch name rather than
+    string-comparing abbreviated ``@{u}`` against a hardcoded
+    ``origin/<branch>``, which missed a non-``origin`` fork remote and
+    branch names containing ``/``. ``@{u}`` resolvability is checked
+    first, so a branch with no upstream returns False.
     """
     clean_env = _git_subprocess_env()
     branch_rc, branch_out, _ = _run_subprocess(
@@ -226,35 +306,29 @@ def _is_self_tracking_upstream(repo_root: Path) -> bool:
     if not upstream or "@{" in upstream:
         return False
 
-    return upstream == f"origin/{branch}"
+    return _upstream_head_ref_name(repo_root) == branch
 
 
 def _resolve_branch_base_ref(repo_root: Path) -> str | None:
     """Resolve the branch base ref by trying signals in priority order.
 
-    Tries each candidate in order and returns the first one that
-    resolves to a real ref locally:
+    Not cached itself (a bare ``functools.cache`` on the whole resolution
+    had no invalidation hook); the expensive step, the network round trip
+    inside :func:`_gh_base_ref` (``gh pr view``, ~0.42-0.49s/call), caches
+    its own result keyed on ``(repo_root, branch, HEAD sha)``. The rest
+    here is local, sub-millisecond git plumbing.
 
-        1. The PR's actual baseRefName via ``gh pr view`` (validated
-           further with ``git rev-parse --verify`` so an unfetched ref
-           falls through to the next step).
-        2. The current branch's configured upstream via ``@{u}``, EXCEPT
-           when the upstream is the branch's own ``origin/<branch>``
-           (self-tracking after ``git push -u origin HEAD``). A
-           self-tracking upstream produces an empty diff against HEAD
-           once the branch is pushed, which would let "since base"
-           gates miss real changes -- the bug behind Issue #2571.
-        3. The remote's default branch via ``refs/remotes/origin/HEAD``.
-        4. ``origin/main`` as a last-resort literal.
-
+    Priority: (1) the PR's actual baseRefName via ``gh pr view``, validated
+    with ``git rev-parse --verify`` so an unfetched ref falls through; (2)
+    the current branch's ``@{u}``, EXCEPT when self-tracking (``origin/
+    <branch>`` after ``git push -u origin HEAD``, which would empty-diff
+    against HEAD and hide real changes, Issue #2571); (3) the remote
+    default branch via ``refs/remotes/origin/HEAD``; (4) ``origin/main``.
     Returns None when none resolve.
 
-    A related helper (``_detect_default_base_ref``) lives in
-    ``.claude/hooks/PreToolUse/push_guard_base.py`` and follows the same
-    priority order; locate it via
-    ``grep -n '^def _detect_default_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``
-    if you want the pre-push framework's perspective. The two functions
-    have separate test suites that lock in their respective contracts.
+    A related helper (``_detect_default_base_ref``) in
+    ``.claude/hooks/PreToolUse/push_guard_base.py`` follows the same
+    priority order and has its own separate test suite.
     """
     pr_base = _gh_base_ref(repo_root)
     if pr_base:
@@ -293,20 +367,18 @@ def _resolve_default_base_ref(repo_root: Path) -> str | None:
     """Resolve the base ref for "what changed vs the default branch".
 
     Unlike :func:`_resolve_branch_base_ref`, this deliberately EXCLUDES the
-    current branch's own upstream (``@{u}``). For a feature branch ``@{u}`` is
-    ``origin/<feature-branch>``; once the branch is pushed, ``@{u}...HEAD`` is
-    empty, so a change-vs-base diff misses everything the branch added. That is
-    exactly how ``pre_pr.py`` reported "No changed workflow files" while the
-    pre-push hook (which diffs against the merge-base with ``origin/main``)
-    found and validated one (issue #2571).
+    current branch's own upstream (``@{u}``): for a feature branch ``@{u}``
+    is ``origin/<feature-branch>``, and once pushed, ``@{u}...HEAD`` is
+    empty, so a change-vs-base diff misses everything the branch added
+    (issue #2571; ``pre_pr.py`` reported "No changed workflow files" while
+    the pre-push hook, diffing against the merge-base with ``origin/main``,
+    found one).
 
-    Priority order:
-
-        1. The PR's actual baseRefName via ``gh pr view`` (validated).
-        2. The remote default branch via ``refs/remotes/origin/HEAD``.
-        3. ``origin/main`` then local ``main`` as last-resort literals.
-
-    Returns None when none resolve.
+    Priority: (1) the PR's baseRefName via ``gh pr view`` (validated;
+    shares :func:`_gh_base_ref`'s cache with :func:`_resolve_branch_base_ref`);
+    (2) the remote default branch via ``refs/remotes/origin/HEAD``; (3)
+    ``origin/main`` then local ``main`` as last-resort literals. Returns
+    None when none resolve.
     """
     candidates: list[str] = []
     pr_base = _gh_base_ref(repo_root)
@@ -326,18 +398,13 @@ def _resolve_default_base_ref(repo_root: Path) -> str | None:
 def _refresh_remote_base(base_ref: str, repo_root: Path) -> str | None:
     """Best-effort fetch of ``origin/<branch>`` to keep the base ref fresh (#2453).
 
-    The wrapper invokes a base-ref-using validator with the local
-    ``origin/<branch>`` ref. When the local ref is stale (the developer has
-    not fetched in a while), the validator compares against an old version
-    and false-PASSes a bump that is actually insufficient against the real
-    remote. Refreshing here, in the wrapper, keeps the validator itself pure
-    and offline-safe.
+    A stale local ``origin/<branch>`` lets a validator false-PASS a bump
+    that is insufficient against the real remote; refreshing here keeps the
+    validator itself pure and offline-safe.
 
-    Returns:
-        ``None`` when no fetch was attempted (non-``origin/<branch>`` ref, or
-        running under CI where the CI runner already fetched). A short error
-        string when the fetch was attempted and failed; the caller emits a
-        WARNING and proceeds. Empty string on a successful fetch.
+    Returns: None when no fetch was attempted (non-``origin/<branch>`` ref,
+    or under CI where the runner already fetched); a short error string on
+    a failed attempt (caller warns and proceeds); empty string on success.
     """
     if not base_ref.startswith("origin/"):
         return None
@@ -387,14 +454,13 @@ def _run_build_script_gate(
 
     Args:
         repo_root: Repository root path.
-        script_name: Filename under ``build/scripts/`` (e.g.,
+        script_name: Filename under ``build/scripts/`` (e.g.
             ``validate_install_parity.py``).
-        gate_label: Human-readable name for error messages (e.g.,
+        gate_label: Human-readable name for error messages (e.g.
             ``install-parity``).
 
-    Returns:
-        True if the script exits 0, False otherwise. Fails closed when
-        the script is absent or when the base ref cannot be resolved.
+    Returns: True if the script exits 0. Fails closed (False) when the
+        script is absent or the base ref cannot be resolved.
     """
     script = repo_root / "build" / "scripts" / script_name
     if not script.exists():
