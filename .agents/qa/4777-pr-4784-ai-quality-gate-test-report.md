@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli.json
-qaCommit: 85c970bd5b83ba3f870801d13ebd91522619ccd7
+qaCommit: cfd453ff5e8c81bbf30c1a95babac02e209bbd57
 ---
 
 # PR 4784 review feedback validation
@@ -24,3 +24,5 @@ PR number to session detection without checking out `refs/pull/*/head`.
 - Origin main comparison: the same two new node ids collected 0 tests and exited 4 on `origin/main`, proving the controls are new branch coverage rather than inherited failures.
 - Security review: initial review blocked the `refs/pull/{pr_number}/head` checkout fallback. The fallback was removed. Re-review returned PASS with no blocking findings.
 - Memory index: `uv run --frozen python scripts/update_memory_index_tokens.py`; uniqueness check printed `152 152`; conflict-marker scan found no markers.
+- Push gate fixes: `uv run --frozen pytest tests/ci/test_detect_session_logs.py::TestWorkflowWiring::test_manual_dispatch_supplies_pr_number_to_session_detection tests/workflows/test_quality_gate_aggregate_cancel_skip.py::TestAggregateCancelSkip::test_session_prerequisite_script_runs_after_checkout tests/ci/test_cli_exit_contract_ratchet.py::test_the_shipped_baseline_matches_the_tracked_tree -q`, 3 passed.
+- Targeted type check: `uv run --frozen mypy tests/ci/test_detect_session_logs.py`, success with no issues.

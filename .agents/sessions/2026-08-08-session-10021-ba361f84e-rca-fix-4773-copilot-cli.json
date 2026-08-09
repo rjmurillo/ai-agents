@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "PR 4784 review feedback fixes committed through 85c970bd5b83ba3f870801d13ebd91522619ccd7."
+        "Evidence": "PR 4784 review feedback fixes committed through cfd453ff5e8c81bbf30c1a95babac02e209bbd57."
       },
       "validationPassed": {
         "level": "MUST",
@@ -167,9 +167,13 @@
     {
       "action": "Removed an unsafe refs/pull checkout fallback after security review.",
       "result": "Manual dispatch now uses github.ref for checkout fallback, avoiding execution of arbitrary pull-request head code through a numeric input."
+    },
+    {
+      "action": "Fixed pre-push regressions found by local push gates.",
+      "result": "Updated workflow checkout wiring expectations, lowered the CLI exit contract ratchet from 28 to 27 after adding process-level coverage, and cleared targeted mypy and pytest checks."
     }
   ],
-  "endingCommit": "85c970bd5b83ba3f870801d13ebd91522619ccd7",
+  "endingCommit": "cfd453ff5e8c81bbf30c1a95babac02e209bbd57",
   "nextSteps": [
     "Rotate or re-authorize COPILOT_GITHUB_TOKEN and verify issue #3275.",
     "Fix preflight behavior in issue #4778 so unavailable authentication skips work but still emits blocking artifacts."

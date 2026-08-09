@@ -111,7 +111,8 @@
         "e008",
         "e010",
         "e011",
-        "e012"
+        "e012",
+        "e014"
       ],
       "leads_to": [
         "e013"
@@ -159,6 +160,30 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed pre-push regressions found by local push gates.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-09T16:13:45+00:00",
+      "type": "commit",
+      "content": "Commit: cfd453ff5e8c81bbf30c1a95babac02e209bbd57",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
     }
@@ -168,8 +193,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 37
+    "commits": 3,
+    "files_changed": 38
   },
   "lessons": []
 }
