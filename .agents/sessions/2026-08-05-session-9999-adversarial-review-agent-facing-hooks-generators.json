@@ -140,7 +140,7 @@
       "result": "Ten behavioral mutants failed their tests. Cosmetic message mutations survived as controls."
     }
   ],
-  "endingCommit": "f4a14c156ba7e0ac7fed16fefacc5d1c18dfb6f0",
+  "endingCommit": "c273ea733ee8c5f58ac7d8ad1ac1ab0f143967f5",
   "nextSteps": [
     "Resolve duplicate push-ref-staleness job in #4634.",
     "Repair remaining dead skill references tracked by #2796."

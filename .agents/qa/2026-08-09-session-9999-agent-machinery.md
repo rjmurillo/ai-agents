@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-05-session-9999-adversarial-review-agent-facing-hooks-generators.json
-qaCommit: f4a14c156ba7e0ac7fed16fefacc5d1c18dfb6f0
+qaCommit: c273ea733ee8c5f58ac7d8ad1ac1ab0f143967f5
 ---
 
 # QA Report: Session 9999 Agent Machinery
 
 ## Verdict
 
-PASS. This report binds session 9999 to the same current PR 4651 verification commit used by the PR report: `f4a14c156ba7e0ac7fed16fefacc5d1c18dfb6f0`.
+PASS. This report binds session 9999 to the same current PR 4651 verification commit used by the PR report: `c273ea733ee8c5f58ac7d8ad1ac1ab0f143967f5`.
 
 ## Evidence
 
@@ -21,9 +21,9 @@ uv run --frozen pytest tests/build_scripts/test_build_all.py tests/build_scripts
 Real output:
 
 ```text
-collected 481 items
+collected 484 items
 
-======================= 480 passed, 1 skipped in 13.88s =======================
+======================= 483 passed, 1 skipped in 14.01s =======================
 ```
 
 Command:

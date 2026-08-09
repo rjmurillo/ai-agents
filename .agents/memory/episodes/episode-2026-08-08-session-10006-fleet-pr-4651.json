@@ -182,7 +182,9 @@
       "caused_by": [
         "e015"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e017"
+      ],
       "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
     },
     {
@@ -197,14 +199,38 @@
         "e014"
       ],
       "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-09T09:40:00+00:00",
+      "type": "milestone",
+      "content": "Fixed review feedback by allowing configured explicit push targets, reran the QA evidence suite, and rebound the PR 4651 QA report to c273ea733ee8c5f58ac7d8ad1ac1ab0f143967f5.",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-09T09:06:39+00:00",
+      "type": "commit",
+      "content": "Commit: c273ea733ee8c5f58ac7d8ad1ac1ab0f143967f5",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
     }
   ],
   "metrics": {
-    "duration_minutes": 992,
+    "duration_minutes": 1037,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 6
   },
   "lessons": []

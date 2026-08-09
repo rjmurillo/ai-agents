@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10006-fleet-pr-4651.json
-qaCommit: f4a14c156ba7e0ac7fed16fefacc5d1c18dfb6f0
+qaCommit: c273ea733ee8c5f58ac7d8ad1ac1ab0f143967f5
 ---
 
 # QA Report: PR 4651 Fail Closed Agent Machinery
 
 ## Verdict
 
-PASS. I ran the verification on commit `f4a14c156ba7e0ac7fed16fefacc5d1c18dfb6f0` after merging `origin/main` into `fix/adversarial-review-agent-machinery` in worktree `../ai-agents-qa-4651`.
+PASS. I ran the verification on commit `c273ea733ee8c5f58ac7d8ad1ac1ab0f143967f5` after merging `origin/main` into `fix/adversarial-review-agent-machinery` in worktree `../ai-agents-qa-4651`.
 
 ## Scope
 
@@ -27,9 +27,9 @@ uv run --frozen pytest tests/build_scripts/test_build_all.py tests/build_scripts
 Real output:
 
 ```text
-collected 481 items
+collected 484 items
 
-======================= 480 passed, 1 skipped in 13.88s =======================
+======================= 483 passed, 1 skipped in 14.01s =======================
 ```
 
 ### 2. CLI exit contract baseline direction
@@ -48,7 +48,7 @@ Real output:
 HEAD baseline: 27
 ```
 
-Result: tightening direction. The PR commit `09b58c12b` reduced the baseline from 29 to 28. The current QA commit tightens it again to 27 after pre-push, the remote-head merge, and the latest main merge measured the tracked count at 27.
+Result: tightening direction. The PR commit `09b58c12b` reduced the baseline from 29 to 28. The current QA commit tightens it again to 27 after pre-push, the remote-head merge, and the latest main merge, and configured push target fix measured the tracked count at 27.
 
 ### 3. Generated Copilot hook mirrors
 
@@ -94,7 +94,7 @@ All checks passed!
 Command:
 
 ```bash
-uv run --frozen pytest tests/hooks/test_push_guard_base.py -q -k 'diff_failure_blocks or validator_exception_blocks or malformed_hook_input_blocks or empty_stdin_blocks or ambiguous_push_scope_blocks or shell_expansion_blocks or unsafe_bare_push_configuration_blocks'
+uv run --frozen pytest tests/hooks/test_push_guard_base.py -q -k 'diff_failure_blocks or validator_exception_blocks or malformed_hook_input_blocks or empty_stdin_blocks or ambiguous_push_scope_blocks or shell_expansion_blocks or unsafe_bare_push_configuration_blocks or configured_explicit_push_target'
 ```
 
 Real output:
