@@ -8,13 +8,12 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.ci.check_session_aggregation_needed import (
-    EXIT_CONFIG,
-    EXIT_LOGIC,
-    EXIT_OK,
-    decide,
-    main,
-)
+from scripts.ci import check_session_aggregation_needed as session_gate
+
+EXIT_CONFIG = session_gate.EXIT_CONFIG
+EXIT_LOGIC = session_gate.EXIT_LOGIC
+EXIT_OK = session_gate.EXIT_OK
+decide = session_gate.decide
 
 
 @pytest.mark.parametrize("detect_result", ["failure", "cancelled", ""])
@@ -130,10 +129,10 @@ def test_main_writes_skip_output(tmp_path: Path) -> None:
         "SESSION_FILES": "",
     }
     with patch.dict(os.environ, env, clear=True):
-        assert main() == EXIT_OK
+        assert session_gate.main() == EXIT_OK
     assert output.read_text(encoding="utf-8") == "skip=true\nexpected_results=0\n"
 
 
 def test_main_requires_github_output() -> None:
     with patch.dict(os.environ, {}, clear=True):
-        assert main() == EXIT_CONFIG
+        assert session_gate.main() == EXIT_CONFIG

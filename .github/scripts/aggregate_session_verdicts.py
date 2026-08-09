@@ -22,6 +22,10 @@ sys.path.insert(0, workspace)
 
 from scripts.ai_review_common import write_log, write_output  # noqa: E402
 
+_VALID_VERDICTS = frozenset(
+    {"PASS", "COMPLIANT", "WARN", "CRITICAL_FAIL", "REJECTED", "NON_COMPLIANT"}
+)
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
@@ -49,6 +53,14 @@ def _aggregate_verdicts(verdict_files: list[str], overall_verdict: str) -> str:
             verdict = f.read().strip()
 
         write_log(f"Found verdict: {verdict} from {filename}")
+        if verdict not in _VALID_VERDICTS:
+            write_log(f"ERROR: Invalid verdict {verdict!r} in {filename}")
+            print(
+                f"::error::Invalid session verdict {verdict!r} in {filename}",
+                file=sys.stderr,
+            )
+            overall_verdict = "CRITICAL_FAIL"
+            continue
 
         if verdict in ("CRITICAL_FAIL", "REJECTED", "NON_COMPLIANT"):
             overall_verdict = "CRITICAL_FAIL"
@@ -58,17 +70,33 @@ def _aggregate_verdicts(verdict_files: list[str], overall_verdict: str) -> str:
     return overall_verdict
 
 
-def _count_must_failures(must_files: list[str]) -> int:
+def _count_must_failures(must_files: list[str]) -> tuple[int, bool]:
     total_must_failures = 0
+    invalid = False
     for must_file in must_files:
+        filename = os.path.basename(must_file)
         with open(must_file, encoding="utf-8") as f:
             content = f.read().strip()
 
-        match = re.match(r"^(\d+)", content)
-        if match:
-            total_must_failures += int(match.group(1))
+        if not re.fullmatch(r"\d+", content):
+            write_log(f"ERROR: Invalid MUST-failure count {content!r} in {filename}")
+            print(
+                f"::error::Invalid MUST-failure count {content!r} in {filename}",
+                file=sys.stderr,
+            )
+            invalid = True
+            continue
+        total_must_failures += int(content)
 
-    return total_must_failures
+    return total_must_failures, invalid
+
+
+def _artifact_stems(paths: list[str], suffix: str) -> set[str]:
+    return {
+        os.path.basename(path)[: -len(suffix)]
+        for path in paths
+        if path.endswith(suffix)
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -109,7 +137,19 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         overall_verdict = "CRITICAL_FAIL"
-    total_must_failures = _count_must_failures(must_files)
+    if _artifact_stems(verdict_files, "-verdict.txt") != _artifact_stems(
+        must_files, "-must-failures.txt"
+    ):
+        write_log("ERROR: Session verdict and MUST-failure artifacts do not pair")
+        print(
+            "::error::Session verdict and MUST-failure artifacts do not pair",
+            file=sys.stderr,
+        )
+        overall_verdict = "CRITICAL_FAIL"
+
+    total_must_failures, invalid_must_count = _count_must_failures(must_files)
+    if invalid_must_count:
+        overall_verdict = "CRITICAL_FAIL"
 
     if total_must_failures > 0:
         overall_verdict = "CRITICAL_FAIL"

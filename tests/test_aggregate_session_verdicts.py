@@ -6,6 +6,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # Import the consumer script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -171,8 +173,9 @@ class TestMain:
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "PASS"
 
-    def test_must_failures_with_text_prefix(self, tmp_path, monkeypatch):
-        """Non-numeric must-failures content starts with a digit."""
+    def test_must_failures_with_text_suffix_is_critical_fail(
+        self, tmp_path, monkeypatch
+    ):
         output_file = _setup_output(tmp_path, monkeypatch)
         results_dir = tmp_path / "results"
         results_dir.mkdir()
@@ -182,7 +185,7 @@ class TestMain:
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "CRITICAL_FAIL"
-        assert outputs["must_failures"] == "2"
+        assert outputs["must_failures"] == "0"
 
     def test_non_compliant_verdict_is_critical_fail(self, tmp_path, monkeypatch):
         output_file = _setup_output(tmp_path, monkeypatch)
@@ -214,6 +217,45 @@ class TestMain:
         (results_dir / "session-2-must-failures.txt").unlink()
 
         assert _run(results_dir, expected_results=2) == 0
+
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "CRITICAL_FAIL"
+
+    @pytest.mark.parametrize("verdict", ["", "UNKNOWN", "FOOBAR"])
+    def test_invalid_verdict_is_critical_fail(
+        self, tmp_path, monkeypatch, verdict: str
+    ):
+        output_file = _setup_output(tmp_path, monkeypatch)
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _create_verdict_file(results_dir, "session-1", verdict)
+
+        assert _run(results_dir) == 0
+
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "CRITICAL_FAIL"
+
+    def test_malformed_must_count_is_critical_fail(self, tmp_path, monkeypatch):
+        output_file = _setup_output(tmp_path, monkeypatch)
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _create_verdict_file(results_dir, "session-1", "COMPLIANT")
+        _create_must_file(results_dir, "session-1", "0 trailing text")
+
+        assert _run(results_dir) == 0
+
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "CRITICAL_FAIL"
+
+    def test_disjoint_artifact_stems_are_critical_fail(self, tmp_path, monkeypatch):
+        output_file = _setup_output(tmp_path, monkeypatch)
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _create_verdict_file(results_dir, "session-1", "COMPLIANT")
+        (results_dir / "session-1-must-failures.txt").unlink()
+        _create_must_file(results_dir, "session-2", "0")
+
+        assert _run(results_dir, expected_results=1) == 0
 
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "CRITICAL_FAIL"
