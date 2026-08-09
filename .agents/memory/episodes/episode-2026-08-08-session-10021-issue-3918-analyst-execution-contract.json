@@ -65,17 +65,43 @@
       "caused_by": [
         "e004"
       ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-09T07:35:00+00:00",
+      "type": "milestone",
+      "content": "Ran the retrospective workflow after the pre-push evidence gate blocked the first push.",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-09T02:41:19+00:00",
+      "type": "commit",
+      "content": "Commit: 08966b4b7bcf70d24af8d09ca7f38b1c1a0fa05c",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e006"
+      ],
       "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
     }
   ],
   "metrics": {
-    "duration_minutes": 72,
+    "duration_minutes": 400,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 0
+    "commits": 2,
+    "files_changed": 2
   },
   "lessons": []
 }

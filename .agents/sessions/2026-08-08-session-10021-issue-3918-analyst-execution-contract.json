@@ -108,8 +108,8 @@
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
-        "Complete": false,
-        "Evidence": ""
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-08-09-issue-3918.md"
       },
       "reworkWarning": {
         "level": "SHOULD",
@@ -138,8 +138,13 @@
       "timestamp": "2026-08-08T19:07:00-07:00",
       "action": "Ran independent Claude Opus review and adversarial GPT-5.6 Sol review twice.",
       "result": "Resolved all three High findings and the Medium guard weakness. Both re-reviews reported no remaining Critical or High findings."
+    },
+    {
+      "timestamp": "2026-08-09T00:35:00-07:00",
+      "action": "Ran the retrospective workflow after the pre-push evidence gate blocked the first push.",
+      "result": "Recorded the runtime-contract learning and classified the failure as self-contained agent delegation failure."
     }
   ],
-  "endingCommit": "9b437eaf4e",
+  "endingCommit": "08966b4b7bcf70d24af8d09ca7f38b1c1a0fa05c",
   "nextSteps": []
 }
