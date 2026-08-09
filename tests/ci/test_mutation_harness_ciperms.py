@@ -190,12 +190,12 @@ class TestMainExitCodes:
             )
             for i, _ in enumerate(outcomes)
         ]
-        monkeypatch.setattr(harness, "build_mutations", lambda: mutations)
+        monkeypatch.setattr(harness, "build_mutations", lambda _root=None: mutations)
         pairs = iter(zip(mutations, outcomes, strict=True))
         monkeypatch.setattr(
             harness,
             "apply_mutation",
-            lambda _m: harness.Result(*next(pairs)),
+            lambda _m, _root=None: harness.Result(*next(pairs)),
         )
         return harness.main()
 

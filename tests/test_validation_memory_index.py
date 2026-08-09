@@ -1375,6 +1375,36 @@ class TestCheckMemoryIndexReferences:
             for issue in result.issues
         )
 
+    def test_unreferenced_generic_domain_index(self, tmp_path: Path) -> None:
+        """Completeness covers every ADR-017 {domain}-index file."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": "| Keywords | File |\n|----------|------|\n",
+            "quality-index.md": "| Keywords | File |\n|----------|------|\n",
+        })
+
+        result = check_memory_index_references(tmp_path, [], Counter())
+
+        assert result.passed is False
+        assert result.unreferenced_indices == ["quality-index"]
+
+    def test_comment_and_link_label_do_not_satisfy_completeness(
+        self, tmp_path: Path
+    ) -> None:
+        """Only an exact lookup target makes a domain index retrievable."""
+        create_memory_structure(tmp_path, {
+            "memory-index.md": (
+                "| hidden: <!-- [quality](quality-index.md) -->\n"
+                "| label: [quality-index](other.md)\n"
+            ),
+            "quality-index.md": "| Keywords | File |\n|----------|------|\n",
+            "other.md": "other",
+        })
+
+        result = check_memory_index_references(tmp_path, [], Counter())
+
+        assert result.passed is False
+        assert result.unreferenced_indices == ["quality-index"]
+
     def test_broken_reference(self, tmp_path: Path) -> None:
         create_memory_structure(tmp_path, {
             "memory-index.md": (

@@ -917,18 +917,24 @@ def check_memory_index_references(
         if canonical_identity is not None:
             linked_canonical_refs.add(canonical_identity)
 
-    for index in domain_indices:
+    domain_index_names = {index.name for index in domain_indices}
+    domain_index_names.update(
+        path.stem
+        for path in memory_path.glob("*-index.md")
+        if path.name != "memory-index.md"
+    )
+    for index_name in sorted(domain_index_names):
         canonical_index, _, _ = _resolve_memory_reference(
             memory_path,
             resolved_memory,
-            index.name,
+            index_name,
         )
         if canonical_index not in linked_canonical_refs:
             result.passed = False
-            result.unreferenced_indices.append(index.name)
+            result.unreferenced_indices.append(index_name)
             result.issues.append(
                 f"P1 COMPLETENESS: Domain index not referenced "
-                f"in memory-index: {index.name}"
+                f"in memory-index: {index_name}"
             )
 
     reference_counts = Counter(canonical_refs)
@@ -977,37 +983,70 @@ def _memory_index_blocks(result: MemoryIndexRefResult) -> bool:
 def find_orphaned_files(
     all_indices: list[DomainIndex], memory_path: Path
 ) -> list[Orphan]:
-    """Find atomic skill files not referenced by any domain index.
-
-    Detects:
-    1. Files matching domain prefix pattern not in any index
-    2. Files with deprecated 'skill-' prefix (ADR-017 Gap 4)
-    """
-    orphans: list[Orphan] = []
+    """Find atomic memories not referenced by the root or a domain index."""
     referenced_files: set[str] = set()
+    owner_counts: dict[str, dict[str, int]] = {}
 
-    # Collect all referenced files from all indices
-    for index in all_indices:
-        entries = parse_index_entries(index.path)
-        for entry in entries:
-            referenced_files.add(entry.file_name)
+    index_paths = [
+        path
+        for path in memory_path.glob("*-index.md")
+        if path.name != "memory-index.md"
+    ]
+    root_index = memory_path / "memory-index.md"
+    if root_index.exists():
+        index_paths.append(root_index)
 
-    # Check for orphaned files
-    for f in sorted(memory_path.glob("*.md")):
-        base_name = f.stem
+    resolved_root = memory_path.resolve()
+    for index_path in index_paths:
+        content = index_path.read_text(encoding="utf-8")
+        reference_names, _, issues = _extract_memory_reference_names(content)
+        if issues:
+            continue
+        index_references: set[str] = set()
+        for reference in reference_names:
+            canonical, _, invalid_reason = _resolve_memory_reference(
+                memory_path,
+                resolved_root,
+                reference,
+            )
+            if invalid_reason:
+                continue
+            referenced_name = f"{canonical}.md"
+            referenced_files.add(referenced_name)
+            index_references.add(referenced_name)
 
-        # Skip index files and memory-index
-        if base_name.endswith("-index") or base_name == "memory-index":
+        if index_path == root_index:
+            continue
+        for reference in index_references:
+            reference_path = Path(reference)
+            domain = _memory_domain(reference_path)
+            domain_counts = owner_counts.setdefault(domain, {})
+            domain_counts[index_path.name] = (
+                domain_counts.get(index_path.name, 0) + 1
+            )
+
+    orphans: list[Orphan] = []
+    for file_path in sorted(memory_path.rglob("*.md")):
+        relative_path = file_path.relative_to(memory_path)
+        if any(part.startswith(".") for part in relative_path.parts):
+            continue
+        if file_path.name in _SPECIAL_MEMORY_FILENAMES:
+            continue
+        if (
+            len(relative_path.parts) == 1
+            and _DOMAIN_INDEX_FILENAME_PATTERN.match(file_path.name)
+        ):
             continue
 
-        # ADR-017 Gap 4: deprecated skill- prefix
-        if (
-            base_name.startswith("skill-")
-            and base_name not in referenced_files
-        ):
+        relative_name = relative_path.as_posix()
+        if relative_name in referenced_files:
+            continue
+
+        file_name = relative_path.with_suffix("").as_posix()
+        if file_path.stem.startswith("skill-"):
             orphans.append(
                 Orphan(
-                    file=base_name,
+                    file=file_name,
                     domain="INVALID",
                     expected_index=(
                         "Rename to {domain}-{description} "
@@ -1017,14 +1056,10 @@ def find_orphaned_files(
             )
             continue
 
-        # Invalid skills-* files (not proper index files)
-        if (
-            base_name.startswith("skills-")
-            and not base_name.endswith("-index")
-        ):
+        if file_path.stem.startswith("skills-"):
             orphans.append(
                 Orphan(
-                    file=base_name,
+                    file=file_name,
                     domain="INVALID",
                     expected_index=(
                         "Rename to {domain}-{description}-index format "
@@ -1034,20 +1069,23 @@ def find_orphaned_files(
             )
             continue
 
-        # Check if file follows atomic naming pattern (domain prefix)
-        for index in all_indices:
-            if (
-                base_name.startswith(f"{index.domain}-")
-                and base_name not in referenced_files
-            ):
-                orphans.append(
-                    Orphan(
-                        file=base_name,
-                        domain=index.domain,
-                        expected_index=f"skills-{index.domain}-index",
-                    )
-                )
-                break
+        domain = _memory_domain(relative_path)
+        domain_counts = owner_counts.get(domain, {})
+        expected_index = (
+            min(
+                domain_counts,
+                key=lambda name: (-domain_counts[name], name),
+            )
+            if domain_counts
+            else "a domain index referenced by memory-index.md"
+        )
+        orphans.append(
+            Orphan(
+                file=file_name,
+                domain=domain,
+                expected_index=expected_index,
+            )
+        )
 
     return orphans
 

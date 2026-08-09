@@ -1,0 +1,133 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10009,
+    "date": "2026-08-07",
+    "branch": "docs/pr4402-scope-bypass-retro",
+    "startingCommit": "4bd789086",
+    "objective": "Record the PR 4402 scope-check bypass failure without duplicating existing governance"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project context was active for the repository."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Repository Serena and AGENTS instructions were loaded."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md and preserved it unchanged."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded retrospective and GitHub skill instructions."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used GitHub skill scripts for PR operations."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md and path-scoped retrospective rules."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read decision-claude-hook-group-dispatch.md and searched existing bypass guidance."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs/pr4402-scope-bypass-retro"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work occurred in an isolated feature worktree."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree started clean from current origin/main."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "4bd789086"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Required artifact, review, and pre-commit validation steps completed. endingCommit is recorded in the required follow-up commit."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md was not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No memory added because deduplication found existing rule and memory coverage."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Scoped markdownlint selected zero files because .agents is excluded by repository configuration; command exited 0."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Retrospective, session log, and generated episode committed at eae23dc22."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py passed before commit with endingCommit intentionally empty."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Todos recover-pr4402, retro-scope-bypass-4402, and review-pr4402-merges are complete."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Ran the retrospective skill Phase 0 through Phase 5 workflow."
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: initial agent draft was incomplete and its duplicate memory was quarantined."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-08-07T21:45:00Z",
+      "entry": "Collected the implementer report that SKIP_SCOPE_CHECK=1 was used twice, the output commits 99e7b9004 and 32eb818dd, closed PR state, and explicit no-bypass constraint. The raw command transcript was not retained."
+    },
+    {
+      "time": "2026-08-07T21:50:00Z",
+      "entry": "Classified the failure as FM-3, ran Five Whys and fishbone analysis, and rejected a duplicate memory after finding existing rule coverage."
+    }
+  ],
+  "endingCommit": "eae23dc22",
+  "nextSteps": []
+}
