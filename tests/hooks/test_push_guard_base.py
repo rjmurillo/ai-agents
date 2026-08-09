@@ -1041,6 +1041,7 @@ class TestFailClosed:
         "command",
         [
             "git push origin HEAD",
+            "git push origin main",
             "git push origin feature:main",
             "git push --all",
             "git push --mirror",
@@ -1055,7 +1056,13 @@ class TestFailClosed:
     ) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO(_stdin_payload(command)))
 
-        with patch("push_guard_base.subprocess.run") as run:
+        responses = _strict_push_responses()
+        calls: list[list[str]] = []
+
+        with patch(
+            "push_guard_base.subprocess.run",
+            side_effect=_git_dispatch(responses, calls),
+        ):
             rc = run_guard(
                 _always_violates,
                 ["*.md"],
@@ -1065,7 +1072,7 @@ class TestFailClosed:
 
         assert rc == 2
         assert "unsupported arguments" in capsys.readouterr().out
-        run.assert_not_called()
+        assert not any(call[:2] == ["git", "diff"] for call in calls)
 
     @pytest.mark.parametrize(
         "command",
@@ -1152,6 +1159,44 @@ class TestFailClosed:
 
         assert rc == 2
         assert expected_fragment in capsys.readouterr().out
+
+    @pytest.mark.parametrize("command", ["git push origin feature", "git push origin HEAD:feature"])
+    def test_configured_explicit_push_target_reaches_diff(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        command: str,
+    ) -> None:
+        monkeypatch.setattr("sys.stdin", io.StringIO(_stdin_payload(command)))
+        calls: list[list[str]] = []
+        responses = _strict_push_responses()
+        responses[
+            (
+                "git",
+                "diff",
+                "--name-only",
+                "--diff-filter=ACMR",
+                "@{push}..HEAD",
+            )
+        ] = _ok_diff("docs/a.md\n")
+
+        with patch(
+            "push_guard_base._validate_strict_push_configuration",
+            wraps=STRICT_PUSH_CONFIG,
+        ), patch(
+            "push_guard_base.subprocess.run",
+            side_effect=_git_dispatch(responses, calls),
+        ), patch("push_guard_base.get_project_directory", return_value=str(tmp_path)):
+            rc = run_guard(
+                _no_violations,
+                ["*.md"],
+                "test-guard",
+                fail_closed=True,
+            )
+
+        assert rc == 0
+        assert any(call[:2] == ["git", "diff"] for call in calls)
+
 
     def test_safe_bare_push_configuration_reaches_diff(
         self,

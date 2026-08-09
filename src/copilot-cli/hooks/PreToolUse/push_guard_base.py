@@ -287,7 +287,7 @@ def _filter_by_globs(paths: list[str], globs: list[str]) -> list[str]:
     return matched
 
 
-def _validate_strict_push_command(command: str) -> None:
+def _validate_strict_push_command(command: str, cwd: str) -> None:
     """Reject push forms whose outgoing commit set cannot be determined safely."""
     if _SHELL_EXPANSION_RE.search(command):
         raise _HookInputError(
@@ -301,17 +301,24 @@ def _validate_strict_push_command(command: str) -> None:
     if len(tokens) < 2 or tokens[:2] != ["git", "push"]:
         raise _HookInputError("command is not a direct git push")
 
-    unsupported = [
+    arguments = [
         token
         for token in tokens[2:]
         if token not in _SAFE_PUSH_OPTIONS
     ]
-    if unsupported:
-        rendered = " ".join(unsupported)
-        raise _HookInputError(
-            "strict push guards require the configured push target; "
-            f"unsupported arguments: {rendered}. Use git push."
-        )
+    if not arguments:
+        return
+
+    remote, branch = _strict_push_target(cwd)
+    allowed_targets = ([remote, branch], [remote, f"HEAD:{branch}"])
+    if arguments in allowed_targets:
+        return
+
+    rendered = " ".join(arguments)
+    raise _HookInputError(
+        "strict push guards require the configured push target; "
+        f"unsupported arguments: {rendered}. Use git push."
+    )
 
 
 def _git_config_values(cwd: str, key: str) -> list[str]:
@@ -356,8 +363,8 @@ def _strict_push_remote(cwd: str, branch: str) -> str:
     raise _HookInputError("bare git push has no unambiguous push remote")
 
 
-def _validate_strict_push_configuration(cwd: str) -> None:
-    """Require a current-branch-only bare push configuration."""
+def _strict_push_target(cwd: str) -> tuple[str, str]:
+    """Return the configured push remote and current branch."""
     rc, branch = _run_git_diff(["git", "branch", "--show-current"], cwd=cwd)
     branch = branch.strip()
     if rc != 0 or not branch:
@@ -371,7 +378,12 @@ def _validate_strict_push_configuration(cwd: str) -> None:
             f"found {push_default}"
         )
 
-    remote = _strict_push_remote(cwd, branch)
+    return _strict_push_remote(cwd, branch), branch
+
+
+def _validate_strict_push_configuration(cwd: str) -> None:
+    """Require a current-branch-only bare push configuration."""
+    remote, _branch = _strict_push_target(cwd)
     if remote == ".":
         raise _HookInputError("strict push guards do not support remote '.'")
     refspecs = _git_config_values(cwd, f"remote.{remote}.push")
@@ -725,7 +737,7 @@ def run_guard(
 
         project_dir = get_project_directory()
         if fail_closed:
-            _validate_strict_push_command(command)
+            _validate_strict_push_command(command, project_dir)
             _validate_strict_push_configuration(project_dir)
         all_changed = _changed_files(
             project_dir,
