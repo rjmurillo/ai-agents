@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli.json
-qaCommit: 8d903e4a2117e2a57817ae49c91eb10afe862abd
+qaCommit: 08df33041b38e378f61df5fc7c42e50a822d75ef
 ---
 
 # AI quality gate validation

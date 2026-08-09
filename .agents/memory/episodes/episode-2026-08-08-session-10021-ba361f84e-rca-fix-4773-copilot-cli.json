@@ -86,6 +86,19 @@
         "e005",
         "e006"
       ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-09T07:26:20+00:00",
+      "type": "commit",
+      "content": "Commit: 08df33041b38e378f61df5fc7c42e50a822d75ef",
+      "caused_by": [
+        "e007"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
     }
@@ -95,8 +108,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 14
+    "commits": 2,
+    "files_changed": 18
   },
   "lessons": []
 }

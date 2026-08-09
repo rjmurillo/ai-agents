@@ -149,7 +149,7 @@
       "result": "Tracked session-init UTC date drift, cross-harness memory import failure, and missing git tools in security review."
     }
   ],
-  "endingCommit": "8d903e4a21",
+  "endingCommit": "08df33041b38e378f61df5fc7c42e50a822d75ef",
   "nextSteps": [
     "Rotate or re-authorize COPILOT_GITHUB_TOKEN and verify issue #3275.",
     "Fix preflight behavior in issue #4778 so unavailable authentication skips work but still emits blocking artifacts."
