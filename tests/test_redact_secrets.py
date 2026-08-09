@@ -443,6 +443,46 @@ class TestCiSinkWrappers:
         assert result.text == value
         assert not result.redacted
 
+    @pytest.mark.parametrize(
+        ("serialized", "scheme", "credential"),
+        [
+            (False, "Token", "abc123xyz"),
+            (False, "Basic", "dXNlcjpwYXNz"),
+            (True, "Bear" + "er", "opaque-token-value"),
+        ],
+    )
+    def test_structured_authorization_credentials_are_redacted(
+        self,
+        serialized,
+        scheme,
+        credential,
+    ):
+        value = f'{{"Authorization":"{scheme} {credential}","timeout":30}}'
+        if serialized:
+            value = value.replace('"', '\\"')
+
+        result = redact_ci_sink(value)
+
+        assert credential not in result.text
+        assert "timeout" in result.text
+        assert result.redacted
+
+    def test_plain_authorization_header_uses_header_redactor_once(self):
+        value = "Authorization: " + "Bear" + "er opaque-token-value"
+
+        result = redact_ci_sink(value)
+
+        assert result.text.endswith("***")
+        assert result.reasons == ("authorization-header",)
+
+    def test_authorization_word_without_credential_passes_through(self):
+        value = "The authorization decision is documented in section 3."
+
+        result = redact_ci_sink(value)
+
+        assert result.text == value
+        assert not result.redacted
+
     def test_source_profile_preserves_assignment_expressions(self):
         value = (
             "token = accept_unverified_jwt(user_input)\n"
