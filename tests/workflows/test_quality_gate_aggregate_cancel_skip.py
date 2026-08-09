@@ -26,6 +26,9 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ai-pr-quality-gate.yml"
+SESSION_WORKFLOW_PATH = (
+    REPO_ROOT / ".github" / "workflows" / "ai-session-protocol.yml"
+)
 
 
 @pytest.fixture(scope="module")
@@ -42,16 +45,22 @@ def aggregate_job(workflow: dict) -> dict:
 
 
 class TestAggregateCancelSkip:
-    def test_required_aggregate_context_is_unique(self) -> None:
-        locations = []
+    def test_required_result_contexts_are_unique(self) -> None:
+        locations: dict[str, list[tuple[str, str]]] = {
+            "Aggregate Results": [],
+            "Session Protocol Results": [],
+        }
         workflows_dir = REPO_ROOT / ".github" / "workflows"
         for path in sorted(workflows_dir.glob("*.y*ml")):
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
             for job_id, job in (data.get("jobs") or {}).items():
-                if isinstance(job, dict) and job.get("name") == "Aggregate Results":
-                    locations.append((path.name, job_id))
+                if isinstance(job, dict) and job.get("name") in locations:
+                    locations[job["name"]].append((path.name, job_id))
 
-        assert locations == [("ai-pr-quality-gate.yml", "aggregate")]
+        assert locations == {
+            "Aggregate Results": [("ai-pr-quality-gate.yml", "aggregate")],
+            "Session Protocol Results": [("ai-session-protocol.yml", "aggregate")],
+        }
 
     def test_aggregate_job_gate_skips_on_cancellation(self, aggregate_job: dict) -> None:
         """The aggregate job must skip when the workflow is being cancelled.
@@ -72,6 +81,14 @@ class TestAggregateCancelSkip:
             "aggregate gate must guard on !cancelled() to prevent #2347 "
             f"(stale BLOCKED status from concurrency-cancelled runs): {gate!r}"
         )
+
+    def test_session_protocol_result_skips_on_cancellation(self) -> None:
+        session_workflow = yaml.safe_load(
+            SESSION_WORKFLOW_PATH.read_text(encoding="utf-8")
+        )
+        gate = session_workflow["jobs"]["aggregate"].get("if", "")
+        assert "always()" in gate
+        assert "!cancelled()" in gate or "cancelled() == false" in gate
 
     def test_concurrency_still_cancels_in_progress(self, workflow: dict) -> None:
         """Concurrency cancel-in-progress must remain enabled.

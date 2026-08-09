@@ -174,7 +174,7 @@ jobs:
     needs: [detect-changes, validate]
     # Always run to produce SUCCESS (not SKIPPED) for rulesets.
     # Step-level conditions gate the actual work.
-    if: always()
+    if: always() && !cancelled()
 
     outputs:
       final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
