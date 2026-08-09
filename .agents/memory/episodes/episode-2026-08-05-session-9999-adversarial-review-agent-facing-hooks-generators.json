@@ -126,6 +126,19 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-05-session-9999-adversarial-review-agent-facing-hooks-generators"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-09T08:46:43+00:00",
+      "type": "commit",
+      "content": "Commit: f4a14c156ba7e0ac7fed16fefacc5d1c18dfb6f0",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-05-session-9999-adversarial-review-agent-facing-hooks-generators"
     }
@@ -135,8 +148,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
-    "files_changed": 31
+    "commits": 6,
+    "files_changed": 32
   },
   "lessons": []
 }

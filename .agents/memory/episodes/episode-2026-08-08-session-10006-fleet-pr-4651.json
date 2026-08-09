@@ -156,7 +156,9 @@
       "caused_by": [
         "e010"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e015"
+      ],
       "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
     },
     {
@@ -171,15 +173,39 @@
         "e010"
       ],
       "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-09T08:55:00+00:00",
+      "type": "milestone",
+      "content": "Merged latest origin/main at f4a14c156ba7e0ac7fed16fefacc5d1c18dfb6f0, reran the QA evidence suite, and rebound the PR 4651 QA report.",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-09T08:46:43+00:00",
+      "type": "commit",
+      "content": "Commit: f4a14c156ba7e0ac7fed16fefacc5d1c18dfb6f0",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
     }
   ],
   "metrics": {
-    "duration_minutes": 962,
+    "duration_minutes": 992,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
-    "files_changed": 3
+    "commits": 5,
+    "files_changed": 6
   },
   "lessons": []
 }

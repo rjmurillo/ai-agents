@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10006-fleet-pr-4651.json
-qaCommit: 695e236276a1417b644bac563a41708b50b4057f
+qaCommit: f4a14c156ba7e0ac7fed16fefacc5d1c18dfb6f0
 ---
 
 # QA Report: PR 4651 Fail Closed Agent Machinery
 
 ## Verdict
 
-PASS. I ran the verification on commit `695e236276a1417b644bac563a41708b50b4057f` after merging `origin/main` into `fix/adversarial-review-agent-machinery` in worktree `../ai-agents-qa-4651`.
+PASS. I ran the verification on commit `f4a14c156ba7e0ac7fed16fefacc5d1c18dfb6f0` after merging `origin/main` into `fix/adversarial-review-agent-machinery` in worktree `../ai-agents-qa-4651`.
 
 ## Scope
 
@@ -29,7 +29,7 @@ Real output:
 ```text
 collected 481 items
 
-======================= 480 passed, 1 skipped in 14.09s =======================
+======================= 480 passed, 1 skipped in 13.88s =======================
 ```
 
 ### 2. CLI exit contract baseline direction
@@ -48,7 +48,7 @@ Real output:
 HEAD baseline: 27
 ```
 
-Result: tightening direction. The PR commit `09b58c12b` reduced the baseline from 29 to 28. The current QA commit tightens it again to 27 after pre-push and the remote-head merge measured the tracked count at 27.
+Result: tightening direction. The PR commit `09b58c12b` reduced the baseline from 29 to 28. The current QA commit tightens it again to 27 after pre-push, the remote-head merge, and the latest main merge measured the tracked count at 27.
 
 ### 3. Generated Copilot hook mirrors
 
