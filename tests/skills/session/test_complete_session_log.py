@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, session-end QA contract shares fixtures.
 """Tests for complete_session_log.py session completion script."""
 
 import sys

@@ -75,13 +75,7 @@ jobs:
       - name: Validate memory tier hierarchy (ADR-017)
         if: steps.should-run.outputs.skip != 'true'
         id: tier-validation
-        continue-on-error: true
-        run: python3 scripts/validate_memory_tier.py --ci
-
-      - name: Report tier validation result
-        if: steps.should-run.outputs.skip != 'true' && steps.tier-validation.outcome == 'failure'
-        run: |
-          echo "::warning::Memory tier validation found issues (non-blocking). Run 'python3 scripts/validate_memory_tier.py' locally to see details."
+        run: uv run --frozen python scripts/validate_memory_tier.py
 
       - name: Validate memory index consistency (ADR-017)
         if: steps.should-run.outputs.skip != 'true'

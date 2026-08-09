@@ -178,6 +178,46 @@ def _validate_report(repository: str, pr_number: str, report: Path) -> None:
         )
 
 
+def _write_output_or_error(name: str, value: str) -> int | None:
+    output_result = _append_output(name, value)
+    return None if output_result == 0 else output_result
+
+
+def _record_qa_report_found(qa_report: Path) -> int:
+    output_error = _write_output_or_error("qa_report_exists", "true")
+    if output_error is not None:
+        return output_error
+    output_error = _write_output_or_error("qa_report", qa_report.name)
+    if output_error is not None:
+        return output_error
+    print(f"✓ QA report found: {qa_report.name}")
+    return 0
+
+
+def _record_invalid_qa_report(exc: ValueError) -> int:
+    output_error = _write_output_or_error("qa_report_exists", "false")
+    if output_error is not None:
+        return output_error
+    print(f"::error::Invalid QA report: {exc}")
+    return LOGIC_ERROR
+
+
+def _record_no_qa_required() -> int:
+    output_error = _write_output_or_error("qa_report_exists", "N/A")
+    if output_error is not None:
+        return output_error
+    print("No code changes, QA report not required")
+    return 0
+
+
+def _record_missing_qa_report() -> int:
+    output_error = _write_output_or_error("qa_report_exists", "false")
+    if output_error is not None:
+        return output_error
+    print("::error::No QA report found for code changes")
+    return LOGIC_ERROR
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv:
         print("::error::unexpected command line arguments", file=sys.stderr)
@@ -193,37 +233,22 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXTERNAL_ERROR
     has_code_changes = _has_code_changes(changed_files)
-    output_result = _append_output("has_code_changes", str(has_code_changes))
-    if output_result != 0:
-        return output_result
+    output_error = _write_output_or_error(
+        "has_code_changes",
+        str(has_code_changes),
+    )
+    if output_error is not None:
+        return output_error
     if not has_code_changes:
-        output_result = _append_output("qa_report_exists", "N/A")
-        if output_result == 0:
-            print("No code changes, QA report not required")
-        return output_result
+        return _record_no_qa_required()
     qa_report = _find_qa_report(pr_number)
     if qa_report:
         try:
             _validate_report(repository, pr_number, qa_report)
         except ValueError as exc:
-            output_result = _append_output("qa_report_exists", "false")
-            if output_result == 0:
-                print(f"::error::Invalid QA report: {exc}")
-                return LOGIC_ERROR
-            return output_result
-        else:
-            output_result = _append_output("qa_report_exists", "true")
-            if output_result != 0:
-                return output_result
-            output_result = _append_output("qa_report", qa_report.name)
-            if output_result == 0:
-                print(f"✓ QA report found: {qa_report.name}")
-            return output_result
-    output_result = _append_output("qa_report_exists", "false")
-    if output_result == 0:
-        print("::error::No QA report found for code changes")
-        return LOGIC_ERROR
-    return output_result
+            return _record_invalid_qa_report(exc)
+        return _record_qa_report_found(qa_report)
+    return _record_missing_qa_report()
 
 
 if __name__ == "__main__":
