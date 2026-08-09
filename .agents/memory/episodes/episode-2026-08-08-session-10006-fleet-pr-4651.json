@@ -284,7 +284,9 @@
       "caused_by": [
         "e022"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e024"
+      ],
       "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
     },
     {
@@ -299,14 +301,38 @@
         "e021"
       ],
       "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-09T14:30:00+00:00",
+      "type": "milestone",
+      "content": "Merged remote commit 91cb79ec8, resolved the markdownlint companion test conflict, reran hook contract validation, and rebound QA evidence to 53babd6c2035c494320d88a795b1681dcad3cbee.",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-09T14:13:23+00:00",
+      "type": "commit",
+      "content": "Commit: 53babd6c2035c494320d88a795b1681dcad3cbee",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-08-session-10006-fleet-pr-4651"
     }
   ],
   "metrics": {
-    "duration_minutes": 1302,
+    "duration_minutes": 1327,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
+    "commits": 9,
     "files_changed": 3
   },
   "lessons": []

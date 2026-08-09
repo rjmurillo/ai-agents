@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10006-fleet-pr-4651.json
-qaCommit: 7730a57eb6f6539a97cfc91cf52c19af6792d909
+qaCommit: 53babd6c2035c494320d88a795b1681dcad3cbee
 ---
 # PR 4651 Fail Closed Agent Machinery QA Report
 
@@ -114,6 +114,32 @@ Real output:
 ```
 
 Fix commit: `7730a57eb6f6539a97cfc91cf52c19af6792d909`.
+
+
+### Post-merge validation after remote repair
+
+Remote commit `91cb79ec8` also repaired the markdownlint verifier path. I merged it, resolved the test conflict by keeping the four-file companion assertion, and reran the hook contract tests.
+
+Commands:
+
+```bash
+uv run --frozen pytest tests/build_scripts/test_generate_dispatcher.py tests/build_scripts/test_generate_hooks.py tests/test_hook_dispatch.py -q
+uv run --frozen pytest tests/build_scripts/test_copilot_dispatcher_artifact.py tests/build_scripts/test_hook_contract_knowledge.py tests/e2e/test_cli_hook_e2e.py -q
+uv run --frozen pytest tests/hooks/test_markdownlint_guard.py tests/hooks/test_markdownlint_verifier_security.py -q
+uv run --frozen python build/scripts/build_all.py
+git diff --exit-code -- src/copilot-cli/hooks .claude/hooks build/scripts/generate_hooks_events.py
+```
+
+Real output:
+
+```text
+397 passed, 1 skipped in 11.67s
+43 passed, 2 skipped in 0.40s
+33 passed in 0.99s
+build_all.py completed; git diff --exit-code produced no output and exited 0.
+```
+
+Validation commit: `53babd6c2035c494320d88a795b1681dcad3cbee`.
 
 ## Verdict
 
