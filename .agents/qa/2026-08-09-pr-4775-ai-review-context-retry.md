@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-fix-4547-ai-review-context-retry.json
-qaCommit: c48fb1cd35fe64d901ec06a6f4bfc51a1309aaf0
+qaCommit: 01f469ccbe9b4859f707647deb8d6ee9c9fd5be0
 ---
 
 # QA Report: PR #4775 AI Review Context Retry
@@ -10,8 +10,8 @@ qaCommit: c48fb1cd35fe64d901ec06a6f4bfc51a1309aaf0
 
 Validated bounded GitHub context retries, rate-limit-aware waits, permanent
 authentication rejection, infrastructure classification, deadline enforcement,
-collision-safe outputs, stale-verdict prevention, and credential redaction
-across context, model, and artifact sinks.
+collision-safe outputs, stale-verdict prevention, credential redaction
+across context, model, and artifact sinks, and separator backtracking defense.
 
 ## Results
 
@@ -20,10 +20,12 @@ across context, model, and artifact sinks.
 | Context builder tests | [PASS], 83 tests |
 | Copilot invoker tests | [PASS], 18 tests |
 | Artifact context tests | [PASS], 9 tests |
-| Shared redactor tests | [PASS], 36 tests |
+| Shared redactor tests | [PASS], 49 tests |
 | Direct-action budget and deadline tests | [PASS], 20 tests |
 | Plain-script import tests | [PASS], 294 tests |
 | Bundled redactor parity tests | [PASS], 6 tests |
+| Separator backtracking negative control | [PASS], pre-fix failed and post-fix passed |
+| False-positive redaction guards | [PASS], 2 tests |
 | Combined focused regression selection | [PASS], 466 tests |
 | ADR-006 run-block ratchet | [PASS], 0 violations |
 | Ruff | [PASS] |
@@ -50,8 +52,10 @@ Delivered: Three bounded context attempts; Retry-After and X-RateLimit-Reset;
            Composite-action deadline logic extracted into a tested Python
            helper with exact inherited-deadline input validation.
            Assignment redaction bounds quoted and unquoted scalar values,
-           preserves trailing fields, and fails closed across a twelve-case
-           raw and escaped JSON backslash matrix.
+           preserves trailing fields, fails closed across a twelve-case
+           raw and escaped JSON backslash matrix, and keeps credential
+           namespace separator alternatives disjoint from namespace characters
+           so long hyphen or underscore runs complete within the review budget.
 Gap: None.
 Result: PASS
 ```

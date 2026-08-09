@@ -80,7 +80,8 @@
         "e011",
         "e014",
         "e018",
-        "e021"
+        "e021",
+        "e027"
       ],
       "leads_to": [
         "e012"
@@ -326,6 +327,30 @@
       "caused_by": [
         "e025"
       ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved separator backtracking review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-09T13:49:31+00:00",
+      "type": "commit",
+      "content": "Commit: 01f469ccbe9b4859f707647deb8d6ee9c9fd5be0",
+      "caused_by": [
+        "e026"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
     }
@@ -335,7 +360,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 13,
+    "commits": 14,
     "files_changed": 20
   },
   "lessons": []
