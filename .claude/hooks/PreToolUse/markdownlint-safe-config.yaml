@@ -6,6 +6,11 @@
 
 config:
 
+  # Only enforce rules explicitly listed below. The shipped pure-Python
+  # verifier implements exactly this subset. Rules not listed are not
+  # enforced at push time (full linting with all defaults runs in CI).
+  default: false
+
   # ═══════════════════════════════════════════════════════════════════════════
   # PRETTIER-COMPATIBLE SETTINGS
   # These rules are disabled to avoid conflicts with Prettier formatting.

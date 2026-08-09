@@ -356,3 +356,70 @@ class TestTrustedGitResolution:
         finally:
             os.environ.pop("PYTHONPATH", None)
             os.environ.pop("PYTHONHOME", None)
+
+
+# ---------------------------------------------------------------------------
+# Policy subset boundary: rules NOT in the safe subset must NOT trigger
+# ---------------------------------------------------------------------------
+
+class TestDefaultsNotEnforced:
+    """Rules not in the explicit safe subset return 0 (not enforced).
+
+    The config sets ``default: false``; only MD004/MD024/MD025/MD033/
+    MD040/MD041/MD046 are active.  Violations of other rules (MD009,
+    MD012, MD022, etc.) must pass cleanly.
+    """
+
+    def test_md009_trailing_spaces_not_enforced(self, tmp_path: Path) -> None:
+        md = tmp_path / "trailing.md"
+        md.write_text("# Title\n\nLine with trailing spaces   \n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 0, f"MD009 unexpectedly enforced: {result.stderr}"
+
+    def test_md012_multiple_blank_lines_not_enforced(self, tmp_path: Path) -> None:
+        md = tmp_path / "blanks.md"
+        md.write_text("# Title\n\n\n\nParagraph after many blanks.\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 0, f"MD012 unexpectedly enforced: {result.stderr}"
+
+    def test_md022_blanks_around_headings_not_enforced(self, tmp_path: Path) -> None:
+        md = tmp_path / "noblank.md"
+        md.write_text("# Title\nNo blank before next heading.\n## Sub\nContent.\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 0, f"MD022 unexpectedly enforced: {result.stderr}"
+
+    def test_md010_hard_tabs_not_enforced(self, tmp_path: Path) -> None:
+        md = tmp_path / "tabs.md"
+        md.write_text("# Title\n\n\tIndented with tab.\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 0, f"MD010 unexpectedly enforced: {result.stderr}"
+
+    def test_md013_line_length_not_enforced(self, tmp_path: Path) -> None:
+        md = tmp_path / "long.md"
+        md.write_text("# Title\n\n" + "x" * 200 + "\n")
+        result = _run_verifier([str(md)])
+        assert result.returncode == 0, f"MD013 unexpectedly enforced: {result.stderr}"
+
+
+class TestGeneratedMirrorParity:
+    """The copilot-cli mirror must be byte-identical to the source."""
+
+    def test_verifier_mirrors_match(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        source = root / ".claude" / "hooks" / "PreToolUse" / "_markdownlint_verifier.py"
+        mirror = root / "src" / "copilot-cli" / "hooks" / "PreToolUse" / "_markdownlint_verifier.py"
+        assert source.read_bytes() == mirror.read_bytes(), (
+            "copilot-cli verifier mirror diverged from source"
+        )
+
+    def test_config_mirrors_match(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        source = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
+        mirror = (
+            root / "src" / "copilot-cli" / "hooks" / "PreToolUse"
+            / "markdownlint-safe-config.yaml"
+        )
+        if mirror.exists():
+            assert source.read_bytes() == mirror.read_bytes(), (
+                "copilot-cli config mirror diverged from source"
+            )
