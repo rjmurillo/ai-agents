@@ -96,9 +96,10 @@ a6c16da8d    #4329   82603   397 bytes headroom
 Each PR was measured against its own base and passed honestly. No two of them
 touch the same file. The ceiling is a sum, so the breach exists only after both
 land. At the time, `strict_required_status_checks_policy: false` on ruleset
-11104075 permitted exactly this. With strict now set to true, admission is
-serialized because the second PR must refresh against the merged result before
-it can land.
+11104075 permitted exactly this. Strict was later set to true on 2026-08-05 as
+the issue #3755 remedy, then returned to false on 2026-08-09 so Trunk Merge
+Queue could batch. The queue, not the current strict value, is now the guard that
+tests the combined result before landing.
 
 Any absolute (non-diff-relative) ceiling has this property. A ratchet that
 compares against `origin/main` does not, which is why the count ratchets caught

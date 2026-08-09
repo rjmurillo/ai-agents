@@ -1,0 +1,114 @@
+{
+  "id": "episode-2026-08-09-session-10022-memory-strict-reversal",
+  "session": "2026-08-09-session-10022-memory-strict-reversal",
+  "timestamp": "2026-08-09T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Correct strict policy memory after Trunk Merge Queue disabled strict",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Create isolated worktree",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-09-session-10022-memory-strict-reversal"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measure live strict policy",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-09-session-10022-memory-strict-reversal"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Find stale carriers",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-09-session-10022-memory-strict-reversal"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct live guidance",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-09-session-10022-memory-strict-reversal"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify Trunk workflow implications",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-09-session-10022-memory-strict-reversal"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run memory index validators",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-09-session-10022-memory-strict-reversal"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run scoped markdownlint",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-09-session-10022-memory-strict-reversal"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-09T22:51:53+00:00",
+      "type": "commit",
+      "content": "Commit: ca9de6e2f555cfc9254543595b2c21b80a8c870b",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-09-session-10022-memory-strict-reversal"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 39
+  },
+  "lessons": []
+}

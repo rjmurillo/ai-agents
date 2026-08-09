@@ -917,17 +917,14 @@ edits that usually live in different pull requests. Each is green against its
 own base, and they meet for the first time on main. That is the merge race in
 issue #3755, whose thesis was that
 `strict_required_status_checks_policy: false` let a green check describe a tree
-that no longer existed. That remedy shipped: the setting is now `true`
-(measured 2026-08-08), which is why #3755 closed on 2026-08-05. A branch behind
-main can no longer land at all, so the two edits can no longer meet for the
-first time on main.
+that no longer existed. That remedy shipped on 2026-08-05, then the setting
+returned to `false` on 2026-08-09 so Trunk Merge Queue could batch.
 
-What remains is the case strict does not cover. Ruleset 11104075 still has no
-`merge_queue` rule and no workflow handles a `merge_group` event, so admission
-is serialized only by the refresh requirement, not by testing the combined
-result before the merge. The exact-equality assertion above is therefore the
-gate that still catches a baseline and a count arriving out of step, and it
-fires locally on a tree nobody's diff touched.
+The guard is now the queue, not the strict value. Trunk tests the combined
+result before landing a queued PR, which is stronger than making each branch
+prove it is current. The exact-equality assertion above still matters for local
+work and direct merges, because it catches a baseline and a count arriving out
+of step on a tree nobody's diff touched.
 
 **Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
 actually measures, in the same commit that moves the count. Lowering a baseline
