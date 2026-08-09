@@ -24,8 +24,8 @@ tools:
   - mcp__serena__list_memories
   - mcp__serena__read_memory
   - mcp__serena__initial_instructions
-  - mcp__context7__resolve_library_id
-  - mcp__context7__get_library_docs
+  - mcp__context7__resolve-library-id
+  - mcp__context7__get-library-docs
   - mcp__deepwiki__read_wiki_structure
   - mcp__deepwiki__read_wiki_contents
 ---
