@@ -89,7 +89,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run --frozen pytest tests/test_analyst_skill_resolution.py -q collected 81 items and passed 81."
+        "Evidence": "Merged the remote PR update, then ran focused tests: 95 collected and 95 passed across analyst contract and GitHub URL routing contract tests."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -115,8 +115,12 @@
     {
       "time": "2026-08-09T05:12:00Z",
       "entry": "Added QA report for the required PR validation gate. Review threads were not touched."
+    },
+    {
+      "time": "2026-08-09T05:35:00Z",
+      "entry": "Merged remote PR update a32f86984 and reran focused tests: 95 collected, 95 passed."
     }
   ],
-  "endingCommit": "c5415bc24b62aacde4cc7c21964f42ac9b101e80",
+  "endingCommit": "43c67cd4eb9d0ca2acb57e614776db809990b4d8",
   "nextSteps": []
 }

@@ -56,7 +56,9 @@
         "e002",
         "e003"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
     },
     {
@@ -69,15 +71,51 @@
         "e001"
       ],
       "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-09T05:35:00+00:00",
+      "type": "milestone",
+      "content": "Merged remote PR update a32f86984 and reran focused tests: 95 collected, 95 passed.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-09T05:35:00+00:00",
+      "type": "test",
+      "content": "Merged remote PR update a32f86984 and reran focused tests: 95 collected, 95 passed.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-09T05:18:19+00:00",
+      "type": "commit",
+      "content": "Commit: 43c67cd4eb9d0ca2acb57e614776db809990b4d8",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006",
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-01-ci-fail-a-pr-4570"
     }
   ],
   "metrics": {
-    "duration_minutes": 7,
+    "duration_minutes": 30,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 8
+    "commits": 2,
+    "files_changed": 11
   },
   "lessons": []
 }
