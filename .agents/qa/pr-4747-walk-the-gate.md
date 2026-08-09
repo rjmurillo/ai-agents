@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10023.json
-qaCommit: f706ed51014b4c715c684bf931d9e27b00bb45fa
+qaCommit: ef2ec00094d0622a35eee198d971f929c5d5a76a
 ---
 
 # PR 4747 QA Report
@@ -24,3 +24,9 @@ PASS. Local validation passed for the PR 4747 hook policy fix.
 ## Scope
 
 Covers the PR 4747 fail-open session-log validation thread. Pre-commit now compares staged index bytes to upstream default. Pre-push now compares HEAD bytes to upstream default. Changed or absent upstream content validates instead of skipping.
+
+## Re-validation After Base Merge
+
+- Merged `origin/main` cleanly into this branch at `ef2ec00094d0622a35eee198d971f929c5d5a76a`.
+- No test command was re-run before this QA report update. The next validation step is the session JSON check for the updated binding.
+

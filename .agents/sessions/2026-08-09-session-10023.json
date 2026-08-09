@@ -144,7 +144,7 @@
       "result": "Changed-content negative controls failed against the old predicate and passed after restoring the source fix."
     }
   ],
-  "endingCommit": "f706ed51014b4c715c684bf931d9e27b00bb45fa",
+  "endingCommit": "ef2ec00094d0622a35eee198d971f929c5d5a76a",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"

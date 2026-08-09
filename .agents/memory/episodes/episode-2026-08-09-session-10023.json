@@ -99,6 +99,19 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-09-session-10023"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-09T21:19:15+00:00",
+      "type": "commit",
+      "content": "Commit: ef2ec00094d0622a35eee198d971f929c5d5a76a",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-09-session-10023"
     }
@@ -108,7 +121,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 18
   },
   "lessons": []
