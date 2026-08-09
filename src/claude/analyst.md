@@ -115,12 +115,20 @@ This agent has no shell execution, unrestricted web access, or write capability.
 It cannot run git, gh, python3, fetch arbitrary URLs, or modify any file or
 memory. Context7 and DeepWiki remain scoped read-only documentation tools.
 
-**GitHub URL routing (required)**: When a `github.com` URL is provided,
-parse the repository owner/name and PR/issue number from it. Use the
-declared GitHub read MCP tools (`mcp__github__pull_request_read`,
-`mcp__github__issue_read`, `mcp__github__list_workflow_runs`, etc.) to
-retrieve structured data directly. The analyst has no web access; do not
-attempt to fetch GitHub URLs over HTTP.
+**GitHub URL routing (required)**: When a `github.com` URL or numeric
+reference is provided, classify it and call the matching MCP tool:
+
+| URL pattern | Tool | Example |
+|-------------|------|---------|
+| `/pull/<N>` or PR #N | `mcp__github__pull_request_read` | `github.com/org/repo/pull/42` |
+| `/issues/<N>` or issue #N | `mcp__github__issue_read` | `github.com/org/repo/issues/99` |
+| `/actions/runs/<ID>` | `mcp__github__get_workflow_run` | `github.com/org/repo/actions/runs/123` |
+| `/actions/runs/<ID>/jobs/<JID>` | `mcp__github__get_job_logs` | job log retrieval |
+| `/actions` (list) | `mcp__github__list_workflow_runs` | CI overview |
+
+The analyst has no web access; do not attempt to fetch GitHub URLs over HTTP.
+If the URL does not match a declared tool's scope, return it as an open
+question rather than attempting retrieval.
 
 **Command routing (required)**: The orchestrator must run shell commands
 (git, gh, Python, tests, builds) needed for the investigation and supply
