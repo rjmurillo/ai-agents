@@ -101,6 +101,8 @@ lease_renewal_failed() {
 
 start_lease_renewal() {
     stop_lease_renewal
+    LEASE_CLEANUP_DONE=0
+    LEASE_RENEW_INTERVAL_SECONDS="${LEASE_RENEWAL_INTERVAL_SECONDS:-300}"
     LEASE_RENEW_FAILURE_FILE="$(mktemp)"
     (
         current_child=""
@@ -112,6 +114,10 @@ start_lease_renewal() {
         }
         trap stop_current_child EXIT INT TERM
         while true; do
+            sleep "$LEASE_RENEW_INTERVAL_SECONDS" &
+            current_child=$!
+            wait "$current_child" || break
+            current_child=""
             renew_lease_once >/dev/null &
             current_child=$!
             if ! wait "$current_child"; then
@@ -119,7 +125,6 @@ start_lease_renewal() {
                 break
             fi
             current_child=""
-            sleep "$LEASE_RENEW_INTERVAL_SECONDS" || break
         done
     ) &
     LEASE_RENEW_PID=$!
@@ -140,6 +145,69 @@ cleanup_pr_autofix() {
 
 release_pr_lease() {
     cleanup_pr_autofix
+}
+
+prepare_lease_for_mutation() {
+    stop_lease_renewal
+    if ! renew_lease_once; then
+        printf '%s\n' "renewal failed before mutation" > "$LEASE_RENEW_FAILURE_FILE"
+        return 1
+    fi
+    start_lease_renewal
+}
+
+run_mutation_with_lease_monitor() {
+    local mutation_pid mutation_pgid mutation_rc start_attempt stop_attempt
+    python3 -c \
+        'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+        "$@" &
+    mutation_pid=$!
+    mutation_pgid=""
+    for start_attempt in 1 2 3 4 5 6 7 8 9 10; do
+        mutation_pgid=$(ps -o pgid= -p "$mutation_pid" 2>/dev/null | tr -d ' ')
+        if [ "$mutation_pgid" = "$mutation_pid" ]; then
+            break
+        fi
+        if ! kill -0 "$mutation_pid" 2>/dev/null; then
+            break
+        fi
+        sleep 0.01
+    done
+    if [ "$mutation_pgid" != "$mutation_pid" ]; then
+        kill "$mutation_pid" 2>/dev/null || true
+        wait "$mutation_pid" 2>/dev/null || true
+        echo "Stopping mutation for #$PR: process group setup failed"
+        cleanup_pr_autofix
+        return 75
+    fi
+    while kill -0 "$mutation_pid" 2>/dev/null; do
+        if lease_renewal_failed; then
+            kill -TERM -- "-$mutation_pid" 2>/dev/null || true
+            for stop_attempt in 1 2 3 4 5 6 7 8 9 10; do
+                if ! kill -0 -- "-$mutation_pid" 2>/dev/null; then
+                    break
+                fi
+                sleep 0.05
+            done
+            kill -KILL -- "-$mutation_pid" 2>/dev/null || true
+            wait "$mutation_pid" 2>/dev/null || true
+            echo "Stopping mutation for #$PR: lease ownership lost"
+            cleanup_pr_autofix
+            return 75
+        fi
+        sleep 0.05
+    done
+    if wait "$mutation_pid"; then
+        mutation_rc=0
+    else
+        mutation_rc=$?
+    fi
+    if lease_renewal_failed; then
+        echo "Mutation completed as lease ownership was lost for #$PR"
+        cleanup_pr_autofix
+        return 75
+    fi
+    return "$mutation_rc"
 }
 # lease-renewal:end
 
@@ -183,19 +251,13 @@ run_pr_mutation_if_live() {
         cleanup_pr_autofix
         return 75
     fi
+    if ! prepare_lease_for_mutation; then
+        echo "Skipping mutation for #$PR: lease renewal failed"
+        cleanup_pr_autofix
+        return 75
+    fi
     if recheck_pr_live_state; then
-        if lease_renewal_failed; then
-            echo "Skipping mutation for #$PR: lease renewal failed"
-            cleanup_pr_autofix
-            return 75
-        fi
-        sleep 0.05
-        if lease_renewal_failed; then
-            echo "Skipping mutation for #$PR: lease renewal failed"
-            cleanup_pr_autofix
-            return 75
-        fi
-        "$@"
+        run_mutation_with_lease_monitor "$@"
         return $?
     fi
     return 75

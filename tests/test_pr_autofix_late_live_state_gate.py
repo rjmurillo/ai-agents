@@ -121,8 +121,8 @@ with Path(os.environ["LEASE_LOG"]).open("a", encoding="utf-8") as stream:
     stream.write(" ".join(sys.argv[1:]) + "\\n")
 
 if sys.argv[1] == "renew" and count > int(os.environ.get("LEASE_RENEW_FAIL_AFTER", "0")):
-    print('{"Success": true, "Data": {"action": "ACT", "reason": "lease-store-unavailable"}}')
-    raise SystemExit(3)
+    print('{"Success": true, "Data": {"action": "SKIP", "reason": "held-by:other"}}')
+    raise SystemExit(1)
 print('{"Success": true}')
 """,
         encoding="utf-8",
@@ -130,8 +130,26 @@ print('{"Success": true}')
     (scripts_dir / "mutation.py").write_text(
         """\
 import os
+import subprocess
+import sys
+import time
 from pathlib import Path
 
+child_log = os.environ.get("MUTATION_CHILD_LOG")
+if child_log:
+    subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import pathlib, sys, time; "
+                "time.sleep(0.3); "
+                "pathlib.Path(sys.argv[1]).write_text('child-ran\\\\n', encoding='utf-8')"
+            ),
+            child_log,
+        ]
+    )
+time.sleep(float(os.environ.get("MUTATION_SLEEP_SECONDS", "0")))
 Path(os.environ["MUTATION_LOG"]).write_text("ran\\n", encoding="utf-8")
 """,
         encoding="utf-8",
@@ -152,11 +170,13 @@ def _run_race(
     check_log = tmp_path / "checks"
     lease_log = tmp_path / "leases"
     mutation_log = tmp_path / "mutation"
+    mutation_child_log = tmp_path / "mutation-child"
     renew_count = tmp_path / "renew-count"
     guard_text = (REPO_ROOT / guarded_doc).read_text(encoding="utf-8")
     guard = _extract_guard(guard_text)
     renewal_sleep = "0.01" if renewal_failure else "0.05"
     renewal_fail_after = "1" if renewal_failure else "999999"
+    mutation_sleep = "0.5" if renewal_failure else "0"
 
     harness = f"""\
 set -u
@@ -177,10 +197,6 @@ printf '%s' {late_state} > "$PR_STATE_FILE"
 {guard}
 
 LEASE_RENEWAL_INTERVAL_SECONDS={renewal_sleep}
-sleep 0.08
-if [ "{'1' if renewal_failure else '0'}" = "1" ]; then
-    printf '%s\n' "simulated renewal failure" > "$LEASE_RENEW_FAILURE_FILE"
-fi
 
 if run_pr_mutation_if_live python3 "$SCRIPTS_DIR/mutation.py"; then
     printf '%s\n' mutation-ran
@@ -196,6 +212,8 @@ fi
         "MUTATION_LOG": str(mutation_log),
         "LEASE_RENEW_COUNT_FILE": str(renew_count),
         "LEASE_RENEW_FAIL_AFTER": renewal_fail_after,
+        "MUTATION_SLEEP_SECONDS": mutation_sleep,
+        "MUTATION_CHILD_LOG": str(mutation_child_log) if renewal_failure else "",
     }
     result = subprocess.run(
         ["bash", "-c", harness],
@@ -223,12 +241,15 @@ def test_renewal_starts_after_acquire_and_all_releases_stop_it(relative_path: st
 
     assert acquire < start < live_state
     assert "LEASE_RENEW_FAILURE_FILE" in renewal
+    assert "LEASE_CLEANUP_DONE=0" in renewal
     assert 'pr_autofix_lease.py" renew' in renewal
     assert 'kill "$LEASE_RENEW_PID"' in renewal
     assert 'wait "$LEASE_RENEW_PID"' in renewal
     assert "lease_renewal_failed()" in renewal
     assert "cleanup_pr_autofix()" in renewal
     assert "release_pr_lease()" in renewal
+    assert "prepare_lease_for_mutation()" in renewal
+    assert "run_mutation_with_lease_monitor()" in renewal
     assert 'pr_autofix_lease.py" release' in renewal
     assert "trap cleanup_pr_autofix EXIT" in renewal
     assert "exit 130" in renewal
@@ -313,6 +334,8 @@ def test_merged_after_review_skips_base_refresh_and_releases_lease(
     assert result.returncode == 0, result.stderr
     assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "MERGED"]
     assert not mutation_log.exists()
+    mutation_child_log = tmp_path / "mutation-child"
+    assert not mutation_child_log.exists()
     assert "mutation-skipped:75" in result.stdout
     assert "Merged head SHA: abc123def456" in result.stdout
     assert "follow-up branch from current origin/main" in result.stdout
@@ -383,4 +406,23 @@ def test_external_live_state_failure_skips_mutation_and_releases_lease(
     assert result.returncode == 0, result.stderr
     assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "ERROR"]
     assert not mutation_log.exists()
+    assert "mutation-skipped:75" in result.stdout
+
+
+def test_ownership_loss_during_mutation_stops_command(
+    tmp_path: Path,
+    guarded_doc: str,
+) -> None:
+    result, check_log, _lease_log, mutation_log = _run_race(
+        tmp_path,
+        "OPEN",
+        guarded_doc,
+        renewal_failure=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert check_log.read_text(encoding="utf-8").splitlines() == ["OPEN", "OPEN"]
+    assert not mutation_log.exists()
+    assert not (tmp_path / "mutation-child").exists()
+    assert "Stopping mutation for #4349: lease ownership lost" in result.stdout
     assert "mutation-skipped:75" in result.stdout
