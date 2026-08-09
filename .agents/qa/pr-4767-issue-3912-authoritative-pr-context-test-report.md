@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github.json
-qaCommit: b8a5c65ca6327de924405c5fdbfb0d66a6456bcf
+qaCommit: a480eef91a108dc8495f5dda7e529166ae6644a6
 ---
 # Test Report: Issue #3912 - Authoritative GitHub PR Context Metadata
 
