@@ -107,8 +107,10 @@ _AUTHORIZATION_QUOTE = r"(?:\\+[\"']|[\"'])?"
 _AUTHORIZATION_WRAPPER = re.compile(
     rf"(?i)((?<![\w-]){_AUTHORIZATION_QUOTE}authorization"
     rf"{_AUTHORIZATION_QUOTE}\s*:\s*{_AUTHORIZATION_QUOTE}"
-    r"(?:bearer|token|basic)\s+)([A-Za-z0-9._\-+/=~]+)"
+    r"(?:bearer|token|basic)\s+)"
+    r"((?:[A-Za-z0-9._\-+/=~]|\\+/|\\+u[0-9a-f]{4})+)"
 )
+_YAML_BLOCK_HEADER = re.compile(r"[|>](?:(?:[+-][1-9]?)|(?:[1-9][+-]?))?\s*(?:#.*)?")
 
 
 @dataclass(frozen=True, slots=True)
@@ -213,21 +215,25 @@ def redact_ci_sink(
     def _quote_at(position: int) -> str:
         return _quote_prefix(out[position:])
 
+    def _next_quote_candidate(position: int, quote: str) -> tuple[int, bool]:
+        closing = out.find(quote, position)
+        if closing < 0:
+            return len(out), False
+        preceding_backslashes = _preceding_backslash_count(closing)
+        escaped = (
+            bool(preceding_backslashes % 2)
+            if len(quote) == 1
+            else bool(preceding_backslashes)
+        )
+        return closing + len(quote), not escaped
+
     def _quoted_value_end(start: int, quote: str) -> int:
         position = start + len(quote)
         while position < len(out):
-            closing = out.find(quote, position)
-            if closing < 0:
-                return len(out)
-            preceding_backslashes = _preceding_backslash_count(closing)
-            if len(quote) == 1:
-                if preceding_backslashes % 2:
-                    position = closing + len(quote)
-                    continue
-            elif preceding_backslashes:
-                position = closing + len(quote)
+            tail_start, closes_value = _next_quote_candidate(position, quote)
+            if not closes_value:
+                position = tail_start
                 continue
-            tail_start = closing + len(quote)
             if _is_value_boundary(tail_start):
                 return tail_start
             position = tail_start
@@ -240,20 +246,9 @@ def redact_ci_sink(
         quote = ""
         while position < len(out):
             if quote:
-                closing = out.find(quote, position)
-                if closing < 0:
-                    return len(out)
-                preceding_backslashes = _preceding_backslash_count(closing)
-                if len(quote) == 1:
-                    if preceding_backslashes % 2:
-                        position = closing + 1
-                        continue
-                elif preceding_backslashes:
-                    position = closing + len(quote)
-                    continue
-                quote_length = len(quote)
-                quote = ""
-                position = closing + quote_length
+                position, closes_value = _next_quote_candidate(position, quote)
+                if closes_value:
+                    quote = ""
                 continue
             quote = _quote_at(position)
             if quote:
@@ -268,11 +263,43 @@ def redact_ci_sink(
             position += 1
         return len(out)
 
+    def _yaml_block_value_end(start: int) -> int | None:
+        header_end = _line_end(start)
+        if not _YAML_BLOCK_HEADER.fullmatch(out[start:header_end]):
+            return None
+        line_start = max(
+            out.rfind("\n", 0, start),
+            out.rfind("\r", 0, start),
+        ) + 1
+        assignment_line = out[line_start:start]
+        key_indent = len(assignment_line) - len(assignment_line.lstrip(" "))
+        position = header_end
+        if position < len(out) and out[position] == "\r":
+            position += 1
+        if position < len(out) and out[position] == "\n":
+            position += 1
+        while position < len(out):
+            block_line_end = _line_end(position)
+            line = out[position:block_line_end]
+            if line.strip():
+                indent = len(line) - len(line.lstrip(" "))
+                if indent <= key_indent:
+                    return position
+            position = block_line_end
+            if position < len(out) and out[position] == "\r":
+                position += 1
+            if position < len(out) and out[position] == "\n":
+                position += 1
+        return len(out)
+
     def _value_end(start: int) -> int:
         if out.startswith("[redacted:", start):
             closing = out.find("]", start)
             if closing >= 0:
                 return closing + 1
+        yaml_block_end = _yaml_block_value_end(start)
+        if yaml_block_end is not None:
+            return yaml_block_end
         if start < len(out) and out[start] in "[{(":
             return _structured_value_end(start)
         quote = _quote_at(start)
@@ -290,11 +317,18 @@ def redact_ci_sink(
         leading_length = len(value) - len(value.lstrip())
         leading = value[:leading_length]
         scalar = value[leading_length:]
+        trailing = ""
+        if scalar.endswith("\r\n"):
+            scalar = scalar[:-2]
+            trailing = "\r\n"
+        elif scalar.endswith(("\r", "\n")):
+            trailing = scalar[-1]
+            scalar = scalar[:-1]
         quote = _quote_prefix(scalar)
         if quote:
             closing = scalar.endswith(quote) and len(scalar) > len(quote)
-            return f"{prefix}{leading}{quote}***{quote if closing else ''}"
-        return f"{prefix}{leading}***"
+            return f"{prefix}{leading}{quote}***{quote if closing else ''}{trailing}"
+        return f"{prefix}{leading}***{trailing}"
 
     if redact_assignments:
         redacted_parts: list[str] = []

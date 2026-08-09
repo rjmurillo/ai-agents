@@ -1,4 +1,5 @@
 """Tests for scripts/redact_secrets.py (issue #1975, CWE-209/CWE-532)."""
+# taste-lint: ignore file-size, one adversarial redaction matrix shares serialization fixtures.
 
 from __future__ import annotations
 
@@ -176,6 +177,52 @@ class TestCiSinkWrappers:
 
         assert result.text == "Authorization: Token ***,timeout=30"
         assert result.reasons == ("authorization-header",)
+
+    @pytest.mark.parametrize("serialization_depth", range(4))
+    def test_serialized_authorization_escaped_slash_is_redacted(
+        self,
+        serialization_depth,
+    ):
+        value = '{"Authorization":"Token \\/opaqueCredentialValue123","timeout":30}'
+        for _ in range(serialization_depth):
+            value = json.dumps(value)[1:-1]
+
+        result = redact_ci_sink(value, redact_assignments=False)
+
+        assert "opaqueCredentialValue123" not in result.text
+        assert "timeout" in result.text
+        assert result.reasons == ("authorization-header",)
+
+    @pytest.mark.parametrize("indicator", ["|", "|-", "|+", ">", ">-", ">+"])
+    def test_yaml_block_credential_values_are_fully_redacted(self, indicator):
+        value = (
+            f"password: {indicator}\n"
+            "  first-secret-value\n"
+            "  second-secret-value\n"
+            "timeout: 30"
+        )
+
+        result = redact_ci_sink(value)
+
+        assert result.text == "password: ***\ntimeout: 30"
+        assert "first-secret-value" not in result.text
+        assert "second-secret-value" not in result.text
+        assert result.reasons == ("credential-assignment",)
+
+    def test_nested_yaml_block_credential_preserves_sibling_field(self):
+        value = (
+            "config:\n"
+            "  password: |\n"
+            "    first-secret-value\n"
+            "    second-secret-value\n"
+            "  timeout: 30"
+        )
+
+        result = redact_ci_sink(value)
+
+        assert result.text == "config:\n  password: ***\n  timeout: 30"
+        assert "first-secret-value" not in result.text
+        assert "second-secret-value" not in result.text
 
     @pytest.mark.parametrize(
         ("value", "expected"),
