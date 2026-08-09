@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts.validate_memory_tier import (
     ValidationResult,
     extract_file_references,
@@ -21,14 +23,30 @@ class TestExtractFileReferences:
         assert refs == ["foo/bar.md"]
 
     def test_extracts_multiple_links(self) -> None:
-        content = "[a](one.md) text [b](two/three.md)"
+        content = "| links: [a](one.md) text [b](two/three.md)"
         refs = extract_file_references(content)
         assert refs == ["one.md", "two/three.md"]
 
     def test_ignores_non_md_links(self) -> None:
-        content = "[link](page.html) [other](doc.md)"
+        content = "| links: [link](page.html) [other](doc.md)"
         refs = extract_file_references(content)
         assert refs == ["doc.md"]
+
+    @pytest.mark.parametrize(
+        "hidden_markup",
+        [
+            "<!--\n| fake: [hidden](quality/hidden.md)",
+            "```\n| fake: [hidden](quality/hidden.md)\n```",
+            "| fake: `[hidden](quality/hidden.md)`",
+            r"| fake: \[hidden](quality/hidden.md)",
+        ],
+    )
+    def test_ignores_non_route_links(self, hidden_markup: str) -> None:
+        content = f"| live: [live](live.md)\n{hidden_markup}\n"
+
+        refs = extract_file_references(content)
+
+        assert refs == ["live.md"]
 
 
 class TestValidateReferencesExist:
@@ -192,6 +210,44 @@ class TestValidateMemoryTier:
         )
         result = validate_memory_tier(tmp_path)
         assert any("not referenced in memory-index" in w for w in result.warnings)
+
+    def test_nested_index_named_atomic_remains_orphan(
+        self, tmp_path: Path
+    ) -> None:
+        """Only a top-level *-index.md file is a domain index."""
+        nested = tmp_path / "quality"
+        nested.mkdir()
+        (nested / "retry-index.md").write_text("content", encoding="utf-8")
+        (tmp_path / "memory-index.md").write_text(
+            "| Keywords | Memories |\n|----------|----------|\n",
+            encoding="utf-8",
+        )
+
+        result = validate_memory_tier(tmp_path)
+
+        assert any("quality/retry-index.md" in warning for warning in result.warnings)
+
+    def test_dot_relative_domain_reference_is_canonicalized(
+        self, tmp_path: Path
+    ) -> None:
+        """A valid ./ alias resolves to the same atomic memory path."""
+        nested = tmp_path / "quality"
+        nested.mkdir()
+        (nested / "example.md").write_text("content", encoding="utf-8")
+        (tmp_path / "quality-index.md").write_text(
+            "| Keywords | File |\n"
+            "|----------|------|\n"
+            "| example | [example](./quality/example.md) |\n",
+            encoding="utf-8",
+        )
+        (tmp_path / "memory-index.md").write_text(
+            "| quality | [index](quality-index.md) |\n",
+            encoding="utf-8",
+        )
+
+        result = validate_memory_tier(tmp_path)
+
+        assert not any("quality/example.md" in warning for warning in result.warnings)
 
 
 class TestMain:
