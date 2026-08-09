@@ -9,10 +9,12 @@ Input env vars (used as defaults for CLI args):
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
 from glob import glob
+from pathlib import Path
 
 workspace = os.environ.get(
     "GITHUB_WORKSPACE",
@@ -51,12 +53,43 @@ def build_parser() -> argparse.ArgumentParser:
         default=int(os.environ.get("EXPECTED_RESULTS", "0")),
         help="Expected number of session verdict artifacts",
     )
+    parser.add_argument(
+        "--expected-artifacts",
+        default=os.environ.get("EXPECTED_ARTIFACTS", "{}"),
+        help="JSON object mapping expected artifact stems to session paths",
+    )
     return parser
 
 
-def _aggregate_verdicts(verdict_files: list[str], overall_verdict: str) -> str:
+def _load_expected_artifacts(
+    raw: str,
+    expected_results: int,
+) -> dict[str, str] | None:
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(value, dict) or len(value) != expected_results:
+        return None
+    if not all(
+        isinstance(stem, str)
+        and stem
+        and isinstance(session, str)
+        and session
+        for stem, session in value.items()
+    ):
+        return None
+    return value
+
+
+def _aggregate_verdicts(
+    verdict_files: list[str],
+    overall_verdict: str,
+    expected_artifacts: dict[str, str],
+) -> str:
     for verdict_file in verdict_files:
         filename = os.path.basename(verdict_file)
+        stem = filename[: -len("-verdict.txt")]
         with open(verdict_file, encoding="utf-8") as f:
             verdict = f.read().strip()
 
@@ -65,6 +98,14 @@ def _aggregate_verdicts(verdict_files: list[str], overall_verdict: str) -> str:
             write_log(f"ERROR: Invalid verdict {verdict!r} in {filename}")
             print(
                 f"::error::Invalid session verdict {verdict!r} in {filename}",
+                file=sys.stderr,
+            )
+            overall_verdict = "CRITICAL_FAIL"
+            continue
+        if verdict == "SKIPPED" and Path(expected_artifacts.get(stem, "")).exists():
+            write_log(f"ERROR: SKIPPED verdict targets an existing file: {filename}")
+            print(
+                f"::error::SKIPPED session verdict targets an existing file: {filename}",
                 file=sys.stderr,
             )
             overall_verdict = "CRITICAL_FAIL"
@@ -112,12 +153,16 @@ def main(argv: list[str] | None = None) -> int:
     results_dir = os.path.abspath(args.results_dir)
     overall_verdict = "PASS"
     total_must_failures = 0
+    expected_artifacts = _load_expected_artifacts(
+        args.expected_artifacts,
+        args.expected_results,
+    )
 
     verdict_files = sorted(glob(f"{results_dir}/*-verdict.txt"))
 
-    if args.expected_results < 1:
+    if args.expected_results < 1 or expected_artifacts is None:
         write_log("ERROR: Expected result count is missing or invalid")
-        print("::error::Expected session result count is missing", file=sys.stderr)
+        print("::error::Expected session artifacts are missing or invalid", file=sys.stderr)
         overall_verdict = "CRITICAL_FAIL"
     elif len(verdict_files) != args.expected_results:
         write_log(
@@ -131,7 +176,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         overall_verdict = "CRITICAL_FAIL"
 
-    overall_verdict = _aggregate_verdicts(verdict_files, overall_verdict)
+    overall_verdict = _aggregate_verdicts(
+        verdict_files,
+        overall_verdict,
+        expected_artifacts or {},
+    )
 
     must_files = sorted(glob(f"{results_dir}/*-must-failures.txt"))
     if args.expected_results > 0 and len(must_files) != args.expected_results:
@@ -145,9 +194,10 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         overall_verdict = "CRITICAL_FAIL"
-    if _artifact_stems(verdict_files, "-verdict.txt") != _artifact_stems(
-        must_files, "-must-failures.txt"
-    ):
+    verdict_stems = _artifact_stems(verdict_files, "-verdict.txt")
+    must_stems = _artifact_stems(must_files, "-must-failures.txt")
+    expected_stems = set(expected_artifacts or {})
+    if verdict_stems != must_stems or verdict_stems != expected_stems:
         write_log("ERROR: Session verdict and MUST-failure artifacts do not pair")
         print(
             "::error::Session verdict and MUST-failure artifacts do not pair",
