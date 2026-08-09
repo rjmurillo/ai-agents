@@ -498,6 +498,7 @@ class TestCheckMemoryIndexReferences:
         completed = [
             subprocess.CompletedProcess([], 0, f"{tmp_path}\n", ""),
             subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
+            subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
             subprocess.CompletedProcess([], 0, base_content, ""),
             subprocess.CompletedProcess(
                 [],
@@ -537,6 +538,12 @@ class TestCheckMemoryIndexReferences:
             "--end-of-options",
             "origin/main^{commit}",
         ]
+        assert run_mock.call_args_list[2].args[0] == [
+            "git",
+            "merge-base",
+            "HEAD",
+            commit_id,
+        ]
         assert "GIT_DIR" not in run_mock.call_args_list[0].kwargs["env"]
         assert "GIT_INDEX_FILE" not in run_mock.call_args_list[0].kwargs["env"]
 
@@ -547,11 +554,15 @@ class TestCheckMemoryIndexReferences:
             (1, "could not resolve base ref origin/main"),
             (
                 2,
+                "could not resolve merge base between HEAD and origin/main",
+            ),
+            (
+                3,
                 "could not read .serena/memories/memory-index.md "
                 f"at base ref {'a' * 40}",
             ),
             (
-                3,
+                4,
                 "could not inspect .serena/memories at base ref "
                 f"{'a' * 40}",
             ),
@@ -568,6 +579,7 @@ class TestCheckMemoryIndexReferences:
         commit_id = "a" * 40
         successful_steps = [
             subprocess.CompletedProcess([], 0, f"{tmp_path}\n", ""),
+            subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
             subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
             subprocess.CompletedProcess([], 0, "", ""),
             subprocess.CompletedProcess([], 0, "", ""),
@@ -600,6 +612,7 @@ class TestCheckMemoryIndexReferences:
         completed = [
             subprocess.CompletedProcess([], 0, f"{tmp_path}\n", ""),
             subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
+            subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
             subprocess.CompletedProcess([], 0, "", ""),
             subprocess.CompletedProcess([], 0, "malformed\0", ""),
         ]
@@ -616,6 +629,65 @@ class TestCheckMemoryIndexReferences:
         assert counts is None
         assert error == "could not parse base-ref tree output"
 
+    def test_base_counts_come_from_merge_base_not_base_tip(
+        self, tmp_path: Path
+    ) -> None:
+        repo = tmp_path / "repo"
+        memory_path = repo / ".serena" / "memories"
+        memory_path.mkdir(parents=True)
+
+        def git(*args: str) -> None:
+            subprocess.run(
+                ["git", *args],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+
+        def write_index(link_count: int) -> None:
+            rows = "".join(
+                f"| keywords {index}: [entry {index}](shared.md)\n"
+                for index in range(link_count)
+            )
+            (memory_path / "memory-index.md").write_text(rows)
+            (memory_path / "shared.md").write_text("content")
+
+        subprocess.run(
+            ["git", "init", "-b", "main", str(repo)],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+        git("config", "user.email", "test@example.com")
+        git("config", "user.name", "Test User")
+        write_index(1)
+        git("add", ".")
+        git("commit", "-m", "base")
+        git("checkout", "-b", "feature")
+        git("checkout", "main")
+        write_index(2)
+        git("add", ".")
+        git("commit", "-m", "main duplicate")
+        git("checkout", "feature")
+        write_index(2)
+        git("add", ".")
+        git("commit", "-m", "feature duplicate")
+
+        counts, error = _load_base_reference_counts(memory_path, "main")
+
+        assert error is None
+        assert counts == Counter({"shared": 1})
+        result = check_memory_index_references(
+            memory_path,
+            [],
+            counts,
+        )
+        assert result.passed is False
+        assert result.duplicate_references == ["shared"]
+
     def test_symbolic_link_in_base_tree_fails_closed(
         self, tmp_path: Path
     ) -> None:
@@ -625,6 +697,7 @@ class TestCheckMemoryIndexReferences:
         base_content = "| keywords: [entry](shared.md)\n"
         completed = [
             subprocess.CompletedProcess([], 0, f"{tmp_path}\n", ""),
+            subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
             subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
             subprocess.CompletedProcess([], 0, base_content, ""),
             subprocess.CompletedProcess(
@@ -663,6 +736,7 @@ class TestCheckMemoryIndexReferences:
         completed = [
             subprocess.CompletedProcess([], 0, f"{tmp_path}\n", ""),
             subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
+            subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
             subprocess.CompletedProcess([], 0, base_content, ""),
             subprocess.CompletedProcess(
                 [],
@@ -699,6 +773,7 @@ class TestCheckMemoryIndexReferences:
         base_content = "| keywords: [entry](alias/../shared.md)\n"
         completed = [
             subprocess.CompletedProcess([], 0, f"{tmp_path}\n", ""),
+            subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
             subprocess.CompletedProcess([], 0, f"{commit_id}\n", ""),
             subprocess.CompletedProcess([], 0, base_content, ""),
             subprocess.CompletedProcess(

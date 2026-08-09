@@ -478,6 +478,27 @@ def _load_base_reference_counts(
         if not re.fullmatch(r"[0-9a-fA-F]{40,64}", base_commit):
             return None, f"base ref {base_ref} was not one commit ID"
 
+        merge_base_result = subprocess.run(
+            ["git", "merge-base", "HEAD", base_commit],
+            cwd=repo_root,
+            env=git_env,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            check=False,
+        )
+        if merge_base_result.returncode != 0:
+            return None, (
+                f"could not resolve merge base between HEAD and {base_ref}"
+            )
+        base_commit = merge_base_result.stdout.strip()
+        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", base_commit):
+            return None, (
+                f"merge base between HEAD and {base_ref} "
+                "was not one commit ID"
+            )
+
         show_result = subprocess.run(
             ["git", "show", f"{base_commit}:{relative_index}"],
             cwd=repo_root,
