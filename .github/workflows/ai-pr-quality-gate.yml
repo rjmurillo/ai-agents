@@ -534,14 +534,14 @@ jobs:
           bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
 # ==============================================================================
-# Aggregate Results from All Agent Reviews
+# AI Quality Gate Results from All Agent Reviews
 # ==============================================================================
 #
 # Depends on all ten agent review jobs explicitly (not matrix).
 # Downloads artifacts using pattern `review-*` to gather all agent verdicts.
 
   aggregate:
-    name: Aggregate Results
+    name: AI Quality Gate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: [check-changes, infra-check, run-tests, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review, reliability-review, observability-review, agent-safety-review, decision-rigor-review]
@@ -549,7 +549,7 @@ jobs:
     # EXCEPT when the workflow itself is being cancelled (e.g. by concurrency).
     # Issue #2347: when concurrency cancels a run, upstream review jobs end
     # `cancelled` -> artifacts missing -> check_critical_failures exits 1 ->
-    # PR head receives `Aggregate Results: failure`. If the superseding run
+    # PR head receives `AI Quality Gate Results: failure`. If the superseding run
     # also gets cancelled before finishing, the stale failure persists and
     # blocks merge until a no-op commit refreshes the head SHA. Skipping the
     # aggregate when the workflow is cancelled prevents the stale failure;

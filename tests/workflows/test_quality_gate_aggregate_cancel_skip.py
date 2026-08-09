@@ -4,7 +4,7 @@ When the ``AI PR Quality Gate`` workflow gets cancelled by concurrency
 (``cancel-in-progress: true``), the upstream review jobs end with
 ``cancelled``. If the ``aggregate`` job runs anyway (``if: always()``),
 its ``check_critical_failures`` step exits 1 because some verdicts are
-missing, and GitHub records ``Aggregate Results: failure`` against the
+missing, and GitHub records ``AI Quality Gate Results: failure`` against the
 PR head SHA. If the superseding run is itself cancelled before it
 completes, that stale failure persists and leaves the PR
 ``mergeStateStatus=BLOCKED`` until a no-op commit refreshes the SHA.
@@ -47,7 +47,7 @@ def aggregate_job(workflow: dict) -> dict:
 class TestAggregateCancelSkip:
     def test_required_result_contexts_are_unique(self) -> None:
         locations: dict[str, list[tuple[str, str]]] = {
-            "Aggregate Results": [],
+            "AI Quality Gate Results": [],
             "Session Protocol Results": [],
         }
         workflows_dir = REPO_ROOT / ".github" / "workflows"
@@ -58,7 +58,7 @@ class TestAggregateCancelSkip:
                     locations[job["name"]].append((path.name, job_id))
 
         assert locations == {
-            "Aggregate Results": [("ai-pr-quality-gate.yml", "aggregate")],
+            "AI Quality Gate Results": [("ai-pr-quality-gate.yml", "aggregate")],
             "Session Protocol Results": [("ai-session-protocol.yml", "aggregate")],
         }
 
@@ -67,7 +67,7 @@ class TestAggregateCancelSkip:
 
         Without ``!cancelled()`` a concurrency-cancelled run would still
         evaluate the aggregate step, find missing verdict artifacts, and
-        post ``Aggregate Results: failure`` to the PR head SHA -- which
+        post ``AI Quality Gate Results: failure`` to the PR head SHA -- which
         is the #2347 stale-blocked bug.
         """
         gate = aggregate_job.get("if", "")
