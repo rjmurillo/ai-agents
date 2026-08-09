@@ -1,5 +1,4 @@
 """Tests for scripts/redact_secrets.py (issue #1975, CWE-209/CWE-532)."""
-# ruff: noqa: E501 - synthetic credential fixtures must remain literal.
 
 from __future__ import annotations
 
@@ -35,7 +34,13 @@ class TestTokenShapesRedacted:
         assert "AKIAIOSFODNN7EXAMPLE" not in r.text
 
     def test_jwt(self):
-        jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+        jwt = ".".join(
+            (
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+                "eyJzdWIiOiIxMjM0NTY3ODkwIn0",
+                "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
+            )
+        )
         r = redact(f"jwt={jwt}")
         assert "[redacted: jwt]" in r.text
         assert jwt not in r.text
