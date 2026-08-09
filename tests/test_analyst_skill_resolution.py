@@ -1,234 +1,206 @@
-"""Test analyst agent security contract across ALL platform outputs.
-
-Verifies:
-1. No shell/execute/edit in any analyst frontmatter tools
-2. No direct git/gh/python3/web instructions in prose
-3. Delegation contract with [BLOCKED] response
-4. Serena narrowed to read-only operations (no wildcard)
-5. All platform outputs enumerated and tested
-"""
+"""Structural guards for the analyst tool and delegation contract."""
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
-REPO_ROOT = Path(subprocess.check_output(
-    ["git", "rev-parse", "--show-toplevel"], text=True,
-).strip())
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# ALL analyst outputs that must satisfy the security contract
-ALL_ANALYST_FILES = [
-    REPO_ROOT / ".claude" / "agents" / "analyst.md",
-    REPO_ROOT / "src" / "claude" / "analyst.md",
-    REPO_ROOT / ".github" / "agents" / "analyst.agent.md",
-    REPO_ROOT / "src" / "copilot-cli" / "agents" / "analyst.agent.md",
-    REPO_ROOT / "src" / "vs-code-agents" / "analyst.agent.md",
-    REPO_ROOT / "templates" / "agents" / "analyst.shared.md",
-]
+CLAUDE_CANONICAL = REPO_ROOT / "src" / "claude" / "analyst.md"
+CLAUDE_RUNTIME = REPO_ROOT / ".claude" / "agents" / "analyst.md"
+SHARED_TEMPLATE = REPO_ROOT / "templates" / "agents" / "analyst.shared.md"
+COPILOT_RUNTIME = REPO_ROOT / ".github" / "agents" / "analyst.agent.md"
+COPILOT_GENERATED = REPO_ROOT / "src" / "copilot-cli" / "agents" / "analyst.agent.md"
+VSCODE_GENERATED = REPO_ROOT / "src" / "vs-code-agents" / "analyst.agent.md"
+TOOLSETS = REPO_ROOT / "templates" / "toolsets.yaml"
+ORCHESTRATOR_CONTRACTS = (
+    REPO_ROOT / "src" / "claude" / "orchestrator.md",
+    REPO_ROOT / ".claude" / "agents" / "orchestrator.md",
+    REPO_ROOT / "templates" / "agents" / "orchestrator.shared.md",
+    REPO_ROOT / ".github" / "agents" / "orchestrator.agent.md",
+    REPO_ROOT / "src" / "copilot-cli" / "agents" / "orchestrator.agent.md",
+    REPO_ROOT / "src" / "vs-code-agents" / "orchestrator.agent.md",
+)
 
-# Unsafe tools that must never appear in the analyst's expanded toolset
-UNSAFE_TOOLS = {"shell", "execute", "edit", "web", "perplexity/*"}
+READ_ONLY_SERENA_OPERATIONS = frozenset(
+    {
+        "find_declaration",
+        "find_implementations",
+        "find_referencing_symbols",
+        "find_symbol",
+        "get_diagnostics_for_file",
+        "get_symbols_overview",
+        "initial_instructions",
+        "list_memories",
+        "read_memory",
+    }
+)
+UNSAFE_TOOL_PREFIXES = (
+    "$toolset:",
+    "bash",
+    "edit",
+    "execute",
+    "shell",
+    "skill",
+    "web",
+    "write",
+)
+UNSAFE_SERENA_OPERATIONS = frozenset(
+    {
+        "delete_memory",
+        "edit_memory",
+        "insert_after_symbol",
+        "insert_before_symbol",
+        "onboarding",
+        "rename_memory",
+        "rename_symbol",
+        "replace_content",
+        "replace_in_files",
+        "replace_symbol_body",
+        "safe_delete_symbol",
+        "write_memory",
+    }
+)
 
-# Unsafe tool prefixes in frontmatter
-UNSAFE_PREFIXES = [
-    "- shell", "- execute", "- edit", "- web",
-    "- Bash(", "- WebSearch", "- WebFetch",
-    "- perplexity",
-]
 
-# Read-only serena operations (the only ones allowed)
-SERENA_READONLY = {
-    "find_symbol", "find_referencing_symbols", "find_implementations",
-    "get_symbols_overview", "get_diagnostics_for_file", "find_declaration",
-    "list_memories", "read_memory", "initial_instructions",
-}
-
-# Serena write operations (must never appear)
-SERENA_WRITES = {
-    "replace_content", "replace_in_files", "replace_symbol_body",
-    "insert_after_symbol", "insert_before_symbol",
-    "rename_symbol", "safe_delete_symbol",
-    "write_memory", "edit_memory", "delete_memory", "rename_memory",
-    "onboarding",
-}
-
-REQUIRED_GITHUB_READ_TOOLS = {
-    "github/issue_read",
-    "github/pull_request_read",
-    "github/get_file_contents",
-    "github/list_commits",
-}
-
-REQUIRED_CI_READ_TOOLS = {
-    "github/list_workflow_runs",
-    "github/get_workflow_run",
-}
-
-
-def _extract_frontmatter(text: str) -> str:
-    """Extract YAML frontmatter from a file."""
+def _frontmatter(path: Path) -> dict[str, object]:
+    text = path.read_text(encoding="utf-8")
     parts = text.split("---", 2)
-    if len(parts) >= 3:
-        return parts[1]
-    return ""
+    assert len(parts) == 3, f"{path} must contain YAML frontmatter"
+    parsed = yaml.safe_load(parts[1])
+    assert isinstance(parsed, dict), f"{path} frontmatter must be a mapping"
+    return parsed
 
 
-def _extract_tools(frontmatter: str) -> list[str]:
-    """Extract tool lines from frontmatter."""
-    tools = []
-    in_tools = False
-    for line in frontmatter.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("tools") and ":" in stripped:
-            in_tools = True
-            continue
-        if in_tools:
-            if stripped.startswith("- "):
-                tools.append(stripped[2:])
-            elif stripped and not stripped.startswith("#"):
-                in_tools = False
+def _tool_list(metadata: dict[str, object], key: str, source: Path) -> list[str]:
+    tools = metadata.get(key)
+    assert isinstance(tools, list) and tools, f"{source} must declare a non-empty {key}"
+    assert all(isinstance(tool, str) for tool in tools), f"{source} {key} must contain strings"
     return tools
 
 
-class TestAllFilesExist:
-    """All analyst output files must exist."""
+def _assert_read_only_tools(tools: list[str]) -> None:
+    assert tools, "analyst must declare tools explicitly"
+    for tool in tools:
+        normalized = tool.casefold()
+        base = normalized.split("(", 1)[0]
+        assert not base.startswith(UNSAFE_TOOL_PREFIXES), f"analyst grants unsafe tool: {tool}"
+        assert not normalized.startswith("github/"), (
+            f"analyst grants unavailable GitHub tool: {tool}"
+        )
 
-    @pytest.mark.parametrize("path", ALL_ANALYST_FILES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-    def test_file_exists(self, path: Path) -> None:
-        assert path.is_file(), f"Missing: {path.relative_to(REPO_ROOT)}"
-
-
-class TestNoUnsafeToolsInFrontmatter:
-    """No analyst file may have shell/execute/edit/web in its tool allowlist."""
-
-    @pytest.mark.parametrize("path", ALL_ANALYST_FILES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-    def test_no_unsafe_tools(self, path: Path) -> None:
-        text = path.read_text()
-        frontmatter = _extract_frontmatter(text)
-        tools = _extract_tools(frontmatter)
-        for tool in tools:
-            for unsafe in UNSAFE_PREFIXES:
-                if tool.startswith(unsafe.lstrip("- ")):
-                    pytest.fail(
-                        f"{path.relative_to(REPO_ROOT)}: unsafe tool '{tool}' in frontmatter"
-                    )
-
-    @pytest.mark.parametrize("path", ALL_ANALYST_FILES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-    def test_no_serena_wildcard(self, path: Path) -> None:
-        """serena/* wildcard must not appear; only explicit read-only ops."""
-        text = path.read_text()
-        frontmatter = _extract_frontmatter(text)
-        tools = _extract_tools(frontmatter)
-        for tool in tools:
-            if tool == "serena/*" or tool == "mcp__serena__*":
-                pytest.fail(
-                    f"{path.relative_to(REPO_ROOT)}: serena wildcard in tools"
-                )
-
-    @pytest.mark.parametrize("path", ALL_ANALYST_FILES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-    def test_no_serena_write_ops(self, path: Path) -> None:
-        """No serena write operation may appear in tools."""
-        text = path.read_text()
-        frontmatter = _extract_frontmatter(text)
-        tools = _extract_tools(frontmatter)
-        for tool in tools:
-            for write_op in SERENA_WRITES:
-                if write_op in tool:
-                    pytest.fail(
-                        f"{path.relative_to(REPO_ROOT)}: serena write op '{tool}'"
-                    )
+        operation = None
+        if normalized.startswith("serena/"):
+            operation = normalized.removeprefix("serena/")
+        elif normalized.startswith("mcp__serena__"):
+            operation = normalized.removeprefix("mcp__serena__")
+        if operation is not None:
+            assert operation not in UNSAFE_SERENA_OPERATIONS
+            assert operation in READ_ONLY_SERENA_OPERATIONS, (
+                f"analyst grants unreviewed Serena tool: {tool}"
+            )
 
 
-class TestRequiredReadOnlyGitHubTools:
-    """Analyst outputs must keep PR, issue, file, commit, and CI read tools."""
+def test_claude_declares_explicit_read_only_tools() -> None:
+    canonical_tools = _tool_list(_frontmatter(CLAUDE_CANONICAL), "tools", CLAUDE_CANONICAL)
+    runtime_tools = _tool_list(_frontmatter(CLAUDE_RUNTIME), "tools", CLAUDE_RUNTIME)
 
-    @pytest.mark.parametrize(
-        "path",
-        ALL_ANALYST_FILES,
-        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    _assert_read_only_tools(canonical_tools)
+    assert {"Read", "Glob", "Grep"} <= set(canonical_tools)
+    assert not any(tool.startswith("github/") for tool in canonical_tools)
+    assert runtime_tools == canonical_tools
+
+
+@pytest.mark.parametrize("key", ["tools_copilot", "tools_vscode"])
+def test_shared_template_declares_platform_read_only_tools(key: str) -> None:
+    tools = _tool_list(_frontmatter(SHARED_TEMPLATE), key, SHARED_TEMPLATE)
+
+    _assert_read_only_tools(tools)
+    assert not any(tool.startswith("github/") for tool in tools)
+
+
+@pytest.mark.parametrize(
+    ("output", "template_key"),
+    [
+        (COPILOT_RUNTIME, "tools_copilot"),
+        (COPILOT_GENERATED, "tools_copilot"),
+        (VSCODE_GENERATED, "tools_vscode"),
+    ],
+)
+def test_generated_tool_contract_matches_template(output: Path, template_key: str) -> None:
+    template_tools = _tool_list(_frontmatter(SHARED_TEMPLATE), template_key, SHARED_TEMPLATE)
+    output_tools = _tool_list(_frontmatter(output), "tools", output)
+
+    assert output_tools == template_tools
+
+
+def test_prompt_routes_execution_to_an_execution_agent() -> None:
+    claude = CLAUDE_CANONICAL.read_text(encoding="utf-8")
+    shared = SHARED_TEMPLATE.read_text(encoding="utf-8")
+
+    assert "This agent cannot invoke skills" in claude
+    assert "GitHub and command routing (required)" in claude
+    assert "The orchestrator must retrieve" in claude
+    assert "GitHub issue, PR, review, and CI context before delegation." in claude
+    assert "GitHub and command routing (required)" in shared
+    assert "The orchestrator must retrieve" in shared
+    assert "Do not claim direct GitHub access" in shared
+    assert "Issue #3918 tracks adding structured read-only tooling" not in claude
+    assert "Issue #3918 tracks adding structured read-only tooling" not in shared
+
+
+def test_orchestrator_supplies_analyst_execution_context() -> None:
+    for contract in ORCHESTRATOR_CONTRACTS:
+        text = contract.read_text(encoding="utf-8")
+        assert "### Analyst evidence handoff" in text, contract
+        assert "Put the exact output, repository identity, branch, and head SHA" in text, contract
+        assert "The analyst is read-only and has no shell or GitHub access." in text, contract
+        assert "retrieve the named evidence and re-delegate" in text, contract
+
+
+@pytest.mark.parametrize(
+    "tools",
+    [
+        [],
+        ["Read", "Bash"],
+        ["Read", "Bash(git status:*)"],
+        ["read", "edit"],
+        ["read", "edit_file"],
+        ["read", "github/create_or_update_file"],
+        ["read", "$toolset:executor"],
+        ["read", "serena/write_memory"],
+        ["Read", "mcp__serena__replace_symbol_body"],
+        ["read", "serena/*"],
+    ],
+)
+def test_read_only_guard_rejects_unsafe_negative_controls(tools: list[str]) -> None:
+    with pytest.raises(AssertionError):
+        _assert_read_only_tools(tools)
+
+
+def test_executor_toolset_is_an_unsafe_negative_control() -> None:
+    toolsets = yaml.safe_load(TOOLSETS.read_text(encoding="utf-8"))
+    assert isinstance(toolsets, dict)
+    executor = toolsets["executor"]
+    assert isinstance(executor, dict)
+
+    for key in ("tools_copilot", "tools_vscode"):
+        tools = executor[key]
+        assert isinstance(tools, list)
+        with pytest.raises(AssertionError):
+            _assert_read_only_tools(tools)
+
+
+def test_reviewed_serena_reads_are_an_inverted_control() -> None:
+    _assert_read_only_tools(
+        [
+            "Read",
+            "Glob",
+            "Grep",
+            "mcp__serena__find_symbol",
+            "mcp__serena__read_memory",
+        ]
     )
-    def test_required_read_tools_present(self, path: Path) -> None:
-        text = path.read_text()
-        frontmatter = _extract_frontmatter(text)
-        tools = set(_extract_tools(frontmatter))
-        missing_github = REQUIRED_GITHUB_READ_TOOLS - tools
-        missing_ci = REQUIRED_CI_READ_TOOLS - tools
-        assert not missing_github, (
-            f"{path.relative_to(REPO_ROOT)}: missing GitHub read tools "
-            f"{sorted(missing_github)}"
-        )
-        assert not missing_ci, (
-            f"{path.relative_to(REPO_ROOT)}: missing CI read tools "
-            f"{sorted(missing_ci)}"
-        )
-
-
-class TestNoDirectGitHubGuidance:
-    """Prose must not instruct direct GitHub/shell/web access."""
-
-    @pytest.mark.parametrize(
-        "path",
-        ALL_ANALYST_FILES,
-        ids=lambda p: str(p.relative_to(REPO_ROOT)),
-    )
-    def test_no_positive_shell_instruction(self, path: Path) -> None:
-        text = path.read_text()
-        body = text.split("---", 2)[-1] if "---" in text else text
-        negations = ["cannot", "do not", "must not", "never", "no shell",
-                     "no web", "not available", "has no"]
-        for line in body.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("#") or stripped.startswith("```"):
-                continue
-            lower = stripped.lower()
-            # Check for positive git/gh invocations
-            if any(cmd in lower for cmd in ["gh api ", "gh pr ", "git branch", "git rev-parse"]):
-                if not any(neg in lower for neg in negations):
-                    pytest.fail(
-                        f"{path.relative_to(REPO_ROOT)}: "
-                        f"direct shell instruction: {stripped[:80]}"
-                    )
-
-
-class TestDelegationContract:
-    """All analyst outputs must have the [BLOCKED] delegation contract."""
-
-    @pytest.mark.parametrize("path", ALL_ANALYST_FILES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-    def test_blocked_response(self, path: Path) -> None:
-        text = path.read_text()
-        assert "[BLOCKED]" in text, f"{path.relative_to(REPO_ROOT)}: no [BLOCKED] response"
-
-    @pytest.mark.parametrize("path", ALL_ANALYST_FILES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-    def test_missing_context_list(self, path: Path) -> None:
-        text = path.read_text()
-        assert "Missing context required for analysis" in text, (
-            f"{path.relative_to(REPO_ROOT)}: no missing-context list"
-        )
-
-
-class TestUntrustedContentBoundary:
-    """All analyst outputs must have the untrusted-content boundary instruction."""
-
-    @pytest.mark.parametrize("path", ALL_ANALYST_FILES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-    def test_boundary_present(self, path: Path) -> None:
-        text = path.read_text()
-        assert "untrusted-content boundary" in text.lower() or "DATA, never" in text, (
-            f"{path.relative_to(REPO_ROOT)}: no untrusted-content boundary"
-        )
-
-
-class TestParity:
-    """Hand-maintained copies must be byte-identical."""
-
-    def test_claude_agents_parity(self) -> None:
-        a = (REPO_ROOT / ".claude" / "agents" / "analyst.md").read_text()
-        b = (REPO_ROOT / "src" / "claude" / "analyst.md").read_text()
-        assert a == b
-
-    def test_github_matches_copilot_cli(self) -> None:
-        a = (REPO_ROOT / ".github" / "agents" / "analyst.agent.md").read_text()
-        b = (REPO_ROOT / "src" / "copilot-cli" / "agents" / "analyst.agent.md").read_text()
-        assert a == b

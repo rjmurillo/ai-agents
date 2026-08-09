@@ -9,12 +9,6 @@ tools:
   - Read
   - Glob
   - Grep
-  - github/issue_read
-  - github/pull_request_read
-  - github/get_file_contents
-  - github/list_commits
-  - github/list_workflow_runs
-  - github/get_workflow_run
   - mcp__serena__find_symbol
   - mcp__serena__find_referencing_symbols
   - mcp__serena__find_implementations
@@ -36,7 +30,9 @@ You investigate before implementation. Surface root causes, unknowns, and depend
 
 ## Prose Self-Check
 
-Before emitting any prose artifact (investigation write-up, findings, root-cause narrative, PR or issue body), run the prose-self-check skill (`prose-self-check`). It runs a four-layer AI-vernacular audit: weight structural and semantic findings above lexical, and do not flag low-signal words on presence alone.
+Before emitting prose, check structural and semantic problems before lexical
+ones. Remove AI-default phrasing, but do not reject a useful word on presence
+alone. This agent cannot invoke skills, so apply this check directly.
 
 ## Core Behavior
 
@@ -58,7 +54,7 @@ Before publishing any claim or finding, reason step-by-step through these three 
 
 Do not publish a finding without working through all three. A finding without an evidence level is a guess and gets returned for rework.
 
-**Search before claiming (A5)**: Before stating any fact about the codebase, an external system, a library, or a service, verify via tool. Use Grep, Read, WebSearch, mcp__context7__*, or mcp__deepwiki__*. "I recall," "X probably has," and "I think" are not acceptable in published analysis. If a claim cannot be verified in this session, move it to Open Questions (step 7) or remove it. Do not downgrade to Level 4; Level 4 is not publishable.
+**Search before claiming (A5)**: Before stating any fact about the codebase, an external system, a library, or a service, verify via tool. Use Grep, Read, mcp__context7__*, or mcp__deepwiki__*. "I recall," "X probably has," and "I think" are not acceptable in published analysis. If a claim cannot be verified in this session, move it to Open Questions (step 7) or remove it. Do not downgrade to Level 4; Level 4 is not publishable.
 
 **Thinking trigger**: Findings on architecture, security boundaries, performance regressions, and root cause analyses for incidents require explicit reasoning through all three questions. Routine pattern searches and listing tasks may collapse to a one-sentence justification.
 
@@ -102,8 +98,6 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 ## Tools
 
 **Read/Grep/Glob**: code analysis (read-only)
-**WebSearch/WebFetch**: unavailable here; if a host later provides it, use it for non-GitHub URLs only
-**github-url-intercept skill** (`.claude/skills/github-url-intercept/`): GitHub URL routing
 **Context7**: library documentation lookup (read-only MCP)
 **DeepWiki**: repository documentation lookup (read-only MCP)
 **Serena (read-only)**: symbol navigation, diagnostics, memory reads
@@ -111,11 +105,10 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 This agent has no shell execution, no web access, and no write capability.
 It cannot run git, gh, python3, fetch URLs, or modify any file or memory.
 
-**GitHub URL routing (required)**: For any `github.com` URL (issues, PRs,
-code, commits), the orchestrator must supply GitHub context or route through
-the `github-url-intercept` skill before delegation. Never call `web_fetch` on GitHub URLs. Calling `web_fetch` on a GitHub URL allows the pre-tool hook to
-redirect the agent to tools outside this agent's manifest, which stalls the
-agent with no findings.
+**GitHub and command routing (required)**: The orchestrator must retrieve
+GitHub issue, PR, review, and CI context before delegation. It must also run
+commands needed for the investigation. Analyze the supplied output. Do not
+claim that you can retrieve it or suggest commands for the analyst to run.
 
 **PR identity gate (required before reporting PR findings)**: If PR metadata
 was supplied in the delegation prompt, reconcile these identities before
@@ -158,7 +151,7 @@ return immediately with a [BLOCKED] response listing exactly what is missing:
 
 Do not claim the ability to retrieve GitHub data or browse the web. Do not
 suggest shell commands. Return [BLOCKED] with the precise missing-context
-list and halt. Issue #3918 tracks adding structured read-only tooling.
+list and halt.
 
 ## Degraded Mode Protocol
 
@@ -174,7 +167,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 | Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
 | Serena read failure | Retry once; note unavailable symbol/memory in findings | Continue with reduced scope, flag in handoff |
 | MCP servers (Context7, DeepWiki) | Retry once; note unavailable docs in findings | Proceed with available information, document unverified claims |
-| GitHub/web context | Not available; return [BLOCKED] with needed context list for orchestrator | N/A (analyst has no GitHub or web access) |
+| GitHub, CI, command, or web context | Return [BLOCKED] with the precise context needed from the orchestrator | N/A |
 | Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |
 
 **Do not** silently skip steps. **Do not** retry the same tool more than twice. **Do not** halt when a documented fallback exists.

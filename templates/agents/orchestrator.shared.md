@@ -167,6 +167,22 @@ Agents return in a format you can synthesize. If an agent returns narrative pros
 
 **Skill inheritance is harness-specific.** The Claude Code incident behind this note found that workers did not inherit the skills active in the parent session; it does not establish the same behavior in other harnesses. Where a worker does not inherit, naming the skill file costs less context than pasting its body into the prompt.
 
+### Analyst evidence handoff
+
+Before delegating an investigation that needs GitHub, CI, git history, tests,
+builds, or command output:
+
+1. Retrieve the evidence with your execution and GitHub capabilities, or route
+   that retrieval to an execution agent.
+2. Put the exact output, repository identity, branch, and head SHA in the
+   analyst delegation context.
+3. Name any unavailable evidence as a gap. Do not imply the analyst can fetch
+   it after delegation.
+
+The analyst is read-only and has no shell or GitHub access. If it returns
+`[BLOCKED]` for missing context, retrieve the named evidence and re-delegate
+once. Do not pass the blocked response through as the investigation result.
+
 ## Synthesis Protocol
 
 After all delegated work returns:
