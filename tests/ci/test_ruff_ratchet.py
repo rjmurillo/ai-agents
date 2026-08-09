@@ -179,3 +179,9 @@ def test_git_diff_failure_is_external_error(
     assert status == ruff_ratchet.EXIT_EXTERNAL
     assert files == []
     assert len(recorder.commands) == 2
+
+
+def test_main_nonzero_on_invalid_repo(tmp_path):
+    """main() returns EXIT_CONFIG (2) when repo root lacks .git."""
+    rc = ruff_ratchet.main(["--repo-root", str(tmp_path / "nonexistent")])
+    assert rc == ruff_ratchet.EXIT_CONFIG

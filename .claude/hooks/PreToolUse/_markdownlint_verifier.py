@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 
 def _check_missing_deps() -> str | None:
@@ -31,7 +32,7 @@ def _check_missing_deps() -> str | None:
     return None
 
 
-def _load_config(config_path: Path) -> dict | None:
+def _load_config(config_path: Path) -> dict[str, Any] | None:
     """Load and return the config dict, or None on failure."""
     import yaml
 
@@ -51,7 +52,7 @@ def _check_md041(filepath: Path, lines: list[str]) -> list[str]:
     return []
 
 
-def _check_md040(filepath: Path, tokens: list) -> list[str]:
+def _check_md040(filepath: Path, tokens: list[Any]) -> list[str]:
     """MD040: Fenced code blocks must specify a language."""
     violations: list[str] = []
     for tok in tokens:
@@ -72,7 +73,7 @@ def _check_md004(filepath: Path, lines: list[str]) -> list[str]:
     return violations
 
 
-def _lint_file(filepath: Path, rules: dict) -> list[str]:
+def _lint_file(filepath: Path, rules: dict[str, Any]) -> list[str]:
     """Return list of violation strings for one file."""
     from markdown_it import MarkdownIt
 

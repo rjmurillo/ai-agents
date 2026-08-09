@@ -146,11 +146,9 @@ class TestBinaryAbsent:
 
     def test_trusted_verifier_uses_absolute_path(self, push_command, tmp_path, capsys):
         captured_args: list[list[str]] = []
-        captured_env: dict[str, str] = {}
 
         def lint(args, **kwargs):
             captured_args.append(list(args))
-            captured_env.update(kwargs.get("env", {}))
             return _ok()
 
         def dispatcher(args, **kwargs):
@@ -171,9 +169,7 @@ class TestBinaryAbsent:
         assert verifier_calls, "Expected trusted verifier invocation"
         assert verifier_calls[0][1] == str(guard.VERIFIER)
         assert verifier_calls[0][2:4] == ["--markdown-lint-only", "--"]
-        assert captured_env["MARKDOWNLINT_CONFIG_PATH"].endswith(
-            "markdownlint-safe-config.yaml"
-        )
+        # Verifier uses co-located config directly; no env var needed
 
     def test_malicious_local_executable_and_config_are_ignored(
         self, push_command, tmp_path, capsys
@@ -338,3 +334,109 @@ class TestHooksJsonRegistration:
             shim.startswith("invoke_markdownlint_guard__")
             for shim in manifest["shims"]
         )
+
+
+class TestNoRegistryDownload:
+    """Verify the verifier never downloads from a registry or invokes npx."""
+
+    def test_no_npx_or_node_modules_invoked(self, push_command, tmp_path, capsys):
+        """The verifier must never shell out to npx, npm, or node_modules."""
+        captured_args: list[list[str]] = []
+
+        def recorder(args, **_kw):
+            captured_args.append(list(args))
+            if args and args[0] == "git":
+                return _ok("docs/a.md\n")
+            return _ok()
+
+        with patch("push_guard_base.subprocess.run", side_effect=recorder), \
+             patch("push_guard_base._validate_strict_push_configuration"), \
+             patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
+             patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
+            guard.main()
+
+        for call_args in captured_args:
+            joined = " ".join(str(a) for a in call_args)
+            assert "npx" not in joined, f"npx invoked: {call_args}"
+            assert "node_modules" not in joined, f"node_modules path used: {call_args}"
+            assert "npm" not in joined.split(), f"npm invoked: {call_args}"
+
+    def test_offline_no_network_required(self, push_command, tmp_path, capsys):
+        """The verifier works fully offline (no registry download)."""
+        # Simulate offline by ensuring no network-dependent tool is called.
+        # The pure-Python verifier uses markdown-it-py which is shipped.
+        def dispatch(args, **_kw):
+            if args and args[0] == "git":
+                return _ok("docs/a.md\n")
+            # Verifier subprocess: allow only sys.executable invocations
+            if args and args[0] == sys.executable:
+                return _ok()
+            raise AssertionError(f"Unexpected external call: {args}")
+
+        with patch("push_guard_base.subprocess.run", side_effect=dispatch), \
+             patch("push_guard_base._validate_strict_push_configuration"), \
+             patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
+             patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
+            rc = guard.main()
+
+        assert rc == 0
+
+    def test_malicious_npx_shim_not_executed(self, push_command, tmp_path, capsys):
+        """A consumer-local npx shim in node_modules is never consulted."""
+        malicious_npx = tmp_path / "node_modules" / ".bin" / "npx"
+        malicious_npx.parent.mkdir(parents=True)
+        malicious_npx.write_text("#!/bin/sh\necho PWNED > /tmp/pwned\n")
+        malicious_npx.chmod(0o755)
+
+        # Also plant a malicious markdownlint-cli2
+        malicious_lint = tmp_path / "node_modules" / ".bin" / "markdownlint-cli2"
+        malicious_lint.write_text("#!/bin/sh\necho PWNED\n")
+        malicious_lint.chmod(0o755)
+
+        captured_args: list[list[str]] = []
+
+        def dispatch(args, **_kw):
+            captured_args.append(list(args))
+            if args and args[0] == "git":
+                return _ok("docs/a.md\n")
+            return _ok()
+
+        with patch("push_guard_base.subprocess.run", side_effect=dispatch), \
+             patch("push_guard_base._validate_strict_push_configuration"), \
+             patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
+             patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
+            guard.main()
+
+        for call_args in captured_args:
+            for arg in call_args:
+                assert str(malicious_npx) not in str(arg)
+                assert str(malicious_lint) not in str(arg)
+                assert "node_modules" not in str(arg)
+
+    def test_consumer_markdownlint_config_ignored(self, push_command, tmp_path, capsys):
+        """Consumer .markdownlint-cli2.yaml or .markdownlint.yaml are never read."""
+        # Plant consumer configs that would weaken rules
+        (tmp_path / ".markdownlint-cli2.yaml").write_text("config: {MD040: false}\n")
+        (tmp_path / ".markdownlint.yaml").write_text("MD040: false\n")
+        (tmp_path / ".markdownlint-cli2.jsonc").write_text('{"config":{"MD040":false}}\n')
+
+        captured_args: list[list[str]] = []
+
+        def dispatch(args, **_kw):
+            captured_args.append(list(args))
+            if args and args[0] == "git":
+                return _ok("docs/a.md\n")
+            return _ok()
+
+        with patch("push_guard_base.subprocess.run", side_effect=dispatch), \
+             patch("push_guard_base._validate_strict_push_configuration"), \
+             patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
+             patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
+            guard.main()
+
+        # No invocation should reference the consumer configs
+        for call_args in captured_args:
+            joined = " ".join(str(a) for a in call_args)
+            assert ".markdownlint-cli2.yaml" not in joined
+            assert ".markdownlint.yaml" not in joined
+            assert ".markdownlint-cli2.jsonc" not in joined
