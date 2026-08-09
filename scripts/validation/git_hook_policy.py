@@ -834,6 +834,17 @@ def _read_head_blob(repo_root: Path, relative_path: str) -> bytes | None:
     return result.stdout
 
 
+def _read_upstream_default_blob(repo_root: Path, relative_path: str) -> bytes | None:
+    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
+    upstream = head.stdout.strip() if head.returncode == 0 else "origin/main"
+    if not upstream:
+        return None
+    result = _run_git_bytes(repo_root, ["show", f"{upstream}:{relative_path}"])
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
 def _read_blob_bytes(repo_root: Path, revision: str) -> bytes | None:
     """Read a blob without letting text mode rewrite it.
 
@@ -1740,7 +1751,7 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     sessions = [
         path
         for path in session_paths
-        if not _is_session_on_upstream_default(repo_root, path)
+        if not _is_staged_session_on_upstream_default(repo_root, path)
     ]
     if not sessions:
         if session_paths:
@@ -1763,13 +1774,19 @@ def check_sessions(paths: Sequence[str], repo_root: Path) -> int:
     return 0
 
 
+def _is_staged_session_on_upstream_default(repo_root: Path, path: str) -> bool:
+    content = _read_index_blob(repo_root, path)
+    return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
+
+
 def _is_session_on_upstream_default(repo_root: Path, path: str) -> bool:
-    head = _run_git(repo_root, ["rev-parse", "--abbrev-ref", "origin/HEAD"])
-    upstream = head.stdout.strip() if head.returncode == 0 else "origin/main"
-    if not upstream:
-        return False
-    probe = _run_git(repo_root, ["cat-file", "-e", f"{upstream}:{path}"])
-    return probe.returncode == 0
+    content = _read_head_blob(repo_root, path)
+    return content is not None and _is_session_content_on_upstream_default(repo_root, path, content)
+
+
+def _is_session_content_on_upstream_default(repo_root: Path, path: str, content: bytes) -> bool:
+    upstream_content = _read_upstream_default_blob(repo_root, path)
+    return upstream_content is not None and upstream_content == content
 
 
 def check_commit_message(message_path: Path) -> int:
