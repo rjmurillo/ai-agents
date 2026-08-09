@@ -583,7 +583,7 @@ def build_issue_context(issue_number: str, repository: str) -> ReviewContext:
             "error",
             True,
         )
-    return ReviewContext(result.stdout.rstrip(), "full")
+    return ReviewContext(_redact_secrets(result.stdout.rstrip()), "full")
 
 
 def build_session_log_context(context_path: str) -> ReviewContext:

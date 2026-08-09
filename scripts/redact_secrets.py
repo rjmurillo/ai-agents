@@ -83,6 +83,8 @@ _CREDENTIAL_SEPARATOR_CHARACTER = (
 _CREDENTIAL_SEPARATOR = rf"{_CREDENTIAL_SEPARATOR_CHARACTER}?"
 _CREDENTIAL_NAMESPACE_CHARACTER = rf"(?:[A-Za-z0-9_ \t-]|{_SERIALIZED_BACKSLASHES}u[0-9a-f]{{4}})"
 _CREDENTIAL_NAMESPACE = rf"{_CREDENTIAL_NAMESPACE_CHARACTER}*"
+_AUTHORIZATION_KEY_WORD = _json_key_word("authorization")
+_AUTHORIZATION_KEY = re.compile(rf"(?i){_AUTHORIZATION_KEY_WORD}")
 _CREDENTIAL_KEY_BASE = (
     "(?:"
     + "|".join(
@@ -91,7 +93,7 @@ _CREDENTIAL_KEY_BASE = (
             _json_key_word("access") + _CREDENTIAL_SEPARATOR + _json_key_word("key"),
             _json_key_word("private") + _CREDENTIAL_SEPARATOR + _json_key_word("key"),
             _json_key_word("client") + _CREDENTIAL_SEPARATOR + _json_key_word("secret"),
-            _json_key_word("authorization"),
+            _AUTHORIZATION_KEY_WORD,
             _json_key_word("access") + _CREDENTIAL_SEPARATOR + _json_key_word("token"),
             _json_key_word("refresh") + _CREDENTIAL_SEPARATOR + _json_key_word("token"),
             _json_key_word("password"),
@@ -111,7 +113,7 @@ _CREDENTIAL_ASSIGNMENT = re.compile(rf"(?i)((?<![A-Za-z0-9_\\ \t-]){_CREDENTIAL_
 _CREDENTIAL_ASSIGNMENT_AT_CURSOR = re.compile(rf"(?i)({_CREDENTIAL_PREFIX_BODY})")
 _AUTHORIZATION_QUOTE = rf"(?:{_SERIALIZED_BACKSLASHES}[\"']|[\"'])?"
 _AUTHORIZATION_WRAPPER = re.compile(
-    rf"(?i)((?<![\w-]){_AUTHORIZATION_QUOTE}authorization"
+    rf"(?i)((?<![\w-]){_AUTHORIZATION_QUOTE}{_AUTHORIZATION_KEY_WORD}"
     rf"{_AUTHORIZATION_QUOTE}\s*:\s*{_AUTHORIZATION_QUOTE}"
     r"(?:bearer|token|basic)\s+)"
     rf"((?:[A-Za-z0-9._\-+/=~]|{_SERIALIZED_BACKSLASHES}/|"
@@ -320,9 +322,17 @@ def redact_ci_sink(
 
     def _redacted_assignment(prefix: str, value: str) -> str | None:
         stripped = value.strip()
+        placeholder = stripped
+        placeholder_quote = _quote_prefix(placeholder)
+        if (
+            placeholder_quote
+            and placeholder.endswith(placeholder_quote)
+            and len(placeholder) > len(placeholder_quote) * 2
+        ):
+            placeholder = placeholder[len(placeholder_quote) : -len(placeholder_quote)]
         if (
             not stripped
-            or re.fullmatch(r"(?i)(?:bearer|token|basic)\s+\*\*\*", stripped)
+            or re.fullmatch(r"(?i)(?:bearer|token|basic)\s+\*\*\*", placeholder)
             or re.fullmatch(r"\[redacted: [^\]]+\]", stripped)
         ):
             return None
@@ -343,10 +353,20 @@ def redact_ci_sink(
         return f"{prefix}{leading}***{trailing}"
 
     def _authorization_placeholder_end(prefix: str, start: int) -> int | None:
-        if not re.search(r"(?i)authorization", prefix):
+        if not _AUTHORIZATION_KEY.search(prefix):
             return None
-        match = re.match(r"(?i)(?:bearer|token|basic)\s+\*\*\*", out[start:])
-        return start + match.end() if match else None
+        quote = _quote_at(start)
+        content_start = start + len(quote)
+        match = re.match(
+            r"(?i)(?:bearer|token|basic)\s+\*\*\*",
+            out[content_start:],
+        )
+        if match is None:
+            return None
+        end = content_start + match.end()
+        if quote and out.startswith(quote, end):
+            end += len(quote)
+        return end
 
     if redact_assignments:
         redacted_parts: list[str] = []

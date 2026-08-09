@@ -934,6 +934,26 @@ def test_build_issue_context_fetches_issue_details(monkeypatch: pytest.MonkeyPat
     assert "Labels: ci" in context.text
 
 
+def test_build_issue_context_redacts_credential_assignments(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    credential = "ordinary-secret-value"
+    monkeypatch.setattr(
+        _mod,
+        "run_gh",
+        lambda arguments, timeout=_mod.GH_TIMEOUT_SECONDS: CommandResult(
+            f"Title: Configure\n\nBody:\npassword: {credential}\n\nLabels: ci",
+            "",
+            0,
+        ),
+    )
+
+    context = _mod.build_issue_context("2814", "owner/repo")
+
+    assert credential not in context.text
+    assert "password: ***" in context.text
+
+
 def test_build_issue_context_without_issue_number_skips_gh(
     monkeypatch: pytest.MonkeyPatch,
 ):

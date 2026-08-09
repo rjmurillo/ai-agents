@@ -476,7 +476,7 @@ class TestCiSinkWrappers:
 
         assert credential not in result.text
         assert "timeout" in result.text
-        assert result.reasons == ("credential-assignment",)
+        assert result.reasons == ("authorization-header",)
 
     def test_plain_authorization_header_uses_header_redactor_once(self):
         value = "Authorization: " + "Bear" + "er opaque-token-value"
@@ -521,6 +521,22 @@ class TestCiSinkWrappers:
         assert shaped not in result.text
         assert "***" in result.text
         assert "[redacted: github-token]" in result.text
+
+    @pytest.mark.parametrize("serialization_depth", range(7))
+    def test_source_profile_redacts_unicode_escaped_authorization(
+        self,
+        serialization_depth,
+    ):
+        credential = "ordinary-token-value"
+        value = f'{{"\\u0041uthorization":"Token {credential}","timeout":30}}'
+        for _ in range(serialization_depth):
+            value = json.dumps(value)[1:-1]
+
+        result = redact_ci_sink(value, redact_assignments=False)
+
+        assert credential not in result.text
+        assert "timeout" in result.text
+        assert result.reasons == ("authorization-header",)
 
     def test_credential_assignment_scanner_avoids_quadratic_scaling(self):
         line = "ordinary_name = ordinary_value\n"
