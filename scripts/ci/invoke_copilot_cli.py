@@ -11,6 +11,12 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.redact_secrets import redact_ci_sink  # noqa: E402
+
 EXIT_OK = 0
 EXIT_LOGIC = 1
 EXIT_CONFIG = 2
@@ -18,8 +24,32 @@ PROMPT_TEMPLATE_PATH = Path("/tmp/ai-review-prompt.md")
 FULL_PROMPT_PATH = Path("/tmp/ai-review-full-prompt.md")
 INFRASTRUCTURE_PATTERN = re.compile(
     r"(rate limit|timeout|network error|connection refused|connection reset|ECONNREFUSED|"
-    r"ETIMEDOUT|503|502|504|No authentication|authentication failed|auth.*error|not available)",
+    r"ETIMEDOUT|HTTP\s+(401|429)|too many requests|503|502|504|No authentication|"
+    r"authentication failed|auth.*error|bad credentials|not accessible|not available)",
     re.IGNORECASE,
+)
+PERMANENT_AUTH_PATTERN = re.compile(
+    r"\bHTTP\s+401\b|bad credentials|requires authentication|"
+    r"no authentication|authentication failed|"
+    r"authentication token .* could not be validated|"
+    r"resource not accessible by integration|must have admin rights",
+    re.IGNORECASE,
+)
+EXPLICIT_TRANSIENT_PATTERN = re.compile(
+    r"\bHTTP\s+(?:429|500|502|503|504)\b|rate limit|too many requests",
+    re.IGNORECASE,
+)
+RETRY_AFTER_PATTERN = re.compile(
+    r"\bRetry-After:\s*(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
+FINALIZATION_RESERVE_SECONDS = 60
+PROCESS_KILL_GRACE_SECONDS = 5
+SECRET_ENVIRONMENT_VARIABLES = (
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "COPILOT_GITHUB_TOKEN",
+    "BOT_PAT",
 )
 
 
@@ -40,6 +70,7 @@ class InvokeConfig:
     copilot_model: str
     context_mode: str
     context_file: Path | None
+    action_deadline_epoch: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,13 +105,54 @@ def append_line(path: Path, line: str) -> None:
         handle.write(f"{line}\n")
 
 
-def append_multiline_output(path: Path, name: str, value: str, delimiter: str) -> None:
+def choose_multiline_delimiter(name: str, value: str) -> str:
+    """Choose a GitHub output delimiter absent from every payload line."""
+    payload_lines = set(value.splitlines())
+    base = {
+        "raw_output": "EOF_RAW",
+        "stderr_output": "EOF_STDERR",
+        "full_prompt": "EOF_FULL_PROMPT",
+    }.get(name, f"EOF_{name.upper()}")
+    delimiter = base
+    suffix = 0
+    while delimiter in payload_lines:
+        suffix += 1
+        delimiter = f"{base}_{suffix}"
+    return delimiter
+
+
+def append_multiline_output(path: Path, name: str, value: str) -> None:
+    delimiter = choose_multiline_delimiter(name, value)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(f"{name}<<{delimiter}\n")
         handle.write(value)
         if value and not value.endswith("\n"):
             handle.write("\n")
         handle.write(f"{delimiter}\n")
+
+
+def redact_secrets(value: str | None, *, redact_assignments: bool = True) -> str:
+    """Redact installed values, wrappers, and recognized credential shapes."""
+    secret_values = (os.environ.get(variable, "") for variable in SECRET_ENVIRONMENT_VARIABLES)
+    return redact_ci_sink(
+        value or "",
+        secret_values=secret_values,
+        redact_assignments=redact_assignments,
+    ).text
+
+
+def retry_delay(stderr: str, fallback: int) -> int:
+    header = RETRY_AFTER_PATTERN.search(stderr)
+    if not header:
+        return fallback
+    return max(0, int(float(header.group(1))))
+
+
+def is_permanent_auth_failure(value: str) -> bool:
+    """Return whether the CLI rejected credentials rather than service capacity."""
+    if EXPLICIT_TRANSIENT_PATTERN.search(value):
+        return False
+    return PERMANENT_AUTH_PATTERN.search(value) is not None
 
 
 def parse_config(env: Mapping[str, str]) -> InvokeConfig:
@@ -99,6 +171,12 @@ def parse_config(env: Mapping[str, str]) -> InvokeConfig:
     if timeout_minutes < 0:
         raise ValueError("TIMEOUT_MINUTES must be >= 0")
 
+    action_deadline_text = env.get("AI_REVIEW_ACTION_DEADLINE_EPOCH", "")
+    try:
+        action_deadline_epoch = float(action_deadline_text) if action_deadline_text else None
+    except ValueError as exc:
+        raise ValueError("AI_REVIEW_ACTION_DEADLINE_EPOCH must be numeric") from exc
+
     context_file_text = env.get("CONTEXT_FILE", "")
     context_file = Path(context_file_text) if context_file_text else None
     return InvokeConfig(
@@ -110,6 +188,7 @@ def parse_config(env: Mapping[str, str]) -> InvokeConfig:
         copilot_model=env.get("COPILOT_MODEL", ""),
         context_mode=env.get("CONTEXT_MODE") or "summary",
         context_file=context_file,
+        action_deadline_epoch=action_deadline_epoch,
     )
 
 
@@ -135,9 +214,9 @@ def build_full_prompt(
 
 
 def is_infrastructure_failure(exit_code: int, output: str, stderr: str) -> bool:
-    if exit_code == 124:
+    if exit_code in {124, 137}:
         return True
-    if exit_code != 0 and not output and not stderr:
+    if not output.strip():
         return True
     return bool(stderr and "VERDICT:" not in output and INFRASTRUCTURE_PATTERN.search(stderr))
 
@@ -149,27 +228,65 @@ def invoke_with_retry(
     runner: Callable[[Sequence[str]], CommandResult] = run_command,
     sleeper: Callable[[int], None] = time.sleep,
     retry_delays: Sequence[int] = (0, 30, 60),
+    clock: Callable[[], float] = time.time,
 ) -> AttemptResult:
     max_retries = 2
     attempt = 0
     retry_count = 0
-    timeout_seconds = config.timeout_minutes * 60
+    configured_timeout_seconds = config.timeout_minutes * 60
     output = ""
     stderr = ""
     exit_code = 0
     infrastructure_failure = False
+    retry_delay_seconds = 0
 
     while attempt <= max_retries:
-        retry_delay = retry_delays[attempt]
+        if config.action_deadline_epoch is not None:
+            remaining = config.action_deadline_epoch - clock() - FINALIZATION_RESERVE_SECONDS
+            if retry_delay_seconds + PROCESS_KILL_GRACE_SECONDS >= remaining:
+                exit_code = 124
+                infrastructure_failure = True
+                stderr = "AI review action budget exhausted before Copilot invocation"
+                output = (
+                    "VERDICT: CRITICAL_FAIL\n"
+                    "MESSAGE: Copilot CLI infrastructure failure because the "
+                    "review action budget was exhausted."
+                )
+                break
         if attempt > 0:
             print()
             print(f"=== RETRY ATTEMPT {attempt}/{max_retries} ===")
-            print(f"Infrastructure failure detected. Retrying in {retry_delay}s...")
-            sleeper(retry_delay)
+            print(f"Infrastructure failure detected. Retrying in {retry_delay_seconds}s...")
+            sleeper(retry_delay_seconds)
+
+        timeout_seconds = configured_timeout_seconds
+        if config.action_deadline_epoch is not None:
+            timeout_seconds = min(
+                timeout_seconds,
+                max(
+                    0,
+                    int(
+                        config.action_deadline_epoch
+                        - clock()
+                        - FINALIZATION_RESERVE_SECONDS
+                        - PROCESS_KILL_GRACE_SECONDS
+                    ),
+                ),
+            )
+        if timeout_seconds <= 0:
+            exit_code = 124
+            infrastructure_failure = True
+            stderr = "AI review action budget exhausted before Copilot invocation"
+            output = (
+                "VERDICT: CRITICAL_FAIL\n"
+                "MESSAGE: Copilot CLI infrastructure failure because the "
+                "review action budget was exhausted."
+            )
+            break
 
         print(
             "Invoking Copilot CLI "
-            f"(attempt {attempt + 1}/{max_retries + 1}, timeout: {config.timeout_minutes}m)..."
+            f"(attempt {attempt + 1}/{max_retries + 1}, timeout: {timeout_seconds}s)..."
         )
         print(f"Agent: {config.copilot_agent}, Model: {config.copilot_model}")
         print(f"Prompt size: {len(full_prompt.encode('utf-8'))} bytes")
@@ -177,6 +294,7 @@ def invoke_with_retry(
         result = runner(
             [
                 "timeout",
+                f"--kill-after={PROCESS_KILL_GRACE_SECONDS}s",
                 str(timeout_seconds),
                 "copilot",
                 "--no-auto-update",
@@ -191,24 +309,38 @@ def invoke_with_retry(
             ]
         )
         exit_code = result.returncode
-        output = result.stdout
-        stderr = result.stderr
+        output = redact_secrets(result.stdout)
+        stderr = redact_secrets(result.stderr)
 
         print(f"Exit code: {exit_code}")
         print(f"Stdout length: {len(output)} chars")
         print(f"Stderr length: {len(stderr)} chars")
+
+        if exit_code != 0 and is_permanent_auth_failure(f"{stderr}\n{output}"):
+            infrastructure_failure = True
+            print("::warning::Copilot authentication or permission was rejected.")
+            output = (
+                "VERDICT: DID_NOT_RUN\n"
+                "MESSAGE: Copilot CLI authentication or permission was rejected. "
+                "No review verdict exists."
+            )
+            break
 
         if is_infrastructure_failure(exit_code, output, stderr):
             infrastructure_failure = True
             print(f"::warning::Infrastructure failure detected (exit code: {exit_code})")
             if stderr:
                 print(f"::warning::stderr (truncated): {stderr[:500]}")
-                if "rate limit" in stderr.lower():
+                if "rate limit" in stderr.lower() or "429" in stderr:
                     print(
                         "::warning::Copilot may be rate limited. No public Copilot "
                         "rate-limit API is available; relying on CLI response and backoff."
                     )
             if attempt < max_retries:
+                retry_delay_seconds = retry_delay(
+                    stderr,
+                    retry_delays[attempt + 1],
+                )
                 attempt += 1
                 retry_count += 1
                 continue
@@ -264,11 +396,14 @@ def analyze_non_infra_failure(result: AttemptResult) -> int:
         print(f"::error::Copilot CLI failed (exit code {result.exit_code}) with error output.")
         print(f"::error::Stderr: {result.stderr}")
         return EXIT_LOGIC
-    return EXIT_OK
+    print("::error::Discarding Copilot output because the CLI process failed.")
+    return EXIT_LOGIC
 
 
 def write_results(config: InvokeConfig, full_prompt: str, result: AttemptResult) -> None:
-    output = result.output
+    output = redact_secrets(result.output)
+    stderr = redact_secrets(result.stderr)
+    persisted_prompt = redact_secrets(full_prompt, redact_assignments=False)
     if result.infrastructure_failure and not output:
         output = (
             "VERDICT: CRITICAL_FAIL\n"
@@ -277,13 +412,12 @@ def write_results(config: InvokeConfig, full_prompt: str, result: AttemptResult)
         )
 
     config.ai_review_output_file.write_text(output + "\n", encoding="utf-8")
-    append_multiline_output(config.github_output_file, "raw_output", output, "EOF_RAW")
-    append_multiline_output(config.github_output_file, "stderr_output", result.stderr, "EOF_STDERR")
+    append_multiline_output(config.github_output_file, "raw_output", output)
+    append_multiline_output(config.github_output_file, "stderr_output", stderr)
     append_multiline_output(
         config.github_output_file,
         "full_prompt",
-        full_prompt,
-        "EOF_FULL_PROMPT",
+        persisted_prompt,
     )
     append_line(config.github_output_file, f"copilot_exit_code={result.exit_code}")
     append_line(
@@ -294,15 +428,41 @@ def write_results(config: InvokeConfig, full_prompt: str, result: AttemptResult)
 
 
 def run(config: InvokeConfig) -> int:
+    try:
+        config.ai_review_output_file.unlink(missing_ok=True)
+    except OSError as exc:
+        print(f"error: cannot clear stale AI review output: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+
     full_prompt = build_full_prompt(
         context_mode=config.context_mode,
         additional_context=config.additional_context,
         context_file=config.context_file,
     )
+    full_prompt = redact_secrets(full_prompt, redact_assignments=False)
     FULL_PROMPT_PATH.write_text(full_prompt + "\n", encoding="utf-8")
+    if (
+        config.context_file is None
+        or not config.context_file.is_file()
+        or not config.context_file.read_text(encoding="utf-8").strip()
+    ):
+        result = AttemptResult(
+            exit_code=1,
+            output=(
+                "VERDICT: DID_NOT_RUN\n"
+                "MESSAGE: AI review context file is missing or empty. "
+                "No review verdict exists."
+            ),
+            stderr="AI review context file is missing or empty",
+            infrastructure_failure=True,
+            retry_count=0,
+        )
+        write_results(config, full_prompt, result)
+        return EXIT_OK
     result = invoke_with_retry(config=config, full_prompt=full_prompt)
     failure_exit = analyze_non_infra_failure(result)
     if failure_exit != EXIT_OK:
+        config.ai_review_output_file.unlink(missing_ok=True)
         return failure_exit
     write_results(config, full_prompt, result)
     return EXIT_OK
