@@ -221,6 +221,7 @@ REQUIRED_SESSION_END_KEYS = {
     "handoffPreserved",
     "serenaMemoryUpdated",
     "markdownLintRun",
+    "qaValidation",
     "changesCommitted",
     "validationPassed",
     "tasksUpdated",

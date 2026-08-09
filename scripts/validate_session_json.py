@@ -31,10 +31,11 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import jsonschema
 from jsonschema import FormatChecker
@@ -45,6 +46,16 @@ from jsonschema.validators import validator_for
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
+_CLAUDE_LIB_DIR = _PROJECT_ROOT / ".claude" / "lib"
+sys.path.insert(0, str(_CLAUDE_LIB_DIR))
+
+from paths import artifact_dir  # noqa: E402
+from qa_report import (  # noqa: E402
+    post_qa_code_changes,
+    session_log_identity,
+    session_qa_binding,
+    validate_qa_report,
+)
 
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 from scripts.validation.models import ValidationResult  # noqa: E402
@@ -142,8 +153,18 @@ SESSION_END_REQUIRED_ITEMS = frozenset(
         "handoffPreserved",
         "serenaMemoryUpdated",
         "markdownLintRun",
+        "qaValidation",
         "changesCommitted",
         "validationPassed",
+    }
+)
+
+# .agents/SESSION-PROTOCOL.md defines these exact QA exemption values:
+# "SKIPPED: docs-only" and "SKIPPED: investigation-only".
+_QA_SKIP_EVIDENCE = frozenset(
+    {
+        "SKIPPED: docs-only",
+        "SKIPPED: investigation-only",
     }
 )
 
@@ -797,11 +818,16 @@ def validate_must_item(
         result.warnings.append(f"Missing evidence: {section_name}.{item_name}")
 
     if level == "MUST" and is_complete and evidence and isinstance(evidence, str):
-        if _has_contradiction(evidence):
-            result.warnings.append(
+        permitted_qa_skip = item_name == "qaValidation" and evidence in _QA_SKIP_EVIDENCE
+        if not permitted_qa_skip and _has_contradiction(evidence):
+            message = (
                 f"Evidence contradiction: {section_name}.{item_name} "
                 f"is complete but evidence suggests otherwise: {evidence!r}"
             )
+            if item_name == "qaValidation":
+                result.errors.append(message)
+            else:
+                result.warnings.append(message)
 
 
 def validate_checklist_section(
@@ -874,6 +900,88 @@ def validate_session_end(session_end: dict[str, Any], result: ValidationResult) 
         level = get_case_insensitive(check_data, "level")
         if level == "MUST NOT" and is_complete:
             result.errors.append(f"{_MUST_NOT_VIOLATED_PREFIX}HANDOFF.md was modified (read-only)")
+
+
+def _resolve_full_commit(commit: str) -> str | None:
+    completed = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{commit}^{{commit}}"],
+        cwd=_PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return None
+    resolved = completed.stdout.strip()
+    return resolved or None
+
+
+def validate_qa_report_evidence(
+    data: dict[str, Any],
+    session_end: dict[str, Any],
+    result: ValidationResult,
+    *,
+    session_log: str | None,
+    validation_head: str | None = None,
+) -> None:
+    """Require passing QA evidence bound to this session and validation commit."""
+    qa_validation = get_case_insensitive(session_end, "qaValidation")
+    if not isinstance(qa_validation, dict):
+        return
+    evidence = get_case_insensitive(qa_validation, "evidence")
+    if not isinstance(evidence, str) or evidence in _QA_SKIP_EVIDENCE:
+        return
+
+    candidate = Path(evidence)
+    if not candidate.is_absolute():
+        candidate = _PROJECT_ROOT / candidate
+    qa_root = artifact_dir("qa", base=_PROJECT_ROOT).resolve()
+    resolved_report = candidate.resolve()
+    try:
+        resolved_report.relative_to(qa_root)
+    except ValueError:
+        result.errors.append(
+            "QA evidence must name a report under the configured QA "
+            f"artifact root: {evidence!r}"
+        )
+        return
+    if not resolved_report.is_file():
+        result.errors.append(f"QA report not found: {resolved_report}")
+        return
+
+    try:
+        if session_log is None:
+            raise ValueError("Session log path is required for QA report binding")
+        binding = session_qa_binding(
+            data,
+            session_log=session_log,
+            resolve_commit=_resolve_full_commit,
+        )
+        report = validate_qa_report(resolved_report, binding)
+    except ValueError as exc:
+        result.errors.append(str(exc))
+        return
+
+    if validation_head is None:
+        return
+    try:
+        changed_after_qa = post_qa_code_changes(
+            report.commit,
+            validation_head,
+            repo_root=_PROJECT_ROOT,
+        )
+    except ValueError as exc:
+        result.errors.append(str(exc))
+    else:
+        if not changed_after_qa:
+            return
+        result.errors.append(
+            "QA report is stale; code changed after its commit: "
+            + ", ".join(changed_after_qa)
+        )
 
 
 def validate_protocol_compliance(
@@ -994,7 +1102,12 @@ def validate_against_schema(
 
 
 def validate_session_log(
-    data: object, *, existing_log: bool = False, creation_mode: bool = False
+    data: object,
+    *,
+    existing_log: bool = False,
+    creation_mode: bool = False,
+    session_log: str | None = None,
+    validation_head: str | None = None,
 ) -> ValidationResult:
     """Validate a session log against the committed schema and protocol rules.
 
@@ -1058,7 +1171,139 @@ def validate_session_log(
     if not existing_log and not creation_mode:
         validate_evidence_agrees_with_session(data, result)
 
+    protocol = data.get("protocolCompliance")
+    session_end = (
+        get_case_insensitive(protocol, "sessionEnd")
+        if isinstance(protocol, dict)
+        else None
+    )
+    if not creation_mode and isinstance(session_end, dict):
+        validate_qa_report_evidence(
+            data,
+            session_end,
+            result,
+            session_log=session_log,
+            validation_head=validation_head,
+        )
+
     return result
+
+
+def _qa_skip_claim(data: object) -> tuple[str, object, object] | None:
+    """Return the evidence and recorded range for a recognized QA skip."""
+    if not isinstance(data, dict):
+        return None
+    protocol = data.get("protocolCompliance")
+    if not isinstance(protocol, dict):
+        return None
+    session_end = get_case_insensitive(protocol, "sessionEnd")
+    if not isinstance(session_end, dict):
+        return None
+    qa_validation = get_case_insensitive(session_end, "qaValidation")
+    if not isinstance(qa_validation, dict):
+        return None
+    evidence = get_case_insensitive(qa_validation, "evidence")
+    if not isinstance(evidence, str) or evidence not in _QA_SKIP_EVIDENCE:
+        return None
+
+    session = data.get("session")
+    starting_commit = (
+        get_case_insensitive(session, "startingCommit")
+        if isinstance(session, dict)
+        else None
+    )
+    return evidence, starting_commit, data.get("endingCommit")
+
+
+def _investigation_scope_payload(
+    starting_commit: str,
+    ending_commit: str,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Run the owning eligibility checker for one recorded commit range."""
+    checker = (
+        _PROJECT_ROOT
+        / ".claude"
+        / "skills"
+        / "session"
+        / "scripts"
+        / "test_investigation_eligibility.py"
+    )
+    if not checker.is_file():
+        return None, f"scope checker not found: {checker}"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(checker),
+            "--base-ref",
+            starting_commit,
+            "--head-ref",
+            ending_commit,
+        ],
+        cwd=_PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or f"exit {completed.returncode}"
+        return None, f"scope checker failed: {detail}"
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        return None, "scope checker returned invalid JSON"
+    if not isinstance(payload, dict):
+        return None, "scope checker returned non-object JSON"
+    return payload, None
+
+
+def validate_qa_skip_scope(
+    data: object,
+    result: ValidationResult,
+    *,
+    validation_head: str | None = None,
+) -> None:
+    """Verify an investigation-only QA claim through the validation endpoint."""
+    claim = _qa_skip_claim(data)
+    if claim is None:
+        return
+    evidence, starting_commit, ending_commit = claim
+    if evidence == "SKIPPED: docs-only":
+        result.errors.append(
+            "QA docs-only scope cannot be verified automatically; "
+            "provide a QA report"
+        )
+        return
+    if not isinstance(starting_commit, str) or not isinstance(ending_commit, str):
+        result.errors.append(
+            "QA investigation-only scope cannot be verified: "
+            "startingCommit and endingCommit are required"
+        )
+        return
+
+    payload, error = _investigation_scope_payload(
+        starting_commit,
+        validation_head or ending_commit,
+    )
+    if error:
+        result.errors.append(f"QA investigation-only {error}")
+        return
+    assert payload is not None
+    error = payload.get("Error")
+    if error:
+        result.errors.append(
+            f"QA investigation-only scope cannot be verified: {error}"
+        )
+        return
+    if not payload.get("Eligible", False):
+        violations = payload.get("Violations", [])
+        detail = ", ".join(str(path) for path in violations) or "unknown changed path"
+        result.errors.append(
+            f"QA investigation-only scope includes non-investigation files: {detail}"
+        )
 
 
 _FILENAME_NUMBER_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}-session-(\d+)(?:-|$)")
@@ -1231,6 +1476,39 @@ def _repo_relative(path: Path) -> str:
         return resolved.as_posix()
 
 
+def _session_roots() -> tuple[Path, ...]:
+    """Return configured and repository-default physical session roots."""
+    configured = artifact_dir("sessions", base=_PROJECT_ROOT).resolve()
+    default = (_PROJECT_ROOT / ".agents" / "sessions").resolve()
+    return tuple(dict.fromkeys((configured, default)))
+
+
+def _validate_session_path(path: str | Path) -> Path:
+    """Accept a session file under the repository or configured artifact root."""
+    roots = tuple(dict.fromkeys((_PROJECT_ROOT, *_session_roots())))
+    for root in roots:
+        try:
+            return validate_safe_path(path, root)
+        except (ValueError, FileNotFoundError):
+            continue
+    raise ValueError(
+        f"Path {path} is outside the repository and configured sessions root"
+    )
+
+
+def _session_identity(path: Path) -> str:
+    """Return the canonical logical identity for a physical session file."""
+    for sessions_root in _session_roots():
+        try:
+            return cast(
+                str,
+                session_log_identity(path, sessions_root=sessions_root),
+            )
+        except ValueError:
+            continue
+    raise ValueError(f"Session log is outside every supported sessions root: {path}")
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments.
 
@@ -1281,6 +1559,13 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--validation-head",
+        help=(
+            "Validate investigation-only scope through this commit instead of "
+            "stopping at the recorded endingCommit."
+        ),
+    )
+    parser.add_argument(
         "--json-output",
         type=Path,
         metavar="PATH",
@@ -1327,7 +1612,7 @@ def main() -> int:
 
         # Validate the user-provided path against the project root
         try:
-            validated_path = validate_safe_path(args.session_path, _PROJECT_ROOT)
+            validated_path = _validate_session_path(args.session_path)
         except (ValueError, FileNotFoundError) as e:
             print(f"ERROR: Invalid path provided: {e}", file=sys.stderr)
             return 1
@@ -1350,10 +1635,26 @@ def main() -> int:
                 _PROJECT_ROOT,
             )
 
+        validation_head = args.validation_head
+        if not existing_log and not args.creation_mode and validation_head is None:
+            validation_head = _resolve_full_commit("HEAD")
+        try:
+            session_log = _session_identity(validated_path)
+        except ValueError:
+            session_log = _repo_relative(validated_path)
         result = validate_session_log(
-            data, existing_log=existing_log, creation_mode=args.creation_mode
+            data,
+            existing_log=existing_log,
+            creation_mode=args.creation_mode,
+            session_log=session_log,
+            validation_head=validation_head,
         )
         validate_filename_number(validated_path, data, result)
+        validate_qa_skip_scope(
+            data,
+            result,
+            validation_head=args.validation_head,
+        )
 
         # Report results
         report_results(validated_path, result, args.pre_commit)

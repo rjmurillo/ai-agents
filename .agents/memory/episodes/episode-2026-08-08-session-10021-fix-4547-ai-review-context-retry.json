@@ -1,0 +1,492 @@
+{
+  "id": "episode-2026-08-08-session-10021-fix-4547-ai-review-context-retry",
+  "session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry",
+  "timestamp": "2026-08-08T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Add bounded, rate-limit-aware retry and truthful infrastructure classification for issue 4547",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue and linked pull request discourse",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced current main",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented bounded retry",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added regression coverage",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed recursive independent review",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-09T01:26:15+00:00",
+      "type": "commit",
+      "content": "Commit: d3f1d244a0",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e007",
+        "e008",
+        "e009",
+        "e010",
+        "e011",
+        "e014",
+        "e018",
+        "e021",
+        "e027",
+        "e029",
+        "e031",
+        "e032",
+        "e035",
+        "e036"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded retrospective",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Addressed PR review",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved recursive Critical and High review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed recursive independent re-review",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved final credential-shape review finding",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-09T04:57:13+00:00",
+      "type": "commit",
+      "content": "Commit: 788933dbc91428945da0a9827df4a18963dad472",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-09T05:35:40+00:00",
+      "type": "commit",
+      "content": "Commit: 1a8a3fc487d60d7a1b6718aa4e2606f625a6d41a",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved recursive sink and stale-verdict findings",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-09T08:10:41+00:00",
+      "type": "commit",
+      "content": "Commit: fb136f0933477c1af22e54b9757abe2dea2edcfb",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-09T08:16:57+00:00",
+      "type": "commit",
+      "content": "Commit: 8599078cacbc4bfb81e0e1db169a41673c9b8692",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-09T08:31:28+00:00",
+      "type": "commit",
+      "content": "Commit: 7dc1f9160c5ff336da29494c1d0a55c79210a347",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved PR validation deadline extraction",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-09T09:10:59+00:00",
+      "type": "commit",
+      "content": "Commit: b0f0be739909a3069cbe75c13b781d6713bffac1",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-09T09:25:05+00:00",
+      "type": "commit",
+      "content": "Commit: d94549fe289aa2924477f48edbbff98e0ab69bfb",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved structured assignment truncation and suffix leak reviews",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-09T10:11:47+00:00",
+      "type": "commit",
+      "content": "Commit: 3c6f503c9965165773709e93b8746e8dca75752f",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-09T10:34:51+00:00",
+      "type": "commit",
+      "content": "Commit: 411fa4dd056878f17fd631f7096c1a205e7082a4",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-09T10:38:14+00:00",
+      "type": "commit",
+      "content": "Commit: 85f6fe101dbde230817ca6aa90dbc7dbaf927c16",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-09T11:30:58+00:00",
+      "type": "commit",
+      "content": "Commit: 9f6b6575ba637630728c95fbb08d904de88d5d27",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-09T12:02:57+00:00",
+      "type": "commit",
+      "content": "Commit: c48fb1cd35fe64d901ec06a6f4bfc51a1309aaf0",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved separator backtracking review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-09T13:49:31+00:00",
+      "type": "commit",
+      "content": "Commit: 01f469ccbe9b4859f707647deb8d6ee9c9fd5be0",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved token-only URL userinfo review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-09T14:59:06+00:00",
+      "type": "commit",
+      "content": "Commit: 8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [
+        "e033"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed final rate-limit transport and recursive review",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed final full validation",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-09T15:23:15+00:00",
+      "type": "commit",
+      "content": "Commit: ba5480f82f618212b5f6ab367bfc0c69941c6dab",
+      "caused_by": [
+        "e030"
+      ],
+      "leads_to": [
+        "e034"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-08-09T15:38:53+00:00",
+      "type": "commit",
+      "content": "Commit: d270a70d807f6279bb3cd0be7fd84c7905ce4082",
+      "caused_by": [
+        "e033"
+      ],
+      "leads_to": [
+        "e037"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved Authorization assignment review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repeated final full validation",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-08-09T16:24:09+00:00",
+      "type": "commit",
+      "content": "Commit: b21b0cf4941bd4d353da520c9d52f0e3604dadbd",
+      "caused_by": [
+        "e034"
+      ],
+      "leads_to": [
+        "e038"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e038",
+      "timestamp": "2026-08-09T16:47:35+00:00",
+      "type": "commit",
+      "content": "Commit: cdb3c8a1b36580dc2cba6e09f26d7755e1e0256d",
+      "caused_by": [
+        "e037"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 19,
+    "files_changed": 20
+  },
+  "lessons": []
+}
