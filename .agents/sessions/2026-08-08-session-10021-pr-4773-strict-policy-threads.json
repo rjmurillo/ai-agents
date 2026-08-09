@@ -142,9 +142,13 @@
     {
       "task": "Repair the causal link broken by the strict policy update",
       "outcome": "GOTCHAS.md read 'neither remedy proposed there has shipped, so strict_required_status_checks_policy is true'. The unshipped remedies do not cause the policy value, so the sentence asserted a false cause. Restated: the strict flip narrows the merge-race window by forcing a stale branch to refresh, while the absent issue 3755 remedies and the still-absent merge_queue rule are what let the race survive. Verified no merge_group handler exists in .github/workflows."
+    },
+    {
+      "task": "Verify issue 3755 rather than restate its status",
+      "outcome": "The GOTCHAS sentence carried forward 'neither remedy proposed there has shipped'. Checked: gh issue view 3755 reports CLOSED at 2026-08-05T04:55:46Z, and its body names strict_required_status_checks_policy = False on ruleset 11104075 as the structural cause. So the strict flip is that issue's shipped remedy and the carried claim was false. Rewrote the GOTCHAS paragraph to say strict true closes the behind-main merge race and the absent merge_queue rule is what remains uncovered. Recorded the same provenance in the memory so the flip reads as issue 3755 landing rather than as drift."
     }
   ],
-  "endingCommit": "8900707003e85c3c0102d01e7968eaac65c203ba",
+  "endingCommit": "d443ec4d8d11ce09f4af5a644ad734800fd688bf",
   "nextSteps": [
     "Commit and push PR 4773 review fixes",
     "Reply to and resolve both review threads",

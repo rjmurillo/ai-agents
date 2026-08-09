@@ -42,6 +42,14 @@ gh api repos/rjmurillo/ai-agents/rules/branches/main \
   -> [true]
 ```
 
+This was a deliberate remedy, not configuration drift. Issue #3755, "Merge
+race: a pull request behind main can merge on a check that never saw main's
+content", argued that `strict_required_status_checks_policy = False` on ruleset
+11104075 let a green check describe a tree that no longer existed, and
+documented two PRs four minutes apart whose gate and prose met for the first
+time on main. It closed 2026-08-05. Enabling strict is the fix it asked for, so
+read the flip as that issue landing rather than as a setting someone toggled.
+
 Read the reversal carefully, because it inverts the operational conclusion
 without touching the root cause. Under `false`, a stale branch *could* still
 merge, so staleness cost you a spurious red and a re-measure. Under `true`,
