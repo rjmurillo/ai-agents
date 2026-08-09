@@ -140,7 +140,7 @@
       "detail": "CI 30/30 green, 4 review threads resolved, all assertions non-tautological."
     }
   ],
-  "endingCommit": "b2a5c16e996eb74ca52a1996b69e5f353c6ce676",
+  "endingCommit": "18fc02c7d80c4431b7e3c7cad88eed569e22e6dc",
   "nextSteps": [
     "PR #4787 awaits human approval for merge."
   ]
