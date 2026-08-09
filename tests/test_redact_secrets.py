@@ -467,6 +467,17 @@ class TestCiSinkWrappers:
         assert "timeout" in result.text
         assert result.redacted
 
+    def test_unicode_escaped_authorization_key_is_redacted(self):
+        key = "\\u0041uthorization"
+        credential = "ordinary-token-value"
+        value = f'{{"{key}":"Token {credential}","timeout":30}}'
+
+        result = redact_ci_sink(value)
+
+        assert credential not in result.text
+        assert "timeout" in result.text
+        assert result.reasons == ("credential-assignment",)
+
     def test_plain_authorization_header_uses_header_redactor_once(self):
         value = "Authorization: " + "Bear" + "er opaque-token-value"
 
