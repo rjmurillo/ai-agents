@@ -25,11 +25,8 @@ from checks_common import (  # noqa: E402
 from checks_dash import _is_vendored  # noqa: E402
 
 MARKDOWNLINT_CLI2_PACKAGE = "markdownlint-cli2@0.23.1"
-MARKDOWNLINT_CONFIG_ENV = "MARKDOWNLINT_CONFIG_PATH"
-# markdownlint-cli2 prints "Linting: 3 files" (or "Linting: 1 file") before it
-# reads anything. The trailing count in its "Summary" line is files *with
-# issues*, so a clean file and a file that was never selected both summarise as
-# "0 issues in 0 files". This line is the only one that distinguishes them.
+# "Linting: N files" prints before any read; Summary's count is files *with
+# issues*, so a clean file and an unselected file both read as 0-of-0.
 _LINTED_COUNT_PATTERN = re.compile(r"^Linting: (\d+) files?$", re.MULTILINE)
 
 
@@ -115,14 +112,6 @@ def validate_markdown_lint(
         print("  Install Node.js: https://nodejs.org/")
         return False
 
-    config_override = os.environ.get(MARKDOWNLINT_CONFIG_ENV)
-    config_path: Path | None = None
-    if config_override:
-        config_path = Path(config_override).expanduser()
-        if not config_path.is_file():
-            print(f"[FAIL] Markdown lint config missing: {config_path}")
-            return False
-
     targets = (
         explicit_targets
         if explicit_targets is not None
@@ -143,8 +132,6 @@ def validate_markdown_lint(
     )
     print(f"{action} {scope}...")
     command = ["npx", MARKDOWNLINT_CLI2_PACKAGE]
-    if config_path is not None:
-        command.extend(["--config", str(config_path)])
     if autofix:
         command.append("--fix")
     command.append("--")

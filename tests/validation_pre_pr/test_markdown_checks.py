@@ -107,37 +107,6 @@ class TestValidateMarkdownLint:
             cwd=tmp_path,
         )
 
-    def test_safe_config_env_override_is_used(
-        self, tmp_path: Path, monkeypatch: Any
-    ) -> None:
-        from scripts.validation.pre_pr import validate_markdown_lint
-
-        safe_config = tmp_path / "safe.yaml"
-        safe_config.write_text("config: {}\n", encoding="utf-8")
-        monkeypatch.setenv("MARKDOWNLINT_CONFIG_PATH", str(safe_config))
-        with patch("checks_tooling.shutil.which", return_value="npx"):
-            with patch(
-                "checks_tooling._markdown_lint_targets",
-                return_value=["README.md"],
-            ):
-                with patch("checks_tooling._run_subprocess") as mock_run:
-                    mock_run.return_value = (0, "", "")
-                    assert validate_markdown_lint(tmp_path) is True
-
-        mock_run.assert_called_once_with(
-            [
-                "npx",
-                "markdownlint-cli2@0.23.1",
-                "--config",
-                str(safe_config),
-                "--fix",
-                "--",
-                "README.md",
-            ],
-            cwd=tmp_path,
-        )
-
-
 class TestValidateDashProhibition:
     """Tests for the branch-wide em/en-dash check."""
 
