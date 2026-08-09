@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 10021,
+    "date": "2026-08-08",
+    "branch": "fix/4547-ai-review-context-retry",
+    "startingCommit": "c4eb7e4ddd",
+    "objective": "Add bounded, rate-limit-aware retry and truthful infrastructure classification for issue 4547"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools were available for the repository."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded the Serena instructions before repository work."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No issue-specific handoff was required."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Located repository validation, review, and GitHub workflow tooling."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Followed repository and DevOps agent workflow requirements."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded repository instructions and scoped validation requirements."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded retry timing, runner token, and rate-limit instrumentation memories."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/4547-ai-review-context-retry"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used an isolated worktree and feature branch."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "The isolated worktree started clean at origin/main."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "c4eb7e4ddd"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation, tests, reviews, and validation completed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "DevOps runtime and validation details are recorded in .agents/devops."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit selected the DevOps Markdown file; repository configuration excluded it."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Implementation committed in d3f1d244a0; this commit adds final session evidence."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "68 focused tests passed. The full suite passed 24846 tests with 34 skips; its only ratchet failure passed after complexity remediation. Mypy, Ruff, merge-tree ratchets, and 50 pre-PR checks passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Todo fix-4547 remains in progress until merge and issue closure."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Read issue and linked pull request discourse",
+      "outcome": "Read issue 4547, duplicate PR 4621, and PR 4721 review and workflow discussions."
+    },
+    {
+      "action": "Reproduced current main",
+      "outcome": "Current main classified empty transient failures but performed no context-fetch retry."
+    },
+    {
+      "action": "Implemented bounded retry",
+      "outcome": "Added three attempts, a 420-second shared budget, header-aware waits, permanent-auth short-circuiting, and redacted diagnostics."
+    },
+    {
+      "action": "Added regression coverage",
+      "outcome": "Covered eventual success, exhausted retries, auth and permission rejection, malformed and empty output, whitespace-only output, and secret redaction."
+    },
+    {
+      "action": "Completed recursive independent review",
+      "outcome": "DevOps review passed. GPT-5.6 Sol found and verified fixes for whitespace context, shared deadlines, permission fallback, and stdout redaction."
+    }
+  ],
+  "endingCommit": "d3f1d244a0",
+  "nextSteps": [
+    "Commit, push, open one focused pull request, resolve review findings, merge, close issue 4547, then reassess PR 4721."
+  ]
+}
