@@ -8,6 +8,12 @@ import yaml
 from scripts.ci.merge_tree_ratchet_registry import RATCHETS, trigger_globs
 
 LEFTHOOK_PATH = Path(__file__).parent.parent / "lefthook.yml"
+MEMORY_WORKFLOW_PATH = (
+    Path(__file__).parent.parent
+    / ".github"
+    / "workflows"
+    / "memory-validation.yml"
+)
 
 
 def _iter_all_jobs(data) -> list[dict]:
@@ -89,3 +95,95 @@ class TestMemoryTierGateEnforcement:
         job = self._find_job("memory-index")
         run = job.get("run", "")
         assert "--ci" in run, f"memory-index is missing --ci: {run!r}"
+
+    def test_memory_index_job_uses_ratchet_orphan_policy(self) -> None:
+        job = self._find_job("memory-index")
+        run = job.get("run", "")
+        assert "--orphan-policy ratchet" in run, (
+            "memory-index must leave the legacy backlog to the count ratchet: "
+            f"{run!r}"
+        )
+
+    def test_memory_workflow_uses_ratchet_orphan_policy(self) -> None:
+        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-memories"]["steps"]
+        run_blocks = [
+            step["run"]
+            for step in steps
+            if isinstance(step, dict) and isinstance(step.get("run"), str)
+        ]
+        command = next(
+            run
+            for run in run_blocks
+            if "scripts/validation/memory_index.py" in run
+        )
+        assert "--orphan-policy ratchet" in command
+
+    def test_memory_workflow_runs_count_ratchet(self) -> None:
+        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-memories"]["steps"]
+        commands = [
+            step["run"]
+            for step in steps
+            if isinstance(step, dict) and isinstance(step.get("run"), str)
+        ]
+
+        assert any(
+            "scripts/ci/memory_index_count_ratchet.py" in command
+            and "--base-ref" in command
+            for command in commands
+        )
+
+    def test_memory_workflow_fetches_base_history(self) -> None:
+        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-memories"]["steps"]
+        checkout = next(
+            step
+            for step in steps
+            if step.get("uses", "").startswith("actions/checkout@")
+        )
+
+        assert checkout.get("with", {}).get("fetch-depth") == 0
+
+    def test_memory_workflow_has_manual_dispatch_base_fallback(self) -> None:
+        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-memories"]["steps"]
+        ratchet = next(
+            step
+            for step in steps
+            if "memory_index_count_ratchet.py" in step.get("run", "")
+        )
+
+        assert ratchet["env"]["BASE_BRANCH"] == (
+            "${{ github.base_ref || github.event.repository.default_branch }}"
+        )
+        assert '--base-ref "origin/$BASE_BRANCH"' in ratchet["run"]
+
+    def test_memory_workflow_uses_locked_markdown_parser_environment(
+        self,
+    ) -> None:
+        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-memories"]["steps"]
+        validator_commands = [
+            step["run"]
+            for step in steps
+            if isinstance(step, dict)
+            and isinstance(step.get("run"), str)
+            and step.get("id") in {"tier-validation", "index-validation"}
+        ]
+
+        assert len(validator_commands) == 2
+        assert all(
+            command.startswith("uv run --frozen python ")
+            for command in validator_commands
+        )
+
+    def test_memory_workflow_blocks_tier_structure_errors(self) -> None:
+        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-memories"]["steps"]
+        tier_validation = next(
+            step for step in steps if step.get("id") == "tier-validation"
+        )
+
+        assert "continue-on-error" not in tier_validation
+        assert "--ci" not in tier_validation["run"]

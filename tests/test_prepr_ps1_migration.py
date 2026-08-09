@@ -104,6 +104,8 @@ class TestSessionEndGate:
                 side_effect=[
                     # git diff returns the session log path
                     (0, ".agents/sessions/2099-01-01-session-01.json\n", ""),
+                    # git rev-parse resolves the validation endpoint
+                    (0, f"{'c' * 40}\n", ""),
                     # validator invocation fails
                     (1, "[FAIL] Invalid session log", ""),
                 ],
