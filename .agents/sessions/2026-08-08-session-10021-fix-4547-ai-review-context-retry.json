@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and recursive review fixes are committed through QA code commit 01f469ccbe9b4859f707647deb8d6ee9c9fd5be0."
+        "Evidence": "Implementation and recursive review fixes are committed through QA code commit 8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "49 shared redactor tests passed at QA code commit 01f469ccbe9b4859f707647deb8d6ee9c9fd5be0, including the separator backtracking regression, the clean-line byte-identical guard, and the single plain Authorization header reason guard. The separator negative control failed against the pre-fix source and passed after restore. The bundled parity test passed 6 tests. Ruff passed on the changed Python files. Earlier context, invocation, artifact, deadline, plain-script import, and ADR-006 validation remains recorded in the QA report."
+        "Evidence": "51 shared redactor tests passed at QA code commit 8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748, including separator backtracking, token-only URL userinfo, clean-line byte-identical, URL-without-userinfo byte-identical, and single plain Authorization header reason guards. The separator and URL userinfo negative controls failed against the pre-fix source and passed after restore. The bundled parity test passed 6 tests. Ruff passed on the changed Python files. Earlier context, invocation, artifact, deadline, plain-script import, and ADR-006 validation remains recorded in the QA report."
       },
       "qaValidation": {
         "level": "MUST",
@@ -174,9 +174,13 @@
     {
       "action": "Resolved separator backtracking review findings",
       "outcome": "Made credential namespace separator alternatives disjoint in the canonical and bundled redactors, added escaped-separator and adversarial long-input coverage, proved the new regression fails against the pre-fix source and passes after restore, and reran redactor, parity, false-positive, Ruff, and security review checks."
+    },
+    {
+      "action": "Resolved token-only URL userinfo review findings",
+      "outcome": "Changed canonical and bundled URL userinfo redaction to mask credentials before @ even without a password separator. Added token-only positive coverage, URL-without-userinfo negative coverage, proved the new token-only test fails against the pre-fix source and passes after restore, and reran redactor, parity, false-positive, Ruff, and security review checks."
     }
   ],
-  "endingCommit": "01f469ccbe9b4859f707647deb8d6ee9c9fd5be0",
+  "endingCommit": "8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748",
   "nextSteps": [
     "Commit, push, open one focused pull request, resolve review findings, merge, close issue 4547, then reassess PR 4721."
   ]

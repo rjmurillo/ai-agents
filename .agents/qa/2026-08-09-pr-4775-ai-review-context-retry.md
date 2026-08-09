@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-fix-4547-ai-review-context-retry.json
-qaCommit: 01f469ccbe9b4859f707647deb8d6ee9c9fd5be0
+qaCommit: 8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748
 ---
 
 # QA Report: PR #4775 AI Review Context Retry
@@ -11,7 +11,7 @@ qaCommit: 01f469ccbe9b4859f707647deb8d6ee9c9fd5be0
 Validated bounded GitHub context retries, rate-limit-aware waits, permanent
 authentication rejection, infrastructure classification, deadline enforcement,
 collision-safe outputs, stale-verdict prevention, credential redaction
-across context, model, and artifact sinks, and separator backtracking defense.
+across context, model, and artifact sinks, separator backtracking defense, and token-only URL userinfo redaction.
 
 ## Results
 
@@ -20,12 +20,13 @@ across context, model, and artifact sinks, and separator backtracking defense.
 | Context builder tests | [PASS], 83 tests |
 | Copilot invoker tests | [PASS], 18 tests |
 | Artifact context tests | [PASS], 9 tests |
-| Shared redactor tests | [PASS], 49 tests |
+| Shared redactor tests | [PASS], 51 tests |
 | Direct-action budget and deadline tests | [PASS], 20 tests |
 | Plain-script import tests | [PASS], 294 tests |
 | Bundled redactor parity tests | [PASS], 6 tests |
 | Separator backtracking negative control | [PASS], pre-fix failed and post-fix passed |
-| False-positive redaction guards | [PASS], 2 tests |
+| URL userinfo negative control | [PASS], pre-fix failed and post-fix passed |
+| False-positive redaction guards | [PASS], 3 tests |
 | Combined focused regression selection | [PASS], 466 tests |
 | ADR-006 run-block ratchet | [PASS], 0 violations |
 | Ruff | [PASS] |
@@ -56,6 +57,8 @@ Delivered: Three bounded context attempts; Retry-After and X-RateLimit-Reset;
            raw and escaped JSON backslash matrix, and keeps credential
            namespace separator alternatives disjoint from namespace characters
            so long hyphen or underscore runs complete within the review budget.
+           URL userinfo redaction now masks token-only credentials before `@`
+           as `url-credential`, while URLs without userinfo pass through unchanged.
 Gap: None.
 Result: PASS
 ```

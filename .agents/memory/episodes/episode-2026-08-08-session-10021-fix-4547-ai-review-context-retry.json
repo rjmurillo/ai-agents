@@ -81,7 +81,8 @@
         "e014",
         "e018",
         "e021",
-        "e027"
+        "e027",
+        "e029"
       ],
       "leads_to": [
         "e012"
@@ -351,6 +352,30 @@
       "caused_by": [
         "e026"
       ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved token-only URL userinfo review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-09T14:59:06+00:00",
+      "type": "commit",
+      "content": "Commit: 8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748",
+      "caused_by": [
+        "e028"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
     }
@@ -360,7 +385,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 14,
+    "commits": 15,
     "files_changed": 20
   },
   "lessons": []
