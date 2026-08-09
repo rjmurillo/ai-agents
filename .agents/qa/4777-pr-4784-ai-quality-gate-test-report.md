@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli.json
-qaCommit: 9a16e8aa02ddff0132807e03a258dbae13fa9025
+qaCommit: 55804e1c8716458330ddf28470cc87d4e1148270
 ---
 
 # AI quality gate validation
@@ -17,7 +17,7 @@ Recognized non-security infrastructure failures may return `WARN`, never
 
 ## Evidence
 
-- Full suite: 25,029 passed, 34 skipped, 2 warnings.
+- Full suite: 25,058 passed, 36 skipped, 2 warnings.
 - Focused suite: 172 passed.
 - Verdict matrix: 196 combinations, 0 invariant violations.
 - Total reviewer outage replay: `DID_NOT_RUN`, final gate exit 1.

@@ -14,7 +14,7 @@
       "content": "Read PR #4773 discourse, issue #2821 history, linked issues, and Actions runs 31283819879 and 31283819979.",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e009"
       ],
       "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
     },
@@ -25,7 +25,7 @@
       "content": "Filed issue #4777 for the fail-open gate and issue #4778 for ignored infrastructure preflight. Updated canonical token issue #3275.",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e009"
       ],
       "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
     },
@@ -36,7 +36,7 @@
       "content": "Restored fail-closed security semantics and removed invented Copilot-unavailable diagnostics.",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e009"
       ],
       "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
     },
@@ -47,7 +47,7 @@
       "content": "Ran recursive GPT-5.6 Sol, code, silent-failure, and security reviews.",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e009"
       ],
       "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
     },
@@ -58,7 +58,7 @@
       "content": "Validated the final committed tree.",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e009"
       ],
       "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
     },
@@ -69,15 +69,37 @@
       "content": "Filed tool and process issues #4779, #4780, and #4781.",
       "caused_by": [],
       "leads_to": [
-        "e007"
+        "e009"
       ],
       "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
     },
     {
       "id": "e007",
-      "timestamp": "2026-08-09T05:53:51+00:00",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved required-check context collision on live PR #4784 and updated ruleset 11104075.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Hardened Session Protocol Results through recursive adversarial review.",
+      "caused_by": [],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-09T11:07:10+00:00",
       "type": "commit",
-      "content": "Commit: 8d903e4a21",
+      "content": "Commit: 55804e1c8716458330ddf28470cc87d4e1148270",
       "caused_by": [
         "e001",
         "e002",
@@ -85,69 +107,8 @@
         "e004",
         "e005",
         "e006",
-        "e009",
-        "e010"
-      ],
-      "leads_to": [
+        "e007",
         "e008"
-      ],
-      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-08-09T07:26:20+00:00",
-      "type": "commit",
-      "content": "Commit: 08df33041b38e378f61df5fc7c42e50a822d75ef",
-      "caused_by": [
-        "e007"
-      ],
-      "leads_to": [
-        "e011"
-      ],
-      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-08-08T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Proved required-check context collision on live PR #4784 and updated ruleset 11104075.",
-      "caused_by": [],
-      "leads_to": [
-        "e007"
-      ],
-      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-08-08T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Hardened Session Protocol Results through recursive adversarial review.",
-      "caused_by": [],
-      "leads_to": [
-        "e007"
-      ],
-      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
-    },
-    {
-      "id": "e011",
-      "timestamp": "2026-08-09T09:30:28+00:00",
-      "type": "commit",
-      "content": "Commit: 87fa7f437e1af6cf03948bc72b5dd7351198749e",
-      "caused_by": [
-        "e008"
-      ],
-      "leads_to": [
-        "e012"
-      ],
-      "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
-    },
-    {
-      "id": "e012",
-      "timestamp": "2026-08-09T10:14:40+00:00",
-      "type": "commit",
-      "content": "Commit: 9a16e8aa02ddff0132807e03a258dbae13fa9025",
-      "caused_by": [
-        "e011"
       ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli"
@@ -158,7 +119,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 1,
     "files_changed": 36
   },
   "lessons": []
