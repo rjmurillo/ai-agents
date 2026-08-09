@@ -728,6 +728,60 @@ def test_act_dryrun_stage_runs_each_file_and_stops_on_failure(monkeypatch, tmp_p
     assert calls == ["a.yml"]  # stopped after first failure
 
 
+def test_act_stage_runs_multi_job_workflow_jobs_serially(monkeypatch, tmp_path):
+    wf = tmp_path / WF
+    wf.parent.mkdir(parents=True)
+    wf.write_text(
+        "\n".join(
+            [
+                "name: x",
+                "on: push",
+                "jobs:",
+                "  first:",
+                "    runs-on: ubuntu-latest",
+                "    steps:",
+                "      - run: echo first",
+                "  second:",
+                "    runs-on: ubuntu-latest",
+                "    steps:",
+                "      - run: echo second",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    calls = []
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        calls.append(cmd)
+        return 0, "", ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert res.ok is True
+    assert calls == [
+        ["gh", "act", "-j", "first", "-W", WF],
+        ["gh", "act", "-j", "second", "-W", WF],
+    ]
+
+
+def test_act_contention_retry_is_visible(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        calls.append(cmd)
+        if len(calls) == 1:
+            return 1, "", "failed to create container"
+        return 0, "", ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert res.ok is True
+    assert len(calls) == 2
+    assert "retried once after act contention" in res.detail
+
+
 # --- linked-worktree GIT_DIR handling (#2344) ----------------------------
 
 

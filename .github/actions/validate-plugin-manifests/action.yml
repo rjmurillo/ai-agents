@@ -49,6 +49,13 @@ runs:
       # install into an interpreter other than the one actions/setup-python
       # selected. The other three install sites under .github/ already use the
       # module form.
+      # pytest-timeout is required, not optional: pyproject.toml puts
+      # --timeout=120 in addopts, so a pytest without the plugin exits 4 with
+      # "unrecognized arguments: --timeout=120" before collecting anything.
+      # That is pytest's usage-error code, so the step fails without ever
+      # running a test. This job is path filtered and only fires when a
+      # plugin manifest or a hooks.json changes, so the break stayed latent
+      # on main and surfaced on the first branch that touched hooks.json.
       run: python3 -m pip install 'pytest==9.0.3' 'pytest-timeout==2.4.0'
 
     - name: Run validator unit tests

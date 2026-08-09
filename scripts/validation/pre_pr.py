@@ -58,6 +58,7 @@ from check_unreachable_code import validate_unreachable_code
 from checks_common import (
     MissingScriptSkip,
     _gh_base_ref,
+    _reset_gh_base_cache,
     _resolve_branch_base_ref,
     _run_build_script_gate,
     _run_subprocess,
@@ -106,7 +107,6 @@ from checks_tooling import (
     validate_copilot_version_pin,
     validate_markdown_lint,
     validate_path_normalization,
-    validate_pester_tests,
     validate_planning_artifacts,
     validate_session_end,
     validate_workflow_yaml,
@@ -270,6 +270,14 @@ def main(argv: list[str] | None = None) -> int:
     if not repo_root.is_dir():
         print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)
         return 2
+
+    # Scope the gh PR-base cache to this invocation (item 3, round 2 review):
+    # branch/HEAD is a proxy for "did the local checkout change", not for
+    # "did the remote PR change", so a stale answer from a prior in-process
+    # invocation (a retry, or a test harness calling main() repeatedly) must
+    # not leak into this one. Runs before both the fast path below and the
+    # full gate sequence so every gh-querying gate in this run is covered.
+    _reset_gh_base_cache()
 
     if args.markdown_lint_only:
         return 0 if validate_markdown_lint(repo_root, args.markdown_files) else 1
