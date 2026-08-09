@@ -580,7 +580,8 @@ def main(argv: list[str] | None = None) -> int:
     indeterminate = result["IndeterminateRequired"]
     unresolved = result["UnresolvedThreads"]
 
-    has_blocker = bool(missing or failing or pending or indeterminate or unresolved)
+    has_hard_blocker = bool(missing or failing or indeterminate or unresolved)
+    has_blocker = has_hard_blocker or bool(pending)
     number = args.pull_request
 
     if not has_blocker:
@@ -629,7 +630,11 @@ def main(argv: list[str] | None = None) -> int:
         script_name="why_pr_blocked.py",
     )
 
-    return 1 if has_blocker else 0
+    if has_hard_blocker:
+        return 1
+    if pending:
+        return 2
+    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
