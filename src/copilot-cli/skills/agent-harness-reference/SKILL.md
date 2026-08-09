@@ -99,13 +99,13 @@ that hangs is a gate that passes the call through.
 
 ### Shipped registrations
 
-- Vendored Claude plugin source, `.claude/hooks/hooks.json`: two registrations,
-  PreToolUse and PostToolUse.
+- Vendored Claude plugin source, `.claude/hooks/hooks.json`: three registrations,
+  two PreToolUse and one PostToolUse.
 - Generated Copilot plugin, `src/copilot-cli/hooks/hooks.json`: two dispatcher
   registrations, one per active event.
-- Local repository settings, `.claude/settings.json`: five registrations across
-  SessionStart, PostToolUse, Stop, and PreCompact. These do not feed the vendored
-  Copilot plugin generator.
+- Local repository settings, `.claude/settings.json`: eight registrations across
+  SessionStart, UserPromptSubmit, PostToolUse, SessionEnd, PreCompact, and
+  PreToolUse. These do not feed the vendored Copilot plugin generator.
 
 ### Event policy
 

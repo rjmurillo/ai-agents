@@ -2,7 +2,7 @@
 
 # Probe Evidence Behind the Hook Contract
 
-Updated: 2026-07-22
+Updated: 2026-08-08
 
 This file records version-scoped runtime observations. Official behavior belongs
 in `official-hook-contracts.md`. Keep a probe here when the docs are silent, when
@@ -212,7 +212,60 @@ Durable tests:
 - `tests/e2e/test_plugin_load_smoke.py::test_copilot_commands_disable_auto_update`
 - `tests/test_nightly_cli_smoke_security.py`
 
-## 7. Re-running a probe
+## 7. Python command permission and script identity
+
+Issue #4764, 2026-08-08.
+
+Versions:
+
+- GitHub Copilot CLI 1.0.79-6
+- Claude Code 2.1.223
+
+Method:
+
+1. Create a repository-controlled `attacker/pr/new_pr.py`.
+2. Run it under the `/push-pr` Python permission matcher.
+3. Repeat with an installed plugin and its PreToolUse identity gate.
+4. Run the installed plugin's real `new_pr.py --help` as the positive control.
+5. Restrict the Copilot probe to Bash, so another execution tool cannot hide
+   the Bash hook result.
+
+Observed:
+
+```text
+Claude Bash(python3:*/pr/new_pr.py*) did not grant either command.
+Claude Bash(python3 */pr/new_pr.py*) granted the lookalike command.
+Claude PreToolUse matcher Bash(python3 */pr/new_pr.py*) did not fire.
+Claude PreToolUse matcher Bash fired and denied the lookalike with exit 2.
+Copilot PreToolUse matcher Bash denied the lookalike with exit 2.
+Both hosts allowed the runtime plugin through python3 -I new_pr.py --help.
+```
+
+Claude hook `matcher` filters the tool name, not the Bash command. Current
+Claude documentation provides the handler-level `if` field for command input
+matching. The shared Claude and Copilot registration uses the bare `Bash`
+matcher instead, then checks the command inside the Python guard. This keeps one
+enforcement path across both generated surfaces.
+
+The guard anchors trust to the plugin tree containing the running guard. It does
+not trust a repository copy at the expected relative path, an environment
+variable alone, a suffix match, a shell glob, or a symlink. It resolves the
+plugin-root expression the same way as the shell, then compares that result to
+the runtime plugin tree. The required Python `-I` flag blocks repository
+`PYTHONPATH` and user-site import injection.
+
+Copilot can execute Python through an unrelated MCP tool when that tool has
+separate session approval. A Bash hook cannot intercept another tool's call.
+Issue #4763 owns that broader per-skill permission boundary. Issue #4764 removes
+the automatic Python grant and adds a Bash identity gate. It does not claim a
+plugin can govern every execution tool.
+
+Durable tests:
+
+- `tests/hooks/test_push_pr_script_identity_guard.py`
+- `tests/hooks/test_dispatch_groups_parity.py`
+
+## 8. Re-running a probe
 
 Use `ai-agents-empirical-probe-toolkit` recipe 1.
 
