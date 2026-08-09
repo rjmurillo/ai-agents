@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-fix-4547-ai-review-context-retry.json
-qaCommit: 3c6f503c9965165773709e93b8746e8dca75752f
+qaCommit: 411fa4dd056878f17fd631f7096c1a205e7082a4
 ---
 
 # QA Report: PR #4775 AI Review Context Retry
