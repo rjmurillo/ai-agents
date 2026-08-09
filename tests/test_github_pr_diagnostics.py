@@ -124,15 +124,66 @@ class TestFetchRulesetRequiredContexts:
     """Unit tests for fetch_ruleset_required_contexts."""
 
     def test_returns_list_on_success(self):
-        contexts = [
-            {"context": "CI / build", "integration_id": 15368},
-            {"context": "CI / test", "integration_id": 15368},
-            {"context": "Validate PR", "integration_id": 15368},
-        ]
-        mock_result = _completed(stdout=json.dumps(contexts))
-        with patch("subprocess.run", return_value=mock_result):
+        pages = [[{
+            "type": "required_status_checks",
+            "parameters": {
+                "required_status_checks": [
+                    {"context": "CI / build", "integration_id": 15368},
+                    {"context": "CI / test", "integration_id": 15368},
+                    {"context": "Validate PR", "integration_id": 15368},
+                ],
+            },
+        }]]
+        mock_result = _completed(stdout=json.dumps(pages))
+        with patch("subprocess.run", return_value=mock_result) as run:
             result = _checks_mod.fetch_ruleset_required_contexts("o", "r", "main")
         assert result == _required_checks("CI / build", "CI / test", "Validate PR")
+        args = run.call_args.args[0]
+        assert "--paginate" in args
+        assert "--slurp" in args
+        assert args[-1].endswith("?per_page=100")
+
+    def test_combines_paginated_rulesets(self):
+        pages = [
+            [{
+                "type": "required_status_checks",
+                "parameters": {
+                    "required_status_checks": [
+                        {"context": "CI / build", "integration_id": 15368},
+                    ],
+                },
+            }],
+            [{
+                "type": "required_status_checks",
+                "parameters": {
+                    "required_status_checks": [
+                        {"context": "CI / test", "integration_id": 15368},
+                    ],
+                },
+            }],
+        ]
+        mock_result = _completed(stdout=json.dumps(pages))
+        with patch("subprocess.run", return_value=mock_result):
+            result = _checks_mod.fetch_ruleset_required_contexts("o", "r", "main")
+        assert result == _required_checks("CI / build", "CI / test")
+
+    def test_why_blocked_ruleset_fetch_is_paginated(self):
+        pages = [[{
+            "type": "required_status_checks",
+            "parameters": {
+                "required_status_checks": [
+                    {"context": "CI / build", "integration_id": 15368},
+                ],
+            },
+        }]]
+        mock_result = _completed(stdout=json.dumps(pages))
+        with patch("subprocess.run", return_value=mock_result) as run:
+            result = _why_mod._fetch_ruleset_contexts("o", "r", "main")
+        assert result == _required_checks("CI / build")
+        args = run.call_args.args[0]
+        assert "--paginate" in args
+        assert "--slurp" in args
+        assert args[-1].endswith("?per_page=100")
 
     def test_raises_on_nonzero_rc(self):
         mock_result = _completed(stdout="", stderr="404", rc=1)
@@ -344,10 +395,15 @@ class TestMainGetPrChecksMissingExitCode:
         rollup_data = _rollup_response(
             [_check_run_node("CI / build", "COMPLETED", "SUCCESS")],
         )
-        ruleset_contexts = json.dumps([
-            {"context": "CI / build", "integration_id": 15368},
-            {"context": "CI / test", "integration_id": 15368},
-        ])
+        ruleset_contexts = json.dumps([[{
+            "type": "required_status_checks",
+            "parameters": {
+                "required_status_checks": [
+                    {"context": "CI / build", "integration_id": 15368},
+                    {"context": "CI / test", "integration_id": 15368},
+                ],
+            },
+        }]])
 
         with (
             patch(f"{_checks_mod.__name__}.assert_gh_authenticated"),

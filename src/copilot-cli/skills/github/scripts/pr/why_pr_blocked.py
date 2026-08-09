@@ -170,18 +170,11 @@ def _fetch_ruleset_contexts(
     """Return required context and integration identities."""
     import json as _json
 
+    endpoint = (
+        f"repos/{owner}/{repo}/rules/branches/{base_branch}?per_page=100"
+    )
     result = subprocess.run(
-        [
-            "gh", "api",
-            f"repos/{owner}/{repo}/rules/branches/{base_branch}",
-            "--jq",
-            (
-                "[.[]"
-                "| select(.type==\"required_status_checks\")"
-                "| .parameters.required_status_checks[]"
-                "| {context: .context, integration_id: .integration_id}]"
-            ),
-        ],
+        ["gh", "api", "--paginate", "--slurp", endpoint],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
@@ -195,9 +188,24 @@ def _fetch_ruleset_contexts(
         raw = result.stdout.strip()
         if not raw:
             raise ValueError("empty response")
-        items = _json.loads(raw)
-        if not isinstance(items, list):
+        pages = _json.loads(raw)
+        if not isinstance(pages, list):
             raise TypeError("expected a list")
+        rules = (
+            [rule for page in pages for rule in page]
+            if pages and all(isinstance(page, list) for page in pages)
+            else pages
+        )
+        items = [
+            check
+            for rule in rules
+            if isinstance(rule, dict)
+            and rule.get("type") == "required_status_checks"
+            for check in (rule.get("parameters") or {}).get(
+                "required_status_checks", []
+            )
+            if isinstance(check, dict)
+        ]
         return [
             {
                 "Context": str(item["context"]),
