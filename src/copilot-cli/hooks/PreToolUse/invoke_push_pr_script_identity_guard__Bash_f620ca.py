@@ -368,7 +368,12 @@ def _shim_dispatch():
 def _original_main(stdin_bytes):
     # original script body begins below
     #!/usr/bin/env python3
-    """Deny noncanonical push-pr Python entrypoints (issue #4764)."""
+    """Deny noncanonical push-pr Python entrypoints (issue #4764).
+
+    Exit codes:
+        0 = allow
+        2 = block
+    """
 
 
     import hashlib

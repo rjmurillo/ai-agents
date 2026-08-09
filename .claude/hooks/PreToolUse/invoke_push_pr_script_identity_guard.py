@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Deny noncanonical push-pr Python entrypoints (issue #4764)."""
+"""Deny noncanonical push-pr Python entrypoints (issue #4764).
+
+Exit codes:
+    0 = allow
+    2 = block
+"""
 
 from __future__ import annotations
 
