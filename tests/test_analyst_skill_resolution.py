@@ -277,41 +277,89 @@ def test_pull_request_read_declared(path: Path) -> None:
     assert "pull_request_read" in path.read_text(), (
         f"{path.relative_to(REPO_ROOT)}: pull_request_read not declared"
     )
-@pytest.mark.parametrize("path", ALL_ANALYST_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def test_blocked_requires_retrieval_failure(path: Path) -> None:
-    """BLOCKED must be conditional on retrieval failure, not unconditional.
 
-    Parses the section containing [BLOCKED] and asserts:
-    1. Conditional language (only when/if) governs [BLOCKED]
-    2. A retrieval step (pull_request_read or retrieve) appears before BLOCKED
-    """
-    text = path.read_text()
+# --- Section-aware validation helpers (shared by production tests and negative controls) ---
+
+
+def _extract_blocked_section(text: str) -> str:
+    """Extract the heading-delimited section containing [BLOCKED]."""
     idx = text.find("[BLOCKED]")
-    assert idx != -1
-    # Extract the section (heading-delimited) containing BLOCKED
+    if idx == -1:
+        raise ValueError("No [BLOCKED] found in text")
     section_start = text.rfind("\n#", 0, idx)
     section_end = text.find("\n#", idx)
-    section = text[max(0, section_start):section_end if section_end != -1 else len(text)].lower()
-    # Must contain conditional language
+    return text[max(0, section_start):section_end if section_end != -1 else len(text)].lower()
+
+
+def _check_blocked_conditional(section: str) -> str | None:
+    """Return None if BLOCKED is properly conditional, else an error message."""
     conditional_words = ("only when", "only if", "only after")
-    assert any(w in section for w in conditional_words), (
-        f"{path.relative_to(REPO_ROOT)}: [BLOCKED] section lacks conditional "
-        f"language (only when/if/after)"
-    )
-    # Retrieval tool/action must be mentioned before BLOCKED in the section
+    if not any(w in section for w in conditional_words):
+        return "BLOCKED section lacks conditional language (only when/if/after)"
+    return None
+
+
+def _check_retrieval_precedes_blocked(section: str) -> str | None:
+    """Return None if a retrieval step precedes BLOCKED, else an error message.
+
+    Only counts retrieval mentions that reference declared GitHub tools or the
+    verb 'retrieve' in the context of tool usage (not arbitrary prose).
+    """
     blocked_pos = section.find("[blocked]")
-    # Find the earliest retrieval mention
-    positions = [
+    if blocked_pos == -1:
+        return "No [blocked] in section"
+    # Look for declared tool names or 'retrieve...directly' pattern
+    tool_mentions = [
         p for p in (
             section.find("pull_request_read"),
-            section.find("retrieve"),
+            section.find("issue_read"),
+            section.find("list_workflow_runs"),
         )
         if p >= 0
     ]
-    retrieval_pos = min(positions) if positions else -1
-    assert 0 <= retrieval_pos < blocked_pos, (
-        f"{path.relative_to(REPO_ROOT)}: retrieval step must precede [BLOCKED]"
-    )
+    # Also accept 'retrieve' only if followed by 'directly' within 50 chars
+    retrieve_pos = section.find("retrieve")
+    if retrieve_pos >= 0:
+        following = section[retrieve_pos:retrieve_pos + 80]
+        if "directly" in following or "via" in following:
+            tool_mentions.append(retrieve_pos)
+    if not tool_mentions:
+        return "No tool-based retrieval step found before BLOCKED"
+    earliest = min(tool_mentions)
+    if earliest >= blocked_pos:
+        return "Retrieval step does not precede BLOCKED"
+    return None
+
+
+def _check_identity_conditional(text: str) -> str | None:
+    """Return None if local identity is conditional, else an error message.
+
+    Checks that 'when present' appears in the identity table context,
+    not just anywhere in the document.
+    """
+    # Find the identity table (starts with | Identity |)
+    table_start = text.lower().find("| identity |")
+    if table_start == -1:
+        # No table means no mandatory identity - acceptable
+        return None
+    table_section = text[table_start:table_start + 500].lower()
+    if "when present" not in table_section:
+        return "Identity table does not mark local columns as conditional ('when present')"
+    return None
+
+
+# --- Production tests using shared helpers ---
+
+
+@pytest.mark.parametrize("path", ALL_ANALYST_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_blocked_requires_retrieval_failure(path: Path) -> None:
+    """BLOCKED must be conditional on retrieval failure, not unconditional."""
+    text = path.read_text()
+    section = _extract_blocked_section(text)
+    err = _check_blocked_conditional(section)
+    assert err is None, f"{path.relative_to(REPO_ROOT)}: {err}"
+    err = _check_retrieval_precedes_blocked(section)
+    assert err is None, f"{path.relative_to(REPO_ROOT)}: {err}"
 
 
 @pytest.mark.parametrize("path", ALL_ANALYST_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
@@ -324,16 +372,10 @@ def test_get_job_logs_declared(path: Path) -> None:
 
 @pytest.mark.parametrize("path", ALL_ANALYST_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_local_identity_conditional_across_surfaces(path: Path) -> None:
-    """Local identity must be conditional for remote-only (API-only) analysis.
-
-    The identity table must use 'when present' so remote-only PR analysis
-    via API tools does not require local checkout info.
-    """
-    text = path.read_text().lower()
-    assert "when present" in text, (
-        f"{path.relative_to(REPO_ROOT)}: local identity not marked conditional "
-        f"('when present' missing)"
-    )
+    """Local identity must be conditional for remote-only (API-only) analysis."""
+    text = path.read_text()
+    err = _check_identity_conditional(text)
+    assert err is None, f"{path.relative_to(REPO_ROOT)}: {err}"
 
 
 def test_no_duplicate_identity_gate() -> None:
@@ -346,56 +388,68 @@ def test_no_duplicate_identity_gate() -> None:
         )
 
 
-# --- Negative-control fixtures: reproduce prior defects, confirm tests catch them ---
+# --- Negative controls: call the SAME helpers on defective fixtures ---
 
 
 class TestNegativeControls:
-    """Fixtures reproducing prior defects to confirm the tests catch them."""
+    """Call production guard helpers on defective text to prove detection."""
 
-    UNCONDITIONAL_BLOCKED = (
-        "## Delegation\n"
-        "Return [BLOCKED] Missing PR metadata.\n"
+    # Fixture 1: unconditional BLOCKED (no "only when/if/after")
+    UNCONDITIONAL_BLOCKED_SECTION = (
+        "\n### delegation contract\n"
+        "return [blocked] missing pr metadata.\n"
     )
 
-    BLOCKED_WITHOUT_RETRIEVAL = (
-        "## Delegation\n"
-        "Return [BLOCKED] only when evidence is missing.\n"
+    # Fixture 2: BLOCKED with conditional but retrieval only AFTER it
+    RETRIEVAL_AFTER_BLOCKED_SECTION = (
+        "\n### delegation contract\n"
+        "return [blocked] only when evidence is missing. "
+        "then retrieve via pull_request_read.\n"
     )
 
-    MANDATORY_LOCAL_IDENTITY = (
-        "| Local source | Repository | branch | head SHA |\n"
+    # Fixture 3: unrelated 'retrieve' that shouldn't satisfy the guard
+    UNRELATED_RETRIEVAL_SECTION = (
+        "\n### delegation contract\n"
+        "the orchestrator will retrieve build logs. "
+        "return [blocked] only when missing.\n"
     )
 
-    CONDITIONAL_LOCAL_IDENTITY = (
-        "| Local source (when present) | Repository | branch | head SHA |\n"
+    # Fixture 4: mandatory local identity (no 'when present')
+    MANDATORY_IDENTITY_TEXT = (
+        "| Identity | API field | Local source | Mismatch action |\n"
+        "|----------|-----------|--------------|----------------|\n"
+        "| Repository | owner/repo | visible path | Stop |\n"
     )
 
-    def test_unconditional_blocked_fails(self) -> None:
-        """Prior defect: BLOCKED without conditional language is detected."""
-        section = self.UNCONDITIONAL_BLOCKED.lower()
-        conditional_words = ("only when", "only if", "only after")
-        # This MUST NOT match - proves our test would catch this defect
-        assert not any(w in section for w in conditional_words)
+    # Fixture 5: 'when present' appears but NOT in the identity table
+    WHEN_PRESENT_OUTSIDE_TABLE = (
+        "Use local context when present in the delegation prompt.\n\n"
+        "| Identity | API field | Local source | Mismatch action |\n"
+        "|----------|-----------|--------------|----------------|\n"
+        "| Repository | owner/repo | visible path | Stop |\n"
+    )
 
-    def test_blocked_without_retrieval_preceding_fails(self) -> None:
-        """Prior defect: BLOCKED with conditional but no retrieval before it."""
-        section = self.BLOCKED_WITHOUT_RETRIEVAL.lower()
-        blocked_pos = section.find("[blocked]")
-        positions = [
-            p for p in (
-                section.find("pull_request_read"),
-                section.find("retrieve"),
-            )
-            if p >= 0
-        ]
-        retrieval_pos = min(positions) if positions else -1
-        # retrieval not found or not before blocked - proves detection
-        assert retrieval_pos == -1 or retrieval_pos >= blocked_pos
+    def test_unconditional_blocked_detected(self) -> None:
+        """Prior defect: no conditional language around BLOCKED."""
+        err = _check_blocked_conditional(self.UNCONDITIONAL_BLOCKED_SECTION)
+        assert err is not None, "Should detect missing conditional"
 
-    def test_mandatory_identity_fails(self) -> None:
-        """Prior defect: unconditional local identity is detected."""
-        assert "when present" not in self.MANDATORY_LOCAL_IDENTITY.lower()
+    def test_retrieval_after_blocked_detected(self) -> None:
+        """Prior defect: retrieval mentioned but only after BLOCKED."""
+        err = _check_retrieval_precedes_blocked(self.RETRIEVAL_AFTER_BLOCKED_SECTION)
+        assert err is not None, "Should detect retrieval after BLOCKED"
 
-    def test_conditional_identity_passes(self) -> None:
-        """Current contract: conditional identity is accepted."""
-        assert "when present" in self.CONDITIONAL_LOCAL_IDENTITY.lower()
+    def test_unrelated_retrieval_detected(self) -> None:
+        """Prior defect: unrelated 'retrieve' (not tool-based) before BLOCKED."""
+        err = _check_retrieval_precedes_blocked(self.UNRELATED_RETRIEVAL_SECTION)
+        assert err is not None, "Should reject unrelated retrieval prose"
+
+    def test_mandatory_identity_detected(self) -> None:
+        """Prior defect: local identity without 'when present'."""
+        err = _check_identity_conditional(self.MANDATORY_IDENTITY_TEXT)
+        assert err is not None, "Should detect mandatory identity"
+
+    def test_when_present_outside_table_detected(self) -> None:
+        """Unrelated 'when present' outside identity table doesn't satisfy guard."""
+        err = _check_identity_conditional(self.WHEN_PRESENT_OUTSIDE_TABLE)
+        assert err is not None, "Should not be satisfied by 'when present' outside table"
