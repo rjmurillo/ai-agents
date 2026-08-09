@@ -149,7 +149,7 @@
       "outcome": "Recursive GPT-5.6 Sol review returned Critical 0 and High 0 after one High finding was fixed."
     }
   ],
-  "endingCommit": "174571bade363fef6856d7b7e181c615163fb4ac",
+  "endingCommit": "c2cc1aacc8bd452623fd01d1d5f8d532d5f86ef9",
   "nextSteps": [
     "Push the branch through normal pre-push hooks.",
     "Verify remote SHA and CI at the pushed head.",

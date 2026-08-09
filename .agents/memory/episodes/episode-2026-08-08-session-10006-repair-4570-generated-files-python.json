@@ -138,6 +138,19 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-08-session-10006-repair-4570-generated-files-python"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-09T06:34:36+00:00",
+      "type": "commit",
+      "content": "Commit: c2cc1aacc8bd452623fd01d1d5f8d532d5f86ef9",
+      "caused_by": [
+        "e011"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10006-repair-4570-generated-files-python"
     }
@@ -147,7 +160,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 6,
     "files_changed": 25
   },
   "lessons": []

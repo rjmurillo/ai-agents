@@ -76,7 +76,7 @@
       "type": "milestone",
       "content": "Ran the retrospective workflow after the pre-push evidence gate blocked the first push.",
       "caused_by": [
-        "e016"
+        "e017"
       ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
@@ -209,6 +209,19 @@
         "e015"
       ],
       "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-09T06:34:36+00:00",
+      "type": "commit",
+      "content": "Commit: c2cc1aacc8bd452623fd01d1d5f8d532d5f86ef9",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
         "e006"
       ],
       "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
@@ -219,7 +232,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 8,
+    "commits": 9,
     "files_changed": 25
   },
   "lessons": []
