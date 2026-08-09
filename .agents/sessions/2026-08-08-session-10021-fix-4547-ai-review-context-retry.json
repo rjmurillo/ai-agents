@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and recursive review fixes are committed through QA code commit c48fb1cd35fe64d901ec06a6f4bfc51a1309aaf0."
+        "Evidence": "Implementation and recursive review fixes are committed through QA code commit 8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "466 focused, redaction-matrix, deadline, plain-script import, and bundled parity tests passed at QA code commit c48fb1cd35fe64d901ec06a6f4bfc51a1309aaf0. A full pre-push run passed 24944 tests with 34 skips and 50 deselections before the bounded-assignment refinement. The extracted helper passes its 15 tests, the CLI exit ratchet passes, and the ADR-006 ratchet reports zero violations. Mypy, Ruff, action validation, review-budget validation, merge-tree ratchets, and 50 pre-PR checks passed."
+        "Evidence": "51 shared redactor tests passed at QA code commit 8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748, including separator backtracking, token-only URL userinfo, clean-line byte-identical, URL-without-userinfo byte-identical, and single plain Authorization header reason guards. The separator and URL userinfo negative controls failed against the pre-fix source and passed after restore. The bundled parity test passed 6 tests. Ruff passed on the changed Python files. Earlier context, invocation, artifact, deadline, plain-script import, and ADR-006 validation remains recorded in the QA report."
       },
       "qaValidation": {
         "level": "MUST",
@@ -170,9 +170,17 @@
     {
       "action": "Resolved structured assignment truncation and suffix leak reviews",
       "outcome": "Bounded credential assignment redaction to scalar values, preserved trailing JSON and prose fields, and covered raw and escaped JSON with one through six backslashes before inner quotes. Recursive GPT-5.6 Sol review reports no Critical or High findings."
+    },
+    {
+      "action": "Resolved separator backtracking review findings",
+      "outcome": "Made credential namespace separator alternatives disjoint in the canonical and bundled redactors, added escaped-separator and adversarial long-input coverage, proved the new regression fails against the pre-fix source and passes after restore, and reran redactor, parity, false-positive, Ruff, and security review checks."
+    },
+    {
+      "action": "Resolved token-only URL userinfo review findings",
+      "outcome": "Changed canonical and bundled URL userinfo redaction to mask credentials before @ even without a password separator. Added token-only positive coverage, URL-without-userinfo negative coverage, proved the new token-only test fails against the pre-fix source and passes after restore, and reran redactor, parity, false-positive, Ruff, and security review checks."
     }
   ],
-  "endingCommit": "c48fb1cd35fe64d901ec06a6f4bfc51a1309aaf0",
+  "endingCommit": "8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748",
   "nextSteps": [
     "Commit, push, open one focused pull request, resolve review findings, merge, close issue 4547, then reassess PR 4721."
   ]
