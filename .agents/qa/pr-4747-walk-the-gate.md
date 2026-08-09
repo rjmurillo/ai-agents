@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10023.json
-qaCommit: ef2ec00094d0622a35eee198d971f929c5d5a76a
+qaCommit: 8220935232a1b6476ff4a90b6a175f27d9625284
 ---
 
 # PR 4747 QA Report
@@ -28,5 +28,6 @@ Covers the PR 4747 fail-open session-log validation thread. Pre-commit now compa
 ## Re-validation After Base Merge
 
 - Merged `origin/main` cleanly into this branch at `ef2ec00094d0622a35eee198d971f929c5d5a76a`.
-- No test command was re-run before this QA report update. The next validation step is the session JSON check for the updated binding.
+- Re-ran validation on `8220935232a1b6476ff4a90b6a175f27d9625284` after the QA report refresh.
+- `uv run --frozen pytest tests/test_mutation_workspace_signals.py::test_concurrent_runs_use_distinct_markers_and_worktrees tests/test_lefthook_integration.py tests/test_validate_session_json.py -q` collected 1155 items and passed all 1155 in 49.98 seconds.
 
