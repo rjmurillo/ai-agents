@@ -207,6 +207,7 @@ jobs:
         id: aggregate
         env:
           EXPECTED_RESULTS: ${{ steps.should-run-protocol.outputs.expected_results }}
+          EXPECTED_ARTIFACTS: ${{ steps.should-run-protocol.outputs.expected_artifacts }}
         run: python3 .github/scripts/aggregate_session_verdicts.py
 
       - name: Generate Compliance Report

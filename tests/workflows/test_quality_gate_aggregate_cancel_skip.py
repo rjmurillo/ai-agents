@@ -121,6 +121,10 @@ class TestAggregateCancelSkip:
             aggregate["env"]["EXPECTED_RESULTS"]
             == "${{ steps.should-run-protocol.outputs.expected_results }}"
         )
+        assert (
+            aggregate["env"]["EXPECTED_ARTIFACTS"]
+            == "${{ steps.should-run-protocol.outputs.expected_artifacts }}"
+        )
 
     def test_concurrency_still_cancels_in_progress(self, workflow: dict) -> None:
         """Concurrency cancel-in-progress must remain enabled.

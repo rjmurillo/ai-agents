@@ -8,6 +8,12 @@ import os
 import sys
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.ci.validate_session_protocol import artifact_name  # noqa: E402
+
 EXIT_OK = 0
 EXIT_LOGIC = 1
 EXIT_CONFIG = 2
@@ -20,34 +26,45 @@ def decide(
     has_sessions: str,
     validate_result: str,
     session_files: str,
-) -> tuple[int, bool, int, str]:
+) -> tuple[int, bool, int, str, str]:
     """Return exit code, skip flag, and diagnostic message."""
     if check_changes_result != "success":
-        return EXIT_LOGIC, False, 0, "Session change detection prerequisite failed"
+        return EXIT_LOGIC, False, 0, "{}", "Session change detection prerequisite failed"
     if should_run_protocol == "false":
-        return EXIT_OK, True, 0, "Skipped - no session file changes detected"
+        return EXIT_OK, True, 0, "{}", "Skipped - no session file changes detected"
     if should_run_protocol != "true":
-        return EXIT_LOGIC, False, 0, "Session path filter produced no decision"
+        return EXIT_LOGIC, False, 0, "{}", "Session path filter produced no decision"
     if detect_changes_result != "success":
-        return EXIT_LOGIC, False, 0, "Changed-session detection failed"
+        return EXIT_LOGIC, False, 0, "{}", "Changed-session detection failed"
     if has_sessions == "false":
-        return EXIT_OK, True, 0, "Skipped - no session file changes detected"
+        return EXIT_OK, True, 0, "{}", "Skipped - no session file changes detected"
     if has_sessions == "true":
         if validate_result != "success":
-            return EXIT_LOGIC, False, 0, "Session validation matrix failed"
+            return EXIT_LOGIC, False, 0, "{}", "Session validation matrix failed"
         try:
             sessions = json.loads(session_files)
         except json.JSONDecodeError:
-            return EXIT_LOGIC, False, 0, "Session file matrix is invalid JSON"
-        if not isinstance(sessions, list) or not sessions:
-            return EXIT_LOGIC, False, 0, "Session file matrix is empty or invalid"
+            return EXIT_LOGIC, False, 0, "{}", "Session file matrix is invalid JSON"
+        if (
+            not isinstance(sessions, list)
+            or not sessions
+            or not all(isinstance(session, str) and session for session in sessions)
+        ):
+            return EXIT_LOGIC, False, 0, "{}", "Session file matrix is empty or invalid"
+        expected_artifacts = {
+            artifact_name(session): session
+            for session in sessions
+        }
+        if len(expected_artifacts) != len(sessions):
+            return EXIT_LOGIC, False, 0, "{}", "Session artifact names collide"
         return (
             EXIT_OK,
             False,
             len(sessions),
+            json.dumps(expected_artifacts, separators=(",", ":"), sort_keys=True),
             "Session validation artifacts require aggregation",
         )
-    return EXIT_LOGIC, False, 0, "Changed-session detection produced no decision"
+    return EXIT_LOGIC, False, 0, "{}", "Changed-session detection produced no decision"
 
 
 def main() -> int:
@@ -56,7 +73,7 @@ def main() -> int:
         print("::error::GITHUB_OUTPUT is required", file=sys.stderr)
         return EXIT_CONFIG
 
-    exit_code, skip, expected_results, message = decide(
+    exit_code, skip, expected_results, expected_artifacts, message = decide(
         os.environ.get("CHECK_CHANGES_RESULT", ""),
         os.environ.get("SHOULD_RUN_PROTOCOL", ""),
         os.environ.get("DETECT_CHANGES_RESULT", ""),
@@ -72,6 +89,7 @@ def main() -> int:
     with Path(output_path).open("a", encoding="utf-8") as output:
         output.write(f"skip={str(skip).lower()}\n")
         output.write(f"expected_results={expected_results}\n")
+        output.write(f"expected_artifacts={expected_artifacts}\n")
     return EXIT_OK
 
 
