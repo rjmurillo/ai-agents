@@ -65,12 +65,6 @@
         0
       ]
     ],
-    "github/scripts/issue/list_issues.py": [
-      [
-        "result = subprocess.run(",
-        0
-      ]
-    ],
     "github/scripts/issue/set_issue_assignee.py": [
       [
         "result = subprocess.run(",

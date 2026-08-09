@@ -30,6 +30,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -204,6 +205,7 @@ class TestValidatorBehaviour:
             checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
         )
         monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", lambda *_a, **_k: (0, "ok", ""))
         assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
 
@@ -214,6 +216,8 @@ class TestValidatorBehaviour:
             checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
         )
         monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        base_oid = "a" * 40
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: base_oid)
 
         def record(args: list[str], **_k: object) -> tuple[int, str, str]:
             seen.append(args)
@@ -221,7 +225,11 @@ class TestValidatorBehaviour:
 
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", record)
         checks_ratchet.validate_count_ratchets(REPO_ROOT)
-        assert [" ".join(a) for a in seen] == list(_declared_commands().values())
+        expected = [
+            " ".join(checks_ratchet.build_command(ratchet, base_oid))
+            for ratchet in checks_ratchet.RATCHETS
+        ]
+        assert [" ".join(a) for a in seen] == expected
 
     def test_fails_when_one_ratchet_exits_nonzero(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -232,6 +240,7 @@ class TestValidatorBehaviour:
             checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
         )
         monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
 
         def selective(args: list[str], **_k: object) -> tuple[int, str, str]:
             if target.script in args:
@@ -254,22 +263,132 @@ class TestValidatorBehaviour:
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", lambda *_a, **_k: (0, "", ""))
         assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is False
 
+    def test_remote_head_is_normalized_before_refresh(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: list[str] = []
+        monkeypatch.setattr(
+            checks_ratchet,
+            "_resolve_default_base_ref",
+            lambda _root: "refs/remotes/origin/HEAD",
+        )
+        monkeypatch.setattr(
+            checks_ratchet,
+            "_normalize_remote_head",
+            lambda _root, _ref: "origin/main",
+        )
+
+        def fail_refresh(ref: str, _root: Path) -> str:
+            seen.append(ref)
+            return "offline"
+
+        monkeypatch.setattr(
+            checks_ratchet,
+            "_refresh_remote_base",
+            fail_refresh,
+        )
+        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is False
+        assert seen == ["origin/main"]
+
     def test_skips_when_uv_is_absent(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Edge: SKIP, not FAIL. The gate cannot reproduce the push command."""
         monkeypatch.setattr(checks_ratchet.shutil, "which", lambda _name: None)
         with pytest.raises(checks_ratchet.MissingScriptSkip):
             checks_ratchet.validate_count_ratchets(REPO_ROOT)
 
-    def test_stale_base_ref_refresh_failure_warns_and_continues(
+    def test_stale_base_ref_refresh_failure_fails_closed(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Edge: offline is not a policy breach, so warn and use the local ref."""
+        """Negative: a failed refresh cannot authorize stale-base evaluation."""
         monkeypatch.setattr(
             checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
         )
         monkeypatch.setattr(
             checks_ratchet, "_refresh_remote_base", lambda *_a: "network unreachable"
         )
-        monkeypatch.setattr(checks_ratchet, "_run_subprocess", lambda *_a, **_k: (0, "", ""))
-        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
+        with patch.object(checks_ratchet, "_run_subprocess") as run:
+            assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is False
+        run.assert_not_called()
         assert "could not refresh origin/main" in capsys.readouterr().err
+
+
+class TestNormalizeRemoteHead:
+    """Direct cover for `_normalize_remote_head` (issue #4251).
+
+    Every other test in this module stubs it out, so its own branches were
+    exercised only incidentally, through a pre_pr test whose blanket
+    ``stdout = ""`` mock happened to hit the empty-output path.
+
+    Coverage:
+
+    - positive: a symbolic ref resolves to the branch it points at.
+    - negative: empty output and a non-`origin/` answer each fail closed,
+      because a base ref that is not a remote-tracking branch would silently
+      measure the ratchet against the wrong tree.
+    - edge: a base ref that is not remote HEAD passes through untouched, with
+      no subprocess call at all.
+    """
+
+    _REMOTE_HEAD = "refs/remotes/origin/HEAD"
+
+    def test_passes_through_a_ref_that_is_not_remote_head(self) -> None:
+        with patch.object(checks_ratchet, "_run_subprocess") as run:
+            assert (
+                checks_ratchet._normalize_remote_head(REPO_ROOT, "origin/main")
+                == "origin/main"
+            )
+        run.assert_not_called()
+
+    def test_resolves_remote_head_to_its_branch(self) -> None:
+        with patch.object(
+            checks_ratchet, "_run_subprocess", return_value=(0, "origin/main\n", "")
+        ):
+            assert (
+                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
+                == "origin/main"
+            )
+
+    def test_empty_output_fails_closed(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with patch.object(checks_ratchet, "_run_subprocess", return_value=(0, "", "")):
+            assert (
+                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
+                is None
+            )
+        assert "cannot resolve remote HEAD" in capsys.readouterr().err
+
+    def test_answer_outside_the_origin_namespace_fails_closed(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with patch.object(
+            checks_ratchet, "_run_subprocess", return_value=(0, "upstream/main", "")
+        ):
+            assert (
+                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
+                is None
+            )
+        assert "cannot resolve remote HEAD" in capsys.readouterr().err
+
+    def test_nonzero_exit_is_rejected_even_with_a_plausible_answer(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Negative: the exit code is checked, not just the shape of stdout.
+
+        Git can print a usable-looking ref and still fail. Pairing a nonzero
+        exit with `origin/main` is the only case that isolates the exit-code
+        half of the guard: with an empty or non-origin answer the prefix check
+        rejects the input first, so deleting the exit-code check keeps every
+        other case green.
+        """
+        with patch.object(
+            checks_ratchet,
+            "_run_subprocess",
+            return_value=(128, "origin/main", "fatal: ref not usable"),
+        ):
+            assert (
+                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
+                is None
+            )
+        assert "ref not usable" in capsys.readouterr().err
+
