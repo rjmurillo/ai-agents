@@ -139,3 +139,16 @@ def test_actions_url_without_routing_fails() -> None:
     body = "Use pull_request_read for PRs. The analyst has no web access."
     assert "get_workflow_run" not in body
     assert "/actions/" not in body
+
+
+@pytest.mark.parametrize("surface", _SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_analyst_surface_uses_singular_job_path(surface: Path) -> None:
+    """GitHub uses /job/<ID> (singular). Surfaces must not use /jobs/."""
+    body = surface.read_text(encoding="utf-8")
+    assert "/job/" in body, (
+        f"{surface.relative_to(REPO_ROOT)}: must use singular /job/<JID> path"
+    )
+    assert "/jobs/" not in body, (
+        f"{surface.relative_to(REPO_ROOT)}: uses /jobs/ but GitHub URLs use "
+        f"singular /job/<JID>"
+    )

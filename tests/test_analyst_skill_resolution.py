@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -302,58 +303,84 @@ def _check_blocked_conditional(section: str) -> str | None:
     return None
 
 
-def _check_retrieval_precedes_blocked(section: str) -> str | None:
-    """Return None if an affirmative retrieval step precedes BLOCKED.
+_TOOL_NAMES = (
+    "pull_request_read", "issue_read", "list_workflow_runs",
+    "get_workflow_run", "get_job_logs",
+)
 
-    A tool name in prohibitive prose ('is forbidden', 'do not use', 'never call')
-    does NOT satisfy this check. The tool must appear in an affirmative
-    invocation/attempt clause: 'call X', 'use X to retrieve', 'attempt X',
-    or be listed as an action step before BLOCKED.
+_IMPERATIVES = re.compile(
+    r"\b(call|use|invoke|attempt|retrieve\s+.*?(?:via|using|with))\b",
+    re.IGNORECASE,
+)
+
+_NEGATIONS = re.compile(
+    r"\b(do\s+not|don'?t|never|cannot|must\s+not|forbidden|"
+    r"deprecated|was\s+deprecated|is\s+not|prohibited)\b",
+    re.IGNORECASE,
+)
+
+_NON_DIRECTIVE = re.compile(
+    r"(orchestrator|example:|e\.g\.|for example|"
+    r"see\s+\w+\s+docs|endpoint\s+was)",
+    re.IGNORECASE,
+)
+
+
+def _is_skippable_line(stripped: str) -> bool:
+    """Return True if line is structural markup (table/fence/quote/heading)."""
+    return (
+        not stripped
+        or stripped.startswith("|")
+        or stripped.startswith("```")
+        or stripped.startswith(">")
+        or stripped.startswith("#")
+    )
+
+
+def _line_has_tool_reference(line: str) -> bool:
+    """Return True if line references a declared tool or 'declared tools'."""
+    if any(t in line for t in _TOOL_NAMES):
+        return True
+    return "retrieve" in line.lower() and "declared" in line.lower()
+
+
+def _is_affirmative_directive(line: str) -> bool:
+    """Return True if line is an affirmative directive (not negated/example)."""
+    if _NON_DIRECTIVE.search(line):
+        return False
+    if _NEGATIONS.search(line):
+        return False
+    if _IMPERATIVES.search(line):
+        return True
+    return "retrieval via declared tools" in line.lower()
+
+
+def _check_retrieval_precedes_blocked(section: str) -> str | None:
+    """Return None if an affirmative retrieval directive precedes BLOCKED.
+
+    Strict contract parser. Accepts ONLY lines where:
+    1. The analyst is the actor (not orchestrator/other)
+    2. An affirmative imperative verb directs tool usage
+    3. The tool is a declared routing tool
+    4. The line is NOT inside quotes, code blocks, tables, or examples
+    5. No negation/deprecation/prohibition modifies the verb
+
+    Rejects: quoted examples, code fences, table-only declarations,
+    "don't call", "deprecated", "forbidden", unrelated actor retrieval.
     """
-    blocked_pos = section.find("[blocked]")
+    blocked_pos = section.lower().find("[blocked]")
     if blocked_pos == -1:
         return "No [blocked] in section"
 
-    # Only consider text before BLOCKED
-    pre_blocked = section[:blocked_pos]
-
-    # Prohibitive context patterns that invalidate a tool mention
-    prohibitive = ("forbidden", "do not", "never", "cannot", "must not", "is not")
-
-    tool_names = ("pull_request_read", "issue_read", "list_workflow_runs",
-                  "get_workflow_run", "get_job_logs")
-
-    # Affirmative patterns: tool must be near call/use/invoke/attempt verbs
-    affirmative = ("call", "use", "invoke", "attempt", "retrieve", "declared")
-
-    found_affirmative = False
-    for tool in tool_names:
-        pos = pre_blocked.find(tool)
-        if pos < 0:
+    for line in section[:blocked_pos].split("\n"):
+        if _is_skippable_line(line.strip()):
             continue
-        # Get surrounding context (60 chars before, 40 after)
-        context = pre_blocked[max(0, pos - 60):pos + len(tool) + 40]
-        # Reject if prohibitive word is in context
-        if any(p in context for p in prohibitive):
+        if not _line_has_tool_reference(line):
             continue
-        # Accept if affirmative word is in context or tool is in a list/table
-        if any(a in context for a in affirmative) or "|" in context:
-            found_affirmative = True
-            break
+        if _is_affirmative_directive(line):
+            return None
 
-    if not found_affirmative:
-        # Also accept 'retrieve...directly' pattern with no prohibitive context
-        retrieve_pos = pre_blocked.find("retrieve")
-        if retrieve_pos >= 0:
-            ctx = pre_blocked[max(0, retrieve_pos - 30):retrieve_pos + 80]
-            if ("directly" in ctx or "via" in ctx) and not any(
-                p in ctx for p in prohibitive
-            ):
-                found_affirmative = True
-
-    if not found_affirmative:
-        return "No affirmative tool invocation found before BLOCKED"
-    return None
+    return "No affirmative tool invocation directive found before BLOCKED"
 
 
 def _check_identity_conditional(text: str) -> str | None:
@@ -475,6 +502,42 @@ class TestNegativeControls:
         "return [blocked] only when retrieval via declared tools fails.\n"
     )
 
+    # Fixture 9: tool in quoted example (must reject)
+    TOOL_IN_QUOTED_EXAMPLE = (
+        "\n### delegation contract\n"
+        'For example: "use pull_request_read to get PR data". '
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 10: contraction negation "don't call" (must reject)
+    TOOL_DONT_CALL = (
+        "\n### delegation contract\n"
+        "don't call pull_request_read directly from here. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 11: tool in table-only declaration (must reject)
+    TOOL_IN_TABLE_ONLY = (
+        "\n### delegation contract\n"
+        "| Tool | Status |\n"
+        "| pull_request_read | available |\n"
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 12: tool mentioned by orchestrator actor (must reject)
+    TOOL_ORCHESTRATOR_ACTOR = (
+        "\n### delegation contract\n"
+        "the orchestrator will use pull_request_read on behalf of analyst. "
+        "return [blocked] only when missing.\n"
+    )
+
+    # Fixture 13: tool in deprecated context (must reject)
+    TOOL_DEPRECATED = (
+        "\n### delegation contract\n"
+        "pull_request_read was deprecated in v2. "
+        "return [blocked] only when missing.\n"
+    )
+
     def test_unconditional_blocked_detected(self) -> None:
         """Prior defect: no conditional language around BLOCKED."""
         err = _check_blocked_conditional(self.UNCONDITIONAL_BLOCKED_SECTION)
@@ -514,3 +577,28 @@ class TestNegativeControls:
         """Actions URL with affirmative 'use' verb passes retrieval guard."""
         err = _check_retrieval_precedes_blocked(self.ACTIONS_URL_ROUTED)
         assert err is None, f"Should accept affirmative Actions retrieval: {err}"
+
+    def test_tool_in_quoted_example_rejected(self) -> None:
+        """Tool name inside quotes/example context must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_QUOTED_EXAMPLE)
+        assert err is not None, "Should reject tool in quoted example"
+
+    def test_tool_dont_call_rejected(self) -> None:
+        """Contraction negation 'don't call' must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_DONT_CALL)
+        assert err is not None, "Should reject don't call negation"
+
+    def test_tool_in_table_only_rejected(self) -> None:
+        """Tool in table row without directive must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_IN_TABLE_ONLY)
+        assert err is not None, "Should reject table-only declaration"
+
+    def test_tool_orchestrator_actor_rejected(self) -> None:
+        """Tool invoked by orchestrator (not analyst) must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_ORCHESTRATOR_ACTOR)
+        assert err is not None, "Should reject unrelated actor retrieval"
+
+    def test_tool_deprecated_rejected(self) -> None:
+        """Tool in deprecated context must not satisfy guard."""
+        err = _check_retrieval_precedes_blocked(self.TOOL_DEPRECATED)
+        assert err is not None, "Should reject deprecated tool mention"
