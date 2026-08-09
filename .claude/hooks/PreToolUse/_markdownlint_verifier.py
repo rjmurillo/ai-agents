@@ -1,38 +1,104 @@
 #!/usr/bin/env python3
-"""Trusted co-located markdown verifier for the push guard.
+"""Pure-Python markdown verifier shipped with the plugin.
 
-Invoked by absolute path from ``invoke_markdownlint_guard.py``. Uses
-``npx markdownlint-cli2@<pinned>`` with the shipped safe config so consumer
-``node_modules`` binaries, consumer ``.markdownlint-cli2.yaml``, consumer
-plugins, and consumer custom rules are never consulted.
+Invoked by absolute path from ``invoke_markdownlint_guard.py``. Validates
+markdown files using ``markdown-it-py`` (a shipped dependency) and the
+co-located ``markdownlint-safe-config.yaml``. No external processes, no
+registry downloads, no consumer binaries, configs, plugins, or custom rules.
 
 Interface:
     python _markdownlint_verifier.py --markdown-lint-only -- <file> [<file>...]
 
 Exit codes:
     0 = All files pass.
-    1 = Violations found (diagnostics on stdout/stderr).
-    2 = Infrastructure failure (missing npx, config, etc.).
-
-Environment:
-    MARKDOWNLINT_CONFIG_PATH  Absolute path to the shipped safe config.
-                              Required; exits 2 if absent or non-existent.
+    1 = Violations found (diagnostics on stderr).
+    2 = Infrastructure failure (missing dependency or config).
 """
 
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
-_PINNED_PACKAGE = "markdownlint-cli2@0.23.1"
-_TIMEOUT = 55  # seconds; slightly under the caller's 60s timeout
+
+def _check_missing_deps() -> str | None:
+    """Return error message if shipped deps are unavailable."""
+    try:
+        import markdown_it  # noqa: F401
+        import yaml  # noqa: F401
+    except ImportError as exc:
+        return f"shipped dependency unavailable: {exc.name}"
+    return None
 
 
-def _parse_files(args: list[str]) -> list[str] | None:
-    """Return target files from args, or None on parse failure (prints usage)."""
+def _load_config(config_path: Path) -> dict | None:
+    """Load and return the config dict, or None on failure."""
+    import yaml
+
+    try:
+        text = config_path.read_text(encoding="utf-8")
+        return yaml.safe_load(text) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        print(f"cannot load safe config {config_path}: {exc}", file=sys.stderr)
+        return None
+
+
+def _check_md041(filepath: Path, lines: list[str]) -> list[str]:
+    """MD041: First line must be a heading."""
+    first_non_empty = next((ln for ln in lines if ln.strip()), "")
+    if not first_non_empty.startswith("#"):
+        return [f"{filepath}:1 MD041/first-line-heading First line must be a heading"]
+    return []
+
+
+def _check_md040(filepath: Path, tokens: list) -> list[str]:
+    """MD040: Fenced code blocks must specify a language."""
+    violations: list[str] = []
+    for tok in tokens:
+        if tok.type == "fence" and not tok.info.strip():
+            line = (tok.map[0] + 1) if tok.map else 0
+            msg = f"{filepath}:{line} MD040/fenced-code-language Code fence missing language"
+            violations.append(msg)
+    return violations
+
+
+def _check_md004(filepath: Path, lines: list[str]) -> list[str]:
+    """MD004: List marker style must be dash."""
+    violations: list[str] = []
+    for i, line in enumerate(lines, 1):
+        stripped = line.lstrip()
+        if stripped and stripped[0] in "*+" and len(stripped) > 1 and stripped[1] == " ":
+            violations.append(f"{filepath}:{i} MD004/ul-style List marker should be dash")
+    return violations
+
+
+def _lint_file(filepath: Path, rules: dict) -> list[str]:
+    """Return list of violation strings for one file."""
+    from markdown_it import MarkdownIt
+
+    try:
+        text = filepath.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"{filepath}:0 read error: {exc}"]
+
+    lines = text.splitlines()
+    md = MarkdownIt("commonmark", {"html": True})
+    tokens = md.parse(text)
+    violations: list[str] = []
+
+    if rules.get("MD041") and lines:
+        violations.extend(_check_md041(filepath, lines))
+    if rules.get("MD040"):
+        violations.extend(_check_md040(filepath, tokens))
+    md004 = rules.get("MD004")
+    if md004 and isinstance(md004, dict) and md004.get("style") == "dash":
+        violations.extend(_check_md004(filepath, lines))
+
+    return violations
+
+
+def _parse_args(args: list[str]) -> list[str] | None:
+    """Return target files or None on parse failure."""
     if "--markdown-lint-only" not in args:
         print("usage: _markdownlint_verifier.py --markdown-lint-only -- <files>", file=sys.stderr)
         return None
@@ -44,57 +110,39 @@ def _parse_files(args: list[str]) -> list[str] | None:
     return args[sep_idx + 1:]
 
 
-def _resolve_config() -> Path | None:
-    """Return the safe config path, or None on failure (prints reason)."""
-    config_path_str = os.environ.get("MARKDOWNLINT_CONFIG_PATH", "")
-    if not config_path_str:
-        print("MARKDOWNLINT_CONFIG_PATH not set", file=sys.stderr)
-        return None
-    config_path = Path(config_path_str)
-    if not config_path.is_file():
-        print(f"safe config not found: {config_path}", file=sys.stderr)
-        return None
-    return config_path
-
-
 def main(argv: list[str] | None = None) -> int:
     args = argv if argv is not None else sys.argv[1:]
 
-    files = _parse_files(args)
+    files = _parse_args(args)
     if files is None:
         return 2
     if not files:
         return 0
 
-    config_path = _resolve_config()
-    if config_path is None:
+    dep_err = _check_missing_deps()
+    if dep_err:
+        print(dep_err, file=sys.stderr)
         return 2
 
-    npx = shutil.which("npx")
-    if npx is None:
-        print("npx not found on PATH; cannot run markdownlint-cli2", file=sys.stderr)
+    config_path = Path(__file__).resolve().with_name("markdownlint-safe-config.yaml")
+    if not config_path.is_file():
+        print(f"shipped safe config not found: {config_path}", file=sys.stderr)
         return 2
 
-    command = [npx, _PINNED_PACKAGE, "--config", str(config_path), "--no-globs", "--", *files]
-
-    try:
-        proc = subprocess.run(
-            command, capture_output=True, text=True, timeout=_TIMEOUT, shell=False, check=False,
-        )
-    except subprocess.TimeoutExpired:
-        print(f"markdownlint-cli2 timed out after {_TIMEOUT}s", file=sys.stderr)
+    raw_config = _load_config(config_path)
+    if raw_config is None:
         return 2
-    except OSError as exc:
-        print(f"failed to invoke npx: {exc}", file=sys.stderr)
-        return 2
+    rules = raw_config.get("config", {})
 
-    if proc.returncode == 0:
-        return 0
+    all_violations: list[str] = []
+    for f in files:
+        all_violations.extend(_lint_file(Path(f), rules))
 
-    output = proc.stdout or proc.stderr
-    if output:
-        print(output, end="")
-    return 1
+    if all_violations:
+        for v in all_violations:
+            print(v, file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
