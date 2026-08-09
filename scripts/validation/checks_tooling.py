@@ -1,15 +1,8 @@
 #!/usr/bin/env python3
-"""External-tool validations for the pre-PR runner.
-
-Extracted from ``scripts/validation/pre_pr.py`` (issue #2223). Groups the
-checks that shell out to an external tool or a legacy PowerShell validator:
-session-log validation, Pester tests, markdownlint, actionlint, yamllint,
-path normalization, planning artifacts, and agent-drift detection. Also holds
-``_find_latest_session_log``, the session-log discovery helper.
-
-This began as a behavior-preserving move from ``pre_pr.py``. Later fixes can
-land in this extracted module directly while ``pre_pr`` re-exports these names
-so existing imports keep working.
+"""External-tool validations for the pre-PR runner (extracted from
+``scripts/validation/pre_pr.py``, issue #2223): session-log, Pester,
+markdownlint, actionlint, yamllint, path normalization, planning artifacts,
+agent-drift, plus ``_find_latest_session_log``; re-exported by ``pre_pr``.
 """
 
 from __future__ import annotations
