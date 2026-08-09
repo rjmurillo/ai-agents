@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10006-fleet-pr-4651.json
-qaCommit: da875c5859941bd1c24a742f10ce00286c085d40
+qaCommit: a331de32787d194abf0c4edc9e79103c22366e53
 ---
 
 # QA Report: PR 4651 Fail Closed Agent Machinery
 
 ## Verdict
 
-PASS. I ran the verification on commit `da875c5859941bd1c24a742f10ce00286c085d40` after merging `origin/main` into `fix/adversarial-review-agent-machinery` in worktree `../ai-agents-qa-4651`.
+PASS. I ran the verification on commit `a331de32787d194abf0c4edc9e79103c22366e53` after merging `origin/main` into `fix/adversarial-review-agent-machinery` in worktree `../ai-agents-qa-4651`.
 
 ## Scope
 
@@ -21,15 +21,15 @@ PR 4651 changes hook enforcement, generated Copilot hook mirrors, build generati
 Command:
 
 ```bash
-uv run --frozen pytest tests/build_scripts/test_build_all.py tests/build_scripts/test_generate_hooks.py tests/ci/test_ruff_ratchet.py tests/hooks/test_markdownlint_guard.py tests/hooks/test_markdownlint_verifier_security.py tests/hooks/test_push_guard_base.py tests/test_lefthook_gate_config.py tests/test_update_memory_index_tokens.py tests/validation_pre_pr/test_markdown_checks.py -q
+uv run --frozen pytest tests/build_scripts/test_build_all.py tests/build_scripts/test_generate_hooks.py tests/ci/test_cli_exit_contract_ratchet.py tests/ci/test_ruff_ratchet.py tests/hooks/test_markdownlint_guard.py tests/hooks/test_markdownlint_verifier_security.py tests/hooks/test_push_guard_base.py tests/test_lefthook_gate_config.py tests/test_update_memory_index_tokens.py tests/validation_pre_pr/test_markdown_checks.py -q
 ```
 
 Real output:
 
 ```text
-collected 458 items
+collected 490 items
 
-======================== 457 passed, 1 skipped in 9.21s ========================
+======================= 489 passed, 1 skipped in 14.77s =======================
 ```
 
 ### 2. CLI exit contract baseline direction
@@ -45,10 +45,10 @@ Real output:
 ```text
 09b58c12b^ baseline: 29
 09b58c12b baseline: 28
-HEAD baseline: 28
+HEAD baseline: 27
 ```
 
-Result: tightening direction. The PR commit `09b58c12b` reduced the baseline from 29 to 28. The current merged head keeps 28.
+Result: tightening direction. The PR commit `09b58c12b` reduced the baseline from 29 to 28. The current QA commit tightens it again to 27 after pre-push measured the tracked count at 27.
 
 ### 3. Generated Copilot hook mirrors
 

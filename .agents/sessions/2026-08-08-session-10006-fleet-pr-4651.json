@@ -143,8 +143,12 @@
     {
       "time": "2026-08-09T06:55:00Z",
       "entry": "Produced earned QA report for PR 4651 at da875c5859941bd1c24a742f10ce00286c085d40 after running targeted hook and generator tests, baseline tightening check, build_all mirror check, changed-file ruff, and fail-closed guard tests."
+    },
+    {
+      "time": "2026-08-09T07:45:00Z",
+      "entry": "Tightened scripts/ci/cli_exit_contract_baseline.txt from 28 to 27 after pre-push measured 27 tracked violations, reran the QA evidence suite, and rebound the QA report to a331de32787d194abf0c4edc9e79103c22366e53."
     }
   ],
   "nextSteps": [],
-  "endingCommit": "da875c5859941bd1c24a742f10ce00286c085d40"
+  "endingCommit": "a331de32787d194abf0c4edc9e79103c22366e53"
 }
