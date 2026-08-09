@@ -76,7 +76,7 @@
       "type": "milestone",
       "content": "Ran the retrospective workflow after the pre-push evidence gate blocked the first push.",
       "caused_by": [
-        "e010"
+        "e014"
       ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
@@ -128,10 +128,10 @@
       "content": "Ran final independent re-reviews and five real CLI smoke tests.",
       "caused_by": [
         "e009",
-        "e011"
+        "e012"
       ],
       "leads_to": [
-        "e006"
+        "e013"
       ],
       "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
     },
@@ -144,7 +144,46 @@
         "e008"
       ],
       "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-09T04:02:03+00:00",
+      "type": "commit",
+      "content": "Commit: ba568aa39d",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
         "e010"
+      ],
+      "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-09T04:49:51+00:00",
+      "type": "commit",
+      "content": "Commit: 13121cee3d1a6d78bfb0337058354a5c0bbdbbcb",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-09T05:30:38+00:00",
+      "type": "commit",
+      "content": "Commit: cfbf65dce7181e38bcd67bff7ae9d6de9eab4549",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e006"
       ],
       "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
     }
@@ -154,7 +193,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 6,
     "files_changed": 18
   },
   "lessons": []

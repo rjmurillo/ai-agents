@@ -91,6 +91,11 @@
         "Complete": true,
         "Evidence": "markdownlint-cli2 reported zero issues on changed Markdown files."
       },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-09-pr-4570-session-10006.md"
+      },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
@@ -144,7 +149,7 @@
       "outcome": "Recursive GPT-5.6 Sol review returned Critical 0 and High 0 after one High finding was fixed."
     }
   ],
-  "endingCommit": "e1fc9346c0",
+  "endingCommit": "cfbf65dce7181e38bcd67bff7ae9d6de9eab4549",
   "nextSteps": [
     "Push the branch through normal pre-push hooks.",
     "Verify remote SHA and CI at the pushed head.",
