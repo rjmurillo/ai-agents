@@ -449,6 +449,20 @@ def test_retry_diagnostics_redact_secrets_from_stdout(
     assert "***" in result.stdout
 
 
+def test_retry_diagnostics_redact_uninstalled_github_token_shape(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Token-shaped credentials are removed without matching environment state."""
+    token = f"ghp_{'A' * 36}"
+    for variable in _mod.SECRET_ENVIRONMENT_VARIABLES:
+        monkeypatch.delenv(variable, raising=False)
+
+    redacted = _mod._redact_secrets(f"cached credential: {token}")
+
+    assert token not in redacted
+    assert "[redacted: github-token]" in redacted
+
+
 def test_environment_secret_value_is_removed_from_stdout(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -1324,6 +1338,35 @@ def test_write_outputs_uses_runner_temp(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert f"context_file={context_file}" in output
     assert "context_infra_failure=true" in output
     assert "context_built<<EOF_CONTEXT_BUILT\nhello\nworld\nEOF_CONTEXT_BUILT" in output
+
+
+def test_write_outputs_redacts_context_before_every_sink(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Local context credentials cannot reach files or GitHub outputs."""
+    output_path = tmp_path / "github-output.txt"
+    runner_temp = tmp_path / "runner"
+    environment_secret = "arbitrary-workflow-secret"
+    shaped_secret = f"github_pat_{'A' * 22}"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
+    monkeypatch.setenv("RUNNER_TEMP", str(runner_temp))
+    monkeypatch.setenv("GITHUB_TOKEN", environment_secret)
+
+    _mod.write_outputs(
+        ReviewContext(
+            f"environment={environment_secret}\nshape={shaped_secret}",
+            "full",
+        )
+    )
+
+    persisted = output_path.read_text(encoding="utf-8") + (
+        runner_temp / "ai-review-context-prlocal.txt"
+    ).read_text(encoding="utf-8")
+    assert environment_secret not in persisted
+    assert shaped_secret not in persisted
+    assert "***" in persisted
+    assert "[redacted: github-pat]" in persisted
 
 
 def test_write_outputs_sanitizes_context_file_identifier(

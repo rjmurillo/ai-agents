@@ -76,7 +76,8 @@
         "e007",
         "e008",
         "e009",
-        "e010"
+        "e010",
+        "e011"
       ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
@@ -119,6 +120,17 @@
       "timestamp": "2026-08-08T00:00:00+00:00",
       "type": "milestone",
       "content": "Completed recursive independent re-review",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved final credential-shape review finding",
       "caused_by": [],
       "leads_to": [
         "e006"

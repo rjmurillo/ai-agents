@@ -46,8 +46,9 @@ Authorization headers and credentials embedded in URLs receive separate pattern-
 
 | Gate | Result |
 |------|--------|
-| Focused context tests | [PASS], 78 tests |
-| Focused invocation tests | [PASS], 11 tests |
+| Focused context tests | [PASS], 80 tests |
+| Focused invocation tests | [PASS], 13 tests |
+| Focused artifact-context tests | [PASS], 9 tests |
 | Full Python suite | [PASS], 24,863 passed and 34 skipped |
 | Count ratchet regression | [PASS], 12 tests |
 | Mypy changed files | [PASS] |
