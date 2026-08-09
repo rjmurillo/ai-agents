@@ -82,6 +82,19 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I -u .claude/hooks/PreToolUse/invoke_push_pr_script_identity_guard.py",
+            "timeout": 10,
+            "statusMessage": "Verifying push-pr script identity (BLOCKING)"
+          }
+        ]
+      }
     ]
   }
 }
