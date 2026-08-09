@@ -18,7 +18,9 @@ Issue #4547 adds bounded retries when GitHub temporarily refuses AI review conte
 | Reserved runner startup time | 30 seconds |
 | Reserved finalization time | 60 seconds |
 
-`Retry-After` and `X-RateLimit-Reset` override fallback waits within the shared budget.
+REST metadata and full-diff calls request response headers through `gh api --include`.
+`Retry-After` overrides fallback waits. `X-RateLimit-Reset` overrides fallback
+only when `X-RateLimit-Remaining` is zero.
 Permanent authentication and permission failures return immediately without retry.
 Setup elapsed after the deadline marker reduces context time. Model retries also
 use the same deadline and preserve the kill grace plus finalization reserve.
@@ -40,16 +42,17 @@ This contract keeps missing reviews on the blocking infrastructure path.
 
 Context and model diagnostics redact values from `GH_TOKEN`, `GITHUB_TOKEN`,
 `COPILOT_GITHUB_TOKEN`, and `BOT_PAT`.
-Authorization headers and credentials embedded in URLs receive separate pattern-based redaction.
+Authorization headers, Unicode-escaped wrappers, and URL userinfo credentials
+receive separate pattern-based redaction.
 
 ## Validation
 
 | Gate | Result |
 |------|--------|
-| Focused context tests | [PASS], 80 tests |
-| Focused invocation tests | [PASS], 13 tests |
+| Context, redactor, and parity tests | [PASS], 255 tests |
+| Focused invocation tests | [PASS], 22 tests |
 | Focused artifact-context tests | [PASS], 9 tests |
-| Full Python suite | [PASS], 24,863 passed and 34 skipped |
+| Full Python suite | [PASS], 25,213 passed and 36 skipped |
 | Count ratchet regression | [PASS], 12 tests |
 | Mypy changed files | [PASS] |
 | Merge-tree ratchets | [PASS] |

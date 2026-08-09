@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and recursive review fixes are committed through QA code commit 8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748."
+        "Evidence": "Implementation and recursive review fixes are committed through QA code commit ba5480f82f618212b5f6ab367bfc0c69941c6dab."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "51 shared redactor tests passed at QA code commit 8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748, including separator backtracking, token-only URL userinfo, clean-line byte-identical, URL-without-userinfo byte-identical, and single plain Authorization header reason guards. The separator and URL userinfo negative controls failed against the pre-fix source and passed after restore. The bundled parity test passed 6 tests. Ruff passed on the changed Python files. Earlier context, invocation, artifact, deadline, plain-script import, and ADR-006 validation remains recorded in the QA report."
+        "Evidence": "At QA code commit ba5480f82f618212b5f6ab367bfc0c69941c6dab, 255 focused context, redactor, and parity tests passed. The complete Python suite passed 25,213 tests with 36 skipped. Real REST diff transport returned a 155,148-byte patch with headers removed before parsing. Ruff, mypy, independent DevOps review, and recursive GPT-5.6 Sol review passed with no Critical or High findings."
       },
       "qaValidation": {
         "level": "MUST",
@@ -178,10 +178,18 @@
     {
       "action": "Resolved token-only URL userinfo review findings",
       "outcome": "Changed canonical and bundled URL userinfo redaction to mask credentials before @ even without a password separator. Added token-only positive coverage, URL-without-userinfo negative coverage, proved the new token-only test fails against the pre-fix source and passes after restore, and reran redactor, parity, false-positive, Ruff, and security review checks."
+    },
+    {
+      "action": "Completed final rate-limit transport and recursive review",
+      "outcome": "Full PR diffs now use gh api with the diff media type and included response headers. Retry-After and valid exhausted-quota resets control bounded waits. Unicode Authorization, arbitrary serialization depth, token-only URL userinfo, and source-safe sinks passed recursive review with no Critical or High findings."
+    },
+    {
+      "action": "Completed final full validation",
+      "outcome": "The complete Python suite passed 25,213 tests with 36 skipped in 722.73 seconds."
     }
   ],
-  "endingCommit": "8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748",
+  "endingCommit": "ba5480f82f618212b5f6ab367bfc0c69941c6dab",
   "nextSteps": [
-    "Commit, push, open one focused pull request, resolve review findings, merge, close issue 4547, then reassess PR 4721."
+    "Push PR 4775, resolve remaining review threads, verify a real security verdict, merge, close issue 4547, then reassess PR 4721."
   ]
 }

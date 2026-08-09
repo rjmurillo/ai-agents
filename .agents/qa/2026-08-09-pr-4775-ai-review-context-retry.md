@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-fix-4547-ai-review-context-retry.json
-qaCommit: 8e08dfb1d6bce0e3bbe5d9a8c347d2ac0b85c748
+qaCommit: ba5480f82f618212b5f6ab367bfc0c69941c6dab
 ---
 
 # QA Report: PR #4775 AI Review Context Retry
@@ -12,22 +12,23 @@ Validated bounded GitHub context retries, rate-limit-aware waits, permanent
 authentication rejection, infrastructure classification, deadline enforcement,
 collision-safe outputs, stale-verdict prevention, credential redaction
 across context, model, and artifact sinks, separator backtracking defense, and token-only URL userinfo redaction.
+Full PR diffs now use the REST diff media type so real rate-limit response headers reach retry classification.
 
 ## Results
 
 | Gate | Result |
 |------|--------|
-| Context builder tests | [PASS], 83 tests |
+| Context builder, redactor, and parity tests | [PASS], 255 tests |
 | Copilot invoker tests | [PASS], 18 tests |
 | Artifact context tests | [PASS], 9 tests |
-| Shared redactor tests | [PASS], 51 tests |
+| Shared redactor tests | [PASS], 158 tests |
 | Direct-action budget and deadline tests | [PASS], 20 tests |
 | Plain-script import tests | [PASS], 294 tests |
 | Bundled redactor parity tests | [PASS], 6 tests |
 | Separator backtracking negative control | [PASS], pre-fix failed and post-fix passed |
 | URL userinfo negative control | [PASS], pre-fix failed and post-fix passed |
 | False-positive redaction guards | [PASS], 3 tests |
-| Combined focused regression selection | [PASS], 466 tests |
+| Complete Python suite | [PASS], 25,213 passed and 36 skipped |
 | ADR-006 run-block ratchet | [PASS], 0 violations |
 | Ruff | [PASS] |
 | Changed-file mypy | [PASS] |
@@ -52,6 +53,9 @@ Delivered: Three bounded context attempts; Retry-After and X-RateLimit-Reset;
            collision-safe GitHub outputs; stale verdict removal.
            Composite-action deadline logic extracted into a tested Python
            helper with exact inherited-deadline input validation.
+           Full diff requests use `gh api --include` with GitHub's diff media
+           type, making real Retry-After and quota-reset headers observable.
+           Quota-reset timestamps are ignored while resource quota remains.
            Assignment redaction bounds quoted and unquoted scalar values,
            preserves trailing fields, fails closed across a twelve-case
            raw and escaped JSON backslash matrix, and keeps credential
@@ -59,6 +63,8 @@ Delivered: Three bounded context attempts; Retry-After and X-RateLimit-Reset;
            so long hyphen or underscore runs complete within the review budget.
            URL userinfo redaction now masks token-only credentials before `@`
            as `url-credential`, while URLs without userinfo pass through unchanged.
+           Unicode-escaped Authorization keys and wrappers redact at arbitrary
+           JSON serialization depth without changing source assignments.
 Gap: None.
 Result: PASS
 ```

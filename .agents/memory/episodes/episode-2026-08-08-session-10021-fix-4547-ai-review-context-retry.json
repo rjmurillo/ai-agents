@@ -82,7 +82,9 @@
         "e018",
         "e021",
         "e027",
-        "e029"
+        "e029",
+        "e031",
+        "e032"
       ],
       "leads_to": [
         "e012"
@@ -376,6 +378,41 @@
       "caused_by": [
         "e028"
       ],
+      "leads_to": [
+        "e033"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed final rate-limit transport and recursive review",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed final full validation",
+      "caused_by": [],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-08-09T15:23:15+00:00",
+      "type": "commit",
+      "content": "Commit: ba5480f82f618212b5f6ab367bfc0c69941c6dab",
+      "caused_by": [
+        "e030"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-fix-4547-ai-review-context-retry"
     }
@@ -385,7 +422,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 15,
+    "commits": 16,
     "files_changed": 20
   },
   "lessons": []
