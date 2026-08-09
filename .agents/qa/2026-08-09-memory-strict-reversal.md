@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-09-session-10022-memory-strict-reversal.json
-qaCommit: ca9de6e2f555cfc9254543595b2c21b80a8c870b
+qaCommit: 3430de4b10a8f620bb48017cb61814c97a06df92
 ---
 
 # Memory strict reversal QA

@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Provisional content commit marker set for pre-commit; follow-up commit will bind endingCommit and qaCommit to the content commit"
+        "Evidence": "Content changes committed in 3430de4b10a8f620bb48017cb61814c97a06df92; this follow-up commit records the session and QA markers"
       },
       "validationPassed": {
         "level": "MUST",
@@ -104,7 +104,7 @@
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": false,
-        "Evidence": "Todo update pending PR creation"
+        "Evidence": "Todo update occurs after PR creation per user request"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -148,11 +148,9 @@
       "outcome": "pre_pr.py --markdown-lint-only selected 0 of 7 changed Markdown targets and reported NOT LINTED because the paths are excluded or unmatched"
     }
   ],
-  "endingCommit": "ca9de6e2f555cfc9254543595b2c21b80a8c870b",
+  "endingCommit": "3430de4b10a8f620bb48017cb61814c97a06df92",
   "nextSteps": [
-    "Run memory token update and validators",
-    "Commit content",
-    "Set endingCommit to the content commit in a follow-up commit",
-    "Push and open PR"
+    "Push branch and open PR",
+    "Update memory-strict-reversal todo after final report"
   ]
 }
