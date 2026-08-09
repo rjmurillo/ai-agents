@@ -310,8 +310,36 @@ def test_dispatchers_deny_shell_evaluator_wrappers(
 @pytest.mark.parametrize(
     "command",
     [
+        "awk 'BEGIN { system(\"python3 -I attacker/pr/new_pr.py\") }'",
+        "lua -e 'os.execute(\"python3 -I attacker/pr/new_pr.py\")'",
+        "node -e 'require(\"child_process\").execSync(\"python3 -I x\")'",
+        "perl -e 'exec q(python3),q(-I),pack(q(H42),"
+        "q(61747461636b65722f70722f6e65775f70722e7079))'",
+        "php -r 'system(\"python3 -I attacker/pr/new_pr.py\");'",
+        "ruby -e 'exec(\"python3\", \"-I\", \"attacker/pr/new_pr.py\")'",
+        "sed -n '1e python3 -I attacker/pr/new_pr.py'",
+    ],
+)
+def test_dispatchers_deny_dynamic_evaluator_wrappers(
+    tmp_path: Path,
+    runner,
+    command: str,
+) -> None:
+    repository, _ = _repository(tmp_path)
+
+    result = runner(command, repository)
+
+    assert result.returncode == 2
+    assert "evaluator wrappers are not allowed" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize(
+    "command",
+    [
         "env PUSH_PR_TEST=1 git status --short",
         "printf '%s\\n' '-S' '--split-string' '-xc'",
+        "printf '%s\\n' perl ruby node awk sed",
     ],
 )
 def test_dispatchers_allow_benign_env_and_flag_text(
@@ -322,6 +350,53 @@ def test_dispatchers_allow_benign_env_and_flag_text(
     repository, _ = _repository(tmp_path)
 
     result = runner(command, repository)
+
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+@pytest.mark.parametrize(
+    "title",
+    [
+        "{fix,--skip-validation,--audit-reason,attacker-controlled}",
+        "attacker*",
+        "attacker?",
+        "[ab]",
+        "~/attacker",
+    ],
+)
+def test_dispatchers_deny_active_expansion_in_new_pr_arguments(
+    tmp_path: Path,
+    runner,
+    title: str,
+) -> None:
+    repository, _ = _repository(tmp_path)
+    body_file = _body_file(repository)
+
+    result = runner(
+        f'python3 -I "{PLUGIN_SCRIPT_REFERENCE}" '
+        f"--title {title} --body-file {body_file}",
+        repository,
+    )
+
+    assert result.returncode == 2
+    assert "argument shell expansion is not allowed" in result.stderr
+
+
+@pytest.mark.parametrize("runner", [_run_claude, _run_copilot])
+def test_dispatchers_allow_quoted_expansion_text_in_new_pr_title(
+    tmp_path: Path,
+    runner,
+) -> None:
+    repository, _ = _repository(tmp_path)
+    body_file = _body_file(repository)
+
+    result = runner(
+        f'python3 -I "{PLUGIN_SCRIPT_REFERENCE}" '
+        "--title 'fix: literal {brace} [glob] * ? ~' "
+        f"--body-file {body_file}",
+        repository,
+    )
 
     assert result.returncode == 0, result.stderr
 

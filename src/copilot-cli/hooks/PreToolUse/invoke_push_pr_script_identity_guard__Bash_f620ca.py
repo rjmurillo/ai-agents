@@ -407,6 +407,29 @@ def _original_main(stdin_bytes):
             "zsh",
         }
     )
+    _DYNAMIC_EVALUATORS = frozenset(
+        {
+            "awk",
+            "bun",
+            "deno",
+            "gawk",
+            "groovy",
+            "js",
+            "jsc",
+            "lua",
+            "luajit",
+            "mawk",
+            "node",
+            "nodejs",
+            "perl",
+            "php",
+            "ruby",
+            "rscript",
+            "sed",
+            "tclsh",
+            "wish",
+        }
+    )
     _ENV_COMMANDS = frozenset({"env", "env.exe"})
     _BUSYBOX_COMMANDS = frozenset({"busybox", "busybox.exe"})
     _EXPANSION_SAFE_COMMANDS = frozenset({"printf"})
@@ -559,6 +582,26 @@ def _original_main(stdin_bytes):
             elif char == '"':
                 quote = None if quote == '"' else '"' if quote is None else quote
             elif char in {"$", "`"} and quote != "'":
+                return True
+            index += 1
+        return False
+
+
+    def _contains_active_shell_expansion(raw: str) -> bool:
+        quote: str | None = None
+        index = 0
+        while index < len(raw):
+            char = raw[index]
+            if char == "\\" and quote != "'":
+                index += 2
+                continue
+            if char == "'":
+                quote = None if quote == "'" else "'" if quote is None else quote
+            elif char == '"':
+                quote = None if quote == '"' else '"' if quote is None else quote
+            elif char in {"$", "`"} and quote != "'":
+                return True
+            elif quote is None and char in {"{", "[", "*", "?", "~"}:
                 return True
             index += 1
         return False
@@ -786,6 +829,28 @@ def _original_main(stdin_bytes):
         return False
 
 
+    def _is_dynamic_evaluator_name(value: str) -> bool:
+        command_name = Path(value).name.casefold().removesuffix(".exe")
+        unversioned_name = re.sub(r"\d+(?:\.\d+)*$", "", command_name)
+        return (
+            command_name in _DYNAMIC_EVALUATORS
+            or unversioned_name in _DYNAMIC_EVALUATORS
+        )
+
+
+    def _contains_dynamic_evaluator(tokens: list[ShellToken]) -> bool:
+        index = _effective_command_index(tokens)
+        if index is None:
+            return False
+        if _is_dynamic_evaluator_name(tokens[index].value):
+            return True
+        return (
+            Path(tokens[index].value).name.casefold() in _BUSYBOX_COMMANDS
+            and index + 1 < len(tokens)
+            and _is_dynamic_evaluator_name(tokens[index + 1].value)
+        )
+
+
     def _effective_command(tokens: list[ShellToken]) -> ShellToken | None:
         index = _effective_command_index(tokens)
         return tokens[index] if index is not None else None
@@ -917,6 +982,11 @@ def _original_main(stdin_bytes):
             raise GuardViolationError("new_pr.py script path cannot use shell expansion")
         if any(("$" in token.raw or "`" in token.raw) for token in tokens[3:]):
             raise GuardViolationError("argument substitution is not allowed")
+        if any(
+            _contains_active_shell_expansion(token.raw)
+            for token in tokens[3:]
+        ):
+            raise GuardViolationError("argument shell expansion is not allowed")
         return script_reference
 
 
@@ -1066,6 +1136,8 @@ def _original_main(stdin_bytes):
             tokens = _split_command(command)
             if _contains_shell_evaluator(tokens):
                 raise GuardViolationError("shell evaluator wrappers are not allowed")
+            if _contains_dynamic_evaluator(tokens):
+                raise GuardViolationError("dynamic evaluator wrappers are not allowed")
             if not _requires_identity_check(command, cwd):
                 return 0
             if _contains_shell_expansion(command) and _python_arguments(
