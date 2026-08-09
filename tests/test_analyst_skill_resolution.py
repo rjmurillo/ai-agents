@@ -43,6 +43,13 @@ CLAUDE_ALLOWED_TOOLS = frozenset(
         "Glob",
         "Grep",
         "Read",
+        "mcp__github__issue_read",
+        "mcp__github__pull_request_read",
+        "mcp__github__get_file_contents",
+        "mcp__github__list_commits",
+        "mcp__github__list_workflow_runs",
+        "mcp__github__get_workflow_run",
+        "mcp__github__get_job_logs",
         "mcp__context7__get_library_docs",
         "mcp__context7__resolve_library_id",
         "mcp__deepwiki__read_wiki_contents",
@@ -54,6 +61,13 @@ PLATFORM_ALLOWED_TOOLS = frozenset(
     {
         "cognitionai/deepwiki/*",
         "context7/*",
+        "github/issue_read",
+        "github/pull_request_read",
+        "github/get_file_contents",
+        "github/list_commits",
+        "github/list_workflow_runs",
+        "github/get_workflow_run",
+        "github/get_job_logs",
         "read",
         "search",
         *(f"serena/{operation}" for operation in READ_ONLY_SERENA_OPERATIONS),
@@ -122,9 +136,6 @@ def _assert_read_only_tools(tools: list[str], allowed_tools: frozenset[str]) -> 
         normalized = tool.casefold()
         base = normalized.split("(", 1)[0]
         assert not base.startswith(UNSAFE_TOOL_PREFIXES), f"analyst grants unsafe tool: {tool}"
-        assert not normalized.startswith("github/"), (
-            f"analyst grants unavailable GitHub tool: {tool}"
-        )
 
         operation = None
         if normalized.startswith("serena/"):
@@ -152,7 +163,6 @@ def test_shared_template_declares_platform_read_only_tools(key: str) -> None:
     tools = _tool_list(_frontmatter(SHARED_TEMPLATE), key, SHARED_TEMPLATE)
 
     _assert_read_only_tools(tools, PLATFORM_ALLOWED_TOOLS)
-    assert not any(tool.startswith("github/") for tool in tools)
 
 
 @pytest.mark.parametrize(
@@ -175,12 +185,12 @@ def test_prompt_routes_execution_to_an_execution_agent() -> None:
     shared = SHARED_TEMPLATE.read_text(encoding="utf-8")
 
     assert "This agent cannot invoke skills" in claude
-    assert "GitHub and command routing (required)" in claude
-    assert "The orchestrator must retrieve" in claude
-    assert "GitHub issue, PR, review, and CI context before delegation." in claude
-    assert "GitHub and command routing (required)" in shared
-    assert "The orchestrator must retrieve" in shared
-    assert "Do not claim direct GitHub access" in shared
+    assert "Command routing (required)" in claude
+    assert "The orchestrator must run shell commands" in claude
+    assert "retrieves GitHub issue, PR, and CI context directly" in claude
+    assert "Command routing (required)" in shared
+    assert "The orchestrator must run shell commands" in shared
+    assert "retrieves GitHub issue, PR, and CI context directly" in shared
     assert "Issue #3918 tracks adding structured read-only tooling" not in claude
     assert "Issue #3918 tracks adding structured read-only tooling" not in shared
 
@@ -191,10 +201,10 @@ def test_orchestrator_supplies_analyst_execution_context() -> None:
         assert "### Analyst evidence handoff" in text, contract
         assert "Put the exact output, repository identity, branch, and head SHA" in text, contract
         assert (
-            "The analyst is read-only and has no shell, GitHub, or unrestricted web access."
+            "The analyst is read-only and has no shell or unrestricted web access."
             in text
         ), contract
-        assert "external evidence outside the analyst's declared" in text, contract
+        assert "structured GitHub and CI read tools" in text, contract
         assert "worker whose declared manifest includes that" in text, contract
         assert "retrieve the named" in text, contract
         assert "evidence and re-delegate once" in text, contract
@@ -248,3 +258,58 @@ def test_executor_toolset_is_an_unsafe_negative_control() -> None:
 def test_reviewed_read_only_allowlists_are_inverted_controls() -> None:
     _assert_read_only_tools(list(CLAUDE_ALLOWED_TOOLS), CLAUDE_ALLOWED_TOOLS)
     _assert_read_only_tools(list(PLATFORM_ALLOWED_TOOLS), PLATFORM_ALLOWED_TOOLS)
+
+
+# --- PR Retrieval Before BLOCKED Regression Tests ---
+
+ALL_ANALYST_SURFACES = (
+    REPO_ROOT / ".claude" / "agents" / "analyst.md",
+    REPO_ROOT / "src" / "claude" / "analyst.md",
+    REPO_ROOT / ".github" / "agents" / "analyst.agent.md",
+    REPO_ROOT / "src" / "copilot-cli" / "agents" / "analyst.agent.md",
+    REPO_ROOT / "src" / "vs-code-agents" / "analyst.agent.md",
+    REPO_ROOT / "templates" / "agents" / "analyst.shared.md",
+)
+
+
+@pytest.mark.parametrize("path", ALL_ANALYST_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_pull_request_read_declared(path: Path) -> None:
+    """pull_request_read must be in every analyst surface."""
+    assert "pull_request_read" in path.read_text(), (
+        f"{path.relative_to(REPO_ROOT)}: pull_request_read not declared"
+    )
+
+
+@pytest.mark.parametrize("path", ALL_ANALYST_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_blocked_requires_retrieval_failure(path: Path) -> None:
+    """BLOCKED must be conditional on retrieval failure."""
+    text = path.read_text()
+    idx = text.find("[BLOCKED]")
+    assert idx != -1
+    ctx = text[max(0, idx - 300):idx + 300].lower()
+    assert any(w in ctx for w in ("missing", "fails", "after", "unavailable")), (
+        f"{path.relative_to(REPO_ROOT)}: [BLOCKED] not conditional on retrieval failure"
+    )
+
+
+@pytest.mark.parametrize("path", ALL_ANALYST_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_get_job_logs_declared(path: Path) -> None:
+    """CI job log retrieval must be declared."""
+    assert "get_job_logs" in path.read_text(), (
+        f"{path.relative_to(REPO_ROOT)}: get_job_logs not declared"
+    )
+
+
+def test_local_identity_conditional_in_template() -> None:
+    """Local identity must be conditional for remote-only analysis."""
+    assert "when present" in SHARED_TEMPLATE.read_text().lower()
+
+
+def test_no_duplicate_identity_gate() -> None:
+    """Only one PR identity gate per surface."""
+    for path in ALL_ANALYST_SURFACES:
+        text = path.read_text()
+        count = text.count("PR identity gate")
+        assert count <= 1, (
+            f"{path.relative_to(REPO_ROOT)}: {count} PR identity gates (expected 1)"
+        )
