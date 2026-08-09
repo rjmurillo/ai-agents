@@ -14,9 +14,10 @@ When all gates are satisfied, reports "likely mergeable" because BLOCKED is not
 authoritative: PRs with all gates satisfied have been observed to merge on the
 first attempt.
 
-Exit codes follow ADR-035:
-    0 - Diagnostic produced
-    2 - PR not found
+Exit codes:
+    0 - No identified gate blocks the merge
+    1 - A required gate blocks the merge
+    2 - Required checks are still pending, or the PR was not found
     3 - API error
     4 - Auth error
 """
@@ -587,7 +588,19 @@ def main(argv: list[str] | None = None) -> int:
         status=status,
         script_name=_SCRIPT_NAME,
     )
-    return 0 if result.get("LikelyMergeable") else 1
+    hard_blocker = bool(
+        result.get("MissingRequiredChecks")
+        or result.get("FailingRequiredChecks")
+        or result.get("UnresolvedThreads")
+        or result.get("ReviewDecision") in {"CHANGES_REQUESTED", "REVIEW_REQUIRED"}
+        or result.get("Mergeable") == "CONFLICTING"
+        or result.get("MergeStateStatus") == "DIRTY"
+    )
+    if hard_blocker:
+        return 1
+    if result.get("PendingRequiredChecks"):
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
