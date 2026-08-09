@@ -1,3 +1,8 @@
+---
+qaVerdict: PASS
+qaSessionLog: .agents/sessions/2026-08-08-session-10018-b2f6a78e7-fix-issue-3912-authoritative-github.json
+qaCommit: b8a5c65ca6327de924405c5fdbfb0d66a6456bcf
+---
 # Test Report: Issue #3912 - Authoritative GitHub PR Context Metadata
 
 **Scope**: `.claude/skills/github/scripts/pr/get_pr_context.py`, its generated mirror

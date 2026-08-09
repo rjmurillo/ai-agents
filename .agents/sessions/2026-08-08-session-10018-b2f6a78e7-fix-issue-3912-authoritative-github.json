@@ -99,7 +99,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".agents/qa/pr-4767-issue-3912-authoritative-pr-context-test-report.md PASS; 62 focused and 1337 broader tests"
+        "Evidence": ".agents/qa/pr-4767-issue-3912-authoritative-pr-context-test-report.md"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -157,7 +157,7 @@
       "outcome": "API reference updated; Serena memory written and indexed"
     }
   ],
-  "endingCommit": "8f490a08379143d65bf8d12b7654974d96771feb",
+  "endingCommit": "b8a5c65ca6327de924405c5fdbfb0d66a6456bcf",
   "nextSteps": [
     "Push focused branch",
     "Close combined duplicate PR #4733",
