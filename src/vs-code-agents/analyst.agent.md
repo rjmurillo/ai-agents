@@ -118,7 +118,7 @@ reference is provided, classify it and call the matching tool:
 | `/pull/<N>` or PR #N | `pull_request_read` | `github.com/org/repo/pull/42` |
 | `/issues/<N>` or issue #N | `issue_read` | `github.com/org/repo/issues/99` |
 | `/actions/runs/<ID>` | `get_workflow_run` | `github.com/org/repo/actions/runs/123` |
-| `/actions/runs/<ID>/jobs/<JID>` | `get_job_logs` | job log retrieval |
+| `/actions/runs/<ID>/job/<JID>` | `get_job_logs` | job log retrieval |
 | `/actions` (list) | `list_workflow_runs` | CI overview |
 
 The analyst has no web access; do not attempt to fetch GitHub URLs over HTTP.

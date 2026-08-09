@@ -123,7 +123,7 @@ reference is provided, classify it and call the matching MCP tool:
 | `/pull/<N>` or PR #N | `mcp__github__pull_request_read` | `github.com/org/repo/pull/42` |
 | `/issues/<N>` or issue #N | `mcp__github__issue_read` | `github.com/org/repo/issues/99` |
 | `/actions/runs/<ID>` | `mcp__github__get_workflow_run` | `github.com/org/repo/actions/runs/123` |
-| `/actions/runs/<ID>/jobs/<JID>` | `mcp__github__get_job_logs` | job log retrieval |
+| `/actions/runs/<ID>/job/<JID>` | `mcp__github__get_job_logs` | job log retrieval |
 | `/actions` (list) | `mcp__github__list_workflow_runs` | CI overview |
 
 The analyst has no web access; do not attempt to fetch GitHub URLs over HTTP.
