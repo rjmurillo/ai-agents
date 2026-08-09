@@ -1,14 +1,9 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10006-fleet-pr-4651.json
-qaCommit: c273ea733ee8c5f58ac7d8ad1ac1ab0f143967f5
+qaCommit: 146d5aca1838673f5f4d37cb9ab9e8d924bd5e7b
 ---
-
-# QA Report: PR 4651 Fail Closed Agent Machinery
-
-## Verdict
-
-PASS. I ran the verification on commit `c273ea733ee8c5f58ac7d8ad1ac1ab0f143967f5` after merging `origin/main` into `fix/adversarial-review-agent-machinery` in worktree `../ai-agents-qa-4651`.
+# PR 4651 Fail Closed Agent Machinery QA Report
 
 ## Scope
 
@@ -16,7 +11,7 @@ PR 4651 changes hook enforcement, generated Copilot hook mirrors, build generati
 
 ## Evidence
 
-### 1. Changed module tests
+### Changed module tests
 
 Command:
 
@@ -27,17 +22,18 @@ uv run --frozen pytest tests/build_scripts/test_build_all.py tests/build_scripts
 Real output:
 
 ```text
-collected 484 items
-
-======================= 483 passed, 1 skipped in 14.01s =======================
+collected 486 items
+485 passed, 1 skipped in 14.74s
 ```
 
-### 2. CLI exit contract baseline direction
+### CLI exit contract baseline direction
 
 Command:
 
 ```bash
-printf '09b58c12b^ baseline: '; git show 09b58c12b^:scripts/ci/cli_exit_contract_baseline.txt && printf '09b58c12b baseline: '; git show 09b58c12b:scripts/ci/cli_exit_contract_baseline.txt && printf 'HEAD baseline: '; cat scripts/ci/cli_exit_contract_baseline.txt
+printf '09b58c12b^ baseline: '; git show 09b58c12b^:scripts/ci/cli_exit_contract_baseline.txt
+printf '09b58c12b baseline: '; git show 09b58c12b:scripts/ci/cli_exit_contract_baseline.txt
+printf 'HEAD baseline: '; cat scripts/ci/cli_exit_contract_baseline.txt
 ```
 
 Real output:
@@ -48,34 +44,26 @@ Real output:
 HEAD baseline: 27
 ```
 
-Result: tightening direction. The PR commit `09b58c12b` reduced the baseline from 29 to 28. The current QA commit tightens it again to 27 after pre-push, the remote-head merge, the latest main merge, and the configured push target fix measured the tracked count at 27.
-
-### 3. Generated Copilot hook mirrors
+### Generated Copilot hook mirrors
 
 Command:
 
 ```bash
-uv run --frozen python build/scripts/build_all.py && git diff --exit-code -- src/copilot-cli/hooks .claude/hooks build/scripts/generate_hooks_events.py
+uv run --frozen python build/scripts/build_all.py
+git diff --exit-code -- src/copilot-cli/hooks .claude/hooks build/scripts/generate_hooks_events.py
 ```
 
 Real output excerpt:
 
 ```text
 === Hooks -> Copilot ===
-Config: /home/richard/src/GitHub/rjmurillo/ai-agents-qa-4651/templates/platforms/copilot-cli.yaml
-Repo root: /home/richard/src/GitHub/rjmurillo/ai-agents-qa-4651
-Mode: Generate
-
-Found 2 Claude event(s) in /home/richard/src/GitHub/rjmurillo/ai-agents-qa-4651/.claude/hooks/hooks.json
-
-=== Summary ===
-Duration: 0.01s
+Found 2 Claude event(s) in .claude/hooks/hooks.json
 Written: 2
 ```
 
-`git diff --exit-code -- src/copilot-cli/hooks .claude/hooks build/scripts/generate_hooks_events.py` produced no output and exited 0. The committed mirrors match generator output.
+`git diff --exit-code -- src/copilot-cli/hooks .claude/hooks build/scripts/generate_hooks_events.py` produced no output and exited 0.
 
-### 4. Ruff on changed Python files
+### Ruff on changed Python files
 
 Command:
 
@@ -89,7 +77,7 @@ Real output:
 All checks passed!
 ```
 
-### 5. Fail closed behavior for unchecked agent machinery
+### Fail closed behavior for unchecked agent machinery
 
 Command:
 
@@ -100,15 +88,10 @@ uv run --frozen pytest tests/hooks/test_push_guard_base.py -q -k 'diff_failure_b
 Real output:
 
 ```text
-collected 81 items / 60 deselected / 21 selected
-
-tests/hooks/test_push_guard_base.py .....................                [100%]
-
-====================== 21 passed, 60 deselected in 0.21s ======================
+collected 80 items / 59 deselected / 21 selected
+21 passed, 59 deselected in 0.17s
 ```
 
-Named coverage: `test_diff_failure_blocks`, `test_validator_exception_blocks`, `test_malformed_hook_input_blocks`, `test_empty_stdin_blocks`, `test_ambiguous_push_scope_blocks`, `test_shell_expansion_blocks_before_subprocess`, `test_unsafe_bare_push_configuration_blocks_before_diff`, and `test_configured_explicit_push_target_reaches_diff` prove the guard blocks on unchecked or unsafe push machinery paths.
+## Verdict
 
-## Uncompleted verifications
-
-None. All five requested checks completed and passed.
+PASS. The CI failure was a missing `qaSessionLog` file. The report now points to a committed session log.
