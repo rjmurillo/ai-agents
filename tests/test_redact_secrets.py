@@ -175,6 +175,54 @@ class TestCiSinkWrappers:
         assert "GITHUB_TOKEN=***" in result.text
         assert result.reasons.count("credential-assignment") == 10
 
+    def test_credential_assignment_preserves_json_after_quoted_value(self):
+        value = '{"password":"secret","timeout":30}'
+
+        result = redact_ci_sink(value)
+
+        assert result.text == '{"password":"***","timeout":30}'
+        assert result.reasons == ("credential-assignment",)
+
+    def test_credential_assignment_preserves_text_after_unquoted_value(self):
+        value = "password=hunter2 other=1"
+
+        result = redact_ci_sink(value)
+
+        assert result.text == "password=*** other=1"
+        assert result.reasons == ("credential-assignment",)
+
+    def test_credential_assignment_handles_escaped_quote_inside_quoted_value(self):
+        value = '{"password":"se\\"cret","x":1}'
+
+        result = redact_ci_sink(value)
+
+        assert result.text == '{"password":"***","x":1}'
+        assert result.reasons == ("credential-assignment",)
+
+    def test_credential_assignment_handles_unterminated_quoted_value(self):
+        value = '{"password":"secret'
+
+        result = redact_ci_sink(value)
+
+        assert result.text == '{"password":"***'
+        assert result.reasons == ("credential-assignment",)
+
+    def test_credential_assignment_redacts_multiple_secrets_on_one_line(self):
+        value = "password=hunter2 token=secret123 other=1"
+
+        result = redact_ci_sink(value)
+
+        assert result.text == "password=*** token=*** other=1"
+        assert result.reasons == ("credential-assignment", "credential-assignment")
+
+    def test_credential_assignment_leaves_non_secret_line_byte_identical(self):
+        value = '{"username":"alice","timeout":30} other=1'
+
+        result = redact_ci_sink(value)
+
+        assert result.text == value
+        assert not result.redacted
+
     def test_credential_assignments_preserve_trailing_structured_fields(self):
         raw_json = '{"password":"secret","timeout":30}'
         escaped_json = '{\\"password\\":\\"secret\\",\\"timeout\\":30}'
@@ -219,7 +267,6 @@ class TestCiSinkWrappers:
         assert "SECRET_PREFIX" not in result.text
         assert "SECRET_SUFFIX" not in result.text
         assert '"timeout":30}' in result.text
-
 
 class TestCli:
     def test_stdin_redaction(self, capsys):
