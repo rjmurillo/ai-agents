@@ -62,7 +62,7 @@ _RULES: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 _PLACEHOLDER = "[redacted: {reason}]"
-_SERIALIZED_BACKSLASHES = r"\\{1,8}"
+_SERIALIZED_BACKSLASHES = r"(?<!\\)\\+"
 
 
 def _json_key_word(word: str) -> str:

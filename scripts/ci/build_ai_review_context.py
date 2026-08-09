@@ -153,9 +153,16 @@ def _new_context_retry_deadline() -> float:
 
 
 def _invoke_gh_once(arguments: list[str], timeout: float) -> CommandResult:
+    include_response_headers = arguments[:1] == ["api"] and not any(
+        argument in {"--include", "-i"} for argument in arguments
+    )
+    command_arguments = [
+        *arguments,
+        *(["--include"] if include_response_headers else []),
+    ]
     try:
         completed = subprocess.run(
-            ["gh", *arguments],
+            ["gh", *command_arguments],
             capture_output=True,
             check=False,
             text=True,
@@ -178,11 +185,20 @@ def _invoke_gh_once(arguments: list[str], timeout: float) -> CommandResult:
     # write_outputs and the invocation sink redact extracted context later.
     # Failed stdout can enter diagnostics, so redact it before returning.
     stdout = completed.stdout
+    response_headers = ""
+    if include_response_headers:
+        header_block, separator, response_body = stdout.partition("\n\n")
+        if separator and re.match(r"HTTP/\S+\s+\d{3}\b", header_block):
+            response_headers = header_block
+            stdout = response_body
     if completed.returncode != 0:
         stdout = _redact_secrets(stdout)
+    stderr = completed.stderr
+    if completed.returncode != 0 and response_headers:
+        stderr = f"{response_headers}\n{stderr}".strip()
     return CommandResult(
         stdout,
-        _redact_secrets(completed.stderr),
+        _redact_secrets(stderr),
         completed.returncode,
     )
 

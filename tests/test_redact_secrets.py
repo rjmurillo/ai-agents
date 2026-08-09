@@ -178,7 +178,7 @@ class TestCiSinkWrappers:
         assert result.text == "Authorization: Token ***,timeout=30"
         assert result.reasons == ("authorization-header",)
 
-    @pytest.mark.parametrize("serialization_depth", range(4))
+    @pytest.mark.parametrize("serialization_depth", range(7))
     def test_serialized_authorization_escaped_slash_is_redacted(
         self,
         serialization_depth,

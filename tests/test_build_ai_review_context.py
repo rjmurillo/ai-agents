@@ -124,6 +124,44 @@ def test_run_gh_retries_primary_and_secondary_403_until_success(
     assert sleeps == [expected_delay]
 
 
+def test_run_gh_requests_and_honors_rest_rate_limit_headers(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    calls: list[list[str]] = []
+    sleeps: list[float] = []
+
+    def fake_subprocess_run(command: list[str], **kwargs):
+        del kwargs
+        calls.append(command)
+        if len(calls) == 1:
+            return _mod.subprocess.CompletedProcess(
+                command,
+                1,
+                (
+                    "HTTP/2.0 403 Forbidden\n"
+                    "Retry-After: 7\n"
+                    "X-RateLimit-Remaining: 0\n\n"
+                    '{"message":"secondary rate limit"}'
+                ),
+                "gh: secondary rate limit (HTTP 403)",
+            )
+        return _mod.subprocess.CompletedProcess(
+            command,
+            0,
+            'HTTP/2.0 200 OK\nContent-Type: application/json\n\n{"number":7}',
+            "",
+        )
+
+    monkeypatch.setattr(_mod.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(_mod.time, "sleep", sleeps.append)
+
+    result = _mod.run_gh(["api", "repos/owner/repo/pulls/7"])
+
+    assert all(call[-1] == "--include" for call in calls)
+    assert sleeps == [7.0]
+    assert result == CommandResult('{"number":7}', "", 0)
+
+
 def test_run_gh_exhausts_bounded_rate_limit_retries(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -1518,7 +1556,7 @@ def test_write_outputs_preserves_source_assignment_semantics(
 ):
     output_path = tmp_path / "github-output.txt"
     runner_temp = tmp_path / "runner"
-    source = '+token = accept_unverified_jwt(user_input)'
+    source = "+token = accept_unverified_jwt(user_input)"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
     monkeypatch.setenv("RUNNER_TEMP", str(runner_temp))
     monkeypatch.delenv("PR_NUMBER", raising=False)
