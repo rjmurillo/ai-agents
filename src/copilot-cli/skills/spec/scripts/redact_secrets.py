@@ -75,7 +75,7 @@ def _json_key_word(word: str) -> str:
 _CREDENTIAL_SEPARATOR_CHARACTER = rf"(?:[-_\s]|{_json_key_word('-')}|{_json_key_word('_')}|\\u0020)"
 _CREDENTIAL_SEPARATOR = rf"{_CREDENTIAL_SEPARATOR_CHARACTER}?"
 _CREDENTIAL_NAMESPACE_CHARACTER = r"(?:[A-Za-z0-9]|\\u[0-9a-f]{4})"
-_CREDENTIAL_NAMESPACE = rf"(?:{_CREDENTIAL_NAMESPACE_CHARACTER}+{_CREDENTIAL_SEPARATOR_CHARACTER})*"
+_CREDENTIAL_NAMESPACE = rf"(?:{_CREDENTIAL_NAMESPACE_CHARACTER}|{_CREDENTIAL_SEPARATOR_CHARACTER})*"
 _CREDENTIAL_KEY_BASE = (
     "(?:"
     + "|".join(
@@ -100,7 +100,22 @@ _CREDENTIAL_PREFIX = (
     rf"(?<![\w-]){_CREDENTIAL_KEY_QUOTE}{_CREDENTIAL_KEY}"
     rf"{_CREDENTIAL_KEY_QUOTE}\s*[:=]\s*"
 )
-_CREDENTIAL_ASSIGNMENT = re.compile(rf"(?i)({_CREDENTIAL_PREFIX})([^\r\n]+)")
+_CREDENTIAL_VALUE = (
+    r"(?:"
+    r'"(?:\\.|[^"\\\r\n])*(?:"|(?=$|[\r\n]))'
+    r"|"
+    r"'(?:\\.|[^'\\\r\n])*(?:'|(?=$|[\r\n]))"
+    r"|"
+    r'\\"(?:(?!\\")[^\r\n])*(?:\\"|(?=$|[\r\n]))'
+    r"|"
+    r"\\'(?:(?!\\')[^\r\n])*(?:\\'|(?=$|[\r\n]))"
+    r"|"
+    r"\[redacted: [^\]]+\]"
+    r"|"
+    r"[^\s,}\]]+"
+    r")"
+)
+_CREDENTIAL_ASSIGNMENT = re.compile(rf"(?i)({_CREDENTIAL_PREFIX})({_CREDENTIAL_VALUE})")
 
 
 @dataclass(frozen=True, slots=True)
