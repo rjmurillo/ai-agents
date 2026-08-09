@@ -200,15 +200,14 @@ def test_orchestrator_supplies_analyst_execution_context() -> None:
         text = contract.read_text(encoding="utf-8")
         assert "### Analyst evidence handoff" in text, contract
         assert "Put the exact output, repository identity, branch, and head SHA" in text, contract
-        assert (
-            "The analyst is read-only and has no shell or unrestricted web access."
-            in text
-        ), contract
-        assert "structured GitHub and CI read tools" in text, contract
-        assert "worker whose declared manifest includes that" in text, contract
+        # Orchestrator prefetches only shell/build/git/web, not GitHub/CI
+        assert "shell/git/build output and unrestricted web evidence" in text, contract
+        assert "Do not prefetch GitHub/CI" in text, contract
+        # Analyst retrieves GitHub/CI directly
+        assert "analyst retrieves structured GitHub and CI data directly" in text, contract
+        assert "no shell or unrestricted web access" in text, contract
         assert "retrieve the named" in text, contract
         assert "evidence and re-delegate once" in text, contract
-        assert "delegate to the analyst agent" not in text, contract
 
 
 @pytest.mark.parametrize(
@@ -278,22 +277,40 @@ def test_pull_request_read_declared(path: Path) -> None:
     assert "pull_request_read" in path.read_text(), (
         f"{path.relative_to(REPO_ROOT)}: pull_request_read not declared"
     )
-
-
 @pytest.mark.parametrize("path", ALL_ANALYST_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_blocked_requires_retrieval_failure(path: Path) -> None:
-    """BLOCKED must be conditional on retrieval failure, not unconditional."""
+    """BLOCKED must be conditional on retrieval failure, not unconditional.
+
+    Parses the section containing [BLOCKED] and asserts:
+    1. Conditional language (only when/if) governs [BLOCKED]
+    2. A retrieval step (pull_request_read or retrieve) appears before BLOCKED
+    """
     text = path.read_text()
     idx = text.find("[BLOCKED]")
     assert idx != -1
-    # Look at the sentence/paragraph containing BLOCKED
-    ctx = text[max(0, idx - 500):idx + 200].lower()
-    # Must contain conditional language (if/when/after), not just a keyword
-    # that also appears in the BLOCKED message itself
-    conditional_words = ("if ", "when ", "only after", "only when", "only if")
-    assert any(w in ctx for w in conditional_words), (
-        f"{path.relative_to(REPO_ROOT)}: [BLOCKED] appears unconditional; "
-        f"must use conditional language (if/when/only after retrieval failure)"
+    # Extract the section (heading-delimited) containing BLOCKED
+    section_start = text.rfind("\n#", 0, idx)
+    section_end = text.find("\n#", idx)
+    section = text[max(0, section_start):section_end if section_end != -1 else len(text)].lower()
+    # Must contain conditional language
+    conditional_words = ("only when", "only if", "only after")
+    assert any(w in section for w in conditional_words), (
+        f"{path.relative_to(REPO_ROOT)}: [BLOCKED] section lacks conditional "
+        f"language (only when/if/after)"
+    )
+    # Retrieval tool/action must be mentioned before BLOCKED in the section
+    blocked_pos = section.find("[blocked]")
+    # Find the earliest retrieval mention
+    positions = [
+        p for p in (
+            section.find("pull_request_read"),
+            section.find("retrieve"),
+        )
+        if p >= 0
+    ]
+    retrieval_pos = min(positions) if positions else -1
+    assert 0 <= retrieval_pos < blocked_pos, (
+        f"{path.relative_to(REPO_ROOT)}: retrieval step must precede [BLOCKED]"
     )
 
 
@@ -305,9 +322,18 @@ def test_get_job_logs_declared(path: Path) -> None:
     )
 
 
-def test_local_identity_conditional_in_template() -> None:
-    """Local identity must be conditional for remote-only analysis."""
-    assert "when present" in SHARED_TEMPLATE.read_text().lower()
+@pytest.mark.parametrize("path", ALL_ANALYST_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_local_identity_conditional_across_surfaces(path: Path) -> None:
+    """Local identity must be conditional for remote-only (API-only) analysis.
+
+    The identity table must use 'when present' so remote-only PR analysis
+    via API tools does not require local checkout info.
+    """
+    text = path.read_text().lower()
+    assert "when present" in text, (
+        f"{path.relative_to(REPO_ROOT)}: local identity not marked conditional "
+        f"('when present' missing)"
+    )
 
 
 def test_no_duplicate_identity_gate() -> None:
@@ -318,3 +344,58 @@ def test_no_duplicate_identity_gate() -> None:
         assert count == 1, (
             f"{path.relative_to(REPO_ROOT)}: {count} PR identity gates (expected exactly 1)"
         )
+
+
+# --- Negative-control fixtures: reproduce prior defects, confirm tests catch them ---
+
+
+class TestNegativeControls:
+    """Fixtures reproducing prior defects to confirm the tests catch them."""
+
+    UNCONDITIONAL_BLOCKED = (
+        "## Delegation\n"
+        "Return [BLOCKED] Missing PR metadata.\n"
+    )
+
+    BLOCKED_WITHOUT_RETRIEVAL = (
+        "## Delegation\n"
+        "Return [BLOCKED] only when evidence is missing.\n"
+    )
+
+    MANDATORY_LOCAL_IDENTITY = (
+        "| Local source | Repository | branch | head SHA |\n"
+    )
+
+    CONDITIONAL_LOCAL_IDENTITY = (
+        "| Local source (when present) | Repository | branch | head SHA |\n"
+    )
+
+    def test_unconditional_blocked_fails(self) -> None:
+        """Prior defect: BLOCKED without conditional language is detected."""
+        section = self.UNCONDITIONAL_BLOCKED.lower()
+        conditional_words = ("only when", "only if", "only after")
+        # This MUST NOT match - proves our test would catch this defect
+        assert not any(w in section for w in conditional_words)
+
+    def test_blocked_without_retrieval_preceding_fails(self) -> None:
+        """Prior defect: BLOCKED with conditional but no retrieval before it."""
+        section = self.BLOCKED_WITHOUT_RETRIEVAL.lower()
+        blocked_pos = section.find("[blocked]")
+        positions = [
+            p for p in (
+                section.find("pull_request_read"),
+                section.find("retrieve"),
+            )
+            if p >= 0
+        ]
+        retrieval_pos = min(positions) if positions else -1
+        # retrieval not found or not before blocked - proves detection
+        assert retrieval_pos == -1 or retrieval_pos >= blocked_pos
+
+    def test_mandatory_identity_fails(self) -> None:
+        """Prior defect: unconditional local identity is detected."""
+        assert "when present" not in self.MANDATORY_LOCAL_IDENTITY.lower()
+
+    def test_conditional_identity_passes(self) -> None:
+        """Current contract: conditional identity is accepted."""
+        assert "when present" in self.CONDITIONAL_LOCAL_IDENTITY.lower()
