@@ -397,7 +397,7 @@ def _original_main(stdin_bytes):
     from push_guard_base import run_guard  # noqa: E402
 
     GUARD_NAME = "markdown-lint"
-    VERIFIER = Path(__file__).resolve().parents[3] / "scripts" / "validation" / "pre_pr.py"
+    VERIFIER = Path(__file__).resolve().with_name("_markdownlint_verifier.py")
     SAFE_CONFIG = Path(__file__).resolve().with_name("markdownlint-safe-config.yaml")
     SUBPROCESS_TIMEOUT = 60
 

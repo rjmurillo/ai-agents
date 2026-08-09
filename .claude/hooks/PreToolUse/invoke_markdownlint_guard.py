@@ -2,7 +2,7 @@
 """Block git push on markdownlint violations in changed .md files.
 
 Thin adapter over :mod:`push_guard_base`. Activates on ``*.md`` files in
-the push changeset and runs the plugin-shipped ``pre_pr.py`` verifier with a
+the push changeset and runs the co-located ``_markdownlint_verifier.py`` with a
 safe markdownlint config. Missing verifier files, timeouts, invocation
 failures, and lint violations all block.
 
@@ -29,7 +29,7 @@ from hook_utilities import get_project_directory  # noqa: E402
 from push_guard_base import run_guard  # noqa: E402
 
 GUARD_NAME = "markdown-lint"
-VERIFIER = Path(__file__).resolve().parents[3] / "scripts" / "validation" / "pre_pr.py"
+VERIFIER = Path(__file__).resolve().with_name("_markdownlint_verifier.py")
 SAFE_CONFIG = Path(__file__).resolve().with_name("markdownlint-safe-config.yaml")
 SUBPROCESS_TIMEOUT = 60
 
