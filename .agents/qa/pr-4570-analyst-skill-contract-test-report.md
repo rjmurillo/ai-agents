@@ -1,19 +1,21 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-01-ci-fail-a-pr-4570.json
-qaCommit: 43c67cd4eb9d0ca2acb57e614776db809990b4d8
+qaCommit: 8ba2d8e8b35098cfbf4846e9ae4397d2c566a394
 ---
 # PR 4570 Analyst Skill Contract Test Report
 
 ## Scope
 
-PR 4570 tightens the analyst agent contract and syncs generated agent surfaces. The user impact is lower risk of analyst agents mutating PR state while they inspect issues, CI, files, and comments.
+PR 4570 tightens the analyst agent contract and syncs generated agent
+surfaces. Analyst agents cannot mutate PR state. They route issue, CI, and
+command evidence requests through the orchestrator.
 
 ## Verification
 
 | Check | Result | Evidence |
 |---|---:|---|
-| Focused merged-branch tests | PASS | `uv run --frozen pytest tests/test_analyst_skill_resolution.py tests/build_scripts/test_github_url_routing_contract.py -q` collected 95 items and passed 95. |
+| Focused merged-branch tests | PASS | `uv run --frozen pytest tests/test_analyst_skill_resolution.py tests/build_scripts/test_github_url_routing_contract.py -q` collected 43 items and passed 43. |
 | QA report gate | PASS | This file lives at `.agents/qa/pr-4570-analyst-skill-contract-test-report.md`, which matches the PR QA report lookup for `pr-4570`. |
 
 ## Risk Review

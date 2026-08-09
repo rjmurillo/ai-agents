@@ -89,7 +89,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Merged the remote PR update, then ran focused tests: 95 collected and 95 passed across analyst contract and GitHub URL routing contract tests."
+        "Evidence": "Validated the merged PR head: 43 focused analyst and GitHub URL routing contract tests passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -121,6 +121,6 @@
       "entry": "Merged remote PR update a32f86984 and reran focused tests: 95 collected, 95 passed."
     }
   ],
-  "endingCommit": "43c67cd4eb9d0ca2acb57e614776db809990b4d8",
+  "endingCommit": "8ba2d8e8b35098cfbf4846e9ae4397d2c566a394",
   "nextSteps": []
 }
