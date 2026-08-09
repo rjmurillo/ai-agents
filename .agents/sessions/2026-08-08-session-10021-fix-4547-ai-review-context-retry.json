@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and recursive review fixes are committed through QA code commit b0f0be739909a3069cbe75c13b781d6713bffac1."
+        "Evidence": "Implementation and recursive review fixes are committed through QA code commit d94549fe289aa2924477f48edbbff98e0ab69bfb."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "452 focused, deadline, plain-script import, and bundled parity tests passed at QA code commit b0f0be739909a3069cbe75c13b781d6713bffac1. A full pre-push run passed 24927 tests with 34 skips and 50 deselections before the deadline logic extraction. The extracted helper passes its 14 tests and the ADR-006 ratchet reports zero violations. Mypy, Ruff, action validation, review-budget validation, merge-tree ratchets, and 50 pre-PR checks passed."
+        "Evidence": "453 focused, deadline, plain-script import, and bundled parity tests passed at QA code commit d94549fe289aa2924477f48edbbff98e0ab69bfb. A full pre-push run passed 24927 tests with 34 skips and 50 deselections before the deadline logic extraction. The extracted helper passes its 15 tests, the CLI exit ratchet passes, and the ADR-006 ratchet reports zero violations. Mypy, Ruff, action validation, review-budget validation, merge-tree ratchets, and 50 pre-PR checks passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -168,7 +168,7 @@
       "outcome": "Moved direct-action deadline arithmetic from workflow YAML into a tested Python helper. Exact inherited-deadline validation rejects negative, non-finite, scientific, and malformed values. ADR-006 reports zero run-block violations, and recursive DevOps review reports no Critical or High findings."
     }
   ],
-  "endingCommit": "b0f0be739909a3069cbe75c13b781d6713bffac1",
+  "endingCommit": "d94549fe289aa2924477f48edbbff98e0ab69bfb",
   "nextSteps": [
     "Commit, push, open one focused pull request, resolve review findings, merge, close issue 4547, then reassess PR 4721."
   ]
