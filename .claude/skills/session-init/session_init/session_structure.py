@@ -45,6 +45,7 @@ def _build_protocol_compliance(branch: str, commit: str) -> dict[str, Any]:
             "handoffPreserved": _must(False, ""),
             "serenaMemoryUpdated": _must(False, ""),
             "markdownLintRun": _must(False, ""),
+            "qaValidation": _must(False, ""),
             "changesCommitted": _must(False, ""),
             "validationPassed": _must(False, ""),
             "tasksUpdated": _should(False, ""),
