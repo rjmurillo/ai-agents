@@ -85,6 +85,112 @@ def test_root_checkout_depth_parsing(job: Mapping[str, object], expected: set[ob
             id="flag hidden behind a line continuation",
         ),
         pytest.param(
+            "git fetch origin main `\n  --depth=1",
+            True,
+            id="PowerShell backtick continuation",
+        ),
+        pytest.param(
+            "(git fetch --depth=1 origin main)",
+            True,
+            id="subshell grouping",
+        ),
+        pytest.param(
+            "/usr/bin/git fetch --depth=1 origin main",
+            True,
+            id="Unix path-qualified git",
+        ),
+        pytest.param(
+            '& "C:\\Program Files\\Git\\cmd\\git.exe" fetch --depth=1 origin main',
+            True,
+            id="PowerShell call operator and path-qualified git",
+        ),
+        pytest.param(
+            "env /usr/bin/git fetch --depth=1 origin main",
+            True,
+            id="env wrapper and path-qualified git",
+        ),
+        pytest.param(
+            "env -u GIT_CONFIG_COUNT /usr/bin/git fetch --depth=1 origin main",
+            True,
+            id="env option operand and path-qualified git",
+        ),
+        pytest.param(
+            "command /usr/bin/git fetch --depth=1 origin main",
+            True,
+            id="command wrapper and path-qualified git",
+        ),
+        pytest.param(
+            "GIT_CONFIG_NOSYSTEM=1 /usr/bin/git fetch --depth=1 origin main",
+            True,
+            id="environment assignment and path-qualified git",
+        ),
+        pytest.param(
+            "git pull --depth=1 origin main",
+            True,
+            id="pull forwards the shallow depth to fetch",
+        ),
+        pytest.param(
+            'depth_arg=--depth=1\ngit fetch "$depth_arg" origin main',
+            True,
+            id="Bash variable holds the shallow depth",
+        ),
+        pytest.param(
+            "$depthArg = '--depth=1'\ngit fetch $depthArg origin main",
+            True,
+            id="PowerShell variable holds the shallow depth",
+        ),
+        pytest.param(
+            "git_command=/usr/bin/git\n$git_command fetch --depth=1 origin main",
+            True,
+            id="Bash variable holds the git executable",
+        ),
+        pytest.param(
+            "depth=--depth=1; git fetch $depth origin main",
+            True,
+            id="Bash same-line assignment",
+        ),
+        pytest.param(
+            "export depth=--depth=1\ngit fetch $depth origin main",
+            True,
+            id="Bash exported assignment",
+        ),
+        pytest.param(
+            "readonly depth=--depth=1\ngit fetch $depth origin main",
+            True,
+            id="Bash readonly assignment",
+        ),
+        pytest.param(
+            "declare -r depth=--depth=1\ngit fetch $depth origin main",
+            True,
+            id="Bash declared assignment",
+        ),
+        pytest.param(
+            "local depth=--depth=1\ngit fetch $depth origin main",
+            True,
+            id="Bash local assignment",
+        ),
+        pytest.param(
+            "depth=--depth=1 # bounded fetch\ngit fetch $depth origin main",
+            True,
+            id="Bash assignment with trailing comment",
+        ),
+        pytest.param(
+            "$depth='--depth=1' # bounded fetch\ngit fetch $depth origin main",
+            True,
+            id="PowerShell assignment with trailing comment",
+        ),
+        pytest.param(
+            "$depth='--depth=1'; git fetch $depth origin main",
+            True,
+            id="PowerShell same-line assignment",
+        ),
+        pytest.param(
+            "$git='C:\\Program Files\\Git\\cmd\\git.exe'\n& $git fetch --depth=1 origin main",
+            True,
+            id="PowerShell variable preserves path backslashes",
+        ),
+        pytest.param("git pull origin main", False, id="full pull is fine"),
+        pytest.param(
             'git fetch --shallow-since=2020-01-01 origin "$BASE_REF"',
             True,
             id="shallow-since grafts without the word depth",
@@ -97,8 +203,8 @@ def test_root_checkout_depth_parsing(job: Mapping[str, object], expected: set[ob
         pytest.param('git -C . fetch --depth=1 origin main', True, id="explicit root via -C"),
         pytest.param(
             'git -C .trusted-helper fetch --depth=1 origin main',
-            False,
-            id="a nested repository is out of scope",
+            True,
+            id="an unproven subdirectory can inherit the root repository",
         ),
         pytest.param('# git fetch --depth=1 origin main', False, id="a comment is not a command"),
         pytest.param('git fetch origin "$BASE_REF"', False, id="a full fetch is fine"),
@@ -117,8 +223,8 @@ def test_shallowing_fetch_detection(script: str, detected: bool) -> None:
     assert bool(_shallowing_fetches(job)) is detected
 
 
-def test_a_working_directory_step_is_not_charged_to_the_root_repository() -> None:
-    """A step that runs elsewhere cannot graft the workspace root."""
+def test_a_subdirectory_step_is_charged_to_the_root_repository() -> None:
+    """Git searches parent directories and finds the workspace root."""
     job = {
         "steps": [
             {
@@ -128,7 +234,7 @@ def test_a_working_directory_step_is_not_charged_to_the_root_repository() -> Non
             }
         ]
     }
-    assert _shallowing_fetches(job) == []
+    assert bool(_shallowing_fetches(job))
 
 
 @pytest.mark.parametrize(
@@ -172,6 +278,14 @@ def test_normalized_depth_mirrors_the_action(raw: object, expected: object) -> N
         pytest.param(".trusted-helper", False, id="a nested checkout"),
         pytest.param("${{ inputs.dir }}", True, id="unresolved expression counts as root"),
         pytest.param("$GITHUB_WORKSPACE", True, id="the workspace variable is the root"),
+        pytest.param("$PWD", True, id="an unresolved shell path counts as root"),
+        pytest.param("${PWD}", True, id="a braced shell path counts as root"),
+        pytest.param("%CD%", True, id="the Windows current directory counts as root"),
+        pytest.param(
+            "(Get-Location)",
+            True,
+            id="a PowerShell current-directory expression counts as root",
+        ),
         pytest.param("${{ github.workspace }}", True, id="the workspace expression is the root"),
         pytest.param('"."', True, id="quoted dot"),
     ],
@@ -191,8 +305,8 @@ def test_root_path_classification(path: str, is_root: bool) -> None:
         ),
         pytest.param(
             "git --git-dir=.trusted-helper/.git fetch --depth=1 origin main",
-            False,
-            id="git-dir anchors to the nested repo just as -C does",
+            True,
+            id="an unproven git directory fails closed",
         ),
         pytest.param(
             "git fetch origin main && tool --depth=1",
@@ -208,6 +322,11 @@ def test_root_path_classification(path: str, is_root: bool) -> None:
             "git fetch origin main; git fetch --depth=1 origin main",
             True,
             id="a fetch after a semicolon still counts",
+        ),
+        pytest.param(
+            "git fetch --depth=1 origin main & git -C .helper status",
+            True,
+            id="a background fetch remains attributed to the root",
         ),
     ],
 )
@@ -225,7 +344,11 @@ def test_shallowing_fetch_command_anchoring(script: str, detected: bool) -> None
 @pytest.mark.parametrize(
     ("working_directory", "detected"),
     [
-        pytest.param("vendor/thing", False, id="a real subdirectory is out of scope"),
+        pytest.param(
+            "vendor/thing",
+            True,
+            id="a subdirectory inherits the root git directory",
+        ),
         pytest.param("${{ inputs.dir }}", True, id="an unresolved directory counts as root"),
         pytest.param("${{ github.workspace }}", True, id="the workspace is the root"),
     ],
@@ -333,8 +456,8 @@ def test_empty_depth_is_the_shallow_default_not_full(raw: object, expected: obje
         ),
         pytest.param(
             "git --git-dir=.trusted-helper/.git fetch --depth=1 origin main",
-            False,
-            id="a nested git directory is still out of scope",
+            True,
+            id="an unproven nested git directory fails closed",
         ),
     ],
 )
@@ -349,3 +472,24 @@ def test_git_dir_is_classified_as_a_git_directory_not_a_worktree(
     """
     job = {"steps": [{"name": "s", "run": script}]}
     assert bool(_shallowing_fetches(job)) is detected
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        "git -C .trusted-helper fetch --depth=1 origin main",
+        "git --git-dir=.trusted-helper/.git fetch --depth=1 origin main",
+    ],
+)
+def test_a_known_nested_checkout_is_out_of_scope(script: str) -> None:
+    """Only a checkout step proves a path has a separate git directory."""
+    job = {
+        "steps": [
+            {
+                "uses": "actions/checkout@v7",
+                "with": {"path": ".trusted-helper", "fetch-depth": 1},
+            },
+            {"name": "s", "run": script},
+        ]
+    }
+    assert _shallowing_fetches(job) == []

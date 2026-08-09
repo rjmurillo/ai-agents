@@ -13,6 +13,8 @@ so an unresolved expression makes the sweep ask rather than fall silent.
 from __future__ import annotations
 
 import math
+import re
+import shlex
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -24,6 +26,7 @@ WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 DEFAULT_CHECKOUT_DEPTH = 1
 ROOT_CHECKOUT_PATHS = {None, "", ".", "./"}
 SHALLOWING_FETCH_FLAGS = ("--depth", "--shallow-since", "--shallow-exclude")
+GRAFTING_GIT_SUBCOMMAND = re.compile(r"\b(?:fetch|pull)\b")
 
 
 def _jobs(document: object) -> dict[str, Mapping[str, object]]:
@@ -140,11 +143,12 @@ def _root_checkout_depths(job: Mapping[str, object]) -> set[object]:
 
 
 def _logical_lines(script: str) -> list[str]:
-    """Shell lines with backslash continuations joined and comments dropped.
+    """Shell lines with continuations joined and comments dropped.
 
     A fetch split as `git fetch origin main \\` / `  --depth=1` is one command
     to the shell and must be one line here, or the flag hides on a line that
-    does not contain `git fetch`.
+    does not contain `git fetch`. PowerShell uses a trailing backtick for the
+    same purpose.
     """
     joined: list[str] = []
     pending = ""
@@ -153,13 +157,41 @@ def _logical_lines(script: str) -> list[str]:
         if pending:
             line = f"{pending} {line}"
             pending = ""
-        if line.endswith("\\"):
+        if line.endswith(("\\", "`")):
             pending = line[:-1].rstrip()
             continue
-        joined.append(line)
+        joined.append(_strip_trailing_comment(line))
     if pending:
-        joined.append(pending)
+        joined.append(_strip_trailing_comment(pending))
     return [line for line in joined if line and not line.startswith("#")]
+
+
+def _strip_trailing_comment(line: str) -> str:
+    """Drop an unquoted Bash or PowerShell trailing comment."""
+    quote = ""
+    escaped = False
+    for index, character in enumerate(line):
+        if escaped:
+            escaped = False
+            continue
+        if character in {"\\", "`"}:
+            escaped = True
+            continue
+        if quote:
+            if character == quote:
+                quote = ""
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            continue
+        if character == "#" and (index == 0 or line[index - 1].isspace()):
+            return line[:index].rstrip()
+    return line
+
+
+def _is_unresolved_path(path: str) -> bool:
+    """True when a path expression cannot be classified statically."""
+    return "$" in path or "%CD%" in path.upper() or "(" in path or ")" in path
 
 
 def _is_root_path(raw: str) -> bool:
@@ -173,29 +205,41 @@ def _is_root_path(raw: str) -> bool:
     path = raw.strip().strip("\"'")
     if not path:
         return True
-    if "${{" in path or "GITHUB_WORKSPACE" in path:
+    if _is_unresolved_path(path):
         return True
     return path in {".", "./"}
 
 
-def _is_root_git_dir(raw: str) -> bool:
-    """True when a `--git-dir` value names the ROOT repository's git directory.
-
-    `--git-dir` takes a git directory, not a worktree, so it is not
-    interchangeable with `-C`. The root repository's git directory is `.git`,
-    which `_is_root_path` correctly calls non-root as a worktree path and which
-    therefore let `git --git-dir=.git fetch --depth=1` through as if it were
-    grafting somewhere else.
-    """
+def _normalized_literal_path(raw: str) -> str | None:
+    """Return a normalized literal path, or None for an unresolved path."""
     path = raw.strip().strip("\"'")
     if not path:
-        return True
-    if "${{" in path or "GITHUB_WORKSPACE" in path:
-        return True
-    return path.rstrip("/") in {".git", "./.git"}
+        return "."
+    if _is_unresolved_path(path):
+        return None
+    return path.replace("\\", "/").rstrip("/")
 
 
-def _targets_root_repository(command: str) -> bool:
+def _nested_checkout_paths(job: Mapping[str, object]) -> set[str]:
+    """Literal paths where this job creates a separate checkout."""
+    paths: set[str] = set()
+    for step in _steps(job):
+        uses = step.get("uses")
+        if not isinstance(uses, str) or "actions/checkout" not in uses:
+            continue
+        with_block = step.get("with")
+        if not isinstance(with_block, dict):
+            continue
+        raw_path = with_block.get("path")
+        if not isinstance(raw_path, str) or _is_root_path(raw_path):
+            continue
+        path = _normalized_literal_path(raw_path)
+        if path is not None:
+            paths.add(path)
+    return paths
+
+
+def _targets_root_repository(command: str, nested_checkouts: set[str]) -> bool:
     """False only when THIS command is unambiguously anchored to a nested repo.
 
     Scanning the whole logical line fired in both wrong directions. It missed
@@ -208,63 +252,162 @@ def _targets_root_repository(command: str) -> bool:
     tokens = command.split()
     for index, token in enumerate(tokens):
         if token == "-C" and index + 1 < len(tokens):
-            return _is_root_path(tokens[index + 1])
+            path = _normalized_literal_path(tokens[index + 1])
+            return path is None or path not in nested_checkouts
         if token.startswith("-C") and len(token) > 2:
-            return _is_root_path(token[2:])
+            path = _normalized_literal_path(token[2:])
+            return path is None or path not in nested_checkouts
         if token == "--git-dir" and index + 1 < len(tokens):
-            return _is_root_git_dir(tokens[index + 1])
+            path = _normalized_literal_path(tokens[index + 1])
+            return path is None or not any(
+                path == f"{checkout}/.git" for checkout in nested_checkouts
+            )
         if token.startswith("--git-dir="):
-            return _is_root_git_dir(token.split("=", 1)[1])
+            path = _normalized_literal_path(token.split("=", 1)[1])
+            return path is None or not any(
+                path == f"{checkout}/.git" for checkout in nested_checkouts
+            )
     return True
 
 
 def _fetch_commands(line: str) -> list[str]:
-    """The commands on one logical line that invoke `git fetch`.
+    """The commands on one logical line that invoke `git fetch` or `git pull`.
 
     Splitting on shell operators keeps a flag belonging to a different command
     from being charged to the fetch, as in
     `git fetch origin main && tool --depth=1`.
     """
-    # `||` before `|`, or the two-character operator would be split twice.
-    normalized = line.replace("&&", "\n").replace("||", "\n")
-    parts = normalized.replace("|", "\n").replace(";", "\n").split("\n")
-    commands = [part.strip() for part in parts if part.strip()]
     return [
         command
-        for command in commands
-        if "fetch" in command and (command.startswith("git") or " git " in f" {command}")
+        for command in _command_parts(line)
+        if GRAFTING_GIT_SUBCOMMAND.search(command)
+        and (_starts_with_git_executable(command) or " git " in f" {command}")
     ]
+
+
+def _command_parts(line: str) -> list[str]:
+    """Commands split on the shell separators this invariant understands."""
+    # `||` before `|`, or the two-character operator would be split twice.
+    normalized = line.replace("&&", "\n").replace("||", "\n")
+    normalized = re.sub(r"(?<![>&])&(?![>&])", "\n", normalized)
+    parts = normalized.replace("|", "\n").replace(";", "\n").split("\n")
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _starts_with_git_executable(command: str) -> bool:
+    """True when normal shell prefixes lead to git or a path to git."""
+    stripped = command.lstrip("({ ")
+    if not stripped:
+        return False
+    try:
+        tokens = shlex.split(stripped, posix=False)
+    except ValueError:
+        return False
+    index = 0
+    if tokens and tokens[0] == "&":
+        index += 1
+    while index < len(tokens):
+        token = tokens[index].strip("\"'")
+        name = token.replace("\\", "/").rsplit("/", 1)[-1].lower()
+        if name in {"git", "git.exe"}:
+            return True
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token):
+            index += 1
+            continue
+        if name == "command":
+            index += 1
+            while index < len(tokens) and tokens[index].startswith("-"):
+                index += 1
+            continue
+        if name in {"env", "env.exe"}:
+            index = _skip_env_prefix(tokens, index + 1)
+            continue
+        return False
+    return False
+
+
+def _skip_env_prefix(tokens: list[str], index: int) -> int:
+    """Return the wrapped command index after env options and assignments."""
+    options_with_operand = {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}
+    while index < len(tokens):
+        token = tokens[index].strip("\"'")
+        if token in options_with_operand:
+            index += 2
+            continue
+        if any(token.startswith(f"{option}=") for option in options_with_operand):
+            index += 1
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token):
+            index += 1
+            continue
+        return index
+    return index
 
 
 def _shallowing_fetches(job: Mapping[str, object]) -> list[tuple[str, str]]:
     """Fetches in the job that would graft the root repository."""
     found: list[tuple[str, str]] = []
+    nested_checkouts = _nested_checkout_paths(job)
     for step in _steps(job):
         run = step.get("run")
         if not isinstance(run, str):
             continue
-        working_directory = step.get("working-directory")
-        if isinstance(working_directory, str) and not _is_root_path(working_directory):
-            continue
         name = step.get("name")
+        variables: dict[str, str] = {}
         for line in _logical_lines(run):
-            attributed = False
-            for command in _fetch_commands(line):
-                if not any(flag in command for flag in SHALLOWING_FETCH_FLAGS):
+            for part in _command_parts(line):
+                assignment = _literal_assignment(part)
+                if assignment is not None:
+                    variable, value = assignment
+                    variables[variable.lower()] = value
                     continue
-                attributed = True
-                if not _targets_root_repository(command):
-                    continue
-                found.append((str(name), command))
-            if not attributed and _line_hides_a_shallowing_fetch(line):
-                # The splitter is not a shell. A fetch inside `$( ... )`, or
-                # downstream of a pipe, carries a shallowing flag that no
-                # command it produced owns. Reporting the whole line is the
-                # fail-loud answer: a prevention invariant that cannot attribute
-                # a flag must say so rather than fall silent, and a human
-                # reading the message can see in one glance whether it is real.
-                found.append((str(name), line))
+                expanded = _expand_known_variables(part, variables)
+                attributed = False
+                for command in _fetch_commands(expanded):
+                    if not any(flag in command for flag in SHALLOWING_FETCH_FLAGS):
+                        continue
+                    attributed = True
+                    if not _targets_root_repository(command, nested_checkouts):
+                        continue
+                    found.append((str(name), command))
+                if not attributed and _line_hides_a_shallowing_fetch(expanded):
+                    # The splitter is not a shell. A fetch inside `$( ... )`
+                    # carries a shallowing flag that no command it produced
+                    # owns. Reporting the whole part is the fail-loud answer.
+                    found.append((str(name), expanded))
     return found
+
+
+def _literal_assignment(line: str) -> tuple[str, str] | None:
+    """Return a simple Bash or PowerShell literal assignment."""
+    match = re.fullmatch(
+        r"\s*(?:(?:export|readonly|local)\s+|declare(?:\s+-[A-Za-z]+)*\s+)?"
+        r"\$?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"
+        r"(?:\"([^\"]*)\"|'([^']*)'|(\S+))\s*",
+        line,
+    )
+    if match is None:
+        return None
+    value = next(value for value in match.groups()[1:] if value is not None)
+    return match.group(1), value
+
+
+def _expand_known_variables(line: str, variables: Mapping[str, str]) -> str:
+    """Expand literal variables assigned earlier in the same run block."""
+    expanded = line
+    for name, value in variables.items():
+        literal = f'"{value}"' if any(character.isspace() for character in value) else value
+        escaped_name = re.escape(name)
+
+        def replacement(_match: re.Match[str], literal: str = literal) -> str:
+            return literal
+
+        for pattern in (rf"\$\{{{escaped_name}\}}", rf"\${escaped_name}\b"):
+            expanded = re.sub(pattern, replacement, expanded, flags=re.IGNORECASE)
+    return expanded
 
 
 def _line_hides_a_shallowing_fetch(line: str) -> bool:
@@ -276,7 +419,7 @@ def _line_hides_a_shallowing_fetch(line: str) -> bool:
     --depth=1`, where the flag belongs to a different program and there is no
     graft at all.
     """
-    if "fetch" not in line:
+    if GRAFTING_GIT_SUBCOMMAND.search(line) is None:
         return False
     if "$(" not in line and "`" not in line:
         return False
@@ -296,5 +439,3 @@ def _workflow_documents() -> list[tuple[Path, object]]:
     for path in paths:
         documents.append((path, yaml.safe_load(path.read_text(encoding="utf-8"))))
     return documents
-
-
