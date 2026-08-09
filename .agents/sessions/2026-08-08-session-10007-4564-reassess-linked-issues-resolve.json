@@ -109,7 +109,7 @@
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "No retrospective needed for this recovery run."
+        "Evidence": ".agents/retrospective/2026-08-09-pr-4564-recovery.md"
       }
     }
   },
