@@ -38,13 +38,41 @@ READ_ONLY_SERENA_OPERATIONS = frozenset(
         "read_memory",
     }
 )
+CLAUDE_ALLOWED_TOOLS = frozenset(
+    {
+        "Glob",
+        "Grep",
+        "Read",
+        "mcp__context7__get_library_docs",
+        "mcp__context7__resolve_library_id",
+        "mcp__deepwiki__read_wiki_contents",
+        "mcp__deepwiki__read_wiki_structure",
+        *(f"mcp__serena__{operation}" for operation in READ_ONLY_SERENA_OPERATIONS),
+    }
+)
+PLATFORM_ALLOWED_TOOLS = frozenset(
+    {
+        "cognitionai/deepwiki/*",
+        "context7/*",
+        "read",
+        "search",
+        *(f"serena/{operation}" for operation in READ_ONLY_SERENA_OPERATIONS),
+    }
+)
 UNSAFE_TOOL_PREFIXES = (
     "$toolset:",
+    "agent",
     "bash",
+    "cloudmcp-manager",
     "edit",
     "execute",
+    "memory",
+    "notebookedit",
+    "perplexity",
     "shell",
     "skill",
+    "task",
+    "vscode",
     "web",
     "write",
 )
@@ -82,8 +110,14 @@ def _tool_list(metadata: dict[str, object], key: str, source: Path) -> list[str]
     return tools
 
 
-def _assert_read_only_tools(tools: list[str]) -> None:
+def _assert_read_only_tools(tools: list[str], allowed_tools: frozenset[str]) -> None:
     assert tools, "analyst must declare tools explicitly"
+    assert len(tools) == len(set(tools)), "analyst tool list contains duplicates"
+    assert set(tools) == allowed_tools, (
+        f"analyst tool contract mismatch: "
+        f"unexpected={sorted(set(tools) - allowed_tools)}, "
+        f"missing={sorted(allowed_tools - set(tools))}"
+    )
     for tool in tools:
         normalized = tool.casefold()
         base = normalized.split("(", 1)[0]
@@ -108,8 +142,7 @@ def test_claude_declares_explicit_read_only_tools() -> None:
     canonical_tools = _tool_list(_frontmatter(CLAUDE_CANONICAL), "tools", CLAUDE_CANONICAL)
     runtime_tools = _tool_list(_frontmatter(CLAUDE_RUNTIME), "tools", CLAUDE_RUNTIME)
 
-    _assert_read_only_tools(canonical_tools)
-    assert {"Read", "Glob", "Grep"} <= set(canonical_tools)
+    _assert_read_only_tools(canonical_tools, CLAUDE_ALLOWED_TOOLS)
     assert not any(tool.startswith("github/") for tool in canonical_tools)
     assert runtime_tools == canonical_tools
 
@@ -118,7 +151,7 @@ def test_claude_declares_explicit_read_only_tools() -> None:
 def test_shared_template_declares_platform_read_only_tools(key: str) -> None:
     tools = _tool_list(_frontmatter(SHARED_TEMPLATE), key, SHARED_TEMPLATE)
 
-    _assert_read_only_tools(tools)
+    _assert_read_only_tools(tools, PLATFORM_ALLOWED_TOOLS)
     assert not any(tool.startswith("github/") for tool in tools)
 
 
@@ -169,23 +202,34 @@ def test_orchestrator_supplies_analyst_execution_context() -> None:
 
 
 @pytest.mark.parametrize(
-    "tools",
+    ("tools", "allowed_tools"),
     [
-        [],
-        ["Read", "Bash"],
-        ["Read", "Bash(git status:*)"],
-        ["read", "edit"],
-        ["read", "edit_file"],
-        ["read", "github/create_or_update_file"],
-        ["read", "$toolset:executor"],
-        ["read", "serena/write_memory"],
-        ["Read", "mcp__serena__replace_symbol_body"],
-        ["read", "serena/*"],
+        ([], PLATFORM_ALLOWED_TOOLS),
+        (["Read", "Bash"], CLAUDE_ALLOWED_TOOLS),
+        (["Read", "Bash(git status:*)"], CLAUDE_ALLOWED_TOOLS),
+        (["Read", "Task"], CLAUDE_ALLOWED_TOOLS),
+        (["Read", "NotebookEdit"], CLAUDE_ALLOWED_TOOLS),
+        (["read", "agent"], PLATFORM_ALLOWED_TOOLS),
+        (["read", "cloudmcp-manager/*"], PLATFORM_ALLOWED_TOOLS),
+        (["read", "edit"], PLATFORM_ALLOWED_TOOLS),
+        (["read", "edit_file"], PLATFORM_ALLOWED_TOOLS),
+        (["read", "github/create_or_update_file"], PLATFORM_ALLOWED_TOOLS),
+        (["read", "github.vscode-pull-request-github/*"], PLATFORM_ALLOWED_TOOLS),
+        (["read", "memory"], PLATFORM_ALLOWED_TOOLS),
+        (["read", "perplexity/*"], PLATFORM_ALLOWED_TOOLS),
+        (["read", "$toolset:executor"], PLATFORM_ALLOWED_TOOLS),
+        (["read", "serena/write_memory"], PLATFORM_ALLOWED_TOOLS),
+        (["Read", "mcp__serena__replace_symbol_body"], CLAUDE_ALLOWED_TOOLS),
+        (["read", "serena/*"], PLATFORM_ALLOWED_TOOLS),
+        (["read", "skill"], PLATFORM_ALLOWED_TOOLS),
+        (["read", "web"], PLATFORM_ALLOWED_TOOLS),
     ],
 )
-def test_read_only_guard_rejects_unsafe_negative_controls(tools: list[str]) -> None:
+def test_read_only_guard_rejects_unsafe_negative_controls(
+    tools: list[str], allowed_tools: frozenset[str]
+) -> None:
     with pytest.raises(AssertionError):
-        _assert_read_only_tools(tools)
+        _assert_read_only_tools(tools, allowed_tools)
 
 
 def test_executor_toolset_is_an_unsafe_negative_control() -> None:
@@ -198,16 +242,9 @@ def test_executor_toolset_is_an_unsafe_negative_control() -> None:
         tools = executor[key]
         assert isinstance(tools, list)
         with pytest.raises(AssertionError):
-            _assert_read_only_tools(tools)
+            _assert_read_only_tools(tools, PLATFORM_ALLOWED_TOOLS)
 
 
-def test_reviewed_serena_reads_are_an_inverted_control() -> None:
-    _assert_read_only_tools(
-        [
-            "Read",
-            "Glob",
-            "Grep",
-            "mcp__serena__find_symbol",
-            "mcp__serena__read_memory",
-        ]
-    )
+def test_reviewed_read_only_allowlists_are_inverted_controls() -> None:
+    _assert_read_only_tools(list(CLAUDE_ALLOWED_TOOLS), CLAUDE_ALLOWED_TOOLS)
+    _assert_read_only_tools(list(PLATFORM_ALLOWED_TOOLS), PLATFORM_ALLOWED_TOOLS)

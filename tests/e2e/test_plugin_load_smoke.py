@@ -24,9 +24,9 @@ the shipped plugin directory, and assert the plugin loads.
     Assert returncode 0, the manifest name appears, and the expected lifecycle
     skills are present in the details output.
   - Analyst contract (issue #3918): load the project analyst in each real CLI
-    and assert shell tools are absent. Each probe also loads an execution agent
-    that must expose shell, so the test cannot pass when the CLI stops reporting
-    tool availability.
+    and assert its exact reviewed read-only tool set. Each probe also loads an
+    execution agent that must expose shell and edit tools, so the test cannot
+    pass when the CLI stops reporting tool availability.
 
 Why version-agnostic (issue #3148): earlier the smoke keyed the benign path on a
 per-version allowlist (``_COPILOT_BENIGN_NO_ENUM_VERSIONS``) plus a "zero
@@ -108,6 +108,43 @@ EXPECTED_SKILLS = frozenset({"build", "plan", "ship", "test", "review", "spec", 
 _COPILOT_PLUGIN_DIR = REPO_ROOT / "src" / "copilot-cli"
 _CLAUDE_PLUGIN_DIR = REPO_ROOT / ".claude"
 _CLAUDE_MANIFEST = _CLAUDE_PLUGIN_DIR / ".claude-plugin" / "plugin.json"
+_CLAUDE_ANALYST_TOOLS = frozenset(
+    {
+        "Glob",
+        "Grep",
+        "Read",
+        "mcp__context7__get_library_docs",
+        "mcp__context7__resolve_library_id",
+        "mcp__deepwiki__read_wiki_contents",
+        "mcp__deepwiki__read_wiki_structure",
+        "mcp__serena__find_declaration",
+        "mcp__serena__find_implementations",
+        "mcp__serena__find_referencing_symbols",
+        "mcp__serena__find_symbol",
+        "mcp__serena__get_diagnostics_for_file",
+        "mcp__serena__get_symbols_overview",
+        "mcp__serena__initial_instructions",
+        "mcp__serena__list_memories",
+        "mcp__serena__read_memory",
+    }
+)
+_COPILOT_ANALYST_TOOLS = frozenset(
+    {
+        "cognitionai/deepwiki/*",
+        "context7/*",
+        "read",
+        "search",
+        "serena/find_declaration",
+        "serena/find_implementations",
+        "serena/find_referencing_symbols",
+        "serena/find_symbol",
+        "serena/get_diagnostics_for_file",
+        "serena/get_symbols_overview",
+        "serena/initial_instructions",
+        "serena/list_memories",
+        "serena/read_memory",
+    }
+)
 
 # The skill-loader warning class issue #2736 must catch before merge. Copilot
 # CLI emits this on stderr when a skill's front matter has a non-string
@@ -595,23 +632,26 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
 
 @pytest.mark.smoke
 @requires_claude
-def test_claude_analyst_runtime_excludes_shell_with_executor_control() -> None:
-    """Claude loads analyst without Bash while an unrestricted agent exposes it."""
+def test_claude_analyst_runtime_uses_exact_allowlist_with_executor_control() -> None:
+    """Claude loads only reviewed analyst tools while implementer exposes writes."""
     analyst_tools = _claude_init_tools("analyst")
     implementer_tools = _claude_init_tools("implementer")
 
-    assert {"Read", "Glob", "Grep"} <= analyst_tools
-    assert not {"Bash", "Edit", "Write"} & analyst_tools
-    assert "Bash" in implementer_tools, (
-        "negative control failed: Claude did not report Bash for implementer, "
-        "so the analyst absence cannot prove explicit tools restrict inheritance"
+    assert {"Glob", "Grep", "Read"} <= analyst_tools
+    assert not analyst_tools - _CLAUDE_ANALYST_TOOLS, (
+        f"Claude exposed unreviewed analyst tools: "
+        f"{sorted(analyst_tools - _CLAUDE_ANALYST_TOOLS)}"
+    )
+    assert {"Bash", "Edit", "Write"} <= implementer_tools, (
+        "negative control failed: Claude did not report execution and write tools "
+        "for implementer, so the analyst allowlist cannot prove inheritance is restricted"
     )
 
 
 @pytest.mark.smoke
 @requires_copilot
-def test_copilot_analyst_runtime_excludes_shell_with_executor_control() -> None:
-    """Copilot resolves no analyst shell or GitHub tools, with a shell control."""
+def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() -> None:
+    """Copilot resolves only reviewed analyst tools, with an execution control."""
     analyst_shell_events = _run_copilot_agent(
         "analyst",
         (
@@ -642,11 +682,10 @@ def test_copilot_analyst_runtime_excludes_shell_with_executor_control() -> None:
         for tool in _copilot_project_agent_tools(implementer_events, "implementer")
     }
 
-    assert not {"shell", "execute", "bash", "edit"} & analyst_tools
-    assert not any(tool.startswith("github/") for tool in analyst_tools)
-    assert "shell" in implementer_tools, (
-        "negative control failed: Copilot did not report shell for implementer, "
-        "so the analyst absence cannot prove its declared tools were loaded"
+    assert analyst_tools == _COPILOT_ANALYST_TOOLS
+    assert {"edit", "shell"} <= implementer_tools, (
+        "negative control failed: Copilot did not report execution and write tools "
+        "for implementer, so the analyst allowlist cannot prove its manifest was loaded"
     )
     assert not {"bash", "shell", "execute"} & set(_copilot_tool_names(analyst_shell_events))
     assert "SHELL_UNAVAILABLE" in _copilot_assistant_text(analyst_shell_events)
