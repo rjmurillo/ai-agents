@@ -44,8 +44,10 @@ from github_core.api import (
     resolve_repo_params,
 )
 from github_core.checks_rollup import (
+    extract_workflow_run_number,
     fetch_ruleset_required_contexts,
     find_missing_required,
+    partition_rows_by_run,
 )
 from github_core.output import (
     add_output_format_arg,
@@ -67,15 +69,27 @@ query($owner: String!, $repo: String!, $number: Int!) {
             commits(last: 1) {
                 nodes {
                     commit {
+                        oid
                         statusCheckRollup {
                             state
                             contexts(first: 100) {
+                                pageInfo {
+                                    hasNextPage
+                                    endCursor
+                                }
                                 nodes {
                                     ... on CheckRun {
                                         __typename
                                         name
                                         status
                                         conclusion
+                                        detailsUrl
+                                        checkSuite {
+                                            workflowRun {
+                                                databaseId
+                                                runAttempt
+                                            }
+                                        }
                                         isRequired(pullRequestNumber: $number)
                                     }
                                     ... on StatusContext {
@@ -91,6 +105,10 @@ query($owner: String!, $repo: String!, $number: Int!) {
                 }
             }
             reviewThreads(first: 100) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
                 nodes {
                     isResolved
                     isOutdated
@@ -100,8 +118,74 @@ query($owner: String!, $repo: String!, $number: Int!) {
     }
 }"""
 
+_CONTEXTS_PAGE_QUERY = """\
+query(
+    $owner: String!,
+    $repo: String!,
+    $oid: GitObjectID!,
+    $number: Int!,
+    $cursor: String!
+) {
+    repository(owner: $owner, name: $repo) {
+        object(oid: $oid) {
+            ... on Commit {
+                statusCheckRollup {
+                    contexts(first: 100, after: $cursor) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        nodes {
+                            ... on CheckRun {
+                                __typename
+                                name
+                                status
+                                conclusion
+                                detailsUrl
+                                checkSuite {
+                                    workflowRun {
+                                        databaseId
+                                        runAttempt
+                                    }
+                                }
+                                isRequired(pullRequestNumber: $number)
+                            }
+                            ... on StatusContext {
+                                __typename
+                                context
+                                state
+                                isRequired(pullRequestNumber: $number)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}"""
+
+_THREADS_PAGE_QUERY = """\
+query($owner: String!, $repo: String!, $number: Int!, $cursor: String!) {
+    repository(owner: $owner, name: $repo) {
+        pullRequest(number: $number) {
+            reviewThreads(first: 100, after: $cursor) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
+                    isResolved
+                    isOutdated
+                }
+            }
+        }
+    }
+}"""
+
+_MAX_PAGES = 100
+
 # Passing conclusions per get_pr_checks.py semantics.
-_PASSING_CONCLUSIONS = {"SUCCESS", "NEUTRAL"}
+_PASSING_CONCLUSIONS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
 _PASSING_STATES = {"SUCCESS"}
 
 
@@ -127,10 +211,169 @@ def _is_failing_check(node: dict) -> bool:
     return False
 
 
+def _is_pending_check(node: dict) -> bool:
+    typename = node.get("__typename")
+    if typename == "CheckRun":
+        return node.get("status", "") in {
+            "QUEUED",
+            "IN_PROGRESS",
+            "WAITING",
+            "PENDING",
+            "REQUESTED",
+        }
+    if typename == "StatusContext":
+        return node.get("state", "") in {"PENDING", "EXPECTED"}
+    return False
+
+
 def _check_name(node: dict) -> str:
     if node.get("__typename") == "CheckRun":
         return node.get("name", "")
     return node.get("context", "")
+
+
+def _workflow_key(node: dict) -> tuple[int, int] | None:
+    if node.get("__typename") != "CheckRun":
+        return None
+    workflow_run = ((node.get("checkSuite") or {}).get("workflowRun") or {})
+    run_number = workflow_run.get("databaseId")
+    if run_number is None:
+        run_number = extract_workflow_run_number(node.get("detailsUrl"))
+    if run_number is None:
+        return None
+    attempt = workflow_run.get("runAttempt")
+    return int(run_number), int(attempt) if attempt is not None else 1
+
+
+def _classify_rows(nodes: list[dict]) -> str:
+    if any(_is_failing_check(node) for node in nodes):
+        return "failing"
+    if any(_is_pending_check(node) for node in nodes):
+        return "pending"
+    if nodes and all(_is_passing_check(node) for node in nodes):
+        return "passing"
+    return "unknown"
+
+
+def _most_blocking_state(states: list[str]) -> str:
+    for state in ("failing", "pending", "unknown", "passing"):
+        if state in states:
+            return state
+    return "unknown"
+
+
+def _classify_same_name_rows(nodes: list[dict]) -> str:
+    """Return the current state for one required-check name."""
+    check_runs = [node for node in nodes if node.get("__typename") == "CheckRun"]
+    if not check_runs:
+        return _classify_rows(nodes)
+
+    prepared = []
+    for node in check_runs:
+        run_key = _workflow_key(node)
+        prepared.append(
+            {
+                **node,
+                "_workflow_run_id": run_key[0] if run_key else None,
+                "_workflow_run_attempt": run_key[1] if run_key else None,
+            }
+        )
+
+    candidates = [
+        (_workflow_key(group[0]), _classify_rows(group))
+        for group in partition_rows_by_run(
+            prepared,
+            "detailsUrl",
+            "_workflow_run_id",
+            "_workflow_run_attempt",
+        )
+    ]
+    known = [(key, state) for key, state in candidates if key is not None]
+    unknown_states = [state for key, state in candidates if key is None]
+    if known:
+        latest_key = max(key for key, _ in known)
+        current_states = [state for key, state in known if key == latest_key]
+        return _most_blocking_state(current_states + unknown_states)
+    return _most_blocking_state(unknown_states)
+
+
+def _fetch_remaining_contexts(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    oid: str,
+    page_info: dict,
+) -> tuple[list[dict], bool]:
+    nodes: list[dict] = []
+    seen_cursors: set[str] = set()
+    for _ in range(_MAX_PAGES):
+        if not page_info.get("hasNextPage"):
+            return nodes, True
+        cursor = page_info.get("endCursor")
+        if not cursor or cursor in seen_cursors or not oid:
+            return nodes, False
+        seen_cursors.add(cursor)
+        data = gh_graphql(
+            _CONTEXTS_PAGE_QUERY,
+            {
+                "owner": owner,
+                "repo": repo,
+                "oid": oid,
+                "number": pr_number,
+                "cursor": cursor,
+            },
+        )
+        repository = data.get("repository")
+        commit_obj = repository.get("object") if isinstance(repository, dict) else None
+        rollup = (
+            commit_obj.get("statusCheckRollup")
+            if isinstance(commit_obj, dict)
+            else None
+        )
+        contexts = rollup.get("contexts") if isinstance(rollup, dict) else None
+        if not isinstance(contexts, dict) or "pageInfo" not in contexts:
+            return nodes, False
+        nodes.extend(contexts.get("nodes") or [])
+        page_info = contexts.get("pageInfo") or {}
+    return nodes, not page_info.get("hasNextPage")
+
+
+def _fetch_remaining_threads(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    page_info: dict,
+) -> tuple[list[dict], bool]:
+    nodes: list[dict] = []
+    seen_cursors: set[str] = set()
+    for _ in range(_MAX_PAGES):
+        if not page_info.get("hasNextPage"):
+            return nodes, True
+        cursor = page_info.get("endCursor")
+        if not cursor or cursor in seen_cursors:
+            return nodes, False
+        seen_cursors.add(cursor)
+        data = gh_graphql(
+            _THREADS_PAGE_QUERY,
+            {
+                "owner": owner,
+                "repo": repo,
+                "number": pr_number,
+                "cursor": cursor,
+            },
+        )
+        repository = data.get("repository")
+        pr = (
+            repository.get("pullRequest")
+            if isinstance(repository, dict)
+            else None
+        )
+        threads = pr.get("reviewThreads") if isinstance(pr, dict) else None
+        if not isinstance(threads, dict) or "pageInfo" not in threads:
+            return nodes, False
+        nodes.extend(threads.get("nodes") or [])
+        page_info = threads.get("pageInfo") or {}
+    return nodes, not page_info.get("hasNextPage")
 
 
 def fetch_pr_data(owner: str, repo: str, pr_number: int) -> dict:
@@ -157,9 +400,42 @@ def fetch_pr_data(owner: str, repo: str, pr_number: int) -> dict:
         commit_obj = (commits[0].get("commit") or {})
         rollup = commit_obj.get("statusCheckRollup") or {}
         overall_state = rollup.get("state", "UNKNOWN")
-        rollup_nodes = (rollup.get("contexts") or {}).get("nodes") or []
+        contexts = rollup.get("contexts") or {}
+        rollup_nodes = list(contexts.get("nodes") or [])
+        try:
+            extra_nodes, complete = _fetch_remaining_contexts(
+                owner,
+                repo,
+                pr_number,
+                commit_obj.get("oid", ""),
+                contexts.get("pageInfo") or {},
+            )
+        except RuntimeError as exc:
+            return {"Error": "ApiError", "Message": f"GraphQL failed: {exc}"}
+        if not complete:
+            return {
+                "Error": "ApiError",
+                "Message": "Status-check pagination did not complete",
+            }
+        rollup_nodes.extend(extra_nodes)
 
-    thread_nodes = (pr.get("reviewThreads") or {}).get("nodes") or []
+    threads = pr.get("reviewThreads") or {}
+    thread_nodes = list(threads.get("nodes") or [])
+    try:
+        extra_threads, complete = _fetch_remaining_threads(
+            owner,
+            repo,
+            pr_number,
+            threads.get("pageInfo") or {},
+        )
+    except RuntimeError as exc:
+        return {"Error": "ApiError", "Message": f"GraphQL failed: {exc}"}
+    if not complete:
+        return {
+            "Error": "ApiError",
+            "Message": "Review-thread pagination did not complete",
+        }
+    thread_nodes.extend(extra_threads)
 
     return {
         "MergeStateStatus": pr.get("mergeStateStatus"),
@@ -175,28 +451,33 @@ def diagnose(
 ) -> dict:
     """Compute (missing, failing, unresolved_thread_count) from raw PR data.
 
-    Groups check nodes by name: SUCCESS on any row for a name wins over a
-    FAILURE row (re-run semantics). Never let a later row overwrite a SUCCESS.
+    Groups check nodes by name and workflow run. Same-run failures win, and
+    the latest identified workflow run determines the current result.
     """
     nodes = pr_data.get("CheckNodes") or []
 
-    # Group by name: track best passing or failing per name.
-    passing_names: set[str] = set()
-    failing_by_name: dict[str, bool] = {}
+    nodes_by_name: dict[str, list[dict]] = {}
     required_names: set[str] = set()
 
     for node in nodes:
         name = _check_name(node)
+        nodes_by_name.setdefault(name, []).append(node)
         if node.get("isRequired"):
             required_names.add(name)
-        if _is_passing_check(node):
-            passing_names.add(name)
-            failing_by_name.pop(name, None)  # SUCCESS beats FAILURE
-        elif _is_failing_check(node) and name not in passing_names:
-            failing_by_name[name] = True
 
+    states_by_name = {
+        name: _classify_same_name_rows(name_nodes)
+        for name, name_nodes in nodes_by_name.items()
+        if name in required_names
+    }
     failing_required = sorted(
-        n for n in failing_by_name if n in required_names
+        name for name, state in states_by_name.items() if state == "failing"
+    )
+    pending_required = sorted(
+        name for name, state in states_by_name.items() if state == "pending"
+    )
+    indeterminate_required = sorted(
+        name for name, state in states_by_name.items() if state == "unknown"
     )
 
     reported_names = {_check_name(n) for n in nodes}
@@ -213,6 +494,8 @@ def diagnose(
     return {
         "MissingRequired": missing_required,
         "FailingRequired": failing_required,
+        "PendingRequired": pending_required,
+        "IndeterminateRequired": indeterminate_required,
         "UnresolvedThreads": unresolved_count,
         "OverallState": pr_data.get("OverallState", "UNKNOWN"),
         "MergeStateStatus": pr_data.get("MergeStateStatus"),
@@ -278,19 +561,33 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 3
 
+    if base_branch and ruleset_contexts is None:
+        write_skill_error(
+            f"Failed to read required checks for base branch {base_branch!r}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="why_pr_blocked.py",
+            extra={"Number": args.pull_request},
+        )
+        return 3
+
     result = diagnose(pr_data, ruleset_contexts)
 
     missing = result["MissingRequired"]
     failing = result["FailingRequired"]
+    pending = result["PendingRequired"]
+    indeterminate = result["IndeterminateRequired"]
     unresolved = result["UnresolvedThreads"]
 
-    has_blocker = bool(missing or failing or unresolved)
+    has_blocker = bool(missing or failing or pending or indeterminate or unresolved)
     number = args.pull_request
 
     if not has_blocker:
         summary = (
             f"PR #{number}: no blocking cause found "
-            "(no missing, no failing required checks, no unresolved threads). "
+            "(no missing, failing, pending, or indeterminate required checks; "
+            "no unresolved threads). "
             "PR may be mergeable regardless of mergeStateStatus."
         )
         status = "PASS"
@@ -300,6 +597,10 @@ def main(argv: list[str] | None = None) -> int:
             parts.append(f"{len(missing)} missing required check(s)")
         if failing:
             parts.append(f"{len(failing)} failing required check(s)")
+        if pending:
+            parts.append(f"{len(pending)} pending required check(s)")
+        if indeterminate:
+            parts.append(f"{len(indeterminate)} indeterminate required check(s)")
         if unresolved:
             parts.append(f"{unresolved} unresolved review thread(s)")
         summary = f"PR #{number} blocked: {', '.join(parts)}"
@@ -313,6 +614,8 @@ def main(argv: list[str] | None = None) -> int:
         "OverallState": result["OverallState"],
         "MissingRequired": missing,
         "FailingRequired": failing,
+        "PendingRequired": pending,
+        "IndeterminateRequired": indeterminate,
         "UnresolvedThreads": unresolved,
         "HasBlocker": has_blocker,
         "RulesetContextsAvailable": result["RulesetContextsAvailable"],

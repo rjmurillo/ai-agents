@@ -46,34 +46,42 @@ def extract_workflow_run_number(details_url: str | None) -> int | None:
 def partition_rows_by_run(
     rows: list[dict],
     url_key: str,
+    run_id_key: str | None = None,
+    run_attempt_key: str | None = None,
 ) -> list[list[dict]]:
-    """Split same-named rows into groups that share one workflow run.
+    """Split same-named rows into groups that share one workflow attempt.
 
-    Rows whose workflow run id cannot be determined are each returned as their
-    own single-row group, so cross-run precedence still applies to them exactly
-    as it did before. Only rows proven to come from the same run are grouped,
-    which keeps the change surgical: supersession semantics (issue #2208) are
-    untouched for every row that is not a proven same-run sibling.
+    GraphQL exposes ``runAttempt`` for Actions checks. A rerun keeps the same
+    workflow run id, so grouping on the id alone conflates stale failures with
+    the latest attempt. Rows without workflow identity remain singletons.
 
     Refs issue #4499: two jobs of one run named "Run Python Tests" (one
     FAILURE, one SKIPPED) were collapsed to the SKIPPED row, so the failure
     vanished and CIPassing reported true against a red PR.
     """
-    by_run: dict[str, list[dict]] = {}
-    order: list[str] = []
+    by_run: dict[tuple[str, int], list[dict]] = {}
+    order: list[tuple[str, int]] = []
     singletons: list[list[dict]] = []
 
     for row in rows:
-        run_id = extract_workflow_run_id(row.get(url_key))
+        run_id_value = row.get(run_id_key) if run_id_key else None
+        run_id = (
+            str(run_id_value)
+            if run_id_value is not None
+            else extract_workflow_run_id(row.get(url_key))
+        )
         if run_id is None:
             singletons.append([row])
             continue
-        if run_id not in by_run:
-            by_run[run_id] = []
-            order.append(run_id)
-        by_run[run_id].append(row)
+        attempt_value = row.get(run_attempt_key) if run_attempt_key else None
+        attempt = int(attempt_value) if attempt_value is not None else 1
+        run_key = (run_id, attempt)
+        if run_key not in by_run:
+            by_run[run_key] = []
+            order.append(run_key)
+        by_run[run_key].append(row)
 
-    return [by_run[run_id] for run_id in order] + singletons
+    return [by_run[run_key] for run_key in order] + singletons
 
 
 def group_checks_by_name(
