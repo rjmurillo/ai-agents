@@ -87,6 +87,12 @@ def validate_session_end(repo_root: Path) -> bool:
         print("[PASS] Session End Validation (no session logs on branch)")
         return True
 
+    _, validation_head, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        timeout=30,
+    )
+    validation_head = validation_head.strip() or "INVALID_HEAD"
+
     python_script = repo_root / "scripts" / "validate_session_json.py"
     if not python_script.exists():
         raise MissingScriptSkip(
@@ -97,7 +103,13 @@ def validate_session_end(repo_root: Path) -> bool:
     for log_path in changed_logs:
         print(f"Validating session log: {log_path.name}")
         exit_code, stdout, stderr = _run_subprocess(
-            [sys.executable, str(python_script), str(log_path)]
+            [
+                sys.executable,
+                str(python_script),
+                str(log_path),
+                "--validation-head",
+                validation_head,
+            ]
         )
         output = (stdout or "") + (stderr or "")
         if output.strip():

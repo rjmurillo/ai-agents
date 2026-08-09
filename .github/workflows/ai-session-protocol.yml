@@ -110,6 +110,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Fetch origin/main for HANDOFF validation
         run: |
@@ -129,6 +132,7 @@ jobs:
       - name: Validate Session Protocol
         id: validate
         env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SESSION_FILE: ${{ matrix.session_file }}
         run: uv run --frozen python3 scripts/ci/validate_session_protocol.py
 
