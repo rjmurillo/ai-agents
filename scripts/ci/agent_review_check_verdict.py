@@ -59,12 +59,12 @@ def run(_argv: list[str] | None = None) -> int:
     if infra_failure == "true":
         print(
             f"::warning::[{agent}] Infrastructure failure (verdict: {verdict}). "
-            "Deferring PR status to Aggregate Results."
+            "Deferring PR status to AI Quality Gate Results."
         )
         print()
         print(f"⚠️ {emoji} {agent} review did not run due to infrastructure failure")
         print()
-        print("Aggregate Results decides whether this blocks the PR.")
+        print("AI Quality Gate Results decides whether this blocks the PR.")
         return 0
 
     normalized_verdict = merge_verdicts([verdict])

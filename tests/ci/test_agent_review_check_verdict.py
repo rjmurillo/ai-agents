@@ -141,7 +141,7 @@ class TestRun:
             run()
         out = capsys.readouterr().out
         assert "infrastructure failure" in out.lower()
-        assert "Aggregate Results decides whether this blocks the PR." in out
+        assert "AI Quality Gate Results decides whether this blocks the PR." in out
         assert "Copilot CLI unavailable" not in out
 
     def test_pass_message_printed_on_success(self, capsys: pytest.CaptureFixture[str]) -> None:
