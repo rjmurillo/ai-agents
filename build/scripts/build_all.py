@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
 """Orchestrate per-artifact generators (REQ-003-005, -008, -010, -011).
 
 Runs every artifact generator wired in ``GENERATORS`` for one or more

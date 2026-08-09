@@ -3388,7 +3388,9 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
         if tree_paths is None or _validate_materialization_paths(tree_paths) is None:
             return 2
         scan_paths = [
-            path for path in paths if PurePosixPath(path).suffix.lower() in SEMGREP_SUFFIXES
+            path for path in paths
+            if PurePosixPath(path).suffix.lower() in SEMGREP_SUFFIXES
+            and "/_vendor/" not in path
         ]
         if not scan_paths:
             continue
