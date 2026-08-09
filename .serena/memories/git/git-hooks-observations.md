@@ -75,7 +75,7 @@
   - Evidence: `ps -eo pid,ppid,etimes,stat,pcpu,args --forest` showed `git push` with two children: `git remote-https` at 0.0% CPU and `.git/hooks/pre-push` still alive at 1155s, whose own descendant chain ended in `python3 -m pytest -m not integration .../tests` at 39.1% CPU. The network child being idle while the hook child burns CPU is the whole diagnosis.
   - Technique: `ps -eo pid,ppid,etimes,stat,pcpu,args --forest | awk -v p=<pid> 'BEGIN{f=0} $1==p{f=1} f'` prints one push and everything under it.
   - Note: The hook resolves through the shared `.git/hooks/pre-push` of the primary clone even when the push runs from a linked worktree, but it executes that worktree's own `.venv`. A worktree with a stale venv fails here and nowhere else.
-  - Note: A push log that ends on `pre_pr.py` printing "Ready to create pull request!" has NOT finished. That is one lefthook step reporting, with the suite still to come. Judge by the process tree and by `git ls-remote`, never by the log tail.
+  - Note: A push log that ends on `pre_pr.py` printing "Ready to create pull request!" has NOT finished. That is one lefthook step reporting, with the suite still to come. Judge by the process tree, never by the log tail. Do not substitute `git ls-remote`: while the push is still running the ref is absent whether it is healthy or dead, so the probe cannot tell you which. Wait for the push shell's exit status, then query the remote. Measured 2026-08-05: reading in-flight absence as failure triggered a redundant second push that burned 1190s and was rejected with `cannot lock ref ... reference already exists`, because the first push had already succeeded. See `git-empty-hook-run-means-an-empty-push.md`.
 
 ## Related Memories
 
