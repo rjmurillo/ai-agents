@@ -1450,15 +1450,14 @@ class TestDedupeChecks:
         assert len(result) == 1
         assert result[0]["IsPassing"] is True
 
-    def test_required_status_survives_when_any_duplicate_is_required(self):
-        """A required duplicate keeps the deduped row required."""
+    def test_non_required_duplicate_cannot_override_required_failure(self):
         checks = [
             _check("security", passing=True, conclusion="SUCCESS", required=False),
             _check("security", failing=True, conclusion="FAILURE", required=True),
         ]
         result = dedupe_checks(checks)
         assert len(result) == 1
-        assert result[0]["IsPassing"] is True
+        assert result[0]["IsFailing"] is True
         assert result[0]["IsRequired"] is True
 
     def test_null_name_collapses_to_empty_name(self):
@@ -2161,6 +2160,44 @@ class TestChecksRollupRulesetHelpers:
 
         assert contexts == ["Run Python Tests", "Validate PR"]
 
+    def test_fetch_ruleset_required_contexts_flattens_all_pages(self):
+        import json as _json
+        import subprocess
+
+        from github_core.checks_rollup import fetch_ruleset_required_contexts
+
+        pages = [
+            [{
+                "type": "required_status_checks",
+                "parameters": {
+                    "required_status_checks": [{"context": "Validate PR"}]
+                },
+            }],
+            [{
+                "type": "required_status_checks",
+                "parameters": {
+                    "required_status_checks": [{"context": "Run Python Tests"}]
+                },
+            }],
+        ]
+        mock_result = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout=_json.dumps(pages),
+            stderr="",
+        )
+        with patch(
+            "github_core.checks_rollup.subprocess.run",
+            return_value=mock_result,
+        ) as mock_run:
+            contexts = fetch_ruleset_required_contexts("o", "r", "main")
+
+        assert contexts == ["Run Python Tests", "Validate PR"]
+        command = mock_run.call_args.args[0]
+        assert "--paginate" in command
+        assert "--slurp" in command
+        assert command[-1].endswith("?per_page=100")
+
     def test_fetch_ruleset_required_contexts_returns_none_on_api_error(self):
         """Returns None when gh api exits non-zero."""
         import subprocess
@@ -2329,6 +2366,28 @@ class TestSameRunSiblingAggregation:
         ]
         result = dedupe_checks(checks)
         assert len(result) == 1
+        assert result[0]["IsFailing"] is True
+        assert result[0]["Conclusion"] == "FAILURE"
+
+    def test_newer_non_required_run_cannot_hide_required_failure(self):
+        checks = [
+            _check(
+                "Validate PR",
+                failing=True,
+                required=True,
+                conclusion="FAILURE",
+                details=_RUN_B,
+            ),
+            _check(
+                "Validate PR",
+                passing=True,
+                required=False,
+                conclusion="SUCCESS",
+                details=_RUN_A,
+            ),
+        ]
+        result = dedupe_checks(checks)
+        assert result[0]["IsRequired"] is True
         assert result[0]["IsFailing"] is True
         assert result[0]["Conclusion"] == "FAILURE"
 

@@ -281,7 +281,11 @@ def _classify_same_name_rows(nodes: list[dict]) -> str:
         )
 
     candidates = [
-        (_workflow_key(group[0]), _classify_rows(group))
+        (
+            _workflow_key(group[0]),
+            _classify_rows(group),
+            any(node.get("isRequired") for node in group),
+        )
         for group in partition_rows_by_run(
             prepared,
             "detailsUrl",
@@ -289,8 +293,20 @@ def _classify_same_name_rows(nodes: list[dict]) -> str:
             "_workflow_run_attempt",
         )
     ]
-    known = [(key, state) for key, state in candidates if key is not None]
-    unknown_states = [state for key, state in candidates if key is None]
+    if any(is_required for _, _, is_required in candidates):
+        candidates = [
+            candidate for candidate in candidates
+            if candidate[2]
+        ]
+    known = [
+        (key, state)
+        for key, state, _ in candidates
+        if key is not None
+    ]
+    unknown_states = [
+        state for key, state, _ in candidates
+        if key is None
+    ]
     if known:
         latest_key = max(key for key, _ in known)
         current_states = [state for key, state in known if key == latest_key]

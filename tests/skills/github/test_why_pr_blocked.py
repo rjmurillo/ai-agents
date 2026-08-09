@@ -264,6 +264,30 @@ class TestDiagnose:
         result = diagnose(pr_data, ["Validate PR"])
         assert result["FailingRequired"] == ["Validate PR"]
 
+    def test_newer_non_required_run_cannot_hide_required_failure(self):
+        nodes = [
+            _check_run_node(
+                "Validate PR",
+                "FAILURE",
+                required=True,
+                run_number=100,
+            ),
+            _check_run_node(
+                "Validate PR",
+                "SUCCESS",
+                required=False,
+                run_number=101,
+            ),
+        ]
+        pr_data = {
+            "MergeStateStatus": "BLOCKED",
+            "OverallState": "FAILURE",
+            "CheckNodes": nodes,
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Validate PR"])
+        assert result["FailingRequired"] == ["Validate PR"]
+
     def test_latest_pending_run_is_a_blocker(self):
         nodes = [
             _check_run_node("Validate PR", "FAILURE", run_number=100),

@@ -314,11 +314,17 @@ def _collapse_same_run_siblings(rows: list[dict[Any, Any]]) -> list[dict[Any, An
         "WorkflowRunAttempt",
     ):
         if len(group) == 1:
-            representatives.append(group[0])
+            representatives.append({
+                **group[0],
+                "_RunIsRequired": bool(group[0].get("IsRequired")),
+            })
             continue
         failing = [row for row in group if row.get("IsFailing")]
         pool = failing if failing else group
-        representatives.append(sorted(pool, key=_dedupe_rank)[0])
+        representatives.append({
+            **sorted(pool, key=_dedupe_rank)[0],
+            "_RunIsRequired": any(row.get("IsRequired") for row in group),
+        })
     return representatives
 
 
@@ -356,11 +362,17 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
     deduped = []
     for name in order:
         candidates = _collapse_same_run_siblings(rows_by_name[name])
+        if required_by_name[name]:
+            candidates = [
+                check for check in candidates
+                if check.get("_RunIsRequired")
+            ]
         best = _select_cross_run_winner(candidates)
         winner = {
             **best,
             "IsRequired": required_by_name[name],
         }
+        winner.pop("_RunIsRequired", None)
         winner["IsPending"] = pending_by_name[name]
         deduped.append(winner)
     return deduped
