@@ -93,10 +93,11 @@ def test_template_without_routing_guidance_fails_check() -> None:
 
 
 def test_canonical_template_webfetch_note_restricts_to_non_github() -> None:
-    """The template's WebSearch/WebFetch tool line must scope to non-GitHub URLs.
+    """The analyst must either annotate web_fetch for non-GitHub URLs only,
+    or have no web access at all (which is the stronger contract).
 
-    If the analyst has no web_fetch/WebFetch tool at all, the restriction is
-    satisfied by absence (a stronger guarantee than annotation).
+    When no web tool is in the frontmatter, assert the prose explicitly
+    states the analyst has no web access.
     """
     template = REPO_ROOT / "templates" / "agents" / "analyst.shared.md"
     assert template.is_file()
@@ -109,7 +110,11 @@ def test_canonical_template_webfetch_note_restricts_to_non_github() -> None:
         for marker in ("web_fetch", "webfetch", "websearch")
     )
     if not has_webfetch_tool:
-        # No web tool present: the restriction is satisfied by absence.
+        # No web tool present: assert the prose enforces the no-web contract.
+        assert "analyst has no web access" in body, (
+            "templates/agents/analyst.shared.md: when no web tool is in the "
+            "frontmatter, the prose must state 'analyst has no web access'."
+        )
         return
     assert "non-GitHub URLs only" in body, (
         "templates/agents/analyst.shared.md: the WebSearch/WebFetch tool line must "
