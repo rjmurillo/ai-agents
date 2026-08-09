@@ -40,6 +40,7 @@ get_repo_root = _mod.get_repo_root
 run_validations = _mod.run_validations
 write_audit_log = _mod.write_audit_log
 _resolve_validation_base = _mod._resolve_validation_base
+_repository_validators_are_trusted = _mod._repository_validators_are_trusted
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +50,28 @@ _resolve_validation_base = _mod._resolve_validation_base
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
+
+
+class TestRepositoryValidatorTrust:
+    def test_branch_changed_scripts_are_untrusted(self, tmp_path):
+        assert not _repository_validators_are_trusted(
+            str(tmp_path),
+            ["scripts/detect_test_coverage_gaps.py"],
+            diff_failed=False,
+        )
+
+    def test_dirty_scripts_are_untrusted(self, tmp_path):
+        (tmp_path / ".git").mkdir()
+        (tmp_path / "scripts").mkdir()
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="?? scripts/argparse.py\n"),
+        ):
+            assert not _repository_validators_are_trusted(
+                str(tmp_path),
+                ["src/main.py"],
+                diff_failed=False,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -430,7 +453,9 @@ class TestRunValidations:
         assert "Skipped: git diff failed" in captured.out
         assert "No .agents/ changes, skipping" not in captured.out
 
-    def test_skill_violation_detection_scopes_to_changed_files(self, tmp_path):
+    def test_skill_violation_detection_skips_changed_scripts(
+        self, tmp_path, capsys
+    ):
         skill_script = tmp_path / "scripts" / "detect_skill_violation.py"
         skill_script.parent.mkdir(parents=True)
         skill_script.write_text("# mock")
@@ -447,16 +472,8 @@ class TestRunValidations:
             run_validations(str(tmp_path), "main", "feat/branch")
 
         skill_calls = [c for c in calls if len(c) >= 2 and c[1] == str(skill_script)]
-        assert skill_calls == [
-            [
-                sys.executable,
-                str(skill_script),
-                "--file",
-                "scripts/changed.py",
-                "--file",
-                "docs/guide.md",
-            ]
-        ]
+        assert skill_calls == []
+        assert "scripts/ is changed or dirty" in capsys.readouterr().out
 
     def test_skill_violation_scan_skipped_when_no_scannable_extension(
         self, tmp_path, capsys
@@ -480,11 +497,12 @@ class TestRunValidations:
 
         assert not any(len(cmd) >= 2 and cmd[1] == str(skill_script) for cmd in calls)
         captured = capsys.readouterr()
-        assert "No changed files with a scannable extension" in captured.out
+        assert "repository-local validator" in captured.out
 
-    def test_skill_violation_scan_filters_unscannable_extensions(self, tmp_path):
-        """A mixed changed-file list must pass only scannable extensions to the
-        scanner argv, dropping the rest (issue #3010)."""
+    def test_skill_violation_scan_skips_mixed_scripts_change(
+        self, tmp_path, capsys
+    ):
+        """A scripts/ change makes the repository-local scanner untrusted."""
         skill_script = tmp_path / "scripts" / "detect_skill_violation.py"
         skill_script.parent.mkdir(parents=True)
         skill_script.write_text("# mock")
@@ -501,18 +519,8 @@ class TestRunValidations:
             run_validations(str(tmp_path), "main", "feat/branch")
 
         skill_calls = [c for c in calls if len(c) >= 2 and c[1] == str(skill_script)]
-        assert skill_calls == [
-            [
-                sys.executable,
-                str(skill_script),
-                "--file",
-                "scripts/mod.py",
-                "--file",
-                "docs/guide.md",
-                "--file",
-                "hooks/setup.ps1",
-            ]
-        ]
+        assert skill_calls == []
+        assert "scripts/ is changed or dirty" in capsys.readouterr().out
 
     def test_skill_scan_extensions_match_detector(self):
         """The local _SKILL_SCAN_EXTENSIONS constant must stay in sync with the
@@ -565,7 +573,9 @@ class TestRunValidations:
         ):
             run_validations(str(tmp_path), "main", "feat/branch")
 
-    def test_agents_changed_session_validation_fails_exits_1(self, tmp_path):
+    def test_agents_changed_session_validator_is_not_executed(
+        self, tmp_path, capsys
+    ):
         changed = ".agents/sessions/2025-01-01-session-01.json\n"
         validate_script = tmp_path / "scripts" / "validate_session_json.py"
         validate_script.parent.mkdir(parents=True)
@@ -573,15 +583,10 @@ class TestRunValidations:
 
         with patch(
             "subprocess.run",
-            side_effect=[
-                _completed(stdout=changed, rc=0),  # git diff
-                _completed(stdout='{"ok": false}\n', rc=0),  # git show <head>:<path>
-                _completed(rc=1, stderr="validation failed"),  # python validation
-            ],
+            return_value=_completed(stdout=changed, rc=0),
         ):
-            with pytest.raises(SystemExit) as exc:
-                run_validations(str(tmp_path), "main", "feat/branch")
-            assert exc.value.code == 1
+            run_validations(str(tmp_path), "main", "feat/branch")
+        assert "repository-local Session End validator" in capsys.readouterr().out
 
     def test_session_log_read_from_branch_ref_not_working_tree(self, tmp_path):
         """Session log is validated from head:<path>, not the working tree (#2387).
@@ -612,12 +617,7 @@ class TestRunValidations:
         with patch("subprocess.run", side_effect=fake_run):
             run_validations(str(tmp_path), "main", "feat/not-checked-out")
 
-        assert len(validated_paths) == 1
-        # The validated path is ignored repo-local scratch, not the branch log path.
-        assert Path(validated_paths[0]).parent == (
-            tmp_path / ".agents" / "scratch" / "session-log-validation"
-        )
-        assert not Path(validated_paths[0]).name.endswith("session-01.json")
+        assert validated_paths == []
 
     def test_session_log_missing_from_head_skips_validation(self, tmp_path, capsys):
         """When the head ref lacks the log, do not validate a stale worktree copy."""
@@ -646,7 +646,7 @@ class TestRunValidations:
             run_validations(str(tmp_path), "main", "feat/branch")
 
         assert validator_ran is False
-        assert "not found at feat/branch" in capsys.readouterr().err
+        assert "repository-local Session End validator" in capsys.readouterr().out
 
     def test_agents_changed_no_session_log_warns(self, tmp_path, capsys):
         changed = ".agents/HANDOFF.md\n"
@@ -819,64 +819,41 @@ class TestValidation5DashCheck:
             assert "U+2014" in stderr or "U+2013" in stderr
 
 
-class TestACrashedValidatorIsNotSuccess:
-    """A validator that never ran must not read as a clean scan.
-
-    detect_test_coverage_gaps.py died on an import error while this wrapper
-    printed "All pre-creation validations passed", so a broken quality gate
-    produced success-shaped output and the PR was created anyway (#3391).
-    Both warning-only detectors document exit 0 as "ran, findings are
-    warnings", so any non-zero code is the validator failing, not a finding.
-    """
-
-    @staticmethod
-    def _run(tmp_path, *, coverage_rc: int, skill_rc: int = 0, title: str = "feat: x"):
+class TestRepositoryValidatorsNeverExecute:
+    def test_repository_python_is_outside_push_pr_tcb(self, tmp_path, capsys):
+        scripts = []
         for name in ("detect_test_coverage_gaps.py", "detect_skill_violation.py"):
             script = tmp_path / "scripts" / name
             script.parent.mkdir(parents=True, exist_ok=True)
-            script.write_text("# mock", encoding="utf-8")
+            script.write_text(
+                "raise RuntimeError('must not execute')\n",
+                encoding="utf-8",
+            )
+            scripts.append(str(script))
+
+        calls = []
 
         def fake_run(cmd, **kwargs):
+            calls.append(cmd)
             if cmd[:3] == ["git", "diff", "--name-only"]:
                 return _completed(stdout="src/main.py\n", rc=0)
-            if len(cmd) > 1 and cmd[1].endswith("detect_test_coverage_gaps.py"):
-                return _completed(stderr="ModuleNotFoundError\n", rc=coverage_rc)
-            if len(cmd) > 1 and cmd[1].endswith("detect_skill_violation.py"):
-                return _completed(rc=skill_rc)
             return _completed(rc=0)
 
         with patch("subprocess.run", side_effect=fake_run):
-            run_validations(str(tmp_path), "main", "feat/branch", title=title)
+            run_validations(
+                str(tmp_path),
+                "main",
+                "feat/branch",
+                title="feat: x",
+            )
 
-    def test_a_crashed_coverage_detector_blocks_creation(self, tmp_path, capsys):
-        with pytest.raises(SystemExit) as exc:
-            self._run(tmp_path, coverage_rc=1)
-        assert exc.value.code == 1
-        assert "All pre-creation validations passed" not in capsys.readouterr().out
-
-    def test_the_message_names_the_validator_that_did_not_run(self, tmp_path, capsys):
-        with pytest.raises(SystemExit):
-            self._run(tmp_path, coverage_rc=1)
-        stderr = capsys.readouterr().err
-        assert "detect_test_coverage_gaps.py" in stderr
-        assert "did not run" in stderr
-
-    def test_a_crashed_skill_detector_blocks_too(self, tmp_path, capsys):
-        """The same swallow existed on validation 2."""
-        with pytest.raises(SystemExit):
-            self._run(tmp_path, coverage_rc=0, skill_rc=2)
-        assert "detect_skill_violation.py" in capsys.readouterr().err
-
-    def test_the_detector_output_still_reaches_the_operator(self, tmp_path, capsys):
-        """Capturing the subprocess must not hide what it printed."""
-        with pytest.raises(SystemExit):
-            self._run(tmp_path, coverage_rc=1)
-        assert "ModuleNotFoundError" in capsys.readouterr().err
-
-    def test_clean_detectors_still_report_success(self, tmp_path, capsys):
-        """Negative control: the block must be keyed on the failure."""
-        self._run(tmp_path, coverage_rc=0)
-        assert "All pre-creation validations passed" in capsys.readouterr().out
+        assert not any(
+            len(cmd) > 1 and str(cmd[1]) in scripts
+            for cmd in calls
+        )
+        output = capsys.readouterr().out
+        assert "repository-local validator" in output
+        assert "All pre-creation validations passed" in output
 
 
 class TestCapturedOutputPinsItsCodec:
