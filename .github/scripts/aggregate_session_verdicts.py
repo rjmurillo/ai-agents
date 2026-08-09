@@ -42,6 +42,35 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _aggregate_verdicts(verdict_files: list[str], overall_verdict: str) -> str:
+    for verdict_file in verdict_files:
+        filename = os.path.basename(verdict_file)
+        with open(verdict_file, encoding="utf-8") as f:
+            verdict = f.read().strip()
+
+        write_log(f"Found verdict: {verdict} from {filename}")
+
+        if verdict in ("CRITICAL_FAIL", "REJECTED", "NON_COMPLIANT"):
+            overall_verdict = "CRITICAL_FAIL"
+        elif verdict == "WARN" and overall_verdict == "PASS":
+            overall_verdict = "WARN"
+
+    return overall_verdict
+
+
+def _count_must_failures(must_files: list[str]) -> int:
+    total_must_failures = 0
+    for must_file in must_files:
+        with open(must_file, encoding="utf-8") as f:
+            content = f.read().strip()
+
+        match = re.match(r"^(\d+)", content)
+        if match:
+            total_must_failures += int(match.group(1))
+
+    return total_must_failures
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     results_dir = os.path.abspath(args.results_dir)
@@ -66,17 +95,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         overall_verdict = "CRITICAL_FAIL"
 
-    for verdict_file in verdict_files:
-        filename = os.path.basename(verdict_file)
-        with open(verdict_file, encoding="utf-8") as f:
-            verdict = f.read().strip()
-
-        write_log(f"Found verdict: {verdict} from {filename}")
-
-        if verdict in ("CRITICAL_FAIL", "REJECTED", "NON_COMPLIANT"):
-            overall_verdict = "CRITICAL_FAIL"
-        elif verdict == "WARN" and overall_verdict == "PASS":
-            overall_verdict = "WARN"
+    overall_verdict = _aggregate_verdicts(verdict_files, overall_verdict)
 
     must_files = sorted(glob(f"{results_dir}/*-must-failures.txt"))
     if args.expected_results > 0 and len(must_files) != args.expected_results:
@@ -90,13 +109,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         overall_verdict = "CRITICAL_FAIL"
-    for must_file in must_files:
-        with open(must_file, encoding="utf-8") as f:
-            content = f.read().strip()
-
-        match = re.match(r"^(\d+)", content)
-        if match:
-            total_must_failures += int(match.group(1))
+    total_must_failures = _count_must_failures(must_files)
 
     if total_must_failures > 0:
         overall_verdict = "CRITICAL_FAIL"
