@@ -102,6 +102,11 @@ _CREDENTIAL_PREFIX = (
     rf"{_CREDENTIAL_KEY_QUOTE}\s*[:=]\s*"
 )
 _CREDENTIAL_ASSIGNMENT = re.compile(rf"(?i)({_CREDENTIAL_PREFIX})")
+_AUTHORIZATION_PREFIX = (
+    rf"(?<![\w-]){_CREDENTIAL_KEY_QUOTE}{_json_key_word('authorization')}"
+    rf"{_CREDENTIAL_KEY_QUOTE}\s*[:=]\s*"
+)
+_AUTHORIZATION_ASSIGNMENT = re.compile(rf"(?i)({_AUTHORIZATION_PREFIX})")
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +162,7 @@ def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> Redaction
         out,
     )
     reasons.extend(["url-credential"] * url_count)
+
     def _is_value_boundary(position: int) -> bool:
         if position >= len(out):
             return True
@@ -211,6 +217,7 @@ def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> Redaction
         if (
             not stripped
             or stripped == "***"
+            or stripped in ('"***"', "'***'", '\\"***\\"', "\\'***\\'")
             or re.fullmatch(r"(?i)(?:bearer|token|basic)\s+\*\*\*", stripped)
             or re.fullmatch(r"\[redacted: [^\]]+\]", stripped)
         ):
@@ -234,33 +241,40 @@ def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> Redaction
         match = re.match(r"(?i)(?:bearer|token|basic)\s+\*\*\*", out[start:])
         return start + match.end() if match else None
 
-    redacted_parts: list[str] = []
-    cursor = 0
-    assignment_count = 0
-    while True:
-        match = _CREDENTIAL_ASSIGNMENT.search(out, cursor)
-        if match is None:
-            redacted_parts.append(out[cursor:])
-            break
-        value_start = match.end()
-        value_end = _authorization_header_placeholder_end(match.group(1), value_start)
-        if value_end is None:
-            value_end = _value_end(value_start)
-        replacement = _redacted_assignment(match.group(1), out[value_start:value_end])
-        redacted_parts.append(out[cursor:match.start()])
-        if replacement is None:
-            redacted_parts.append(out[match.start():value_end])
-        else:
-            redacted_parts.append(replacement)
-            assignment_count += 1
-        cursor = value_end
+    def _redact_assignments(pattern: re.Pattern[str]) -> int:
+        nonlocal out
+        redacted_parts: list[str] = []
+        cursor = 0
+        assignment_count = 0
+        while True:
+            match = pattern.search(out, cursor)
+            if match is None:
+                redacted_parts.append(out[cursor:])
+                break
+            value_start = match.end()
+            value_end = _authorization_header_placeholder_end(match.group(1), value_start)
+            if value_end is None:
+                value_end = _value_end(value_start)
+            replacement = _redacted_assignment(match.group(1), out[value_start:value_end])
+            redacted_parts.append(out[cursor:match.start()])
+            if replacement is None:
+                redacted_parts.append(out[match.start():value_end])
+            else:
+                redacted_parts.append(replacement)
+                assignment_count += 1
+            cursor = value_end
+        out = "".join(redacted_parts)
+        return assignment_count
 
-    out = "".join(redacted_parts)
+    assignment_count = _redact_assignments(_AUTHORIZATION_ASSIGNMENT)
     reasons.extend(["credential-assignment"] * assignment_count)
 
     shaped = redact(out, include_hex=False)
     out = shaped.text
     reasons.extend(shaped.reasons)
+
+    assignment_count = _redact_assignments(_CREDENTIAL_ASSIGNMENT)
+    reasons.extend(["credential-assignment"] * assignment_count)
 
     return RedactionResult(
         text=out,
