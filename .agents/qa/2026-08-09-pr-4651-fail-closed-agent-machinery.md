@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
-qaSessionLog: .agents/sessions/2026-08-08-session-10006-fleet-pr-4651.json
-qaCommit: 53babd6c2035c494320d88a795b1681dcad3cbee
+qaSessionLog: .agents/sessions/2026-08-09-session-01-fleet7-pr-4651.json
+qaCommit: 56485f79a8a2c39d9ee5f1f272b77f5c2aaa208d
 ---
 # PR 4651 Fail Closed Agent Machinery QA Report
 
@@ -143,4 +143,4 @@ Validation commit: `53babd6c2035c494320d88a795b1681dcad3cbee`.
 
 ## Verdict
 
-PASS. The CI failure was a missing `qaSessionLog` file. The report now points to a committed session log.
+PASS. The CI failure was a missing `qaSessionLog` file. The report now points to `.agents/sessions/2026-08-09-session-01-fleet7-pr-4651.json`, whose `endingCommit` equals `56485f79a8a2c39d9ee5f1f272b77f5c2aaa208d`.
