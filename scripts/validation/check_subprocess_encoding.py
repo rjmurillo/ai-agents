@@ -248,7 +248,14 @@ def _is_flagged(
         return False
 
     encoding_node = _keyword_value(call, "encoding")
+    errors_node = _keyword_value(call, "errors")
+    has_keyword_splat = any(keyword.arg is None for keyword in call.keywords)
+    replacement_is_explicit = (
+        isinstance(errors_node, ast.Constant) and errors_node.value == "replace"
+    )
     if not _is_utf8_literal(encoding_node):
+        if encoding_node is None and has_keyword_splat and not replacement_is_explicit:
+            return True
         # No explicit UTF-8 pin: not in scope for this checker.
         return False
 
@@ -261,12 +268,13 @@ def _is_flagged(
         or _is_subprocess_pipe(_keyword_value(call, "stderr"), module_aliases, pipe_aliases)
     )
     if not unconditional and not text_enabled:
+        if has_keyword_splat and not replacement_is_explicit:
+            return True
         # Binary mode with an explicit encoding is unusual but not our concern.
         return False
 
     # Only replacement decoding satisfies the convention. Strict decoding must
     # use the line-scoped suppression marker when failure is intentional.
-    errors_node = _keyword_value(call, "errors")
     if isinstance(errors_node, ast.Constant) and errors_node.value == "replace":
         return False
 

@@ -395,6 +395,44 @@ def test_nested_comprehension_propagates_static_subprocess_binding() -> None:
     assert find_violations(source) == [2]
 
 
+def test_splat_only_kwargs_flagged_fail_closed() -> None:
+    source = (
+        "import subprocess\n"
+        'opts = {"text": True, "encoding": "utf-8"}\n'
+        'subprocess.run(["x"], **opts)\n'
+    )
+    assert find_violations(source) == [3]
+
+
+def test_splat_only_kwargs_passes_with_explicit_replacement_errors() -> None:
+    """Mutation control: explicit replacement handling makes unknown kwargs safe."""
+    source = (
+        "import subprocess\n"
+        'opts = {"text": True, "encoding": "utf-8"}\n'
+        'subprocess.run(["x"], errors="replace", **opts)\n'
+    )
+    assert find_violations(source) == []
+
+
+def test_splat_capture_mode_flagged_fail_closed() -> None:
+    source = (
+        "import subprocess\n"
+        'opts = {"capture_output": True}\n'
+        'subprocess.run(["x"], encoding="utf-8", **opts)\n'
+    )
+    assert find_violations(source) == [3]
+
+
+def test_splat_capture_mode_passes_with_explicit_replacement_errors() -> None:
+    """Mutation control: explicit replacement handling covers splat capture mode."""
+    source = (
+        "import subprocess\n"
+        'opts = {"capture_output": True}\n'
+        'subprocess.run(["x"], encoding="utf-8", errors="replace", **opts)\n'
+    )
+    assert find_violations(source) == []
+
+
 @pytest.mark.parametrize(
     "source,expected",
     [
