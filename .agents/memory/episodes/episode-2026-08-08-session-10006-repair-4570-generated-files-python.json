@@ -1,0 +1,102 @@
+{
+  "id": "episode-2026-08-08-session-10006-repair-4570-generated-files-python",
+  "session": "2026-08-08-session-10006-repair-4570-generated-files-python",
+  "timestamp": "2026-08-08T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Repair PR 4570 generated files and Python tests",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reassess PR and issue state",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10006-repair-4570-generated-files-python"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnose exact-head CI failures",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10006-repair-4570-generated-files-python"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repair generated and Python failures",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10006-repair-4570-generated-files-python"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Close security review findings",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10006-repair-4570-generated-files-python"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate the branch",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10006-repair-4570-generated-files-python"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Run independent review",
+      "caused_by": [],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-08-session-10006-repair-4570-generated-files-python"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-08T18:29:51+00:00",
+      "type": "commit",
+      "content": "Commit: e1fc9346c0",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10006-repair-4570-generated-files-python"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 8
+  },
+  "lessons": []
+}
