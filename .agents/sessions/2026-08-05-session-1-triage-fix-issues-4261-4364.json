@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": "No retrospective needed for this small triage and test-hardening PR."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-09-pr-4610-encoding-debt-scope.md"
       }
     }
   },
@@ -147,7 +152,7 @@
       "entry": "Mutation proof passed. M1 changed-only absolute fallback died. M2 suppressed exit-10 died. M3 subprocess errors keyword mutant died. M4 cosmetic docstring wording survived."
     }
   ],
-  "endingCommit": "4ba87e6765",
+  "endingCommit": "aab73143f57a781111f56c3bb64ff0f4536e6135",
   "nextSteps": [
     "Push fix/4261-4364-encoding-debt-scope and open the PR by REST with triage evidence and the mutation table."
   ]
