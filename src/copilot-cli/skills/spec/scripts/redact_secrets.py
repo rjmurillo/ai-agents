@@ -102,17 +102,17 @@ _CREDENTIAL_PREFIX = (
 )
 _CREDENTIAL_VALUE = (
     r"(?:"
-    r'"(?:\\.|[^"\\\r\n])*(?:"|(?=$|[\r\n]))'
+    r'"(?:\\.|[^"\\\r\n]|"(?![\s,;}\]\r\n]))*(?:"(?=[\s,;}\]\r\n]|$)|(?=$|[\r\n]))'
     r"|"
-    r"'(?:\\.|[^'\\\r\n])*(?:'|(?=$|[\r\n]))"
+    r"'(?:\\.|[^'\\\r\n]|'(?![\s,;}\]\r\n]))*(?:'(?=[\s,;}\]\r\n]|$)|(?=$|[\r\n]))"
     r"|"
-    r'\\"(?:(?!\\")[^\r\n])*(?:\\"|(?=$|[\r\n]))'
+    r'\\"(?:(?!\\"[\s,;}\]\r\n])[^\r\n])*(?:\\"(?=[\s,;}\]\r\n]|$)|(?=$|[\r\n]))'
     r"|"
-    r"\\'(?:(?!\\')[^\r\n])*(?:\\'|(?=$|[\r\n]))"
+    r"\\'(?:(?!\\'[\s,;}\]\r\n])[^\r\n])*(?:\\'(?=[\s,;}\]\r\n]|$)|(?=$|[\r\n]))"
     r"|"
     r"\[redacted: [^\]]+\]"
     r"|"
-    r"[^\s,}\]]+"
+    r"[^\s,;}\]]+"
     r")"
 )
 _CREDENTIAL_ASSIGNMENT = re.compile(rf"(?i)({_CREDENTIAL_PREFIX})({_CREDENTIAL_VALUE})")
@@ -177,9 +177,43 @@ def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> Redaction
 
     def _redact_assignment(match: re.Match[str]) -> str:
         value = match.group(2)
-        if re.fullmatch(r"\[redacted: [^\]]+\]", value.strip()):
+        stripped = value.strip()
+        if re.fullmatch(r"\[redacted: [^\]]+\]", stripped):
             return match.group(0)
-        return f"{match.group(1)}***"
+        leading_length = len(value) - len(value.lstrip())
+        leading = value[:leading_length]
+        scalar = value[leading_length:]
+
+        quote = ""
+        if scalar.startswith(('\\"', "\\'")):
+            quote = scalar[:2]
+        elif scalar.startswith(('"', "'")):
+            quote = scalar[:1]
+
+        if quote:
+            position = len(quote)
+            while position < len(scalar):
+                closing = scalar.find(quote, position)
+                if closing < 0:
+                    return f"{match.group(1)}{leading}{quote}***"
+                preceding_backslashes = 0
+                cursor = closing - 1
+                while cursor >= 0 and scalar[cursor] == "\\":
+                    preceding_backslashes += 1
+                    cursor -= 1
+                tail = scalar[closing + len(quote) :]
+                is_unescaped_raw_quote = len(quote) == 2 or preceding_backslashes % 2 == 0
+                has_scalar_boundary = not tail or bool(re.match(r"[\s,;}\]]", tail))
+                if is_unescaped_raw_quote and has_scalar_boundary:
+                    break
+                position = closing + len(quote)
+            else:
+                return f"{match.group(1)}{leading}{quote}***"
+            return f"{match.group(1)}{leading}{quote}***{quote}{tail}"
+
+        boundary = re.search(r"[\s,;}\]]", scalar)
+        tail = scalar[boundary.start() :] if boundary else ""
+        return f"{match.group(1)}{leading}***{tail}"
 
     out, assignment_count = _CREDENTIAL_ASSIGNMENT.subn(_redact_assignment, out)
     reasons.extend(["credential-assignment"] * assignment_count)
