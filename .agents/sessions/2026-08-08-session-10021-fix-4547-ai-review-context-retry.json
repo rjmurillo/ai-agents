@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation and recursive review fixes are present in validated code commit b21b0cf4941bd4d353da520c9d52f0e3604dadbd."
+        "Evidence": "Implementation, documentation, and recursive review fixes are present in validated tree commit cdb3c8a1b36580dc2cba6e09f26d7755e1e0256d."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "At validated code commit b21b0cf4941bd4d353da520c9d52f0e3604dadbd, 167 final redactor and parity tests passed. The complete Python suite passed 25,216 tests with 36 skipped. Real REST diff transport returned a 155,148-byte patch with headers removed before parsing. Ruff, mypy, independent DevOps review, and recursive GPT-5.6 Sol review passed."
+        "Evidence": "At validated tree commit cdb3c8a1b36580dc2cba6e09f26d7755e1e0256d, 167 final redactor and parity tests passed. The complete Python suite passed 25,216 tests with 36 skipped. Real REST diff transport returned a 155,148-byte patch with headers removed before parsing. Ruff, mypy, independent DevOps review, and recursive GPT-5.6 Sol review passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -196,7 +196,7 @@
       "outcome": "The complete Python suite passed 25,216 tests with 36 skipped in 725.88 seconds."
     }
   ],
-  "endingCommit": "b21b0cf4941bd4d353da520c9d52f0e3604dadbd",
+  "endingCommit": "cdb3c8a1b36580dc2cba6e09f26d7755e1e0256d",
   "nextSteps": [
     "Push PR 4775, resolve remaining review threads, verify a real security verdict, merge, close issue 4547, then reassess PR 4721."
   ]
