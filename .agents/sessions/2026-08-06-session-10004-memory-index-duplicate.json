@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All changes committed (HEAD: fbc0853df9)"
+        "Evidence": "All code changes committed (HEAD: 2708f2fa15)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -143,6 +143,11 @@
       "time": "2026-08-09T02:08:00+00:00",
       "task": "Record PR 4735 merge-unblock retrospective",
       "outcome": "Added retrospective evidence after pre-push retrospective-policy blocked an otherwise green push."
+    },
+    {
+      "time": "2026-08-09T03:20:00+00:00",
+      "task": "Fix PR 4735 merge-base review thread",
+      "outcome": "Changed duplicate ratchet loading to compare against the branch merge base, added the concurrent-base regression, and passed the targeted memory-index suite."
     }
   ],
   "episodeMetrics": {
@@ -150,10 +155,10 @@
     "comparison": {
       "kind": "gitCommitRange",
       "base": "00a95ad5a",
-      "head": "fbc0853df9d6a348140f01ca5e2dfe36b28769e8"
+      "head": "2708f2fa1551ac843dc625bffe26d4d8518213ab"
     }
   },
-  "endingCommit": "fbc0853df9",
+  "endingCommit": "2708f2fa1551ac843dc625bffe26d4d8518213ab",
   "nextSteps": [
     "Commit, push, and open the corrective pull request"
   ]

@@ -143,16 +143,42 @@
       "caused_by": [
         "e010"
       ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-09T03:20:00+00:00",
+      "type": "milestone",
+      "content": "Fix PR 4735 merge-base review thread",
+      "caused_by": [
+        "e013"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-09T02:53:23+00:00",
+      "type": "commit",
+      "content": "Commit: 2708f2fa1551ac843dc625bffe26d4d8518213ab",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e012"
+      ],
       "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
     }
   ],
   "metrics": {
-    "duration_minutes": 3572,
+    "duration_minutes": 3644,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 7,
+    "commits": 8,
     "files_changed": 4
   },
   "lessons": []
