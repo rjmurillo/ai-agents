@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-ba361f84e-rca-fix-4773-copilot-cli.json
-qaCommit: 87fa7f437e1af6cf03948bc72b5dd7351198749e
+qaCommit: 9a16e8aa02ddff0132807e03a258dbae13fa9025
 ---
 
 # AI quality gate validation
@@ -27,8 +27,9 @@ Recognized non-security infrastructure failures may return `WARN`, never
 - Security scan: 4 changed Python files, 0 findings.
 - GPT-5.6 Sol reviews: recursive rounds ended with `NO_FINDINGS`.
 - Security review: approved with no blocking findings.
-- Required contexts: `Aggregate Results` and `Session Protocol Results` each
-  have one workflow owner and both are active ruleset requirements.
+- Required contexts: `AI Quality Gate Results` and
+  `Session Protocol Results` each have one workflow owner and both are active
+  ruleset requirements.
 - Session aggregation rejects prerequisite failure, missing or mismatched
   artifacts, invalid verdicts, malformed counts, forged deletion verdicts, and
   symlinked session paths.

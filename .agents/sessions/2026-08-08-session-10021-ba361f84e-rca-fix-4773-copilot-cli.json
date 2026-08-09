@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation commits complete; final session and QA artifacts staged for this commit."
+        "Evidence": "Implementation commits through 9a16e8aa0 complete; final session, QA, and episode artifacts staged for this commit."
       },
       "validationPassed": {
         "level": "MUST",
@@ -134,7 +134,7 @@
     },
     {
       "action": "Restored fail-closed security semantics and removed invented Copilot-unavailable diagnostics.",
-      "result": "Missing security review yields DID_NOT_RUN or UNKNOWN; Aggregate Results exits 1."
+      "result": "Missing security review yields DID_NOT_RUN or UNKNOWN; AI Quality Gate Results exits 1."
     },
     {
       "action": "Ran recursive GPT-5.6 Sol, code, silent-failure, and security reviews.",
@@ -142,7 +142,7 @@
     },
     {
       "action": "Validated the final committed tree.",
-      "result": "24,990 tests passed, 34 skipped; pre_pr.py passed; 196 verdict combinations had zero invariant violations."
+      "result": "25,029 tests passed, 34 skipped; pre_pr.py passed all 50 validations; 196 verdict combinations had zero invariant violations."
     },
     {
       "action": "Filed tool and process issues #4779, #4780, and #4781.",
@@ -150,14 +150,14 @@
     },
     {
       "action": "Proved required-check context collision on live PR #4784 and updated ruleset 11104075.",
-      "result": "Aggregate Results is unique to AI PR Quality Gate; Session Protocol Results is separately required."
+      "result": "AI Quality Gate Results and Session Protocol Results have unique workflow owners and separate ruleset requirements."
     },
     {
       "action": "Hardened Session Protocol Results through recursive adversarial review.",
       "result": "Prerequisite failures, incomplete or corrupt artifacts, forged SKIPPED verdicts, and symlink session paths now fail closed."
     }
   ],
-  "endingCommit": "87fa7f437e1af6cf03948bc72b5dd7351198749e",
+  "endingCommit": "9a16e8aa02ddff0132807e03a258dbae13fa9025",
   "nextSteps": [
     "Rotate or re-authorize COPILOT_GITHUB_TOKEN and verify issue #3275.",
     "Fix preflight behavior in issue #4778 so unavailable authentication skips work but still emits blocking artifacts."
