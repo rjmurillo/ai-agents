@@ -15,7 +15,7 @@ import yaml
 _WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pytest.yml"
 _JOB_NAME = "test-windows-pwsh"
 _PATHS_FILTER_ACTION = "dorny/paths-filter@"
-_WINDOWS_COMMAND = "uv run pytest -m windows_path -v"
+_WINDOWS_COMMAND = "uv run --frozen pytest -m windows_path -v"
 _LEFTHOOK_TRIGGER_PATHS = {
     "lefthook.yml",
     ".config/wt.toml",
@@ -86,9 +86,7 @@ def test_windows_job_uses_marker_not_hardcoded_files() -> None:
 
     run_cmd: str = step.get("run", "")
     # Confirm no explicit .py paths in the run command (files would end in .py)
-    assert ".py" not in run_cmd, (
-        f"step run command contains hardcoded .py paths: {run_cmd!r}"
-    )
+    assert ".py" not in run_cmd, f"step run command contains hardcoded .py paths: {run_cmd!r}"
 
 
 def test_lefthook_runtime_surfaces_trigger_windows_suite() -> None:
