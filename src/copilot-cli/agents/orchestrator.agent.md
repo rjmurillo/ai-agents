@@ -182,8 +182,10 @@ Context7 and DeepWiki tools:
 3. Name any unavailable evidence as a gap. Do not imply the analyst can fetch
    it after delegation.
 
-The analyst is read-only and has no shell, GitHub, or unrestricted web access.
-If it returns `[BLOCKED]` for load-bearing missing context, retrieve the named
+The analyst is read-only and has no shell or unrestricted web access. It has
+structured GitHub and CI read tools for PR, issue, workflow, and job-log
+retrieval. If it returns `[BLOCKED]` for load-bearing missing context that
+requires shell output or unrestricted web research, retrieve the named
 evidence and re-delegate once. Do not pass the blocked response through as the
 investigation result.
 

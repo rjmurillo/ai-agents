@@ -113,6 +113,13 @@ _CLAUDE_ANALYST_TOOLS = frozenset(
         "Glob",
         "Grep",
         "Read",
+        "mcp__github__issue_read",
+        "mcp__github__pull_request_read",
+        "mcp__github__get_file_contents",
+        "mcp__github__list_commits",
+        "mcp__github__list_workflow_runs",
+        "mcp__github__get_workflow_run",
+        "mcp__github__get_job_logs",
         "mcp__context7__get_library_docs",
         "mcp__context7__resolve_library_id",
         "mcp__deepwiki__read_wiki_contents",
@@ -132,6 +139,13 @@ _COPILOT_ANALYST_TOOLS = frozenset(
     {
         "cognitionai/deepwiki/*",
         "context7/*",
+        "github/issue_read",
+        "github/pull_request_read",
+        "github/get_file_contents",
+        "github/list_commits",
+        "github/list_workflow_runs",
+        "github/get_workflow_run",
+        "github/get_job_logs",
         "read",
         "search",
         "serena/find_declaration",
@@ -689,10 +703,11 @@ def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() ->
     )
     assert not {"bash", "shell", "execute"} & set(_copilot_tool_names(analyst_shell_events))
     assert "SHELL_UNAVAILABLE" in _copilot_assistant_text(analyst_shell_events)
-    assert not any(
+    # GitHub read tools ARE available - analyst should attempt the call
+    assert any(
         "github" in tool.casefold() for tool in _copilot_tool_names(analyst_github_events)
-    )
-    assert "GITHUB_UNAVAILABLE" in _copilot_assistant_text(analyst_github_events)
+    ), "analyst should use github/issue_read (declared in allowlist)"
+    assert "GITHUB_UNAVAILABLE" not in _copilot_assistant_text(analyst_github_events)
     assert "bash" in _copilot_tool_names(implementer_events), (
         "negative control failed: implementer did not execute the shell command"
     )
