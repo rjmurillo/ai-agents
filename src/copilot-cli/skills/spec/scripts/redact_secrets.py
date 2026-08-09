@@ -73,7 +73,7 @@ def _json_key_word(word: str) -> str:
 
 
 _CREDENTIAL_SEPARATOR_CHARACTER = (
-    rf"(?:[-_\s]|{_json_key_word('-')}|{_json_key_word('_')}|\\+u0020)"
+    rf"(?:\s|{_json_key_word('-')}|{_json_key_word('_')}|\\+u0020)"
 )
 _CREDENTIAL_SEPARATOR = rf"{_CREDENTIAL_SEPARATOR_CHARACTER}?"
 _CREDENTIAL_NAMESPACE_CHARACTER = r"(?:[A-Za-z0-9]|\\+u[0-9a-f]{4})"

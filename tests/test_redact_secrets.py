@@ -495,6 +495,17 @@ class TestCiSinkWrappers:
         assert result.text == value
         assert elapsed < 5
 
+    @pytest.mark.parametrize("separator", ["-", "_"])
+    def test_credential_assignment_scanner_rejects_separator_redos(self, separator):
+        value = f"ordinary{separator * 64}prose"
+
+        started = time.perf_counter()
+        result = redact_ci_sink(value)
+        elapsed = time.perf_counter() - started
+
+        assert result.text == value
+        assert elapsed < 1
+
     def test_credential_assignments_preserve_trailing_structured_fields(self):
         raw_json = '{"password":"secret","timeout":30}'
         escaped_json = '{\\"password\\":\\"secret\\",\\"timeout\\":30}'
