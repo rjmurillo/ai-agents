@@ -96,7 +96,10 @@
         "e004",
         "e005",
         "e006",
-        "e007"
+        "e007",
+        "e011",
+        "e012",
+        "e013"
       ],
       "leads_to": [
         "e009"
@@ -124,6 +127,52 @@
       "caused_by": [
         "e009"
       ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recursive security review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Independent GPT-5.6 Sol review",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-09T12:02:28+00:00",
+      "type": "commit",
+      "content": "Commit: 3ddb305181362c27a316f28f3435f1a1002a3516",
+      "caused_by": [
+        "e010"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python"
     }
@@ -133,8 +182,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 190
+    "commits": 4,
+    "files_changed": 191
   },
   "lessons": []
 }

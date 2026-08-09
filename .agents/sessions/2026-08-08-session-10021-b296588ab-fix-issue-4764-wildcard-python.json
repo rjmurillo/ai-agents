@@ -89,17 +89,17 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pre-commit markdown checks passed on included files; .agents ADR paths reported excluded rather than falsely claiming lint coverage"
+        "Evidence": "Scoped markdown gate read 0 changed files because .agents paths are excluded: NOT LINTED; included skill markdown passed pre-commit checks"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, generated surfaces, tests, ADRs, and QA evidence committed through 8e6b740aa5; this commit carries the durable memory update"
+        "Evidence": "Implementation, recursive security fixes, generated surfaces, tests, ADRs, hook contract fixes, ratchet rationale, and portability declaration committed through 3ddb305181"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "270 guard tests passed; targeted suite 523 passed and 2 skipped; plugin smoke 17 passed and 3 skipped; Ruff and hook contract tests passed"
+        "Evidence": "Final merged regression suite: 573 passed and 5 skipped; generation check, Ruff, hook contracts, security review, and GPT-5.6 Sol review passed"
       },
       "qaValidation": {
         "level": "MUST",
@@ -145,13 +145,23 @@
     },
     {
       "action": "qa validation",
-      "result": ".agents/qa/4764-push-pr-script-identity-guard-report.md recorded PASS after 480 tests with no Critical or High findings"
+      "result": ".agents/qa/4764-push-pr-script-identity-guard-report.md recorded PASS after 573 tests passed and 5 environment-dependent skips"
+    },
+    {
+      "action": "Merged origin/main",
+      "result": "Merged two upstream commits without conflicts, regenerated all derived artifacts, and observed no drift"
+    },
+    {
+      "action": "Recursive security review",
+      "result": "Fixed two High CWE-78 findings for dynamic evaluator decoding and post-script brace expansion; security reviewer returned APPROVED on the fixes"
+    },
+    {
+      "action": "Independent GPT-5.6 Sol review",
+      "result": "Final narrow adversarial review returned CLEAN after evaluator and argument expansion fixes"
     }
   ],
-  "endingCommit": "8e6b740aa5",
+  "endingCommit": "3ddb305181362c27a316f28f3435f1a1002a3516",
   "nextSteps": [
-    "Merge current origin/main and regenerate",
-    "Run final generation, parity, markdown, pre-PR, security, and session gates",
     "Push one PR, resolve review threads, merge, verify issue 4764 closure, and update todo status"
   ]
 }

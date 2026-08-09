@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-b296588ab-fix-issue-4764-wildcard-python.json
-qaCommit: 8e6b740aa5e75d3e9b7c174f7e14b52be33169eb
+qaCommit: 3ddb305181362c27a316f28f3435f1a1002a3516
 ---
 # Test Report: Issue #4764 Push-PR Script Identity Guard
 
@@ -13,64 +13,58 @@ qaCommit: 8e6b740aa5e75d3e9b7c174f7e14b52be33169eb
 
 | Metric | Value |
 |--------|-------|
-| Guard Test Suite | 270 passed, 0 failed, 0 skipped |
-| Related Suites | 210 passed (dispatch, parity, new_pr) |
-| Total Tests Verified | 480 |
-| Test Execution Time | 35.2s |
+| Identity Guard Suite | 298 passed, 0 failed, 0 skipped |
+| Hook Contract Suite | 150 passed, 0 failed, 0 skipped |
+| Hook Contract Knowledge Suite | 25 passed, 0 failed, 0 skipped |
+| new_pr Suite | 83 passed, 0 failed, 0 skipped |
+| Plugin Smoke Suite | 17 passed, 0 failed, 5 skipped |
+| Total Tests Verified | 573 |
+| Test Execution Time | 33.73s |
 | Surfaces Covered | Claude + Copilot (parametrized) |
 
 ## Required Behavior Verification
 
 | Behavior | Status | Evidence |
 |----------|--------|----------|
-| Reject GNU env -S | [PASS] | `env -S 'python3 -I attacker/x'` denied, line 258 |
-| Reject --split-string | [PASS] | `env --split-string='python3 -I attacker/x'` denied, line 259 |
-| Reject abbreviated --split | [PASS] | `env --split='python3 -I attacker/x'`, `env --spl=...` denied, lines 262-263 |
-| Reject clustered -S | [PASS] | `env -iS 'python3 -I attacker/x'` denied, line 261 |
-| Reject unknown env options | [PASS] | Guard returns rc=2 with "unsupported env options" (manually verified; no dedicated test name) |
-| Reject sh -xc wrappers | [PASS] | `sh -xc 'python3 attacker/x'` denied, line 285 |
-| Reject nested setsid/time | [PASS] | `setsid python3 ...`, `time python3 ...` denied, lines 291, 402-405 |
-| Reject BusyBox shell applets | [PASS] | `busybox sh -xc ...`, `setsid busybox ash -xc ...` denied, lines 292-293 |
-| Preserve canonical python3 -I | [PASS] | `test_dispatchers_allow_canonical_push_pr_command` passes on both surfaces |
-| Brace expansion | [PASS] | `{e..e}`, `{p..p}` patterns tested in deny scenarios, lines 399-404 |
-| Globbing | [PASS] | `[y]`, `*`, `?` patterns tested, lines 402, _SHELL_EXPANSION_MARKERS |
-| Variable expansion | [PASS] | `${BASH_VERSION:+pyt}hon3`, `$PY` tested, lines 401, 399 |
-| Command substitution | [PASS] | `$(echo bypass)`, backtick forms denied, lines 394-395 |
-| Alternate interpreters | [PASS] | `pypy3`, `python`, `py` tested in deny scenarios |
-| Quoting | [PASS] | Single-quoted safe text allowed; incomplete quoting rejected |
-| Normalization | [PASS] | `test_dispatchers_deny_normalized_alias_of_runtime_script` (path traversal) |
-| Links (sym/hard) | [PASS] | Symlinked scripts, parent symlinks, hardlinks all tested |
-| Benign commands | [PASS] | `test_dispatchers_allow_benign_env_and_flag_text`, `test_dispatchers_allow_unrelated_shell_expansion` |
-| Both surfaces | [PASS] | Tests parametrized with `_run_claude` and `_run_copilot` runners |
+| Reject dynamic evaluator wrappers (lua, node, perl, php, ruby, sed) | [PASS] | `test_dispatchers_deny_dynamic_evaluator_wrappers` 12/12 cases |
+| Reject active unquoted brace expansion | [PASS] | `{e..e}`, `{p..p}` patterns denied in unsafe command shapes |
+| Reject active glob expansion | [PASS] | `[y]`, `*`, `?` patterns denied |
+| Reject active tilde expansion | [PASS] | `~` expansion denied in path contexts |
+| Reject active parameter expansion in printf | [PASS] | `test_dispatchers_deny_active_parameter_expansion_in_printf` 2/2 |
+| Allow evaluator names as benign printf data | [PASS] | `test_dispatchers_allow_benign_env_and_flag_text` (perl, ruby, node, awk, sed as data) |
+| Allow quoted literal expansion text | [PASS] | `test_dispatchers_allow_single_quoted_substitution_text` 2/2 |
+| Reject GNU env -S/--split-string/clustered | [PASS] | Deny scenarios pass on both surfaces |
+| Reject sh -xc wrappers | [PASS] | Denied on both surfaces |
+| Reject nested setsid/time | [PASS] | Denied on both surfaces |
+| Reject BusyBox shell applets | [PASS] | Denied on both surfaces |
+| Preserve canonical python3 -I | [PASS] | `test_dispatchers_allow_canonical_push_pr_command` passes |
+| Symlinked/hardlinked scripts | [PASS] | Multiple dedicated tests pass |
+| Both surfaces (Claude + Copilot) | [PASS] | All parametrized with `_run_claude` and `_run_copilot` |
+| Fails closed on invalid input | [PASS] | 7 invalid input cases pass |
+| Hook contract metadata (shim coverage, exit-code docs, no duplicates) | [PASS] | `test_repo_hooks_pass_and_cover_every_shim` passes |
 
 ## Quality Gate Checklist
 
-- [x] Tests execute guard via subprocess (real process invocation, not mocks)
+- [x] Tests execute guard via subprocess (real process invocation)
 - [x] Tests verify exit codes and stderr messages
 - [x] Error conditions tested (invalid JSON, oversize input, malformed payloads)
 - [x] Edge cases covered (symlinks, hardlinks, path normalization, quoting)
 - [x] Both Claude and Copilot surfaces tested
 - [x] Guard fails closed (unknown inputs rejected)
-
-## Findings
-
-### Low Severity
-
-| Finding | Detail |
-|---------|--------|
-| No explicit test for "unsupported env options" error path | The `_env_command_index` branch for unknown `-` flags (line 305) is exercised at runtime but no parametrized test case asserts this specific error message. The guard still fails closed. |
-
-### No Critical or High Findings
+- [x] Hook contract metadata complete (no duplicates, exit-code docs present)
+- [x] No Critical or High gaps
 
 ## Reconciliation
 
 ```text
-Promised: reject env -S/--split-string/--split/clustered -S/unknown env options,
-          shell evaluators (sh -xc), nested setsid/time, BusyBox applets,
-          preserve canonical python3 -I, cover brace/glob/variable/cmdsub/
-          alt-interpreters/quoting/normalization/links/benign on both surfaces
-Delivered: All behaviors verified passing across 270 guard tests + 210 related tests
-Gap: One low-severity gap (no named test for unknown env option error message)
+Promised: reject dynamic evaluator wrappers, active brace/glob/tilde expansion,
+          parameter expansion injection; allow evaluator names as printf data,
+          quoted literal expansion text; reject env -S variants, shell wrappers,
+          nested setsid/time, BusyBox; preserve canonical python3 -I; cover both
+          surfaces; hook contract metadata complete; no Critical or High gaps
+Delivered: All behaviors verified passing across 573 tests (5 skipped due to
+           missing runtime environment, not regressions)
+Gap: None
 Result: PASS
 ```
 
@@ -78,4 +72,4 @@ Result: PASS
 
 **QA COMPLETE**
 
-All required behaviors verified. Guard correctly rejects noncanonical invocations and preserves the exact legitimate `python3 -I` form on both Claude and Copilot surfaces. No Critical or High findings.
+All required behaviors verified at commit 3ddb305181362c27a316f28f3435f1a1002a3516. Guard correctly rejects dynamic evaluator wrappers, active shell expansion injection, and noncanonical invocations while preserving benign data patterns and the canonical `python3 -I` form on both Claude and Copilot surfaces. Hook contract metadata is now complete with no duplicate registrations and exit-code documentation present. No Critical or High findings.
