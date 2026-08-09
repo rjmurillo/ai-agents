@@ -33,6 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="validation-results",
         help="Directory containing verdict and must-failures files",
     )
+    parser.add_argument(
+        "--expected-results",
+        type=int,
+        default=int(os.environ.get("EXPECTED_RESULTS", "0")),
+        help="Expected number of session verdict artifacts",
+    )
     return parser
 
 
@@ -44,13 +50,21 @@ def main(argv: list[str] | None = None) -> int:
 
     verdict_files = sorted(glob(f"{results_dir}/*-verdict.txt"))
 
-    if not verdict_files:
-        write_log("WARNING: No verdict files found in validation-results/")
+    if args.expected_results < 1:
+        write_log("ERROR: Expected result count is missing or invalid")
+        print("::error::Expected session result count is missing", file=sys.stderr)
+        overall_verdict = "CRITICAL_FAIL"
+    elif len(verdict_files) != args.expected_results:
+        write_log(
+            "ERROR: Session verdict artifact count mismatch: "
+            f"expected {args.expected_results}, found {len(verdict_files)}"
+        )
         print(
-            "::warning::No session verdict files found. Validation may not have run.",
+            "::error::Session verdict artifact count mismatch: "
+            f"expected {args.expected_results}, found {len(verdict_files)}",
             file=sys.stderr,
         )
-        overall_verdict = "WARN"
+        overall_verdict = "CRITICAL_FAIL"
 
     for verdict_file in verdict_files:
         filename = os.path.basename(verdict_file)
@@ -65,6 +79,17 @@ def main(argv: list[str] | None = None) -> int:
             overall_verdict = "WARN"
 
     must_files = sorted(glob(f"{results_dir}/*-must-failures.txt"))
+    if args.expected_results > 0 and len(must_files) != args.expected_results:
+        write_log(
+            "ERROR: MUST-failure artifact count mismatch: "
+            f"expected {args.expected_results}, found {len(must_files)}"
+        )
+        print(
+            "::error::MUST-failure artifact count mismatch: "
+            f"expected {args.expected_results}, found {len(must_files)}",
+            file=sys.stderr,
+        )
+        overall_verdict = "CRITICAL_FAIL"
     for must_file in must_files:
         with open(must_file, encoding="utf-8") as f:
             content = f.read().strip()

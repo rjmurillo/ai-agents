@@ -50,10 +50,25 @@ def _read_outputs(output_file: Path) -> dict[str, str]:
 
 def _create_verdict_file(results_dir: Path, name: str, verdict: str) -> None:
     (results_dir / f"{name}-verdict.txt").write_text(verdict)
+    _create_must_file(results_dir, name, "0")
 
 
 def _create_must_file(results_dir: Path, name: str, content: str) -> None:
     (results_dir / f"{name}-must-failures.txt").write_text(content)
+
+
+def _run(results_dir: Path, expected_results: int | None = None) -> int:
+    expected = expected_results
+    if expected is None:
+        expected = max(1, len(list(results_dir.glob("*-verdict.txt"))))
+    return main(
+        [
+            "--results-dir",
+            str(results_dir),
+            "--expected-results",
+            str(expected),
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -65,10 +80,14 @@ class TestBuildParser:
     def test_default_results_dir(self):
         args = build_parser().parse_args([])
         assert args.results_dir == "validation-results"
+        assert args.expected_results == 0
 
     def test_custom_results_dir(self):
-        args = build_parser().parse_args(["--results-dir", "/custom/path"])
+        args = build_parser().parse_args(
+            ["--results-dir", "/custom/path", "--expected-results", "2"]
+        )
         assert args.results_dir == "/custom/path"
+        assert args.expected_results == 2
 
 
 # ---------------------------------------------------------------------------
@@ -77,14 +96,14 @@ class TestBuildParser:
 
 
 class TestMain:
-    def test_no_verdict_files_returns_warn(self, tmp_path, monkeypatch):
+    def test_no_verdict_files_returns_critical_fail(self, tmp_path, monkeypatch):
         output_file = _setup_output(tmp_path, monkeypatch)
         results_dir = tmp_path / "results"
         results_dir.mkdir()
-        rc = main(["--results-dir", str(results_dir)])
+        rc = _run(results_dir, expected_results=1)
         assert rc == 0
         outputs = _read_outputs(output_file)
-        assert outputs["final_verdict"] == "WARN"
+        assert outputs["final_verdict"] == "CRITICAL_FAIL"
 
     def test_all_pass_returns_pass(self, tmp_path, monkeypatch):
         output_file = _setup_output(tmp_path, monkeypatch)
@@ -92,7 +111,7 @@ class TestMain:
         results_dir.mkdir()
         _create_verdict_file(results_dir, "session-1", "PASS")
         _create_verdict_file(results_dir, "session-2", "PASS")
-        rc = main(["--results-dir", str(results_dir)])
+        rc = _run(results_dir)
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "PASS"
@@ -103,7 +122,7 @@ class TestMain:
         results_dir.mkdir()
         _create_verdict_file(results_dir, "session-1", "PASS")
         _create_verdict_file(results_dir, "session-2", "CRITICAL_FAIL")
-        rc = main(["--results-dir", str(results_dir)])
+        rc = _run(results_dir)
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "CRITICAL_FAIL"
@@ -113,7 +132,7 @@ class TestMain:
         results_dir = tmp_path / "results"
         results_dir.mkdir()
         _create_verdict_file(results_dir, "session-1", "REJECTED")
-        rc = main(["--results-dir", str(results_dir)])
+        rc = _run(results_dir)
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "CRITICAL_FAIL"
@@ -124,7 +143,7 @@ class TestMain:
         results_dir.mkdir()
         _create_verdict_file(results_dir, "session-1", "PASS")
         _create_verdict_file(results_dir, "session-2", "WARN")
-        rc = main(["--results-dir", str(results_dir)])
+        rc = _run(results_dir)
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "WARN"
@@ -135,7 +154,7 @@ class TestMain:
         results_dir.mkdir()
         _create_verdict_file(results_dir, "session-1", "PASS")
         _create_must_file(results_dir, "session-1", "3")
-        rc = main(["--results-dir", str(results_dir)])
+        rc = _run(results_dir)
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "CRITICAL_FAIL"
@@ -147,7 +166,7 @@ class TestMain:
         results_dir.mkdir()
         _create_verdict_file(results_dir, "session-1", "PASS")
         _create_must_file(results_dir, "session-1", "0")
-        rc = main(["--results-dir", str(results_dir)])
+        rc = _run(results_dir)
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "PASS"
@@ -159,7 +178,7 @@ class TestMain:
         results_dir.mkdir()
         _create_verdict_file(results_dir, "session-1", "PASS")
         _create_must_file(results_dir, "session-1", "2 failures found")
-        rc = main(["--results-dir", str(results_dir)])
+        rc = _run(results_dir)
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "CRITICAL_FAIL"
@@ -170,7 +189,31 @@ class TestMain:
         results_dir = tmp_path / "results"
         results_dir.mkdir()
         _create_verdict_file(results_dir, "session-1", "NON_COMPLIANT")
-        rc = main(["--results-dir", str(results_dir)])
+        rc = _run(results_dir)
         assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "CRITICAL_FAIL"
+
+    def test_missing_one_verdict_is_critical_fail(self, tmp_path, monkeypatch):
+        output_file = _setup_output(tmp_path, monkeypatch)
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _create_verdict_file(results_dir, "session-1", "PASS")
+
+        assert _run(results_dir, expected_results=2) == 0
+
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "CRITICAL_FAIL"
+
+    def test_missing_one_must_file_is_critical_fail(self, tmp_path, monkeypatch):
+        output_file = _setup_output(tmp_path, monkeypatch)
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _create_verdict_file(results_dir, "session-1", "PASS")
+        _create_verdict_file(results_dir, "session-2", "PASS")
+        (results_dir / "session-2-must-failures.txt").unlink()
+
+        assert _run(results_dir, expected_results=2) == 0
+
         outputs = _read_outputs(output_file)
         assert outputs["final_verdict"] == "CRITICAL_FAIL"
