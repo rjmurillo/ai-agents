@@ -13,6 +13,11 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to validate
+        required: true
+        type: number
 
 permissions:
   contents: read
@@ -33,7 +38,7 @@ permissions:
 # Note: Matrix strategy with fail-fast: false allows independent validation
 
 concurrency:
-  group: session-protocol-${{ github.event.pull_request.number }}
+  group: session-protocol-${{ github.event.pull_request.number || inputs.pr_number }}
   cancel-in-progress: true
 
 env:
@@ -79,12 +84,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/head', inputs.pr_number) }}
 
       - name: Identify Changed Session Files
         id: changed
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           GH_REPO: ${{ github.repository }}
           # Issue #215: Session End checklist requirement introduced 2025-12-21
           # Historical sessions before this date are exempt from validation
@@ -114,7 +119,7 @@ jobs:
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/head', inputs.pr_number) }}
 
       - name: Fetch origin/main for HANDOFF validation
         run: |
@@ -185,7 +190,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || format('refs/pull/{0}/head', inputs.pr_number) }}
 
       - name: Check if aggregation needed
         id: should-run-protocol
@@ -229,7 +234,7 @@ jobs:
         if: steps.should-run-protocol.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
         run: |
           python3 .github/scripts/run_with_retry.py -- \
