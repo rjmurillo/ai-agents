@@ -1,67 +1,47 @@
-# Skill: Why the AI quality gate blocks on DID_NOT_RUN, and why its stated cause is hardcoded (92%)
+# Skill: Why the AI quality gate blocks when security review did not run (92%)
 
 ## Statement
 
 When `Aggregate Results` fails and nine or ten agents report the same verdict,
 suspect one infrastructure failure reported many times before ten real ones.
-Two incidents support the shape, not a base rate. In both, the gate refused to
-certify a PR whose security review never ran. That refusal is deliberate but
-not universal: one token combination passes such a PR silently (issue #4654).
+The current contract after issue #4777 is:
 
-`github-rate-limit-payload-does-not-predict-service.md` covers the usual
-trigger and recovery. This covers what it does not: the summary line names a
-cause nothing measured, the block is deliberate so repairing it removes a
-security requirement, and the failing agent's verdict token decides whether
-anything blocks.
+- A security infrastructure failure produces `DID_NOT_RUN` and blocks.
+- An unknown or malformed verdict remains `UNKNOWN` and blocks.
+- An infrastructure failure outside security may downgrade to `WARN`.
 
-## The failure message names a cause it never measured
+Eureka: gate availability is gate correctness. Conventional CI advice treats
+infrastructure outages as non-blocking. That fails for a required security gate:
+no review means no evidence, so a green check is a false pass.
 
-`scripts/ci/agent_review_check_verdict.py:57` prints:
+## The old failure message named a cause it never measured
 
-```text
-⚠️ 🔒 security review had infrastructure failure (Copilot CLI unavailable)
-```
-
-`Copilot CLI unavailable` is a literal baked into the f-string, printed because
-the code path is an infrastructure failure, not because anything diagnosed the
-CLI. The same claim is hardcoded in `.github/scripts/generate_quality_report.py:162`,
-`check_spec_failures.py:94`, and a comment in `agent-review/action.yml`, emitted
-on fail-verdict infrastructure paths whatever actually broke.
-
-The CLI is in fact probed, just not here and not as input to this message.
-`scripts/ci/install_copilot_cli.py:70` runs `copilot --no-auto-update
---version`, and `.github/actions/ai-review/action.yml:177` can run
-`diagnose_copilot_cli.py`. Neither result reaches the string above.
-
-On the measured incident the CLI installed and answered `--version` earlier in
-the same job. That proves it was present, not healthy; no reviewer call
-succeeded:
+Before issue #4777, three writers printed `Copilot CLI unavailable` for any
+infrastructure category. Run 31283819979 disproved that diagnosis:
 
 ```text
 Installing GitHub Copilot CLI@1.0.63...
 GitHub Copilot CLI 1.0.63.
-##[error]Failed to fetch PR diff for #4596 from rjmurillo/ai-agents: could not
-find pull request diff: HTTP 403: API rate limit exceeded for user ID 6811113
+Error: Authentication token found but could not be validated.
+Failed to fetch PAT user login (401): GitHub returned: Bad credentials
 ```
 
-The review action then failed fetching the PR diff. The enclosing agent job did
-not die: it saved results and concluded `success`. Read the first `##[error]`
-in a failing agent job; the trailing summary is a template, not a diagnosis.
+The binary was present. Authentication failed. Issue #4777 replaced the
+invented cause with cause-neutral diagnostics. Read the first `##[error]` in
+the agent job; the trailing summary is classification, not diagnosis.
 
-## Why the per-agent job says "Not blocking PR" while the PR is blocked
+## Why the per-agent job can succeed while the PR is blocked
 
 Two different decisions. Reading the first as final is the trap.
 `agent_review_check_verdict.py:44` derives an infra flag when both the verdict
-and the findings are empty. Line 55 prints "Not blocking PR." and line 60
-returns 0. That is the per-agent step declining to fail itself, nothing more.
-The verdict still travels to the aggregate, which decides the gate.
+and the findings are empty. The per-agent step returns 0 and defers PR status to
+`Aggregate Results`. The verdict artifact still travels to the aggregate, which
+decides the gate.
 
-`.github/scripts/aggregate_quality_verdicts.py` has three outcomes. Lines 106
-to 108 force `DID_NOT_RUN` when security is `INFRASTRUCTURE` and no agent is
-`CODE_QUALITY`; security alone is enough, and the other axes may all be `PASS`.
-Lines 109 to 111 downgrade to `WARN` when the remaining failures are
-infrastructure and security is not among them. Any real code-quality failure
-skips both and keeps the merged verdict.
+`.github/scripts/aggregate_quality_verdicts.py` preserves `DID_NOT_RUN` when
+security is `INFRASTRUCTURE` and every failure uses a recognized infrastructure
+token. Unknown or unrecognized tokens remain `UNKNOWN`. Non-security
+infrastructure-only failures may downgrade to `WARN`.
 
 `scripts/quality_gate/check_critical_failures.py:55` blocks on `DID_NOT_RUN`:
 
@@ -69,27 +49,18 @@ skips both and keeps the merged verdict.
 BLOCKING_VERDICTS = frozenset(FAIL_VERDICTS | {"UNKNOWN", "DID_NOT_RUN"})
 ```
 
-## The token decides the branch, and one combination blocks nothing
+## The token still decides the blocking reason
 
-`get_category` returns `INFRASTRUCTURE` only when the verdict is in
-`FAIL_VERDICTS` (`CRITICAL_FAIL`, `FAIL`, `NEEDS_REVIEW`, `NON_COMPLIANT`,
-`REJECTED`). `DID_NOT_RUN` and `UNKNOWN` are not members, so they categorize
-`N/A`. Two decisions read that category: the line 106 branch forcing
-`DID_NOT_RUN`, and the line 117 `security_review_ran` flag that prints the
-warning. `N/A` fools both.
+`get_category` classifies `FAIL_VERDICTS`, `UNKNOWN`, and `DID_NOT_RUN` as
+`INFRASTRUCTURE` when the infra flag is true. The aggregate then distinguishes
+recognized infrastructure tokens from malformed input.
 
 | security | other agent | security category | final | blocks | warning |
 | --- | --- | --- | --- | --- | --- |
 | `NEEDS_REVIEW` + infra | `PASS` | `INFRASTRUCTURE` | `DID_NOT_RUN` | yes | yes |
-| `DID_NOT_RUN` + infra | `PASS` | `N/A` | `UNKNOWN` | yes | no |
-| `DID_NOT_RUN` + infra | `NEEDS_REVIEW` + infra | `N/A` | `WARN` | **no** | **no** |
-
-Row 1 is the designed path and the only one the measured incidents exercised.
-Row 2 still blocks, but through `UNKNOWN` in `BLOCKING_VERDICTS` rather than any
-security rule, and prints no warning. Row 3 is a fail-open: security did not
-run, the gate passes, and the warning meant to make that visible is suppressed.
-Filed as issue #4654. So "an infra failure always blocks" is wrong: the
-security-specific logic keys off a category only some failure tokens receive.
+| `DID_NOT_RUN` + infra | `PASS` | `INFRASTRUCTURE` | `DID_NOT_RUN` | yes | yes |
+| `DID_NOT_RUN` + infra | `NEEDS_REVIEW` + infra | `INFRASTRUCTURE` | `DID_NOT_RUN` | yes | yes |
+| `DID_NOT_RUN` + infra | `UNKNOWN` + infra | `INFRASTRUCTURE` | `UNKNOWN` | yes | yes |
 
 The tokens come from different writers. `NEEDS_REVIEW` is the empty-verdict
 default at `agent_review_save_results.py:56-57`. `DID_NOT_RUN` is selected at
@@ -103,28 +74,21 @@ unreadable or invalid-UTF-8 artifact, and its workflow step carries no
 
 ## Chesterton's fence: three edits that look like fixes
 
-The asymmetry reads like an oversight. It is not.
 `check_critical_failures.py:22-24` records the reason: issue #1934 added `UNKNOWN`
 so a crashed or unparseable skill forces attention, and #2818 added
 `DID_NOT_RUN` so an infrastructure failure that skips the review cannot pass.
 Commit `426c1aa28` (#2846) made the behavior fail closed across gates and
-hooks. The fence is #2818's, not #2821's. `230bb7cfc` names both in one
-sentence, "preserve security review DID_NOT_RUN instead of downgrading it to
-WARN", which reads as joint ownership and is the trap: the commit closing #2821
-(`3c0b76429`) says "Merge semantics are unchanged". #2821 added only the
-annotation at `aggregate_quality_verdicts.py:120`. So widening the `WARN`
-downgrade reverts #2818, and a joint commit message does not say which issue
-owns which half.
+hooks. Issue #2821 added visibility without changing merge semantics.
 
-The remedy is the one the warning names: re-run the gate, or review security
-manually. Do not change the gate logic. The two edits below turn the gate green
-and remove the requirement that the security review happen. The warning still
-prints, because it is driven by the aggregate's own `security_review_ran`, which
-neither edit touches. So the PR merges green with the reason sitting unread in
-the log. Never apply them:
+Commit `46da25783` in PR #4619 reversed that policy on 2026-08-05 and made
+security infrastructure failures non-blocking `WARN`. Run 31283819979 then
+showed the cost: all ten reviewers failed authentication and the required gate
+passed. Issue #4777 restored the security block on 2026-08-08.
+
+Never apply these edits:
 
 - Removing `DID_NOT_RUN` from `BLOCKING_VERDICTS`.
-- Widening the line 109 `WARN` downgrade to cover security.
+- Widening the infrastructure `WARN` downgrade to cover security.
 
 A third edit is inert. Changing `_BLOCKING_VERDICTS` at
 `agent_review_check_verdict.py:28` does not move the final gate outcome here:
