@@ -115,6 +115,11 @@
         "level": "SHOULD",
         "Complete": false,
         "Evidence": "Recorded for the GOTCHAS.md documentation change on this branch."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-09-pr-4565-merge-unblock.md"
       }
     }
   },
@@ -142,5 +147,5 @@
   "nextSteps": [
     "Push branch, verify remote SHA, wait for checks, then merge when checks are green."
   ],
-  "endingCommit": "2fae696240ee823ebdd5b10b734729102bb2938b"
+  "endingCommit": "bd3a77659c6ebaaf02566f11199e2a1bb59b6f6f"
 }
