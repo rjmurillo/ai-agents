@@ -94,12 +94,17 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation committed in d3f1d244a0; this commit adds final session evidence."
+        "Evidence": "Implementation and recursive review fixes are committed through QA commit 788933dbc91428945da0a9827df4a18963dad472."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "68 focused tests passed. The full suite passed 24846 tests with 34 skips; its only ratchet failure passed after complexity remediation. Mypy, Ruff, merge-tree ratchets, and 50 pre-PR checks passed."
+        "Evidence": "395 focused and plain-script import tests passed at QA commit 788933dbc91428945da0a9827df4a18963dad472. The previous full pre-push suite passed 24775 tests with 34 skips and 50 deselections. Mypy, Ruff, merge-tree ratchets, and 50 pre-PR checks passed."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-09-pr-4775-ai-review-context-retry.md"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -155,7 +160,7 @@
       "outcome": "Applied the shared token-shape redactor with include_hex disabled before context files, GitHub outputs, artifact contexts, persisted prompts, and model argv. Final recursive DevOps and GPT-5.6 Sol reviews passed."
     }
   ],
-  "endingCommit": "d3f1d244a0",
+  "endingCommit": "788933dbc91428945da0a9827df4a18963dad472",
   "nextSteps": [
     "Commit, push, open one focused pull request, resolve review findings, merge, close issue 4547, then reassess PR 4721."
   ]
