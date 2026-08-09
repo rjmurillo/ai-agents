@@ -27,7 +27,7 @@ def run_timed_shim(
     """Run one timed shim in a child process so timeout can kill it."""
     try:
         completed = subprocess.run(
-            [sys.executable, str(shim_path)],
+            [sys.executable, "-I", str(shim_path)],
             input=raw_stdin,
             stdout=subprocess.PIPE if capture_stdout else None,
             stderr=subprocess.PIPE if capture_stderr else None,
