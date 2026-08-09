@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Three commits: the subprocess encoding fix (380d09b1d), the gotchas taste exemption plus the merge-race writeups (3d3660f23), and this log update recording the ending commit."
+        "Evidence": "The branch contains the original red-main repair commits plus merge commit 35f651c57 from origin/main."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "taste_count_ratchet.py reports OK (count == baseline 595); tests/ci/test_count_ratchet_against_real_git.py passes 12 of 12; check_subprocess_encoding.py is silent."
+        "Evidence": "PR description validation passed; memory index gates passed; build_all generation check completed; focused pytest collected 75 items and passed 75; pre-push python-tests passed 24,881 with 34 marked non-run items and 50 deselected by hook selector."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -110,6 +110,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "Red main was found while triaging two rejected pushes, not by a scheduled retro; the finding is written up in issue 4500."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-4521-red-main-gate-repair-test-report.md"
       }
     }
   },
@@ -178,8 +183,17 @@
       "filesChanged": [
         ".agents/retrospective/2026-08-03-red-main-gate-repair.md"
       ]
+    },
+    {
+      "step": 9,
+      "action": "Merged origin/main for the stale memory-index baseline and reran focused validation.",
+      "result": "PR description validation passed, memory index count and token ratchets passed, build_all generation check completed, and focused pytest passed 75 of 75. Pre-push reached 24,881 passed before the session validator required this QA evidence.",
+      "filesChanged": [
+        ".agents/sessions/2026-08-03-session-9014.json",
+        ".agents/qa/pr-4521-red-main-gate-repair-test-report.md"
+      ]
     }
   ],
-  "endingCommit": "3d3660f23",
+  "endingCommit": "35f651c578b458999c8768cd06c8dd5c99410ec4",
   "nextSteps": []
 }
