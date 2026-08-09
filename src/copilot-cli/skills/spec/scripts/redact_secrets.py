@@ -101,6 +101,12 @@ _CREDENTIAL_PREFIX = (
     rf"{_CREDENTIAL_KEY_QUOTE}\s*[:=]\s*"
 )
 _CREDENTIAL_ASSIGNMENT = re.compile(rf"(?i)({_CREDENTIAL_PREFIX})")
+_AUTHORIZATION_QUOTE = r"(?:\\?[\"'])?"
+_AUTHORIZATION_WRAPPER = re.compile(
+    rf"(?i)((?<![\w-]){_AUTHORIZATION_QUOTE}authorization"
+    rf"{_AUTHORIZATION_QUOTE}\s*:\s*{_AUTHORIZATION_QUOTE}"
+    r"(?:bearer|token|basic)\s+)([A-Za-z0-9._\-+/=~]+)"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,11 +161,7 @@ def redact_ci_sink(
             out = out.replace(secret, "***")
             reasons.extend(["environment-secret"] * count)
 
-    out, authorization_count = re.subn(
-        r"(?i)(authorization:\s*(?:bearer|token|basic)\s+)\S+",
-        r"\1***",
-        out,
-    )
+    out, authorization_count = _AUTHORIZATION_WRAPPER.subn(r"\1***", out)
     reasons.extend(["authorization-header"] * authorization_count)
     out, url_count = re.subn(
         r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^@\s]+@",

@@ -144,6 +144,38 @@ class TestCiSinkWrappers:
             assert f"{scheme}://******@example.com/path" == result.text
             assert "url-credential" in result.reasons
 
+    @pytest.mark.parametrize("scheme", ["Basic", "Token", "Bearer"])
+    @pytest.mark.parametrize(
+        ("prefix", "suffix"),
+        [
+            ('{"Authorization":"', '","timeout":30}'),
+            ('{\\"Authorization\\":\\"', '\\",\\"timeout\\":30}'),
+        ],
+    )
+    def test_structured_authorization_redacts_only_the_credential_scalar(
+        self,
+        scheme,
+        prefix,
+        suffix,
+    ):
+        credential = "opaque-credential-value"
+        value = f"{prefix}{scheme} {credential}{suffix}"
+
+        result = redact_ci_sink(value, redact_assignments=False)
+
+        assert credential not in result.text
+        assert f"{prefix}{scheme} ***{suffix}" == result.text
+        assert result.reasons == ("authorization-header",)
+
+    def test_compact_authorization_preserves_trailing_fields(self):
+        result = redact_ci_sink(
+            "Authorization: Token opaque-value,timeout=30",
+            redact_assignments=False,
+        )
+
+        assert result.text == "Authorization: Token ***,timeout=30"
+        assert result.reasons == ("authorization-header",)
+
     @pytest.mark.parametrize(
         "secrets",
         [
