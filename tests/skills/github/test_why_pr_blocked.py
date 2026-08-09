@@ -51,12 +51,14 @@ def _gql_pr(
     thread_nodes: list[dict] | None = None,
     context_page_info: dict | None = None,
     thread_page_info: dict | None = None,
+    base_branch: str = "main",
 ) -> dict:
     """Build a minimal GraphQL response for why_pr_blocked."""
     return {
         "repository": {
             "pullRequest": {
                 "number": 42,
+                "baseRefName": base_branch,
                 "mergeStateStatus": merge_state_status,
                 "commits": {
                     "nodes": [
@@ -149,6 +151,18 @@ class TestDiagnose:
         }
         result = diagnose(pr_data, ["Run Python Tests", "Validate PR", "PR Validation"])
         assert set(result["MissingRequired"]) == {"Validate PR", "PR Validation"}
+
+    def test_non_required_same_name_remains_missing(self):
+        pr_data = {
+            "MergeStateStatus": "BLOCKED",
+            "OverallState": "SUCCESS",
+            "CheckNodes": [
+                _check_run_node("Validate PR", "SUCCESS", required=False)
+            ],
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Validate PR"])
+        assert result["MissingRequired"] == ["Validate PR"]
 
     def test_failing_required_detected(self):
         pr_data = {
@@ -445,7 +459,7 @@ class TestBuildParser:
     def test_valid_args(self):
         args = build_parser().parse_args(["--pull-request", "42"])
         assert args.pull_request == 42
-        assert args.base_branch == "main"
+        assert args.base_branch is None
 
     def test_custom_base_branch(self):
         args = build_parser().parse_args([
@@ -580,6 +594,45 @@ class TestMain:
         assert rc == 1
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["UnresolvedThreads"] == 2
+
+    def test_dirty_merge_state_exits_1(self, capsys):
+        gql = _gql_pr(
+            merge_state_status="DIRTY",
+            overall_state="SUCCESS",
+            check_nodes=[_check_run_node("Validate PR", "SUCCESS")],
+        )
+        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
+            "why_pr_blocked.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
+            "why_pr_blocked.fetch_ruleset_required_contexts",
+            return_value=["Validate PR"],
+        ):
+            rc = main(["--pull-request", "42", "--output-format", "json"])
+
+        assert rc == 1
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["HasBlocker"] is True
+        assert data["MergeStateStatus"] == "DIRTY"
+
+    def test_uses_pr_base_branch_by_default(self, capsys):
+        gql = _gql_pr(
+            base_branch="release/1.0",
+            overall_state="SUCCESS",
+            check_nodes=[_check_run_node("Release Validation", "SUCCESS")],
+        )
+        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
+            "why_pr_blocked.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
+            "why_pr_blocked.fetch_ruleset_required_contexts",
+            return_value=["Release Validation"],
+        ) as mock_fetch:
+            rc = main(["--pull-request", "42", "--output-format", "json"])
+
+        assert rc == 0
+        mock_fetch.assert_called_once_with("o", "r", "release/1.0")
+        assert json.loads(capsys.readouterr().out)["Data"]["BaseBranch"] == "release/1.0"
 
     def test_pr_not_found_exits_2(self, capsys):
         gql = {"repository": {"pullRequest": None}}

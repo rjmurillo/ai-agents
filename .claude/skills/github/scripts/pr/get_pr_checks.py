@@ -69,6 +69,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
     repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
             number
+            baseRefName
             mergeable
             mergeStateStatus
             commits(last: 1) {
@@ -438,6 +439,7 @@ def fetch_checks(
     if not commits:
         return {
             "Number": pr.get("number"),
+            "BaseBranch": pr.get("baseRefName"),
             "MergeState": merge_state,
             "MergeStateStatus": merge_state_status,
             "Checks": [],
@@ -451,6 +453,7 @@ def fetch_checks(
     if not rollup:
         return {
             "Number": pr.get("number"),
+            "BaseBranch": pr.get("baseRefName"),
             "MergeState": merge_state,
             "MergeStateStatus": merge_state_status,
             "Checks": [],
@@ -486,6 +489,7 @@ def fetch_checks(
 
     return {
         "Number": pr.get("number"),
+        "BaseBranch": pr.get("baseRefName"),
         "MergeState": merge_state,
         "MergeStateStatus": merge_state_status,
         "Checks": checks,
@@ -601,7 +605,11 @@ def build_output(
     # Issue #4359: required checks that never triggered any run are invisible
     # to isRequired-based logic. Cross-reference against the branch ruleset to
     # surface them as a distinct MISSING state.
-    reported_names = {c.get("Name", "") for c in checks}
+    reported_names = {
+        c.get("Name", "")
+        for c in checks
+        if c.get("IsRequired")
+    }
     missing_required: list[str] | None
     if ruleset_contexts is not None:
         missing_required = find_missing_required(ruleset_contexts, reported_names)
@@ -614,6 +622,7 @@ def build_output(
         "Number": check_data.get("Number"),
         "Owner": owner,
         "Repo": repo,
+        "BaseBranch": check_data.get("BaseBranch"),
         "OverallState": check_data.get("OverallState", "UNKNOWN"),
         "MergeState": merge_state,
         "MergeStateStatus": merge_state_status,
@@ -679,9 +688,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Filter output to required checks only",
     )
     parser.add_argument(
-        "--base-branch", default="main",
+        "--base-branch", default=None,
         help="Base branch to read the ruleset from for missing-check detection "
-             "(default: main). Pass empty string to skip ruleset fetch.",
+             "(default: PR base branch). Pass empty string to skip ruleset fetch.",
     )
     add_output_format_arg(parser)
     return parser
@@ -775,11 +784,18 @@ def main(argv: list[str] | None = None) -> int:
 
     fmt = get_output_format(args.output_format)
 
-    # Issue #4359: fetch the branch ruleset once, before polling, so the
-    # missing-check cross-reference uses a stable snapshot. Returns None if
-    # the fetch fails or --base-branch was passed empty; callers treat None
-    # as "unknown" rather than "nothing required".
-    base_branch = args.base_branch.strip() if args.base_branch else ""
+    check_data = fetch_checks(owner, repo, args.pull_request)
+    rc = _handle_fetch_error(check_data, args.pull_request, fmt)
+    if rc is not None:
+        return rc
+
+    # Issue #4359: fetch the target branch ruleset once, before polling, so
+    # missing-check detection uses a stable and relevant snapshot.
+    base_branch = (
+        args.base_branch.strip()
+        if args.base_branch is not None
+        else str(check_data.get("BaseBranch") or "")
+    )
     ruleset_contexts: list[str] | None = None
     if base_branch:
         ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
@@ -802,11 +818,6 @@ def main(argv: list[str] | None = None) -> int:
 
     while True:
         iteration += 1
-        check_data = fetch_checks(owner, repo, args.pull_request)
-
-        rc = _handle_fetch_error(check_data, args.pull_request, fmt)
-        if rc is not None:
-            return rc
 
         output = build_output(
             check_data, owner, repo, args.required_only, ruleset_contexts
@@ -838,6 +849,10 @@ def main(argv: list[str] | None = None) -> int:
             break
 
         time.sleep(10)
+        check_data = fetch_checks(owner, repo, args.pull_request)
+        rc = _handle_fetch_error(check_data, args.pull_request, fmt)
+        if rc is not None:
+            return rc
 
     output["ChecksIncomplete"] = checks_incomplete
     timed_out_pending = not settled and output["PendingCount"] > 0

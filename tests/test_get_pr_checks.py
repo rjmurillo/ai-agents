@@ -100,6 +100,7 @@ def _rollup_response(
     total_count=None,
     mergeable="MERGEABLE",
     merge_state_status="CLEAN",
+    base_branch="main",
 ):
     contexts = {
         "nodes": nodes,
@@ -112,6 +113,7 @@ def _rollup_response(
         "repository": {
             "pullRequest": {
                 "number": number,
+                "baseRefName": base_branch,
                 "mergeable": mergeable,
                 "mergeStateStatus": merge_state_status,
                 "commits": {
@@ -1984,6 +1986,57 @@ class TestMissingRequired:
         data = output["Data"]
         assert rc == 0
         assert data["MissingRequiredChecks"] == []
+
+    def test_non_required_same_name_does_not_satisfy_ruleset(self, capsys):
+        rollup = _rollup_response(
+            [_check_run_node(
+                "Validate PR",
+                "COMPLETED",
+                "SUCCESS",
+                required=False,
+            )],
+            state="SUCCESS",
+        )
+        with patch("get_pr_checks.assert_gh_authenticated"), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql", return_value=rollup
+        ), patch(
+            "get_pr_checks.fetch_ruleset_required_contexts",
+            return_value=["Validate PR"],
+        ):
+            rc = main(["--pull-request", "4009", "--output-format", "json"])
+
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert rc == 1
+        assert data["MissingRequiredChecks"] == ["Validate PR"]
+
+    def test_uses_pr_base_branch_by_default(self, capsys):
+        rollup = _rollup_response(
+            [_check_run_node(
+                "Release Validation",
+                "COMPLETED",
+                "SUCCESS",
+                required=True,
+            )],
+            state="SUCCESS",
+            base_branch="release/1.0",
+        )
+        with patch("get_pr_checks.assert_gh_authenticated"), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql", return_value=rollup
+        ), patch(
+            "get_pr_checks.fetch_ruleset_required_contexts",
+            return_value=["Release Validation"],
+        ) as mock_fetch:
+            rc = main(["--pull-request", "4009", "--output-format", "json"])
+
+        assert rc == 0
+        mock_fetch.assert_called_once_with("o", "r", "release/1.0")
+        assert json.loads(capsys.readouterr().out)["Data"]["BaseBranch"] == "release/1.0"
 
     def test_base_branch_empty_skips_ruleset_fetch(self, capsys):
         """Passing --base-branch '' skips ruleset fetch entirely."""

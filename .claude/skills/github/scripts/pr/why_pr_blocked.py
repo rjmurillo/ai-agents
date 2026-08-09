@@ -65,6 +65,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
     repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
             number
+            baseRefName
             mergeStateStatus
             commits(last: 1) {
                 nodes {
@@ -438,6 +439,7 @@ def fetch_pr_data(owner: str, repo: str, pr_number: int) -> dict:
     thread_nodes.extend(extra_threads)
 
     return {
+        "BaseBranch": pr.get("baseRefName"),
         "MergeStateStatus": pr.get("mergeStateStatus"),
         "OverallState": overall_state,
         "CheckNodes": rollup_nodes,
@@ -480,7 +482,7 @@ def diagnose(
         name for name, state in states_by_name.items() if state == "unknown"
     )
 
-    reported_names = {_check_name(n) for n in nodes}
+    reported_names = required_names
     missing_required: list[str] = []
     if ruleset_contexts is not None:
         missing_required = find_missing_required(ruleset_contexts, reported_names)
@@ -497,6 +499,7 @@ def diagnose(
         "PendingRequired": pending_required,
         "IndeterminateRequired": indeterminate_required,
         "UnresolvedThreads": unresolved_count,
+        "BaseBranch": pr_data.get("BaseBranch"),
         "OverallState": pr_data.get("OverallState", "UNKNOWN"),
         "MergeStateStatus": pr_data.get("MergeStateStatus"),
         "RulesetContextsAvailable": ruleset_contexts is not None,
@@ -514,8 +517,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="PR number",
     )
     parser.add_argument(
-        "--base-branch", default="main",
-        help="Base branch to read the ruleset from (default: main). "
+        "--base-branch", default=None,
+        help="Base branch to read the ruleset from (default: PR base branch). "
              "Pass empty string to skip ruleset fetch.",
     )
     add_output_format_arg(parser)
@@ -531,11 +534,6 @@ def main(argv: list[str] | None = None) -> int:
     repo = resolved.repo
 
     fmt = get_output_format(args.output_format)
-
-    base_branch = args.base_branch.strip() if args.base_branch else ""
-    ruleset_contexts: list[str] | None = None
-    if base_branch:
-        ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
 
     pr_data = fetch_pr_data(owner, repo, args.pull_request)
 
@@ -561,6 +559,15 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 3
 
+    base_branch = (
+        args.base_branch.strip()
+        if args.base_branch is not None
+        else str(pr_data.get("BaseBranch") or "")
+    )
+    ruleset_contexts: list[str] | None = None
+    if base_branch:
+        ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
+
     if base_branch and ruleset_contexts is None:
         write_skill_error(
             f"Failed to read required checks for base branch {base_branch!r}",
@@ -580,7 +587,13 @@ def main(argv: list[str] | None = None) -> int:
     indeterminate = result["IndeterminateRequired"]
     unresolved = result["UnresolvedThreads"]
 
-    has_hard_blocker = bool(missing or failing or indeterminate or unresolved)
+    has_hard_blocker = bool(
+        missing
+        or failing
+        or indeterminate
+        or unresolved
+        or result["MergeStateStatus"] == "DIRTY"
+    )
     has_blocker = has_hard_blocker or bool(pending)
     number = args.pull_request
 
@@ -604,6 +617,8 @@ def main(argv: list[str] | None = None) -> int:
             parts.append(f"{len(indeterminate)} indeterminate required check(s)")
         if unresolved:
             parts.append(f"{unresolved} unresolved review thread(s)")
+        if result["MergeStateStatus"] == "DIRTY":
+            parts.append("merge conflicts")
         summary = f"PR #{number} blocked: {', '.join(parts)}"
         status = "FAIL"
 
@@ -611,6 +626,7 @@ def main(argv: list[str] | None = None) -> int:
         "Number": number,
         "Owner": owner,
         "Repo": repo,
+        "BaseBranch": result["BaseBranch"],
         "MergeStateStatus": result["MergeStateStatus"],
         "OverallState": result["OverallState"],
         "MissingRequired": missing,
