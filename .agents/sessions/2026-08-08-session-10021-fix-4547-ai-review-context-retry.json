@@ -94,12 +94,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Implementation, documentation, and recursive review fixes are present in validated tree commit d270a70d807f6279bb3cd0be7fd84c7905ce4082."
+        "Evidence": "Implementation and recursive review fixes are present in validated code commit b21b0cf4941bd4d353da520c9d52f0e3604dadbd."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "At validated tree commit d270a70d807f6279bb3cd0be7fd84c7905ce4082, 255 focused context, redactor, and parity tests passed. The complete Python suite passed 25,213 tests with 36 skipped. Real REST diff transport returned a 155,148-byte patch with headers removed before parsing. Ruff, mypy, independent DevOps review, and recursive GPT-5.6 Sol review passed."
+        "Evidence": "At validated code commit b21b0cf4941bd4d353da520c9d52f0e3604dadbd, 167 final redactor and parity tests passed. The complete Python suite passed 25,216 tests with 36 skipped. Real REST diff transport returned a 155,148-byte patch with headers removed before parsing. Ruff, mypy, independent DevOps review, and recursive GPT-5.6 Sol review passed."
       },
       "qaValidation": {
         "level": "MUST",
@@ -186,9 +186,17 @@
     {
       "action": "Completed final full validation",
       "outcome": "The complete Python suite passed 25,213 tests with 36 skipped in 722.73 seconds."
+    },
+    {
+      "action": "Resolved Authorization assignment review findings",
+      "outcome": "Authorization wrappers now accept colon and equals syntax. Basic, Token, and Bearer values redact completely while preserving trailing fields. Final recursive Sol and independent DevOps reviews passed."
+    },
+    {
+      "action": "Repeated final full validation",
+      "outcome": "The complete Python suite passed 25,216 tests with 36 skipped in 725.88 seconds."
     }
   ],
-  "endingCommit": "d270a70d807f6279bb3cd0be7fd84c7905ce4082",
+  "endingCommit": "b21b0cf4941bd4d353da520c9d52f0e3604dadbd",
   "nextSteps": [
     "Push PR 4775, resolve remaining review threads, verify a real security verdict, merge, close issue 4547, then reassess PR 4721."
   ]

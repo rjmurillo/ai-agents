@@ -52,7 +52,7 @@ receive separate pattern-based redaction.
 | Context, redactor, and parity tests | [PASS], 255 tests |
 | Focused invocation tests | [PASS], 22 tests |
 | Focused artifact-context tests | [PASS], 9 tests |
-| Full Python suite | [PASS], 25,213 passed and 36 skipped |
+| Full Python suite | [PASS], 25,216 passed and 36 skipped |
 | Count ratchet regression | [PASS], 12 tests |
 | Mypy changed files | [PASS] |
 | Merge-tree ratchets | [PASS] |

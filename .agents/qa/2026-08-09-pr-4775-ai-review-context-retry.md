@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10021-fix-4547-ai-review-context-retry.json
-qaCommit: d270a70d807f6279bb3cd0be7fd84c7905ce4082
+qaCommit: b21b0cf4941bd4d353da520c9d52f0e3604dadbd
 ---
 
 # QA Report: PR #4775 AI Review Context Retry
@@ -13,12 +13,13 @@ authentication rejection, infrastructure classification, deadline enforcement,
 collision-safe outputs, stale-verdict prevention, credential redaction
 across context, model, and artifact sinks, separator backtracking defense, and token-only URL userinfo redaction.
 Full PR diffs now use the REST diff media type so real rate-limit response headers reach retry classification.
+Authorization wrappers support both colon and assignment syntax.
 
 ## Results
 
 | Gate | Result |
 |------|--------|
-| Context builder, redactor, and parity tests | [PASS], 255 tests |
+| Final redactor and parity tests | [PASS], 167 tests |
 | Copilot invoker tests | [PASS], 18 tests |
 | Artifact context tests | [PASS], 9 tests |
 | Shared redactor tests | [PASS], 158 tests |
@@ -28,7 +29,7 @@ Full PR diffs now use the REST diff media type so real rate-limit response heade
 | Separator backtracking negative control | [PASS], pre-fix failed and post-fix passed |
 | URL userinfo negative control | [PASS], pre-fix failed and post-fix passed |
 | False-positive redaction guards | [PASS], 3 tests |
-| Complete Python suite | [PASS], 25,213 passed and 36 skipped |
+| Complete Python suite | [PASS], 25,216 passed and 36 skipped |
 | ADR-006 run-block ratchet | [PASS], 0 violations |
 | Ruff | [PASS] |
 | Changed-file mypy | [PASS] |
@@ -65,6 +66,8 @@ Delivered: Three bounded context attempts; Retry-After and X-RateLimit-Reset;
            as `url-credential`, while URLs without userinfo pass through unchanged.
            Unicode-escaped Authorization keys and wrappers redact at arbitrary
            JSON serialization depth without changing source assignments.
+           Authorization assignment forms redact the complete Basic, Token,
+           or Bearer credential while preserving trailing structured fields.
 Gap: None.
 Result: PASS
 ```
