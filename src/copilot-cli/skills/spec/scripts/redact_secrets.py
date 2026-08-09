@@ -100,22 +100,7 @@ _CREDENTIAL_PREFIX = (
     rf"(?<![\w-]){_CREDENTIAL_KEY_QUOTE}{_CREDENTIAL_KEY}"
     rf"{_CREDENTIAL_KEY_QUOTE}\s*[:=]\s*"
 )
-_CREDENTIAL_VALUE = (
-    r"(?:"
-    r'"(?:\\.|[^"\\\r\n]|"(?![\s,;}\]\r\n]))*(?:"(?=[\s,;}\]\r\n]|$)|(?=$|[\r\n]))'
-    r"|"
-    r"'(?:\\.|[^'\\\r\n]|'(?![\s,;}\]\r\n]))*(?:'(?=[\s,;}\]\r\n]|$)|(?=$|[\r\n]))"
-    r"|"
-    r'\\"(?:(?!\\"[\s,;}\]\r\n])[^\r\n])*(?:\\"(?=[\s,;}\]\r\n]|$)|(?=$|[\r\n]))'
-    r"|"
-    r"\\'(?:(?!\\'[\s,;}\]\r\n])[^\r\n])*(?:\\'(?=[\s,;}\]\r\n]|$)|(?=$|[\r\n]))"
-    r"|"
-    r"\[redacted: [^\]]+\]"
-    r"|"
-    r"[^\s,;}\]]+"
-    r")"
-)
-_CREDENTIAL_ASSIGNMENT = re.compile(rf"(?i)({_CREDENTIAL_PREFIX})({_CREDENTIAL_VALUE})")
+_CREDENTIAL_ASSIGNMENT = re.compile(rf"(?i)({_CREDENTIAL_PREFIX})")
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,47 +160,92 @@ def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> Redaction
     out = shaped.text
     reasons.extend(shaped.reasons)
 
-    def _redact_assignment(match: re.Match[str]) -> str:
-        value = match.group(2)
+    def _is_value_boundary(position: int) -> bool:
+        if position >= len(out):
+            return True
+        return out[position].isspace() or out[position] in ",;}]"
+
+    def _line_end(position: int) -> int:
+        newline_positions = [
+            candidate
+            for candidate in (out.find("\n", position), out.find("\r", position))
+            if candidate >= 0
+        ]
+        return min(newline_positions) if newline_positions else len(out)
+
+    def _preceding_backslash_count(position: int) -> int:
+        count = 0
+        cursor = position - 1
+        while cursor >= 0 and out[cursor] == "\\":
+            count += 1
+            cursor -= 1
+        return count
+
+    def _quoted_value_end(start: int, quote: str) -> int:
+        position = start + len(quote)
+        while position < len(out):
+            closing = out.find(quote, position)
+            if closing < 0:
+                return _line_end(start)
+            if len(quote) == 1 and _preceding_backslash_count(closing) % 2:
+                position = closing + len(quote)
+                continue
+            tail_start = closing + len(quote)
+            if _is_value_boundary(tail_start):
+                return tail_start
+            position = tail_start
+        return len(out)
+
+    def _value_end(start: int) -> int:
+        if out.startswith("[redacted:", start):
+            closing = out.find("]", start)
+            if closing >= 0:
+                return closing + 1
+        for quote in ('\\"', "\\'", '"', "'"):
+            if out.startswith(quote, start):
+                return _quoted_value_end(start, quote)
+        position = start
+        while not _is_value_boundary(position):
+            position += 1
+        return position
+
+    def _redacted_assignment(prefix: str, value: str) -> str | None:
         stripped = value.strip()
-        if re.fullmatch(r"\[redacted: [^\]]+\]", stripped):
-            return match.group(0)
+        if not stripped or re.fullmatch(r"\[redacted: [^\]]+\]", stripped):
+            return None
         leading_length = len(value) - len(value.lstrip())
         leading = value[:leading_length]
         scalar = value[leading_length:]
-
         quote = ""
         if scalar.startswith(('\\"', "\\'")):
             quote = scalar[:2]
         elif scalar.startswith(('"', "'")):
             quote = scalar[:1]
-
         if quote:
-            position = len(quote)
-            while position < len(scalar):
-                closing = scalar.find(quote, position)
-                if closing < 0:
-                    return f"{match.group(1)}{leading}{quote}***"
-                preceding_backslashes = 0
-                cursor = closing - 1
-                while cursor >= 0 and scalar[cursor] == "\\":
-                    preceding_backslashes += 1
-                    cursor -= 1
-                tail = scalar[closing + len(quote) :]
-                is_unescaped_raw_quote = len(quote) == 2 or preceding_backslashes % 2 == 0
-                has_scalar_boundary = not tail or bool(re.match(r"[\s,;}\]]", tail))
-                if is_unescaped_raw_quote and has_scalar_boundary:
-                    break
-                position = closing + len(quote)
-            else:
-                return f"{match.group(1)}{leading}{quote}***"
-            return f"{match.group(1)}{leading}{quote}***{quote}{tail}"
+            closing = scalar.endswith(quote) and len(scalar) > len(quote)
+            return f"{prefix}{leading}{quote}***{quote if closing else ''}"
+        return f"{prefix}{leading}***"
 
-        boundary = re.search(r"[\s,;}\]]", scalar)
-        tail = scalar[boundary.start() :] if boundary else ""
-        return f"{match.group(1)}{leading}***{tail}"
+    redacted_parts: list[str] = []
+    cursor = 0
+    assignment_count = 0
+    while True:
+        match = _CREDENTIAL_ASSIGNMENT.search(out, cursor)
+        if match is None:
+            redacted_parts.append(out[cursor:])
+            break
+        value_start = match.end()
+        value_end = _value_end(value_start)
+        replacement = _redacted_assignment(match.group(1), out[value_start:value_end])
+        redacted_parts.append(out[cursor:match.start()])
+        if replacement is None:
+            redacted_parts.append(out[match.start():value_end])
+        else:
+            redacted_parts.append(replacement)
+            assignment_count += 1
+        cursor = value_end
 
-    out, assignment_count = _CREDENTIAL_ASSIGNMENT.subn(_redact_assignment, out)
+    out = "".join(redacted_parts)
     reasons.extend(["credential-assignment"] * assignment_count)
 
     return RedactionResult(
