@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # taste-lint: ignore file-size -- always-on unit tests and opt-in e2e smokes must
 # coexist in one file (same plugin contract, one source of truth per issue #3148).
-"""End-to-end plugin-load smoke for the shipped CLI plugins (issue #2736).
+"""End-to-end plugin and agent-contract smoke for the shipped CLIs.
 
 PR #2735 was green on unit tests, schema checks, and generated-file checks, yet a
 broken skill front-matter field (``argument-hint must be a string``) could still
@@ -23,6 +23,10 @@ the shipped plugin directory, and assert the plugin loads.
     ``plugin details project-toolkit`` with ``cwd`` set to a neutral directory.
     Assert returncode 0, the manifest name appears, and the expected lifecycle
     skills are present in the details output.
+  - Analyst contract (issue #3918): load the project analyst in each real CLI
+    and assert its exact reviewed read-only tool set. Each probe also loads an
+    execution agent that must expose shell and edit tools, so the test cannot
+    pass when the CLI stops reporting tool availability.
 
 Why version-agnostic (issue #3148): earlier the smoke keyed the benign path on a
 per-version allowlist (``_COPILOT_BENIGN_NO_ENUM_VERSIONS``) plus a "zero
@@ -104,6 +108,43 @@ EXPECTED_SKILLS = frozenset({"build", "plan", "ship", "test", "review", "spec", 
 _COPILOT_PLUGIN_DIR = REPO_ROOT / "src" / "copilot-cli"
 _CLAUDE_PLUGIN_DIR = REPO_ROOT / ".claude"
 _CLAUDE_MANIFEST = _CLAUDE_PLUGIN_DIR / ".claude-plugin" / "plugin.json"
+_CLAUDE_ANALYST_TOOLS = frozenset(
+    {
+        "Glob",
+        "Grep",
+        "Read",
+        "mcp__context7__get_library_docs",
+        "mcp__context7__resolve_library_id",
+        "mcp__deepwiki__read_wiki_contents",
+        "mcp__deepwiki__read_wiki_structure",
+        "mcp__serena__find_declaration",
+        "mcp__serena__find_implementations",
+        "mcp__serena__find_referencing_symbols",
+        "mcp__serena__find_symbol",
+        "mcp__serena__get_diagnostics_for_file",
+        "mcp__serena__get_symbols_overview",
+        "mcp__serena__initial_instructions",
+        "mcp__serena__list_memories",
+        "mcp__serena__read_memory",
+    }
+)
+_COPILOT_ANALYST_TOOLS = frozenset(
+    {
+        "cognitionai/deepwiki/*",
+        "context7/*",
+        "read",
+        "search",
+        "serena/find_declaration",
+        "serena/find_implementations",
+        "serena/find_referencing_symbols",
+        "serena/find_symbol",
+        "serena/get_diagnostics_for_file",
+        "serena/get_symbols_overview",
+        "serena/initial_instructions",
+        "serena/list_memories",
+        "serena/read_memory",
+    }
+)
 
 # The skill-loader warning class issue #2736 must catch before merge. Copilot
 # CLI emits this on stderr when a skill's front matter has a non-string
@@ -153,6 +194,139 @@ def _run_cli(
         check=False,
         env=_clean_env(),
     )
+
+
+def _json_events(run: subprocess.CompletedProcess[str]) -> list[dict[str, object]]:
+    events: list[dict[str, object]] = []
+    for line in run.stdout.splitlines():
+        if not line.strip():
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            pytest.fail(f"CLI emitted non-JSON event: {exc}. line={line[-600:]!r}")
+        assert isinstance(event, dict), f"CLI event must be an object: {event!r}"
+        events.append(event)
+    return events
+
+
+def _claude_init_tools(agent: str) -> set[str]:
+    run = _run_cli(
+        [
+            resolve_executable("claude"),
+            "-p",
+            "--agent",
+            agent,
+            "--setting-sources",
+            "project",
+            "--strict-mcp-config",
+            "--mcp-config",
+            '{"mcpServers":{}}',
+            "--allowedTools",
+            "Bash",
+            "--permission-mode",
+            "dontAsk",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "Reply exactly READY.",
+        ],
+        cwd=REPO_ROOT,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    assert run.returncode == 0, (
+        f"claude agent probe failed for {agent} (rc={run.returncode}). "
+        f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
+    )
+    init_events = [
+        event
+        for event in _json_events(run)
+        if event.get("type") == "system" and event.get("subtype") == "init"
+    ]
+    assert len(init_events) == 1, f"expected one Claude init event, got {init_events!r}"
+    tools = init_events[0].get("tools")
+    assert isinstance(tools, list) and all(isinstance(tool, str) for tool in tools)
+    return set(tools)
+
+
+def _copilot_project_agent_tools(events: list[dict[str, object]], agent: str) -> set[str]:
+    for event in events:
+        if event.get("type") != "session.custom_agents_updated":
+            continue
+        data = event.get("data")
+        if not isinstance(data, dict):
+            continue
+        agents = data.get("agents")
+        if not isinstance(agents, list):
+            continue
+        for record in agents:
+            if not isinstance(record, dict):
+                continue
+            if record.get("id") != agent or record.get("source") != "project":
+                continue
+            tools = record.get("tools")
+            assert isinstance(tools, list) and all(isinstance(tool, str) for tool in tools)
+            return set(tools)
+    pytest.fail(f"Copilot did not report project agent {agent!r}")
+
+
+def _run_copilot_agent(agent: str, prompt: str) -> list[dict[str, object]]:
+    run = _run_cli(
+        copilot_command(
+            "--agent",
+            agent,
+            "--no-ask-user",
+            "--allow-all-tools",
+            "--output-format",
+            "json",
+            "--prompt",
+            prompt,
+        ),
+        cwd=REPO_ROOT,
+        timeout=_CLI_TIMEOUT_SECONDS,
+    )
+    _skip_on_copilot_block(run)
+    assert run.returncode == 0, (
+        f"copilot agent probe failed for {agent} (rc={run.returncode}). "
+        f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
+    )
+    return _json_events(run)
+
+
+def _copilot_tool_names(events: list[dict[str, object]]) -> list[str]:
+    names: list[str] = []
+    for event in events:
+        if event.get("type") != "tool.execution_start":
+            continue
+        data = event.get("data")
+        if isinstance(data, dict) and isinstance(data.get("toolName"), str):
+            names.append(data["toolName"])
+    return names
+
+
+def _copilot_assistant_text(events: list[dict[str, object]]) -> str:
+    messages: list[str] = []
+    for event in events:
+        if event.get("type") != "assistant.message":
+            continue
+        data = event.get("data")
+        if isinstance(data, dict) and isinstance(data.get("content"), str):
+            messages.append(data["content"])
+    return "\n".join(messages)
+
+
+def _copilot_tool_result_text(events: list[dict[str, object]]) -> str:
+    results: list[str] = []
+    for event in events:
+        if event.get("type") != "tool.execution_complete":
+            continue
+        data = event.get("data")
+        if not isinstance(data, dict):
+            continue
+        result = data.get("result")
+        if isinstance(result, dict) and isinstance(result.get("content"), str):
+            results.append(result["content"])
+    return "\n".join(results)
 
 
 def _is_from_plugin_dir(record: dict[str, object], plugin_dir: Path | None) -> bool:
@@ -454,6 +628,75 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
         f"claude did not report expected plugin skills: missing={sorted(missing)}. "
         f"stdout={details.stdout[-600:]!r} stderr={details.stderr[-600:]!r}"
     )
+
+
+@pytest.mark.smoke
+@requires_claude
+def test_claude_analyst_runtime_uses_exact_allowlist_with_executor_control() -> None:
+    """Claude loads only reviewed analyst tools while implementer exposes writes."""
+    analyst_tools = _claude_init_tools("analyst")
+    implementer_tools = _claude_init_tools("implementer")
+
+    assert {"Glob", "Grep", "Read"} <= analyst_tools
+    assert not analyst_tools - _CLAUDE_ANALYST_TOOLS, (
+        f"Claude exposed unreviewed analyst tools: "
+        f"{sorted(analyst_tools - _CLAUDE_ANALYST_TOOLS)}"
+    )
+    assert {"Bash", "Edit", "Write"} <= implementer_tools, (
+        "negative control failed: Claude did not report execution and write tools "
+        "for implementer, so the analyst allowlist cannot prove inheritance is restricted"
+    )
+
+
+@pytest.mark.smoke
+@requires_copilot
+def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() -> None:
+    """Copilot resolves only reviewed analyst tools, with an execution control."""
+    analyst_shell_events = _run_copilot_agent(
+        "analyst",
+        (
+            "Use the shell tool to execute exactly: printf COPILOT_SHELL_CONTROL. "
+            "Do not use a substitute. If unavailable reply exactly SHELL_UNAVAILABLE."
+        ),
+    )
+    analyst_github_events = _run_copilot_agent(
+        "analyst",
+        (
+            "Use github/issue_read to read issue 3918 in rjmurillo/ai-agents. "
+            "Do not use a substitute. If unavailable reply exactly GITHUB_UNAVAILABLE."
+        ),
+    )
+    implementer_events = _run_copilot_agent(
+        "implementer",
+        (
+            "Use the shell tool to execute exactly: printf COPILOT_SHELL_CONTROL. "
+            "Do not use a substitute. Then reply exactly READY."
+        ),
+    )
+    analyst_tools = {
+        tool.casefold()
+        for tool in _copilot_project_agent_tools(analyst_shell_events, "analyst")
+    }
+    implementer_tools = {
+        tool.casefold()
+        for tool in _copilot_project_agent_tools(implementer_events, "implementer")
+    }
+
+    assert analyst_tools == _COPILOT_ANALYST_TOOLS
+    assert {"edit", "shell"} <= implementer_tools, (
+        "negative control failed: Copilot did not report execution and write tools "
+        "for implementer, so the analyst allowlist cannot prove its manifest was loaded"
+    )
+    assert not {"bash", "shell", "execute"} & set(_copilot_tool_names(analyst_shell_events))
+    assert "SHELL_UNAVAILABLE" in _copilot_assistant_text(analyst_shell_events)
+    assert not any(
+        "github" in tool.casefold() for tool in _copilot_tool_names(analyst_github_events)
+    )
+    assert "GITHUB_UNAVAILABLE" in _copilot_assistant_text(analyst_github_events)
+    assert "bash" in _copilot_tool_names(implementer_events), (
+        "negative control failed: implementer did not execute the shell command"
+    )
+    assert "COPILOT_SHELL_CONTROL" in _copilot_tool_result_text(implementer_events)
 
 
 # Always-on unit checks. They need no real CLI, so they run in bare CI and pin
