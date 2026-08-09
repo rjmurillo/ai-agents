@@ -1,4 +1,5 @@
 """Tests for scripts/redact_secrets.py (issue #1975, CWE-209/CWE-532)."""
+# ruff: noqa: E501 - synthetic credential fixtures must remain literal.
 
 from __future__ import annotations
 
@@ -9,7 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from redact_secrets import main, redact  # noqa: E402
+from redact_secrets import main, redact, redact_ci_sink  # noqa: E402
 
 
 class TestTokenShapesRedacted:
@@ -87,7 +88,9 @@ class TestRealisticHaltBlockEvidence:
     def test_issue_example(self):
         # The exact shape from the issue: "Alice@corp on prod-east-12.internal
         # blocked on Bearer abc..."
-        evidence = "Alice@corp.example.com on prod-east-12.internal blocked on Bearer abc123def456ghi789"
+        evidence = (
+            "Alice@corp.example.com on prod-east-12.internal blocked on Bearer abc123def456ghi789"
+        )
         r = redact(evidence)
         assert "Alice@corp.example.com" not in r.text
         assert "abc123def456ghi789" not in r.text
@@ -97,7 +100,9 @@ class TestRealisticHaltBlockEvidence:
 
 class TestNoFalsePositives:
     def test_plain_prose_untouched(self):
-        text = "The system shall send a reset email within 5 seconds so that the user is not blocked."
+        text = (
+            "The system shall send a reset email within 5 seconds so that the user is not blocked."
+        )
         r = redact(text)
         assert r.text == text
         assert not r.redacted
@@ -118,6 +123,50 @@ class TestHexCaveat:
     def test_include_hex_false_still_redacts_tokens(self):
         r = redact("Bearer abc123def456ghi", include_hex=False)
         assert "[redacted: bearer-token]" in r.text
+
+
+class TestCiSinkWrappers:
+    def test_url_userinfo_redaction_is_scheme_and_case_independent(self):
+        for scheme in ("http", "HTTPS", "ftp+ssh"):
+            value = f"{scheme}://user:password@example.com/path"
+
+            result = redact_ci_sink(value)
+
+            assert "user:password@" not in result.text
+            assert f"{scheme}://******@example.com/path" == result.text
+            assert "url-credential" in result.reasons
+
+    def test_mixed_case_credential_assignments_are_redacted(self):
+        escaped_key = "access" + "\\u005f" + "token"
+        escaped_value = "prefix" + '\\"' + "suffix"
+        escaped_json = '{\\"password\\":\\"escaped-json-value\\"}'
+        value = (
+            "ClIeNt_SeCrEt: opaque-value-123456\n"
+            "API-KEY = 'quoted-secret-value'\n"
+            'password: "quoted-password-value"\n'
+            '{"access_token":"json-secret-value"}\n'
+            f'{{"{escaped_key}":"short"}}\n'
+            f'{{"password":"{escaped_value}"}}\n'
+            "DB_PASSWORD=x\n"
+            "GITHUB_TOKEN=y\n"
+            f"{escaped_json}\n"
+            'password="unterminated-secret-value\\"'
+        )
+
+        result = redact_ci_sink(value)
+
+        assert "opaque-value-123456" not in result.text
+        assert "quoted-secret-value" not in result.text
+        assert "quoted-password-value" not in result.text
+        assert "json-secret-value" not in result.text
+        assert "short" not in result.text
+        assert "prefix" not in result.text
+        assert "suffix" not in result.text
+        assert "escaped-json-value" not in result.text
+        assert "unterminated-secret-value" not in result.text
+        assert "DB_PASSWORD=***" in result.text
+        assert "GITHUB_TOKEN=***" in result.text
+        assert result.reasons.count("credential-assignment") == 10
 
 
 class TestCli:

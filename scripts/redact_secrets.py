@@ -28,15 +28,20 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 # Ordered: multi-line and specific token shapes first, broad shapes last, so a
 # specific match is not pre-empted by the generic hex rule.
 _RULES: list[tuple[str, re.Pattern[str]]] = [
-    ("private-key", re.compile(
-        r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----"
-        r".*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|\Z)",
-        re.DOTALL)),
+    (
+        "private-key",
+        re.compile(
+            r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----"
+            r".*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|\Z)",
+            re.DOTALL,
+        ),
+    ),
     ("github-token", re.compile(r"\b(?:ghp|ghs|gho|ghu|ghr)_[A-Za-z0-9]{36,}\b")),
     ("github-pat", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{22,}\b")),
     ("stripe-key", re.compile(r"\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{10,}\b")),
@@ -54,6 +59,48 @@ _RULES: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 _PLACEHOLDER = "[redacted: {reason}]"
+
+
+def _json_key_word(word: str) -> str:
+    """Match a credential-key word in literal or JSON Unicode-escaped form."""
+    characters: list[str] = []
+    for character in word:
+        escaped_forms = {rf"\\u{ord(character):04x}"}
+        if character.isalpha():
+            escaped_forms.add(rf"\\u{ord(character.upper()):04x}")
+        characters.append(rf"(?:{re.escape(character)}|{'|'.join(sorted(escaped_forms))})")
+    return "".join(characters)
+
+
+_CREDENTIAL_SEPARATOR_CHARACTER = rf"(?:[-_\s]|{_json_key_word('-')}|{_json_key_word('_')}|\\u0020)"
+_CREDENTIAL_SEPARATOR = rf"{_CREDENTIAL_SEPARATOR_CHARACTER}?"
+_CREDENTIAL_NAMESPACE_CHARACTER = r"(?:[A-Za-z0-9]|\\u[0-9a-f]{4})"
+_CREDENTIAL_NAMESPACE = rf"(?:{_CREDENTIAL_NAMESPACE_CHARACTER}+{_CREDENTIAL_SEPARATOR_CHARACTER})*"
+_CREDENTIAL_KEY_BASE = (
+    "(?:"
+    + "|".join(
+        (
+            _json_key_word("api") + _CREDENTIAL_SEPARATOR + _json_key_word("key"),
+            _json_key_word("access") + _CREDENTIAL_SEPARATOR + _json_key_word("key"),
+            _json_key_word("private") + _CREDENTIAL_SEPARATOR + _json_key_word("key"),
+            _json_key_word("client") + _CREDENTIAL_SEPARATOR + _json_key_word("secret"),
+            _json_key_word("access") + _CREDENTIAL_SEPARATOR + _json_key_word("token"),
+            _json_key_word("refresh") + _CREDENTIAL_SEPARATOR + _json_key_word("token"),
+            _json_key_word("password"),
+            _json_key_word("passwd"),
+            _json_key_word("secret"),
+            _json_key_word("token"),
+        )
+    )
+    + ")"
+)
+_CREDENTIAL_KEY = _CREDENTIAL_NAMESPACE + _CREDENTIAL_KEY_BASE
+_CREDENTIAL_KEY_QUOTE = r"(?:\\?[\"'])?"
+_CREDENTIAL_PREFIX = (
+    rf"(?<![\w-]){_CREDENTIAL_KEY_QUOTE}{_CREDENTIAL_KEY}"
+    rf"{_CREDENTIAL_KEY_QUOTE}\s*[:=]\s*"
+)
+_CREDENTIAL_ASSIGNMENT = re.compile(rf"(?i)({_CREDENTIAL_PREFIX})([^\r\n]+)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +133,46 @@ def redact(text: str, *, include_hex: bool = True) -> RedactionResult:
 
         out = pattern.sub(_sub, out)
     return RedactionResult(text=out, reasons=tuple(reasons))
+
+
+def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> RedactionResult:
+    """Redact CI credentials using exact values, wrappers, and token shapes."""
+    reasons: list[str] = []
+    out = text
+    for secret in secret_values:
+        if len(secret) >= 8 and secret in out:
+            out = out.replace(secret, "***")
+            reasons.append("environment-secret")
+
+    out, authorization_count = re.subn(
+        r"(?i)(authorization:\s*(?:bearer|token|basic)\s+)\S+",
+        r"\1***",
+        out,
+    )
+    reasons.extend(["authorization-header"] * authorization_count)
+    out, url_count = re.subn(
+        r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^@\s]+@",
+        r"\1******@",
+        out,
+    )
+    reasons.extend(["url-credential"] * url_count)
+    shaped = redact(out, include_hex=False)
+    out = shaped.text
+    reasons.extend(shaped.reasons)
+
+    def _redact_assignment(match: re.Match[str]) -> str:
+        value = match.group(2)
+        if re.fullmatch(r"\[redacted: [^\]]+\]", value.strip()):
+            return match.group(0)
+        return f"{match.group(1)}***"
+
+    out, assignment_count = _CREDENTIAL_ASSIGNMENT.subn(_redact_assignment, out)
+    reasons.extend(["credential-assignment"] * assignment_count)
+
+    return RedactionResult(
+        text=out,
+        reasons=tuple(reasons),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -28,7 +28,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.redact_secrets import redact as redact_token_shapes  # noqa: E402
+from scripts.redact_secrets import redact_ci_sink  # noqa: E402
 
 _SECRET_ENVIRONMENT_VARIABLES = (
     "GH_TOKEN",
@@ -40,12 +40,8 @@ _SECRET_ENVIRONMENT_VARIABLES = (
 
 def redact_artifact_text(value: str) -> str:
     """Redact installed credentials and recognized shapes from artifact text."""
-    redacted = value
-    for variable in _SECRET_ENVIRONMENT_VARIABLES:
-        secret = os.environ.get(variable, "")
-        if len(secret) >= 8:
-            redacted = redacted.replace(secret, "***")
-    return redact_token_shapes(redacted, include_hex=False).text
+    secret_values = (os.environ.get(variable, "") for variable in _SECRET_ENVIRONMENT_VARIABLES)
+    return redact_ci_sink(value, secret_values=secret_values).text
 
 
 def write_github_output(key: str, value: str) -> None:
