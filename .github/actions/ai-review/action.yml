@@ -147,24 +147,7 @@ runs:
       env:
         INHERITED_DEADLINE_EPOCH: ${{ env.AI_REVIEW_ACTION_DEADLINE_EPOCH }}
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
-      run: |
-        if [[ ! "$TIMEOUT_MINUTES" =~ ^[0-9]+$ ]]; then
-          echo "::error::timeout-minutes must be a non-negative integer"
-          exit 2
-        fi
-        model_budget_seconds=$(( TIMEOUT_MINUTES * 60 ))
-        if (( model_budget_seconds < 300 )); then
-          model_budget_seconds=300
-        fi
-        deadline_epoch="$INHERITED_DEADLINE_EPOCH"
-        if [[ -z "$deadline_epoch" ]]; then
-          deadline_epoch=$(( $(date +%s) + 210 + model_budget_seconds + 60 ))
-        fi
-        if [[ ! "$deadline_epoch" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-          echo "::error::AI_REVIEW_ACTION_DEADLINE_EPOCH must be numeric"
-          exit 2
-        fi
-        echo "deadline_epoch=$deadline_epoch" >> "$GITHUB_OUTPUT"
+      run: python3 "$GITHUB_WORKSPACE/scripts/ci/establish_ai_review_deadline.py"
 
     - name: Setup Node.js
       uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
