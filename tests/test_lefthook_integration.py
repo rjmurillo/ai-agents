@@ -2017,6 +2017,27 @@ def test_session_policy_requires_and_validates_session(
     )
 
 
+def test_session_policy_skips_sessions_already_on_main(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
+    monkeypatch.setattr(policy, "_is_session_on_upstream_default", lambda *_args: True)
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: pytest.fail("upstream session was revalidated"),
+    )
+
+    assert (
+        policy.check_sessions(
+            [".agents/sessions/2026-07-19-session-1-test.json"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
 def test_session_policy_propagates_validator_failure_and_skips_merge(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -6806,6 +6827,7 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
         return next(validator_results)
 
     monkeypatch.setattr(policy, "_run_command", _dispatch)
+    monkeypatch.setattr(policy, "_is_session_on_upstream_default", lambda *_args: False)
     assert policy.validate_branch_sessions(["one.json", "two.json"], tmp_path) == 1
 
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
