@@ -71,8 +71,10 @@ REQUIRED_CI_READ_TOOLS = {
 PORTABLE_READONLY_TOOLS = {
     "read",
     "search",
-    "cognitionai/deepwiki/*",
-    "context7/*",
+    "cognitionai/deepwiki/read_wiki_structure",
+    "cognitionai/deepwiki/read_wiki_contents",
+    "context7/resolve-library-id",
+    "context7/get-library-docs",
     *REQUIRED_GITHUB_READ_TOOLS,
     *REQUIRED_CI_READ_TOOLS,
     *(f"serena/{operation}" for operation in SERENA_READONLY),
@@ -203,6 +205,22 @@ class TestNoUnsafeToolsInFrontmatter:
                 pytest.fail(
                     f"{path.relative_to(REPO_ROOT)}: serena wildcard in tools"
                 )
+
+    @pytest.mark.parametrize(
+        "path",
+        ALL_ANALYST_FILES,
+        ids=lambda p: str(p.relative_to(REPO_ROOT)),
+    )
+    def test_no_mcp_wildcard(self, path: Path) -> None:
+        """Every MCP tool must name one reviewed read-only operation."""
+        text = path.read_text()
+        frontmatter = _extract_frontmatter(text)
+        tools = _extract_tools(frontmatter)
+        wildcard_tools = [tool for tool in tools if "*" in tool]
+        assert not wildcard_tools, (
+            f"{path.relative_to(REPO_ROOT)}: wildcard MCP tools "
+            f"{wildcard_tools}"
+        )
 
     @pytest.mark.parametrize("path", ALL_ANALYST_FILES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
     def test_no_serena_write_ops(self, path: Path) -> None:

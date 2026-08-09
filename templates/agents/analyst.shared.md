@@ -11,8 +11,10 @@ tools_vscode:
   - github/list_commits
   - github/list_workflow_runs
   - github/get_workflow_run
-  - cognitionai/deepwiki/*
-  - context7/*
+  - cognitionai/deepwiki/read_wiki_structure
+  - cognitionai/deepwiki/read_wiki_contents
+  - context7/resolve-library-id
+  - context7/get-library-docs
   - serena/find_symbol
   - serena/find_referencing_symbols
   - serena/find_implementations
@@ -31,8 +33,10 @@ tools_copilot:
   - github/list_commits
   - github/list_workflow_runs
   - github/get_workflow_run
-  - cognitionai/deepwiki/*
-  - context7/*
+  - cognitionai/deepwiki/read_wiki_structure
+  - cognitionai/deepwiki/read_wiki_contents
+  - context7/resolve-library-id
+  - context7/get-library-docs
   - serena/find_symbol
   - serena/find_referencing_symbols
   - serena/find_implementations
