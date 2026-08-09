@@ -241,6 +241,17 @@ class EmitReworkWarningLinesTests(unittest.TestCase):
             ],
         )
 
+    def test_output_above_cap_reports_omitted_count(self) -> None:
+        """Output stays bounded and reports how many paths were omitted."""
+        items = [(f"path/{i}.py", 10) for i in range(rw._EVIDENCE_CAP + 3)]
+        lines = rw.emit_rework_warning_lines(items)
+
+        self.assertEqual(len(lines), rw._EVIDENCE_CAP + 1)
+        self.assertEqual(
+            lines[-1],
+            f"rework-warning: ... and 3 more path(s) omitted (cap {rw._EVIDENCE_CAP})",
+        )
+
 
 class ReworkThresholdConstantTest(unittest.TestCase):
     """Threshold value is pinned so silent calibration drift is caught."""
@@ -334,12 +345,16 @@ class ReworkWarningSessionLogPersistenceTests(unittest.TestCase):
         """Build a minimal sessionEnd dict with all required MUST items."""
         required_items = [
             "handoffPreserved", "serenaMemoryUpdated", "markdownLintRun",
-            "changesCommitted", "validationPassed", "checklistComplete",
+            "qaValidation", "changesCommitted", "validationPassed",
+            "checklistComplete",
         ]
         section: dict[str, Any] = {
             name: {"Complete": True, "Evidence": "evidence", "level": "MUST"}
             for name in required_items
         }
+        section["qaValidation"]["Evidence"] = (
+            ".agents/qa/2026-08-07-pr-4735-closing-review.md"
+        )
         return section
 
     def test_rework_warning_evidence_persisted_on_new_log(self) -> None:

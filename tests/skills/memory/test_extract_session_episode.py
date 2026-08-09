@@ -1053,11 +1053,11 @@ class TestMergePreserving:
         assert merged["metrics"]["errors"] == 3
         assert merged["metrics"]["files_changed"] == 7
 
-    def test_event_timestamps_normalized_to_session_midnight(self):
+    def test_event_timestamps_keep_explicit_source_time(self):
         merged = extract_session_episode.merge_preserving(
             self._stub(), self._rich(), session_id="2026-01-08-session-807"
         )
-        assert merged["events"][0]["timestamp"] == "2026-01-08T00:00:00+00:00"
+        assert merged["events"][0]["timestamp"] == "2026-01-08T12:20:10.93-06:00"
 
     def test_placeholder_task_yields_but_real_new_task_wins(self):
         new = self._stub()
@@ -1164,13 +1164,7 @@ class TestMergePreserving:
         )
 
     def test_commit_timestamp_difference_enables_causal_ordering(self):
-        """A commit at 23:47 after a milestone at midnight must be orderable.
-
-        When _dedupe_events() stamps the commit with midnight, both events share
-        the same timestamp and _event_order_relation() returns None
-        (incomparable), producing no causal edge. After the fix the timestamps
-        differ, enabling strict ordering.
-        """
+        """A commit and timestamped milestone must keep distinct source times."""
         commit_ts = "2026-01-08T23:47:12+00:00"
         midnight = "2026-01-08T00:00:00+00:00"
         events = extract_session_episode._dedupe_events(
@@ -1198,9 +1192,9 @@ class TestMergePreserving:
         )
         commit_ev = next(e for e in events if e["type"] == "commit")
         milestone_ev = next(e for e in events if e["type"] == "milestone")
-        # Commit keeps its real timestamp; milestone gets midnight.
+        # Both events keep source timestamps.
         assert commit_ev["timestamp"] == commit_ts
-        assert milestone_ev["timestamp"] == midnight
+        assert milestone_ev["timestamp"] == "2026-01-08T10:00:00+00:00"
         # Timestamps differ, so ordering is well-defined.
         assert commit_ev["timestamp"] != milestone_ev["timestamp"]
     """--preserve end-to-end and flag exclusivity (#2170)."""
@@ -2275,6 +2269,23 @@ class TestFilesChangedPrefersTheStagedDiff:
         episode = self._run(repo, log, tmp_path / "ep")
         assert episode["metrics"]["files_changed"] == 0
 
+    def test_post_commit_range_counts_only_branch_side(self, tmp_path):
+        """Issue #4416: mainline arrivals between base and head do not count."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        _commit(repo, "seed.txt", "seed\n")
+        _git(repo, "checkout", "-q", "-b", "feature")
+        feature = _commit(repo, "feature.txt", "feature\n")
+        _git(repo, "checkout", "-q", "main")
+        main = _commit(repo, "main.txt", "main\n")
+
+        changed = extract_session_episode._range_files_changed(main, feature, repo)
+
+        assert changed == 1
+
 
 class TestDecisionRecordsCarryIndependentSignal:
     """Decision records used to duplicate one string across `context` and
@@ -2388,6 +2399,17 @@ class TestValidateModeRejectsUnusableEventIds:
         )
         return path
 
+    @staticmethod
+    def _valid_event(event_id: str) -> dict:
+        return {
+            "id": event_id,
+            "timestamp": "2026-01-01T00:00:00+00:00",
+            "type": "milestone",
+            "content": event_id,
+            "caused_by": [],
+            "leads_to": [],
+        }
+
     def test_a_duplicate_id_is_rejected(self, tmp_path):
         target = self._episode(
             tmp_path / "episode-dup.json",
@@ -2415,7 +2437,11 @@ class TestValidateModeRejectsUnusableEventIds:
     def test_a_contiguous_list_exits_0(self, tmp_path):
         self._episode(
             tmp_path / "episode-ok.json",
-            [{"id": "e001"}, {"id": "e002"}, {"id": "e003"}],
+            [
+                self._valid_event("e001"),
+                self._valid_event("e002"),
+                self._valid_event("e003"),
+            ],
         )
         assert extract_session_episode.main([str(tmp_path), "--validate"]) == 0
 
@@ -2448,7 +2474,10 @@ class TestValidateModeRejectsUnusableEventIds:
         assert extract_session_episode.main(["../etc/passwd", "--validate"]) == 2
 
     def test_a_single_file_target_is_accepted(self, tmp_path):
-        target = self._episode(tmp_path / "episode-one.json", [{"id": "e001"}])
+        target = self._episode(
+            tmp_path / "episode-one.json",
+            [self._valid_event("e001")],
+        )
         assert extract_session_episode.main([str(target), "--validate"]) == 0
 
     def test_the_committed_episode_store_is_clean(self):
@@ -2482,7 +2511,7 @@ class TestValidateModeRejectsUnusableEventIds:
         # this validator exists to surface. Repairing them needs commit data the
         # episode files do not carry, so that repair belongs to #3873, not here.
         # New episodes must not add to this count.
-        assert len(metrics_problems) <= 21, (
+        assert len(metrics_problems) <= 22, (
             f"metrics violations grew to {len(metrics_problems)} (was 21); "
             "new episodes with commits==0 but files_changed>0 must be fixed"
         )
@@ -2570,12 +2599,13 @@ class TestBackwardsCommitOrder:
 
         assert extract_session_episode.main([str(episodes), "--validate"]) == 0
 
-    def test_an_edge_into_a_milestone_is_never_flagged(self, tmp_path, monkeypatch):
+    def test_edge_into_a_milestone_reports_consistency_mismatch(self, tmp_path, monkeypatch):
         """Only commit-to-commit edges carry independent evidence of order.
 
         The milestone quotes an older SHA on purpose: a work-log entry citing a
         commit is not a claim about when the milestone happened, so reading a
         committer date off it would invent order the episode never recorded.
+        The stored edge is still rejected by the derived-edge consistency check.
         """
         _, episodes, _, older, newer = self._reversed_pair(tmp_path, monkeypatch)
         mixed = [
@@ -2584,10 +2614,12 @@ class TestBackwardsCommitOrder:
         ]
         target = self._write(episodes / "episode-mixed.json", mixed)
 
-        assert extract_session_episode.validate_episode_file(target) == []
+        problems = extract_session_episode.validate_episode_file(target)
 
-    def test_an_unresolvable_sha_is_skipped_not_guessed(self, tmp_path, monkeypatch):
-        """Squash-merged branches take their SHAs away; absence is not evidence."""
+        assert any("causal edge e001 -> e002 is stored but not derivable" in p for p in problems)
+
+    def test_unresolvable_sha_reports_consistency_mismatch(self, tmp_path, monkeypatch):
+        """Squash-merged branches take their SHAs away; absence is not order evidence."""
         _, episodes, _, _, newer = self._reversed_pair(tmp_path, monkeypatch)
         ghost = [
             self._evt("e001", "commit", f"Commit: {newer}", leads_to=["e002"]),
@@ -2595,7 +2627,9 @@ class TestBackwardsCommitOrder:
         ]
         target = self._write(episodes / "episode-ghost.json", ghost)
 
-        assert extract_session_episode.validate_episode_file(target) == []
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any("causal edge e001 -> e002 is stored but not derivable" in p for p in problems)
 
     def test_fix_repairs_the_chain_and_exits_0(self, tmp_path, monkeypatch, capsys):
         _, episodes, events, older, newer = self._reversed_pair(tmp_path, monkeypatch)
@@ -2726,6 +2760,120 @@ class TestBackwardsCommitOrder:
 
         assert rc == 2
         assert "--fix requires --validate" in capsys.readouterr().err
+
+
+class TestCausalEdgeConsistency:
+    @staticmethod
+    def _evt(eid: str, timestamp: str, *, leads_to=(), caused_by=()):
+        return {
+            "id": eid,
+            "timestamp": timestamp,
+            "type": "milestone",
+            "content": eid,
+            "caused_by": list(caused_by),
+            "leads_to": list(leads_to),
+        }
+
+    @staticmethod
+    def _write(path: Path, events: list[dict]):
+        path.write_text(json.dumps({"events": events, "metrics": {}}, indent=2), encoding="utf-8")
+        return path
+
+    def test_missing_derivable_edge_is_reported(self, tmp_path):
+        target = self._write(
+            tmp_path / "episode-missing.json",
+            [
+                self._evt("e001", "2026-01-01T00:00:00+00:00"),
+                self._evt("e002", "2026-01-01T00:10:00+00:00"),
+            ],
+        )
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any("causal edge e001 -> e002 is derivable but missing" in p for p in problems)
+
+    def test_stored_but_not_derivable_edge_is_reported(self, tmp_path):
+        target = self._write(
+            tmp_path / "episode-unexpected.json",
+            [
+                self._evt("e001", "2026-01-01T00:00:00+00:00", leads_to=["e002"]),
+                self._evt("e002", "2026-01-01T00:00:00+00:00", caused_by=["e001"]),
+            ],
+        )
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any(
+            "causal edge e001 -> e002 is stored but not derivable" in p for p in problems
+        )
+
+    def test_unsupported_event_type_is_reported(self, tmp_path):
+        event = self._evt("e001", "2026-01-01T00:00:00+00:00")
+        event["type"] = "unsupported"
+        target = self._write(tmp_path / "episode-unsupported.json", [event])
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any("event e001 has unsupported type: unsupported" in p for p in problems)
+
+    @pytest.mark.parametrize("event_type", [["test"], {"name": "test"}])
+    def test_unhashable_event_type_is_reported(self, tmp_path, event_type):
+        event = self._evt("e001", "2026-01-01T00:00:00+00:00")
+        event["type"] = event_type
+        target = self._write(tmp_path / "episode-unhashable-type.json", [event])
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any("event e001 has unsupported type:" in p for p in problems)
+
+    def test_non_string_timestamp_is_reported(self, tmp_path):
+        event = self._evt("e001", "2026-01-01T00:00:00+00:00")
+        event["timestamp"] = 123
+        target = self._write(tmp_path / "episode-non-string-timestamp.json", [event])
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any("event e001 has a missing or non-string timestamp" in p for p in problems)
+
+    def test_missing_caused_by_reciprocal_is_reported(self, tmp_path):
+        target = self._write(
+            tmp_path / "episode-missing-caused-by.json",
+            [
+                self._evt(
+                    "e001",
+                    "2026-01-01T00:00:00+00:00",
+                    leads_to=["e002"],
+                ),
+                self._evt("e002", "2026-01-01T00:10:00+00:00"),
+            ],
+        )
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any(
+            "causal edge e001 -> e002 is missing reciprocal caused_by" in p
+            for p in problems
+        )
+
+    def test_missing_leads_to_reciprocal_is_reported(self, tmp_path):
+        target = self._write(
+            tmp_path / "episode-missing-leads-to.json",
+            [
+                self._evt("e001", "2026-01-01T00:00:00+00:00"),
+                self._evt(
+                    "e002",
+                    "2026-01-01T00:10:00+00:00",
+                    caused_by=["e001"],
+                ),
+            ],
+        )
+
+        problems = extract_session_episode.validate_episode_file(target)
+
+        assert any(
+            "causal edge e001 -> e002 is missing reciprocal leads_to" in p
+            for p in problems
+        )
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
@@ -3402,6 +3550,200 @@ class TestValidateMetricsConsistency:
         assert extract_session_episode.validate_episode_file(ep) == []
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestPreserveChronology:
+    @staticmethod
+    def _repo(tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        return repo
+
+    @staticmethod
+    def _event(episode, content):
+        return next(evt for evt in episode["events"] if evt["content"] == content)
+
+    def test_preserve_keeps_timestamped_milestone_after_commit(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        repo = self._repo(tmp_path)
+        first = _commit(repo, "first.txt", "first", when="2026-08-04T05:00:00+00:00")
+        second = _commit(repo, "second.txt", "second", when="2026-08-04T10:00:00+00:00")
+        monkeypatch.chdir(repo)
+        monkeypatch.setattr(extract_session_episode, "_repo_root", lambda: repo)
+
+        session = _json_log(
+            [
+                {
+                    "time": "2026-08-04T10:30:00+00:00",
+                    "task": "Finalized closeout chronology",
+                }
+            ],
+            committed=f"Commit {first}",
+        )
+        session["session"]["date"] = "2026-08-04"
+        session["session"]["startingCommit"] = "0" * 40
+        session["endingCommit"] = second
+        session_file = tmp_path / "2026-08-04-session-4435-chronology.json"
+        session_file.write_text(json.dumps(session), encoding="utf-8")
+        episodes = tmp_path / "episodes"
+        episode_file = episodes / "episode-2026-08-04-session-4435-chronology.json"
+
+        assert extract_session_episode.main(
+            [str(session_file), "--output-path", str(episodes), "--force"]
+        ) == 0
+        corrupted = json.loads(episode_file.read_text(encoding="utf-8"))
+        milestone = self._event(corrupted, "Finalized closeout chronology")
+        first_commit = self._event(corrupted, f"Commit: {first}")
+        second_commit = self._event(corrupted, f"Commit: {second}")
+        milestone["timestamp"] = "2026-08-04T00:00:00+00:00"
+        milestone["caused_by"] = []
+        milestone["leads_to"] = [first_commit["id"]]
+        first_commit["caused_by"].append(milestone["id"])
+        second_commit["leads_to"] = []
+        episode_file.write_text(json.dumps(corrupted, indent=2) + "\n", encoding="utf-8")
+
+        assert extract_session_episode.main(
+            [str(session_file), "--output-path", str(episodes), "--preserve", "--pending-stage"]
+        ) == 0
+
+        episode = json.loads(episode_file.read_text(encoding="utf-8"))
+        milestone = self._event(episode, "Finalized closeout chronology")
+        first_commit = self._event(episode, f"Commit: {first}")
+        second_commit = self._event(episode, f"Commit: {second}")
+        assert milestone["timestamp"] == "2026-08-04T10:30:00+00:00"
+        assert milestone["caused_by"] == [second_commit["id"]]
+        assert second_commit["leads_to"] == [milestone["id"]]
+        assert first_commit["leads_to"] == [second_commit["id"]]
+
+    def test_causal_edge_order_rejects_scrambled_store(self) -> None:
+        events = [
+            {
+                "id": "e001",
+                "timestamp": "2026-08-04T10:00:00+00:00",
+                "type": "commit",
+                "content": "Commit: older",
+                "caused_by": ["e002"],
+                "leads_to": [],
+            },
+            {
+                "id": "e002",
+                "timestamp": "2026-08-04T10:30:00+00:00",
+                "type": "milestone",
+                "content": "post-commit closeout",
+                "caused_by": [],
+                "leads_to": ["e001"],
+            },
+        ]
+
+        problems = extract_session_episode.validate_causal_edge_order(events)
+
+        assert any("event e002 leads to earlier event e001" in p for p in problems)
+
+    def test_causal_graph_validation_rejects_backward_order(self) -> None:
+        events = [
+            {
+                "id": "e001",
+                "timestamp": "2026-08-04T10:00:00+00:00",
+                "type": "commit",
+                "content": "Commit: older",
+                "caused_by": ["e002"],
+                "leads_to": [],
+            },
+            {
+                "id": "e002",
+                "timestamp": "2026-08-04T10:30:00+00:00",
+                "type": "milestone",
+                "content": "post-commit closeout",
+                "caused_by": [],
+                "leads_to": ["e001"],
+            },
+        ]
+
+        with pytest.raises(extract_session_episode.EpisodeValidationError) as error:
+            extract_session_episode.validate_episode_causal_graph(events)
+
+        assert str(error.value) == "event e002 leads to earlier event e001"
+
+    def test_validate_mode_rejects_scrambled_causal_edges(self, tmp_path, capsys) -> None:
+        episode = tmp_path / "episode-scrambled.json"
+        episode.write_text(
+            json.dumps(
+                {
+                    "events": [
+                        {
+                            "id": "e001",
+                            "timestamp": "2026-08-04T10:00:00+00:00",
+                            "type": "commit",
+                            "content": "Commit: older",
+                            "caused_by": ["e002"],
+                            "leads_to": [],
+                        },
+                        {
+                            "id": "e002",
+                            "timestamp": "2026-08-04T10:30:00+00:00",
+                            "type": "milestone",
+                            "content": "post-commit closeout",
+                            "caused_by": [],
+                            "leads_to": ["e001"],
+                        },
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+        assert "event e002 leads to earlier event e001" in capsys.readouterr().err
+
+    def test_validate_mode_reports_invalid_causal_ref_value(self, tmp_path, capsys) -> None:
+        episode = tmp_path / "episode-invalid-ref.json"
+        episode.write_text(
+            json.dumps(
+                {
+                    "events": [
+                        {
+                            "id": "e001",
+                            "timestamp": "2026-08-04T10:00:00+00:00",
+                            "type": "milestone",
+                            "content": "work",
+                            "caused_by": [],
+                            "leads_to": [42],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        assert extract_session_episode.main([str(tmp_path), "--validate"]) == 2
+        assert "event e001 field leads_to contains invalid ref 42" in capsys.readouterr().err
+
+    def test_causal_edge_order_allows_equal_timestamps(self) -> None:
+        events = [
+            {
+                "id": "e001",
+                "timestamp": "2026-08-04T10:00:00+00:00",
+                "type": "milestone",
+                "content": "work",
+                "caused_by": [],
+                "leads_to": ["e002"],
+            },
+            {
+                "id": "e002",
+                "timestamp": "2026-08-04T10:00:00+00:00",
+                "type": "test",
+                "content": "tests passed",
+                "caused_by": ["e001"],
+                "leads_to": [],
+            },
+        ]
+
+        assert extract_session_episode.validate_causal_edge_order(events) == []
+
+
 class TestDurationFromWorklogs:
     """Tests for _duration_from_worklogs (issue #3972)."""
 
@@ -3488,6 +3830,17 @@ class TestJsonMetricsDuration:
             "workLog": [
                 {"time": "2026-07-30T08:00:00Z", "entry": "start"},
                 {"time": "2026-07-30T08:30:00Z", "entry": "end"},
+            ],
+        }
+        metrics = extract_session_episode.json_metrics(data)
+        assert metrics["duration_minutes"] == 30
+
+    def test_mixed_naive_and_offset_timestamps_are_normalized_to_utc(self):
+        """Issue #4675: mixed ISO timezone forms must not crash duration."""
+        data = {
+            "workLog": [
+                {"time": "2026-08-06T10:00:00", "entry": "start"},
+                {"time": "2026-08-06T06:30:00-04:00", "entry": "end"},
             ],
         }
         metrics = extract_session_episode.json_metrics(data)

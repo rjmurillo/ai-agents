@@ -102,8 +102,65 @@ re-verified 2026-08-03 by deleting it from `GOTCHAS.md`, which produced
 `.agents/analysis/worktrunk-integration.md` and `... and 556 more`. The file
 that actually regressed appears nowhere in the output.
 
+
+## Cheaper diagnosis when you already know what you changed
+
+The recipe above scans `git ls-files` in two trees, which is the right tool when
+the offender is unknown. When you caused the regression yourself, you already
+know the candidate set, so lint just those files in both trees:
+
+```bash
+L=.claude/skills/taste-lints/scripts/taste_lints.py
+# in your worktree, and again in a clean worktree at the PR base SHA
+uv run --frozen python3 "$L" <your changed files> --format text
+```
+
+The rule prints the measured size, so the before/after pair names the crossing
+directly. 2026-08-05: this located a `+1` regression in two commands.
+`scripts/ci/build_ai_review_context.py` read `499/500 lines` (WARNING,
+"approaching limit") at the PR base and `511 lines` (ERROR) after a 12-line fix.
+
+## When no correct fix fits under the limit
+
+`lefthook.yml` at exactly 500 lines is not the only instance of this shape.
+`scripts/ci/build_ai_review_context.py` reached 499 of 500 on PR #4589, which
+made the file unfixable in place: the smallest correct form of the fix it needed
+was three lines (one regex, one blank, one condition) and landed at 502. Every
+correct version exceeded the limit.
+
+That is the case issue #3779 exists for. `# taste-lint: ignore <rule>` in the
+first 10 lines with a stated reason is the sanctioned escape, and there is broad
+precedent: 15 Python scripts carry it, for example
+`scripts/validation/pr_commit_count.py:2` and `scripts/github_core/api.py:1`.
+
+Two conditions before reaching for it, from the repo's own suppression rule:
+
+1. The idiomatic fix has to be genuinely unavailable, not merely inconvenient.
+   Measure the smallest correct version and show that it still exceeds the
+   limit. "Splitting is a lot of work" is not the bar.
+2. Write the mini-ADR inline: what the check wants, why the idiomatic fix fails
+   here, and the issue tracking the real fix. A bare suppression is a defect.
+
+Splitting a CI-critical module inside an unrelated bug fix is adjacent scope,
+not owed completeness. File the extraction issue and move on.
+
+## Gotcha: `| tail` hides the exit code you are checking
+
+`uv run --frozen python3 scripts/ci/taste_count_ratchet.py | tail -3; echo $?`
+reports `tail`'s status, not the ratchet's. If `tail` succeeds, the pipeline
+reads as a pass while the ratchet underneath it failed. The ratchet's failure
+banner is its first line, so `tail` also drops the line that says REGRESSION.
+2026-08-05: this reported a passing pre-push check on a tree that was already
+failing, and cost a full push cycle. Redirect and check instead:
+
+```bash
+uv run --frozen python3 scripts/ci/taste_count_ratchet.py > out.txt 2>&1
+echo "EXIT=$?"; head -1 out.txt
+```
+
 ## Related
 
 - Issue #4207 (the ceiling plus the missing filename in the message)
 - Issue #3902 (show new violations when the ratchet fails)
 - Issue #3779 (`# taste-lint: ignore <rule>` escape with a reason)
+- Issue #4597 (`build_ai_review_context.py` at 499/500, the worked example above)

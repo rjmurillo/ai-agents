@@ -88,7 +88,8 @@ def _instruction_files() -> list[Path]:
                 continue
             if path.suffix == ".py":
                 continue
-            if "__pycache__" in path.parts:
+            rel_parts = path.relative_to(REPO_ROOT).parts
+            if "__pycache__" in rel_parts or "worktrees" in rel_parts:
                 continue
             if _is_allowed(path):
                 continue
