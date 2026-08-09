@@ -195,12 +195,7 @@ class TestCiSinkWrappers:
 
     @pytest.mark.parametrize("indicator", ["|", "|-", "|+", ">", ">-", ">+"])
     def test_yaml_block_credential_values_are_fully_redacted(self, indicator):
-        value = (
-            f"password: {indicator}\n"
-            "  first-secret-value\n"
-            "  second-secret-value\n"
-            "timeout: 30"
-        )
+        value = f"password: {indicator}\n  first-secret-value\n  second-secret-value\ntimeout: 30"
 
         result = redact_ci_sink(value)
 
@@ -211,11 +206,7 @@ class TestCiSinkWrappers:
 
     def test_nested_yaml_block_credential_preserves_sibling_field(self):
         value = (
-            "config:\n"
-            "  password: |\n"
-            "    first-secret-value\n"
-            "    second-secret-value\n"
-            "  timeout: 30"
+            "config:\n  password: |\n    first-secret-value\n    second-secret-value\n  timeout: 30"
         )
 
         result = redact_ci_sink(value)
@@ -420,17 +411,13 @@ class TestCiSinkWrappers:
 
     @pytest.mark.parametrize("boundary", [",", ", ", ";", "}", "]", " "])
     def test_escaped_json_inner_quote_at_boundary_cannot_leak_suffix(self, boundary):
-        value = (
-            r'{\"password\":\"SECRET_PREFIX\\\"'
-            + boundary
-            + r'SECRET_SUFFIX\",\"timeout\":30}'
-        )
+        value = r"{\"password\":\"SECRET_PREFIX\\\"" + boundary + r"SECRET_SUFFIX\",\"timeout\":30}"
 
         result = redact_ci_sink(value)
 
         assert "SECRET_PREFIX" not in result.text
         assert "SECRET_SUFFIX" not in result.text
-        assert r'\"timeout\":30}' in result.text
+        assert r"\"timeout\":30}" in result.text
 
     def test_credential_assignment_handles_unterminated_quoted_value(self):
         value = '{"password":"secret'
@@ -458,7 +445,7 @@ class TestCiSinkWrappers:
 
     def test_source_profile_preserves_assignment_expressions(self):
         value = (
-            'token = accept_unverified_jwt(user_input)\n'
+            "token = accept_unverified_jwt(user_input)\n"
             'password = response["password"]\n'
             "secret = payload.secret"
         )
@@ -496,11 +483,33 @@ class TestCiSinkWrappers:
         assert elapsed < 5
 
     @pytest.mark.parametrize(
+        "key",
+        [
+            "githubToken",
+            "npmToken",
+            "slackToken",
+            "userPassword",
+            "webhookSecret",
+            "dbpassword",
+            "mytoken",
+            "a_b_c_d_e_f_g_h_i_token",
+            f"{'a' * 256}_token",
+        ],
+    )
+    def test_credential_assignment_redacts_unbounded_namespaces(self, key):
+        value = f'{{"{key}":"SECRET_VALUE","timeout":30}}'
+
+        result = redact_ci_sink(value)
+
+        assert result.text == f'{{"{key}":"***","timeout":30}}'
+        assert result.reasons == ("credential-assignment",)
+
+    @pytest.mark.parametrize(
         "separator",
-        ["-", "_", r"\u0020", r"\u002d", r"\u005f"],
+        ["-", "_", " ", r"\u0020", r"\u002d", r"\u005f", "\\"],
     )
     def test_credential_assignment_scanner_rejects_separator_redos(self, separator):
-        value = f"ordinary{separator * 2048}prose"
+        value = f"ordinary{separator * (64 * 1024)}prose"
 
         started = time.perf_counter()
         result = redact_ci_sink(value)
@@ -553,6 +562,7 @@ class TestCiSinkWrappers:
         assert "SECRET_PREFIX" not in result.text
         assert "SECRET_SUFFIX" not in result.text
         assert '"timeout":30}' in result.text
+
 
 class TestCli:
     def test_stdin_redaction(self, capsys):

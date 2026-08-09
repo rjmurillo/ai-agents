@@ -52,34 +52,37 @@ _RULES: list[tuple[str, re.Pattern[str]]] = [
     # Unicode-aware local part and single-label domains (e.g. Alice@corp) are
     # matched: the TLD suffix is optional. This over-redacts handle-like shapes
     # such as foo@bar, which is the safe failure mode for untrusted free-text.
-    ("email", re.compile(r"[\w.%+\-]+@[\w\-]+(?:\.[\w\-]+)*", re.UNICODE)),
+    (
+        "email",
+        re.compile(r"(?<![\w.%+\-])[\w.%+\-]+@[\w\-]+(?:\.[\w\-]+)*", re.UNICODE),
+    ),
     # A 32+ hex run anywhere, even immediately after a word char like `_`; the
     # lookarounds bound the run by hex chars rather than \b word boundaries.
     ("hex-secret", re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{32,}(?![0-9a-fA-F])")),
 ]
 
 _PLACEHOLDER = "[redacted: {reason}]"
+_SERIALIZED_BACKSLASHES = r"\\{1,8}"
 
 
 def _json_key_word(word: str) -> str:
     """Match a credential-key word in literal or JSON Unicode-escaped form."""
     characters: list[str] = []
     for character in word:
-        escaped_forms = {rf"\\+u{ord(character):04x}"}
+        escaped_forms = {rf"{_SERIALIZED_BACKSLASHES}u{ord(character):04x}"}
         if character.isalpha():
-            escaped_forms.add(rf"\\+u{ord(character.upper()):04x}")
+            escaped_forms.add(rf"{_SERIALIZED_BACKSLASHES}u{ord(character.upper()):04x}")
         characters.append(rf"(?:{re.escape(character)}|{'|'.join(sorted(escaped_forms))})")
     return "".join(characters)
 
 
 _CREDENTIAL_SEPARATOR_CHARACTER = (
-    rf"(?:\s|{_json_key_word('-')}|{_json_key_word('_')}|\\+u0020)"
+    rf"(?:[ \t]|{_json_key_word('-')}|{_json_key_word('_')}|"
+    rf"{_SERIALIZED_BACKSLASHES}u0020)"
 )
 _CREDENTIAL_SEPARATOR = rf"{_CREDENTIAL_SEPARATOR_CHARACTER}?"
-_CREDENTIAL_NAMESPACE_SEGMENT = r"[A-Za-z0-9]{1,32}"
-_CREDENTIAL_NAMESPACE = (
-    rf"(?:{_CREDENTIAL_NAMESPACE_SEGMENT}{_CREDENTIAL_SEPARATOR_CHARACTER}){{0,8}}"
-)
+_CREDENTIAL_NAMESPACE_CHARACTER = rf"(?:[A-Za-z0-9_ \t-]|{_SERIALIZED_BACKSLASHES}u[0-9a-f]{{4}})"
+_CREDENTIAL_NAMESPACE = rf"{_CREDENTIAL_NAMESPACE_CHARACTER}*"
 _CREDENTIAL_KEY_BASE = (
     "(?:"
     + "|".join(
@@ -99,18 +102,19 @@ _CREDENTIAL_KEY_BASE = (
     + ")"
 )
 _CREDENTIAL_KEY = _CREDENTIAL_NAMESPACE + _CREDENTIAL_KEY_BASE
-_CREDENTIAL_KEY_QUOTE = r"(?:\\+[\"']|[\"'])?"
-_CREDENTIAL_PREFIX = (
-    rf"(?<![\w-]){_CREDENTIAL_KEY_QUOTE}{_CREDENTIAL_KEY}"
-    rf"{_CREDENTIAL_KEY_QUOTE}\s*[:=]\s*"
+_CREDENTIAL_KEY_QUOTE = rf"(?:{_SERIALIZED_BACKSLASHES}[\"']|[\"'])?"
+_CREDENTIAL_PREFIX_BODY = (
+    rf"{_CREDENTIAL_KEY_QUOTE}{_CREDENTIAL_KEY}{_CREDENTIAL_KEY_QUOTE}\s*[:=]\s*"
 )
-_CREDENTIAL_ASSIGNMENT = re.compile(rf"(?i)({_CREDENTIAL_PREFIX})")
-_AUTHORIZATION_QUOTE = r"(?:\\+[\"']|[\"'])?"
+_CREDENTIAL_ASSIGNMENT = re.compile(rf"(?i)((?<![A-Za-z0-9_\\ \t-]){_CREDENTIAL_PREFIX_BODY})")
+_CREDENTIAL_ASSIGNMENT_AT_CURSOR = re.compile(rf"(?i)({_CREDENTIAL_PREFIX_BODY})")
+_AUTHORIZATION_QUOTE = rf"(?:{_SERIALIZED_BACKSLASHES}[\"']|[\"'])?"
 _AUTHORIZATION_WRAPPER = re.compile(
     rf"(?i)((?<![\w-]){_AUTHORIZATION_QUOTE}authorization"
     rf"{_AUTHORIZATION_QUOTE}\s*:\s*{_AUTHORIZATION_QUOTE}"
     r"(?:bearer|token|basic)\s+)"
-    r"((?:[A-Za-z0-9._\-+/=~]|\\+/|\\+u[0-9a-f]{4})+)"
+    rf"((?:[A-Za-z0-9._\-+/=~]|{_SERIALIZED_BACKSLASHES}/|"
+    rf"{_SERIALIZED_BACKSLASHES}u[0-9a-f]{{4}})+)"
 )
 _YAML_BLOCK_HEADER = re.compile(r"[|>](?:(?:[+-][1-9]?)|(?:[1-9][+-]?))?\s*(?:#.*)?")
 
@@ -223,9 +227,7 @@ def redact_ci_sink(
             return len(out), False
         preceding_backslashes = _preceding_backslash_count(closing)
         escaped = (
-            bool(preceding_backslashes % 2)
-            if len(quote) == 1
-            else bool(preceding_backslashes)
+            bool(preceding_backslashes % 2) if len(quote) == 1 else bool(preceding_backslashes)
         )
         return closing + len(quote), not escaped
 
@@ -269,10 +271,13 @@ def redact_ci_sink(
         header_end = _line_end(start)
         if not _YAML_BLOCK_HEADER.fullmatch(out[start:header_end]):
             return None
-        line_start = max(
-            out.rfind("\n", 0, start),
-            out.rfind("\r", 0, start),
-        ) + 1
+        line_start = (
+            max(
+                out.rfind("\n", 0, start),
+                out.rfind("\r", 0, start),
+            )
+            + 1
+        )
         assignment_line = out[line_start:start]
         key_indent = len(assignment_line) - len(assignment_line.lstrip(" "))
         position = header_end
@@ -338,15 +343,21 @@ def redact_ci_sink(
         assignment_count = 0
         while True:
             match = _CREDENTIAL_ASSIGNMENT.search(out, cursor)
+            candidate_start = cursor
+            while candidate_start < len(out) and out[candidate_start] in " \t":
+                candidate_start += 1
+            cursor_match = _CREDENTIAL_ASSIGNMENT_AT_CURSOR.match(out, candidate_start)
+            if cursor_match is not None and (match is None or cursor_match.start() < match.start()):
+                match = cursor_match
             if match is None:
                 redacted_parts.append(out[cursor:])
                 break
             value_start = match.end()
             value_end = _value_end(value_start)
             replacement = _redacted_assignment(match.group(1), out[value_start:value_end])
-            redacted_parts.append(out[cursor:match.start()])
+            redacted_parts.append(out[cursor : match.start()])
             if replacement is None:
-                redacted_parts.append(out[match.start():value_end])
+                redacted_parts.append(out[match.start() : value_end])
             else:
                 redacted_parts.append(replacement)
                 assignment_count += 1
