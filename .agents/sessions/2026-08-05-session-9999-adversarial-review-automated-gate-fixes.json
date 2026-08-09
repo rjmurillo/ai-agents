@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Fix commits c0d74520da, f5598c6685, 6d61e15e92, a42159476a, memory commit 8677da2c3f, session commit b68c7cde8a, test harness commit db785c31d4, and hook fix 40503be635"
+        "Evidence": "Original fixes through 40503be635, recovery fix 49be29e0d8, and latest-main merge 40422abc79"
       },
       "validationPassed": {
         "level": "MUST",
@@ -114,7 +114,7 @@
       "qaValidation": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "969 changed-file tests passed; each repaired false-pass or wiring path was mutation tested"
+        "Evidence": ".agents/qa/2026-08-09-pr-4664-recovery.md"
       }
     }
   },
@@ -156,6 +156,6 @@
       "outcome": "The legacy filesystem scanner examined 461 ignored pytest artifact files and disagreed with pre-PR; issue #4657 now wires both phases to the same git-scoped fail-closed checker"
     }
   ],
-  "endingCommit": "40503be635ea167700c1bbaf4a8f6647ee2f5d46",
+  "endingCommit": "40422abc798b15fda2fa62ed8ef0a48369af4b58",
   "nextSteps": []
 }
