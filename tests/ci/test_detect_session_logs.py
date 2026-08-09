@@ -458,6 +458,7 @@ class TestWorkflowWiring:
     def test_manual_dispatch_supplies_pr_number_to_session_detection(self) -> None:
         workflow = _workflow()
         on_block = workflow.get("on", workflow.get(True))
+        assert isinstance(on_block, dict)
         assert on_block["workflow_dispatch"]["inputs"]["pr_number"]["required"] is True
 
         env = workflow["jobs"]["detect-changes"]["steps"][1]["env"]
