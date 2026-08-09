@@ -2,11 +2,11 @@
 
 Isolation model (Issues #4346, #4457)
 --------------------------------------
-Every mutation runs inside a detached git worktree created from HEAD. The
+Every mutation runs inside a temporary git worktree created from HEAD. The
 active worktree's tracked files are NEVER written. If the test process is
 killed at any point, the active worktree stays clean and `git status --short`
-remains empty. A durable marker blocks pre-push after SIGKILL until the stale
-scratch worktree is recovered.
+remains empty. The scratch worktree is removed in a `finally` block; if that
+also fails, git expunges it when the caller runs `git worktree prune`.
 
 Three mutants and one inverted control:
 
@@ -36,12 +36,9 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-
-from scripts.testing.mutation_workspace import isolated_mutation_worktree
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _TARGET_REL = Path("scripts") / "validation" / "git_hook_policy.py"
@@ -51,6 +48,29 @@ _TESTS = ["tests/test_lefthook_integration.py"]
 _OUTCOME_DEAD = "DEAD"
 _OUTCOME_SURVIVED = "SURVIVED"
 _OUTCOME_DID_NOT_APPLY = "DID-NOT-APPLY"
+
+
+def _add_scratch_worktree(base: Path) -> Path:
+    """Create a scratch worktree from HEAD. Returns the worktree path."""
+    wt_path = base / "mutation_wt"
+    result = subprocess.run(
+        ["git", "worktree", "add", "--detach", str(wt_path), "HEAD"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=str(REPO_ROOT),
+    )
+    assert result.returncode == 0, f"git worktree add failed:\n{result.stderr}"
+    return wt_path
+
+
+def _remove_scratch_worktree(wt_path: Path) -> None:
+    """Remove the scratch worktree. Tolerates errors (git prune will clean up)."""
+    subprocess.run(
+        ["git", "worktree", "remove", "--force", str(wt_path)],
+        capture_output=True,
+        cwd=str(REPO_ROOT),
+    )
 
 
 def _run_tests_in(wt_path: Path) -> subprocess.CompletedProcess[str]:
@@ -135,10 +155,13 @@ def _apply_positive_mutant(
 
 
 @pytest.fixture()
-def scratch_worktree() -> Iterator[Path]:
-    """Provide a marked scratch git worktree; remove it after the test."""
-    with isolated_mutation_worktree(REPO_ROOT, [_TARGET_REL]) as workspace:
-        yield workspace.root
+def scratch_worktree(tmp_path: Path):
+    """Provide a scratch git worktree; remove it after the test."""
+    wt = _add_scratch_worktree(tmp_path)
+    try:
+        yield wt
+    finally:
+        _remove_scratch_worktree(wt)
 
 
 def _active_target_unmodified() -> bool:
@@ -311,7 +334,7 @@ def test_ic_comment_only_change_survives(scratch_worktree: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_scratch_worktree_created_and_removed() -> None:
+def test_scratch_worktree_created_and_removed(tmp_path: Path) -> None:
     """The scratch worktree fixture creates an isolated tree and removes it.
 
     Verifies that:
@@ -319,8 +342,8 @@ def test_scratch_worktree_created_and_removed() -> None:
     - A mutation written to the scratch worktree does NOT appear in the active tree.
     - After the fixture tears down, the scratch worktree directory is gone.
     """
-    with isolated_mutation_worktree(REPO_ROOT, [_TARGET_REL]) as workspace:
-        wt = workspace.root
+    wt = _add_scratch_worktree(tmp_path)
+    try:
         wt_target = wt / _TARGET_REL
         assert wt_target.exists(), "Scratch worktree missing the target file"
 
@@ -332,5 +355,9 @@ def test_scratch_worktree_created_and_removed() -> None:
         assert sentinel not in active_bytes, (
             "Writing to scratch worktree leaked into the active worktree"
         )
+    finally:
+        _remove_scratch_worktree(wt)
 
-    assert not wt.exists(), "Scratch worktree directory still exists after removal"
+    assert not (tmp_path / "mutation_wt").exists(), (
+        "Scratch worktree directory still exists after removal"
+    )

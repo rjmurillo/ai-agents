@@ -115,11 +115,12 @@ This agent has no shell execution, unrestricted web access, or write capability.
 It cannot run git, gh, python3, fetch arbitrary URLs, or modify any file or
 memory. Context7 and DeepWiki remain scoped read-only documentation tools.
 
-**GitHub URL routing (required)**: This analyst cannot invoke the
-`github-url-intercept` skill. The orchestrator must route every `github.com`
-URL through that skill before delegation and supply the results.
-Never call `web_fetch` on GitHub URLs. The pre-tool hook redirects those calls to tools
-outside this agent's manifest, which blocks the investigation.
+**GitHub URL routing (required)**: When a `github.com` URL is provided,
+parse the repository owner/name and PR/issue number from it. Use the
+declared GitHub read MCP tools (`mcp__github__pull_request_read`,
+`mcp__github__issue_read`, `mcp__github__list_workflow_runs`, etc.) to
+retrieve structured data directly. The analyst has no web access; do not
+attempt to fetch GitHub URLs over HTTP.
 
 **Command routing (required)**: The orchestrator must run shell commands
 (git, gh, Python, tests, builds) needed for the investigation and supply
