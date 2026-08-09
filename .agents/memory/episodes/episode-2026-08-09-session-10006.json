@@ -1,0 +1,78 @@
+{
+  "id": "episode-2026-08-09-session-10006",
+  "session": "2026-08-09-session-10006",
+  "timestamp": "2026-08-09T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Refresh PR 4543 4546 and 4693 after main advances",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reopened fleet-pr-4693 and inspected live PR and worktree state.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Acquired the PR #4543 lease, passed the live-state gate, and confirmed auto-merge was disabled.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main normally and resolved two conflicts.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated the PR #4543 merge.",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-09-session-10006"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-08T18:35:41+00:00",
+      "type": "commit",
+      "content": "Commit: b680217688a45bc2a699e59359303cde9b9ce340",
+      "caused_by": [],
+      "leads_to": [
+        "e001",
+        "e002",
+        "e003",
+        "e004"
+      ],
+      "_source_session": "2026-08-09-session-10006"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
