@@ -1,11 +1,10 @@
-"""Tests for invoke_markdownlint_guard (pure-Python stdlib verifier).
+"""Tests for invoke_markdownlint_guard (fail-closed, no complete engine).
 
-The markdownlint push guard validates .md files using a shipped pure-Python
-stdlib-only linter.  Tests verify:
-- Clean .md files pass (returncode 0)
-- Invalid .md files are blocked (returncode 1 from verifier -> guard blocks)
-- No .md changes are allowed (nothing to validate)
-- Verifier invoked with -I -S (isolated, no site) and scrubbed env
+The markdownlint push guard blocks all pushes modifying .md files because
+no integrity-pinned complete linting engine is shipped.  Tests verify:
+- .md changes are blocked (fail-closed)
+- No .md changes pass (nothing to validate)
+- Verifier invoked with -I -S and scrubbed env
 - Guard runs in consumer repos (project_only=False)
 """
 
@@ -77,42 +76,25 @@ def _run(diff_out, lint_handler, tmp_path):
         return guard.main()
 
 
-class TestCleanMarkdown:
-    """Clean .md files pass validation."""
-
-    def test_clean_md_passes(self, push_command, tmp_path):
+class TestFailClosed:
+    def test_md_changes_blocked(self, push_command, tmp_path):
+        """Any push with .md files is blocked (no complete engine)."""
         def lint(args, **_kw):
-            return _ok()
+            return _fail(1, stderr="no integrity-pinned complete engine")
 
         rc = _run("docs/a.md\n", lint, tmp_path)
-        assert rc == 0
+        assert rc == 2
 
     def test_no_md_files_passes(self, push_command, tmp_path):
+        """Push with no .md files is allowed."""
         def lint(args, **_kw):
             raise AssertionError("validator should not run")
 
         rc = _run("src/app.py\n", lint, tmp_path)
         assert rc == 0
 
-
-class TestInvalidMarkdown:
-    """Invalid .md files are blocked."""
-
-    def test_violations_blocked(self, push_command, tmp_path, capsys):
-        def lint(args, **_kw):
-            return _fail(
-                1,
-                stderr="docs/a.md:1: MD041 First line should be a heading",
-            )
-
-        rc = _run("docs/a.md\n", lint, tmp_path)
-        assert rc == 2
-
-
-class TestSecurityFlags:
-    """Verifier is invoked with isolation flags and scrubbed env."""
-
-    def test_invoked_with_isolation_flags(self, push_command, tmp_path):
+    def test_verifier_invoked_with_isolation_flags(self, push_command, tmp_path):
+        """Verifier subprocess uses -I -S flags and scrubbed env."""
         captured_args: list[list[str]] = []
         captured_env: dict[str, str] | None = None
 
@@ -120,21 +102,21 @@ class TestSecurityFlags:
             captured_args.append(list(args))
             nonlocal captured_env
             captured_env = kwargs.get("env")
-            return _ok()
+            return _fail(1, stderr="blocked")
 
         _run("docs/a.md\n", lint, tmp_path)
 
         verifier_calls = [a for a in captured_args if sys.executable in str(a)]
-        assert verifier_calls, "Expected verifier invocation"
+        assert verifier_calls
         call = verifier_calls[0]
-        assert "-I" in call, f"-I flag missing: {call}"
-        assert "-S" in call, f"-S flag missing: {call}"
-
+        assert "-I" in call
+        assert "-S" in call
         if captured_env is not None:
             python_vars = [k for k in captured_env if k.startswith("PYTHON")]
             assert not python_vars, f"PYTHON* vars leaked: {python_vars}"
 
     def test_verifier_missing_blocks(self, push_command, tmp_path, capsys):
+        """Missing verifier file blocks push."""
         def lint(args, **_kw):
             raise AssertionError("should not reach validator")
 
@@ -170,7 +152,7 @@ class TestConsumerGuardWiring:
                 "push_guard_base.get_project_directory",
                 return_value=str(tmp_path),
             ),
-            patch("push_guard_base._gh_base_ref", return_value=None),
+            patch("push_guard_base._detect_default_base_ref", return_value="origin/main"),
         ):
             rc = guard.main()
         assert rc == 2

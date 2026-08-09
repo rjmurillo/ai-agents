@@ -1,12 +1,11 @@
-"""Integration security tests for _markdownlint_verifier.py.
+"""Integration security tests for _markdownlint_verifier.py and push_guard_base.
 
 These tests invoke the verifier as a real subprocess (no mocks).  They
 prove that:
-- Clean markdown returns 0, invalid markdown returns 1.
-- Hostile PATH entries, environment variables, consumer packages,
-  configs, and registry settings cannot cause execution of external tools.
-- The verifier uses only stdlib; it never spawns subprocesses.
-- push_guard_base resolves git from system directories only, not PATH.
+- The verifier fails closed (returns 1) for any .md files present.
+- Hostile PATH, env vars, consumer packages cannot execute external tools.
+- push_guard_base resolves git from system dirs, not PATH.
+- push_guard_base never executes gh from inherited PATH.
 """
 
 from __future__ import annotations
@@ -55,91 +54,29 @@ def _run_verifier(
 
 
 # ---------------------------------------------------------------------------
-# End-to-end fixtures: clean markdown passes, invalid markdown fails
+# Fail-closed behavior
 # ---------------------------------------------------------------------------
 
-class TestCleanFixtures:
-    """Verify clean markdown returns 0."""
+class TestFailClosedBehavior:
+    """Verifier blocks all .md pushes (no complete engine shipped)."""
 
-    def test_valid_heading_and_content(self, tmp_path: Path) -> None:
+    def test_any_md_file_returns_1(self, tmp_path: Path) -> None:
         md = tmp_path / "clean.md"
-        md.write_text("# Heading\n\nParagraph.\n\n- item\n")
+        md.write_text("# Valid Heading\n\nParagraph.\n")
         result = _run_verifier([str(md)])
-        assert result.returncode == 0, result.stderr
+        assert result.returncode == 1
+        assert "no integrity-pinned" in result.stderr
 
-    def test_fenced_code_with_language(self, tmp_path: Path) -> None:
-        md = tmp_path / "code.md"
-        md.write_text("# Title\n\n```python\nprint(1)\n```\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 0, result.stderr
-
-    def test_frontmatter_then_heading(self, tmp_path: Path) -> None:
-        md = tmp_path / "fm.md"
-        md.write_text("---\ntitle: X\n---\n# Heading\n\nBody.\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 0, result.stderr
-
-    def test_empty_file_passes(self, tmp_path: Path) -> None:
-        md = tmp_path / "empty.md"
-        md.write_text("")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 0, result.stderr
-
-    def test_no_files_passes(self) -> None:
+    def test_no_files_returns_0(self) -> None:
         result = _run_verifier([])
         assert result.returncode == 0
 
-    def test_allowed_html_passes(self, tmp_path: Path) -> None:
-        md = tmp_path / "html.md"
-        md.write_text("# Title\n\n<details>\n<summary>X</summary>\n</details>\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 0, result.stderr
-
-
-class TestInvalidFixtures:
-    """Verify violations return 1 with diagnostic output."""
-
-    def test_md041_no_heading(self, tmp_path: Path) -> None:
-        md = tmp_path / "no_h1.md"
-        md.write_text("No heading.\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 1
-        assert "MD041" in result.stderr
-
-    def test_md040_no_language(self, tmp_path: Path) -> None:
-        md = tmp_path / "nolang.md"
-        md.write_text("# Title\n\n```\ncode\n```\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 1
-        assert "MD040" in result.stderr
-
-    def test_md004_wrong_marker(self, tmp_path: Path) -> None:
-        md = tmp_path / "star.md"
-        md.write_text("# Title\n\n* wrong\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 1
-        assert "MD004" in result.stderr
-
-    def test_md033_disallowed_html(self, tmp_path: Path) -> None:
-        md = tmp_path / "html.md"
-        md.write_text("# Title\n\n<div>bad</div>\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 1
-        assert "MD033" in result.stderr
-
-    def test_md025_multiple_h1(self, tmp_path: Path) -> None:
-        md = tmp_path / "multi_h1.md"
-        md.write_text("# First\n\n# Second\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 1
-        assert "MD025" in result.stderr
-
-    def test_md024_sibling_duplicates(self, tmp_path: Path) -> None:
-        md = tmp_path / "dup.md"
-        md.write_text("# Title\n\n## Dupe\n\n## Dupe\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 1
-        assert "MD024" in result.stderr
+    def test_missing_separator_returns_2(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(_VERIFIER), "--markdown-lint-only", "file.md"],
+            capture_output=True, text=True, check=False,
+        )
+        assert result.returncode == 2
 
 
 # ---------------------------------------------------------------------------
@@ -152,13 +89,7 @@ class TestMarkerWritingNpxInPath:
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
         npx_shim = bin_dir / "npx"
-        npx_shim.write_text(
-            textwrap.dedent(f"""\
-                #!/bin/sh
-                touch {marker}
-                exit 0
-            """),
-        )
+        npx_shim.write_text(f"#!/bin/sh\ntouch {marker}\nexit 0\n")
         npx_shim.chmod(stat.S_IRWXU)
 
         md = tmp_path / "test.md"
@@ -168,7 +99,7 @@ class TestMarkerWritingNpxInPath:
             env_overrides={"PATH": f"{bin_dir}:{os.environ.get('PATH', '')}"},
         )
         assert not marker.exists(), "Hostile npx was executed"
-        assert result.returncode == 0
+        assert result.returncode == 1  # fail-closed
 
 
 class TestMaliciousLocalMarkdownlintPackage:
@@ -188,7 +119,7 @@ class TestMaliciousLocalMarkdownlintPackage:
             cwd=str(tmp_path),
         )
         assert not marker.exists()
-        assert result.returncode == 0
+        assert result.returncode == 1  # fail-closed
 
 
 class TestHostileNpmrcAndRegistry:
@@ -205,7 +136,7 @@ class TestHostileNpmrcAndRegistry:
             },
             cwd=str(tmp_path),
         )
-        assert result.returncode == 0
+        assert result.returncode == 1  # fail-closed
         assert "evil" not in result.stderr.lower()
 
 
@@ -217,7 +148,7 @@ class TestOfflineExecution:
         result = _run_verifier(
             [str(md)], env_overrides={"PATH": str(python_dir)},
         )
-        assert result.returncode == 0
+        assert result.returncode == 1  # fail-closed
 
 
 class TestNodeEnvironmentSanitization:
@@ -233,11 +164,11 @@ class TestNodeEnvironmentSanitization:
             },
         )
         assert not marker.exists()
-        assert result.returncode == 0
+        assert result.returncode == 1  # fail-closed
 
 
 # ---------------------------------------------------------------------------
-# Trusted git resolution (Defect 1 fix)
+# Trusted git resolution
 # ---------------------------------------------------------------------------
 
 class TestTrustedGitResolution:
@@ -246,14 +177,8 @@ class TestTrustedGitResolution:
     def test_marker_writing_fake_git_in_allowed_path(
         self, tmp_path: Path,
     ) -> None:
-        """Fake git in <repo>/bin/ (no denied segments) must not execute.
-
-        This proves the allowlist approach works: only well-known system
-        directories are searched, so even a git in an innocent-looking
-        path like ``<repo>/bin/git`` is never found.
-        """
+        """Fake git in <repo>/bin/ (no denied segments) must not execute."""
         marker = tmp_path / "MARKER_FAKE_GIT_RAN"
-        # Place fake git in a path with NO denied segments
         bin_dir = tmp_path / "repo" / "bin"
         bin_dir.mkdir(parents=True)
         fake_git = bin_dir / "git"
@@ -278,28 +203,20 @@ class TestTrustedGitResolution:
 
         original_path = os.environ.get("PATH", "")
         try:
-            # Put the fake git FIRST on PATH (old code would find it)
             os.environ["PATH"] = f"{bin_dir}:{original_path}"
             importlib.reload(push_guard_base)
-
-            # The trusted resolution should find the REAL system git,
-            # not our fake one, because it searches system dirs only.
             if push_guard_base._TRUSTED_GIT is not None:
                 rc, out = push_guard_base._run_git_diff(
                     ["git", "--version"], cwd=str(tmp_path),
                 )
                 assert not marker.exists(), "Fake git was executed"
                 assert "FAKE" not in out
-            else:
-                # If no system git found (CI container), that's OK --
-                # the guard fails closed.
-                pass
         finally:
             os.environ["PATH"] = original_path
             importlib.reload(push_guard_base)
 
     def test_system_git_not_from_path(self) -> None:
-        """_TRUSTED_GIT must be an absolute path in a system directory."""
+        """_TRUSTED_GIT must be under a known system directory."""
         hook_dir = str(
             Path(__file__).resolve().parents[2]
             / ".claude" / "hooks" / "PreToolUse"
@@ -308,14 +225,11 @@ class TestTrustedGitResolution:
         import push_guard_base
 
         if push_guard_base._TRUSTED_GIT is None:
-            pytest.skip("No system git available in this environment")
+            pytest.skip("No system git available")
         git_path = push_guard_base._TRUSTED_GIT
-        assert os.path.isabs(git_path), f"Not absolute: {git_path}"
-        # Must be under a known system directory
+        assert os.path.isabs(git_path)
         known = push_guard_base._SYSTEM_GIT_DIRS
-        assert any(
-            git_path.startswith(d) for d in known
-        ), f"{git_path} not under any system dir: {known}"
+        assert any(git_path.startswith(d) for d in known)
 
     def test_git_env_vars_scrubbed(self) -> None:
         hook_dir = str(
@@ -334,7 +248,7 @@ class TestTrustedGitResolution:
         try:
             env = push_guard_base._scrubbed_git_env()
             for var in dangerous:
-                assert var not in env, f"{var} leaked"
+                assert var not in env
         finally:
             for var in dangerous:
                 os.environ.pop(var, None)
@@ -359,67 +273,72 @@ class TestTrustedGitResolution:
 
 
 # ---------------------------------------------------------------------------
-# Policy subset boundary: rules NOT in the safe subset must NOT trigger
+# Fake gh marker test (Defect 1: gh must never execute from consumer PATH)
 # ---------------------------------------------------------------------------
 
-class TestDefaultsNotEnforced:
-    """Rules not in the explicit safe subset return 0 (not enforced).
+class TestFakeGhNotExecuted:
+    """push_guard_base must never invoke gh from inherited PATH."""
 
-    The config sets ``default: false``; only MD004/MD024/MD025/MD033/
-    MD040/MD041/MD046 are active.  Violations of other rules (MD009,
-    MD012, MD022, etc.) must pass cleanly.
-    """
+    def test_marker_writing_fake_gh_not_invoked(self, tmp_path: Path) -> None:
+        """A malicious gh placed first in PATH must not execute."""
+        marker = tmp_path / "MARKER_FAKE_GH_RAN"
+        bin_dir = tmp_path / "hostile_bin"
+        bin_dir.mkdir()
+        fake_gh = bin_dir / "gh"
+        fake_gh.write_text(
+            textwrap.dedent(f"""\
+                #!/bin/sh
+                touch {marker}
+                echo "FAKE GH EXECUTED" >&2
+                exit 0
+            """),
+        )
+        fake_gh.chmod(stat.S_IRWXU)
 
-    def test_md009_trailing_spaces_not_enforced(self, tmp_path: Path) -> None:
-        md = tmp_path / "trailing.md"
-        md.write_text("# Title\n\nLine with trailing spaces   \n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 0, f"MD009 unexpectedly enforced: {result.stderr}"
+        hook_dir = str(
+            Path(__file__).resolve().parents[2]
+            / ".claude" / "hooks" / "PreToolUse"
+        )
+        sys.path.insert(0, hook_dir)
+        import importlib
 
-    def test_md012_multiple_blank_lines_not_enforced(self, tmp_path: Path) -> None:
-        md = tmp_path / "blanks.md"
-        md.write_text("# Title\n\n\n\nParagraph after many blanks.\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 0, f"MD012 unexpectedly enforced: {result.stderr}"
+        import push_guard_base
 
-    def test_md022_blanks_around_headings_not_enforced(self, tmp_path: Path) -> None:
-        md = tmp_path / "noblank.md"
-        md.write_text("# Title\nNo blank before next heading.\n## Sub\nContent.\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 0, f"MD022 unexpectedly enforced: {result.stderr}"
+        original_path = os.environ.get("PATH", "")
+        try:
+            os.environ["PATH"] = f"{bin_dir}:{original_path}"
+            importlib.reload(push_guard_base)
+            # Call _detect_default_base_ref which previously used gh
+            push_guard_base._detect_default_base_ref(str(tmp_path))
+            assert not marker.exists(), "Fake gh was executed by the guard"
+        finally:
+            os.environ["PATH"] = original_path
+            importlib.reload(push_guard_base)
 
-    def test_md010_hard_tabs_not_enforced(self, tmp_path: Path) -> None:
-        md = tmp_path / "tabs.md"
-        md.write_text("# Title\n\n\tIndented with tab.\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 0, f"MD010 unexpectedly enforced: {result.stderr}"
 
-    def test_md013_line_length_not_enforced(self, tmp_path: Path) -> None:
-        md = tmp_path / "long.md"
-        md.write_text("# Title\n\n" + "x" * 200 + "\n")
-        result = _run_verifier([str(md)])
-        assert result.returncode == 0, f"MD013 unexpectedly enforced: {result.stderr}"
-
+# ---------------------------------------------------------------------------
+# Generated mirror parity
+# ---------------------------------------------------------------------------
 
 class TestGeneratedMirrorParity:
-    """The copilot-cli mirror must be byte-identical to the source."""
-
     def test_verifier_mirrors_match(self) -> None:
         root = Path(__file__).resolve().parents[2]
         source = root / ".claude" / "hooks" / "PreToolUse" / "_markdownlint_verifier.py"
-        mirror = root / "src" / "copilot-cli" / "hooks" / "PreToolUse" / "_markdownlint_verifier.py"
-        assert source.read_bytes() == mirror.read_bytes(), (
-            "copilot-cli verifier mirror diverged from source"
+        mirror = (
+            root / "src" / "copilot-cli" / "hooks" / "PreToolUse"
+            / "_markdownlint_verifier.py"
         )
+        assert source.read_bytes() == mirror.read_bytes()
 
     def test_config_mirrors_match(self) -> None:
         root = Path(__file__).resolve().parents[2]
-        source = root / ".claude" / "hooks" / "PreToolUse" / "markdownlint-safe-config.yaml"
+        source = (
+            root / ".claude" / "hooks" / "PreToolUse"
+            / "markdownlint-safe-config.yaml"
+        )
         mirror = (
             root / "src" / "copilot-cli" / "hooks" / "PreToolUse"
             / "markdownlint-safe-config.yaml"
         )
         if mirror.exists():
-            assert source.read_bytes() == mirror.read_bytes(), (
-                "copilot-cli config mirror diverged from source"
-            )
+            assert source.read_bytes() == mirror.read_bytes()
