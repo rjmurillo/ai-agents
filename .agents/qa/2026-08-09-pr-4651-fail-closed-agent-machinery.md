@@ -1,14 +1,14 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-08-session-10006-fleet-pr-4651.json
-qaCommit: a331de32787d194abf0c4edc9e79103c22366e53
+qaCommit: 695e236276a1417b644bac563a41708b50b4057f
 ---
 
 # QA Report: PR 4651 Fail Closed Agent Machinery
 
 ## Verdict
 
-PASS. I ran the verification on commit `a331de32787d194abf0c4edc9e79103c22366e53` after merging `origin/main` into `fix/adversarial-review-agent-machinery` in worktree `../ai-agents-qa-4651`.
+PASS. I ran the verification on commit `695e236276a1417b644bac563a41708b50b4057f` after merging `origin/main` into `fix/adversarial-review-agent-machinery` in worktree `../ai-agents-qa-4651`.
 
 ## Scope
 
@@ -27,9 +27,9 @@ uv run --frozen pytest tests/build_scripts/test_build_all.py tests/build_scripts
 Real output:
 
 ```text
-collected 490 items
+collected 481 items
 
-======================= 489 passed, 1 skipped in 14.77s =======================
+======================= 480 passed, 1 skipped in 14.09s =======================
 ```
 
 ### 2. CLI exit contract baseline direction
@@ -48,7 +48,7 @@ Real output:
 HEAD baseline: 27
 ```
 
-Result: tightening direction. The PR commit `09b58c12b` reduced the baseline from 29 to 28. The current QA commit tightens it again to 27 after pre-push measured the tracked count at 27.
+Result: tightening direction. The PR commit `09b58c12b` reduced the baseline from 29 to 28. The current QA commit tightens it again to 27 after pre-push and the remote-head merge measured the tracked count at 27.
 
 ### 3. Generated Copilot hook mirrors
 
