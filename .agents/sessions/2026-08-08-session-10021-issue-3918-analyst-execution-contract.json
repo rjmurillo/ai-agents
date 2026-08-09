@@ -165,6 +165,6 @@
       "result": "Both reviews reported no Critical or High findings. All five live Claude and Copilot smoke tests passed."
     }
   ],
-  "endingCommit": "cfbf65dce7181e38bcd67bff7ae9d6de9eab4549",
+  "endingCommit": "2a25970c811eaa150b39d5cec9d50761b39efd2d",
   "nextSteps": []
 }
