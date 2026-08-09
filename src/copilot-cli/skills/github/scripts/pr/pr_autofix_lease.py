@@ -809,8 +809,9 @@ def acquire(
     authoritative lease comment, never against the forgeable body
     ``owner`` / ``session`` (ADR-076 Security, CWE-345). ``acting_author``
     is injectable for deterministic tests; production passes None and the
-    authenticated ``gh`` login is resolved. An unresolved login ("") can
-    only claim a free lock, never self-renew a foreign one (fails safe).
+    authenticated ``gh`` login is resolved. An unresolved login fails open
+    to ``ACT/lease-store-unavailable`` because ownership loss was not
+    positively confirmed. The SHA gate remains the mutation backstop.
 
     ``base_sha`` is the PR head SHA read from GitHub (ADR-076 part 3 step
     1), never the caller's local HEAD, so an acquire run from the wrong
@@ -834,6 +835,11 @@ def acquire(
     now = now or datetime.now(UTC)
     author = _gh_authenticated_login() if acting_author is None else acting_author
     local_sha = _git_head_sha()
+    if acting_author is None and author == "":
+        logger.warning("op=lease_login_unavailable pr=%d", pr)
+        return LeaseResult(
+            "ACT", "lease-store-unavailable", base_sha="0" * 40, local_head_sha=local_sha
+        )
     try:
         comments = list_lease_comments(repo_owner, repo, pr)
     except LeaseStoreError as exc:
@@ -1095,7 +1101,7 @@ def main(argv: list[str] | None = None) -> int:
             status="PASS",
             script_name=_SCRIPT_NAME,
         )
-        return 3 if args.command == "renew" else 0
+        return 0
 
     result = _run_command(args, owner, repo)
 
@@ -1127,8 +1133,6 @@ def main(argv: list[str] | None = None) -> int:
         status="PASS" if result.action == "ACT" else "WARNING",
         script_name=_SCRIPT_NAME,
     )
-    if args.command == "renew" and result.reason == "lease-store-unavailable":
-        return 3
     return 0 if result.action == "ACT" else 1
 
 

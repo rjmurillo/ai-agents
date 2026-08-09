@@ -1596,9 +1596,8 @@ class TestRenewSubcommand:
                 main(["renew", "--pull-request", "1", "--output-format", "json"])
         assert exc.value.code == 2
 
-    def test_renew_store_error_reports_external_failure(self, capsys):
-        # Acquire fails open. Renewal must expose an unavailable store so the
-        # orchestrator does not mistake an expired lease for confirmed ownership.
+    def test_renew_store_error_fails_open_to_act(self, capsys):
+        # The SHA gate remains authoritative when the advisory store is down.
         with (
             patch.object(_mod, "assert_gh_authenticated", return_value=None),
             patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
@@ -1609,18 +1608,33 @@ class TestRenewSubcommand:
             rc = main(
                 ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
             )
-        assert rc == 3
+        assert rc == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["Data"]["action"] == "ACT"
         assert payload["Data"]["reason"] == "lease-store-unavailable"
 
-    def test_renew_auth_failure_reports_external_failure(self, capsys):
+    def test_renew_auth_failure_fails_open_to_act(self, capsys):
         with patch.object(_mod, "assert_gh_authenticated", side_effect=SystemExit(4)):
             rc = main(
                 ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
             )
-        assert rc == 3
+        assert rc == 0
         payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
+        assert payload["Data"]["reason"] == "lease-store-unavailable"
+
+    def test_renew_login_lookup_failure_fails_open_to_act(self, capsys):
+        with (
+            patch.object(_mod, "assert_gh_authenticated", return_value=None),
+            patch.object(_mod, "resolve_repo_params", return_value=self._repo()),
+            patch.object(_mod, "_gh_authenticated_login", return_value=""),
+        ):
+            rc = main(
+                ["renew", "--pull-request", "1", "--session", _SESSION, "--output-format", "json"]
+            )
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Data"]["action"] == "ACT"
         assert payload["Data"]["reason"] == "lease-store-unavailable"
 
     def test_duration_exceeding_ttl_covered_by_two_renewals(self):
