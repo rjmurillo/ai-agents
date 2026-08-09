@@ -539,69 +539,21 @@ def _changed_files(
     return None
 
 
-_GH_TIMEOUT = 5
-
-
-def _gh_base_ref(cwd: str) -> str | None:
-    """Return ``origin/<baseRefName>`` for the open PR, or None.
-
-    When a PR exists for the current branch, ``baseRefName`` is the
-    ground truth. This handles the derivative-PR case where the user
-    has not run ``git push -u`` yet but the PR is already opened
-    against a non-default base. Fail-open semantics: any gh failure
-    (missing CLI, no PR, auth, network) returns None and the caller
-    falls through to the next signal in the chain.
-    """
-    import shutil  # local import to keep top-level imports minimal
-
-    if shutil.which("gh") is None:
-        return None
-    try:
-        proc = subprocess.run(
-            ["gh", "pr", "view", "--json", "baseRefName", "-q", ".baseRefName"],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=_GH_TIMEOUT,
-            shell=False,
-            check=False,
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        return None
-    if proc.returncode != 0:
-        return None
-    base = proc.stdout.strip()
-    if not base:
-        return None
-    return f"origin/{base}"
-
-
 def _detect_default_base_ref(cwd: str) -> str:
     """Resolve the right base ref to diff against when ``@{push}`` is unset.
 
-    The fallback hierarchy mirrors what a careful engineer would inspect by
-    hand:
+    The fallback hierarchy uses only the trusted absolute git binary:
 
-    1. The PR's actual ``baseRefName`` via ``gh pr view``. This is the
-       ground truth once a PR exists and handles the derivative-PR case
-       where the user has not run ``git push -u`` yet but the PR is
-       already opened against a non-default base. Fail-open: any gh
-       failure (missing CLI, no PR, auth, network) falls to step 2.
-    2. The current branch's configured upstream (``@{u}``). When the user
+    1. The current branch's configured upstream (``@{u}``). When the user
        has set tracking explicitly (``git push -u``,
        ``git branch --set-upstream-to=...``), this is the right answer
-       for both mainline branches and derivative branches before the PR
-       exists. Hardcoding ``origin/main`` here would pull in the parent
-       branch's history.
-    3. The remote's default branch via ``refs/remotes/origin/HEAD``. The
+       for both mainline branches and derivative branches.
+    2. The remote's default branch via ``refs/remotes/origin/HEAD``. The
        documented "what does the remote consider default" answer for a
-       brand-new feature branch with no upstream and no PR yet.
-    4. ``origin/main`` as a last-resort literal so a misconfigured clone
+       brand-new feature branch with no upstream.
+    3. ``origin/main`` as a last-resort literal so a misconfigured clone
        still produces a sensible (if imperfect) reference.
     """
-    pr_base = _gh_base_ref(cwd)
-    if pr_base:
-        return pr_base
     rc, out = _run_git_diff(
         ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
         cwd=cwd,
