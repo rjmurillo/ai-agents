@@ -167,6 +167,24 @@ Agents return in a format you can synthesize. If an agent returns narrative pros
 
 **Skill inheritance is harness-specific.** The Claude Code incident behind this note found that workers did not inherit the skills active in the parent session; it does not establish the same behavior in other harnesses. Where a worker does not inherit, naming the skill file costs less context than pasting its body into the prompt.
 
+### Analyst evidence handoff
+
+Before delegating an investigation that needs GitHub, CI, git history, tests,
+builds, command output, or external evidence outside the analyst's declared
+Context7 and DeepWiki tools:
+
+1. Retrieve the evidence with your execution, GitHub, or research capabilities,
+   or route retrieval to a worker whose declared tools include the capability.
+2. Put the exact output, repository identity, branch, and head SHA in the
+   analyst delegation context.
+3. Name any unavailable evidence as a gap. Do not imply the analyst can fetch
+   it after delegation.
+
+The analyst is read-only and has no shell, GitHub, or unrestricted web access.
+If it returns `[BLOCKED]` for load-bearing missing context, retrieve the named
+evidence and re-delegate once. Do not pass the blocked response through as the
+investigation result.
+
 ## Synthesis Protocol
 
 After all delegated work returns:
@@ -323,7 +341,11 @@ A PreToolUse hook can block a tool call and return a reason on stderr. Hook outp
 
 Read, Grep, Glob, Bash, TodoWrite, Task (for delegation). Memory via `mcp__serena__read_memory` and `mcp__serena__write_memory` for cross-session context and handoff persistence.
 
-Investigation tools (WebSearch, WebFetch) are intentionally not included. If a task needs external research, delegate to the analyst agent. Orchestrator coordinates; it does not investigate.
+Unrestricted WebSearch and WebFetch are intentionally not included. The analyst
+can query scoped Context7 and DeepWiki documentation. For arbitrary-URL
+research, delegate retrieval to a worker whose declared manifest includes that
+capability, then pass the exact output to the analyst. If no worker has it, name
+the evidence gap. Orchestrator coordinates; it does not investigate.
 
 ## Anti-Patterns
 
