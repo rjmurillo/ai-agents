@@ -163,7 +163,9 @@ def main(files: list[str]) -> int:
 
         try:
             proc = subprocess.run(
-                [str(node), str(_ENTRY), "--config", str(tmp_path / ".markdownlint-cli2.yaml"), *tmp_files],
+                [str(node), str(_ENTRY),
+                 "--config", str(tmp_path / ".markdownlint-cli2.yaml"),
+                 *tmp_files],
                 cwd=tmp,
                 capture_output=True,
                 text=True,

@@ -99,11 +99,14 @@ class TestFailClosed:
 class TestIntegrity:
     """Integrity verification must block tampered entry points."""
 
-    def test_tampered_integrity_fails(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_tampered_integrity_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         # Create a fake integrity file with wrong hash
         fake_integrity = tmp_path / "INTEGRITY.sha256"
         entry_rel = str(verifier._ENTRY.relative_to(verifier._VENDOR))
-        fake_integrity.write_text(f"0000000000000000000000000000000000000000000000000000000000000000  {entry_rel}\n")
+        bad_hash = "0" * 64
+        fake_integrity.write_text(f"{bad_hash}  {entry_rel}\n")
         monkeypatch.setattr(verifier, "_INTEGRITY", fake_integrity)
         md = tmp_path / "test.md"
         md.write_text("# Title\n\nText.\n")
