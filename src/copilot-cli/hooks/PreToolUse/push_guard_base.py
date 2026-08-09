@@ -68,6 +68,7 @@ import json
 import os
 import re
 import shlex
+import shutil as _shutil
 import subprocess
 import sys
 from collections.abc import Callable
@@ -116,6 +117,54 @@ from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 __all__ = ["run_guard", "get_project_directory", "emit_fail_open"]
 
 GIT_DIFF_TIMEOUT = 10
+
+# ---------------------------------------------------------------------------
+# Trusted git resolution (defect #2 mitigation)
+# ---------------------------------------------------------------------------
+_UNTRUSTED_PATH_SEGMENTS = frozenset({
+    "node_modules", ".npm", ".local", "tmp", "temp", ".cache",
+})
+
+# Environment variables that can redirect git behavior to attacker code.
+_GIT_DANGEROUS_ENV = frozenset({
+    "GIT_EXEC_PATH", "GIT_EXTERNAL_DIFF", "GIT_DIFF_OPTS",
+    "GIT_SSH_COMMAND", "GIT_ASKPASS", "GIT_EDITOR",
+    "GIT_PAGER", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM",
+    "GIT_CONFIG_NOSYSTEM", "GIT_ATTR_NOSYSTEM",
+})
+
+
+def _resolve_trusted_git() -> str:
+    """Return absolute path to git, or raise if untrusted."""
+    git_path = _shutil.which("git")
+    if git_path is None:
+        raise FileNotFoundError("git not found on PATH")
+    resolved = str(Path(git_path).resolve())
+    parts = Path(resolved).parts
+    for segment in parts:
+        if segment in _UNTRUSTED_PATH_SEGMENTS:
+            raise FileNotFoundError(
+                f"git resolved to untrusted location: {resolved}"
+            )
+    return resolved
+
+
+def _scrubbed_git_env() -> dict[str, str]:
+    """Return os.environ minus dangerous GIT_* and PYTHON* variables."""
+    return {
+        k: v
+        for k, v in os.environ.items()
+        if k not in _GIT_DANGEROUS_ENV
+        and not k.startswith("PYTHON")
+    }
+
+
+# Resolved once at import time; guards fail closed if untrusted.
+try:
+    _TRUSTED_GIT: str | None = _resolve_trusted_git()
+except FileNotFoundError:
+    _TRUSTED_GIT = None
+
 
 # Cap stdin read so a malicious or buggy upstream cannot OOM the hook
 # (CWE-400). Real Claude Code tool_input commands are well below 1 MiB.
@@ -350,15 +399,20 @@ def _validate_strict_push_configuration(cwd: str) -> None:
 
 
 def _run_git_diff(args: list[str], cwd: str) -> tuple[int, str]:
+    if _TRUSTED_GIT is None:
+        return 1, "git not found or resolved to untrusted location"
+    # Replace bare 'git' with absolute trusted path.
+    resolved_args = [_TRUSTED_GIT if a == "git" else a for a in args]
     try:
         proc = subprocess.run(
-            args,
+            resolved_args,
             cwd=cwd,
             capture_output=True,
             text=True,
             timeout=GIT_DIFF_TIMEOUT,
             shell=False,
             check=False,
+            env=_scrubbed_git_env(),
         )
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
         return 1, f"{type(exc).__name__}: {exc}"

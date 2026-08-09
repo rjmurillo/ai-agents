@@ -38,6 +38,14 @@ def _stdin_payload(command: str | None) -> str:
     return json.dumps({"tool_input": {"command": command}})
 
 
+
+@pytest.fixture(autouse=True)
+def _patch_trusted_git():
+    """Tests use bare 'git' in dispatch tables; patch trusted resolution."""
+    with patch("push_guard_base._TRUSTED_GIT", "git"):
+        yield
+
+
 def _ok_diff(stdout: str) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(
         args=["git"], returncode=0, stdout=stdout, stderr=""

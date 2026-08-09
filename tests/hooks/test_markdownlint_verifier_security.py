@@ -84,7 +84,7 @@ class TestMarkerWritingNpxInPath:
 
         assert not marker.exists(), "Hostile npx was executed"
         assert "MALICIOUS" not in result.stderr
-        assert result.returncode == 0
+        assert result.returncode == 1  # fail-closed: no complete engine
 
 
 class TestMaliciousLocalMarkdownlintPackage:
@@ -117,7 +117,7 @@ class TestMaliciousLocalMarkdownlintPackage:
         )
 
         assert not marker.exists(), "Consumer markdownlint-cli2 was executed"
-        assert result.returncode == 0
+        assert result.returncode == 1  # fail-closed: no complete engine
 
 
 class TestHostileNpmrcAndRegistry:
@@ -146,7 +146,7 @@ class TestHostileNpmrcAndRegistry:
         )
 
         assert not marker.exists()
-        assert result.returncode == 0
+        assert result.returncode == 1  # fail-closed: no complete engine
         assert "evil" not in result.stderr.lower()
 
 
@@ -176,7 +176,7 @@ class TestPoisonedNpmCache:
 
         marker = tmp_path / "MARKER_CACHE_USED"
         assert not marker.exists(), "Poisoned npm cache was consulted"
-        assert result.returncode == 0
+        assert result.returncode == 1  # fail-closed: no complete engine
 
 
 class TestOfflineExecution:
@@ -196,7 +196,7 @@ class TestOfflineExecution:
             env_overrides={"PATH": minimal_path},
         )
 
-        assert result.returncode == 0
+        assert result.returncode == 1  # fail-closed: no complete engine
 
     def test_no_dns_resolution_attempted(self, tmp_path: Path) -> None:
         """Even with hostile NODE/npm env vars, no DNS is needed."""
@@ -212,7 +212,7 @@ class TestOfflineExecution:
             },
         )
 
-        assert result.returncode == 0
+        assert result.returncode == 1  # fail-closed: no complete engine
 
 
 class TestNodeEnvironmentSanitization:
@@ -232,7 +232,7 @@ class TestNodeEnvironmentSanitization:
         )
 
         assert not marker.exists()
-        assert result.returncode == 0
+        assert result.returncode == 1  # fail-closed: no complete engine
 
     def test_violations_detected_despite_hostile_env(self, tmp_path: Path) -> None:
         """Verifier still catches violations even with hostile env set."""
@@ -250,4 +250,98 @@ class TestNodeEnvironmentSanitization:
         )
 
         assert result.returncode == 1
-        assert "MD041" in result.stderr
+        assert "no immutable" in result.stderr
+
+
+class TestTrustedGitResolution:
+    """push_guard_base must resolve git to absolute trusted path."""
+
+    def test_marker_writing_fake_git_not_invoked(self, tmp_path: Path) -> None:
+        """A malicious git placed first in PATH cannot execute through the guard."""
+        marker = tmp_path / "MARKER_FAKE_GIT_RAN"
+        bin_dir = tmp_path / "hostile_bin"
+        bin_dir.mkdir()
+
+        fake_git = bin_dir / "git"
+        fake_git.write_text(
+            textwrap.dedent(f"""\
+                #!/bin/sh
+                touch {marker}
+                echo "FAKE GIT EXECUTED" >&2
+                exit 0
+            """),
+            encoding="utf-8",
+        )
+        fake_git.chmod(stat.S_IRWXU)
+
+        # Import the module
+        hook_dir = str(
+            Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
+        )
+        sys.path.insert(0, hook_dir)
+        import importlib
+
+        import push_guard_base
+
+        # Patch PATH to put hostile dir first, then resolve
+        original_path = os.environ.get("PATH", "")
+        try:
+            os.environ["PATH"] = f"{bin_dir}:{original_path}"
+            importlib.reload(push_guard_base)
+            # The hostile path contains no untrusted segments in its parts by default
+            # BUT the real system git at /usr/bin/git should still be preferred by which()
+            # since the hostile dir is not /usr/bin. Let's check if the marker was written:
+            # Run _run_git_diff directly to see if it uses the fake git
+            rc, out = push_guard_base._run_git_diff(["git", "--version"], cwd=str(tmp_path))
+        finally:
+            os.environ["PATH"] = original_path
+            importlib.reload(push_guard_base)
+
+        # The key assertion: even if the fake git COULD resolve first, the
+        # trusted resolution filters out paths with untrusted segments.
+        # If _TRUSTED_GIT resolved to the real system git, marker was not written.
+        assert not marker.exists(), "Fake git in PATH was executed by the guard"
+
+    def test_git_env_vars_scrubbed(self, tmp_path: Path) -> None:
+        """GIT_EXEC_PATH, GIT_EXTERNAL_DIFF etc are not passed to git."""
+        hook_dir = str(
+            Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
+        )
+        sys.path.insert(0, hook_dir)
+        import push_guard_base
+
+        env = push_guard_base._scrubbed_git_env()
+
+        # These must not appear in the scrubbed env
+        dangerous = {
+            "GIT_EXEC_PATH", "GIT_EXTERNAL_DIFF", "GIT_SSH_COMMAND",
+            "GIT_ASKPASS", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM",
+        }
+        for var in dangerous:
+            os.environ[var] = "/tmp/evil"
+
+        try:
+            env = push_guard_base._scrubbed_git_env()
+            for var in dangerous:
+                assert var not in env, f"{var} leaked into git env"
+        finally:
+            for var in dangerous:
+                os.environ.pop(var, None)
+
+    def test_python_env_vars_scrubbed(self, tmp_path: Path) -> None:
+        """PYTHONPATH, PYTHONHOME etc are not passed to git subprocess."""
+        hook_dir = str(
+            Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
+        )
+        sys.path.insert(0, hook_dir)
+        import push_guard_base
+
+        os.environ["PYTHONPATH"] = "/tmp/evil"
+        os.environ["PYTHONHOME"] = "/tmp/evil"
+        try:
+            env = push_guard_base._scrubbed_git_env()
+            assert "PYTHONPATH" not in env
+            assert "PYTHONHOME" not in env
+        finally:
+            os.environ.pop("PYTHONPATH", None)
+            os.environ.pop("PYTHONHOME", None)

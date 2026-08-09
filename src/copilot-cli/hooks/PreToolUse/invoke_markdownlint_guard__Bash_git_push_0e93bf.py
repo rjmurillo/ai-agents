@@ -404,7 +404,7 @@ def _original_main(stdin_bytes):
     def _resolve_invocation() -> list[str] | None:
         """Return invocation args if shipped verifier and config exist."""
         if VERIFIER.is_file() and SAFE_CONFIG.is_file():
-            return [sys.executable, str(VERIFIER)]
+            return [sys.executable, "-I", "-S", str(VERIFIER)]
         return None
 
 
@@ -418,6 +418,11 @@ def _original_main(stdin_bytes):
         print(f"[{GUARD_NAME}] using trusted verifier {VERIFIER.name}", file=sys.stderr)
 
         project_dir = get_project_directory()
+        # Scrub PYTHON* vars so consumer sitecustomize/PYTHONPATH cannot inject.
+        env = {
+            k: v for k, v in __import__("os").environ.items()
+            if not k.startswith("PYTHON")
+        }
         try:
             proc = subprocess.run(
                 [*invocation, "--markdown-lint-only", "--", *matching],
@@ -427,6 +432,7 @@ def _original_main(stdin_bytes):
                 shell=False,
                 check=False,
                 cwd=project_dir,
+                env=env,
             )
         except subprocess.TimeoutExpired:
             message = f"{VERIFIER.name} exceeded {SUBPROCESS_TIMEOUT}s"

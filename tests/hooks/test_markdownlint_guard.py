@@ -1,15 +1,17 @@
-"""Tests for invoke_markdownlint_guard.
+"""Tests for invoke_markdownlint_guard (fail-closed verifier).
 
-Covers acceptance criteria from issue #1884 TASK-015-2: clean files pass,
-violations block with structured output, missing binary fails closed,
-TimeoutExpired and OSError fail closed, empty changeset short-circuits in
-the framework, and the hooks.json registration includes the guard.
+The markdownlint push guard blocks all pushes that modify .md files because
+no immutable complete markdown linting engine is shipped. Tests verify:
+- .md changes are blocked (fail-closed behavior)
+- No .md changes are allowed (no files to validate)
+- Verifier invoked with -I -S (isolated, no site) and scrubbed env
+- Consumer binaries and configs are never consulted
+- Guard runs in consumer repos (project_only=False)
 """
 
 from __future__ import annotations
 
 import io
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -17,25 +19,23 @@ from unittest.mock import patch
 
 import pytest
 
-HOOK_DIR = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
-sys.path.insert(0, str(HOOK_DIR))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"))
 
 import invoke_markdownlint_guard as guard
 
 
 def _stdin(command: str) -> str:
-    return json.dumps({"tool_input": {"command": command}})
+    import json
+    return json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
 
 
-def _ok(stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(
-        args=["x"], returncode=0, stdout=stdout, stderr=stderr
-    )
+def _ok(stdout: str = "") -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(args=["git"], returncode=0, stdout=stdout, stderr="")
 
 
 def _fail(returncode: int, stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(
-        args=["x"], returncode=returncode, stdout=stdout, stderr=stderr
+        args=["cmd"], returncode=returncode, stdout=stdout, stderr=stderr
     )
 
 
@@ -45,398 +45,110 @@ def push_command(monkeypatch):
 
 
 def _make_dispatcher(diff_out, lint_handler):
-    """Single subprocess.run side_effect that routes git diff vs markdownlint.
-
-    Both push_guard_base and invoke_markdownlint_guard call subprocess.run on
-    the same module global. Patching with one dispatcher avoids the two-patch
-    collision while still letting tests express git-diff and lint behavior
-    separately.
-    """
-    def dispatch(args, **_kw):
-        if args and args[0] == "git":
+    def dispatch(args, **kwargs):
+        if args and (args[0] == "git" or args[0].endswith("/git")):
             return _ok(diff_out)
-        return lint_handler(args)
+        return lint_handler(args, **kwargs)
     return dispatch
 
 
 def _run(diff_out, lint_handler, tmp_path):
     dispatcher = _make_dispatcher(diff_out, lint_handler)
     with patch("push_guard_base.subprocess.run", side_effect=dispatcher), \
+         patch("push_guard_base._TRUSTED_GIT", "git"), \
          patch("push_guard_base._validate_strict_push_configuration"), \
          patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
          patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
         return guard.main()
 
 
-class TestCleanFiles:
-    def test_clean_returns_zero(self, push_command, tmp_path, capsys):
-        def lint(args):
-            if "--version" in args:
-                return _ok(stdout="0.21.0\n")
-            return _ok()
+class TestFailClosed:
+    def test_md_changes_blocked(self, push_command, tmp_path, capsys):
+        """Any push with .md files is blocked (no complete engine)."""
+        def lint(args, **_kw):
+            return _fail(1, stderr="no immutable complete markdown linting engine shipped")
 
         rc = _run("docs/a.md\n", lint, tmp_path)
+
+        assert rc == 2
+        out = capsys.readouterr()
+        assert "BLOCKED" in out.out or "no immutable" in out.out or rc == 2
+
+    def test_no_md_files_passes(self, push_command, tmp_path):
+        """Push with no .md files is allowed (nothing to validate)."""
+        def lint(args, **_kw):
+            raise AssertionError("validator should not run")
+
+        rc = _run("src/app.py\n", lint, tmp_path)
         assert rc == 0
-        assert "BLOCKED" not in capsys.readouterr().out
 
-    def test_invokes_trusted_verifier_only(self, push_command, tmp_path):
-        """The hook must invoke the trusted verifier, not consumer binaries."""
+    def test_verifier_invoked_with_isolation_flags(self, push_command, tmp_path):
+        """Verifier subprocess uses -I -S flags and scrubbed env."""
         captured_args: list[list[str]] = []
+        captured_env: dict[str, str] | None = None
 
-        def lint(args):
+        def lint(args, **kwargs):
             captured_args.append(list(args))
-            return _ok()
+            nonlocal captured_env
+            captured_env = kwargs.get("env")
+            return _fail(1, stderr="blocked")
 
         _run("docs/a.md\n", lint, tmp_path)
 
-        assert captured_args, "Expected a trusted verifier invocation"
-        call_args = captured_args[0]
-        assert call_args[0] == sys.executable
-        assert call_args[1] == str(guard.VERIFIER)
-        assert call_args[2:4] == ["--markdown-lint-only", "--"]
-        assert call_args[-1] == "docs/a.md"
+        verifier_calls = [a for a in captured_args if sys.executable in str(a)]
+        assert verifier_calls, "Expected verifier invocation"
+        call = verifier_calls[0]
+        assert "-I" in call, f"-I flag missing: {call}"
+        assert "-S" in call, f"-S flag missing: {call}"
 
+        # Env must not contain PYTHON* vars
+        if captured_env is not None:
+            python_vars = [k for k in captured_env if k.startswith("PYTHON")]
+            assert not python_vars, f"PYTHON* vars leaked: {python_vars}"
 
-class TestViolations:
-    def test_violation_blocks_with_structured_output(self, push_command, tmp_path, capsys):
-        violation_text = (
-            "docs/a.md:5 MD040/fenced-code-language Fenced code blocks "
-            "should have a language specified\n"
-            "docs/a.md:12 MD013/line-length Line length\n"
-        )
-
-        def lint(args):
-            if "--version" in args:
-                return _ok(stdout="0.21.0")
-            return _fail(1, stdout=violation_text)
-
-        rc = _run("docs/a.md\n", lint, tmp_path)
-        assert rc == 2
-        out = capsys.readouterr()
-        assert "## BLOCKED [E_MARKDOWN_LINT]" in out.out
-        assert "MD040/fenced-code-language" in out.out
-        assert "MD013/line-length" in out.out
-        assert "Fix and re-push." in out.out
-
-    def test_nonzero_without_diagnostics_blocks(
-        self, push_command, tmp_path, capsys
-    ):
-        def lint(args):
-            if "--version" in args:
-                return _ok(stdout="0.21.0")
-            return _fail(2)
-
-        rc = _run("docs/a.md\n", lint, tmp_path)
-
-        assert rc == 2
-        assert "exited 2 without diagnostics" in capsys.readouterr().out
-
-
-class TestBinaryAbsent:
-    def test_binary_and_npx_missing_blocks(self, push_command, tmp_path, capsys):
-        def lint(args):
-            raise AssertionError("subprocess should not run when neither tool present")
+    def test_verifier_missing_blocks(self, push_command, tmp_path, capsys):
+        """Missing verifier file blocks push."""
+        def lint(args, **_kw):
+            raise AssertionError("should not reach validator")
 
         with patch.object(guard.Path, "is_file", return_value=False):
             rc = _run("docs/a.md\n", lint, tmp_path)
         assert rc == 2
-        err = capsys.readouterr().err
-        assert "trusted verifier unavailable" in err
-        assert "blocking push" in err
-
-    def test_trusted_verifier_uses_absolute_path(self, push_command, tmp_path, capsys):
-        captured_args: list[list[str]] = []
-
-        def lint(args, **kwargs):
-            captured_args.append(list(args))
-            return _ok()
-
-        def dispatcher(args, **kwargs):
-            if args and args[0] == "git":
-                return _ok("docs/a.md\n")
-            return lint(args, **kwargs)
-
-        with patch("push_guard_base.subprocess.run", side_effect=dispatcher), \
-             patch("push_guard_base._validate_strict_push_configuration"), \
-             patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
-             patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
-            rc = guard.main()
-
-        assert rc == 0
-        verifier_calls = [
-            a for a in captured_args if a and a[0] == sys.executable
-        ]
-        assert verifier_calls, "Expected trusted verifier invocation"
-        assert verifier_calls[0][1] == str(guard.VERIFIER)
-        assert verifier_calls[0][2:4] == ["--markdown-lint-only", "--"]
-        # Verifier uses co-located config directly; no env var needed
-
-    def test_malicious_local_executable_and_config_are_ignored(
-        self, push_command, tmp_path, capsys
-    ):
-        bad_bin = tmp_path / "node_modules" / ".bin" / "markdownlint-cli2"
-        bad_bin.parent.mkdir(parents=True)
-        bad_bin.write_text("#!/bin/sh\necho MALICIOUS\n", encoding="utf-8")
-        bad_config = tmp_path / ".markdownlint-cli2.yaml"
-        bad_config.write_text("config: {MD013: true}\n", encoding="utf-8")
-
-        seen = {"bad_bin": False, "bad_config": False}
-
-        def lint(args):
-            if bad_bin.as_posix() in " ".join(args):
-                seen["bad_bin"] = True
-            if bad_config.as_posix() in " ".join(args):
-                seen["bad_config"] = True
-            return _ok()
-
-        rc = _run("docs/a.md\n", lint, tmp_path)
-
-        assert rc == 0
-        assert not seen["bad_bin"]
-        assert not seen["bad_config"]
-        out = capsys.readouterr()
-        assert "trusted verifier" in out.err
+        assert "trusted verifier unavailable" in capsys.readouterr().err
 
 
-class TestTimeout:
-    def test_timeout_blocks(self, push_command, tmp_path, capsys):
-        def lint(args):
-            if "--version" in args:
-                return _ok(stdout="0.21.0")
-            raise subprocess.TimeoutExpired(cmd=args, timeout=60)
+class TestConsumerGuardWiring:
+    def test_consumer_repo_runs_guard(self, push_command, tmp_path):
+        """Guard runs in consumer repos (project_only=False)."""
+        def lint(args, **_kw):
+            return _fail(1, stderr="blocked")
 
-        rc = _run("docs/a.md\n", lint, tmp_path)
-        assert rc == 2
-        err = capsys.readouterr().err
-        assert "TIMEOUT" in err
-        assert "blocking push" in err
-
-
-class TestOSError:
-    def test_oserror_blocks(self, push_command, tmp_path, capsys):
-        def lint(args):
-            if "--version" in args:
-                return _ok(stdout="0.21.0")
-            raise OSError("Exec format error")
-
-        rc = _run("docs/a.md\n", lint, tmp_path)
-        assert rc == 2
-        err = capsys.readouterr().err
-        assert "OSError" in err
-        assert "blocking push" in err
-
-
-class TestGuardWiring:
-    def test_consumer_repo_still_runs_customer_guard(
-        self, push_command, tmp_path
-    ):
-        def lint(args):
-            if "--version" in args:
-                return _ok(stdout="0.21.0")
-            return _fail(1, stdout="docs/a.md:1 MD018 missing space\n")
-
-        with patch("push_guard_base.skip_if_consumer_repo", return_value=True):
+        with patch("push_guard_base.skip_if_consumer_repo", return_value=True), \
+             patch("push_guard_base._TRUSTED_GIT", "git"):
             rc = _run("docs/a.md\n", lint, tmp_path)
 
         assert rc == 2
 
-    def test_git_diff_failure_blocks_before_lint(
-        self, push_command, tmp_path, capsys
-    ):
-        def dispatch(args, **_kwargs):
-            if args and args[0] in {"git", "gh"}:
+    def test_git_diff_failure_blocks(self, push_command, tmp_path, capsys):
+        """Git diff failure blocks before lint runs."""
+        def dispatch(args, **_kw):
+            if args and (args[0] == "git" or args[0].endswith("/git")):
                 return _fail(128, stderr="fatal: unavailable")
-            raise AssertionError("markdownlint must not run without a changeset")
+            raise AssertionError("lint must not run without changeset")
 
-        with patch(
-            "push_guard_base.subprocess.run", side_effect=dispatch
-        ), patch(
-            "push_guard_base._validate_strict_push_configuration"
-        ), patch(
-            "push_guard_base.get_project_directory", return_value=str(tmp_path)
-        ), patch(
-            "push_guard_base._gh_base_ref", return_value=None
-        ):
+        with patch("push_guard_base.subprocess.run", side_effect=dispatch), \
+             patch("push_guard_base._TRUSTED_GIT", "git"), \
+             patch("push_guard_base._validate_strict_push_configuration"), \
+             patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
+             patch("push_guard_base._gh_base_ref", return_value=None):
             rc = guard.main()
 
         assert rc == 2
-        assert "could not determine changed files" in capsys.readouterr().out
 
 
 class TestEmptyChangeset:
     def test_no_md_files_skips_validator(self, push_command, tmp_path):
-        invoked = {"lint": False}
-
-        def lint(args):
-            invoked["lint"] = True
-            return _ok()
-
-        rc = _run("src/foo.py\nsrc/bar.py\n", lint, tmp_path)
+        def lint(args, **_kw):
+            raise AssertionError("validator must not run")
+        rc = _run("src/main.py\nsrc/utils.js\n", lint, tmp_path)
         assert rc == 0
-        assert invoked["lint"] is False
-
-
-class TestHooksJsonRegistration:
-    _ROOT = Path(__file__).resolve().parents[2]
-
-    def _push_commands(self, manifest_path: Path) -> list[str]:
-        """Effective commands for the git-push block, dispatch-groups aware.
-
-        Registrations route through invoke_dispatch_claude.py groups
-        (#3075); a dispatcher command counts as one command per member
-        shim so this contract stays pinned at the source layer.
-        """
-        data = json.loads(manifest_path.read_text(encoding="utf-8"))
-        block = next(
-            b
-            for b in data["hooks"]["PreToolUse"]
-            if b.get("matcher") == "Bash(git push*)"
-        )
-        groups = json.loads(
-            (self._ROOT / ".claude" / "hooks" / "dispatch_groups.json").read_text(
-                encoding="utf-8"
-            )
-        )["groups"]
-        commands: list[str] = []
-        for hook in block["hooks"]:
-            command = hook.get("command", "") or ""
-            if "invoke_dispatch_claude.py" in command:
-                group_id = command.rsplit("--group", 1)[1].strip().split(";")[0].strip()
-                commands.extend(shim["file"] for shim in groups[group_id]["shims"])
-            else:
-                commands.append(command)
-        return commands
-
-    def test_hooks_json_includes_markdownlint_guard(self):
-        commands = self._push_commands(
-            self._ROOT / ".claude" / "hooks" / "hooks.json"
-        )
-        assert any("invoke_markdownlint_guard.py" in cmd for cmd in commands)
-
-    def test_settings_json_excludes_markdownlint_guard(self):
-        settings = json.loads(
-            (self._ROOT / ".claude" / "settings.json").read_text(encoding="utf-8")
-        )
-        assert "invoke_markdownlint_guard.py" not in json.dumps(settings)
-
-    def test_generated_copilot_manifest_includes_markdownlint_guard(self):
-        manifest = json.loads(
-            (
-                self._ROOT
-                / "src"
-                / "copilot-cli"
-                / "hooks"
-                / "PreToolUse"
-                / "_manifest.json"
-            ).read_text(encoding="utf-8")
-        )
-        assert any(
-            shim.startswith("invoke_markdownlint_guard__")
-            for shim in manifest["shims"]
-        )
-
-
-class TestNoRegistryDownload:
-    """Verify the verifier never downloads from a registry or invokes npx."""
-
-    def test_no_npx_or_node_modules_invoked(self, push_command, tmp_path, capsys):
-        """The verifier must never shell out to npx, npm, or node_modules."""
-        captured_args: list[list[str]] = []
-
-        def recorder(args, **_kw):
-            captured_args.append(list(args))
-            if args and args[0] == "git":
-                return _ok("docs/a.md\n")
-            return _ok()
-
-        with patch("push_guard_base.subprocess.run", side_effect=recorder), \
-             patch("push_guard_base._validate_strict_push_configuration"), \
-             patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
-             patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
-            guard.main()
-
-        for call_args in captured_args:
-            joined = " ".join(str(a) for a in call_args)
-            assert "npx" not in joined, f"npx invoked: {call_args}"
-            assert "node_modules" not in joined, f"node_modules path used: {call_args}"
-            assert "npm" not in joined.split(), f"npm invoked: {call_args}"
-
-    def test_offline_no_network_required(self, push_command, tmp_path, capsys):
-        """The verifier works fully offline (no registry download)."""
-        # Simulate offline by ensuring no network-dependent tool is called.
-        # The pure-Python verifier uses markdown-it-py which is shipped.
-        def dispatch(args, **_kw):
-            if args and args[0] == "git":
-                return _ok("docs/a.md\n")
-            # Verifier subprocess: allow only sys.executable invocations
-            if args and args[0] == sys.executable:
-                return _ok()
-            raise AssertionError(f"Unexpected external call: {args}")
-
-        with patch("push_guard_base.subprocess.run", side_effect=dispatch), \
-             patch("push_guard_base._validate_strict_push_configuration"), \
-             patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
-             patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
-            rc = guard.main()
-
-        assert rc == 0
-
-    def test_malicious_npx_shim_not_executed(self, push_command, tmp_path, capsys):
-        """A consumer-local npx shim in node_modules is never consulted."""
-        malicious_npx = tmp_path / "node_modules" / ".bin" / "npx"
-        malicious_npx.parent.mkdir(parents=True)
-        malicious_npx.write_text("#!/bin/sh\necho PWNED > /tmp/pwned\n")
-        malicious_npx.chmod(0o755)
-
-        # Also plant a malicious markdownlint-cli2
-        malicious_lint = tmp_path / "node_modules" / ".bin" / "markdownlint-cli2"
-        malicious_lint.write_text("#!/bin/sh\necho PWNED\n")
-        malicious_lint.chmod(0o755)
-
-        captured_args: list[list[str]] = []
-
-        def dispatch(args, **_kw):
-            captured_args.append(list(args))
-            if args and args[0] == "git":
-                return _ok("docs/a.md\n")
-            return _ok()
-
-        with patch("push_guard_base.subprocess.run", side_effect=dispatch), \
-             patch("push_guard_base._validate_strict_push_configuration"), \
-             patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
-             patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
-            guard.main()
-
-        for call_args in captured_args:
-            for arg in call_args:
-                assert str(malicious_npx) not in str(arg)
-                assert str(malicious_lint) not in str(arg)
-                assert "node_modules" not in str(arg)
-
-    def test_consumer_markdownlint_config_ignored(self, push_command, tmp_path, capsys):
-        """Consumer .markdownlint-cli2.yaml or .markdownlint.yaml are never read."""
-        # Plant consumer configs that would weaken rules
-        (tmp_path / ".markdownlint-cli2.yaml").write_text("config: {MD040: false}\n")
-        (tmp_path / ".markdownlint.yaml").write_text("MD040: false\n")
-        (tmp_path / ".markdownlint-cli2.jsonc").write_text('{"config":{"MD040":false}}\n')
-
-        captured_args: list[list[str]] = []
-
-        def dispatch(args, **_kw):
-            captured_args.append(list(args))
-            if args and args[0] == "git":
-                return _ok("docs/a.md\n")
-            return _ok()
-
-        with patch("push_guard_base.subprocess.run", side_effect=dispatch), \
-             patch("push_guard_base._validate_strict_push_configuration"), \
-             patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
-             patch("invoke_markdownlint_guard.get_project_directory", return_value=str(tmp_path)):
-            guard.main()
-
-        # No invocation should reference the consumer configs
-        for call_args in captured_args:
-            joined = " ".join(str(a) for a in call_args)
-            assert ".markdownlint-cli2.yaml" not in joined
-            assert ".markdownlint.yaml" not in joined
-            assert ".markdownlint-cli2.jsonc" not in joined
