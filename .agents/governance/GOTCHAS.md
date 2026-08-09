@@ -915,9 +915,11 @@ and the failure reproduces on a detached worktree at `origin/main`.
 **Why it recurs.** Lowering a violation count and lowering the baseline are two
 edits that usually live in different pull requests. Each is green against its
 own base, and they meet for the first time on main. That is the merge race in
-issue #3755; neither remedy proposed there has shipped, so
-`strict_required_status_checks_policy` is true, and ruleset 11104075 still has
-no `merge_queue` rule.
+issue #3755. `strict_required_status_checks_policy` is now true, which forces a
+stale branch to refresh before it lands and so narrows the window, but neither
+remedy proposed in #3755 has shipped and ruleset 11104075 still has no
+`merge_queue` rule, so the race survives whenever both edits are already current
+against the same base.
 
 **Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
 actually measures, in the same commit that moves the count. Lowering a baseline

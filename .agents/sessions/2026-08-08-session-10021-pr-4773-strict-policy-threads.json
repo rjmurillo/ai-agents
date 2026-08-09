@@ -138,6 +138,10 @@
     {
       "task": "Validate memory index",
       "outcome": "Ran update_memory_index_tokens.py, memory_index.py, memory_index_count_ratchet.py, and memory_index_token_ratchet.py with exit 0"
+    },
+    {
+      "task": "Repair the causal link broken by the strict policy update",
+      "outcome": "GOTCHAS.md read 'neither remedy proposed there has shipped, so strict_required_status_checks_policy is true'. The unshipped remedies do not cause the policy value, so the sentence asserted a false cause. Restated: the strict flip narrows the merge-race window by forcing a stale branch to refresh, while the absent issue 3755 remedies and the still-absent merge_queue rule are what let the race survive. Verified no merge_group handler exists in .github/workflows."
     }
   ],
   "endingCommit": "8900707003e85c3c0102d01e7968eaac65c203ba",
