@@ -171,9 +171,13 @@
     {
       "action": "Fixed pre-push regressions found by local push gates.",
       "result": "Updated workflow checkout wiring expectations, lowered the CLI exit contract ratchet from 28 to 27 after adding process-level coverage, and cleared targeted mypy and pytest checks."
+    },
+    {
+      "action": "Rebound QA evidence after merging origin/main for PR 4784.",
+      "result": "qaCommit and endingCommit now point at merge commit e63bbd3e9b48bb0b94e5550dd9aee42809587ece; only QA evidence files changed after the merge."
     }
   ],
-  "endingCommit": "cfd453ff5e8c81bbf30c1a95babac02e209bbd57",
+  "endingCommit": "e63bbd3e9b48bb0b94e5550dd9aee42809587ece",
   "nextSteps": [
     "Rotate or re-authorize COPILOT_GITHUB_TOKEN and verify issue #3275.",
     "Fix preflight behavior in issue #4778 so unavailable authentication skips work but still emits blocking artifacts."
