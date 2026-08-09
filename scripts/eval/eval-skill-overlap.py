@@ -57,7 +57,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, TextIO
+from typing import Any, Literal, TextIO, cast
 
 # ---------------------------------------------------------------------------
 # API utilities (shared module). Imported lazily-friendly at module top per the
@@ -70,6 +70,7 @@ from _eval_common import (
     EST_TOKENS_PER_CALL,
     MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
     PRICING_RATE_AS_OF,
+    MalformedProviderMetadataError,
 )
 
 # ---------------------------------------------------------------------------
@@ -159,7 +160,7 @@ def _blended_rate_for_model(model: str) -> float:
             f"No pricing rate for model_id={model!r}. "
             "Add it to MODEL_PRICING_RATES_USD_PER_1K_TOKENS in _eval_common.py."
         )
-    return (rates["input"] + rates["output"]) / 2.0
+    return cast(float, (rates["input"] + rates["output"]) / 2.0)
 
 
 # ---------------------------------------------------------------------------
@@ -587,7 +588,7 @@ def make_response_fn(api_key: str, model: str) -> ResponseFn:
 
     def _respond(prompt: str, system_context: str) -> str:
         messages = [{"role": "user", "content": prompt}]
-        return _call_api(api_key, messages, system=system_context, model=model)
+        return cast(str, _call_api(api_key, messages, system=system_context, model=model))
 
     return _respond
 
@@ -884,6 +885,42 @@ def _validate_run_id(run_id: str) -> str:
     return run_id
 
 
+def _evaluate_pairs(
+    config: PairsConfig,
+    respond: ResponseFn,
+    judge: JudgeFn,
+) -> tuple[list[PairResult], int | None]:
+    results: list[PairResult] = []
+    try:
+        for skill_a, skill_b in config.pairs:
+            print(f"Evaluating pair: {skill_a} vs {skill_b}", file=sys.stderr)
+            result = evaluate_pair(
+                skill_a,
+                skill_b,
+                config.prompts,
+                respond=respond,
+                judge=judge,
+                skills_dir=SKILLS_DIR,
+            )
+            print(f"  Verdict: {result.verdict}", file=sys.stderr)
+            results.append(result)
+    except MissingSkillError as exc:
+        print(f"ERROR (logic): {exc}", file=sys.stderr)
+        return [], EXIT_LOGIC
+    except JudgeScoreError as exc:
+        print(
+            f"ERROR (external): LLM judge returned invalid score payload: {exc}",
+            file=sys.stderr,
+        )
+        return [], EXIT_EXTERNAL
+    except MalformedProviderMetadataError:
+        raise
+    except RuntimeError as exc:
+        print(f"ERROR (external): Anthropic API failure: {exc}", file=sys.stderr)
+        return [], EXIT_EXTERNAL
+    return results, None
+
+
 def run(args: argparse.Namespace) -> int:
     """Execute the analysis. Returns a process exit code (ADR-035)."""
     try:
@@ -926,29 +963,9 @@ def run(args: argparse.Namespace) -> int:
     respond = make_response_fn(api_key, args.model)
     judge = make_judge_fn(api_key, args.model)
 
-    results: list[PairResult] = []
-    try:
-        for skill_a, skill_b in config.pairs:
-            print(f"Evaluating pair: {skill_a} vs {skill_b}", file=sys.stderr)
-            result = evaluate_pair(
-                skill_a,
-                skill_b,
-                config.prompts,
-                respond=respond,
-                judge=judge,
-                skills_dir=SKILLS_DIR,
-            )
-            print(f"  Verdict: {result.verdict}", file=sys.stderr)
-            results.append(result)
-    except MissingSkillError as exc:
-        print(f"ERROR (logic): {exc}", file=sys.stderr)
-        return EXIT_LOGIC
-    except JudgeScoreError as exc:
-        print(f"ERROR (external): LLM judge returned invalid score payload: {exc}", file=sys.stderr)
-        return EXIT_EXTERNAL
-    except RuntimeError as exc:
-        print(f"ERROR (external): Anthropic API failure: {exc}", file=sys.stderr)
-        return EXIT_EXTERNAL
+    results, error_code = _evaluate_pairs(config, respond, judge)
+    if error_code is not None:
+        return error_code
 
     out_dir = write_reports(results, model=args.model, run_id=run_id, reports_dir=REPORTS_DIR)
     print(f"Report written to {out_dir}", file=sys.stderr)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -32,6 +33,66 @@ enforce_mod = _load_module("enforce_pr_validation")
 
 def _set_output(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:
     monkeypatch.setenv("GITHUB_OUTPUT", str(path))
+
+
+def _write_qa_artifacts(
+    root: Path,
+    *,
+    verdict: str = "PASS",
+    session_log: str = ".agents/sessions/session.json",
+    report_commit: str = "a" * 40,
+    session_commit: str | None = None,
+) -> Path:
+    report_dir = root / ".agents" / "qa"
+    report_dir.mkdir(parents=True)
+    report = report_dir / "qa-pr-42.md"
+    report.write_text(
+        "---\n"
+        f"qaVerdict: {verdict}\n"
+        f"qaSessionLog: {session_log}\n"
+        f"qaCommit: {report_commit}\n"
+        "---\n"
+        "# QA\n",
+        encoding="utf-8",
+    )
+    session_path = root / ".agents" / "sessions" / "session.json"
+    session_path.parent.mkdir(parents=True)
+    session_path.write_text(
+        json.dumps(
+            {
+                "session": {"number": 99},
+                "episodeMetrics": {
+                    "comparison": {
+                        "head": session_commit or report_commit,
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return report
+
+
+def test_load_session_log_uses_configured_artifact_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = tmp_path / "artifacts"
+    session_path = artifact_root / "sessions" / "session.json"
+    session_path.parent.mkdir(parents=True)
+    session_path.write_text(
+        json.dumps({"endingCommit": "a" * 40}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(artifact_root))
+    monkeypatch.chdir(tmp_path)
+
+    path, data = qa_mod._load_session_log(
+        ".agents/sessions/session.json"
+    )
+
+    assert path == session_path
+    assert data["endingCommit"] == "a" * 40
 
 
 @pytest.mark.parametrize(
@@ -90,29 +151,44 @@ def test_qa_report_detects_code_changes_and_existing_report(
     capsys: pytest.CaptureFixture[str],
 ):
     output = tmp_path / "github-output.txt"
-    report_dir = tmp_path / ".agents" / "qa"
-    report_dir.mkdir(parents=True)
-    (report_dir / "qa-pr-42.md").write_text("ok\n", encoding="utf-8")
+    _write_qa_artifacts(tmp_path)
+    (tmp_path / ".agents" / "sessions" / "duplicate-number.json").write_text(
+        json.dumps(
+            {
+                "session": {"number": 99},
+                "episodeMetrics": {"comparison": {"head": "c" * 40}},
+            }
+        ),
+        encoding="utf-8",
+    )
     _set_output(monkeypatch, output)
     monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
     monkeypatch.setenv("PR_NUMBER", "42")
     monkeypatch.chdir(tmp_path)
 
-    def fake_run(
-        args: list[str],
-        *,
-        check: bool,
-        stdout: int,
-        text: bool,
-        encoding: str,
-        errors: str,
-    ) -> subprocess.CompletedProcess[str]:
-        assert check is False
-        assert stdout is subprocess.PIPE
-        assert text is True
-        assert encoding == "utf-8"
-        assert errors == "replace"
-        return subprocess.CompletedProcess(args, 0, "src/app.py\n.agents/note.md\n")
+    def fake_run(args: list[str], **kwargs) -> subprocess.CompletedProcess[str]:
+        assert kwargs["check"] is False
+        assert kwargs["stdout"] is subprocess.PIPE
+        assert kwargs["text"] is True
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
+        if args[:2] == ["gh", "api"] and args[2].endswith("/files"):
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                "src/app.py\n.agents/note.md\n",
+            )
+        if args[:2] == ["gh", "api"] and args[-1] == ".head.sha":
+            return subprocess.CompletedProcess(args, 0, "b" * 40 + "\n")
+        if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return subprocess.CompletedProcess(args, 0, "")
+        if args[:3] == ["git", "log", "--format="]:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                ".agents/sessions/session.json\0.agents/qa/qa-pr-42.md\0",
+            )
+        raise AssertionError(f"Unexpected subprocess call: {args}")
 
     monkeypatch.setattr(qa_mod.subprocess, "run", fake_run)
 
@@ -123,6 +199,88 @@ def test_qa_report_detects_code_changes_and_existing_report(
         "qa_report=qa-pr-42.md\n"
     )
     assert "✓ QA report found: qa-pr-42.md" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("verdict", "session_log", "report_commit", "session_commit"),
+    [
+        ("DEFERRED", ".agents/sessions/session.json", "a" * 40, None),
+        ("FAIL", ".agents/sessions/session.json", "a" * 40, None),
+        ("PASS", ".agents/sessions/unrelated.json", "a" * 40, None),
+        ("PASS", ".agents/sessions/session.json", "b" * 40, "a" * 40),
+        ("PASS", ".agents/sessions/session.json", "abcdef1234", None),
+    ],
+)
+def test_qa_report_rejects_non_passing_or_unbound_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    verdict: str,
+    session_log: str,
+    report_commit: str,
+    session_commit: str | None,
+):
+    output = tmp_path / "github-output.txt"
+    _write_qa_artifacts(
+        tmp_path,
+        verdict=verdict,
+        session_log=session_log,
+        report_commit=report_commit,
+        session_commit=session_commit,
+    )
+    _set_output(monkeypatch, output)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        qa_mod.subprocess,
+        "run",
+        lambda args, **kwargs: subprocess.CompletedProcess(
+            args,
+            0,
+            "src/app.py\n",
+        ),
+    )
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
+    assert "::error::Invalid QA report:" in capsys.readouterr().out
+
+
+def test_qa_report_rejects_code_changed_after_qa(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    output = tmp_path / "github-output.txt"
+    _write_qa_artifacts(tmp_path)
+    _set_output(monkeypatch, output)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.chdir(tmp_path)
+
+    def fake_run(args: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        if args[:2] == ["gh", "api"] and args[2].endswith("/files"):
+            return subprocess.CompletedProcess(args, 0, "src/app.py\n")
+        if args[:2] == ["gh", "api"] and args[-1] == ".head.sha":
+            return subprocess.CompletedProcess(args, 0, "b" * 40 + "\n")
+        if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return subprocess.CompletedProcess(args, 0, "")
+        if args[:3] == ["git", "log", "--format="]:
+            return subprocess.CompletedProcess(args, 0, "scripts/new_code.py\0")
+        raise AssertionError(f"Unexpected subprocess call: {args}")
+
+    monkeypatch.setattr(qa_mod.subprocess, "run", fake_run)
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
+    assert "QA report is stale" in capsys.readouterr().out
 
 
 def test_qa_report_skips_when_only_agents_files_changed(
@@ -147,7 +305,44 @@ def test_qa_report_skips_when_only_agents_files_changed(
     )
 
 
-def test_qa_report_warns_when_code_changes_lack_report(
+@pytest.mark.parametrize(
+    "destination",
+    [
+        ".agents/qa/tool.py",
+        ".agents/sessions/tool.py",
+        ".agents/memory/episodes/tool.py",
+    ],
+)
+def test_qa_report_requires_qa_when_code_is_renamed_into_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    destination: str,
+) -> None:
+    output = tmp_path / "github-output.txt"
+    _set_output(monkeypatch, output)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "o/r")
+    monkeypatch.setenv("PR_NUMBER", "42")
+    monkeypatch.chdir(tmp_path)
+
+    def fake_run(args: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        assert args[-2] == "--jq"
+        assert "previous_filename" in args[-1]
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            f"{destination}\nscripts/tool.py\n",
+        )
+
+    monkeypatch.setattr(qa_mod.subprocess, "run", fake_run)
+
+    assert qa_mod.main() == 1
+    assert output.read_text(encoding="utf-8") == (
+        "has_code_changes=True\n"
+        "qa_report_exists=false\n"
+    )
+
+
+def test_qa_report_blocks_when_code_changes_lack_report(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -163,12 +358,12 @@ def test_qa_report_warns_when_code_changes_lack_report(
         lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, "workflow.yml\n"),
     )
 
-    assert qa_mod.main() == 0
+    assert qa_mod.main() == 1
     assert output.read_text(encoding="utf-8") == (
         "has_code_changes=True\n"
         "qa_report_exists=false\n"
     )
-    assert "::warning::No QA report found for code changes" in capsys.readouterr().out
+    assert "::error::No QA report found for code changes" in capsys.readouterr().out
 
 
 def test_report_builds_fail_status_and_outputs_status(
@@ -1006,6 +1201,123 @@ def _pr_validation_steps() -> list[dict]:
     for job in data.get("jobs", {}).values():
         steps.extend(job.get("steps", []) or [])
     return steps
+
+
+def _pr_validation_jobs() -> dict:
+    data = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    return data.get("jobs", {})
+
+
+_MERGE_BASE_CONSUMERS = ("merge_tree_ratchet_check.py", "count_ratchet.py")
+
+
+def _strip_shell_comments(script: str) -> str:
+    return "\n".join(
+        line for line in script.splitlines() if not line.lstrip().startswith("#")
+    )
+
+
+def _step_dicts(job: dict) -> list[dict]:
+    return [step for step in job.get("steps", []) if isinstance(step, dict)]
+
+
+def _run_blocks(steps: list[dict]) -> list[str]:
+    return [
+        _strip_shell_comments(step["run"])
+        for step in steps
+        if isinstance(step.get("run"), str)
+    ]
+
+
+def _uses_merge_base(run_blocks: list[str]) -> bool:
+    return any(
+        consumer in block
+        for consumer in _MERGE_BASE_CONSUMERS
+        for block in run_blocks
+    )
+
+
+def _depth_limited_fetch_offenders(job_id: str, run_blocks: list[str]) -> list[str]:
+    if any("--depth" in block for block in run_blocks):
+        return [f"{job_id}: depth-limited fetch in run block"]
+    return []
+
+
+def _checkout_depth_offenders(job_id: str, steps: list[dict]) -> list[str]:
+    offenders: list[str] = []
+    for step in steps:
+        uses = step.get("uses")
+        if not isinstance(uses, str) or not uses.startswith("actions/checkout"):
+            continue
+        depth = (step.get("with") or {}).get("fetch-depth")
+        if str(depth) == "0":
+            continue
+        name = step.get("name") or uses
+        shown = "<default, depth 1>" if depth is None else repr(depth)
+        offenders.append(f"{job_id}: checkout {name!r} has fetch-depth {shown}")
+    return offenders
+
+
+def _history_offenders_for_merge_base_jobs(jobs: dict) -> tuple[list[str], list[str]]:
+    offenders: list[str] = []
+    checked: list[str] = []
+    for job_id, job in jobs.items():
+        steps = _step_dicts(job)
+        run_blocks = _run_blocks(steps)
+        if not _uses_merge_base(run_blocks):
+            continue
+
+        checked.append(job_id)
+        offenders.extend(_depth_limited_fetch_offenders(job_id, run_blocks))
+        offenders.extend(_checkout_depth_offenders(job_id, steps))
+    return offenders, checked
+
+
+def test_merge_base_jobs_keep_complete_history() -> None:
+    """Every job that needs a merge base must avoid shallow history.
+
+    The graft is job-scoped, not step-scoped. One earlier shallow fetch writes
+    .git/shallow, and the later merge-tree ratchet then fails with unrelated
+    histories.
+    """
+    offenders, checked = _history_offenders_for_merge_base_jobs(_pr_validation_jobs())
+
+    assert checked == ["validate-pr"]
+    assert offenders == []
+
+
+def test_merge_base_history_guard_catches_both_shallow_routes() -> None:
+    """Negative control: the matcher catches a shallow checkout and fetch."""
+    jobs = yaml.safe_load(
+        "validate:\n"
+        "  steps:\n"
+        "    - name: Checkout repository\n"
+        "      uses: actions/checkout@v7\n"
+        "    - run: git fetch --depth=1 origin main\n"
+        "    - run: python scripts/ci/merge_tree_ratchet_check.py\n"
+    )
+
+    offenders, checked = _history_offenders_for_merge_base_jobs(jobs)
+
+    assert checked == ["validate"]
+    assert any("depth-limited fetch" in item for item in offenders)
+    assert any("fetch-depth <default, depth 1>" in item for item in offenders)
+
+
+def test_merge_base_history_guard_ignores_unrelated_shallow_jobs() -> None:
+    """Edge control: shallow fetches are out of scope without a consumer."""
+    jobs = yaml.safe_load(
+        "lint:\n"
+        "  steps:\n"
+        "    - uses: actions/checkout@v7\n"
+        "    - run: git fetch --depth=1 origin main\n"
+        "    - run: uv run --frozen ruff check .\n"
+    )
+
+    offenders, checked = _history_offenders_for_merge_base_jobs(jobs)
+
+    assert checked == []
+    assert offenders == []
 
 
 def test_merge_tree_ratchet_fetches_base_at_full_depth() -> None:

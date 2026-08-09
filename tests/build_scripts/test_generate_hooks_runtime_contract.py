@@ -564,13 +564,18 @@ def test_stale_plugin_root_failure_names_the_missing_path(tmp_path: Path) -> Non
         check=False,
     )
 
-    assert proc.returncode != 0, "a stale plugin root must fail, not pass silently"
-    expected_path = _slash(_bash_resolve(_path_arg(command), env, userland))
+    # Post-fix (issue 4672): stale plugin root is infrastructure failure,
+    # so the hook fails OPEN (exit 0 with warning) rather than denying.
+    assert proc.returncode == 0, (
+        f"stale plugin root must fail open (exit 0) per issue 4672, got {proc.returncode}"
+    )
+    assert "WARNING: hooks DISABLED" in proc.stderr, (
+        "stale root must emit an actionable warning on stderr"
+    )
     normalized_stderr = _slash(proc.stderr)
-    assert stale_root.as_posix() in expected_path, expected_path
-    assert expected_path in normalized_stderr, (
-        "interpreter error must name the missing path, otherwise the "
-        f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
+    assert stale_root.as_posix() in normalized_stderr, (
+        "warning must name the missing path so the user can act on it. "
+        f"stderr={proc.stderr!r}"
     )
 
 
@@ -600,16 +605,20 @@ def test_stale_plugin_root_powershell_failure_names_the_missing_path(
         check=False,
     )
 
-    assert proc.returncode != 0, "a stale plugin root must fail, not pass silently"
-    # stale_root is a Path, so pathlib owns its normalization. The other two
-    # operands are strings from a subprocess, where str.replace is the only
-    # tool; _slash keeps that in one place and makes it testable off Windows.
-    expected_path = _slash(_pwsh_resolve(_path_arg(command), env, tmp_path))
-    normalized_stderr = _slash(proc.stderr)
-    assert stale_root.as_posix() in expected_path, expected_path
-    assert expected_path in normalized_stderr, (
-        "PowerShell interpreter error must name the missing path, otherwise the "
-        f"launcher-guard rejection is unsound. stderr={proc.stderr!r}"
+    # Post-fix (issue 4672): stale plugin root is infrastructure failure,
+    # so the hook fails OPEN (exit 0 with warning) rather than denying.
+    assert proc.returncode == 0, (
+        f"stale plugin root must fail open (exit 0) per issue 4672, got {proc.returncode}"
+    )
+    # PowerShell Write-Host goes to stdout when captured by subprocess
+    combined = proc.stdout + proc.stderr
+    assert "WARNING: hooks DISABLED" in combined, (
+        "stale root must emit an actionable warning"
+    )
+    normalized = _slash(combined)
+    assert stale_root.as_posix() in normalized, (
+        "PowerShell warning must name the missing path so the user can act on it. "
+        f"output={combined!r}"
     )
 
 

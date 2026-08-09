@@ -12,9 +12,24 @@ import sys
 from pathlib import Path, PureWindowsPath
 from typing import cast
 
+# Version check: degrade gracefully on interpreters below the supported floor.
+# This runs inside the already-started Python process (no extra subprocess).
+# Python 3.7+ can parse this file; older versions fail at `from __future__`.
+if sys.version_info < (3, 10):
+    _v = ".".join(str(x) for x in sys.version_info[:3])
+    print(
+        "project-toolkit@ai-agents WARNING: hooks DISABLED (your session is "
+        "unaffected). Python >= 3.10 "
+        "required but Python " + _v + " found. "
+        "Upgrade: https://www.python.org/downloads/",
+        file=sys.stderr,
+    )
+    sys.exit(0)
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _bootstrap import ensure_plugin_paths  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # Defensive hook-payload ceiling (#3074, ADR-066, CWE-400). Long-session
 # apply_patch calls can cross a few MiB, and no measured host maximum exists.
@@ -174,9 +189,61 @@ def _main() -> int:
     event_dir = Path(__file__).resolve().parent
     mode = None
     try:
+        from _bootstrap import ensure_plugin_paths  # noqa: E402
         ensure_plugin_paths()
+    except (Exception, SystemExit) as exc:
+        # Infrastructure failure: the dispatch machinery could not load.
+        # Catches ImportError (missing/broken _bootstrap.py, version skew),
+        # PluginInfrastructureError (lib dir missing, plugin root invalid),
+        # TypeError (signature mismatch from partial upgrade), OSError (file
+        # system issues).
+        #
+        # SystemExit is caught here on purpose. It is a BaseException, so a
+        # bare `except Exception` misses it, and every _bootstrap.py shipped
+        # before this change calls sys.exit(2) for a missing plugin root or
+        # lib directory. A partial upgrade pairing this dispatcher with one of
+        # those therefore exited 2 and denied every PreToolUse call: the exact
+        # customer-wide denial this fail-open path exists to prevent, arriving
+        # through the one exception type the handler did not cover.
+        #
+        # The scope is deliberately this bootstrap import only. A SystemExit
+        # raised later, from shim execution, must still deny, because
+        # degrading there would convert "crash the guard" into "bypass the
+        # guard".
+        # Allow the tool call (exit 0) to keep the plugin usable. A plugin
+        # that denies every call forces uninstall, removing all protection.
+        # Fail-open on infrastructure keeps the plugin installed so the next
+        # release still protects the user (#4672).
+        print(
+            "project-toolkit@ai-agents WARNING: hooks DISABLED "
+            "(your session is unaffected). "
+            f"{type(exc).__name__}: {_diag(str(exc))}. "
+            "Reinstall the plugin or install Python >= 3.10: "
+            "https://www.python.org/downloads/",
+            file=sys.stderr,
+        )
+        return 0
+    # The module import is its own infrastructure boundary. Folding it into
+    # the dispatch try below meant only ImportError counted as a load failure,
+    # so a hook_dispatch.py that exists but cannot compile, cannot be read, or
+    # raises during module initialization fell through to the broad handler and
+    # was classified as a policy failure: exit 2, denying every PreToolUse
+    # call. That is the customer-wide denial arriving through a second door.
+    # A load failure cannot be a policy decision, because no policy ran.
+    try:
         from hook_dispatch import observe_output_policy, run_dispatch  # noqa: E402
+    except (Exception, SystemExit) as exc:
+        print(
+            "project-toolkit@ai-agents WARNING: hooks DISABLED "
+            "(your session is unaffected). "
+            f"{type(exc).__name__}: {_diag(str(exc))}. "
+            "Reinstall the plugin or install Python >= 3.10: "
+            "https://www.python.org/downloads/",
+            file=sys.stderr,
+        )
+        return 0
 
+    try:
         event, shims, shim_timeouts, mode = _load_manifest(event_dir)
         raw, oversize_exit = _read_payload(event, shims, mode)
         if oversize_exit is not None:
@@ -201,7 +268,23 @@ def _main() -> int:
                 ),
             ),
         )
+    except ImportError as exc:
+        # A nested import inside the dispatch path (run_permission_dispatch)
+        # can still fail after the module loaded. Same reasoning: a missing
+        # module is infrastructure, not a policy decision.
+        print(
+            "project-toolkit@ai-agents WARNING: hooks DISABLED "
+            "(your session is unaffected). "
+            f"{type(exc).__name__}: {_diag(str(exc))}. "
+            "Reinstall the plugin or install Python >= 3.10: "
+            "https://www.python.org/downloads/",
+            file=sys.stderr,
+        )
+        return 0
     except Exception as exc:  # noqa: BLE001 - generated entrypoint must stay loud
+        # Policy or dispatch error after machinery loaded: a shim ran and
+        # raised, or manifest validation failed post-load. Fail closed for
+        # gate/advise events (these are policy decisions), allow for observers.
         fail_closed = mode in ("gate", "advise") or event_dir.name.lower() in (
             "pretooluse",
             "permissionrequest",
