@@ -95,13 +95,13 @@ _CREDENTIAL_KEY_BASE = (
     + ")"
 )
 _CREDENTIAL_KEY = _CREDENTIAL_NAMESPACE + _CREDENTIAL_KEY_BASE
-_CREDENTIAL_KEY_QUOTE = r"(?:\\?[\"'])?"
+_CREDENTIAL_KEY_QUOTE = r"(?:\\+[\"']|[\"'])?"
 _CREDENTIAL_PREFIX = (
     rf"(?<![\w-]){_CREDENTIAL_KEY_QUOTE}{_CREDENTIAL_KEY}"
     rf"{_CREDENTIAL_KEY_QUOTE}\s*[:=]\s*"
 )
 _CREDENTIAL_ASSIGNMENT = re.compile(rf"(?i)({_CREDENTIAL_PREFIX})")
-_AUTHORIZATION_QUOTE = r"(?:\\?[\"'])?"
+_AUTHORIZATION_QUOTE = r"(?:\\+[\"']|[\"'])?"
 _AUTHORIZATION_WRAPPER = re.compile(
     rf"(?i)((?<![\w-]){_AUTHORIZATION_QUOTE}authorization"
     rf"{_AUTHORIZATION_QUOTE}\s*:\s*{_AUTHORIZATION_QUOTE}"
@@ -194,6 +194,23 @@ def redact_ci_sink(
             cursor -= 1
         return count
 
+    def _quote_prefix(value: str) -> str:
+        if not value:
+            return ""
+        if value[0] in "\"'":
+            return value[0]
+        if value[0] != "\\":
+            return ""
+        cursor = 0
+        while cursor < len(value) and value[cursor] == "\\":
+            cursor += 1
+        if cursor < len(value) and value[cursor] in "\"'":
+            return value[: cursor + 1]
+        return ""
+
+    def _quote_at(position: int) -> str:
+        return _quote_prefix(out[position:])
+
     def _quoted_value_end(start: int, quote: str) -> int:
         position = start + len(quote)
         while position < len(out):
@@ -205,7 +222,7 @@ def redact_ci_sink(
                 if preceding_backslashes % 2:
                     position = closing + len(quote)
                     continue
-            elif preceding_backslashes % 4:
+            elif preceding_backslashes:
                 position = closing + len(quote)
                 continue
             tail_start = closing + len(quote)
@@ -220,8 +237,6 @@ def redact_ci_sink(
         position = start + 1
         quote = ""
         while position < len(out):
-            if out[position] in "\r\n":
-                return position
             if quote:
                 closing = out.find(quote, position)
                 if closing < 0:
@@ -231,20 +246,16 @@ def redact_ci_sink(
                     if preceding_backslashes % 2:
                         position = closing + 1
                         continue
-                elif preceding_backslashes % 4:
-                    position = closing + 2
+                elif preceding_backslashes:
+                    position = closing + len(quote)
                     continue
                 quote_length = len(quote)
                 quote = ""
                 position = closing + quote_length
                 continue
-            if out.startswith(('\\"', "\\'"), position):
-                quote = out[position : position + 2]
-                position += 2
-                continue
-            if out[position] in "\"'":
-                quote = out[position]
-                position += 1
+            quote = _quote_at(position)
+            if quote:
+                position += len(quote)
                 continue
             if out[position] in closing_for:
                 stack.append(closing_for[out[position]])
@@ -262,9 +273,9 @@ def redact_ci_sink(
                 return closing + 1
         if start < len(out) and out[start] in "[{(":
             return _structured_value_end(start)
-        for quote in ('\\"', "\\'", '"', "'"):
-            if out.startswith(quote, start):
-                return _quoted_value_end(start, quote)
+        quote = _quote_at(start)
+        if quote:
+            return _quoted_value_end(start, quote)
         position = start
         while not _is_value_boundary(position):
             position += 1
@@ -277,11 +288,7 @@ def redact_ci_sink(
         leading_length = len(value) - len(value.lstrip())
         leading = value[:leading_length]
         scalar = value[leading_length:]
-        quote = ""
-        if scalar.startswith(('\\"', "\\'")):
-            quote = scalar[:2]
-        elif scalar.startswith(('"', "'")):
-            quote = scalar[:1]
+        quote = _quote_prefix(scalar)
         if quote:
             closing = scalar.endswith(quote) and len(scalar) > len(quote)
             return f"{prefix}{leading}{quote}***{quote if closing else ''}"

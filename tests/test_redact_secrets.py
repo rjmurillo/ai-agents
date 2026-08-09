@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import sys
 import time
 from pathlib import Path
@@ -207,6 +208,53 @@ class TestCiSinkWrappers:
         assert "first-secret-value" not in result.text
         assert "second-secret-value" not in result.text
         assert result.reasons == ("credential-assignment",)
+
+    @pytest.mark.parametrize("serialization_depth", range(3))
+    @pytest.mark.parametrize(
+        ("raw_value", "raw_expected"),
+        [
+            (
+                '{"token":["first-secret-value","second-secret-value"],"timeout":30}',
+                '{"token":***,"timeout":30}',
+            ),
+            (
+                '{"token":{"primary":"first-secret-value",'
+                '"secondary":"second-secret-value"},"timeout":30}',
+                '{"token":***,"timeout":30}',
+            ),
+        ],
+    )
+    def test_serialized_nested_credential_values_are_fully_redacted(
+        self,
+        serialization_depth,
+        raw_value,
+        raw_expected,
+    ):
+        value = raw_value
+        expected = raw_expected
+        for _ in range(serialization_depth):
+            value = json.dumps(value)[1:-1]
+            expected = json.dumps(expected)[1:-1]
+
+        result = redact_ci_sink(value)
+
+        assert result.text == expected
+        assert "first-secret-value" not in result.text
+        assert "second-secret-value" not in result.text
+
+    @pytest.mark.parametrize("escaped", [False, True])
+    def test_multiline_nested_credential_values_are_fully_redacted(self, escaped):
+        value = '{"token":[\n"first-secret-value",\n"second-secret-value"\n],\n"timeout":30}'
+        expected = '{"token":***,\n"timeout":30}'
+        if escaped:
+            value = json.dumps(value)[1:-1]
+            expected = json.dumps(expected)[1:-1]
+
+        result = redact_ci_sink(value)
+
+        assert result.text == expected
+        assert "first-secret-value" not in result.text
+        assert "second-secret-value" not in result.text
 
     @pytest.mark.parametrize(
         "secrets",
