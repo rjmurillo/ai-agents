@@ -161,6 +161,28 @@ def test_write_results_redacts_secrets(tmp_path, monkeypatch):
     assert "***" in persisted
 
 
+def test_write_results_redacts_uninstalled_github_token_shape(tmp_path, monkeypatch):
+    token = f"ghp_{'A' * 36}"
+    for variable in invoke.SECRET_ENVIRONMENT_VARIABLES:
+        monkeypatch.delenv(variable, raising=False)
+    config = make_config(tmp_path)
+    result = invoke.AttemptResult(
+        exit_code=1,
+        output=f"cached token={token}",
+        stderr="",
+        infrastructure_failure=True,
+        retry_count=0,
+    )
+
+    invoke.write_results(config, "prompt", result)
+
+    persisted = config.ai_review_output_file.read_text(
+        encoding="utf-8"
+    ) + config.github_output_file.read_text(encoding="utf-8")
+    assert token not in persisted
+    assert "[redacted: github-token]" in persisted
+
+
 def test_run_fails_closed_for_empty_context_file(tmp_path):
     context_file = tmp_path / "context.md"
     context_file.write_text(" \n", encoding="utf-8")
@@ -172,6 +194,26 @@ def test_run_fails_closed_for_empty_context_file(tmp_path):
         "VERDICT: DID_NOT_RUN"
     )
     assert "infrastructure_failure=true" in config.github_output_file.read_text(encoding="utf-8")
+
+
+def test_run_redacts_prompt_before_invocation(tmp_path, monkeypatch):
+    token = f"ghp_{'A' * 36}"
+    context_file = tmp_path / "context.md"
+    context_file.write_text(f"credential={token}", encoding="utf-8")
+    config = make_config(tmp_path, context_file)
+    observed: list[str] = []
+    monkeypatch.setattr(invoke, "FULL_PROMPT_PATH", tmp_path / "full-prompt.md")
+
+    def fake_invoke_with_retry(*, config, full_prompt, **_kwargs):
+        del config
+        observed.append(full_prompt)
+        return invoke.AttemptResult(0, "VERDICT: PASS", "", False, 0)
+
+    monkeypatch.setattr(invoke, "invoke_with_retry", fake_invoke_with_retry)
+
+    assert invoke.run(config) == invoke.EXIT_OK
+    assert token not in observed[0]
+    assert "[redacted: github-token]" in observed[0]
 
 
 def test_write_results_preserves_outputs_and_flags(tmp_path):

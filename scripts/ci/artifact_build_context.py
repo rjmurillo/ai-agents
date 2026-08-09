@@ -24,6 +24,25 @@ import os
 import sys
 from pathlib import Path
 
+from scripts.redact_secrets import redact as redact_token_shapes
+
+_SECRET_ENVIRONMENT_VARIABLES = (
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "COPILOT_GITHUB_TOKEN",
+    "BOT_PAT",
+)
+
+
+def redact_artifact_text(value: str) -> str:
+    """Redact installed credentials and recognized shapes from artifact text."""
+    redacted = value
+    for variable in _SECRET_ENVIRONMENT_VARIABLES:
+        secret = os.environ.get(variable, "")
+        if len(secret) >= 8:
+            redacted = redacted.replace(secret, "***")
+    return redact_token_shapes(redacted, include_hex=False).text
+
 
 def write_github_output(key: str, value: str) -> None:
     """Append key=value to GITHUB_OUTPUT; fall back to stdout."""
@@ -56,16 +75,23 @@ def run(_argv: list[str] | None = None) -> int:
     lines_in = artifact_file.read_text(encoding="utf-8").splitlines()
     artifacts = [ln for ln in lines_in if ln.strip()]
 
-    with context_file.open("w", encoding="utf-8") as ctx:
-        ctx.write("## Artifacts to Analyze\n\n")
-        for artifact in artifacts:
-            p = Path(artifact)
-            if p.is_file():
-                ctx.write(f"### {artifact}\n")
-                ctx.write("```\n")
-                artifact_lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
-                ctx.write("\n".join(artifact_lines[:_MAX_LINES_PER_FILE]))
-                ctx.write("\n```\n\n")
+    context_parts = ["## Artifacts to Analyze\n\n"]
+    for artifact in artifacts:
+        p = Path(artifact)
+        if p.is_file():
+            artifact_lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
+            context_parts.extend(
+                [
+                    f"### {artifact}\n",
+                    "```\n",
+                    "\n".join(artifact_lines[:_MAX_LINES_PER_FILE]),
+                    "\n```\n\n",
+                ]
+            )
+    context_file.write_text(
+        redact_artifact_text("".join(context_parts)),
+        encoding="utf-8",
+    )
 
     context_size = context_file.stat().st_size
     write_github_output("context_file", str(context_file))

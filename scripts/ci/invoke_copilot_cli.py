@@ -11,6 +11,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from scripts.redact_secrets import redact as redact_token_shapes
+
 EXIT_OK = 0
 EXIT_LOGIC = 1
 EXIT_CONFIG = 2
@@ -104,7 +106,7 @@ def append_multiline_output(path: Path, name: str, value: str, delimiter: str) -
         handle.write(f"{delimiter}\n")
 
 
-def redact_secrets(value: str | None) -> str:
+def _redact_exact_secrets(value: str | None) -> str:
     """Remove workflow credentials before diagnostics reach logs or artifacts."""
     redacted = value or ""
     for variable in SECRET_ENVIRONMENT_VARIABLES:
@@ -117,6 +119,12 @@ def redact_secrets(value: str | None) -> str:
         redacted,
     )
     return re.sub(r"https://[^/\s:@]+:[^@\s]+@", "******", redacted)
+
+
+def redact_secrets(value: str | None) -> str:
+    """Redact installed values, wrappers, and recognized credential shapes."""
+    redacted = _redact_exact_secrets(value)
+    return redact_token_shapes(redacted, include_hex=False).text
 
 
 def retry_delay(stderr: str, fallback: int) -> int:
@@ -404,7 +412,8 @@ def run(config: InvokeConfig) -> int:
         additional_context=config.additional_context,
         context_file=config.context_file,
     )
-    FULL_PROMPT_PATH.write_text(redact_secrets(full_prompt) + "\n", encoding="utf-8")
+    full_prompt = redact_secrets(full_prompt)
+    FULL_PROMPT_PATH.write_text(full_prompt + "\n", encoding="utf-8")
     if (
         config.context_file is None
         or not config.context_file.is_file()

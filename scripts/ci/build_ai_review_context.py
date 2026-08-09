@@ -17,6 +17,8 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 
+from scripts.redact_secrets import redact as redact_token_shapes
+
 GH_TIMEOUT_SECONDS = 60
 GH_REFUSAL_BACKOFF_SECONDS = (60.0, 120.0)
 # Review jobs have a 600-second deadline and model invocation may use 300
@@ -103,7 +105,7 @@ class ExternalGhError(RuntimeError):
     """GitHub or gh failed while building review context."""
 
 
-def _redact_secrets(value: str | None) -> str:
+def _redact_exact_secrets(value: str | None) -> str:
     """Remove workflow credentials before diagnostics reach logs or artifacts."""
     redacted = value or ""
     for variable in SECRET_ENVIRONMENT_VARIABLES:
@@ -116,6 +118,12 @@ def _redact_secrets(value: str | None) -> str:
         redacted,
     )
     return re.sub(r"https://[^/\s:@]+:[^@\s]+@", "https://***:***@", redacted)
+
+
+def _redact_secrets(value: str | None) -> str:
+    """Redact installed values, wrappers, and recognized credential shapes."""
+    redacted = _redact_exact_secrets(value)
+    return redact_token_shapes(redacted, include_hex=False).text
 
 
 def _failure_text(result: CommandResult) -> str:
@@ -718,13 +726,14 @@ def write_outputs(review_context: ReviewContext) -> None:
     workspace = Path(runner_temp).resolve()
     workspace.mkdir(parents=True, exist_ok=True)
     context_file = workspace / f"ai-review-context-pr{context_identifier}.txt"
-    context_file.write_text(review_context.text, encoding="utf-8")
+    safe_context = _redact_secrets(review_context.text)
+    context_file.write_text(safe_context, encoding="utf-8")
 
     append_output(output_path, "context_mode", review_context.mode)
     append_output(output_path, "context_file", str(context_file))
     if review_context.infrastructure_failure:
         append_output(output_path, "context_infra_failure", "true")
-    append_multiline_output(output_path, "context_built", review_context.text)
+    append_multiline_output(output_path, "context_built", safe_context)
 
 
 def main() -> int:

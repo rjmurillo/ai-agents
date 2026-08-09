@@ -97,6 +97,32 @@ class TestRun:
         assert "context_file=" in content
         assert "context_size=" in content
 
+    def test_redacts_artifact_credentials_before_context_sink(self, tmp_path: Path) -> None:
+        environment_secret = "artifact-environment-secret"
+        shaped_secret = f"ghp_{'A' * 36}"
+        content_file = tmp_path / "session.md"
+        content_file.write_text(
+            f"env={environment_secret}\nshape={shaped_secret}",
+            encoding="utf-8",
+        )
+        artifact_list = tmp_path / "list.txt"
+        artifact_list.write_text(f"{content_file}\n", encoding="utf-8")
+        env = {
+            "ARTIFACT_FILE": str(artifact_list),
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(tmp_path / "out.txt"),
+            "GITHUB_TOKEN": environment_secret,
+        }
+
+        with patch.dict(os.environ, env):
+            assert run() == 0
+
+        context = (tmp_path / "artifact-context.md").read_text(encoding="utf-8")
+        assert environment_secret not in context
+        assert shaped_secret not in context
+        assert "***" in context
+        assert "[redacted: github-token]" in context
+
 
 class TestMain:
     def test_main_delegates(self) -> None:
