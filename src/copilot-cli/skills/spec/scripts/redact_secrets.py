@@ -84,6 +84,7 @@ _CREDENTIAL_KEY_BASE = (
             _json_key_word("access") + _CREDENTIAL_SEPARATOR + _json_key_word("key"),
             _json_key_word("private") + _CREDENTIAL_SEPARATOR + _json_key_word("key"),
             _json_key_word("client") + _CREDENTIAL_SEPARATOR + _json_key_word("secret"),
+            _json_key_word("authorization"),
             _json_key_word("access") + _CREDENTIAL_SEPARATOR + _json_key_word("token"),
             _json_key_word("refresh") + _CREDENTIAL_SEPARATOR + _json_key_word("token"),
             _json_key_word("password"),
@@ -156,10 +157,6 @@ def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> Redaction
         out,
     )
     reasons.extend(["url-credential"] * url_count)
-    shaped = redact(out, include_hex=False)
-    out = shaped.text
-    reasons.extend(shaped.reasons)
-
     def _is_value_boundary(position: int) -> bool:
         if position >= len(out):
             return True
@@ -211,7 +208,12 @@ def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> Redaction
 
     def _redacted_assignment(prefix: str, value: str) -> str | None:
         stripped = value.strip()
-        if not stripped or re.fullmatch(r"\[redacted: [^\]]+\]", stripped):
+        if (
+            not stripped
+            or stripped == "***"
+            or re.fullmatch(r"(?i)(?:bearer|token|basic)\s+\*\*\*", stripped)
+            or re.fullmatch(r"\[redacted: [^\]]+\]", stripped)
+        ):
             return None
         leading_length = len(value) - len(value.lstrip())
         leading = value[:leading_length]
@@ -226,6 +228,12 @@ def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> Redaction
             return f"{prefix}{leading}{quote}***{quote if closing else ''}"
         return f"{prefix}{leading}***"
 
+    def _authorization_header_placeholder_end(prefix: str, start: int) -> int | None:
+        if not re.search(r"(?i)authorization", prefix):
+            return None
+        match = re.match(r"(?i)(?:bearer|token|basic)\s+\*\*\*", out[start:])
+        return start + match.end() if match else None
+
     redacted_parts: list[str] = []
     cursor = 0
     assignment_count = 0
@@ -235,7 +243,9 @@ def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> Redaction
             redacted_parts.append(out[cursor:])
             break
         value_start = match.end()
-        value_end = _value_end(value_start)
+        value_end = _authorization_header_placeholder_end(match.group(1), value_start)
+        if value_end is None:
+            value_end = _value_end(value_start)
         replacement = _redacted_assignment(match.group(1), out[value_start:value_end])
         redacted_parts.append(out[cursor:match.start()])
         if replacement is None:
@@ -247,6 +257,10 @@ def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> Redaction
 
     out = "".join(redacted_parts)
     reasons.extend(["credential-assignment"] * assignment_count)
+
+    shaped = redact(out, include_hex=False)
+    out = shaped.text
+    reasons.extend(shaped.reasons)
 
     return RedactionResult(
         text=out,

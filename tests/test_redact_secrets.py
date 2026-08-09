@@ -223,6 +223,46 @@ class TestCiSinkWrappers:
         assert result.text == value
         assert not result.redacted
 
+    def test_authorization_assignment_redacts_json_token_value(self):
+        value = '{"Authorization":"Token abc123xyz","timeout":30}'
+
+        result = redact_ci_sink(value)
+
+        assert result.text == '{"Authorization":"***","timeout":30}'
+        assert result.reasons == ("credential-assignment",)
+
+    def test_authorization_assignment_redacts_json_basic_value(self):
+        value = '{"Authorization":"Basic dXNlcjpwYXNz","timeout":30}'
+
+        result = redact_ci_sink(value)
+
+        assert result.text == '{"Authorization":"***","timeout":30}'
+        assert result.reasons == ("credential-assignment",)
+
+    def test_authorization_assignment_redacts_escaped_json_bearer_value(self):
+        value = '{\\"Authorization\\":\\"Bearer abc123xyz\\",\\"timeout\\":30}'
+
+        result = redact_ci_sink(value)
+
+        assert result.text == '{\\"Authorization\\":\\"***\\",\\"timeout\\":30}'
+        assert result.reasons == ("credential-assignment",)
+
+    def test_plain_authorization_header_uses_header_redactor_once(self):
+        value = "Authorization: Bearer abc123xyz"
+
+        result = redact_ci_sink(value)
+
+        assert result.text == "Authorization: Bearer ***"
+        assert result.reasons == ("authorization-header",)
+
+    def test_authorization_word_without_credential_passes_through(self):
+        value = "The authorization decision is documented in section 3."
+
+        result = redact_ci_sink(value)
+
+        assert result.text == value
+        assert not result.redacted
+
     def test_credential_assignments_preserve_trailing_structured_fields(self):
         raw_json = '{"password":"secret","timeout":30}'
         escaped_json = '{\\"password\\":\\"secret\\",\\"timeout\\":30}'
