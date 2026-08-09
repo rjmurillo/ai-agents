@@ -104,6 +104,19 @@
       "caused_by": [
         "e007"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-04-session-9020-evalparse-triage"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-09T18:44:25+00:00",
+      "type": "commit",
+      "content": "Commit: 56700e6036c026a5d0f4345445b181261a558dfd",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-04-session-9020-evalparse-triage"
     }
@@ -113,8 +126,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 10
+    "commits": 4,
+    "files_changed": 17
   },
   "lessons": []
 }

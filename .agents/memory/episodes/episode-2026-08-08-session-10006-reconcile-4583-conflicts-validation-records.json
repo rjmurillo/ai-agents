@@ -104,7 +104,9 @@
       "caused_by": [
         "e010"
       ],
-      "leads_to": [],
+      "leads_to": [
+        "e011"
+      ],
       "_source_session": "2026-08-08-session-10006-reconcile-4583-conflicts-validation-records"
     },
     {
@@ -132,6 +134,17 @@
         "e008"
       ],
       "_source_session": "2026-08-08-session-10006-reconcile-4583-conflicts-validation-records"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-09T18:44:25+00:00",
+      "type": "commit",
+      "content": "Commit: 56700e6036c026a5d0f4345445b181261a558dfd",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-08-session-10006-reconcile-4583-conflicts-validation-records"
     }
   ],
   "metrics": {
@@ -139,7 +152,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 2
   },
   "lessons": []

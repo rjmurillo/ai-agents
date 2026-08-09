@@ -115,6 +115,11 @@
         "level": "SHOULD",
         "Complete": true,
         "Evidence": "rework-warning: none"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/2026-08-09-pr-4583-conflict-reconcile.md"
       }
     }
   },
@@ -183,6 +188,6 @@
       "result": "Merge completed without conflicts. Final completion gate rerun follows the normal push."
     }
   ],
-  "endingCommit": "62f1db42654a06fb08bde379e07a9033b8b2fa79",
+  "endingCommit": "56700e6036c026a5d0f4345445b181261a558dfd",
   "nextSteps": []
 }
