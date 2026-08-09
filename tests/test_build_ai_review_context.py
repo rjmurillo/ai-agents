@@ -795,6 +795,44 @@ def test_paginated_file_list_marks_later_api_failure_as_truncated(
     assert len(calls) == 2
 
 
+@pytest.mark.parametrize(("sentinel", "truncated"), [("", False), ("src/501.py", True)])
+def test_paginated_file_list_uses_sentinel_page_to_confirm_completeness(
+    monkeypatch: pytest.MonkeyPatch,
+    sentinel: str,
+    truncated: bool,
+):
+    full_page = "\n".join(f"src/{index}.py" for index in range(_mod.FILES_PER_PAGE))
+
+    def fake_run_gh(arguments: list[str]):
+        page = int(arguments[1].rsplit("page=", 1)[1])
+        return CommandResult(sentinel if page == _mod.MAX_FILE_PAGES + 1 else full_page, "", 0)
+
+    monkeypatch.setattr(_mod, "run_gh", fake_run_gh)
+
+    file_list, observed_truncated, api_failure = _mod.get_paginated_file_list(
+        "7",
+        "owner/repo",
+    )
+
+    assert _mod.count_lines(file_list) == _mod.MAX_FILE_PAGES * _mod.FILES_PER_PAGE
+    assert observed_truncated is truncated
+    assert api_failure == ""
+
+
+def test_large_pr_rejects_truncated_file_list_without_complete_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        _mod,
+        "get_paginated_file_list",
+        lambda _pr, _repo: ("src/partial.py", True, ""),
+    )
+    monkeypatch.setattr(_mod, "get_pr_name_only", lambda _pr, _repo: "")
+
+    with pytest.raises(_mod.ExternalGhError, match="completeness cap"):
+        _mod.build_large_pr_context("7", "owner/repo")
+
+
 def test_large_pr_uses_complete_fallback_after_partial_api_pagination(
     monkeypatch: pytest.MonkeyPatch,
 ):

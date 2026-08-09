@@ -65,16 +65,18 @@ def _json_key_word(word: str) -> str:
     """Match a credential-key word in literal or JSON Unicode-escaped form."""
     characters: list[str] = []
     for character in word:
-        escaped_forms = {rf"\\u{ord(character):04x}"}
+        escaped_forms = {rf"\\+u{ord(character):04x}"}
         if character.isalpha():
-            escaped_forms.add(rf"\\u{ord(character.upper()):04x}")
+            escaped_forms.add(rf"\\+u{ord(character.upper()):04x}")
         characters.append(rf"(?:{re.escape(character)}|{'|'.join(sorted(escaped_forms))})")
     return "".join(characters)
 
 
-_CREDENTIAL_SEPARATOR_CHARACTER = rf"(?:[-_\s]|{_json_key_word('-')}|{_json_key_word('_')}|\\u0020)"
+_CREDENTIAL_SEPARATOR_CHARACTER = (
+    rf"(?:[-_\s]|{_json_key_word('-')}|{_json_key_word('_')}|\\+u0020)"
+)
 _CREDENTIAL_SEPARATOR = rf"{_CREDENTIAL_SEPARATOR_CHARACTER}?"
-_CREDENTIAL_NAMESPACE_CHARACTER = r"(?:[A-Za-z0-9]|\\u[0-9a-f]{4})"
+_CREDENTIAL_NAMESPACE_CHARACTER = r"(?:[A-Za-z0-9]|\\+u[0-9a-f]{4})"
 _CREDENTIAL_NAMESPACE = rf"(?:{_CREDENTIAL_NAMESPACE_CHARACTER}|{_CREDENTIAL_SEPARATOR_CHARACTER})*"
 _CREDENTIAL_KEY_BASE = (
     "(?:"
@@ -216,7 +218,7 @@ def redact_ci_sink(
         while position < len(out):
             closing = out.find(quote, position)
             if closing < 0:
-                return _line_end(start)
+                return len(out)
             preceding_backslashes = _preceding_backslash_count(closing)
             if len(quote) == 1:
                 if preceding_backslashes % 2:
@@ -240,7 +242,7 @@ def redact_ci_sink(
             if quote:
                 closing = out.find(quote, position)
                 if closing < 0:
-                    return _line_end(start)
+                    return len(out)
                 preceding_backslashes = _preceding_backslash_count(closing)
                 if len(quote) == 1:
                     if preceding_backslashes % 2:

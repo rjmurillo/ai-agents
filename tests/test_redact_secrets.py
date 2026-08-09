@@ -257,6 +257,52 @@ class TestCiSinkWrappers:
         assert "second-secret-value" not in result.text
 
     @pytest.mark.parametrize(
+        "value",
+        [
+            '{"token":[\n"first-secret-value\nsecond-secret-value\n],"timeout":30}',
+            '{"token":{"inner":"first-secret-value\nsecond-secret-value\n},"timeout":30}',
+        ],
+    )
+    def test_malformed_multiline_credential_values_fail_closed(self, value):
+        result = redact_ci_sink(value)
+
+        assert "first-secret-value" not in result.text
+        assert "second-secret-value" not in result.text
+        assert result.text.endswith("***")
+
+    @pytest.mark.parametrize("serialization_depth", range(4))
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "api_key",
+            "access_key",
+            "private_key",
+            "client_secret",
+            "access_token",
+            "refresh_token",
+            "password",
+            "passwd",
+            "secret",
+            "token",
+        ],
+    )
+    def test_serialized_unicode_credential_keys_are_redacted(
+        self,
+        serialization_depth,
+        key,
+    ):
+        escaped_key = "".join(f"\\u{ord(character):04x}" for character in key)
+        value = f'{{"{escaped_key}":{{"inner":"LEAKME"}},"timeout":30}}'
+        for _ in range(serialization_depth):
+            value = json.dumps(value)[1:-1]
+
+        result = redact_ci_sink(value)
+
+        assert "LEAKME" not in result.text
+        assert "timeout" in result.text
+        assert result.reasons == ("credential-assignment",)
+
+    @pytest.mark.parametrize(
         "secrets",
         [
             ("abcdefgh", "abcdefghXYZ"),

@@ -321,15 +321,15 @@ def get_pr_name_only(pr_number: str, repository: str) -> str:
         return result.stdout.strip()
     if PERMANENT_AUTH_FAILURE.search(_failure_text(result)):
         return ""
-    file_list, _truncated, api_failed = get_paginated_file_list(pr_number, repository)
-    return "" if api_failed else file_list
+    file_list, truncated, api_failed = get_paginated_file_list(pr_number, repository)
+    return "" if api_failed or truncated else file_list
 
 
 def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool, str]:
     files: list[str] = []
     truncated = False
     api_failure = ""
-    for page in range(1, MAX_FILE_PAGES + 1):
+    for page in range(1, MAX_FILE_PAGES + 2):
         result = run_gh(
             [
                 "api",
@@ -349,11 +349,12 @@ def get_paginated_file_list(pr_number: str, repository: str) -> tuple[str, bool,
         if not page_files:
             break
 
+        if page > MAX_FILE_PAGES:
+            truncated = True
+            break
         files.extend(page_files)
         if len(page_files) < FILES_PER_PAGE:
             break
-    else:
-        truncated = True
 
     return "\n".join(files), truncated, api_failure
 
@@ -384,7 +385,17 @@ def build_large_pr_context(pr_number: str, repository: str) -> ReviewContext:
             print(
                 "::warning::File list truncated at "
                 f"{MAX_FILE_PAGES * FILES_PER_PAGE} files. "
-                "PR may have more changes not shown in review context."
+                "Attempting --name-only transport fallback."
+            )
+            name_only = get_pr_name_only(pr_number, repository)
+            if name_only:
+                return ReviewContext(
+                    f"[Large PR - showing file list only]\n{name_only}",
+                    "summary",
+                )
+            raise ExternalGhError(
+                "GitHub API pagination reached its completeness cap while fetching "
+                f"PR #{pr_number}; no complete alternate file list was available"
             )
         context = (
             "[Large PR - >300 files (GitHub diff limit exceeded), showing file list only]"
