@@ -90,6 +90,11 @@
         "complete": true,
         "level": "MUST",
         "evidence": "Full pytest, mypy hook policy, merge tree ratchet, and pre_pr.py passed."
+      },
+      "qaValidation": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/qa/pr-4721-security-cluster.md"
       }
     }
   },
@@ -120,7 +125,7 @@
       "commit": "9b849847e"
     }
   ],
-  "endingCommit": "6fb7a4db7",
+  "endingCommit": "1178ba156c2fb692c7572f1ed6d962305cf46e6b",
   "nextSteps": [],
   "developmentPhase": {
     "current": "completion"
