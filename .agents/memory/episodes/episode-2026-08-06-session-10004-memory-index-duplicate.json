@@ -117,12 +117,25 @@
       "caused_by": [
         "e008"
       ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-09T02:08:00+00:00",
+      "type": "milestone",
+      "content": "Record PR 4735 merge-unblock retrospective",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-06-session-10004-memory-index-duplicate"
     }
   ],
   "metrics": {
-    "duration_minutes": 8,
+    "duration_minutes": 3572,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,

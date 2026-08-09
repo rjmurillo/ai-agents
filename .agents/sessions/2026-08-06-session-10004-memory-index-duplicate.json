@@ -138,6 +138,11 @@
       "time": "2026-08-06T14:44:00+00:00",
       "task": "Validate corrective change",
       "outcome": "Passed 89 tests, all requested ratchets, the full memory index validator, ruff, and a mutation control that disabled the new guard"
+    },
+    {
+      "time": "2026-08-09T02:08:00+00:00",
+      "task": "Record PR 4735 merge-unblock retrospective",
+      "outcome": "Added retrospective evidence after pre-push retrospective-policy blocked an otherwise green push."
     }
   ],
   "episodeMetrics": {
