@@ -528,12 +528,26 @@ class TestTombstone:
 # ===========================================================================
 
 
+_LEASE_TIMELINE: list[dict] | None = None
+
+
 def _patch_list(comments):
-    return patch.object(_mod, "list_lease_comments", return_value=comments)
+    global _LEASE_TIMELINE
+    _LEASE_TIMELINE = list(comments)
+
+    def _list(*args, **kwargs):
+        return _LEASE_TIMELINE
+
+    return patch.object(_mod, "list_lease_comments", side_effect=_list)
 
 
-def _patch_post():
-    return patch.object(_mod, "post_lease_comment", return_value=None)
+def _patch_post(author: str = _AUTHOR, created_at: datetime | None = None):
+    def _capture(owner, repo, pr, body):
+        if _LEASE_TIMELINE is not None:
+            stamp = _rfc(created_at or datetime.now(UTC))
+            _LEASE_TIMELINE.append(_comment(body, stamp, author=author))
+
+    return patch.object(_mod, "post_lease_comment", side_effect=_capture)
 
 
 @contextlib.contextmanager
@@ -562,6 +576,23 @@ class TestAcquire:
             result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
         assert result.action == "ACT"
         assert result.reason == "free"
+        post.assert_called_once()
+
+    def test_acquire_loses_the_post_race_returns_skip(self):
+        competitor = _comment(
+            _body(owner="remote:coderabbit-autofix", session="ci-9"),
+            "2026-06-19T12:00:01Z",
+            author="coderabbit[bot]",
+        )
+        with (
+            patch.object(_mod, "list_lease_comments", side_effect=[[], [competitor]]),
+            patch.object(_mod, "post_lease_comment", return_value=None) as post,
+            _patch_head(),
+            _patch_login(),
+        ):
+            result = acquire(_OWNER, _SESSION, "o", "r", 1, now=_NOW)
+        assert result.action == "SKIP"
+        assert result.reason.startswith("held-by:")
         post.assert_called_once()
 
     def test_acquire_on_held_pr_returns_skip_without_posting(self):
@@ -633,7 +664,7 @@ class TestAcquire:
     def test_acquire_passes_injected_acting_author(self):
         # The acting_author override bypasses _gh_authenticated_login.
         mine = _comment(_body(), "2026-06-19T11:59:00Z", author="injected-login")
-        with _patch_list([mine]), _patch_post(), _patch_head():
+        with _patch_list([mine]), _patch_post(author="injected-login"), _patch_head():
             result = acquire(
                 _OWNER, _SESSION, "o", "r", 1, now=_NOW, acting_author="injected-login"
             )
@@ -695,6 +726,8 @@ def _captured_post():
 
     def _capture(owner, repo, pr, body):
         bodies.append(body)
+        if _LEASE_TIMELINE is not None:
+            _LEASE_TIMELINE.append(_comment(body, _now_iso(), author=_AUTHOR))
 
     return patch.object(_mod, "post_lease_comment", side_effect=_capture), bodies
 
@@ -1596,30 +1629,18 @@ class TestRenewSubcommand:
         # Each renew is a self-renewal (ACT/self-renew). This documents the
         # intended usage pattern for pre-push hooks longer than TTL
         # (issue #4376; measured ceiling: python-tests 1740s > 15min TTL).
-        posted = []
+        timeline = []
         now_ptr = [_NOW]
 
         def _advance_and_renew(minutes: int):
             now_ptr[0] = now_ptr[0] + timedelta(minutes=minutes)
-            # The latest posted comment is the live lease at renew-time.
-            current = select_authoritative_lease(posted[-1:] if posted else [])
-            if current:
-                lease_list = [
-                    {
-                        "body": posted[-1]["body"],
-                        "created_at": posted[-1]["created_at"],
-                        "user": {"login": _AUTHOR},
-                    }
-                ]
-            else:
-                lease_list = []
             with (
-                patch.object(_mod, "list_lease_comments", return_value=lease_list),
+                patch.object(_mod, "list_lease_comments", side_effect=lambda *a, **k: timeline),
                 patch.object(
                     _mod,
                     "post_lease_comment",
-                    side_effect=lambda o, r, p, b: posted.append(
-                        {"body": b, "created_at": _rfc(now_ptr[0])}
+                    side_effect=lambda o, r, p, b: timeline.append(
+                        {"body": b, "created_at": _rfc(now_ptr[0]), "user": {"login": _AUTHOR}}
                     ),
                 ),
                 _patch_head(),
@@ -1628,11 +1649,13 @@ class TestRenewSubcommand:
 
         # Initial acquire at t=0.
         with (
-            patch.object(_mod, "list_lease_comments", return_value=[]),
+            patch.object(_mod, "list_lease_comments", side_effect=lambda *a, **k: timeline),
             patch.object(
                 _mod,
                 "post_lease_comment",
-                side_effect=lambda o, r, p, b: posted.append({"body": b, "created_at": _rfc(_NOW)}),
+                side_effect=lambda o, r, p, b: timeline.append(
+                    {"body": b, "created_at": _rfc(_NOW), "user": {"login": _AUTHOR}}
+                ),
             ),
             _patch_head(),
         ):

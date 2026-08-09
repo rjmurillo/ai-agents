@@ -475,6 +475,22 @@ def classify_acquire(
     return {"action": "ACT", "reason": "free"}
 
 
+def _claim_is_authoritative(lease: Lease | None, claim: Lease, author: str) -> bool:
+    """Return True when a reread lease still matches the posted claim.
+
+    The posted body is serialized to whole-second RFC3339 timestamps, so
+    the in-memory claim must be normalized to the same precision before
+    comparing.
+    """
+    normalized = replace(
+        claim,
+        author=author,
+        acquired_at=claim.acquired_at.replace(microsecond=0),
+        expires_at=claim.expires_at.replace(microsecond=0),
+    )
+    return lease == normalized
+
+
 # ---------------------------------------------------------------------------
 # Marker rendering
 # ---------------------------------------------------------------------------
@@ -802,6 +818,11 @@ def acquire(
     local HEAD is still read and reported as ``local_head_sha``, and a
     mismatch is logged with both values (issues #4357, #4375).
 
+    After posting a claim, acquire rereads the authoritative timeline and
+    only returns ACT when the posted claim is still the latest live marker.
+    A competing writer that wins the reread race turns the acquire into
+    SKIP, so two actors do not both continue with false success.
+
     Only the comment read fails open. The head read runs after the lease
     verdict and records the zero sentinel on failure, so a transient error
     on it cannot skip the read that enforces mutual exclusion, and it costs
@@ -844,6 +865,25 @@ def acquire(
         return LeaseResult(
             "ACT", "lease-store-unavailable", base_sha=base_sha, local_head_sha=local_sha
         )
+
+    try:
+        latest_comments = list_lease_comments(repo_owner, repo, pr)
+    except LeaseStoreError as exc:
+        logger.warning("op=lease_claim_recheck_failopen pr=%d err=%s", pr, safe_log_str(str(exc)))
+        return LeaseResult(
+            "ACT", "lease-store-unavailable", base_sha=base_sha, local_head_sha=local_sha
+        )
+
+    current_after_post = select_authoritative_lease(latest_comments)
+    if not _claim_is_authoritative(current_after_post, claim, author):
+        if current_after_post is not None and current_after_post.author not in ("", author):
+            return LeaseResult(
+                "SKIP",
+                f"held-by:{current_after_post.owner}",
+                expires_at=_to_rfc3339(current_after_post.expires_at),
+            )
+        return LeaseResult("SKIP", "lease-race-lost", expires_at=_to_rfc3339(claim.expires_at))
+
     return LeaseResult(
         "ACT",
         verdict["reason"],

@@ -321,7 +321,7 @@ cleanup_pr_autofix
 1. Triage all open PRs into tiers T1-T5 using `test_pr_merge_ready.py`.
 2. Process T1 (land-ready) first, then T2 (CI fix), T3/T4 (threads), T5 (bot).
 3. **Before acting on any PR, call `check_pr_live_state.py`** and skip the row when it returns `Data.action=SKIP` (issue #2455). The triage snapshot from step 1 goes stale fast in a repo with heavy merge automation; the gate catches PRs merged/closed mid-walk and PRs whose diff is already on `main` via a sibling consolidated PR.
-4. **Before any branch mutation, acquire the branch lease** via `pr_autofix_lease.py acquire` (issue #3413). A SKIP result means another session holds the branch; exit before creating a worktree or pushing. Release the lease via `pr_autofix_lease.py release` when done or on error. The lease is advisory; the Force-Push Safety SHA gate is the hard backstop.
+4. **Before any branch mutation, acquire the branch lease** via `pr_autofix_lease.py acquire` (issue #3413). A SKIP result means another session holds the branch; exit before creating a worktree or pushing. Release the lease via `pr_autofix_lease.py release` when done or on error. The lease is advisory; the Force-Push Safety SHA gate is the hard backstop. For any remote mutation that can outlive the final pre-mutation poll, keep renewal supervision active through the whole critical section and re-verify lease ownership immediately before the mutation. If renewal ownership is lost, block the mutation and release the lease before continuing.
 5. For each PR that the live-state gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
@@ -551,6 +551,7 @@ Per PR processed:
 - [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (another agent holds it); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
 - [ ] Tier classification recorded (T1-T5).
 - [ ] Branch lease acquired via `pr_autofix_lease.py acquire` before any branch mutation (issue #3413). SKIP result caused early exit; ACT result recorded with `base_sha`.
+- [ ] Remote mutations stayed under renewal supervision and were re-verified immediately before the mutation; if renewal ownership was lost, the mutation was blocked and the lease was released first.
 - [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
 - [ ] Auto-merge disarm ran after live-state ACT on any non-T1 PR (issue #3913): `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
 - [ ] Live-state gate re-ran immediately before any base refresh or conflict resolution (issue #4349): stale gate result from the start of the session is not sufficient; the PR can merge mid-cycle.
