@@ -55,6 +55,12 @@ def escapes_workspace(session_file: str) -> bool:
     return candidate != root and root not in candidate.parents
 
 
+def has_symlink_component(session_file: str) -> bool:
+    """Return True when the path or any parent component is a symlink."""
+    path = Path(session_file)
+    return path.is_symlink() or any(parent.is_symlink() for parent in path.parents)
+
+
 def must_failure_count(exit_code: int) -> int:
     """Read the MUST-failure count the validator reported.
 
@@ -129,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     session_path = Path(session_file)
-    if session_path.is_symlink():
+    if has_symlink_component(session_file):
         print(
             f"::error::Refusing a symlink session path: {session_file}",
             file=sys.stderr,
