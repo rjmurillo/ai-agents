@@ -76,7 +76,7 @@
       "type": "milestone",
       "content": "Ran the retrospective workflow after the pre-push evidence gate blocked the first push.",
       "caused_by": [
-        "e007"
+        "e010"
       ],
       "leads_to": [],
       "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
@@ -90,7 +90,61 @@
         "e005"
       ],
       "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-09T03:30:09+00:00",
+      "type": "milestone",
+      "content": "Ran the full pre-push suite after adding retrospective evidence.",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009",
+        "e011"
+      ],
+      "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-09T04:02:03+00:00",
+      "type": "milestone",
+      "content": "Ran independent Claude Opus and adversarial GPT-5.6 Sol reviews on the updated branch.",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-09T04:25:37+00:00",
+      "type": "milestone",
+      "content": "Ran final independent re-reviews and five real CLI smoke tests.",
+      "caused_by": [
+        "e009",
+        "e011"
+      ],
+      "leads_to": [
         "e006"
+      ],
+      "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-09T04:02:03+00:00",
+      "type": "commit",
+      "content": "Commit: ba568aa39d1b8e3d37085c83643fc534c2d0a166",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
       ],
       "_source_session": "2026-08-08-session-10021-issue-3918-analyst-execution-contract"
     }
@@ -100,8 +154,8 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 2
+    "commits": 3,
+    "files_changed": 18
   },
   "lessons": []
 }
