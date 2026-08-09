@@ -135,14 +135,25 @@ def redact(text: str, *, include_hex: bool = True) -> RedactionResult:
     return RedactionResult(text=out, reasons=tuple(reasons))
 
 
-def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> RedactionResult:
+def redact_ci_sink(
+    text: str,
+    *,
+    secret_values: Iterable[str] = (),
+    redact_assignments: bool = True,
+) -> RedactionResult:
     """Redact CI credentials using exact values, wrappers, and token shapes."""
     reasons: list[str] = []
     out = text
-    for secret in secret_values:
-        if len(secret) >= 8 and secret in out:
+    installed_secrets = sorted(
+        {secret for secret in secret_values if len(secret) >= 8},
+        key=len,
+        reverse=True,
+    )
+    for secret in installed_secrets:
+        count = out.count(secret)
+        if count:
             out = out.replace(secret, "***")
-            reasons.append("environment-secret")
+            reasons.extend(["environment-secret"] * count)
 
     out, authorization_count = re.subn(
         r"(?i)(authorization:\s*(?:bearer|token|basic)\s+)\S+",
@@ -187,7 +198,12 @@ def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> Redaction
             closing = out.find(quote, position)
             if closing < 0:
                 return _line_end(start)
-            if len(quote) == 1 and _preceding_backslash_count(closing) % 2:
+            preceding_backslashes = _preceding_backslash_count(closing)
+            if len(quote) == 1:
+                if preceding_backslashes % 2:
+                    position = closing + len(quote)
+                    continue
+            elif preceding_backslashes % 4:
                 position = closing + len(quote)
                 continue
             tail_start = closing + len(quote)
@@ -226,27 +242,28 @@ def redact_ci_sink(text: str, *, secret_values: Iterable[str] = ()) -> Redaction
             return f"{prefix}{leading}{quote}***{quote if closing else ''}"
         return f"{prefix}{leading}***"
 
-    redacted_parts: list[str] = []
-    cursor = 0
-    assignment_count = 0
-    while True:
-        match = _CREDENTIAL_ASSIGNMENT.search(out, cursor)
-        if match is None:
-            redacted_parts.append(out[cursor:])
-            break
-        value_start = match.end()
-        value_end = _value_end(value_start)
-        replacement = _redacted_assignment(match.group(1), out[value_start:value_end])
-        redacted_parts.append(out[cursor:match.start()])
-        if replacement is None:
-            redacted_parts.append(out[match.start():value_end])
-        else:
-            redacted_parts.append(replacement)
-            assignment_count += 1
-        cursor = value_end
+    if redact_assignments:
+        redacted_parts: list[str] = []
+        cursor = 0
+        assignment_count = 0
+        while True:
+            match = _CREDENTIAL_ASSIGNMENT.search(out, cursor)
+            if match is None:
+                redacted_parts.append(out[cursor:])
+                break
+            value_start = match.end()
+            value_end = _value_end(value_start)
+            replacement = _redacted_assignment(match.group(1), out[value_start:value_end])
+            redacted_parts.append(out[cursor:match.start()])
+            if replacement is None:
+                redacted_parts.append(out[match.start():value_end])
+            else:
+                redacted_parts.append(replacement)
+                assignment_count += 1
+            cursor = value_end
 
-    out = "".join(redacted_parts)
-    reasons.extend(["credential-assignment"] * assignment_count)
+        out = "".join(redacted_parts)
+        reasons.extend(["credential-assignment"] * assignment_count)
 
     return RedactionResult(
         text=out,

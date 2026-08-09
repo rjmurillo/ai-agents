@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import sys
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -143,6 +144,19 @@ class TestCiSinkWrappers:
             assert f"{scheme}://******@example.com/path" == result.text
             assert "url-credential" in result.reasons
 
+    @pytest.mark.parametrize(
+        "secrets",
+        [
+            ("abcdefgh", "abcdefghXYZ"),
+            ("abcdefghXYZ", "abcdefgh"),
+        ],
+    )
+    def test_overlapping_environment_secrets_are_redacted_longest_first(self, secrets):
+        result = redact_ci_sink("header=abcdefghXYZ", secret_values=secrets)
+
+        assert result.text == "header=***"
+        assert result.reasons == ("environment-secret",)
+
     def test_mixed_case_credential_assignments_are_redacted(self):
         escaped_key = "access" + "\\u005f" + "token"
         escaped_value = "prefix" + '\\"' + "suffix"
@@ -199,6 +213,20 @@ class TestCiSinkWrappers:
         assert result.text == '{"password":"***","x":1}'
         assert result.reasons == ("credential-assignment",)
 
+    @pytest.mark.parametrize("boundary", [",", ", ", ";", "}", "]", " "])
+    def test_escaped_json_inner_quote_at_boundary_cannot_leak_suffix(self, boundary):
+        value = (
+            r'{\"password\":\"SECRET_PREFIX\\\"'
+            + boundary
+            + r'SECRET_SUFFIX\",\"timeout\":30}'
+        )
+
+        result = redact_ci_sink(value)
+
+        assert "SECRET_PREFIX" not in result.text
+        assert "SECRET_SUFFIX" not in result.text
+        assert r'\"timeout\":30}' in result.text
+
     def test_credential_assignment_handles_unterminated_quoted_value(self):
         value = '{"password":"secret'
 
@@ -222,6 +250,45 @@ class TestCiSinkWrappers:
 
         assert result.text == value
         assert not result.redacted
+
+    def test_source_profile_preserves_assignment_expressions(self):
+        value = (
+            'token = accept_unverified_jwt(user_input)\n'
+            'password = response["password"]\n'
+            "secret = payload.secret"
+        )
+
+        result = redact_ci_sink(value, redact_assignments=False)
+
+        assert result.text == value
+        assert not result.redacted
+
+    def test_source_profile_still_redacts_installed_and_shaped_secrets(self):
+        installed = "opaque-environment-value"
+        shaped = f"ghp_{'A' * 36}"
+        value = f"password={installed}\ntoken={shaped}"
+
+        result = redact_ci_sink(
+            value,
+            secret_values=(installed,),
+            redact_assignments=False,
+        )
+
+        assert installed not in result.text
+        assert shaped not in result.text
+        assert "***" in result.text
+        assert "[redacted: github-token]" in result.text
+
+    def test_credential_assignment_scanner_avoids_quadratic_scaling(self):
+        line = "ordinary_name = ordinary_value\n"
+        value = (line * (32 * 1024 // len(line) + 1))[: 32 * 1024]
+
+        started = time.perf_counter()
+        result = redact_ci_sink(value)
+        elapsed = time.perf_counter() - started
+
+        assert result.text == value
+        assert elapsed < 5
 
     def test_credential_assignments_preserve_trailing_structured_fields(self):
         raw_json = '{"password":"secret","timeout":30}'
