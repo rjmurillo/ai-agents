@@ -121,8 +121,8 @@ investigation.
 **PR identity gate (required before reporting PR findings)**: If the task
 concerns a PR, reconcile these identities from supplied or retrieved evidence
 before proceeding. A mismatch means the context and code being analyzed are
-different work items. Stop and return the mismatch as an error. Do not
-substitute local checkout content for the requested PR.
+different work items. Stop and return the mismatch as an error.
+Do not substitute local checkout content for the requested PR.
 
 | Identity | API field | Local source | Mismatch action |
 |----------|-----------|--------------|-----------------|
