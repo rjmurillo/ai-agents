@@ -1352,6 +1352,7 @@ def test_write_outputs_redacts_context_before_every_sink(
     monkeypatch.setenv("GITHUB_OUTPUT", str(output_path))
     monkeypatch.setenv("RUNNER_TEMP", str(runner_temp))
     monkeypatch.setenv("GITHUB_TOKEN", environment_secret)
+    monkeypatch.delenv("PR_NUMBER", raising=False)
 
     _mod.write_outputs(
         ReviewContext(
